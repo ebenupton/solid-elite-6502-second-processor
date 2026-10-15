@@ -20643,16 +20643,14 @@ ENDMACRO
                         \ If we get here we need to negate both the result and
                         \ the sign in S, as both are the wrong sign
 
- PHA                    \ Store the result of the subtraction on the stack
-
  LDA S                  \ Flip the sign of S
  EOR #%10000000
  STA S
 
- PLA                    \ Restore the subtraction result into A
-
- EOR #%11111111         \ Negate the result in A using two's complement, i.e.
- ADC #1                 \ set A = ~A + 1
+ LDA R                  \ C is clear (BCC above), so A = R - Q - 1 (mod 256)
+ SBC Q                  \ with C clear again as R < Q, and then
+ EOR #%11111111         \ A = ~(R - Q - 1) = Q - R, the negated result, with
+                        \ N/Z set from the same value as the original ~A + 1
 
  RTS                    \ Return from the subroutine
 
@@ -33925,10 +33923,10 @@ ENDIF
                         \ so (S R) = v_x * sin(CNT2) (this leaves the C flag
                         \ set from FMLTU for the ADC #15 below)
 
- LDA CNT2               \ If (CNT2 + 16) mod 64 >= 33 then this sets the C flag,
- ADC #15                \ otherwise it's clear, so C is the sign bit of
- AND #63                \ cos(CNT2)
- CMP #33                \
+ LDA CNT2               \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
+ ADC #207               \ then this sets the C flag, otherwise it's clear, so C
+ CMP #225               \ is the sign bit of cos(CNT2): CNT2 + 208 is 225..255
+                        \ only for CNT2 = 17..47 (48..63 wrap to 0..15)
 
  LDA #0                 \ Shift the C flag into the sign bit of XX16+4, so:
  ROR A                  \ XX16+4 has the correct sign for cos(CNT2)
@@ -37334,10 +37332,19 @@ INCLUDE "build/dashtab.asm"
  CMP #&80+96            \ Negative: if |Y1| >= 96 then it's off the screen, so
  BCS px4s               \ return via px4s (C = 1 as before)
 
- EOR #%01111111         \ The y-coordinate offset is negative, so flip all the
- ADC #1                 \ bits apart from the sign bit and add 1 (C = 0 here)
+ EOR #%10000000         \ Negative: A = m = |Y1| (0..95), C = 0 here
+ BEQ px2z               \ m = 0 (negative zero) takes the original route below
 
- BRA PX2                \ Join the common code
+ ADC #Y                 \ A = Y + m, which is exactly what the old sequence
+                        \ (EOR #&7F, ADC #1, EOR #&FF, ADC #Y+1) gives for
+                        \ m >= 1, with identical N, Z, C (= 0) and V
+
+ BRA PX2+4              \ Skip PX2's EOR/ADC to the JSR H_STAR
+
+.px2z
+
+ SEC                    \ m = 0: old path had A = 0, C = 1 here (from ADC #1 on
+ BRA PX2                \ &FF), so PX2 gives A = Y+1, C = 1, V = 0 as before
 
 .px2p
 
@@ -38242,7 +38249,7 @@ INCLUDE "build/dashtab.asm"
  LDA SQ1H,X
 .MLU28
  SBC SQ2H,X
- STA MLT2H+1
+ TAY                    \ Keep the high byte of A * Q in Y
 
                         \ The product is exact and non-negative (< 2^16), so
                         \ the 16-bit subtraction never borrows and C is set
@@ -38268,15 +38275,13 @@ INCLUDE "build/dashtab.asm"
 .MLT2L
  ADC #0                 \ Gets modified (low byte of A * Q)
  STA P+1
-.MLT2H
- LDA #0                 \ Gets modified (high byte of A * Q)
+ TYA                    \ High byte of A * Q, plus the carry
  ADC #0
-
- LDX #0                 \ Set X = 0, Z set and N clear, as in the original
 
                         \ The C flag is clear, as in the original, because the
                         \ 24-bit product (A ~P) * Q < 2^24 so ADC #0 above
-                        \ never carries out
+                        \ never carries out. X and Y are corrupted and Z/N
+                        \ reflect A, but no caller reads X, Y, Z or N
 
  RTS                    \ Return from the subroutine
 
@@ -38963,17 +38968,20 @@ INCLUDE "build/dashtab.asm"
 
  FOR I%, 1, 8
 
-  ROL A                 \ Shift A to the left
+                        \ BBC Master port: the remainder starts at 0 and gains
+                        \ one bit per iteration, so before the ROL in iteration
+                        \ I% it is at most 2^(I%-1) - 1 <= 127, so the ROL never
+                        \ sets the C flag (the original's BCS was never taken).
+                        \ After the CMP the C flag is set iff A >= Q, and the
+                        \ SBC then leaves it set, so the original SEC is dropped
 
-  BCS P%+6              \ If the C flag is set (i.e. bit 7 of A was set) then
-                        \ skip straight to the subtraction
+  ROL A                 \ Shift A to the left (C is always clear afterwards)
 
   CMP Q                 \ If A < Q skip the following subtraction (with the C
-  BCC P%+5              \ flag clear)
+  BCC P%+4              \ flag clear)
 
-  SBC Q                 \ A >= Q, so set A = A - Q
-
-  SEC                   \ Set the C flag, so that P gets a 1 shifted into bit 0
+  SBC Q                 \ A >= Q, so set A = A - Q, leaving the C flag set so
+                        \ that P gets a 1 shifted into bit 0
 
   ROL P                 \ Shift P to the left, pulling the C flag into bit 0
 
