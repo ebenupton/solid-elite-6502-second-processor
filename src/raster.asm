@@ -254,6 +254,7 @@ R_ENDPAGE 9
 .r_cb1 EQUB 0           \ CB + 1
 .r_n EQUB 0
 .r_slow EQUB 0
+.r_dsub EQUB 0          \ r_dmb -> r_drg: repaint only the dirty part
 .r_side EQUB 0
 .r_side4 EQUB 0
 .r_i0 EQUB 0
@@ -745,6 +746,8 @@ r_bdx3 = R_BDX30
   STA r_pt406+2
   STA r_pt407+2
   LDA r_sbh_dl,X          \ group r_dl
+  STA r_pt408+2
+  STA r_pt409+2
   STA r_pt01+2
   STA r_pt02+2
   STA r_pt05+2
@@ -2444,9 +2447,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA end+1
   STX st+1
 .lp
-.^r_pt88 LDA r_dl,X
-  INC A
-  BNE gd                  \ dirty
   LDA R_NDISCL,X
 .^r_pt89 CMP r_sl,X
   BNE ch
@@ -2461,25 +2461,31 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .^r_pt92 CMP r_bdn,X
   BNE ch
   TAY
-  BEQ nx
+  BEQ sm
   LDA R_NDX0,X
 .^r_pt93 CMP r_bdx0,X
   BNE chb
   DEY
-  BEQ nx
+  BEQ sm
   LDA R_NDX1,X
 .^r_pt94 CMP r_bdx1,X
   BNE chb
   DEY
-  BEQ nx
+  BEQ sm
   LDA R_NDX2,X
 .^r_pt95 CMP r_bdx2,X
   BNE chb
   DEY
-  BEQ nx
+  BEQ sm
   LDA R_NDX3,X
 .^r_pt96 CMP r_bdx3,X
   BNE chb
+.sm
+.^r_pt88 LDA r_dl,X       \ unchanged: dirty? then repaint only the dirty part
+  INC A
+  BEQ nx
+  INC r_dsub
+  BRA gd
 .nx
   INX
 .end
@@ -2498,11 +2504,17 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .e2
   RTS
 .chb
+.^r_pt408 LDA r_dl,X
+  INC A
+  BNE gd                  \ dirty
   JMP r_dq
 .^r_dmbx
   LDX RZ_Y
   BRA nx
 .ch
+.^r_pt409 LDA r_dl,X
+  INC A
+  BNE gd                  \ dirty
   JSR r_dpe
   LDX RZ_Y
   BRA nx
@@ -2513,6 +2525,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .^r_pt97 AND r_sl,Y
   INC A
   BNE gg
+  STZ r_dsub
   JSR r_dp1               \ no disc, old or new: black the dirty extent
   LDX RZ_Y
   BRA nx
@@ -3833,8 +3846,33 @@ NEXT
   STA r_iL
   STZ r_iR
 .idone
+  LDX r_dsub
+  STZ r_dsub
   LDA r_segs
   BEQ dc0
+  TXA                     \ span and boundaries unchanged (r_dmb): only the
+  BEQ whole               \ dirty part of the span
+  LDA r_nL
+  PHA
+  LDA r_nR
+  PHA
+  LDA r_dL
+  CMP r_nL
+  BCC sb1
+  STA r_nL
+.sb1
+  LDA r_dR
+  CMP r_nR
+  BCS sb2
+  STA r_nR
+.sb2
+  JSR r_segw
+  PLA
+  STA r_nR
+  PLA
+  STA r_nL
+  JMP nodisc
+.whole
   JSR r_segw              \ boundaries: repaint the whole new span
   JMP nodisc
 .dc0
