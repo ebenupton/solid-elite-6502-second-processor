@@ -1008,6 +1008,7 @@ ENDMACRO
  LDA #HI(F_HW)
  STA fpr_ld+2
  STA fpr_ld2+2
+ JMP f_discspans
 
 .fds_none
  LDA #1
