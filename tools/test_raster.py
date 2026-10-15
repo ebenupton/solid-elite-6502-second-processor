@@ -820,6 +820,10 @@ class Tester:
                     ref.span(y, l, r, dce, dco)
             # WL/WR must cover every changed pixel so far
             wl = [(m.rd('R_WL', y), m.rd('R_WR', y)) for y in range(192)]
+            wt, wb = m.rd('R_PRWT'), m.rd('R_PRWB')
+            for y in range(192):
+                if wl[y][1] and not wt <= y <= wb:
+                    raise AssertionError('frame %d: R_WR[%d] set outside the WL rows %d..%d' % (f, y, wt, wb))
             # shapes
             newships = []
             for (sx, sy, svx, svy) in ships:

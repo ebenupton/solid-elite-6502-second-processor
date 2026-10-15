@@ -3,7 +3,7 @@
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
 import { readFileSync } from "fs";
 const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1]]); return acc; }, []));
-const ROOT = "/Users/ebenupton/elite";
+const ROOT = process.env.ROOT || decodeURIComponent(new URL("..", import.meta.url).pathname).replace(/\/$/, "");
 const FROM = +(a.from || 200), N = +(a.n || 200);
 const syms = {};
 for (const m of readFileSync(`${ROOT}/build/symbols.txt`, "latin1").matchAll(/'([^']+)':(\d+)/g)) syms[m[1]] = +m[2];

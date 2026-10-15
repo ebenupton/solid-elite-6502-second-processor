@@ -101,6 +101,11 @@
 \ Frame order for buffer b:  R_SETBUF b; R_STARERASE; (fill R_NDISC*, R_NDT,
 \ R_NDB, R_DCE/R_DCO) R_DISCROWS; R_POLY/R_LINE/R_DOT ...; R_STARPLOT; text.
 \
+\ R_DISCROWS first hands the dirty rows that are neither old nor new disc rows
+\ to bank 7 (r7_crep): those rows hold only shapes over black there (text
+\ cells under them are redrawn through R_WL/R_WR), so
+\ the extent is widened to whole bytes and blacked by one row run, R_WL/R_WR
+\ set to it; the row loop below then only visits the disc rows.
 \ R_DISCROWS, per row y of the clip window: writes the disc colour on the new
 \ span minus the intact part of the old one (old span minus old dirty) and
 \ black on (old span + old dirty) minus the new span; then DISC[b][y] = new,
@@ -285,10 +290,10 @@ r_er = r_ov + 11
 r_ea = r_ov + 13
 r_eb = r_ov + 15
 \ overlay: R_DISCROWS rows
-r_nt = r_ov + 0
-r_nb = r_ov + 1
-r_lo = r_ov + 2
-r_hi = r_ov + 3
+r_nt = R_PRNT           \ (HAZEL: bank 7's r7_crep reads them)
+r_nb = R_PRNB
+r_lo = R_PRLO
+r_hi = R_PRHI
 r_oL = r_ov + 4
 r_oR = r_ov + 5
 r_dL = r_ov + 6
@@ -303,8 +308,8 @@ r_dcol = r_ov + 14
 r_ba = r_ov + 15
 r_bb = r_ov + 16
 r_tl = r_ov + 17
-r_dya = r_ov + 18
-r_dyz = r_ov + 19
+r_dya = R_PRDYA
+r_dyz = R_PRDYZ
 r_fe = r_ov + 20
 r_fo = r_ov + 21
 r_bv = r_ov + 22        \ boundaries: new (4), then old (4) at r_bv+4
@@ -500,21 +505,14 @@ R_ENDPAGE 17
 .n4
   RTS
 }
-.R_WMERGE
-{
-  LDY R_CT
-.lp
-.^r_pt42 LDA r_dr,Y
-  BEQ nx
-  TAX
-.^r_pt43 LDA r_dl,Y
-  JSR r_wlu
-.nx
-  CPY R_CB
-  INY
-  BCC lp
-  RTS
-}
+.R_WMERGE                 \ (bank 7: r7_wmerge)
+  LDX #LO(r7_wmerge)
+  BRA r_c7
+.r_c7                     \ X = low byte of a bank-7 routine in page HI(r7_wmerge)
+  STX r_hzt7
+  LDX #HI(r7_wmerge)
+  STX r_hzt7+1
+  JMP r_call7
 R_ENDPAGE 18
 .r_run19 R_RUN 19
 .r_div32
@@ -634,6 +632,23 @@ R_ENDPAGE 21
 }
 R_ENDPAGE 22
 .r_run23 R_RUN 23
+.r_crep5                  \ R_DISCROWS: r7_crep (returns X = r_buf)
+  STZ R_PRCWB
+  LDA r_dyz
+  CMP r_dya
+  BCC c4                  \ (no dirty rows)
+  LDX #LO(r7_crep)
+  JSR r_c7
+.c4
+  LDX r_buf
+  RTS
+.r_cwb5                   \ R_DISCROWS: the repair's rows into r_wt..r_wb
+  LDA R_PRCWB             \ (the disc rows' code assumes rows go upwards)
+  CMP r_wb
+  BCC c5
+  STA r_wb
+.c5
+  RTS
 R_ENDPAGE 23
 
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
@@ -737,7 +752,6 @@ r_bdx3 = R_BDX30
   STA r_pt19+2
   STA r_pt23+2
   STA r_pt25+2
-  STA r_pt43+2
   STA r_pt46+2
   STA r_pt48+2
   STA r_pt60+2
@@ -760,7 +774,6 @@ r_bdx3 = R_BDX30
   STA r_pt16+2
   STA r_pt20+2
   STA r_pt24+2
-  STA r_pt42+2
   STA r_pt47+2
   STA r_pt49+2
   STA r_pt62+2
@@ -2274,6 +2287,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA r_dya
   LDA r_dyb,X
   STA r_dyz
+  JSR r_crep5             \ dirty rows that are no disc rows: bank 7
   LDA r_nt
   STA r_dst,X
   LDA r_nb
@@ -2370,6 +2384,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JSR r_dla
 .stars
 .^r_dstars
+  JSR r_cwb5
   \ erased star bytes -> WL/WR (row and columns from the byte address)
   LDX r_buf
   LDA r_ecnt,X

@@ -2,7 +2,7 @@
 \ raster_vars.asm -- the variables and arrays of raster.asm that its caller
 \ reads or writes.  Assemble it (before INCLUDEing raster.asm) anywhere in
 \ memory both the caller and the rasteriser can see (e.g. HAZEL, &C000-&DFFF).
-\ No ORG and no alignment: it is placed at P%.  5914 bytes.
+\ No ORG and no alignment: it is placed at P%.  5921 bytes.
 \ See raster.asm for what each one means.
 \ ============================================================================
 
@@ -55,6 +55,13 @@
 .R_PRWT     SKIP 1
 .R_PRWB     SKIP 1
 .R_PRBMODE  SKIP 2
+.R_PRNT     SKIP 1          \ R_DISCROWS' scalars (here so bank 7 can see them)
+.R_PRNB     SKIP 1
+.R_PRLO     SKIP 1
+.R_PRHI     SKIP 1
+.R_PRDYA    SKIP 1
+.R_PRDYZ    SKIP 1
+.R_PRCWB    SKIP 1          \ last row whose R_WL/R_WR the repair wrote (0: none)
 \ private to raster.asm: polygon edge tables
 .R_PTA      SKIP 192
 .R_PTB      SKIP 192
