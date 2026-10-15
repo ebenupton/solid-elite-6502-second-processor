@@ -21942,6 +21942,7 @@ ENDMACRO
 
  JSR LL38               \ Set (S T) = (S R) + (A Q)
  STA T                  \           = |sidev_x| * x_lo + |sidev_y| * y_lo
+ STA R                  \ Set R = T (FMLTU does not touch R)
 
  LDA XX15+4             \ Set Q = z_lo
  STA Q
@@ -21950,9 +21951,6 @@ ENDMACRO
 
  JSR FMLTU              \ Set Q = A * Q / 256
  STA Q                  \       = |sidev_z| * z_lo / 256
-
- LDA T                  \ Set R = T
- STA R                  \       = |sidev_x| * x_lo + |sidev_y| * y_lo
 
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
  EOR XX16+5,X
@@ -38659,12 +38657,11 @@ ENDIF
  TXA
  ADC #0
 
- LDX #0                 \ Set X = 0, as in the original
+ LDX #0                 \ Set X = 0, Z set and N clear, as in the original
 
- BIT SQ1L               \ Set the Z flag and clear the N flag (SQ1L contains 0),
-                        \ as in the original, which ends with X = 0
-
- CLC                    \ Clear the C flag, as in the original
+                        \ The C flag is clear, as in the original, because the
+                        \ 24-bit product (A ~P) * Q < 2^24 so ADC #0 above
+                        \ never carries out
 
  RTS                    \ Return from the subroutine
 
@@ -38854,12 +38851,12 @@ ENDIF
 
  DEC A                  \ Set T1 = |Q| - 1, as in the original
  STA T1
- INC A
 
- CMP M1LAST             \ If |Q| is the same value as last time, the table
+ CMP M1LAST             \ If |Q| - 1 is the same value as last time, the table
  BEQ MTU0               \ look-ups are already patched, so skip the following
 
- STA M1LAST             \ Patch |Q| into the operands of the table look-ups
+ STA M1LAST             \ Record |Q| - 1 and patch |Q| into the operands of
+ INC A                  \ the table look-ups
  STA MTU1+1
  STA MTU3+1
  EOR #&FF
@@ -38907,8 +38904,9 @@ ENDIF
 
 .M1LAST
 
- EQUB 0                 \ The value of |Q| currently patched into the table
-                        \ look-ups above
+ EQUB &FF               \ The value of |Q| - 1 currently patched into the table
+                        \ look-ups above (&FF never matches, as |Q| - 1 is in
+                        \ the range 0 to 126 here, so the first call patches)
 
 \ ******************************************************************************
 \
