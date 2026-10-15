@@ -7622,9 +7622,11 @@ ENDMACRO
  TXA                    \ Set K6(3 2) = (T X) + K4(1 0)
  ADC K4                 \             = y-coord of centre + y-coord of new point
  STA K6+2               \
+ STA XX12               \ Also set XX12(1 0) = K6(3 2) for LL145 in BL1
  LDA K4+1               \ so K6(3 2) now contains the y-coordinate of the new
  ADC T                  \ point on the circle but as a screen coordinate, to go
  STA K6+3               \ along with the screen x-coordinate in K6(1 0)
+ STA XX12+1
 
  JSR H_BPT              \ Frame layer: record the point for the filled detail
 
@@ -7684,11 +7686,8 @@ ENDMACRO
  LDA K6+1               \ Set XX15+5 = x_hi of new point
  STA XX15+5
 
- LDA K6+2               \ Set XX12 = y_lo of new point
- STA XX12
-
- LDA K6+3               \ Set XX12+1 = y_hi of new point
- STA XX12+1
+                        \ XX12(1 0) = y of new point was set at the start of
+                        \ BLINE (H_BPT does not touch it)
 
  JSR LL145              \ Call LL145 to see if the new line segment needs to be
                         \ clipped to fit on-screen, returning the clipped line's
@@ -21292,8 +21291,23 @@ ENDMACRO
                         \ result bit into bit 0 (which will be a 0 if we didn't
                         \ do the subtraction, or 1 if we did)
 
+                        \ The loop is unrolled twice: the carry out of this
+                        \ first ROL (bits 7/5/3/1 of %11111110, always 1) is
+                        \ discarded by the ASL below, and the loop test uses
+                        \ the carry from the second ROL (bits 6/4/2/0 =
+                        \ 1,1,1,0), so we still do exactly 8 iterations
+
+ ASL A                  \ Second copy of the iteration
+
+ CMP Q
+ BCC P%+4
+
+ SBC Q
+
+ ROL T
+
  BCS TIL2               \ If we still have set bits in T, loop back to TIL2 to
-                        \ do the next iteration of 7
+                        \ do the next pair of iterations
 
                         \ We've done the division and now have a result in the
                         \ range 0-255 here, which we need to reduce to the range
@@ -22823,11 +22837,13 @@ ENDMACRO
  LDA XX15               \ Set A = XX15
 
  JSR FMLTU              \ Set T = A * Q / 256
- STA T                  \       = XX15 * XX12 / 256
+ STA R                  \ Set R = XX15 * XX12 / 256 (FMLTU below does not
+                        \ touch R, and T is dead here, so we store straight
+                        \ into R rather than going via T)
 
  LDA XX12+1             \ Set S = sign of XX15(1 0) * XX12(1 0), so:
  EOR XX15+1             \
- STA S                  \   (S T) = XX15(1 0) * XX12(1 0) / 256
+ STA S                  \   (S R) = XX15(1 0) * XX12(1 0) / 256
 
  LDA XX12+2             \ Set Q = XX12+2
  STA Q
@@ -22837,16 +22853,12 @@ ENDMACRO
  JSR FMLTU              \ Set Q = A * Q
  STA Q                  \       = XX15+2 * XX12+2 / 256
 
- LDA T                  \ Set T = R, so now:
- STA R                  \
-                        \   (S R) = XX15(1 0) * XX12(1 0) / 256
-
  LDA XX12+3             \ Set A = sign of XX15+3 * XX12+3, so:
  EOR XX15+3             \
                         \   (A Q) = XX15(3 2) * XX12(3 2) / 256
 
- JSR LL38               \ Set (S T) = (S R) + (A Q)
- STA T                  \           =   XX15(1 0) * XX12(1 0) / 256
+ JSR LL38               \ Set (S R) = (S R) + (A Q)
+ STA R                  \           =   XX15(1 0) * XX12(1 0) / 256
                         \             + XX15(3 2) * XX12(3 2) / 256
 
  LDA XX12+4             \ Set Q = XX12+4
@@ -22857,10 +22869,10 @@ ENDMACRO
  JSR FMLTU              \ Set Q = A * Q
  STA Q                  \       = XX15+4 * XX12+4 / 256
 
- LDA T                  \ Set T = R, so now:
- STA R                  \
-                        \   (S R) =   XX15(1 0) * XX12(1 0) / 256
-                        \           + XX15(3 2) * XX12(3 2) / 256
+ TYA                    \ Set X = Y / 4
+ LSR A                  \       = the number of this face * 4 /4
+ LSR A                  \       = the number of this face
+ TAX                    \ (LL38 below does not touch X)
 
  LDA XX15+5             \ Set A = sign of XX15+5 * XX12+5, so:
  EOR XX12+5             \
@@ -22871,17 +22883,7 @@ ENDMACRO
                         \             + XX15(3 2) * XX12(3 2) / 256
                         \             + XX15(5 4) * XX12(5 4) / 256
 
- PHA                    \ Push the result A onto the stack, so the stack now
-                        \ contains the dot product XX12 . XX15
-
- TYA                    \ Set X = Y / 4
- LSR A                  \       = the number of this face * 4 /4
- LSR A                  \       = the number of this face
- TAX
-
- PLA                    \ Pull the dot product off the stack into A
-
- BIT S                  \ If bit 7 of S is set, i.e. the dot product is
+ BIT S                 \ If bit 7 of S is set, i.e. the dot product is
  BMI P%+4               \ negative, then this face is visible as its normal is
                         \ pointing towards us, so skip the following instruction
 
@@ -23632,29 +23634,24 @@ ENDMACRO
  STA XX3,X              \ Store the low byte of the result in the X-th byte of
                         \ the heap at XX3
 
- INX                    \ Increment the heap pointer in X to point to the next
-                        \ byte
-
  LDA U                  \ And then add the high bytes
  ADC #0
 
- STA XX3,X              \ Store the high byte of the result in the X-th byte of
-                        \ the heap at XX3
+ STA XX3+1,X            \ Store the high byte of the result in byte X+1 of the
+                        \ heap at XX3
 
 .LL66
 
                         \ We've just stored the screen x-coordinate of the
                         \ vertex on the XX3 heap, so now for the y-coordinate
-
- TXA                    \ Store the heap pointer in X on the stack (at this
- PHA                    \ it points to the last entry on the heap, not the first
-                        \ free byte)
+                        \
+                        \ BBC Master port: X is not saved here, as it is
+                        \ reloaded from CNT at LL68 (LL28 and LL61 leave CNT
+                        \ alone), and Q still holds z_lo from LL60 (LL28 and
+                        \ LL61 only read Q, and neither touches T)
 
  LDA #0                 \ Set U = 0
  STA U
-
- LDA T                  \ Set Q = z_lo
- STA Q
 
  LDA XX15+3             \ Set A = y_lo
 
@@ -23722,12 +23719,9 @@ ENDMACRO
                         \ up the screen, converts to a low y-coordinate, which
                         \ is the opposite way round to the x-coordinates
 
- PLA                    \ Restore the heap pointer from the stack into X
- TAX
-
- INX                    \ When we stored the heap pointer, it pointed to the
-                        \ last entry on the heap, not the first free byte, so we
-                        \ increment it so it does point to the next free byte
+ LDX CNT                \ Set X = CNT + 2, the first free byte on the heap after
+ INX                    \ the x-coordinate (the same value, and N/Z, as the
+ INX                    \ original's PLA/TAX/INX)
 
  LDA XX15+5             \ If y_sign is negative, jump up to LL70, which will
  BMI LL70               \ store #Y + (U R) on the XX3 heap and return by jumping
@@ -34332,8 +34326,8 @@ ENDIF
  JSR FMLTU              \ Set K = A * Q / 256
  STA K                  \       = |v_y| * |sin(CNT2)|
 
- LDX CNT2               \ If CNT2 >= 33 then this sets the C flag, otherwise
- CPX #33                \ it's clear, so this means that:
+ LDA CNT2               \ If CNT2 >= 33 then this sets the C flag, otherwise
+ CMP #33                \ it's clear, so this means that:
                         \
                         \   * C is clear if the segment starts in the first half
                         \     of the circle, 0 to 180 degrees
@@ -34359,11 +34353,13 @@ ENDIF
                         \   (XX16+5 K) = |v_y| * sin(CNT2)
                         \   (XX16+5 R) = |v_x| * sin(CNT2)
 
- LDA CNT2               \ Set X = (CNT2 + 16) mod 32
- CLC                    \
- ADC #16                \ So we can use X as a lookup index into the SNE table
- AND #31                \ to get the cosine (as there are 16 segments in a
- TAX                    \ quarter-circle)
+ TXA                    \ X still contains CNT2 mod 32 from above (FMLTU
+ EOR #16                \ preserves X), so this sets X = (CNT2 + 16) mod 32
+ TAX                    \ = (CNT2 mod 32) EOR 16
+                        \
+                        \ So we can use X as a lookup index into the SNE table
+                        \ to get the cosine (as there are 16 segments in a
+                        \ quarter-circle)
                         \
                         \ Also, because the sine table only contains positive
                         \ values, we know that sin((CNT2 + 16) mod 32) will
@@ -37910,33 +37906,6 @@ ENDIF
 
 \ ******************************************************************************
 \
-\       Name: MU5
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Set K(3 2 1 0) = (A A A A) and clear the C flag
-\
-\ ------------------------------------------------------------------------------
-\
-\ In practice this is only called via a BEQ following an AND instruction, in
-\ which case A = 0, so this routine effectively does this:
-\
-\   K(3 2 1 0) = 0
-\
-\ ******************************************************************************
-
-.MU5
-
- STA K                  \ Set K(3 2 1 0) to (A A A A)
- STA K+1
- STA K+2
- STA K+3
-
- CLC                    \ Clear the C flag
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
 \       Name: MULT3
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
@@ -37978,14 +37947,24 @@ ENDIF
 
  STA R                  \ Store the argument A in R
 
- AND #%01111111         \ Set K+2 = |A|, which we use below
- STA K+2
-
  LDA Q                  \ Set A = |Q|
  AND #%01111111
 
- BEQ MU5                \ If |Q| = 0, jump to MU5 to set K(3 2 1 0) to 0,
-                        \ returning from the subroutine using a tail call
+ BNE m3nz               \ If |Q| <> 0, jump to m3nz to do the multiplication
+
+                        \ Otherwise |Q| = 0 and A = 0, so set K(3 2 1 0) to 0
+                        \ and clear the C flag (this was MU5)
+
+ STA K
+ STA K+1
+ STA K+2
+ STA K+3
+
+ CLC                    \ Clear the C flag
+
+ RTS                    \ Return from the subroutine
+
+.m3nz
 
  TAX                    \ Set X = |Q|, which we use as the table index for all
                         \ three products
@@ -38026,7 +38005,8 @@ ENDIF
  SBC SQ2H,X
  STA M3T+1
 
- LDA K+2                \ Calculate |A| * |Q| into (M3T+3 M3T+2)
+ LDA R                  \ Calculate |A| * |Q| into (M3T+3 M3T+2)
+ AND #%01111111
  STA M3W1+1
  STA M3W3+1
  EOR #&FF
@@ -39557,10 +39537,9 @@ ENDIF
                         \ The result of our division is now in R, so we just
                         \ need to shift it back by the scale factor in Y
 
- LDA #0                 \ Set K(3 2 1) = 0 to hold the result (we populate K
- STA K+1                \ next)
- STA K+2
- STA K+3
+ STZ K+1                \ Set K(2 1) = 0 to hold the result (we populate K
+ STZ K+2                \ next). K+3 is only zeroed on the Y < 0 path below,
+                        \ as DV12/DV13/DVL10 all overwrite K+3 with T
 
  TYA                    \ If Y is positive, jump to DV12
  BPL DV12
@@ -39568,6 +39547,8 @@ ENDIF
                         \ If we get here then Y is negative, so we need to shift
                         \ the result R to the left by Y places, and then set the
                         \ correct sign for the result
+
+ STZ K+3                \ K+3 = 0 (top byte of the shifted result)
 
  LDA R                  \ Set A = R
 
