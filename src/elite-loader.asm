@@ -15,15 +15,17 @@
 \     envelopes, NMI release)
 \
 \   * Selects a non-shadow MODE 1 and reprograms the 6845 CRTC to give the
-\     BBC Master Elite screen: a 256-pixel wide mode 1 space view at &4000 and
-\     a mode 2 dashboard at &7000, 31 character rows in all (R1 = 64, R2 = 90,
-\     R6 = 31, R12/R13 = &0800)
+\     BBC Master Elite screen geometry: a 256-pixel wide MODE 1 screen at
+\     &4000, 31 character rows in all (R1 = 64, R2 = 90, R6 = 31, R12/R13 =
+\     &0800): the space view (24 rows) and the dashboard at &7000 (7 rows),
+\     both MODE 1 in one CMYK palette, which is set here once
 \
 \   * Clears ACCCON bits D, E and X, so main RAM is displayed and accessed at
 \     &3000 to &7FFF (the screen is in main RAM in this port)
 \
 \   * Loads WORDS9 to &0400, the sideways RAM image to bank 4 (*SRLOAD) and
-\     the BBC Master dashboard image to &7000
+\     the MODE 1 dashboard image to &7000 (and, if DASHDUAL, copies it to
+\     shadow RAM too)
 \
 \   * Copies the second stage to &7E00 (which isn't displayed) and runs it, as
 \     the main game code loads over this first stage. The second stage loads
@@ -159,6 +161,17 @@
  AND #%11111000         \ RAM screen is displayed and main RAM is accessed by
  STA ACCCON             \ the CPU at &3000 to &7FFF
 
+ SEI                    \ Set the Video ULA for the whole screen, once: MODE 1
+ LDA #%00011000         \ with no cursor, and the CMYK palette (logical colours
+ STA VIA+&20            \ 0-3 = black, cyan, magenta, yellow). The game's IRQ
+ LDX #15                \ handler no longer changes the mode or palette
+.ENTP
+ LDA PALT,X
+ STA VIA+&21
+ DEX
+ BPL ENTP
+ CLI
+
  LDA #LO(E%)            \ Define the four sound envelopes that the game uses
  STA ZP                 \ (the same as the cassette loader's E% table), using
                         \ ZP as a pointer to each envelope in turn
@@ -198,9 +211,54 @@
  LDY #HI(MESS7)
  JSR OSCLI
 
- LDX #LO(MESS3)         \ *LOAD DIALS 7000, to load the BBC Master's mode 2
- LDY #HI(MESS3)         \ dashboard image
+ LDX #LO(MESS3)         \ *LOAD DIALS 7000, to load the MODE 1 dashboard
+ LDY #HI(MESS3)         \ image (tools/dashboard.py)
  JSR OSCLI
+
+IF DASHDUAL
+
+ LDA #&70               \ Copy the dashboard (&7000-&7DFF) to shadow RAM too,
+ STA DCP1+2             \ a page at a time through a buffer at &2000 (below
+ STA DCP3+2             \ &3000, so not switched by ACCCON X)
+
+.DCP0
+
+ LDX #0
+
+.DCP1
+
+ LDA &7000,X
+ STA &2000,X
+ INX
+ BNE DCP1
+
+ SEI
+ LDA ACCCON             \ X = 1: shadow RAM at &3000-&7FFF
+ ORA #%00000100
+ STA ACCCON
+
+.DCP2
+
+ LDA &2000,X
+
+.DCP3
+
+ STA &7000,X
+ INX
+ BNE DCP2
+
+ LDA ACCCON             \ X = 0: main RAM
+ AND #%11111011
+ STA ACCCON
+ CLI
+
+ INC DCP1+2
+ INC DCP3+2
+ LDA DCP3+2
+ CMP #&7E
+ BNE DCP0
+
+ENDIF
 
  LDX #0                 \ Copy the second stage to STAGE2%
 
@@ -212,6 +270,26 @@
  BNE ENT5
 
  JMP STAGE2%            \ Run the second stage
+
+\ ******************************************************************************
+\
+\       Name: PALT
+\       Type: Variable
+\   Category: Loader
+\    Summary: The MODE 1 palette (Video ULA palette register values)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Each byte is (palette index * 16) + (physical colour EOR 7). In MODE 1, the
+\ index of a pixel of logical colour %ab is %a?b?, so logical colour 0 = black,
+\ 1 = cyan (6), 2 = magenta (5), 3 = yellow (3).
+\
+\ ******************************************************************************
+
+.PALT
+
+ EQUB &07, &17, &21, &31, &47, &57, &61, &71
+ EQUB &82, &92, &A4, &B4, &C2, &D2, &E4, &F4
 
 \ ******************************************************************************
 \
