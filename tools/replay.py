@@ -22,6 +22,7 @@ sys.path.insert(0, HERE)
 import test_raster as tr
 from corpus import load
 
+LINEX = os.environ.get('LINEX') == '1'
 ZPN = ('R_COLE', 'R_COLO', 'R_XL', 'R_XR', 'R_CL', 'R_CR', 'R_CT', 'R_CB', 'R_DCE', 'R_DCO')
 
 
@@ -82,6 +83,9 @@ class Replayer:
         if n == 'LINE':
             for nm, v in zip(('R_X0', 'R_Y0', 'R_X1', 'R_Y1'), d['line']):
                 m.wr(nm, v & 255); m.wr(nm, (v >> 8) & 255, 1)
+            ln = d['line']
+            if LINEX and (d['cole'], d['colo']) == (255, 255) and 191 in (ln[1], ln[3]) and 'R_LINEX' in m.syms:
+                return m.call('R_LINEX')    # (estimate: our laser beams as erasable lines)
             return m.call('R_LINE')
         if n == 'DOT':
             return m.call('R_DOT', a=d['a'], x=d['x'], y=d['y'])
@@ -171,13 +175,24 @@ def install_prof(m, prof, live):
 
 def report_prof(m, prof, n):
     labs = sorted((v, k) for k, v in m.syms.items() if not k.startswith(('r_pt', 'R_P')) and 0x8000 <= v < 0xC000)
+    labs7 = sorted((v, k) for k, v in m.syms.items() if k.startswith('r7_') and 0x8000 <= v < 0xC000)
+    labs = [x for x in labs if not x[1].startswith('r7_')]
+    keys7 = [v for v, k in labs7]
     import bisect
     keys = [v for v, k in labs]
     agg = defaultdict(int)
     for (pc, bank), c in prof.items():
+        if bank == 7:
+            i = bisect.bisect_right(keys7, pc) - 1
+            agg[(labs7[i][1] if i >= 0 else '?') + '@7'] += c
+            continue
         i = bisect.bisect_right(keys, pc) - 1
         agg[(labs[i][1] if i >= 0 else '?') + ('' if bank == 5 else '@%d' % bank)] += c
     tot = sum(agg.values())
+    bt = defaultdict(int)
+    for (pc, bank), c in prof.items():
+        bt[bank] += c
+    print('  by bank: ' + ' '.join('%s %.0f' % (b, c / n) for b, c in sorted(bt.items(), key=lambda x: str(x[0]))))
     for k, v in sorted(agg.items(), key=lambda x: -x[1])[:40]:
         print('  %-24s %8.0f /it %5.1f%%' % (k, v / n, 100 * v / tot))
 

@@ -509,8 +509,10 @@ R_ENDPAGE 17
   LDX #LO(r7_wmerge)
   BRA r_c7
 .r_c7                     \ X = low byte of a bank-7 routine in page HI(r7_wmerge)
-  STX r_hzt7
+  TXA
   LDX #HI(r7_wmerge)
+.r_c7x                    \ A, X = bank-7 routine (low, high)
+  STA r_hzt7
   STX r_hzt7+1
   JMP r_call7
 R_ENDPAGE 18
@@ -747,8 +749,6 @@ r_bdx3 = R_BDX30
   STA r_pt02+2
   STA r_pt05+2
   STA r_pt06+2
-  STA r_pt13+2
-  STA r_pt14+2
   STA r_pt19+2
   STA r_pt23+2
   STA r_pt25+2
@@ -770,8 +770,6 @@ r_bdx3 = R_BDX30
   STA r_pt04+2
   STA r_pt07+2
   STA r_pt08+2
-  STA r_pt15+2
-  STA r_pt16+2
   STA r_pt20+2
   STA r_pt24+2
   STA r_pt47+2
@@ -1074,6 +1072,37 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BNE scan16
   JMP r_pf8
 .scan16
+  \ reject when every x is left of CL or every x is right of CR
+  STZ RZ_T0
+  LDX r_n
+  DEX
+.xl
+  LDA R_PXH,X
+  BMI xlt
+  BNE xgt
+  LDA R_PXL,X
+  CMP R_CL
+  BCC xlt
+  CMP R_CR
+  BEQ xin
+  BCC xin
+.xgt
+  LDA #2
+  BRA xor
+.xin
+  LDA #3
+  BRA xor
+.xlt
+  LDA #1
+.xor
+  ORA RZ_T0
+  STA RZ_T0
+  DEX
+  BPL xl
+  CMP #3
+  BEQ xok
+  RTS
+.xok
   LDA R_PYL
   STA r_yminL
   STA r_ymaxL
@@ -1151,112 +1180,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .out0
   RTS
 .go
-  \ extend this buffer's row range
-  LDX r_buf
-  LDA r_ystart
-  CMP r_dyt,X
-  BCS c1
-  STA r_dyt,X
-.c1
-  LDA r_ylast
-  CMP r_dyb,X
-  BCC c2
-  STA r_dyb,X
-.c2
-  \ constants
-  LDA R_CR
-  INC A
-  STA r_cr1
-  LDA R_CB
-  INC A
-  STA r_cb1
-  LDA R_COLE
-  EOR R_COLO
-  STA r_cx
-  LDY r_ystart
-  JSR r_rowset
-  TYA
-  LSR A
-  LDA R_COLE
-  BCC ev
-  LDA R_COLO
-.ev
-  STA RZ_COL
-  LDA r_top
-  STA r_cidx
-  STA r_cidx+1
-  LDA r_n
-  STA r_ccnt
-  STA r_ccnt+1
-  LDX #0
-  JSR r_adv
-  BCS out0
-  LDX #1
-  JSR r_adv
-  BCS out0
-  JMP r_psl
-}
-
-\ ----------------------------------------------------------------------------
-\ r_adv: X = side (0: chain A walks forward, 1: chain B walks backward).
-\ Finds the side's next edge reaching below row RZ_Y and sets it up.
-\ C = 0: alive; C = 1: chain finished or row past the window (stop).
-\ ----------------------------------------------------------------------------
-.r_adv
-{
-  STX r_side
-  TXA
-  ASL A
-  ASL A
-  STA r_side4
-.lp
-  LDA RZ_Y
-  CMP r_yend
-  BCS dead
-  LDX r_side
-  LDA r_ccnt,X
-  BEQ dead
-  DEC r_ccnt,X
-  LDA r_cidx,X
-  STA r_i0
-  CPX #0
-  BNE back
-  INC A
-  CMP r_n
-  BCC got
-  LDA #0
-  BRA got
-.back
-  DEC A
-  BPL got
-  LDA r_n
-  DEC A
-.got
-  STA r_cidx,X
-  STA r_i1
-  TAY
-  LDA R_PYH,Y
-  BMI lp                  \ y1 < 0 <= row
-  BNE ok
-  LDA RZ_Y
-  CMP R_PYL,Y
-  BCS lp                  \ y1 <= row: no rows here
-.ok
-  LDA R_PYH,Y
-  BNE big
-  LDA R_PYL,Y
-  CMP r_cb1
-  BCC se
-.big
-  LDA r_cb1
-.se
-  STA r_cend,X
-  JSR r_eset
-  CLC
-  RTS
-.dead
-  SEC
-  RTS
+  JMP r_pf16
 }
 
 \ ----------------------------------------------------------------------------
@@ -1465,38 +1389,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA r_m3
   STA RZ_TA+1,X
 .install
-  LDA r_slow
-  BNE islow
-  RTS
-.islow
-  LDA r_side
-  BNE isb
-  LDA r_eb
-  STA r_sbLA+1
-  LDA r_eb+1
-  STA r_sbHA+1
-  LDA r_edy
-  STA r_sdLA+1
-  LDA r_edy+1
-  STA r_sdHA+1
-  LDA r_ea
-  STA r_saLA+1
-  LDA r_ea+1
-  STA r_saHA+1
-  RTS
-.isb
-  LDA r_eb
-  STA r_sbLB+1
-  LDA r_eb+1
-  STA r_sbHB+1
-  LDA r_edy
-  STA r_sdLB+1
-  LDA r_edy+1
-  STA r_sdHB+1
-  LDA r_ea
-  STA r_saLB+1
-  LDA r_ea+1
-  STA r_saHB+1
   RTS
 }
 
@@ -1620,6 +1512,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDX r_i1
   BRA cb
 .cbd
+.^r_pcbd
   \ which table is the left one?
   LDA r_ystart
   CLC
@@ -1826,6 +1719,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .shallow
   STZ RZ_TA
 .shallow1
+.^r_psh1
   DEC A
   STA r_lsh_a+1
   DEX
@@ -1841,6 +1735,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ b = 0: A = a
 .zloop
 .zloop1
+.^r_pzl1
   STA r_lz_a+1
   LDA RZ_T2
   STA r_lz_e+1
@@ -2077,162 +1972,228 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JMP r_pb
 
 \ ----------------------------------------------------------------------------
-\ Slow row loop: 16-bit edge x.
+\ r_pf16: R_POLY with some coordinate outside 0..255 (rows r_ystart..r_ylast
+\ already found).  Phase A as r_pf8 (chain A forward into r_ta, chain B
+\ backward into r_tb) with 16-bit edges whose x is clamped into CL..CR+1 per
+\ row; then r_pf8's phase B.
 \ ----------------------------------------------------------------------------
-.r_psl
-  LDA RZ_SA
-  CMP RZ_SB
-  LDA RZ_SA+1
-  SBC RZ_SB+1
-  BVC ps_v
+.r_pf16
+{
+  LDA R_CR
+  INC A
+  STA r_cr1
+  LDA #LO(r_ta)
+  STA r_lsh_t+1
+  STA r_lz_t+1
+  STA r_x16_t+1
+  LDA #HI(r_ta)
+  STA r_lsh_t+2
+  STA r_lz_t+2
+  STA r_x16_t+2
+  LDA r_n
+  STA r_cc
+  LDX r_top
+.ca
+  LDA R_PYL,X
+  CMP r_ymaxL
+  BNE ca0
+  LDA R_PYH,X
+  CMP r_ymaxH
+  BEQ cad
+.ca0
+  DEC r_cc
+  BMI cad
+  STX r_i0
+  INX
+  CPX r_n
+  BCC ca1
+  LDX #0
+.ca1
+  STX r_i1
+  JSR r_e16
+  LDX r_i1
+  BRA ca
+.cad
+  LDA #LO(r_tb)
+  STA r_lsh_t+1
+  STA r_lz_t+1
+  STA r_x16_t+1
+  LDA #HI(r_tb)
+  STA r_lsh_t+2
+  STA r_lz_t+2
+  STA r_x16_t+2
+  LDA r_n
+  STA r_cc
+  LDX r_top
+.cb
+  LDA R_PYL,X
+  CMP r_ymaxL
+  BNE cb0
+  LDA R_PYH,X
+  CMP r_ymaxH
+  BEQ cbd
+.cb0
+  DEC r_cc
+  BMI cbd
+  STX r_i0
+  DEX
+  BPL cb1
+  LDX r_n
+  DEX
+.cb1
+  STX r_i1
+  JSR r_e16
+  LDX r_i1
+  BRA cb
+.cbd
+  STZ r_xclip
+  JMP r_pcbd
+}
+
+\ r_e16: edge r_i0 -> r_i1 (16-bit) into the table (rows r_ystart..r_ylast)
+.r_e16
+{
+  LDY r_i0
+  LDX r_i1
+  LDA R_PYL,Y             \ going down? (y0 < y1)
+  CMP R_PYL,X
+  LDA R_PYH,Y
+  SBC R_PYH,X
+  BVC v1
   EOR #&80
-.ps_v
-  BMI ps_al
-  LDA RZ_SB
-  STA RZ_T0
-  LDA RZ_SB+1
-  STA RZ_T1
-  LDA RZ_SA
+.v1
+  BPL out
+  LDA R_PYH,X             \ end row = min(y1, yend)
+  BMI out
+  BNE e0
+  LDA R_PYL,X
+  CMP r_yend
+  BCC e1
+.e0
+  LDA r_yend
+.e1
   STA RZ_T2
-  LDA RZ_SA+1
+  LDA R_PYH,Y             \ start row = max(y0, ystart)
+  BMI s0
+  BNE out
+  LDA R_PYL,Y
+  CMP r_ystart
+  BCS s1
+.s0
+  LDA r_ystart
+.s1
   STA RZ_T3
-  BRA ps_lr
-.ps_al
-  LDA RZ_SA
-  STA RZ_T0
-  LDA RZ_SA+1
-  STA RZ_T1
-  LDA RZ_SB
-  STA RZ_T2
-  LDA RZ_SB+1
-  STA RZ_T3
-.ps_lr
-  LDA RZ_T3
-  BMI ps_skip
-  BNE ps_rbig
-  LDX RZ_T2
-  BRA ps_r
-.ps_rbig
-  LDX r_cr1
-.ps_r
-  LDA RZ_T1
-  BMI ps_lcl
-  BNE ps_skip
-  LDA RZ_T0
-  BRA ps_l
-.ps_lcl
-  LDA R_CL
-.ps_l
+  CMP RZ_T2
+  BCC go
+.out
+  RTS
+.go
+  STA RZ_Y
+  STZ r_side4
+  JSR r_esgen             \ S, t -> RZ_SA, RZ_TA; a, b, dy -> r_ea, r_eb, r_edy
+  LDY r_i0                \ both ends' x inside CL..CR+1 and dy < 256:
+  LDX r_i1                \ the 8-bit DDA
+  LDA r_edy+1
+  BNE gen
+  LDA R_PXH,Y
+  ORA R_PXH,X
+  BNE gen
+  LDA R_PXL,Y
   CMP R_CL
-  BCS ps_c1
-  LDA R_CL
-.ps_c1
-  STA R_XL
-  CPX r_cr1
-  BCC ps_c2
-  LDX r_cr1
-.ps_c2
-  STX R_XR
-  CMP R_XR
-  BCS ps_skip
-  DEC R_XR
-  TAX
-  JSR r_spc
-  LDY RZ_Y
-  LDA R_XL
-.r_pt13 CMP r_dl,Y
-  BCS ps_d1
-.r_pt14 STA r_dl,Y
-.ps_d1
-  LDA R_XR
-.r_pt15 CMP r_dr,Y
-  BCC ps_skip
-.r_pt16 STA r_dr,Y
-.ps_skip
-  LDA RZ_TA
-  SEC
-.r_sbLA SBC #0
-  STA RZ_TA
-  LDA RZ_TA+1
-.r_sbHA SBC #0
-  STA RZ_TA+1
-  BCS ps_a1
-  LDA RZ_TA
-.r_sdLA ADC #0
-  STA RZ_TA
-  LDA RZ_TA+1
-.r_sdHA ADC #0
-  STA RZ_TA+1
-  BRA ps_a2
-.ps_a1
-  CLC
-.ps_a2
+  BCC gen
+  CMP r_cr1
+  BEQ x1
+  BCS gen
+.x1
+  LDA R_PXL,X
+  CMP R_CL
+  BCC gen
+  CMP r_cr1
+  BEQ x2
+  BCS gen
+.x2
   LDA RZ_SA
-.r_saLA ADC #0
+  STA RZ_T0
+  LDA r_edy
+  STA RZ_T1
+  LDX r_eb
+  LDA r_ea
+  CPX #0
+  BNE sh
+  JMP r_pzl1
+.sh
+  JMP r_psh1
+.gen                      \ general: 16-bit S, t; x clamped into CL..CR+1
+  LDA r_eb
+  STA bl+1
+  LDA r_eb+1
+  STA bh+1
+  LDA r_edy
+  STA dl+1
+  LDA r_edy+1
+  STA dh+1
+  LDA r_ea
+  STA al+1
+  LDA r_ea+1
+  STA ah+1
+  LDA RZ_T2
+  STA ye+1
+  LDY RZ_T3
+.lp
+  LDA RZ_SA+1
+  BMI lo
+  BNE hi
+  LDA RZ_SA
+  CMP R_CL
+  BCC lo
+  CMP r_cr1
+  BCC st
+.hi
+  LDA r_cr1
+  BRA st
+.lo
+  LDA R_CL
+.st
+.^r_x16_t
+  STA &FFFF,Y
+  INY
+.ye
+  CPY #0
+  BCS done
+  LDA RZ_TA               \ t -= b; borrow: t += dy, S += 1
+  SEC
+.bl
+  SBC #0
+  STA RZ_TA
+  LDA RZ_TA+1
+.bh
+  SBC #0
+  STA RZ_TA+1
+  BCS nb
+  LDA RZ_TA
+.dl
+  ADC #0
+  STA RZ_TA
+  LDA RZ_TA+1
+.dh
+  ADC #0
+  STA RZ_TA+1
+  BRA ad
+.nb
+  CLC
+.ad
+  LDA RZ_SA               \ S += a
+.al
+  ADC #0
   STA RZ_SA
   LDA RZ_SA+1
-.r_saHA ADC #0
+.ah
+  ADC #0
   STA RZ_SA+1
-  LDA RZ_TB
-  SEC
-.r_sbLB SBC #0
-  STA RZ_TB
-  LDA RZ_TB+1
-.r_sbHB SBC #0
-  STA RZ_TB+1
-  BCS ps_b1
-  LDA RZ_TB
-.r_sdLB ADC #0
-  STA RZ_TB
-  LDA RZ_TB+1
-.r_sdHB ADC #0
-  STA RZ_TB+1
-  BRA ps_b2
-.ps_b1
-  CLC
-.ps_b2
-  LDA RZ_SB
-.r_saLB ADC #0
-  STA RZ_SB
-  LDA RZ_SB+1
-.r_saHB ADC #0
-  STA RZ_SB+1
-  INC RZ_Y
-  LDA RZ_COL
-  EOR r_cx
-  STA RZ_COL
-  LDA RZ_PA
-  INC A
-  AND #7
-  STA RZ_PA
-  STA RZ_PB
-  BNE ps_nr
-  LDA RZ_PA+1
-  CLC
-  ADC #2
-  STA RZ_PA+1
-  INC A
-  STA RZ_PB+1
-  INC RZ_PP+1
-  INC r_jsr+2
-.ps_nr
-  LDA RZ_Y
-  CMP r_cend
-  BNE ps_e1
-  LDX #0
-  JSR r_adv
-  BCS ps_done
-  LDA RZ_Y
-.ps_e1
-  CMP r_cend+1
-  BNE ps_e2
-  LDX #1
-  JSR r_adv
-  BCS ps_done
-.ps_e2
-  JMP r_psl
-.ps_done
+  BRA lp
+.done
   RTS
+}
 
 \ ============================================================================
 \ R_DISCROWS

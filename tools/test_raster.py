@@ -504,13 +504,13 @@ class Tester:
         self.set_col(ce, co)
         return m.call('R_POLY')
 
-    def draw_line(self, x0, y0, x1, y1, ce, co):
+    def draw_line(self, x0, y0, x1, y1, ce, co, entry='R_LINE'):
         m = self.m
         for nm, v in (('R_X0', x0), ('R_Y0', y0), ('R_X1', x1), ('R_Y1', y1)):
             m.wr(nm, v & 0xFF)
             m.wr(nm, (v >> 8) & 0xFF, 1)
         self.set_col(ce, co)
-        return m.call('R_LINE')
+        return m.call(entry)
 
     # --------------------------------------------------------------- span test
     def test_spans(self, n):
@@ -848,6 +848,7 @@ class Tester:
                 for x, y in line_pixels(*pts):
                     if ref.inwin(x, y):
                         ref.setpix(x, y, ce, co)
+            lxpix = set()
             for _ in range(rnd.randrange(0, 4)):
                 x, y, s = rnd.randrange(256), rnd.randrange(256), rnd.randrange(1, 4)
                 ce, co = rnd.randrange(256), rnd.randrange(256)
@@ -899,7 +900,7 @@ class Tester:
                         mm = 0x88 >> p
                         if (got[a] ^ old[a]) & mm:
                             ok = (wl2[y][1] and wl2[y][0] <= x <= wl2[y][1]) or (dirt[y][0] <= x <= dirt[y][1]) \
-                                or (x, y) in starpix
+                                or (x, y) in starpix or (x, y) in lxpix
                             if not ok:
                                 raise AssertionError('frame %d: pixel %d,%d changed outside WL/DIRTY' % (f, x, y))
             bufs[b] = got
@@ -966,6 +967,9 @@ def summarize(stats):
         out.append('R_STARPLOT: mean %.0f cycles for mean %.1f stars' % (sum(c for _, c in v) / len(v), sum(n for n, _ in v) / len(v)))
         v = stats['starerase']
         out.append('R_STARERASE: mean %.0f cycles' % (sum(v) / len(v)))
+    if 'linex' in stats:
+        v = stats['linex']
+        out.append('R_LINEX: mean %.0f cycles for mean %.1f pixels' % (sum(c for _, c in v) / len(v), sum(n for n, _ in v) / len(v)))
     return '\n'.join(out)
 
 
