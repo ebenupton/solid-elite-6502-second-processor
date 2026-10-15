@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Stage 1: blueprint parsing (filled out further below)."""
+"""Filled ships for the port: parse the demo's 13 ship blueprints, rebuild each
+face's polygon, turn the blueprint's detail edges into filled surface details,
+fins and lines, find each ship's symmetries and give every face a fixed colour
+from two hue ramps (adjacent faces never alike, symmetric where the geometry
+allows), and write src/faces.asm.
+
+    python3 tools/faces.py        -> src/faces.asm, and a report on stdout
+"""
 import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +18,11 @@ NAMES = {1: 'Sidewinder', 2: 'Viper', 3: 'Mamba', 4: 'Python', 5: 'Cobra Mk III 
          6: 'Thargoid', 7: 'Cobra Mk III (trader)', 8: 'Coriolis station', 9: 'Missile',
          10: 'Asteroid', 11: 'Cargo canister', 12: 'Thargon', 13: 'Escape pod'}
 NTYPES = 13
+# Vertex face lists as the port's blueprints have them (src/elite-source.asm),
+# where they differ from the demo's: the missile's fin vertices (and the body
+# corners the fins stand on) are always projected (face 15), so the fins can be
+# drawn from any side, even when both faces they stand between are hidden.
+PATCH = {9: {v: (15, 15, 15, 15) for v in range(5, 17)}}
 
 
 def _mem():
@@ -57,6 +69,8 @@ def load_ships():
         a = mem[SHIPS_LOAD + 2 * (t - 1)] | mem[SHIPS_LOAD + 2 * (t - 1) + 1] << 8
         s = parse(mem, a)
         s['name'] = NAMES[t]
+        for v, fl in PATCH.get(t, {}).items():
+            s['verts'][v]['faces'] = fl
         out.append((t, s))
     return out
 
@@ -331,32 +345,44 @@ def elite_xx2(s, pos, M):
 # Colours
 
 import sys as _sys
+import random as _random
+from itertools import permutations as _perms, product as _product, combinations as _combs
 _sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import swatch35 as SW                                   # noqa: E402
 
-# Hue ramps: 8 entries of swatch35.ALL indices, level 0 (darkest, still not black)
-# to level 7 (brightest), CIE L* (linear-light average of the PHYS inks) strictly
-# rising.  Detail ink: the solid ink drawn for detail lines over this hue.
-HUES = [
-    # name       ramp (swatch35 numbers)               detail ink (None: automatic)
-    ('steel',   [31, 27, 25, 17, 19, 2, 4, 1],    SW.K),   # 0 station, escape pod: cool grey
-    ('fire',    [33, 30, 29, 23, 13, 12, 11, 10], None),   # 1 Sidewinder: crimson -> yellow
-    ('police',  [31, 27, 25, 17, 15, 2, 0, 1],    None),   # 2 Viper: cyan
-    ('amber',   [32, 29, 28, 22, 21, 7, 11, 10],  None),   # 3 Mamba: olive -> amber -> yellow
-    ('violet',  [33, 30, 27, 20, 17, 5, 2, 0],    None),   # 4 Python: violet -> blue
-    ('rose',    [33, 30, 29, 23, 13, 8, 12, 11],  None),   # 5 Cobra (bounty hunter): pink-red
-    ('alien',   [31, 32, 25, 26, 16, 18, 3, 6],   None),   # 6 Thargoid, Thargon: green
-    ('cream',   [32, 29, 28, 19, 22, 7, 11, 10],  None),   # 7 Cobra (trader): khaki/cream
-    ('hotpink', [33, 30, 24, 14, 9, 13, 5, 8],    None),   # 8 missile: magenta
-    ('rock',    [32, 29, 28, 19, 22, 8, 4, 7],    None),   # 9 asteroid: grey-brown
-    ('cargo',   [31, 32, 26, 28, 18, 21, 6, 10],  None),   # 10 canister: yellow-green -> yellow
-    ('sun',     [30, 29, 23, 13, 22, 12, 11, 10], None),   # 11 sun (use level 6)
-    ('planet',  [33, 31, 27, 25, 17, 15, 2, 0],   None),   # 12 planet (use level 4)
-]
-SHIP_HUE = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 0, 9: 8, 10: 9, 11: 10, 12: 6, 13: 0}
-SUN_HUE, SUN_LEVEL = 11, 6
-PLANET_HUE, PLANET_LEVEL = 12, 4
+# Ships are not lit: every face has a fixed colour, drawn from two contrasting
+# hue ramps per ship (swatch35 numbers, dark to light).
+RAMPS = {
+    'red':    [29, 23, 12],
+    'gold':   [28, 21, 10, 11],
+    'cyan':   [25, 15, 0, 1],
+    'blue':   [27, 17, 5, 2],
+    'green':  [26, 16, 18, 3, 6],
+    'purple': [30, 20, 9, 5],
+    'pink':   [24, 14, 13, 23, 8],
+    'tan':    [29, 22, 7, 11],
+    'grey':   [27, 19, 4, 7],
+}
+# per type: (primary hue A, secondary hue B)
+SHIP_HUES = {
+    1: ('red', 'gold'),          # Sidewinder
+    2: ('cyan', 'blue'),         # Viper (police)
+    3: ('green', 'gold'),        # Mamba
+    4: ('purple', 'tan'),        # Python
+    5: ('pink', 'grey'),         # Cobra Mk III (bounty hunter)
+    6: ('green', 'purple'),      # Thargoid
+    7: ('tan', 'blue'),          # Cobra Mk III (trader)
+    8: ('grey', 'gold'),         # Coriolis station
+    9: ('pink', 'gold'),         # missile
+    10: ('tan', 'grey'),         # asteroid
+    11: ('gold', 'cyan'),        # cargo canister
+    12: ('green', 'purple'),     # Thargon
+    13: ('grey', 'red'),         # escape pod
+}
+SUN_SWATCH, PLANET_SWATCH = 11, 17     # the old (sun ramp level 6), (planet level 4)
+BLACK = 34
 INK_BYTE = {SW.K: 0x00, SW.C: 0x0F, SW.M: 0xF0, SW.Y: 0xFF}
+INK_SWATCH = {SW.K: 34, SW.C: 0, SW.M: 14, SW.Y: 10}
 
 
 def dither_bytes(n):
@@ -397,91 +423,425 @@ def swatch_lab(n):
     return _lab(li)
 
 
-def ink_lab(ink):
-    return _lab([_lin(c) for c in SW.PHYS[ink]])
-
-
-def detail_ink(ramp):
-    """The solid ink (K, C, M or Y) with the greatest worst-case contrast (CIE76
-    delta E) against the ramp's levels 2..7 (the ones a face is usually lit at)."""
-    best = None
-    for ink in (SW.K, SW.C, SW.M, SW.Y):
-        il = ink_lab(ink)
-        d = min(math.dist(il, swatch_lab(n)) for n in ramp[2:])
-        if best is None or d > best[0]:
-            best = (d, ink)
-    return best[1]
-
-
-def hue_detail_ink(h):
-    name, ramp, ink = HUES[h]
-    return detail_ink(ramp) if ink is None else ink
-
-
-def check_ramps():
-    for h, (name, ramp, _) in enumerate(HUES):
-        Ls = [swatch_lab(n)[0] for n in ramp]
-        assert all(b > a for a, b in zip(Ls, Ls[1:])), (name, Ls)
-        assert 34 not in ramp
+def dE(a, b):
+    return math.dist(swatch_lab(a), swatch_lab(b))
 
 
 # ---------------------------------------------------------------------------
-# Brightness: XX2 -> level
-#
-# LL9 part 5 leaves XX2[f] = |n_f . (p + n_f / 2^XX17)| / 256 for a visible face
-# (0 if hidden), where n_f is the blueprint normal as stored (magnitude |n_f|,
-# 22..185 over the demo's ships), p the ship's position in its own frame after
-# the coordinates were halved until z_hi = 0, and XX17 = blueprint scale +
-# halvings.  So XX2 ~ |n_f| * cos(theta) * |p| / 256, with |p| ~ zn, the
-# halved z (128..255 once z >= 256, z itself when z < 256).  XX2 therefore
-# depends on the face's normal length and saw-tooths with distance; to get a
-# cos(theta) we divide both out, in logs, so everything is additions:
-#
-#   idx = min(255, FC_LOG[XX2] + C_f + D)
-#   FC_LOG[x] = min(255, round(32 * log2(x)))   (FC_LOG[0] = 0)
-#   C_f = 255 - FC_LOG[round(|n_f|)]            (per face, FC_NRMTAB)
-#   D   = min(255, 256 - FC_LOG[zn])            (once per ship)
-#
-# so idx ~ 258 + 32 * log2(cos theta) (calibrated by simulation of LL9's
-# arithmetic: median idx 172 / 221 / 244 / 254 at cos 0.15 / 0.45 / 0.75 / 0.95)
-# and level = FC_LEVEL[idx] = min(7, int(8 * c ** 0.8)), c = min(1, 2^((idx -
-# 258) / 32)): head-on faces 7, grazing faces 0.
+# Structure: polygon parts, surface details, fins, lines
 
-LOGK = 32
-IDX0 = 258
-FAR_LEVEL = 4          # level to use when XX2 = 255 (forced visible, no normal test)
+def _newell(V, loop):
+    nw = [0.0, 0.0, 0.0]
+    for i in range(len(loop)):
+        a, b = V[loop[i]], V[loop[(i + 1) % len(loop)]]
+        nw[0] += (a[1] - b[1]) * (a[2] + b[2])
+        nw[1] += (a[2] - b[2]) * (a[0] + b[0])
+        nw[2] += (a[0] - b[0]) * (a[1] + b[1])
+    return tuple(nw)
 
 
-def log_table():
-    return [0] + [min(255, round(LOGK * math.log2(x))) for x in range(1, 256)]
+def _on_segment(P, A, B):
+    d = _sub(B, A)
+    w = _sub(P, A)
+    c = _cross(d, w)
+    if _dot(c, c) > 1e-6:
+        return False
+    t = _dot(w, d) / _dot(d, d)
+    return -1e-9 <= t <= 1 + 1e-9
 
 
-def level_table():
+def _sides(poly):
+    return [frozenset((poly[i], poly[(i + 1) % len(poly)])) for i in range(len(poly))]
+
+
+def structure(s):
+    """From s['polys'] and s['detail'] build:
+      s['nodes']: the coloured polygon parts, node f = face f's polygon;
+      s['dets']: surface items drawn over a face after the faces:
+        {'kind': 'poly'|'line', 'faces': (f1, f2), 'vis', 'verts'};
+      s['fins']: zero-thickness fins {'faces': (A, B), 'vis', 'verts'};
+      s['adj']: set of frozenset node pairs sharing a polygon side;
+      s['notes2']: what was done with each detail."""
+    V = [_vec(v) for v in s['verts']]
+    E = s['edges']
+    nf = len(s['faces'])
+    polys = [list(p) for p in s['polys']]
+    nodes = [{'poly': polys[f], 'face': f} for f in range(nf)]
+    dets, fins, notes = [], [], []
+    # the rest: connected components of detail edges
+    rest = list(s['detail'])
+    comp = {}
+    for i in rest:
+        comp[i] = i
+
+    def find(i):
+        while comp[i] != i:
+            i = comp[i]
+        return i
+    for i in rest:
+        for j in rest:
+            if i < j and {E[i]['v1'], E[i]['v2']} & {E[j]['v1'], E[j]['v2']}:
+                comp[find(j)] = find(i)
+    groups = defaultdict(list)
+    for i in rest:
+        groups[find(i)].append(i)
+    for g in sorted(groups.values()):
+        adj = defaultdict(list)
+        for i in g:
+            adj[E[i]['v1']].append(E[i]['v2'])
+            adj[E[i]['v2']].append(E[i]['v1'])
+        deg = {v: len(a) for v, a in adj.items()}
+        evis = min(E[i]['vis'] for i in g)
+        fs = {E[i]['f1'] for i in g} | {E[i]['f2'] for i in g}
+        if all(d == 2 for d in deg.values()) and len(fs) == 1:
+            # closed loop on one face
+            f = fs.pop()
+            loop = [E[g[0]]['v1']]
+            prev = None
+            while True:
+                nxt = [w for w in adj[loop[-1]] if w != prev and (len(loop) < 2 or w != loop[-2])]
+                prev = loop[-1]
+                w = nxt[0]
+                if w == loop[0]:
+                    break
+                loop.append(w)
+            # clockwise about the face normal (as the face polygons)
+            if _dot(_newell(V, loop), s['faces'][f]['n']) > 0:
+                loop = loop[::-1]
+            vis = min([evis] + [s['verts'][v]['vis'] for v in loop])
+            for v in loop:
+                assert f in s['verts'][v]['faces'] or 15 in s['verts'][v]['faces'], (s['name'], v)
+            dets.append({'kind': 'poly', 'faces': (f, f), 'vis': vis, 'verts': loop})
+            notes.append('edges %s: closed loop %s on face %d -> filled polygon (drawn when XX4 <= %d)'
+                         % (g, loop, f, vis))
+            continue
+        ends = [v for v, d in deg.items() if d == 1]
+        # chain: a fin if both ends are on one body edge (polygon side)
+        fin = None
+        if len(ends) != 2 or any(d > 2 for d in deg.values()):
+            ends = []
+        for f, p in enumerate(polys):
+            for i in range(len(p)):
+                a, b = V[p[i]], V[p[(i + 1) % len(p)]]
+                if ends and all(_on_segment(V[v], a, b) for v in ends):
+                    other = [h for h, q in enumerate(polys) if h != f and
+                             all(any(_on_segment(V[v], V[q[k]], V[q[(k + 1) % len(q)]])
+                                     for k in range(len(q))) for v in ends)]
+                    fin = (f, other[0] if other else f)
+        if fin:
+            chain = [ends[0]]
+            while chain[-1] != ends[1]:
+                chain.append([w for w in adj[chain[-1]] if w not in chain][0])
+            vis = min([evis] + [s['verts'][v]['vis'] for v in chain])
+            A, B = sorted(fin)
+            fins.append({'faces': (A, B), 'vis': vis, 'verts': chain})
+            notes.append('edges %s: fin %s standing on the edge between faces %d and %d -> '
+                         'two-sided filled triangle' % (g, chain, A, B))
+            continue
+        for i in g:
+            e = E[i]
+            dets.append({'kind': 'line', 'faces': (e['f1'], e['f2']), 'vis': e['vis'],
+                         'verts': [e['v1'], e['v2']]})
+        notes.append('edges %s: %s -> kept as line%s'
+                     % (g, 'not a closed loop on one face, not a fin' if ends or len(fs) == 1 else
+                        'a loop across faces %s (fold lines of non-planar quads)' % sorted(fs),
+                        's' if len(g) > 1 else ''))
+    # adjacency between polygon parts
+    side = defaultdict(set)
+    for k, nd in enumerate(nodes):
+        if nd['poly']:
+            for sd in _sides(nd['poly']):
+                side[sd].add(k)
+    adjs = set()
+    for sd, ks in side.items():
+        for a, b in _combs(sorted(ks), 2):
+            adjs.add(frozenset((a, b)))
+    s['nodes'], s['dets'], s['fins'], s['adj'], s['notes2'] = nodes, dets, fins, adjs, notes
+    return s
+
+
+# ---------------------------------------------------------------------------
+# Symmetry
+
+AXN = 'xyz'
+
+
+def _symname(perm, sg):
     out = []
-    for i in range(256):
-        c = min(1.0, 2 ** ((i - IDX0) / LOGK))
-        out.append(min(7, int(8 * c ** 0.8)))
+    for k in range(3):
+        out.append(('-' if sg[k] < 0 else '') + AXN[perm[k]])
+    return '(x,y,z)->(%s)' % ','.join(out)
+
+
+def symmetries(s):
+    """Every signed axis permutation mapping the ship onto itself: all vertices,
+    and the polygon parts, details and fins onto ones of the same kind.
+    Returns [(name, vertex map, node map)], the identity first."""
+    V = [_vec(v) for v in s['verts']]
+    idx = {}
+    for i, v in enumerate(V):
+        idx.setdefault(v, i)
+    nkey = {frozenset(nd['poly']): k for k, nd in enumerate(s['nodes']) if nd['poly']}
+    dets = s['dets']
+    dkey = {(d['kind'], frozenset(d['verts'])) for d in dets}
+    fkey = {frozenset(d['verts']) for d in s['fins']}
+    out = []
+    for perm in _perms(range(3)):
+        for sg in _product((1, -1), repeat=3):
+            vm = []
+            for v in V:
+                w = tuple(sg[k] * v[perm[k]] for k in range(3))
+                if w not in idx:
+                    break
+                vm.append(idx[w])
+            else:
+                nm = {}
+                ok = True
+                for k, nd in enumerate(s['nodes']):
+                    if nd['poly']:
+                        img = frozenset(vm[v] for v in nd['poly'])
+                        if img not in nkey:
+                            ok = False
+                            break
+                        nm[k] = nkey[img]
+                    else:
+                        nm[k] = k
+                ok = ok and all((d['kind'], frozenset(vm[v] for v in d['verts'])) in dkey for d in dets)
+                ok = ok and all(frozenset(vm[v] for v in d['verts']) in fkey for d in s['fins'])
+                if ok:
+                    out.append((_symname(perm, sg), vm, nm))
+    out.sort(key=lambda g: g[0] != '(x,y,z)->(x,y,z)')
     return out
 
 
-def face_c(s):
-    L = log_table()
-    return [255 - L[round(math.sqrt(_dot(f['n'], f['n'])))] for f in s['faces']]
+def _compose(a, b):
+    return tuple(a[x] for x in b)
 
 
-def zn_of(z):
-    z = abs(int(z))
-    while z >> 8:
-        z >>= 1
-    return z
+def subgroups(G):
+    """All subgroups of G (a list of node maps as tuples), as sets of indices."""
+    maps = [tuple(g[1]) for g in G]
+    index = {m: i for i, m in enumerate(maps)}
+    seen = set()
+    out = []
+    n = len(G)
+    for r in range(0, min(n, 4) + 1):
+        for gens in _combs(range(1, n), r):
+            H = {0}
+            frontier = list(gens)
+            H |= set(gens)
+            changed = True
+            while changed:
+                changed = False
+                for a in list(H):
+                    for b in list(H):
+                        c = index.get(_compose(maps[a], maps[b]))
+                        if c is None:
+                            continue
+                        if c not in H:
+                            H.add(c)
+                            changed = True
+            key = frozenset(H)
+            if key not in seen:
+                seen.add(key)
+                out.append(key)
+    return out
 
 
-def level_of(xx2, cf, zn):
-    L = log_table()
-    if xx2 == 0:
-        return None
-    d = min(255, 256 - L[max(1, zn)])
-    return level_table()[min(255, L[xx2] + cf + d)]
+def orbits(nodes_n, G, H):
+    par = list(range(nodes_n))
+
+    def find(i):
+        while par[i] != i:
+            i = par[i]
+        return i
+    for h in H:
+        for k, im in G[h][2].items():
+            par[find(im)] = find(k)
+    out = defaultdict(list)
+    for k in range(nodes_n):
+        out[find(k)].append(k)
+    return sorted(out.values())
+
+
+def choose_symmetry(s):
+    """H: the largest subgroup of the symmetry group G under which no polygon part
+    maps to one it shares a side with (so an H-invariant colouring can give
+    adjacent parts different colours); among equals, prefer one containing the
+    x -> -x mirror, then y -> -y.  The rest of G is honoured softly."""
+    G = symmetries(s)
+    nn = len(s['nodes'])
+    best = None
+    for H in subgroups(G):
+        orb = orbits(nn, G, H)
+        bad = any(frozenset((a, b)) in s['adj'] for o in orb for a, b in _combs(o, 2))
+        if bad:
+            continue
+        names = {G[h][0] for h in H}
+        key = (len(H), '(x,y,z)->(-x,y,z)' in names, '(x,y,z)->(x,-y,z)' in names)
+        if best is None or key > best[0]:
+            best = (key, H)
+    return G, best[1]
+
+
+# ---------------------------------------------------------------------------
+# Colouring
+
+LIGHT = _unit((0.0, 1.0, 0.7))
+DE_MIN = 14.0
+
+
+def _area(V, poly):
+    return math.sqrt(_dot(_newell(V, poly), _newell(V, poly))) / 2 if len(poly) >= 3 else 0.0
+
+
+def colour_ship(t, s, seed=1, iters=40000):
+    """Fixed colour (swatch number) per polygon part: s['col'][node]."""
+    V = [_vec(v) for v in s['verts']]
+    G, H = choose_symmetry(s)
+    nn = len(s['nodes'])
+    orb = orbits(nn, G, H)
+    of = {}
+    for i, o in enumerate(orb):
+        for k in o:
+            of[k] = i
+    hA, hB = SHIP_HUES[t]
+    pal = [(0, c) for c in RAMPS[hA]] + [(1, c) for c in RAMPS[hB]]
+    # soft symmetry pairs (node pairs that G \ H would like coloured alike)
+    soft_same, soft_adj = set(), set()
+    for gi, (name, vm, nm) in enumerate(G):
+        if gi in H:
+            continue
+        for k, im in nm.items():
+            if of[k] == of[im]:
+                continue
+            pr = frozenset((of[k], of[im]))
+            if frozenset((k, im)) in s['adj']:
+                soft_adj.add(pr)
+            else:
+                soft_same.add(pr)
+    soft_same -= soft_adj
+    oadj = defaultdict(int)
+    for pr in s['adj']:
+        a, b = tuple(pr)
+        oadj[frozenset((of[a], of[b]))] += 1
+    area = [sum(_area(V, s['nodes'][k]['poly']) for k in o) for o in orb]
+    tot = sum(area) or 1
+    nrm = []
+    for o in orb:
+        nd = s['nodes'][o[0]]
+        nrm.append(_unit(s['faces'][nd['face']]['n']))
+    ncol = len(pal)
+    lab = [swatch_lab(c) for _, c in pal]
+    D = [[math.dist(lab[i], lab[j]) for j in range(ncol)] for i in range(ncol)]
+    no = len(orb)
+
+    def score(x):
+        sc = 0.0
+        for pr, cnt in oadj.items():
+            a, b = tuple(pr)
+            ca, cb = x[a], x[b]
+            d = D[ca][cb]
+            if d < DE_MIN:
+                sc += 1000 + 50 * (DE_MIN - d)
+            samehue = pal[ca][0] == pal[cb][0]
+            if pr in soft_adj:
+                sc += (0 if samehue else 14) + 0.25 * max(0, d - DE_MIN)
+            else:
+                sc += cnt * ((9 if samehue else 0) - 0.12 * min(d, 50))
+        for pr in soft_same:
+            a, b = tuple(pr)
+            if x[a] != x[b]:
+                sc += 30
+        sc -= 3.0 * len(set(x))
+        bshare = 0.0
+        for i in range(no):
+            L = lab[x[i]][0]
+            Lt = 70 + 22 * _dot(nrm[i], LIGHT)
+            sc += 0.004 * (L - Lt) ** 2 * area[i] / tot * no
+            if pal[x[i]][0] == 1:
+                bshare += area[i] / tot
+        if bshare > 0.5:
+            sc += 40 * (bshare - 0.5)
+        return sc
+    rnd = _random.Random(seed * 1000 + t)
+    best = None
+    for restart in range(6):
+        x = [rnd.randrange(ncol) for _ in range(no)]
+        cur = score(x)
+        T = 30.0
+        for it in range(iters // 6):
+            i = rnd.randrange(no)
+            old = x[i]
+            x[i] = rnd.randrange(ncol)
+            new = score(x)
+            if new <= cur or rnd.random() < math.exp((cur - new) / T):
+                cur = new
+            else:
+                x[i] = old
+            T = max(0.05, T * 0.9993)
+        if best is None or cur < best[0]:
+            best = (cur, list(x))
+    x = best[1]
+    col = [None] * nn
+    for i, o in enumerate(orb):
+        for k in o:
+            col[k] = pal[x[i]][1]
+    s['col'] = col
+    s['pal'] = pal
+    s['G'], s['H'] = G, H
+    s['soft_adj'] = [(orb[a], orb[b]) for a, b in (tuple(p) for p in soft_adj)]
+    # details: polygons in the colour (of the ship's two ramps or black) that
+    # contrasts most with their face
+    cands = sorted(set(RAMPS[hA] + RAMPS[hB] + ([BLACK] if t == 8 else [])))   # black: the docking slot
+    for d in s['dets']:
+        f = d['faces'][0]
+        if d['kind'] == 'poly':
+            d['col'] = max(cands, key=lambda c: (dE(c, col[f]), -c))
+        else:
+            fc = [col[g] for g in set(d['faces'])]
+            d['col'] = max((INK_SWATCH[k] for k in (SW.C, SW.M, SW.Y)),
+                           key=lambda c: (min(dE(c, q) for q in fc), -c))
+    fcands = sorted(set(RAMPS[hA] + RAMPS[hB]))
+    for d in s['fins']:
+        fc = [col[g] for g in d['faces']]
+        d['col'] = max(fcands, key=lambda c: (min(dE(c, q) for q in fc), -c))
+    s['dot'] = RAMPS[hA][-2]
+    return s
+
+
+def check_colours(t, s):
+    """Assertions + a report of the symmetry and adjacency decisions."""
+    out = []
+    G, H = s['G'], s['H']
+    col = s['col']
+    out.append('symmetry group: %s' % ', '.join(g[0] for g in G[1:]) if len(G) > 1 else
+               'symmetry group: identity only')
+    out.append('honoured exactly: %s' % (', '.join(G[h][0] for h in sorted(H) if h) or 'identity only'))
+    for pr in s['adj']:
+        a, b = tuple(pr)
+        assert col[a] != col[b], (s['name'], a, b)
+        assert dE(col[a], col[b]) >= DE_MIN - 1e-6, (s['name'], a, b)
+    hue = {c: h for h, c in reversed(s['pal'])}
+    samehue = sorted(tuple(sorted(p)) for p in s['adj'] if hue[col[tuple(p)[0]]] == hue[col[tuple(p)[1]]])
+    softpairs = set()
+    for gi, (name, vm, nm) in enumerate(G):
+        if gi in H:
+            continue
+        for k, im in nm.items():
+            if k < im and col[k] != col[im]:
+                if frozenset((k, im)) in s['adj']:
+                    softpairs.add((k, im, name, 'adjacent across the mirror/rotation: same hue, '
+                                   'different shade' if hue[col[k]] == hue[col[im]] else
+                                   'adjacent: different hues'))
+                else:
+                    softpairs.add((k, im, name, 'NOT adjacent but coloured differently'))
+    for k, im, name, what in sorted(softpairs):
+        out.append('  %s: parts %d/%d (%d, %d) %s' % (name, k, im, col[k], col[im], what))
+    other = [p for p in samehue if not any({p[0], p[1]} == {k, im} for k, im, _, _ in softpairs)]
+    if other:
+        out.append('  adjacent parts in the same hue (other than the above): %s' % other)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -494,8 +854,15 @@ def _equb(vals, per=16):
     return out
 
 
+def prepare(ships):
+    for t, s in ships:
+        reconstruct(s)
+        structure(s)
+        colour_ship(t, s)
+    return ships
+
+
 def emit(ships, path):
-    check_ramps()
     L = []
     nbytes = 0
 
@@ -505,97 +872,84 @@ def emit(ships, path):
         L.extend(_equb(vals, per))
     L += ['\\ faces.asm -- generated by tools/faces.py; do not edit.',
           '\\',
-          '\\ Filled faces, detail lines and colours for the demo\'s 13 ship types.',
-          '\\ All per-type pointer tables have an entry for every type 0..13 (type 0',
-          '\\ is a dummy), so entry = table + 2 * type, as for XX21 - 2.',
+          '\\ Filled faces, surface details, fins and colours for the demo\'s 13 ship',
+          '\\ types.  Ships are not lit: every face has a fixed colour.  Per-type',
+          '\\ pointer tables have an entry for every type 0..13 (type 0 is a dummy).',
           '\\',
-          '\\ FC_FACETAB -> per face f, in blueprint order: n, then n XX3 offsets (4 *',
-          '\\   vertex).  Polygons are convex and CLOCKWISE ON SCREEN (x right, y down)',
-          '\\   when the face is front-facing, for every orientation with det -1, i.e.',
-          '\\   as set by ZINF and kept by TIDY (sidev = nosev x roofv).  The station',
-          '\\   (NWSPS negates the planet\'s nosev) is mirrored, det +1, until its',
-          '\\   first TIDY: so do not rely on winding for it.  n = 0: do not fill.',
-          '\\ FC_DETTAB -> count, then count edges in Elite\'s own edge layout:',
-          '\\   visibility distance, face1 + 16 * face2, XX3 offset a, XX3 offset b.',
-          '\\   Draw as a line over the fill when XX4 <= visibility and XX2[face1] or',
-          '\\   XX2[face2] is non-zero (exactly LL9 part 9\'s rule; face1 = face2 for',
-          '\\   surface detail).',
-          '\\ FC_NRMTAB -> per face f: C_f = 255 - FC_LOG[|normal_f|].',
-          '\\ Level of a visible face (XX2[f] <> 0, <> 255):',
-          '\\   D = min(255, 256 - FC_LOG[zn]) once per ship, zn = INWK z halved until',
-          '\\   its high byte is 0 (as LL9 part 5 does);',
-          '\\   level = FC_LEVEL[min(255, FC_LOG[XX2[f]] + C_f + D)]  (0 dark .. 7 bright)',
-          '\\   XX2[f] = 255 means LL9 skipped the normal test (far ship or exploding):',
-          '\\   use FC_FARLVL and cull by screen winding instead.',
-          '\\ Colour of (hue, level): even rows FC_RAMPE[hue*8+level], odd rows',
-          '\\   FC_RAMPO[hue*8+level]; FC_HUE[type] = hue; FC_DETC[hue] = detail line',
-          '\\   byte (one solid ink, same on both rows).',
+          '\\ FC_FACETAB -> per face f, in blueprint order: n, even-row colour byte,',
+          '\\   odd-row colour byte, then n XX3 offsets (4 * vertex).  Polygons are',
+          '\\   convex and CLOCKWISE ON SCREEN (x right, y down) when the face is',
+          '\\   front-facing, for every orientation with det -1, i.e. as set by ZINF',
+          '\\   and kept by TIDY (sidev = nosev x roofv).  The station (NWSPS negates',
+          '\\   the planet\'s nosev) is mirrored, det +1, until its first TIDY: so do',
+          '\\   not rely on winding for it.  n < 3: do not fill.',
+          '\\ FC_DETTAB -> nfins, nfins fins, then ndet, ndet details; each item is',
+          '\\   visibility distance, face1 + 16 * face2, even colour, odd colour, n,',
+          '\\   then n XX3 offsets.  Draw only when XX4 <= visibility.',
+          '\\   Details (n = 2: a line, n >= 3: a polygon on face1 = face2) are drawn',
+          '\\   over the faces when XX2[face1] or XX2[face2] is non-zero (a polygon',
+          '\\   with XX2 = 255: cull by its winding, as its face).',
+          '\\   Fins (n = 3, two-sided, zero thickness, standing on the body edge',
+          '\\   between face1 and face2): k = number of face1, face2 visible; draw',
+          '\\   k = 0 before the faces (behind the body), k = 1 after the details,',
+          '\\   then k = 2 (the fin nearest the viewer) last.',
           '\\ FC_MINVIS[type]: if XX4 > it, a polygon vertex may not have been',
           '\\   projected (vertex visibility distance < XX4): do not fill that ship.',
+          '\\ FC_DOTE/FC_DOTO[type]: colour of the ship drawn as a distant dot.',
           '']
-    hues = [SHIP_HUE.get(t, 0) for t in range(0, NTYPES + 1)]
-    L.append('FC_FARLVL = %d' % FAR_LEVEL)
     L.append('FC_NTYPES = %d' % NTYPES)
-    L.append('FC_NHUES = %d' % len(HUES))
-    se, so = dither_bytes(HUES[SUN_HUE][1][SUN_LEVEL])
-    pe, po = dither_bytes(HUES[PLANET_HUE][1][PLANET_LEVEL])
-    L.append('FC_SUNHUE = %d : FC_SUNLVL = %d : FC_SUNE = &%02X : FC_SUNO = &%02X'
-             % (SUN_HUE, SUN_LEVEL, se, so))
-    L.append('FC_PLANHUE = %d : FC_PLANLVL = %d : FC_PLANE = &%02X : FC_PLANO = &%02X'
-             % (PLANET_HUE, PLANET_LEVEL, pe, po))
+    se, so = dither_bytes(SUN_SWATCH)
+    pe, po = dither_bytes(PLANET_SWATCH)
+    L.append('FC_SUNE = &%02X : FC_SUNO = &%02X' % (se, so))
+    L.append('FC_PLANE = &%02X : FC_PLANO = &%02X' % (pe, po))
     L.append('')
-    # share identical data (the two Cobras)
-    key = {}
-    for t, s in ships:
-        key.setdefault(s['addr'], t)
-    for name in ('FACETAB', 'DETTAB', 'NRMTAB'):
+    for name, tag in (('FACETAB', 'F'), ('DETTAB', 'D')):
         L.append('.FC_%s' % name)
-        tag = {'FACETAB': 'F', 'DETTAB': 'D', 'NRMTAB': 'N'}[name]
         L.append('%-30s\\ type 0: unused' % ' EQUW 0')
         nbytes += 2
         for t, s in ships:
-            L.append(('%-30s' % (' EQUW FC_S%d_%s' % (key[s['addr']], tag)))
-                     + '\\ type %d: %s' % (t, s['name']))
+            L.append(('%-30s' % (' EQUW FC_S%d_%s' % (t, tag))) + '\\ type %d: %s' % (t, s['name']))
             nbytes += 2
         L.append('')
     for t, s in ships:
-        if key[s['addr']] != t:
-            continue
-        L.append('\\ %s (type %d%s)' % (s['name'], t, ''.join(
-            ', type %d' % u for u, s2 in ships if s2['addr'] == s['addr'] and u != t)))
+        L.append('\\ %s (type %d): hues %s + %s' % ((s['name'], t) + SHIP_HUES[t]))
         L.append('.FC_S%d_F' % t)
-        for f, p in enumerate(s['polys']):
-            vals = [len(p)] + [4 * v for v in p]
+        for f in range(len(s['faces'])):
+            p = s['nodes'][f]['poly']
+            e, o = dither_bytes(s['col'][f])
+            vals = [len(p), e, o] + [4 * v for v in p]
             nbytes += len(vals)
-            L.append(' EQUB ' + ', '.join('%d' % v for v in vals) + '    \\ face %d' % f)
+            L.append(' EQUB %d, &%02X, &%02X%s    \\ face %d: colour %d' % (
+                len(p), e, o, ''.join(', %d' % (4 * v) for v in p), f, s['col'][f]))
         L.append('.FC_S%d_D' % t)
-        L.append(' EQUB %d' % len(s['detail']))
+
+        def item(d, what):
+            nonlocal nbytes
+            e, o = dither_bytes(d['col'])
+            f1, f2 = d['faces']
+            vals = [d['vis'], f1 | f2 << 4, e, o, len(d['verts'])] + [4 * v for v in d['verts']]
+            nbytes += len(vals)
+            L.append(' EQUB %d, &%02X, &%02X, &%02X, %d%s    \\ %s %s, colour %d' % (
+                d['vis'], f1 | f2 << 4, e, o, len(d['verts']),
+                ''.join(', %d' % (4 * v) for v in d['verts']), what, d['verts'], d['col']))
+        L.append(' EQUB %d                       \\ fins' % len(s['fins']))
         nbytes += 1
-        for i in s['detail']:
-            e = s['edges'][i]
-            L.append(' EQUB %d, &%02X, %d, %d    \\ edge %d' % (
-                e['vis'], e['f1'] | e['f2'] << 4, 4 * e['v1'], 4 * e['v2'], i))
-            nbytes += 4
-        L.append('.FC_S%d_N' % t)
-        eb(face_c(s))
+        for d in s['fins']:
+            item(d, 'fin')
+        L.append(' EQUB %d                       \\ details' % len(s['dets']))
+        nbytes += 1
+        for d in s['dets']:
+            item(d, d['kind'])
         L.append('')
-    L.append('.FC_HUE                       \\ indexed by ship type 0..%d' % NTYPES)
-    eb(hues)
     L.append('.FC_MINVIS                     \\ by type: least visibility distance of any polygon vertex;')
     L.append('                              \\ if XX4 > this, some polygon vertex may be unprojected (stale)')
     mv = [31] + [min([s['verts'][v]['vis'] for p in s['polys'] for v in p] + [31]) for t, s in ships]
     eb(mv)
-    L.append('.FC_DETC                      \\ indexed by hue')
-    eb([INK_BYTE[hue_detail_ink(h)] for h in range(len(HUES))])
-    L.append('.FC_RAMPE                     \\ hue * 8 + level, even rows')
-    ramps = [dither_bytes(n) for _, r, _ in HUES for n in r]
-    eb([e for e, o in ramps], 8)
-    L.append('.FC_RAMPO                     \\ hue * 8 + level, odd rows')
-    eb([o for e, o in ramps], 8)
-    L.append('.FC_LOG                       \\ min(255, round(32 * log2(x))), 0 for x = 0')
-    eb(log_table())
-    L.append('.FC_LEVEL                     \\ level 0..7 from the log-domain index')
-    eb(level_table())
+    dots = [dither_bytes(BLACK)] + [dither_bytes(s['dot']) for t, s in ships]
+    L.append('.FC_DOTE                      \\ by type: distant-dot colour, even rows')
+    eb([e for e, o in dots])
+    L.append('.FC_DOTO                      \\ odd rows')
+    eb([o for e, o in dots])
     L.append('')
     L.append('\\ %d bytes in all' % nbytes)
     open(path, 'w').write('\n'.join(L) + '\n')
@@ -605,18 +959,22 @@ def emit(ships, path):
 def report(ships):
     out = []
     for t, s in ships:
-        out.append('%d %s' % (t, s['name']))
+        out.append('%d %s: hues %s + %s' % ((t, s['name']) + SHIP_HUES[t]))
         for n in s['notes']:
             out.append('   ' + n)
-        for n in check_projection(s):
+        for n in s['notes2']:
             out.append('   ' + n)
+        for n in check_colours(t, s):
+            out.append('   ' + n)
+        out.append('   parts: ' + ' '.join('%d:%d' % (k, c) for k, c in enumerate(s['col'])))
+        for n in check_projection(s):
+            if 'visibility distance' not in n:
+                out.append('   ' + n)
     return out
 
 
 def main():
-    ships = load_ships()
-    for t, s in ships:
-        reconstruct(s)
+    ships = prepare(load_ships())
     n = emit(ships, os.path.join(ROOT, 'src', 'faces.asm'))
     print('\n'.join(report(ships)))
     print('faces.asm: %d bytes of tables' % n)

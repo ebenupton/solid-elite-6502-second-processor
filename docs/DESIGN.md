@@ -107,8 +107,14 @@ same phase conventions as Lander). A dithered colour is a PAIR of bytes:
 The game loop runs unchanged, but drawing primitives no longer touch the
 screen during the loop; they record into a display list:
   * ships: LL9 projects vertices (XX3) and face visibility (XX2) as before; the
-    hook records each visible face as a polygon (16-bit screen coords) with a
-    colour chosen from the ship's hue ramp by the face's XX2 brightness;
+    hook records each ship; each visible face is filled in a fixed colour (ships
+    are not lit). tools/faces.py gives every ship two hue ramps and colours its
+    faces so that faces sharing an edge never match (and mostly differ in hue),
+    symmetric under the ship's mirror / rotation symmetries where the geometry
+    allows; blueprint detail edges become filled polygons over their face
+    (closed loops: engines, the docking slot), two-sided fin triangles (the
+    missile: drawn before the body if neither face they stand between is
+    visible, else after it) or lines (anything else);
   * sun / planet: per-row half-widths (the sun's LSO heap) or circle (planet
     K3,K4,K) -> the incremental "disc layer";
   * lines (lasers, planet meridians/craters), dots (explosion particles), stars;

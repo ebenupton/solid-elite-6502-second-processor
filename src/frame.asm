@@ -24,7 +24,8 @@ fz_q    = FZ+2          \ second pointer (2)
 fz_dl   = FZ+4          \ ship's XX2 copy (2)
 fz_v3   = FZ+6          \ ship's XX3 copy (2)
 fz_ft   = FZ+8          \ face list pointer (2)
-fz_nm   = FZ+10         \ normal-length table pointer (2)
+fz_nm   = FZ+10         \ general pointer (2), used by the text overlay
+fz_dt   = FZ+10         \ ship's fin / detail list pointer (2)
 fz_i    = FZ+12
 fz_n    = FZ+13
 fz_t    = FZ+14
@@ -51,7 +52,6 @@ fz_u    = FZ+15
 .F_SPL      SKIP MAXSH  \ pointer into F_DL: XX2 copy (nf bytes) then XX3 copy
 .F_SPH      SKIP MAXSH
 .F_ORD      SKIP MAXSH  \ draw order (indices, far to near)
-.F_SZN      SKIP MAXSH  \ LL9's halved z (for face brightness)
 .F_SX4      SKIP MAXSH  \ LL9's XX4 (vertex visibility cut-off)
 .F_DLP      EQUW 0      \ next free byte in F_DL
 
@@ -378,8 +378,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_STYP,X
  LDA GNF
  STA F_SNF,X
- LDA GZN
- STA F_SZN,X
  LDA XX4
  STA F_SX4,X
  LDY #0
@@ -592,9 +590,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_DY,Y
  LDA #3
  STA F_DS,Y
- LDX TYPE
- LDA FC_HUE,X
- ORA #&80               \ bit 7: hue (bits 0-6), drawn at its brightest level
+ LDA TYPE
+ ORA #&80               \ bit 7: ship type (bits 0-6), drawn in its dot colour
  STA F_DC,Y
  INC F_NDOT
 .fsp9
@@ -1398,8 +1395,7 @@ ENDMACRO
 .fln9
  RTS
 
-\ f_ships: insertion-sort the ships far to near, then fill each one's visible
-\ faces and draw its detail lines.
+\ f_ships: insertion-sort the ships far to near, then draw each one (f_ship).
 
 .f_ships
  LDX F_NSHIP
@@ -1466,11 +1462,16 @@ ENDMACRO
  RTS
 
 .f_si   EQUB 0          \ ship index being drawn
-.f_hue  EQUB 0
-.f_d    EQUB 0          \ brightness offset D for this ship
 .f_nf   EQUB 0
 .f_f    EQUB 0          \ face number
 .f_x4   EQUB 0
+.f_cnt  EQUB 0          \ item counter (details, fins)
+.f_k    EQUB 0          \ fin pass: number of its two faces visible
+
+\ f_ship: draw one ship. Every face has a fixed colour (FC_FACETAB: n, even
+\ colour, odd colour, n XX3 offsets). Fins standing behind the body are drawn
+\ first, then the visible faces, the surface details over them and the other
+\ fins (see faces.asm for the order).
 
 .f_ship                 \ A = ship index
  TAX
@@ -1482,8 +1483,6 @@ ENDMACRO
  BEQ P%+5
  BCC P%+3
  RTS
- LDA FC_HUE,Y
- STA f_hue
  TYA
  ASL A
  TAY
@@ -1491,10 +1490,10 @@ ENDMACRO
  STA fz_ft
  LDA FC_FACETAB+1,Y
  STA fz_ft+1
- LDA FC_NRMTAB,Y
- STA fz_nm
- LDA FC_NRMTAB+1,Y
- STA fz_nm+1
+ LDA FC_DETTAB,Y        \ fins, then details
+ STA fz_dt
+ LDA FC_DETTAB+1,Y
+ STA fz_dt+1
  LDA F_SPL,X            \ XX2 copy, then XX3 copy
  STA fz_dl
  LDA F_SPH,X
@@ -1507,67 +1506,47 @@ ENDMACRO
  LDA fz_dl+1
  ADC #0
  STA fz_v3+1
- LDY F_SZN,X            \ D = min(255, 256 - FC_LOG[zn])
- LDA FC_LOG,Y
- EOR #&FF
- CLC
- ADC #1                 \ 256 - L (L = 0 gives 0 = 256 -> saturate below)
- BNE P%+4
- LDA #255
- STA f_d
 
  JSR f_behind           \ hidden behind the planet?
  BCC P%+3
  RTS
 
+ LDY #0                 \ fins behind the body (neither of their faces visible)
+ LDA (fz_dt),Y
+ BEQ fsh_nf0
+ TYA
+ JSR f_fins
+.fsh_nf0
+
  LDA #0
  STA f_f
+ BEQ fsh_face
+.fsh_skip               \ hidden face: just step over its entry
+ LDY #0
+ LDA (fz_ft),Y
+ STA fz_n
+ JMP fsh_next
 .fsh_face
- LDA f_f
- CMP f_nf
- BCC P%+5
- JMP f_detail
+ LDY f_f
+ CPY f_nf
+ BCS fsh_done
+ LDA (fz_dl),Y          \ visibility
+ BEQ fsh_skip
+ STA fz_t
  LDY #0
  LDA (fz_ft),Y          \ n
  STA fz_n
- TAY                    \ Y = f
- LDY f_f
- LDA (fz_dl),Y          \ visibility
- BEQ fsh_next
- CMP #255
- BNE fsh_lvl
- LDA #FC_FARLVL
- BNE fsh_col
-.fsh_lvl
- TAX                    \ idx = FC_LOG[v] + C_f + D, saturating
- LDA FC_LOG,X
- CLC
- ADC (fz_nm),Y
- BCS fsh_sat
- ADC f_d
- BCC P%+4
-.fsh_sat
- LDA #255
- TAX
- LDA FC_LEVEL,X
-.fsh_col
- STA fz_t               \ colour = ramp[hue*8 + level]
- LDA f_hue
- ASL A
- ASL A
- ASL A
- ORA fz_t
- TAX
- LDA FC_RAMPE,X
- STA R_COLE
- LDA FC_RAMPO,X
- STA R_COLO
- LDA fz_n
  CMP #3
  BCC fsh_next
  STA R_PN
+ INY
+ LDA (fz_ft),Y          \ the face's colour
+ STA R_COLE
+ INY
+ LDA (fz_ft),Y
+ STA R_COLO
+ INY
  LDX #0                 \ gather the vertices
- LDY #1
 .fsh_v
  STY fz_u
  LDA (fz_ft),Y          \ XX3 offset
@@ -1588,10 +1567,9 @@ ENDMACRO
  INX
  CPX fz_n
  BCC fsh_v
- LDY f_f                \ far ships (XX2 = 255: Elite skipped the normal test)
- LDA (fz_dl),Y          \ cull back faces by their winding on screen, except
- CMP #255               \ the station (mirrored until its first TIDY)
- BNE fsh_draw
+ LDA fz_t               \ far ships (XX2 = 255: Elite skipped the normal test)
+ CMP #255               \ cull back faces by their winding on screen, except
+ BNE fsh_draw           \ the station (mirrored until its first TIDY)
  LDX f_si
  LDA F_STYP,X
  CMP #SST
@@ -1601,8 +1579,9 @@ ENDMACRO
 .fsh_draw
  JSR T_POLY
 .fsh_next
- LDA fz_n               \ next face list entry
- SEC
+ LDA fz_n               \ next face list entry: n + 3 bytes on
+ CLC
+ ADC #3
  ADC fz_ft
  STA fz_ft
  BCC P%+4
@@ -1610,109 +1589,200 @@ ENDMACRO
  INC f_f
  JMP fsh_face
 
-.f_detail               \ detail lines: count, then (vis, f1+16*f2, a, b)
- LDX f_si
- LDY F_STYP,X
- TYA
- ASL A
- TAY
- LDA FC_DETTAB,Y
- STA fz_ft
- LDA FC_DETTAB+1,Y
- STA fz_ft+1
+.fsh_done               \ details: skip the fins (8 bytes each) to the count
  LDY #0
- LDA (fz_ft),Y
- BNE P%+5
- JMP fdt9             \ (fz_n) count
- STA fz_n
- LDX f_hue
- LDA FC_DETC,X
- STA R_COLE
- STA R_COLO
- LDY #1
+ LDA (fz_dt),Y
+ STA f_cnt
+ ASL A
+ ASL A
+ ASL A
+ SEC
+ ADC fz_dt
+ STA fz_q
+ LDA fz_dt+1
+ ADC #0
+ STA fz_q+1
+ LDA (fz_q),Y
+ BEQ fdt8
+ STA f_cnt
+ INC fz_q
+ BNE fdt1
+ INC fz_q+1
 .fdt1
- LDA (fz_ft),Y          \ visibility distance
- CMP f_x4
- BCC fdt8
- INY
- LDA (fz_ft),Y
- PHA
- AND #15
- STY fz_u
- TAY
- LDA (fz_dl),Y
- BNE fdt2
- PLA
- LSR A
- LSR A
- LSR A
- LSR A
- TAY
- LDA (fz_dl),Y
- BEQ fdt7
- PHA
-.fdt2
- PLA
- LDY fz_u
- INY
- LDA (fz_ft),Y          \ vertex a
- STY fz_u
- TAY
- LDA (fz_v3),Y
- STA R_X0
- INY
- LDA (fz_v3),Y
- STA R_X0+1
- INY
- LDA (fz_v3),Y
- STA R_Y0
- INY
- LDA (fz_v3),Y
- STA R_Y0+1
- LDY fz_u
- INY
- LDA (fz_ft),Y          \ vertex b
- STY fz_u
- TAY
- LDA (fz_v3),Y
- STA R_X1
- INY
- LDA (fz_v3),Y
- STA R_X1+1
- INY
- LDA (fz_v3),Y
- STA R_Y1
- INY
- LDA (fz_v3),Y
- STA R_Y1+1
- LDA fz_ft              \ R_LINE clobbers &10-&27 only; keep our pointers
- PHA
- LDA fz_ft+1
- PHA
- JSR T_LINE
- PLA
- STA fz_ft+1
- PLA
- STA fz_ft
- LDY fz_u
- INY
- JMP fdt6
-.fdt7
- LDY fz_u
- INY
- INY
- INY
- JMP fdt6
+ JSR f_item
+ DEC f_cnt
+ BNE fdt1
 .fdt8
- INY
- INY
- INY
- INY
-.fdt6
- DEC fz_n
+ LDY #0                 \ the other fins: one face visible, then both (the
+ LDA (fz_dt),Y          \ fin nearest the viewer)
  BEQ fdt9
- JMP fdt1
+ LDA #1
+ JSR f_fins
+ LDA #2
+ JMP f_fins
 .fdt9
+ RTS
+
+\ f_item: draw the detail at (fz_q) if it is within its visibility distance
+\ and face1 or face2 is visible: n = 2 a line, else a polygon (culled by its
+\ winding if XX2 = 255). Then fz_q -> the next item.
+
+.f_item
+ LDY #0
+ LDA (fz_q),Y           \ visibility distance
+ CMP f_x4
+ BCC fit8
+ INY
+ LDA (fz_q),Y           \ face1 + 16 * face2
+ AND #15
+ TAY
+ LDA (fz_dl),Y
+ BNE fit1
+ LDY #1
+ LDA (fz_q),Y
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ TAY
+ LDA (fz_dl),Y
+ BEQ fit8
+.fit1
+ STA fz_t
+ JSR f_itemv            \ colour and vertices
+ LDA fz_n
+ CMP #3
+ BCC fit3
+ STA R_PN
+ LDA fz_t
+ CMP #255
+ BNE fit2
+ JSR f_winding
+ BCC fit8
+.fit2
+ JSR T_POLY
+ JMP fit8
+.fit3
+ LDA R_PXL              \ a line
+ STA R_X0
+ LDA R_PXH
+ STA R_X0+1
+ LDA R_PYL
+ STA R_Y0
+ LDA R_PYH
+ STA R_Y0+1
+ LDA R_PXL+1
+ STA R_X1
+ LDA R_PXH+1
+ STA R_X1+1
+ LDA R_PYL+1
+ STA R_Y1
+ LDA R_PYH+1
+ STA R_Y1+1
+ JSR T_LINE
+.fit8
+ LDY #4                 \ next item: 5 + n bytes on
+ LDA (fz_q),Y
+ CLC
+ ADC #5
+ ADC fz_q
+ STA fz_q
+ BCC P%+4
+ INC fz_q+1
+ RTS
+
+\ f_itemv: the item at (fz_q): R_COLE/R_COLO, fz_n = n, R_PX/R_PY[0..n-1]
+
+.f_itemv
+ LDY #2
+ LDA (fz_q),Y
+ STA R_COLE
+ INY
+ LDA (fz_q),Y
+ STA R_COLO
+ INY
+ LDA (fz_q),Y
+ STA fz_n
+ INY
+ LDX #0
+.fiv1
+ STY fz_u
+ LDA (fz_q),Y           \ XX3 offset
+ TAY
+ LDA (fz_v3),Y
+ STA R_PXL,X
+ INY
+ LDA (fz_v3),Y
+ STA R_PXH,X
+ INY
+ LDA (fz_v3),Y
+ STA R_PYL,X
+ INY
+ LDA (fz_v3),Y
+ STA R_PYH,X
+ LDY fz_u
+ INY
+ INX
+ CPX fz_n
+ BCC fiv1
+ RTS
+
+\ f_fins: A = k: draw the fins (two-sided triangles standing on the body edge
+\ between face1 and face2) with exactly k of those two faces visible. A fin
+\ with neither visible is behind the body, one with one or both in front of
+\ it, and only the fin on the corner facing the viewer (both visible) can hide
+\ another fin.
+
+.f_fins
+ STA f_k
+ LDY #0
+ LDA (fz_dt),Y
+ STA f_cnt
+ LDA fz_dt
+ CLC
+ ADC #1
+ STA fz_q
+ LDA fz_dt+1
+ ADC #0
+ STA fz_q+1
+.ffi1
+ LDY #0
+ LDA (fz_q),Y           \ visibility distance
+ CMP f_x4
+ BCC ffi8
+ LDX #0                 \ X = number of the two faces visible
+ INY
+ LDA (fz_q),Y
+ AND #15
+ TAY
+ LDA (fz_dl),Y
+ BEQ P%+3
+ INX
+ LDY #1
+ LDA (fz_q),Y
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ TAY
+ LDA (fz_dl),Y
+ BEQ P%+3
+ INX
+ CPX f_k
+ BNE ffi8
+ JSR f_itemv
+ LDA #3
+ STA R_PN
+ JSR T_POLY
+.ffi8
+ LDA fz_q               \ next fin: 8 bytes on
+ CLC
+ ADC #8
+ STA fz_q
+ BCC P%+4
+ INC fz_q+1
+ DEC f_cnt
+ BNE ffi1
  RTS
 
 .f_dots
@@ -1724,15 +1794,11 @@ ENDMACRO
  BCS fdo8
  LDA F_DC,X
  BPL fdo3
- AND #&7F               \ a hue: its brightest level
- ASL A
- ASL A
- ASL A
- ORA #7
+ AND #&7F               \ a ship type: its dot colour
  TAY
- LDA FC_RAMPE,Y
+ LDA FC_DOTE,Y
  STA R_COLE
- LDA FC_RAMPO,Y
+ LDA FC_DOTO,Y
  STA R_COLO
  JMP fdo4
 .fdo3
@@ -2858,7 +2924,9 @@ MAXPT = 140             \ points per frame
 
 .f_behind
  LDA F_PLON
- BEQ fbh8
+ CMP #1                 \ C clear (not behind) if there is no planet
+ BCS P%+3
+ RTS
  LDX f_si               \ further away than the planet?
  LDA F_PLZL
  CMP F_SZL,X
@@ -2877,9 +2945,10 @@ MAXPT = 140             \ points per frame
  BCS fbh8
  LDA (fz_dl),Y
  BNE fbh2
- LDY #0                 \ skip this face's list entry
- LDA (fz_p),Y
- SEC
+ LDY #0                 \ skip this face's list entry (n, 2 colour bytes,
+ LDA (fz_p),Y           \ n offsets)
+ CLC
+ ADC #3
  ADC fz_p
  STA fz_p
  BCC P%+4
@@ -2887,7 +2956,7 @@ MAXPT = 140             \ points per frame
  INC f_f
  JMP fbh1
 .fbh2
- LDY #1                 \ XX3 offset of the vertex
+ LDY #3                 \ XX3 offset of the vertex
  LDA (fz_p),Y
  TAY
  LDA (fz_v3),Y          \ dx = x - planet x (16-bit)
