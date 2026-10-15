@@ -1806,12 +1806,10 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  STA fz_q+1
  RTS
 .frp1
- LDA fz_q
- CLC
- ADC #LO(F_SH1)
+ LDA fz_p               \ F_SH1 = F_TM + 1536 (gfx-build.asm), and LO(F_TM)+32*row never carries
  STA fz_q
- LDA fz_q+1
- ADC #HI(F_SH1)
+ LDA fz_p+1
+ ADC #HI(F_SH1-F_TM)    \ C=0 here (from the ADC #HI(F_TM) above)
  STA fz_q+1
  RTS
 

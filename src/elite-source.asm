@@ -31331,8 +31331,8 @@ ENDIF
  CMP #160               \ If token >= 160, then this is a recursive token, so
  BCS TT47               \ jump to TT47 below to process it
 
- AND #127               \ This is a two-letter token with number 128-159. The
- ASL A                  \ set of two-letter tokens is stored in a lookup table
+ ASL A                  \ This is a two-letter token with number 128-159. The
+                        \ set of two-letter tokens is stored in a lookup table
                         \ at QQ16, with each token taking up two bytes, so to
                         \ convert this into the token's position in the table,
                         \ we subtract 128 (or just clear bit 7) and multiply
@@ -31395,18 +31395,17 @@ ENDIF
 
 .ex
 
- TAX                    \ Copy the token number into X
-
- LDA #LO(QQ18)          \ Set V(1 0) to point to the recursive token table at
- STA V                  \ location QQ18
- LDA #HI(QQ18)
- STA V+1
+ ASSERT LO(QQ18) = 0
+ STZ V                  \ Set V(1 0) to point to the recursive token table at
+ LDY #HI(QQ18)          \ location QQ18 (page-aligned, so the low byte is 0)
+ STY V+1
 
  LDY #0                 \ Set a counter Y to point to the character offset
                         \ as we scan through the table
 
- TXA                    \ Copy the token number back into A, so both A and X
-                        \ now contain the token number we want to print
+ TAX                    \ Copy the token number into X, so both A and X
+                        \ contain the token number we want to print (and Z is
+                        \ set from it)
 
  BEQ TT50               \ If the token number we want is 0, then we have
                         \ already found the token we are looking for, so jump
