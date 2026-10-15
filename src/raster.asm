@@ -2129,6 +2129,21 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA ah+1
   LDA RZ_T2
   STA ye+1
+  STZ RZ_T4               \ bit 7: the far end is inside CL..CR+1 and dy < 256,
+  LDX r_i1                \ so once inside, x stays inside: the 8-bit DDA
+  LDA r_edy+1
+  BNE g1
+  LDA R_PXH,X
+  BNE g1
+  LDA R_PXL,X
+  CMP R_CL
+  BCC g1
+  CMP r_cr1
+  BEQ g0
+  BCS g1
+.g0
+  DEC RZ_T4
+.g1
   LDY RZ_T3
 .lp
   LDA RZ_SA+1
@@ -2138,7 +2153,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CMP R_CL
   BCC lo
   CMP r_cr1
-  BCC st
+  BCC inw
 .hi
   BIT r_ea+1              \ right of the window, moving right: stays there
   BPL fh
@@ -2200,6 +2215,22 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPY ye+1
   BCC fi
   RTS
+.inw
+  BIT RZ_T4
+  BMI sw
+  JMP st
+.sw                       \ inside for good: the 8-bit DDA from row Y
+  STA RZ_T0
+  STY RZ_T3
+  LDA r_edy
+  STA RZ_T1
+  LDX r_eb
+  LDA r_ea
+  CPX #0
+  BNE sw1
+  JMP r_pzl1
+.sw1
+  JMP r_psh1
 }
 
 \ ============================================================================
