@@ -113,6 +113,11 @@ screen during the loop; they record into a display list:
     K3,K4,K) -> the incremental "disc layer";
   * lines (lasers, planet meridians/craters), dots (explosion particles), stars;
   * text: a 32x24 text map (desired characters) rendered as an overlay.
+    The map is also kept while drawing directly (QQ11 or GFORCE non-zero),
+    and stars PIXEL draws directly are noted, so a screen that carries on in
+    record mode without a TT66 (DEATH: "GAME OVER" and nWq's stardust are
+    drawn at QQ11 = 6, then QQ11 = 0) starts with buffer 0's shown-text map
+    right and its stray stars removed (src/frame_cold.asm).
 At the end of each main-loop iteration FRAME renders the display list into the
 back buffer and requests a flip at the next vsync.
 

@@ -65,20 +65,16 @@
  RTS
 
 .G_CHAR
- STA gA
  LDA #GFXBANK
  STA &F4
  STA &FE30
- LDA gA
  JSR F_CHAR
  JMP gback
 
 .G_CLRTEXT
- STA gA
  LDA #GFXBANK
  STA &F4
  STA &FE30
- LDA gA
  JSR F_CLRTEXT
  JMP gback
 
@@ -142,12 +138,17 @@
  JMP gback
 
 .G_DELCHAR
- STA gA
  LDA #GFXBANK
  STA &F4
  STA &FE30
- LDA gA
  JSR F_DELCHAR
+ JMP gback
+
+.G_DSTAR                \ (C preserved both ways)
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JSR F_DSTAR
  JMP gback
 
 

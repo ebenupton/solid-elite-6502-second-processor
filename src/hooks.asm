@@ -74,6 +74,9 @@
  CMP #80
  RTS
 .hsd
+ SEC                    \ outside record mode PIXEL draws it: note where
+ JSR G_DSTAR            \ (F_DSTAR preserves X and Y)
+.hdd
  LDA hA
  RTS
 
@@ -84,8 +87,9 @@
 .H_STAROFF
  LDA QQ11
  ORA GFORCE
- BEQ P%+3
- RTS
+ BEQ P%+6
+ CLC                    \ (outside record mode: see H_STAR; F_DSTAR returns
+ JMP G_DSTAR            \ C set)
  CLC
  JSR G_STAR
  SEC                    \ as PIXEL2's BCS PX4 leaves it
@@ -97,7 +101,7 @@
  STA hA
  LDA QQ11
  ORA GFORCE
- BNE hsd
+ BNE hdd
  PLA
  PLA
  LDA GDRAWON
@@ -107,44 +111,47 @@
  JMP hpxc
 
 \ H_CHAR: TT26 is about to draw the character in K3 at (XC-1, YC); A = YC,
-\ C clear on return
+\ C clear on return. The text map is kept outside record mode too, where
+\ TT26 also draws the character into main RAM (see f_sync in frame.asm), so
+\ text printed before the screen carries on in record mode without a TT66
+\ (DEATH's "GAME OVER") is still known to FRAME.
 
 .H_CHAR
  STA hA
+ JSR G_CHAR             \ (F_CHAR reads K3)
  LDA QQ11
  ORA GFORCE
  BNE hcd
  PLA
  PLA
- LDA K3
- JSR G_CHAR
  JMP RR4
 .hcd
  LDA hA
  CLC
  RTS
 
-\ H_DEL: TT26 is deleting the character at (XC, YC)
+\ H_DEL: TT26 is deleting the character at (XC, YC) (kept in the text map in
+\ direct mode too, as H_CHAR)
 
 .H_DEL
+ JSR G_DELCHAR          \ (F_DELCHAR reads XC, YC)
  LDA QQ11
  ORA GFORCE
  BEQ P%+3
  RTS
  PLA
  PLA
- LDX XC
- LDY YC
- JSR G_DELCHAR
  JMP RR4
 
 .hrts3
  RTS
 
 \ H_CLYNS: clear text rows 21-23 and leave the cursor at (1, 21), A = Y = 0, as
-\ CLYNS (falling into LYN) does
+\ CLYNS (falling into LYN) does (X preserved)
 
 .H_CLYNS
+ JSR G_CLRTEXT          \ text map rows 21-23, in direct mode too (as H_CHAR;
+                        \ F_CLRTEXT preserves X and Y, as CLYNS does)
  LDA QQ11
  ORA GFORCE
  BEQ P%+3
@@ -154,9 +161,6 @@
  LDA #20
  STA YC
  JSR TT67
- LDX #21
- LDY #23
- JSR G_CLRTEXT
  LDA #1
  STA XC
  LDY #0
@@ -443,7 +447,7 @@
  PLA
  PLP
  RTS
- EQUB 0, 0, 0, 0        \ padding: keeps raster_vars' tables (R_DIRTYL0/1, R_WL at &xx03) from moving to &xxFF and page-crossing on every indexed read
+ EQUB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 \ padding: keeps raster_vars' tables (R_DIRTYL0/1, R_WL at &xx03) from moving to &xxFF and page-crossing on every indexed read
 
 \ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
 \ curve (PLS22 calls PM_HOOK, in bank 4, which comes here). H_BPT: BLINE has

@@ -204,10 +204,10 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 .f_off  EQUW 0
 .f_row  EQUB 0
 
-\ F_CHAR: A = character, (XC-1, YC) = cell. EOR semantics like the original:
-\ printing the same character again removes it.
+\ f_char0 (F_CHAR, frame_cold.asm): A = character, (XC-1, YC) = cell. EOR
+\ semantics like the original: printing the same character again removes it.
 
-.F_CHAR
+.f_char0
  STY f_ysav
  PHA
  LDX XC
@@ -258,9 +258,10 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 .f_ysav EQUB 0
 .f_tmp  EQUB 0
 
-\ F_DELCHAR: clear the text map cell at X = column, Y = row
+\ f_delchar0 (F_DELCHAR, frame_cold.asm): clear the text map cell at X =
+\ column, Y = row
 
-.F_DELCHAR
+.f_delchar0
  STY f_ysav
  CPY #24
  BCS fdc9
@@ -278,9 +279,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDY f_ysav
  RTS
 
-\ F_CLRTEXT: clear text map rows X to Y inclusive
+\ f_clrtext0 (F_CLRTEXT, frame_cold.asm): clear text map rows X to Y inclusive
 
-.F_CLRTEXT
+.f_clrtext0
  STY f_ysav
  STY f_tmp
 .fct1
@@ -311,11 +312,11 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  RTS
 
 \ ------------------------------------------------------------------------------
-\ F_DIRECT: the screen is about to be cleared and drawn directly (TT66):
-\ cancel double buffering, show and access main RAM.
+\ f_direct0 (F_DIRECT, frame_cold.asm): the screen is about to be cleared and
+\ drawn directly (TT66): cancel double buffering, show and access main RAM.
 \ ------------------------------------------------------------------------------
 
-.F_DIRECT
+.f_direct0
  SEI
  LDA #0
  STA GMODE
@@ -631,7 +632,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
  BIT GMODE
  BMI ff2
- JSR f_enter            \ first space-mode frame since the screen was cleared
+ JSR f_enter2           \ first space-mode frame since the screen was cleared
+                        \ (f_enter, with frame_cold.asm's direct-mode fix-ups)
 
 .ff2
  LDA GFLIP              \ wait for the previous flip, so the back buffer is
