@@ -101,6 +101,7 @@
  STA F_SHR0,X
  DEX
  BPL fsy3
+ JSR f_tchall
  PLX
 .fsy9
  RTS

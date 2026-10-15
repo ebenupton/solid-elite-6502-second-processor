@@ -165,7 +165,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_SHR0,X
  DEX
  BPL ftc2
- RTS
+ JMP f_tchall
 
 \ f_cell: X = column, Y = row -> f_ptr = row*32 + column (offset into a map)
 \ Returns the offset in f_off (2 bytes) and also patches the three map
@@ -199,6 +199,21 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 .f_off  EQUW 0
 .f_row  EQUB 0
+.F_TCH  SKIP 24         \ per text row: bit b set = buffer b's shown row may
+                        \ differ from the text map (f_text1/f_text2 scan it whole)
+.f_tbit EQUB 0          \ this frame's buffer bit (1 or 2)
+
+.f_tchall               \ every row changed, for both buffers (keeps X; A = 0)
+ PHX
+ LDX #23
+ LDA #3
+.fta1
+ STA F_TCH,X
+ DEX
+ BPL fta1
+ PLX
+ LDA #0
+ RTS
 
 \ f_char0 (F_CHAR, frame_cold.asm): A = character, (XC-1, YC) = cell. EOR
 \ semantics like the original: printing the same character again removes it.
@@ -234,6 +249,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDX f_row
  DEC F_TMR,X
 .fch8
+ LDX f_row
+ LDA #3
+ STA F_TCH,X
  LDY f_ysav
  RTS
 .fch9
@@ -271,6 +289,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_tmstore
  LDX f_row
  DEC F_TMR,X
+ LDA #3
+ STA F_TCH,X
 .fdc9
  LDY f_ysav
  RTS
@@ -297,6 +317,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  BPL fct3
  LDX f_row
  STA F_TMR,X
+ LDA #3
+ STA F_TCH,X
+ LDA #0
  INX
  CPX #24
  BCS fct9
@@ -772,6 +795,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_SHR0,X
  DEX
  BPL fen9
+ JSR f_tchall
  LDA #1
  STA F_BACK
  LDA #0
@@ -1865,11 +1889,17 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 \ background by marking them dirty before R_DISCROWS repaints
 
 .f_text1
+ LDA F_BACK             \ this buffer's bit in F_TCH
+ INC A
+ STA f_tbit
  LDX #0
 .ft11
  STX fz_i
 .ft_sr1
  LDA F_SHR0,X           \ patched
+ BEQ ft18
+ LDA F_TCH,X            \ shown row = text map row: nothing to remove
+ AND f_tbit
  BEQ ft18
  JSR f_rowptr
  LDY #31
@@ -2016,6 +2046,22 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  LDA #0
  STA f_wr
 .ft26
+ LDX fz_i               \ row unchanged for this buffer: only the cells
+ LDA F_TCH,X            \ written over (columns f_wl..f_wr)
+ AND f_tbit
+ BNE ft2f
+ LDY f_wr
+ CPY f_wl
+ BCC ft2x
+ LDA f_wl
+ STA ft_end
+ BRA ft27
+.ft2x
+ JMP ft29
+.ft2f
+ EOR F_TCH,X            \ whole row (then it is unchanged)
+ STA F_TCH,X
+ STZ ft_end
  LDY #31
 .ft27
  LDA (fz_p),Y
@@ -2040,13 +2086,17 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  JSR f_glyph
  LDY fz_u
 .ft28
+ CPY ft_end
+ BEQ ft2e9
  DEY
- BPL ft27
+ JMP ft27
+.ft2e9
  LDX fz_i
  JMP ft29
 
 .f_wl EQUB 0
 .f_wr EQUB 0
+.ft_end EQUB 0
 
 \ f_glyph: draw character A at column Y, text row fz_i, ink F_TCOL, only on
 \ the glyph's pixels and only inside the clip window
