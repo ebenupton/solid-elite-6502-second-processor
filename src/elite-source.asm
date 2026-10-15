@@ -7228,15 +7228,15 @@ ENDMACRO
                         \   y = K2 + K
                         \     = K2 - beta * z
 
- LDA ALPHA              \ Set A = alpha
- STA Q
+ LDX ALPHA              \ Set Q = alpha (via X, so A keeps y_sign, which
+ STX Q                  \ was just stored in INWK+5)
 
- LDA INWK+3             \ Set P(1 0) = (y_hi y_lo)
- STA P
- LDA INWK+4
- STA P+1
+ LDX INWK+3             \ Set P(1 0) = (y_hi y_lo)
+ STX P
+ LDX INWK+4
+ STX P+1
 
- LDA INWK+5             \ Set A = y_sign
+                        \ A = y_sign still (from STA INWK+5 above)
 
  JSR MULT3              \ Set K(3 2 1 0) = (A P+1 P) * Q
                         \                = (y_sign y_hi y_lo) * alpha
@@ -21871,13 +21871,14 @@ ENDMACRO
 
  INY                    \ Increment Y to point to byte #4
 
- LDA (V),Y              \ Fetch byte #4 for this vertex into P, so:
- STA P                  \
-                        \  P = %ffff ffff, where:
+ LDA (V),Y              \ Fetch byte #4 for this vertex, which is
+                        \ %ffff ffff, where:
                         \
                         \    * Bits 0-3 = the number of face 1
                         \
                         \    * Bits 4-7 = the number of face 2
+                        \
+                        \ (not stored in P: re-reading it below is cheaper)
 
  AND #%00001111         \ Extract the number of face 1 into X
  TAX
@@ -21885,7 +21886,7 @@ ENDMACRO
  LDA XX2,X              \ If XX2+X is non-zero then we decided in part 5 that
  BNE LL49               \ face 1 is visible, so jump to LL49
 
- LDA P                  \ Fetch byte #4 for this vertex into A
+ LDA (V),Y              \ Fetch byte #4 for this vertex into A again
 
  LSR A                  \ Shift right four times to extract the number of face 2
  LSR A                  \ from bits 4-7 into X
@@ -21898,21 +21899,21 @@ ENDMACRO
 
  INY                    \ Increment Y to point to byte #5
 
- LDA (V),Y              \ Fetch byte #5 for this vertex into P, so:
- STA P                  \
-                        \  P = %ffff ffff, where:
+ LDA (V),Y              \ Fetch byte #5 for this vertex, which is
+                        \ %ffff ffff, where:
                         \
                         \    * Bits 0-3 = the number of face 3
                         \
                         \    * Bits 4-7 = the number of face 4
+                        \
 
- AND #%00001111         \ Extract the number of face 1 into X
+ AND #%00001111         \ Extract the number of face 3 into X
  TAX
 
  LDA XX2,X              \ If XX2+X is non-zero then we decided in part 5 that
  BNE LL49               \ face 3 is visible, so jump to LL49
 
- LDA P                  \ Fetch byte #5 for this vertex into A
+ LDA (V),Y              \ Fetch byte #5 for this vertex into A again
 
  LSR A                  \ Shift right four times to extract the number of face 4
  LSR A                  \ from bits 4-7 into X
@@ -22121,7 +22122,8 @@ ENDMACRO
  ADC #0                 \ we know the sign byte of vertv_y is 0)
  STA U
 
- JMP LL57               \ We've added the z-coordinates, so jump to LL57
+ JMP LL57b              \ We've added the z-coordinates, so jump to LL57b
+                        \ (A = U already, so skip the LDA U at LL57)
 
                         \ The adding process is continued in part 7, after a
                         \ couple of subroutines that we don't need quite yet
@@ -22299,7 +22301,7 @@ ENDMACRO
  BCC LL140              \ If the subtraction just underflowed, skip to LL140 to
                         \ set (U T) to the minimum value of 4
 
- BNE LL57               \ If U is non-zero, jump down to LL57
+ BNE LL57b              \ If U is non-zero, jump down to LL57b (A = U already)
 
  LDA T                  \ If T >= 4, jump down to LL57
  CMP #4
@@ -22318,6 +22320,8 @@ ENDMACRO
                         \ the 16-bit results down into 8-bit values
 
  LDA U                  \ If the high bytes of the result are all zero, we are
+
+.LL57b                  \ Entry with A = U already
  ORA XX15+1             \ done, so jump down to LL60 for the next stage
  ORA XX15+4
  BEQ LL60
