@@ -1,0 +1,299 @@
+diff --git a/src/commands.cpp b/src/commands.cpp
+index 6830f88..69a0165 100644
+--- a/src/commands.cpp
++++ b/src/commands.cpp
+@@ -32,6 +32,7 @@
+ #include <climits>
+ 
+ #include "lineparser.h"
++#include "grindmap.h"
+ #include "globaldata.h"
+ #include "objectcode.h"
+ #include "stringutils.h"
+@@ -530,6 +531,7 @@ void LineParser::HandleDefineLabel()
+ 			}
+ 
+ 			SymbolTable::Instance().AddLabel(symbolName);
++			gmap_label( symbolName.c_str(), ObjectCode::Instance().GetPC() );
+ 		}
+ 
+ 		if ( m_sourceCode->ShouldOutputAsm() )
+@@ -600,6 +602,7 @@ void LineParser::HandleOrg()
+ 
+ 	ObjectCode::Instance().SetPC( newPC );
+ 	SymbolTable::Instance().ChangeBuiltInSymbol( "P%", newPC );
++	if ( gmap_on() ) fprintf( g_gmap, "O\t%d\n", newPC );
+ }
+ 
+ 
+@@ -757,6 +760,8 @@ void LineParser::HandleSkip()
+ 		cout << setw(4) << ObjectCode::Instance().GetPC() << endl;
+ 	}
+ 
++	g_gkind = 'S';
++	struct GKindReset { ~GKindReset() { g_gkind = 'D'; } } gkindReset;
+ 	for ( int i = 0; i < val; i++ )
+ 	{
+ 		try
+@@ -770,6 +775,7 @@ void LineParser::HandleSkip()
+ 			throw;
+ 		}
+ 	}
++	g_gkind = 'D';
+ 
+ 	if ( m_column < m_line.length() && m_line[ m_column ] == ',' )
+ 	{
+@@ -1229,6 +1235,8 @@ void LineParser::HandleSave()
+ 
+ 	// OK - do it
+ 
++	if ( gmap_on() ) fprintf( g_gmap, "V\t%s\t%d\t%d\n", saveFile.c_str(), start, end );
++
+ 	if ( GlobalData::Instance().IsSecondPass() )
+ 	{
+ 		if ( GlobalData::Instance().UsesDiscImage() )
+diff --git a/src/grindmap.cpp b/src/grindmap.cpp
+new file mode 100644
+index 0000000..7e8f534
+--- /dev/null
++++ b/src/grindmap.cpp
+@@ -0,0 +1,46 @@
++#include "grindmap.h"
++#include "sourcecode.h"
++#include "macro.h"
++#include "globaldata.h"
++#include <cstdlib>
++FILE* g_gmap = NULL;
++const SourceCode* g_gsrc = NULL;
++char g_gkind = 'D';
++bool g_gincbin = false;
++void gmap_open()
++{
++	const char* p = getenv( "BEEBASM_GRINDMAP" );
++	if ( p && *p ) g_gmap = fopen( p, "w" );
++}
++bool gmap_on()
++{
++	return g_gmap != NULL && GlobalData::Instance().IsSecondPass();
++}
++static void site( const SourceCode*& s )
++{
++	while ( s && dynamic_cast< const MacroInstance* >( s ) && s->GetParent() )
++		s = s->GetParent();
++}
++void gmap_emit( char kind, int pc, int n )
++{
++	if ( !gmap_on() || !g_gsrc ) return;
++	const SourceCode* s = g_gsrc;
++	site( s );
++	fprintf( g_gmap, "%c\t%d\t%d\t%s\t%d\t%s\t%d\n", kind, pc, n,
++		g_gsrc->GetFilename().c_str(), g_gsrc->GetLineNumber(),
++		s->GetFilename().c_str(), s->GetLineNumber() );
++}
++void gmap_label( const char* name, int pc )
++{
++	if ( !gmap_on() || !g_gsrc ) return;
++	const SourceCode* s = g_gsrc;
++	site( s );
++	fprintf( g_gmap, "L\t%s\t%d\t%s\t%d\n", name, pc, s->GetFilename().c_str(), s->GetLineNumber() );
++}
++void gmap_equ( const char* name, double v )
++{
++	if ( !gmap_on() || !g_gsrc ) return;
++	const SourceCode* s = g_gsrc;
++	site( s );
++	fprintf( g_gmap, "E\t%s\t%.0f\t%s\t%d\n", name, v, s->GetFilename().c_str(), s->GetLineNumber() );
++}
+diff --git a/src/grindmap.h b/src/grindmap.h
+new file mode 100644
+index 0000000..ea5fbef
+--- /dev/null
++++ b/src/grindmap.h
+@@ -0,0 +1,28 @@
++// grindmap: a per-byte provenance map for tools/grind (elite).
++// Enabled by the environment variable BEEBASM_GRINDMAP=<file>; written on the
++// second pass only.  Records (one per line, tab separated):
++//   I pc n file line sitefile siteline     an instruction of n bytes
++//   D pc n file line sitefile siteline     data bytes (EQUB/EQUW/EQUS/INCBIN/...)
++//   S pc n file line sitefile siteline     SKIP
++//   L name pc file line                    a label definition (.name)
++//   E name value file line                 a numeric symbol assignment (name = expr)
++//   C start end                            CLEAR start, end
++//   O pc                                   ORG
++//   V file start end                       SAVE
++//   B start end dest                       COPYBLOCK
++// file/line is where the statement is (inside a macro body: the macro's file
++// and line); sitefile/siteline is the outermost non-macro source line.
++#ifndef GRINDMAP_H_
++#define GRINDMAP_H_
++#include <cstdio>
++class SourceCode;
++extern FILE* g_gmap;
++extern const SourceCode* g_gsrc;
++extern char g_gkind;
++extern bool g_gincbin;
++void gmap_open();
++bool gmap_on();
++void gmap_emit( char kind, int pc, int n );
++void gmap_label( const char* name, int pc );
++void gmap_equ( const char* name, double v );
++#endif
+diff --git a/src/lineparser.cpp b/src/lineparser.cpp
+index 82d8bda..02fd94f 100644
+--- a/src/lineparser.cpp
++++ b/src/lineparser.cpp
+@@ -24,6 +24,7 @@
+ 
+ #include <iostream>
+ #include "lineparser.h"
++#include "grindmap.h"
+ #include "asmexception.h"
+ #include "stringutils.h"
+ #include "symboltable.h"
+@@ -166,7 +167,8 @@ void LineParser::Process( const string& line )
+ 			// Deal here with symbol assignment
+ 			bool bIsConditionalAssignment = false;
+ 
+-			ScopedSymbolName symbolName = m_sourceCode->GetScopedSymbolName( GetSymbolName() );
++			string gmapName = GetSymbolName();
++			ScopedSymbolName symbolName = m_sourceCode->GetScopedSymbolName( gmapName );
+ 
+ 			if ( !AdvanceAndCheckEndOfStatement() )
+ 			{
+@@ -187,6 +189,7 @@ void LineParser::Process( const string& line )
+ 			}
+ 
+ 			Value value = EvaluateExpression();
++			if ( value.GetType() == Value::NumberValue ) gmap_equ( gmapName.c_str(), value.GetNumber() );
+ 
+ 			if ( GlobalData::Instance().IsFirstPass() )
+ 			{
+diff --git a/src/main.cpp b/src/main.cpp
+index 22062d5..e5bb059 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -28,6 +28,7 @@
+ #include <ctime>
+ 
+ #include "main.h"
++#include "grindmap.h"
+ #include "sourcefile.h"
+ #include "asmexception.h"
+ #include "globaldata.h"
+@@ -55,6 +56,7 @@ using namespace std;
+ 
+ int main( int argc, char* argv[] )
+ {
++	gmap_open();
+ 	const char* pInputFile = NULL;
+ 	const char* pOutputFile = NULL;
+ 	const char* pDiscInputFile = NULL;
+diff --git a/src/objectcode.cpp b/src/objectcode.cpp
+index e840d05..4f3323f 100644
+--- a/src/objectcode.cpp
++++ b/src/objectcode.cpp
+@@ -25,6 +25,7 @@
+ #include <fstream>
+ 
+ #include "objectcode.h"
++#include "grindmap.h"
+ #include "symboltable.h"
+ #include "asmexception.h"
+ #include "globaldata.h"
+@@ -152,6 +153,8 @@ void ObjectCode::InitialisePass()
+ /*************************************************************************************************/
+ void ObjectCode::PutByte( unsigned int byte )
+ {
++	gmap_emit( g_gkind, m_PC, 1 );
++
+ 	if ( m_PC > 0xFFFF )
+ 	{
+ 		throw AsmException_AssembleError_OutOfMemory();
+@@ -187,6 +190,8 @@ void ObjectCode::PutByte( unsigned int byte )
+ /*************************************************************************************************/
+ void ObjectCode::Assemble1( unsigned int opcode )
+ {
++	gmap_emit( g_gincbin ? 'D' : 'I', m_PC, 1 );
++
+ 	if ( m_PC > 0xFFFF )
+ 	{
+ 		throw AsmException_AssembleError_OutOfMemory();
+@@ -230,6 +235,8 @@ void ObjectCode::Assemble1( unsigned int opcode )
+ /*************************************************************************************************/
+ void ObjectCode::Assemble2( unsigned int opcode, unsigned int val )
+ {
++	gmap_emit( 'I', m_PC, 2 );
++
+ 	if ( m_PC > 0xFFFE )
+ 	{
+ 		throw AsmException_AssembleError_OutOfMemory();
+@@ -278,6 +285,8 @@ void ObjectCode::Assemble2( unsigned int opcode, unsigned int val )
+ /*************************************************************************************************/
+ void ObjectCode::Assemble3( unsigned int opcode, unsigned int addr )
+ {
++	gmap_emit( 'I', m_PC, 3 );
++
+ 	if ( m_PC > 0xFFFD )
+ 	{
+ 		throw AsmException_AssembleError_OutOfMemory();
+@@ -341,6 +350,8 @@ void ObjectCode::SetGuard( int addr )
+ /*************************************************************************************************/
+ void ObjectCode::Clear( int start, int end, bool bAll )
+ {
++	if ( gmap_on() ) fprintf( g_gmap, "C\t%d\t%d\n", start, end );
++
+ 	assert( start <= end );
+ 	assert( start >= 0 && start < 0x10000 );
+ 	assert( end > 0 && end <= 0x10000 );
+@@ -399,7 +410,9 @@ void ObjectCode::IncBin( const char* filename, std::vector<unsigned char>& first
+ 		{
+ 			firstFour.push_back(uc);
+ 		}
++		g_gincbin = true;
+ 		Assemble1( uc );
++		g_gincbin = false;
+ 	}
+ 
+ 	if ( !binfile.eof() )
+@@ -447,6 +460,8 @@ int ObjectCode::GetMapping( int ascii ) const
+ /*************************************************************************************************/
+ void ObjectCode::CopyBlock( int start, int end, int dest, bool firstPass )
+ {
++	if ( gmap_on() ) fprintf( g_gmap, "B\t%d\t%d\t%d\n", start, end, dest );
++
+ 	int length = end - start;
+ 
+ 	if ( start + length > 0x10000 ||
+diff --git a/src/sourcecode.cpp b/src/sourcecode.cpp
+index 493de30..6806483 100644
+--- a/src/sourcecode.cpp
++++ b/src/sourcecode.cpp
+@@ -23,6 +23,7 @@
+ /*************************************************************************************************/
+ 
+ #include "sourcecode.h"
++#include "grindmap.h"
+ #include "asmexception.h"
+ #include "stringutils.h"
+ #include "globaldata.h"
+@@ -105,9 +106,11 @@ void SourceCode::Process()
+ 	// Iterate through the file line-by-line
+ 
+ 	string lineFromFile;
++	const SourceCode* gmapSaved = g_gsrc;
+ 
+ 	while ( GetLine( lineFromFile ) )
+ 	{
++		g_gsrc = this;
+ //		// Display and process
+ //
+ //		if ( GlobalData::Instance().IsFirstPass() )
+@@ -131,6 +134,8 @@ void SourceCode::Process()
+ 		m_lineStartPointer = GetFilePointer();
+ 	}
+ 
++	g_gsrc = gmapSaved;
++
+ 	// Check whether we aborted prematurely
+ 
+ 	if ( !IsAtEnd() )
