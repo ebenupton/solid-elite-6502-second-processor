@@ -4056,19 +4056,12 @@ ENDMACRO
                         \ the zero-page workspace at INWK, so we can process it
                         \ more efficiently
 
- LDY #NI%-1             \ There are NI% bytes in each ship data block (and in
-                        \ the INWK workspace, so we set a counter in Y so we can
-                        \ loop through them
-
 .MAL2
 
- LDA (INF),Y            \ Load the Y-th byte of INF and store it in the Y-th
- STA INWK,Y             \ byte of INWK
-
- DEY                    \ Decrement the loop counter
-
- BPL MAL2               \ Loop back for the next byte until we have copied the
-                        \ last byte from INF to INWK
+ JSR CPYIN              \ BBC Master port: call CPYIN to copy the NI% bytes of
+                        \ the ship data block from INF to INWK (the original
+                        \ does this with a loop, which CPYIN unrolls, leaving
+                        \ the registers and flags exactly as the loop does)
 
  LDA TYPE               \ If the ship type is negative then this indicates a
  BMI MA21               \ planet or sun, so jump down to MA21, as the next bit
@@ -4168,18 +4161,11 @@ ENDMACRO
                         \ do the reverse of the copy we did before, this time
                         \ copying from INWK to INF
 
- LDY #NI%-1             \ Set a counter in Y so we can loop through the NI%
-                        \ bytes in the ship data block
-
 .MAL3
 
- LDA INWK,Y             \ Load the Y-th byte of INWK and store it in the Y-th
- STA (INF),Y            \ byte of INF
-
- DEY                    \ Decrement the loop counter
-
- BPL MAL3               \ Loop back for the next byte, until we have copied the
-                        \ last byte from INWK back to INF
+ JSR CPYOUT             \ BBC Master port: call CPYOUT to copy the NI% bytes of
+                        \ the ship data block from INWK back to INF (unrolled,
+                        \ as for CPYIN above)
 
 \ ******************************************************************************
 \
@@ -13915,1721 +13901,6 @@ ENDMACRO
 
 \ ******************************************************************************
 \
-\       Name: SNE
-\       Type: Variable
-\   Category: Maths (Geometry)
-\    Summary: Sine/cosine table
-\  Deep dive: The sine, cosine and arctan tables
-\             Drawing circles
-\             Drawing ellipses
-\
-\ ------------------------------------------------------------------------------
-\
-\ This lookup table contains sine values for the first half of a circle, from 0
-\ to 180 degrees (0 to PI radians). In terms of circle or ellipse line segments,
-\ there are 64 segments in a circle, so this contains sine values for segments
-\ 0 to 31.
-\
-\ In terms of segments, to calculate the sine of the angle at segment x, we look
-\ up the value in SNE + x, and to calculate the cosine of the angle we look up
-\ the value in SNE + ((x + 16) mod 32).
-\
-\ In terms of radians, to calculate the following:
-\
-\   sin(theta) * 256
-\
-\ where theta is in radians, we look up the value in:
-\
-\   SNE + (theta * 10)
-\
-\ To calculate the following:
-\
-\   cos(theta) * 256
-\
-\ where theta is in radians, look up the value in:
-\
-\   SNE + ((theta * 10) + 16) mod 32
-\
-\ Theta must be between 0 and 3.1 radians, so theta * 10 is between 0 and 31.
-\
-\ ******************************************************************************
-
-.SNE
-
- FOR I%, 0, 31
-
-  N = ABS(SIN((I% / 64) * 2 * PI))
-
-  IF N >= 1
-   EQUB 255
-  ELSE
-   EQUB INT(256 * N + 0.5)
-  ENDIF
-
- NEXT
-
-\ ******************************************************************************
-\
-\       Name: MU5
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Set K(3 2 1 0) = (A A A A) and clear the C flag
-\
-\ ------------------------------------------------------------------------------
-\
-\ In practice this is only called via a BEQ following an AND instruction, in
-\ which case A = 0, so this routine effectively does this:
-\
-\   K(3 2 1 0) = 0
-\
-\ ******************************************************************************
-
-.MU5
-
- STA K                  \ Set K(3 2 1 0) to (A A A A)
- STA K+1
- STA K+2
- STA K+3
-
- CLC                    \ Clear the C flag
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MULT3
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate K(3 2 1 0) = (A P+1 P) * Q
-\  Deep dive: Shift-and-add multiplication
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following multiplication between a signed 24-bit number and a
-\ signed 8-bit number, returning the result as a signed 32-bit number:
-\
-\   K(3 2 1 0) = (A P+1 P) * Q
-\
-\ The algorithm is the same shift-and-add algorithm as in routine MULT1, but
-\ extended to cope with more bits.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   C flag              The C flag is cleared
-\
-\ ******************************************************************************
-
-.MULT3
-
- STA R                  \ Store the high byte of (A P+1 P) in R
-
- AND #%01111111         \ Set K+2 to |A|, the high byte of K(2 1 0)
- STA K+2
-
- LDA Q                  \ Set A to bits 0-6 of Q, so A = |Q|
- AND #%01111111
-
- BEQ MU5                \ If |Q| = 0, jump to MU5 to set K(3 2 1 0) to 0,
-                        \ returning from the subroutine using a tail call
-
- SEC                    \ Set T = |Q| - 1
- SBC #1
- STA T
-
-                        \ We now use the same shift-and-add algorithm as MULT1
-                        \ to calculate the following:
-                        \
-                        \ K(2 1 0) = K(2 1 0) * |Q|
-                        \
-                        \ so we start with the first shift right, in which we
-                        \ take (K+2 P+1 P) and shift it right, storing the
-                        \ result in K(2 1 0), ready for the multiplication loop
-                        \ (so the multiplication loop actually calculates
-                        \ (|A| P+1 P) * |Q|, as the following sets K(2 1 0) to
-                        \ (|A| P+1 P) shifted right)
-
- LDA P+1                \ Set A = P+1
-
- LSR K+2                \ Shift the high byte in K+2 to the right
-
- ROR A                  \ Shift the middle byte in A to the right and store in
- STA K+1                \ K+1 (so K+1 contains P+1 shifted right)
-
- LDA P                  \ Shift the middle byte in P to the right and store in
- ROR A                  \ K, so K(2 1 0) now contains (|A| P+1 P) shifted right
- STA K
-
-                        \ We now use the same shift-and-add algorithm as MULT1
-                        \ to calculate the following:
-                        \
-                        \ K(2 1 0) = K(2 1 0) * |Q|
-
- LDA #0                 \ Set A = 0 so we can start building the answer in A
-
- LDX #24                \ Set up a counter in X to count the 24 bits in K(2 1 0)
-
-.MUL2
-
- BCC P%+4               \ If C (i.e. the next bit from K) is set, do the
- ADC T                  \ addition for this bit of K:
-                        \
-                        \   A = A + T + C
-                        \     = A + |Q| - 1 + 1
-                        \     = A + |Q|
-
- ROR A                  \ Shift A right by one place to catch the next digit
- ROR K+2                \ next digit of our result in the left end of K(2 1 0),
- ROR K+1                \ while also shifting K(2 1 0) right to fetch the next
- ROR K                  \ bit for the calculation into the C flag
-                        \
-                        \ On the last iteration of this loop, the bit falling
-                        \ off the end of K will be bit 0 of the original A, as
-                        \ we did one shift before the loop and we are doing 24
-                        \ iterations. We set A to 0 before looping, so this
-                        \ means the loop exits with the C flag clear
-
- DEX                    \ Decrement the loop counter
-
- BNE MUL2               \ Loop back for the next bit until K(2 1 0) has been
-                        \ rotated all the way
-
-                        \ The result (|A| P+1 P) * |Q| is now in (A K+2 K+1 K),
-                        \ but it is positive and doesn't have the correct sign
-                        \ of the final result yet
-
- STA T                  \ Save the high byte of the result into T
-
- LDA R                  \ Fetch the sign byte from the original (A P+1 P)
-                        \ argument that we stored in R
-
- EOR Q                  \ EOR with Q so the sign bit is the same as that of
-                        \ (A P+1 P) * Q
-
- AND #%10000000         \ Extract the sign bit
-
- ORA T                  \ Apply this to the high byte of the result in T, so
-                        \ that A now has the correct sign for the result, and
-                        \ (A K+2 K+1 K) therefore contains the correctly signed
-                        \ result
-
- STA K+3                \ Store A in K+3, so K(3 2 1 0) now contains the result
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MLS2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (S R) = XX(1 0) and (A P) = A * ALP1
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following:
-\
-\   (S R) = XX(1 0)
-\
-\   (A P) = A * ALP1
-\
-\ where ALP1 is the magnitude of the current roll angle alpha, in the range
-\ 0-31.
-\
-\ ******************************************************************************
-
-.MLS2
-
- LDX XX                 \ Set (S R) = XX(1 0), starting with the low bytes
- STX R
-
- LDX XX+1               \ And then doing the high bytes
- STX S
-
-                        \ Fall through into MLS1 to calculate (A P) = A * ALP1
-
-\ ******************************************************************************
-\
-\       Name: MLS1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = ALP1 * A
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following:
-\
-\   (A P) = ALP1 * A
-\
-\ where ALP1 is the magnitude of the current roll angle alpha, in the range
-\ 0-31.
-\
-\ This routine uses an unrolled version of MU11. MU11 calculates P * X, so we
-\ use the same algorithm but with P set to ALP1 and X set to A. The unrolled
-\ version here can skip the bit tests for bits 5-7 of P as we know P < 32, so
-\ only 5 shifts with bit tests are needed (for bits 0-4), while the other 3
-\ shifts can be done without a test (for bits 5-7).
-\
-\ ------------------------------------------------------------------------------
-\
-\ Other entry points:
-\
-\   MULTS-2             Calculate (A P) = X * A
-\
-\ ******************************************************************************
-
-.MLS1
-
- LDX ALP1               \ Set P to the roll angle alpha magnitude in ALP1
- STX P                  \ (0-31), so now we calculate P * A
-
-.MULTS
-
- TAX                    \ Set X = A, so now we can calculate P * X instead of
-                        \ P * A to get our result, and we can use the algorithm
-                        \ from MU11 to do that, just unrolled (as MU11 returns
-                        \ P * X)
-
- AND #%10000000         \ Set T to the sign bit of A
- STA T
-
- TXA                    \ Set A = |A|
- AND #%01111111
-
- BEQ MU6                \ If A = 0, jump to MU6 to set P(1 0) = 0 and return
-                        \ from the subroutine using a tail call
-
- TAX                    \ Set T1 = X - 1
- DEX                    \
- STX T1                 \ We subtract 1 as the C flag will be set when we want
-                        \ to do an addition in the loop below
-
- LDA #0                 \ Set A = 0 so we can start building the answer in A
-
- LSR P                  \ Set P = P >> 1
-                        \ and C flag = bit 0 of P
-
-                        \ We are now going to work our way through the bits of
-                        \ P, and do a shift-add for any bits that are set,
-                        \ keeping the running total in A, but instead of using a
-                        \ loop like MU11, we just unroll it, starting with bit 0
-
- BCC P%+4               \ If C (i.e. the next bit from P) is set, do the
- ADC T1                 \ addition for this bit of P:
-                        \
-                        \   A = A + T1 + C
-                        \     = A + X - 1 + 1
-                        \     = A + X
-
- ROR A                  \ Shift A right to catch the next digit of our result,
-                        \ which the next ROR sticks into the left end of P while
-                        \ also extracting the next bit of P
-
- ROR P                  \ Add the overspill from shifting A to the right onto
-                        \ the start of P, and shift P right to fetch the next
-                        \ bit for the calculation into the C flag
-
- BCC P%+4               \ Repeat the shift-and-add loop for bit 1
- ADC T1
- ROR A
- ROR P
-
- BCC P%+4               \ Repeat the shift-and-add loop for bit 2
- ADC T1
- ROR A
- ROR P
-
- BCC P%+4               \ Repeat the shift-and-add loop for bit 3
- ADC T1
- ROR A
- ROR P
-
- BCC P%+4               \ Repeat the shift-and-add loop for bit 4
- ADC T1
- ROR A
- ROR P
-
- LSR A                  \ Just do the "shift" part for bit 5
- ROR P
-
- LSR A                  \ Just do the "shift" part for bit 6
- ROR P
-
- LSR A                  \ Just do the "shift" part for bit 7
- ROR P
-
- ORA T                  \ Give A the sign bit of the original argument A that
-                        \ we put into T above
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: SQUA
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Clear bit 7 of A and calculate (A P) = A * A
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of unsigned 8-bit numbers, after first
-\ clearing bit 7 of A:
-\
-\   (A P) = A * A
-\
-\ ******************************************************************************
-
-.SQUA
-
- AND #%01111111         \ Clear bit 7 of A and fall through into SQUA2 to set
-                        \ (A P) = A * A
-
-\ ******************************************************************************
-\
-\       Name: SQUA2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = A * A
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of unsigned 8-bit numbers:
-\
-\   (A P) = A * A
-\
-\ ******************************************************************************
-
-.SQUA2
-
- STA P                  \ Copy A into P and X
- TAX
-
- BNE MU11               \ If X = 0 fall through into MU1 to return a 0,
-                        \ otherwise jump to MU11 to return P * X
-
-\ ******************************************************************************
-\
-\       Name: MU1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Copy X into P and A, and clear the C flag
-\
-\ ------------------------------------------------------------------------------
-\
-\ Used to return a 0 result quickly from MULTU below.
-\
-\ ******************************************************************************
-
-.MU1
-
- CLC                    \ Clear the C flag
-
- STX P                  \ Copy X into P and A
- TXA
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MLU1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following assignment, and multiply the Y-th stardust particle's
-\ y-coordinate with an unsigned number Q:
-\
-\   Y1 = y_hi
-\
-\   (A P) = |y_hi| * Q
-\
-\ ******************************************************************************
-
-.MLU1
-
- LDA SY,Y               \ Set Y1 the Y-th byte of SY
- STA Y1
-
-                        \ Fall through into MLU2 to calculate:
-                        \
-                        \   (A P) = |A| * Q
-
-\ ******************************************************************************
-\
-\       Name: MLU2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = |A| * Q
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of a sign-magnitude 8-bit number P with an
-\ unsigned number Q:
-\
-\   (A P) = |A| * Q
-\
-\ ******************************************************************************
-
-.MLU2
-
- AND #%01111111         \ Clear the sign bit in P, so P = |A|
- STA P
-
-                        \ Fall through into MULTU to calculate:
-                        \
-                        \   (A P) = P * Q
-                        \         = |A| * Q
-
-\ ******************************************************************************
-\
-\       Name: MULTU
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = P * Q
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of unsigned 8-bit numbers:
-\
-\   (A P) = P * Q
-\
-\ ******************************************************************************
-
-.MULTU
-
- LDX Q                  \ Set X = Q
-
- BEQ MU1                \ If X = Q = 0, jump to MU1 to copy X into P and A,
-                        \ clear the C flag and return from the subroutine using
-                        \ a tail call
-
-                        \ Otherwise fall through into MU11 to set (A P) = P * X
-
-\ ******************************************************************************
-\
-\       Name: MU11
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = P * X
-\  Deep dive: Shift-and-add multiplication
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of two unsigned 8-bit numbers:
-\
-\   (A P) = P * X
-\
-\ This uses the same shift-and-add approach as MULT1, but it's simpler as we
-\ are dealing with unsigned numbers in P and X.
-\
-\ ******************************************************************************
-
-.MU11
-
- DEX                    \ Set T = X - 1
- STX T                  \
-                        \ We subtract 1 as the C flag will be set when we want
-                        \ to do an addition in the loop below
-
- LDA #0                 \ Set A = 0 so we can start building the answer in A
-
- LDX #8                 \ Set up a counter in X to count the 8 bits in P
-
- LSR P                  \ Set P = P >> 1
-                        \ and C flag = bit 0 of P
-
-                        \ We are now going to work our way through the bits of
-                        \ P, and do a shift-add for any bits that are set,
-                        \ keeping the running total in A. We just did the first
-                        \ shift right, so we now need to do the first add and
-                        \ loop through the other bits in P
-
-.MUL6
-
- BCC P%+4               \ If C (i.e. the next bit from P) is set, do the
- ADC T                  \ addition for this bit of P:
-                        \
-                        \   A = A + T + C
-                        \     = A + X - 1 + 1
-                        \     = A + X
-
- ROR A                  \ Shift A right to catch the next digit of our result,
-                        \ which the next ROR sticks into the left end of P while
-                        \ also extracting the next bit of P
-
- ROR P                  \ Add the overspill from shifting A to the right onto
-                        \ the start of P, and shift P right to fetch the next
-                        \ bit for the calculation into the C flag
-
- DEX                    \ Decrement the loop counter
-
- BNE MUL6               \ Loop back for the next bit until P has been rotated
-                        \ all the way
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MU6
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Set P(1 0) = (A A)
-\
-\ ------------------------------------------------------------------------------
-\
-\ In practice this is only called via a BEQ following an AND instruction, in
-\ which case A = 0, so this routine effectively does this:
-\
-\   P(1 0) = 0
-\
-\ ******************************************************************************
-
-.MU6
-
- STA P+1                \ Set P(1 0) = (A A)
- STA P
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: FMLTU2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate A = K * sin(A)
-\  Deep dive: The sine, cosine and arctan tables
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following:
-\
-\   A = K * sin(A)
-\
-\ Because this routine uses the sine lookup table SNE, we can also call this
-\ routine to calculate cosine multiplication. To calculate the following:
-\
-\   A = K * cos(B)
-\
-\ call this routine with B + 16 in the accumulator, as sin(B + 16) = cos(B).
-\
-\ ******************************************************************************
-
-.FMLTU2
-
- AND #%00011111         \ Restrict A to bits 0-5 (so it's in the range 0-31)
-
- TAX                    \ Set Q = sin(A) * 256
- LDA SNE,X
- STA Q
-
- LDA K                  \ Set A to the radius in K
-
-                        \ Fall through into FMLTU to do the following:
-                        \
-                        \   (A ?) = A * Q
-                        \         = K * sin(A) * 256
-                        \
-                        \ which is equivalent to:
-                        \
-                        \   A = K * sin(A)
-
-\ ******************************************************************************
-\
-\       Name: FMLTU
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate A = A * Q / 256
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of two unsigned 8-bit numbers, returning only
-\ the high byte of the result:
-\
-\   (A ?) = A * Q
-\
-\ or, to put it another way:
-\
-\   A = A * Q / 256
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   C flag              The C flag is set
-\
-\ ******************************************************************************
-
-.FMLTU
-
- EOR #%11111111         \ Flip the bits in A, set the C flag and rotate right,
- SEC                    \ so the C flag now contains bit 0 of A inverted, and P
- ROR A                  \ contains A inverted and shifted right by one, with bit
- STA P                  \ 7 set to a 1. We can now use P as our source of bits
-                        \ to shift right, just as in MU11, just with the logic
-                        \ reversed
-
- LDA #0                 \ Set A = 0 so we can start building the answer in A
-
-.MUL3
-
- BCS MU7                \ If C (i.e. the next bit from P) is set, do not do the
-                        \ addition for this bit of P, and instead skip to MU7
-                        \ to just do the shifts
-
- ADC Q                  \ Do the addition for this bit of P:
-                        \
-                        \   A = A + Q + C
-                        \     = A + Q
-
- ROR A                  \ Shift A right to catch the next digit of our result.
-                        \ If we were interested in the low byte of the result we
-                        \ would want to save the bit that falls off the end, but
-                        \ we aren't, so we can ignore it
-
- LSR P                  \ Shift P right to fetch the next bit for the
-                        \ calculation into the C flag
-
- BNE MUL3               \ Loop back to MUL3 if P still contains some set bits
-                        \ (so we loop through the bits of P until we get to the
-                        \ 1 we inserted before the loop, and then we stop)
-
-                        \ If we get here then the C flag is set as we just
-                        \ rotated a 1 out of the right end of P
-
- RTS                    \ Return from the subroutine
-
-.MU7
-
- LSR A                  \ Shift A right to catch the next digit of our result,
-                        \ pushing a 0 into bit 7 as we aren't adding anything
-                        \ here (we can't use a ROR here as the C flag is set, so
-                        \ a ROR would push a 1 into bit 7)
-
- LSR P                  \ Fetch the next bit from P into the C flag
-
- BNE MUL3               \ Loop back to MUL3 if P still contains some set bits
-                        \ (so we loop through the bits of P until we get to the
-                        \ 1 we inserted before the loop, and then we stop)
-
-                        \ If we get here then the C flag is set as we just
-                        \ rotated a 1 out of the right end of P
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: Unused duplicate of MULTU
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: An unused duplicate of the MULTU routine
-\
-\ ------------------------------------------------------------------------------
-\
-\ This is a duplicate of the MULTU routine, but with no entry label, so it can't
-\ be called by name. It is unused, and could have been culled to save a few
-\ bytes (24 to be precise), but it's still here, unnamed, unloved and unvisited,
-\ through no fault of its own.
-\
-\ ******************************************************************************
-
- LDX Q
- BEQ MU1
- DEX
- STX T
- LDA #0
- LDX #8
- LSR P
-
-.MUL6K                  \ This label is a duplicate of a label in the MULTU
-                        \ routine
-                        \
-                        \ In the original source this label is MUL6, but
-                        \ because BeebAsm doesn't allow us to redefine labels,
-                        \ I have renamed it to MUL6K
-
- BCC P%+4
- ADC T
- ROR A
- ROR P
- DEX
- BNE MUL6K
- RTS
-
-\ ******************************************************************************
-\
-\       Name: MLTU2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P+1 P) = (A ~P) * Q
-\  Deep dive: Shift-and-add multiplication
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of an unsigned 16-bit number and an unsigned
-\ 8-bit number:
-\
-\   (A P+1 P) = (A ~P) * Q
-\
-\ where ~P means P EOR %11111111 (i.e. P with all its bits flipped). In other
-\ words, if you wanted to calculate &1234 * &56, you would:
-\
-\   * Set A to &12
-\   * Set P to &34 EOR %11111111 = &CB
-\   * Set Q to &56
-\
-\ before calling MLTU2.
-\
-\ This routine is like a mash-up of MU11 and FMLTU. It uses part of FMLTU's
-\ inverted argument trick to work out whether or not to do an addition, and like
-\ MU11 it sets up a counter in X to extract bits from (P+1 P). But this time we
-\ extract 16 bits from (P+1 P), so the result is a 24-bit number. The core of
-\ the algorithm is still the shift-and-add approach explained in MULT1, just
-\ with more bits.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   Q                   Q is preserved
-\
-\ ------------------------------------------------------------------------------
-\
-\ Other entry points:
-\
-\   MLTU2-2             Set Q to X, so this calculates (A P+1 P) = (A ~P) * X
-\
-\ ******************************************************************************
-
- STX Q                  \ Store X in Q
-
-.MLTU2
-
- EOR #%11111111         \ Flip the bits in A and rotate right, storing the
- LSR A                  \ result in P+1, so we now calculate (P+1 P) * Q
- STA P+1
-
- LDA #0                 \ Set A = 0 so we can start building the answer in A
-
- LDX #16                \ Set up a counter in X to count the 16 bits in (P+1 P)
-
- ROR P                  \ Set P = P >> 1 with bit 7 = bit 0 of A
-                        \ and C flag = bit 0 of P
-
-.MUL7
-
- BCS MU21               \ If C (i.e. the next bit from P) is set, do not do the
-                        \ addition for this bit of P, and instead skip to MU21
-                        \ to just do the shifts
-
- ADC Q                  \ Do the addition for this bit of P:
-                        \
-                        \   A = A + Q + C
-                        \     = A + Q
-
- ROR A                  \ Rotate (A P+1 P) to the right, so we capture the next
- ROR P+1                \ digit of the result in P+1, and extract the next digit
- ROR P                  \ of (P+1 P) in the C flag
-
- DEX                    \ Decrement the loop counter
-
- BNE MUL7               \ Loop back for the next bit until P has been rotated
-                        \ all the way
-
- RTS                    \ Return from the subroutine
-
-.MU21
-
- LSR A                  \ Shift (A P+1 P) to the right, so we capture the next
- ROR P+1                \ digit of the result in P+1, and extract the next digit
- ROR P                  \ of (P+1 P) in the C flag
-
- DEX                    \ Decrement the loop counter
-
- BNE MUL7               \ Loop back for the next bit until P has been rotated
-                        \ all the way
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MUT3
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: An unused routine that does the same as MUT2
-\
-\ ------------------------------------------------------------------------------
-\
-\ This routine is never actually called, but it is identical to MUT2, as the
-\ extra instructions have no effect.
-\
-\ ******************************************************************************
-
-.MUT3
-
- LDX ALP1               \ Set P = ALP1, though this gets overwritten by the
- STX P                  \ following, so this has no effect
-
-                        \ Fall through into MUT2 to do the following:
-                        \
-                        \   (S R) = XX(1 0)
-                        \   (A P) = Q * A
-
-\ ******************************************************************************
-\
-\       Name: MUT2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (S R) = XX(1 0) and (A P) = Q * A
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following assignment, and multiplication of two signed 8-bit numbers:
-\
-\   (S R) = XX(1 0)
-\   (A P) = Q * A
-\
-\ ******************************************************************************
-
-.MUT2
-
- LDX XX+1               \ Set S = XX+1
- STX S
-
-                        \ Fall through into MUT1 to do the following:
-                        \
-                        \   R = XX
-                        \   (A P) = Q * A
-
-\ ******************************************************************************
-\
-\       Name: MUT1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate R = XX and (A P) = Q * A
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following assignment, and multiplication of two signed 8-bit numbers:
-\
-\   R = XX
-\   (A P) = Q * A
-\
-\ ******************************************************************************
-
-.MUT1
-
- LDX XX                 \ Set R = XX
- STX R
-
-                        \ Fall through into MULT1 to do the following:
-                        \
-                        \   (A P) = Q * A
-
-\ ******************************************************************************
-\
-\       Name: MULT1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = Q * A
-\  Deep dive: Shift-and-add multiplication
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of two 8-bit sign-magnitude numbers:
-\
-\   (A P) = Q * A
-\
-\ ******************************************************************************
-
-.MULT1
-
- TAX                    \ Store A in X
-
- AND #%01111111         \ Set P = |A| >> 1
- LSR A                  \ and C flag = bit 0 of A
- STA P
-
- TXA                    \ Restore argument A
-
- EOR Q                  \ Set bit 7 of A and T if Q and A have different signs,
- AND #%10000000         \ clear bit 7 if they have the same signs, 0 all other
- STA T                  \ bits, i.e. T contains the sign bit of Q * A
-
- LDA Q                  \ Set A = |Q|
- AND #%01111111
-
- BEQ mu10               \ If |Q| = 0 jump to mu10 (with A set to 0)
-
- TAX                    \ Set T1 = |Q| - 1
- DEX                    \
- STX T1                 \ We subtract 1 as the C flag will be set when we want
-                        \ to do an addition in the loop below
-
-                        \ We are now going to work our way through the bits of
-                        \ P, and do a shift-add for any bits that are set,
-                        \ keeping the running total in A. We already set up
-                        \ the first shift at the start of this routine, as
-                        \ P = |A| >> 1 and C = bit 0 of A, so we now need to set
-                        \ up a loop to sift through the other 7 bits in P
-
- LDA #0                 \ Set A = 0 so we can start building the answer in A
-
- LDX #7                 \ Set up a counter in X to count the 7 bits remaining
-                        \ in P
-
-.MUL4
-
- BCC P%+4               \ If C (i.e. the next bit from P) is set, do the
- ADC T1                 \ addition for this bit of P:
-                        \
-                        \   A = A + T1 + C
-                        \     = A + |Q| - 1 + 1
-                        \     = A + |Q|
-
- ROR A                  \ As mentioned above, this ROR shifts A right and
-                        \ catches bit 0 in C - giving another digit for our
-                        \ result - and the next ROR sticks that bit into the
-                        \ left end of P while also extracting the next bit of P
-                        \ for the next addition
-
- ROR P                  \ Add the overspill from shifting A to the right onto
-                        \ the start of P, and shift P right to fetch the next
-                        \ bit for the calculation
-
- DEX                    \ Decrement the loop counter
-
- BNE MUL4               \ Loop back for the next bit until P has been rotated
-                        \ all the way
-
- LSR A                  \ Rotate (A P) once more to get the final result, as
- ROR P                  \ we only pushed 7 bits through the above process
-
- ORA T                  \ Set the sign bit of the result that we stored in T
-
- RTS                    \ Return from the subroutine
-
-.mu10
-
- STA P                  \ If we get here, the result is 0 and A = 0, so set
-                        \ P = 0 so (A P) = 0
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MULT12
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (S R) = Q * A
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate:
-\
-\   (S R) = Q * A
-\
-\ ******************************************************************************
-
-.MULT12
-
- JSR MULT1              \ Set (A P) = Q * A
-
- STA S                  \ Set (S R) = (A P)
- LDA P                  \           = Q * A
- STA R
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: TAS3
-\       Type: Subroutine
-\   Category: Maths (Geometry)
-\    Summary: Calculate the dot product of XX15 and an orientation vector
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the dot product of the vector in XX15 and one of the orientation
-\ vectors, as determined by the value of Y. If vect is the orientation vector,
-\ we calculate this:
-\
-\   (A X) = vect . XX15
-\         = vect_x * XX15 + vect_y * XX15+1 + vect_z * XX15+2
-\
-\ ------------------------------------------------------------------------------
-\
-\ Arguments:
-\
-\   Y                   The orientation vector:
-\
-\                         * If Y = 10, calculate nosev . XX15
-\
-\                         * If Y = 16, calculate roofv . XX15
-\
-\                         * If Y = 22, calculate sidev . XX15
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   (A X)               The result of the dot product
-\
-\ ******************************************************************************
-
-.TAS3
-
- LDX INWK,Y             \ Set Q = the Y-th byte of INWK, i.e. vect_x
- STX Q
-
- LDA XX15               \ Set A = XX15
-
- JSR MULT12             \ Set (S R) = Q * A
-                        \           = vect_x * XX15
-
- LDX INWK+2,Y           \ Set Q = the Y+2-th byte of INWK, i.e. vect_y
- STX Q
-
- LDA XX15+1             \ Set A = XX15+1
-
- JSR MAD                \ Set (A X) = Q * A + (S R)
-                        \           = vect_y * XX15+1 + vect_x * XX15
-
- STA S                  \ Set (S R) = (A X)
- STX R
-
- LDX INWK+4,Y           \ Set Q = the Y+2-th byte of INWK, i.e. vect_z
- STX Q
-
- LDA XX15+2             \ Set A = XX15+2
-
-                        \ Fall through into MAD to set:
-                        \
-                        \   (A X) = Q * A + (S R)
-                        \           = vect_z * XX15+2 + vect_y * XX15+1 +
-                        \             vect_x * XX15
-
-\ ******************************************************************************
-\
-\       Name: MAD
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A X) = Q * A + (S R)
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate
-\
-\   (A X) = Q * A + (S R)
-\
-\ ******************************************************************************
-
-.MAD
-
- JSR MULT1              \ Call MULT1 to set (A P) = Q * A
-
-                        \ Fall through into ADD to do:
-                        \
-                        \   (A X) = (A P) + (S R)
-                        \         = Q * A + (S R)
-
-\ ******************************************************************************
-\
-\       Name: ADD
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A X) = (A P) + (S R)
-\  Deep dive: Adding sign-magnitude numbers
-\
-\ ------------------------------------------------------------------------------
-\
-\ Add two 16-bit sign-magnitude numbers together, calculating:
-\
-\   (A X) = (A P) + (S R)
-\
-\ ******************************************************************************
-
-.ADD
-
- STA T1                 \ Store argument A in T1
-
- AND #%10000000         \ Extract the sign (bit 7) of A and store it in T
- STA T
-
- EOR S                  \ EOR bit 7 of A with S. If they have different bit 7s
- BMI MU8                \ (i.e. they have different signs) then bit 7 in the
-                        \ EOR result will be 1, which means the EOR result is
-                        \ negative. So the AND, EOR and BMI together mean "jump
-                        \ to MU8 if A and S have different signs"
-
-                        \ If we reach here, then A and S have the same sign, so
-                        \ we can add them and set the sign to get the result
-
- LDA R                  \ Add the least significant bytes together into X:
- CLC                    \
- ADC P                  \   X = P + R
- TAX
-
- LDA S                  \ Add the most significant bytes together into A. We
- ADC T1                 \ stored the original argument A in T1 earlier, so we
-                        \ can do this with:
-                        \
-                        \   A = A  + S + C
-                        \     = T1 + S + C
-
- ORA T                  \ If argument A was negative (and therefore S was also
-                        \ negative) then make sure result A is negative by
-                        \ OR'ing the result with the sign bit from argument A
-                        \ (which we stored in T)
-
- RTS                    \ Return from the subroutine
-
-.MU8
-
-                        \ If we reach here, then A and S have different signs,
-                        \ so we can subtract their absolute values and set the
-                        \ sign to get the result
-
- LDA S                  \ Clear the sign (bit 7) in S and store the result in
- AND #%01111111         \ U, so U now contains |S|
- STA U
-
- LDA P                  \ Subtract the least significant bytes into X:
- SEC                    \
- SBC R                  \   X = P - R
- TAX
-
- LDA T1                 \ Restore the A of the argument (A P) from T1 and
- AND #%01111111         \ clear the sign (bit 7), so A now contains |A|
-
- SBC U                  \ Set A = |A| - |S|
-
-                        \ At this point we have |A P| - |S R| in (A X), so we
-                        \ need to check whether the subtraction above was the
-                        \ right way round (i.e. that we subtracted the smaller
-                        \ absolute value from the larger absolute value)
-
- BCS MU9                \ If |A| >= |S|, our subtraction was the right way
-                        \ round, so jump to MU9 to set the sign
-
-                        \ If we get here, then |A| < |S|, so our subtraction
-                        \ above was the wrong way round (we actually subtracted
-                        \ the larger absolute value from the smaller absolute
-                        \ value). So let's subtract the result we have in (A X)
-                        \ from zero, so that the subtraction is the right way
-                        \ round
-
- STA U                  \ Store A in U
-
- TXA                    \ Set X = 0 - X using two's complement (to negate a
- EOR #&FF               \ number in two's complement, you can invert the bits
- ADC #1                 \ and add one - and we know the C flag is clear as we
- TAX                    \ didn't take the BCS branch above, so the ADC will do
-                        \ the correct addition)
-
- LDA #0                 \ Set A = 0 - A, which we can do this time using a
- SBC U                  \ subtraction with the C flag clear
-
- ORA #%10000000         \ We now set the sign bit of A, so that the EOR on the
-                        \ next line will give the result the opposite sign to
-                        \ argument A (as T contains the sign bit of argument
-                        \ A). This is the same as giving the result the same
-                        \ sign as argument S (as A and S have different signs),
-                        \ which is what we want, as S has the larger absolute
-                        \ value
-
-.MU9
-
- EOR T                  \ If we get here from the BCS above, then |A| >= |S|,
-                        \ so we want to give the result the same sign as
-                        \ argument A, so if argument A was negative, we flip
-                        \ the sign of the result with an EOR (to make it
-                        \ negative)
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: TIS1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A ?) = (-X * A + (S R)) / 96
-\  Deep dive: Shift-and-subtract division
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following expression between sign-magnitude numbers, ignoring
-\ the low byte of the result:
-\
-\   (A ?) = (-X * A + (S R)) / 96
-\
-\ This uses the same shift-and-subtract algorithm as TIS2, just with the
-\ quotient A hard-coded to 96.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   Q                   Gets set to the value of argument X
-\
-\ ******************************************************************************
-
-.TIS1
-
- STX Q                  \ Set Q = X
-
- EOR #%10000000         \ Flip the sign bit in A
-
- JSR MAD                \ Set (A X) = Q * A + (S R)
-                        \           = X * -A + (S R)
-
-.DVID96
-
- TAX                    \ Set T to the sign bit of the result
- AND #%10000000
- STA T
-
- TXA                    \ Set A to the high byte of the result with the sign bit
- AND #%01111111         \ cleared, so (A ?) = |X * A + (S R)|
-
-                        \ The following is identical to TIS2, except Q is
-                        \ hard-coded to 96, so this does A = A / 96
-
- LDX #254               \ Set T1 to have bits 1-7 set, so we can rotate through
- STX T1                 \ 7 loop iterations, getting a 1 each time, and then
-                        \ getting a 0 on the 8th iteration... and we can also
-                        \ use T1 to catch our result bits into bit 0 each time
-
-.DVL3
-
- ASL A                  \ Shift A to the left
-
- CMP #96                \ If A < 96 skip the following subtraction
- BCC DV4
-
- SBC #96                \ Set A = A - 96
-                        \
-                        \ Going into this subtraction we know the C flag is
-                        \ set as we passed through the BCC above, and we also
-                        \ know that A >= 96, so the C flag will still be set
-                        \ once we are done
-
-.DV4
-
- ROL T1                 \ Rotate the counter in T1 to the left, and catch the
-                        \ result bit into bit 0 (which will be a 0 if we didn't
-                        \ do the subtraction, or 1 if we did)
-
- BCS DVL3               \ If we still have set bits in T1, loop back to DVL3 to
-                        \ do the next iteration of 7
-
- LDA T1                 \ Fetch the result from T1 into A
-
- ORA T                  \ Give A the sign of the result that we stored above
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: DV42
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (P R) = 256 * DELTA / z_hi
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following division and remainder:
-\
-\   P = DELTA / (the Y-th stardust particle's z_hi coordinate)
-\
-\   R = remainder as a fraction of A, where 1.0 = 255
-\
-\ Another way of saying the above is this:
-\
-\   (P R) = 256 * DELTA / z_hi
-\
-\ DELTA is a value between 1 and 40, and the minimum z_hi is 16 (dust particles
-\ are removed at lower values than this), so this means P is between 0 and 2
-\ (as 40 / 16 = 2.5, so the maximum result is P = 2 and R = 128.
-\
-\ This uses the same shift-and-subtract algorithm as TIS2, but this time we
-\ keep the remainder.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Arguments:
-\
-\   Y                   The number of the stardust particle to process
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   C flag              The C flag is cleared
-\
-\ ******************************************************************************
-
-.DV42
-
- LDA SZ,Y               \ Fetch the Y-th dust particle's z_hi coordinate into A
-
-                        \ Fall through into DV41 to do:
-                        \
-                        \   (P R) = 256 * DELTA / A
-                        \         = 256 * DELTA / Y-th stardust particle's z_hi
-
-\ ******************************************************************************
-\
-\       Name: DV41
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (P R) = 256 * DELTA / A
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following division and remainder:
-\
-\   P = DELTA / A
-\
-\   R = remainder as a fraction of A, where 1.0 = 255
-\
-\ Another way of saying the above is this:
-\
-\   (P R) = 256 * DELTA / A
-\
-\ This uses the same shift-and-subtract algorithm as TIS2, but this time we
-\ keep the remainder.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   C flag              The C flag is cleared
-\
-\ ******************************************************************************
-
-.DV41
-
- STA Q                  \ Store A in Q
-
- LDA DELTA              \ Fetch the speed from DELTA into A
-
-                        \ Fall through into DVID4 to do:
-                        \
-                        \   (P R) = 256 * A / Q
-                        \         = 256 * DELTA / A
-
-\ ******************************************************************************
-\
-\       Name: DVID4
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (P R) = 256 * A / Q
-\  Deep dive: Shift-and-subtract division
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following division and remainder:
-\
-\   P = A / Q
-\
-\   R = remainder as a fraction of Q, where 1.0 = 255
-\
-\ Another way of saying the above is this:
-\
-\   (P R) = 256 * A / Q
-\
-\ This uses the same shift-and-subtract algorithm as TIS2, but this time we
-\ keep the remainder.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   C flag              The C flag is cleared
-\
-\ ******************************************************************************
-
-.DVID4
-
- LDX #8                 \ Set a counter in X to count the 8 bits in A
-
- ASL A                  \ Shift A left and store in P (we will build the result
- STA P                  \ in P)
-
- LDA #0                 \ Set A = 0 for us to build a remainder
-
-.DVL4
-
- ROL A                  \ Shift A to the left
-
- BCS DV8                \ If the C flag is set (i.e. bit 7 of A was set) then
-                        \ skip straight to the subtraction
-
- CMP Q                  \ If A < Q skip the following subtraction
- BCC DV5
-
-.DV8
-
- SBC Q                  \ A >= Q, so set A = A - Q
-
- SEC                    \ Set the C flag, so that P gets a 1 shifted into bit 0
-
-.DV5
-
- ROL P                  \ Shift P to the left, pulling the C flag into bit 0
-
- DEX                    \ Decrement the loop counter
-
- BNE DVL4               \ Loop back for the next bit until we have done all 8
-                        \ bits of P
-
- JMP LL28+4             \ Jump to LL28+4 to convert the remainder in A into an
-                        \ integer representation of the fractional value A / Q,
-                        \ in R, where 1.0 = 255. LL28+4 always returns with the
-                        \ C flag cleared, and we return from the subroutine
-                        \ using a tail call
-
-\ ******************************************************************************
-\
-\       Name: DVID3B2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate K(3 2 1 0) = (A P+1 P) / (z_sign z_hi z_lo)
-\  Deep dive: Shift-and-subtract division
-\
-\ ------------------------------------------------------------------------------
-\
-\ Calculate the following:
-\
-\   K(3 2 1 0) = (A P+1 P) / (z_sign z_hi z_lo)
-\
-\ The actual division here is done as an 8-bit calculation using LL31, but this
-\ routine shifts both the numerator (the top part of the division) and the
-\ denominator (the bottom part of the division) around to get the multi-byte
-\ result we want.
-\
-\ Specifically, it shifts both of them to the left as far as possible, keeping a
-\ tally of how many shifts get done in each one - and specifically, the
-\ difference in the number of shifts between the top and bottom (as shifting
-\ both of them once in the same direction won't change the result). It then
-\ divides the two highest bytes with the simple 8-bit routine in LL31, and
-\ shifts the result by the difference in the number of shifts, which acts as a
-\ scale factor to get the correct result.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   K(3 2 1 0)          The result of the division
-\
-\   X                   X is preserved
-\
-\ ******************************************************************************
-
-.DVID3B2
-
- STA P+2                \ Set P+2 = A
-
- LDA INWK+6             \ Set Q = z_lo
- STA Q
-
- LDA INWK+7             \ Set R = z_hi
- STA R
-
- LDA INWK+8             \ Set S = z_sign
- STA S
-
-.DVID3B
-
-                        \ Given the above assignments, we now want to calculate
-                        \ the following to get the result we want:
-                        \
-                        \   K(3 2 1 0) = P(2 1 0) / (S R Q)
-
- LDA P                  \ Make sure P(2 1 0) is at least 1
- ORA #1
- STA P
-
- LDA P+2                \ Set T to the sign of P+2 * S (i.e. the sign of the
- EOR S                  \ result) and store it in T
- AND #%10000000
- STA T
-
- LDY #0                 \ Set Y = 0 to store the scale factor
-
- LDA P+2                \ Clear the sign bit of P+2, so the division can be done
- AND #%01111111         \ with positive numbers and we'll set the correct sign
-                        \ below, once all the maths is done
-                        \
-                        \ This also leaves A = P+2, which we use below
-
-.DVL9
-
-                        \ We now shift (A P+1 P) left until A >= 64, counting
-                        \ the number of shifts in Y. This makes the top part of
-                        \ the division as large as possible, thus retaining as
-                        \ much accuracy as we can.  When we come to return the
-                        \ final result, we shift the result by the number of
-                        \ places in Y, and in the correct direction
-
- CMP #64                \ If A >= 64, jump down to DV14
- BCS DV14
-
- ASL P                  \ Shift (A P+1 P) to the left
- ROL P+1
- ROL A
-
- INY                    \ Increment the scale factor in Y
-
- BNE DVL9               \ Loop up to DVL9 (this BNE is effectively a JMP, as Y
-                        \ will never be zero)
-
-.DV14
-
-                        \ If we get here, A >= 64 and contains the highest byte
-                        \ of the numerator, scaled up by the number of left
-                        \ shifts in Y
-
- STA P+2                \ Store A in P+2, so we now have the scaled value of
-                        \ the numerator in P(2 1 0)
-
- LDA S                  \ Set A = |S|
- AND #%01111111
-
- BMI DV9                \ If bit 7 of A is set, jump down to DV9 to skip the
-                        \ left-shifting of the denominator (though this branch
-                        \ instruction has no effect as bit 7 of the above AND
-                        \ can never be set, which is why this instruction was
-                        \ removed from later versions)
-
-.DVL6
-
-                        \ We now shift (S R Q) left until bit 7 of S is set,
-                        \ reducing Y by the number of shifts. This makes the
-                        \ bottom part of the division as large as possible, thus
-                        \ retaining as much accuracy as we can. When we come to
-                        \ return the final result, we shift the result by the
-                        \ total number of places in Y, and in the correct
-                        \ direction, to give us the correct result
-                        \
-                        \ We set A to |S| above, so the following actually
-                        \ shifts (A R Q)
-
- DEY                    \ Decrement the scale factor in Y
-
- ASL Q                  \ Shift (A R Q) to the left
- ROL R
- ROL A
-
- BPL DVL6               \ Loop up to DVL6 to do another shift, until bit 7 of A
-                        \ is set and we can't shift left any further
-
-.DV9
-
-                        \ We have now shifted both the numerator and denominator
-                        \ left as far as they will go, keeping a tally of the
-                        \ overall scale factor of the various shifts in Y. We
-                        \ can now divide just the two highest bytes to get our
-                        \ result
-
- STA Q                  \ Set Q = A, the highest byte of the denominator
-
- LDA #254               \ Set R to have bits 1-7 set, so we can pass this to
- STA R                  \ LL31 to act as the bit counter in the division
-
- LDA P+2                \ Set A to the highest byte of the numerator
-
- JSR LL31               \ Call LL31 to calculate:
-                        \
-                        \   R = 256 * A / Q
-                        \     = 256 * numerator / denominator
-
-                        \ The result of our division is now in R, so we just
-                        \ need to shift it back by the scale factor in Y
-
- LDA #0                 \ Set K(3 2 1) = 0 to hold the result (we populate K
- STA K+1                \ next)
- STA K+2
- STA K+3
-
- TYA                    \ If Y is positive, jump to DV12
- BPL DV12
-
-                        \ If we get here then Y is negative, so we need to shift
-                        \ the result R to the left by Y places, and then set the
-                        \ correct sign for the result
-
- LDA R                  \ Set A = R
-
-.DVL8
-
- ASL A                  \ Shift (K+3 K+2 K+1 A) left
- ROL K+1
- ROL K+2
- ROL K+3
-
- INY                    \ Increment the scale factor in Y
-
- BNE DVL8               \ Loop back to DVL8 until we have shifted left by Y
-                        \ places
-
- STA K                  \ Store A in K so the result is now in K(3 2 1 0)
-
- LDA K+3                \ Set K+3 to the sign in T, which we set above to the
- ORA T                  \ correct sign for the result
- STA K+3
-
- RTS                    \ Return from the subroutine
-
-.DV13
-
-                        \ If we get here then Y is zero, so we don't need to
-                        \ shift the result R, we just need to set the correct
-                        \ sign for the result
-
- LDA R                  \ Store R in K so the result is now in K(3 2 1 0)
- STA K
-
- LDA T                  \ Set K+3 to the sign in T, which we set above to the
- STA K+3                \ correct sign for the result
-
- RTS                    \ Return from the subroutine
-
-.DV12
-
- BEQ DV13               \ We jumped here having set A to the scale factor in Y,
-                        \ so this jumps up to DV13 if Y = 0
-
-                        \ If we get here then Y is positive and non-zero, so we
-                        \ need to shift the result R to the right by Y places
-                        \ and then set the correct sign for the result. We also
-                        \ know that K(3 2 1) will stay 0, as we are shifting the
-                        \ lowest byte to the right, so no set bits will make
-                        \ their way into the top three bytes
-
- LDA R                  \ Set A = R
-
-.DVL10
-
- LSR A                  \ Shift A right
-
- DEY                    \ Decrement the scale factor in Y
-
- BNE DVL10              \ Loop back to DVL10 until we have shifted right by Y
-                        \ places
-
- STA K                  \ Store the shifted A in K so the result is now in
-                        \ K(3 2 1 0)
-
- LDA T                  \ Set K+3 to the sign in T, which we set above to the
- STA K+3                \ correct sign for the result
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
 \       Name: cntr
 \       Type: Subroutine
 \   Category: Dashboard
@@ -23455,47 +21726,37 @@ ENDMACRO
  CMP Q                  \ If A >= Q, then the answer will not fit in one byte,
  BCS LL2                \ so jump to LL2 to return 255
 
- LDX #%11111110         \ Set R to have bits 1-7 set, so we can rotate through 7
- STX R                  \ loop iterations, getting a 1 each time, and then
-                        \ getting a 0 on the 8th iteration... and we can also
-                        \ use R to catch our result bits into bit 0 each time
+ LDX #%11111110         \ Set R to have bits 1-7 set, as in the original (we no
+ STX R                  \ longer use these bits to count the loop, but they set
+                        \ the final C flag in the same way)
 
 .LL31
 
- ASL A                  \ Shift A to the left
+                        \ BBC Master port: the original loops round the
+                        \ following eight times, using the bits in R as a
+                        \ counter (so it must be called with R = %11111110). We
+                        \ unroll the loop, which gives exactly the same results
+                        \ (R, A and the flags), only faster
 
- BCS LL29               \ If bit 7 of A was set, then jump straight to the
+ FOR I%, 1, 8
+
+  ASL A                 \ Shift A to the left
+
+  BCS P%+6              \ If bit 7 of A was set, then jump straight to the
                         \ subtraction
 
- CMP Q                  \ If A < Q, skip the following subtraction
- BCC P%+4
+  CMP Q                 \ If A < Q, skip the following subtraction (with the C
+  BCC P%+5              \ flag clear)
 
- SBC Q                  \ A >= Q, so set A = A - Q
+  SBC Q                 \ A >= Q, so set A = A - Q
 
- ROL R                  \ Rotate the counter in R to the left, and catch the
-                        \ result bit into bit 0 (which will be a 0 if we didn't
-                        \ do the subtraction, or 1 if we did)
+  SEC                   \ Set the C flag to rotate into the result in R
 
- BCS LL31               \ If we still have set bits in R, loop back to LL31 to
-                        \ do the next iteration of 7
+  ROL R                 \ Rotate the result bit into R
+
+ NEXT
 
  RTS                    \ R left with remainder of division
-
-.LL29
-
- SBC Q                  \ A >= Q, so set A = A - Q
-
- SEC                    \ Set the C flag to rotate into the result in R
-
- ROL R                  \ Rotate the counter in R to the left, and catch the
-                        \ result bit into bit 0 (which will be a 0 if we didn't
-                        \ do the subtraction, or 1 if we did)
-
- BCS LL31               \ If we still have set bits in R, loop back to LL31 to
-                        \ do the next iteration of 7
-
- RTS                    \ Return from the subroutine with R containing the
-                        \ remainder of the division
 
 .LL2
 
@@ -27942,6 +26203,58 @@ ENDMACRO
 .FONT%
 
  INCBIN "src/fonts/P.FONT.bin"
+
+\ ******************************************************************************
+\
+\       Name: SQ1L, SQ1H, SQ2L, SQ2H
+\       Type: Variable
+\   Category: Maths (Arithmetic)
+\    Summary: Quarter-square tables for fast 8-bit x 8-bit multiplication
+\
+\ ------------------------------------------------------------------------------
+\
+\ BBC Master port: these tables let the multiplication routines calculate an
+\ exact 16-bit product of two unsigned 8-bit numbers u and v with a handful of
+\ table look-ups instead of a shift-and-add loop, using:
+\
+\   u * v = f(u + v) - f(|u - v|)    where f(n) = INT(n^2 / 4)
+\
+\ which is exact because u + v and u - v are both even or both odd. The
+\ routines patch u into the low bytes of the operands of LDA SQ1L,X / SBC SQ2L,X
+\ (and the H versions) and index with X = v, so:
+\
+\   SQ1(u + v)       = f(u + v)            (n = 0 to 510)
+\   SQ2((255 - u) + v) = f(|v - u|)        (i.e. SQ2(i) = f(|i - 255|))
+\
+\ Each table is 512 bytes and starts on a page boundary.
+\
+\ ******************************************************************************
+
+ ASSERT LO(P%) = 0
+
+.SQ1L
+
+ FOR I%, 0, 511
+  EQUB LO((I% * I%) DIV 4)
+ NEXT
+
+.SQ1H
+
+ FOR I%, 0, 511
+  EQUB HI((I% * I%) DIV 4)
+ NEXT
+
+.SQ2L
+
+ FOR I%, 0, 511
+  EQUB LO(((I% - 255) * (I% - 255)) DIV 4)
+ NEXT
+
+.SQ2H
+
+ FOR I%, 0, 511
+  EQUB HI(((I% - 255) * (I% - 255)) DIV 4)
+ NEXT
 
 
 
@@ -39543,6 +37856,1804 @@ ENDIF
 
  JSR H_STAROFF          \ Frame layer hook: star Y is off screen
  RTS
+
+\ ******************************************************************************
+\
+\       Name: SNE
+\       Type: Variable
+\   Category: Maths (Geometry)
+\    Summary: Sine/cosine table
+\  Deep dive: The sine, cosine and arctan tables
+\             Drawing circles
+\             Drawing ellipses
+\
+\ ------------------------------------------------------------------------------
+\
+\ This lookup table contains sine values for the first half of a circle, from 0
+\ to 180 degrees (0 to PI radians). In terms of circle or ellipse line segments,
+\ there are 64 segments in a circle, so this contains sine values for segments
+\ 0 to 31.
+\
+\ In terms of segments, to calculate the sine of the angle at segment x, we look
+\ up the value in SNE + x, and to calculate the cosine of the angle we look up
+\ the value in SNE + ((x + 16) mod 32).
+\
+\ In terms of radians, to calculate the following:
+\
+\   sin(theta) * 256
+\
+\ where theta is in radians, we look up the value in:
+\
+\   SNE + (theta * 10)
+\
+\ To calculate the following:
+\
+\   cos(theta) * 256
+\
+\ where theta is in radians, look up the value in:
+\
+\   SNE + ((theta * 10) + 16) mod 32
+\
+\ Theta must be between 0 and 3.1 radians, so theta * 10 is between 0 and 31.
+\
+\ ******************************************************************************
+
+.SNE
+
+ FOR I%, 0, 31
+
+  N = ABS(SIN((I% / 64) * 2 * PI))
+
+  IF N >= 1
+   EQUB 255
+  ELSE
+   EQUB INT(256 * N + 0.5)
+  ENDIF
+
+ NEXT
+
+\ ******************************************************************************
+\
+\       Name: MU5
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Set K(3 2 1 0) = (A A A A) and clear the C flag
+\
+\ ------------------------------------------------------------------------------
+\
+\ In practice this is only called via a BEQ following an AND instruction, in
+\ which case A = 0, so this routine effectively does this:
+\
+\   K(3 2 1 0) = 0
+\
+\ ******************************************************************************
+
+.MU5
+
+ STA K                  \ Set K(3 2 1 0) to (A A A A)
+ STA K+1
+ STA K+2
+ STA K+3
+
+ CLC                    \ Clear the C flag
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: MULT3
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate K(3 2 1 0) = (A P+1 P) * Q
+\  Deep dive: Shift-and-add multiplication
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following multiplication between a signed 24-bit number and a
+\ signed 8-bit number, returning the result as a signed 32-bit number:
+\
+\   K(3 2 1 0) = (A P+1 P) * Q
+\
+\ The algorithm is the same shift-and-add algorithm as in routine MULT1, but
+\ extended to cope with more bits.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              The C flag is cleared
+\
+\ ******************************************************************************
+
+.MULT3
+
+                        \ BBC Master port: this calculates exactly the same
+                        \ result as the original 24-bit shift-and-add loop,
+                        \ i.e.
+                        \
+                        \   K(3 2 1 0) = (|A| P+1 P) * |Q|, with the sign of A * Q
+                        \
+                        \ by adding three 8-bit x 8-bit products from the
+                        \ quarter-square tables (see SQ1L), and returns with the
+                        \ same register, flag and memory state (R = A, T = the
+                        \ top byte of the result before the sign is applied,
+                        \ X = 0, C clear, Z and N set by the final ORA T). The V
+                        \ flag is not preserved, but no caller relies on it
+
+ STA R                  \ Store the argument A in R
+
+ AND #%01111111         \ Set K+2 = |A|, which we use below
+ STA K+2
+
+ LDA Q                  \ Set A = |Q|
+ AND #%01111111
+
+ BEQ MU5                \ If |Q| = 0, jump to MU5 to set K(3 2 1 0) to 0,
+                        \ returning from the subroutine using a tail call
+
+ TAX                    \ Set X = |Q|, which we use as the table index for all
+                        \ three products
+
+ LDA P                  \ Calculate P * |Q| into K(1 0)
+ STA M3U1+1
+ STA M3U3+1
+ EOR #&FF
+ STA M3U2+1
+ STA M3U4+1
+ SEC
+.M3U1
+ LDA SQ1L,X
+.M3U2
+ SBC SQ2L,X
+ STA K
+.M3U3
+ LDA SQ1H,X
+.M3U4
+ SBC SQ2H,X
+ STA K+1
+
+ LDA P+1                \ Calculate P+1 * |Q| into M3T(1 0)
+ STA M3V1+1
+ STA M3V3+1
+ EOR #&FF
+ STA M3V2+1
+ STA M3V4+1
+ SEC
+.M3V1
+ LDA SQ1L,X
+.M3V2
+ SBC SQ2L,X
+ STA M3T
+.M3V3
+ LDA SQ1H,X
+.M3V4
+ SBC SQ2H,X
+ STA M3T+1
+
+ LDA K+2                \ Calculate |A| * |Q| into (M3T+3 M3T+2)
+ STA M3W1+1
+ STA M3W3+1
+ EOR #&FF
+ STA M3W2+1
+ STA M3W4+1
+ SEC
+.M3W1
+ LDA SQ1L,X
+.M3W2
+ SBC SQ2L,X
+ STA M3T+2
+.M3W3
+ LDA SQ1H,X
+.M3W4
+ SBC SQ2H,X
+ TAX                    \ Store the high byte in X for now
+
+ LDA K+1                \ Add the three products together:
+ CLC                    \
+ ADC M3T                \   K(3 2 1 0) = K(1 0)
+ STA K+1                \              + M3T(1 0) << 8
+ LDA M3T+1              \              + M3T(3 2) << 16
+ ADC M3T+2              \
+ STA K+2                \ leaving the top byte in A (this never overflows, so
+ TXA                    \ the C flag ends up clear, as in the original)
+ ADC #0
+
+ STA T                  \ Set T to the top byte, as in the original
+
+ LDX #0                 \ Set X = 0, as in the original
+
+ LDA R                  \ Set K+3 = T with the sign of A * Q
+ EOR Q
+ AND #%10000000
+ ORA T
+ STA K+3
+
+ RTS                    \ Return from the subroutine
+
+.M3T
+
+ SKIP 3                 \ Temporary storage for the partial products
+
+\ ******************************************************************************
+\
+\       Name: MLS2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (S R) = XX(1 0) and (A P) = A * ALP1
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following:
+\
+\   (S R) = XX(1 0)
+\
+\   (A P) = A * ALP1
+\
+\ where ALP1 is the magnitude of the current roll angle alpha, in the range
+\ 0-31.
+\
+\ ******************************************************************************
+
+.MLS2
+
+ LDX XX                 \ Set (S R) = XX(1 0), starting with the low bytes
+ STX R
+
+ LDX XX+1               \ And then doing the high bytes
+ STX S
+
+                        \ Fall through into MLS1 to calculate (A P) = A * ALP1
+
+\ ******************************************************************************
+\
+\       Name: MLS1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = ALP1 * A
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following:
+\
+\   (A P) = ALP1 * A
+\
+\ where ALP1 is the magnitude of the current roll angle alpha, in the range
+\ 0-31.
+\
+\ This routine uses an unrolled version of MU11. MU11 calculates P * X, so we
+\ use the same algorithm but with P set to ALP1 and X set to A. The unrolled
+\ version here can skip the bit tests for bits 5-7 of P as we know P < 32, so
+\ only 5 shifts with bit tests are needed (for bits 0-4), while the other 3
+\ shifts can be done without a test (for bits 5-7).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   MULTS-2             Calculate (A P) = X * A
+\
+\ ******************************************************************************
+
+.MLS1
+
+ LDX ALP1               \ Set P to the roll angle alpha magnitude in ALP1
+ STX P                  \ (0-31), so now we calculate P * A
+
+.MULTS
+
+                        \ BBC Master port: this calculates exactly the same
+                        \ result as the original unrolled shift-and-add code,
+                        \ which only uses bits 0-4 of P, i.e.
+                        \
+                        \   (A P) = |A| * (P AND 31), with the sign of A
+                        \
+                        \ using the quarter-square tables (see SQ1L), and
+                        \ returns with the same register, flag and memory state
+                        \ (T = sign of A, T1 = |A| - 1, X = |A| - 1, C clear, Z
+                        \ and N set by the final ORA T). The V flag is not
+                        \ preserved, but no caller relies on it
+                        \
+                        \ P AND 31 is usually the same as on the last call (it
+                        \ is often the roll angle), so we patch it into the
+                        \ table look-ups and only re-patch when it changes
+
+ TAX                    \ Set X = A
+
+ AND #%10000000         \ Set T to the sign bit of A
+ STA T
+
+ TXA                    \ Set A = |A|
+ AND #%01111111
+
+ BNE P%+7               \ If A = 0, set P(1 0) = 0 and return from the
+ STA P+1                \ subroutine, as in MU6 (this is MU6, copied here so we
+ STA P                  \ can reach it with a branch)
+ RTS
+
+ TAX                    \ Set T1 = |A| - 1, as in the original, and X = |A|
+ DEX
+ STX T1
+ INX
+
+ LDA P                  \ Set A = P AND 31
+ AND #31
+
+ CMP MSLAST             \ If this is the same value as last time, the table
+ BEQ MSU0               \ look-ups are already patched, so skip the following
+
+ STA MSLAST             \ Patch P AND 31 into the operands of the table look-ups
+ STA MSU1+1
+ STA MSU3+1
+ EOR #&FF
+ STA MSU2+1
+ STA MSU4+1
+
+.MSU0
+
+ SEC                    \ Calculate the low byte of |A| * (P AND 31) and store
+.MSU1                   \ it in P
+ LDA SQ1L,X
+.MSU2
+ SBC SQ2L+&FF,X
+ STA P
+
+.MSU3                   \ Calculate the high byte in A
+ LDA SQ1H,X
+.MSU4
+ SBC SQ2H+&FF,X
+
+ LDX T1                 \ Set X = |A| - 1, as in the original
+
+ CLC                    \ Clear the C flag, as in the original
+
+ ORA T                  \ Give A the sign bit of the original argument A that
+                        \ we put into T above
+
+ RTS                    \ Return from the subroutine
+
+.MSLAST
+
+ EQUB 0                 \ The value of P AND 31 currently patched into the
+                        \ table look-ups above
+
+\ ******************************************************************************
+\
+\       Name: SQUA
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Clear bit 7 of A and calculate (A P) = A * A
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of unsigned 8-bit numbers, after first
+\ clearing bit 7 of A:
+\
+\   (A P) = A * A
+\
+\ ******************************************************************************
+
+.SQUA
+
+ AND #%01111111         \ Clear bit 7 of A and fall through into SQUA2 to set
+                        \ (A P) = A * A
+
+\ ******************************************************************************
+\
+\       Name: SQUA2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = A * A
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of unsigned 8-bit numbers:
+\
+\   (A P) = A * A
+\
+\ ******************************************************************************
+
+.SQUA2
+
+ STA P                  \ Copy A into P and X
+ TAX
+
+ BNE MU11               \ If X = 0 fall through into MU1 to return a 0,
+                        \ otherwise jump to MU11 to return P * X
+
+\ ******************************************************************************
+\
+\       Name: MU1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Copy X into P and A, and clear the C flag
+\
+\ ------------------------------------------------------------------------------
+\
+\ Used to return a 0 result quickly from MULTU below.
+\
+\ ******************************************************************************
+
+.MU1
+
+ CLC                    \ Clear the C flag
+
+ STX P                  \ Copy X into P and A
+ TXA
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: MLU1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following assignment, and multiply the Y-th stardust particle's
+\ y-coordinate with an unsigned number Q:
+\
+\   Y1 = y_hi
+\
+\   (A P) = |y_hi| * Q
+\
+\ ******************************************************************************
+
+.MLU1
+
+ LDA SY,Y               \ Set Y1 the Y-th byte of SY
+ STA Y1
+
+                        \ Fall through into MLU2 to calculate:
+                        \
+                        \   (A P) = |A| * Q
+
+\ ******************************************************************************
+\
+\       Name: MLU2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = |A| * Q
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of a sign-magnitude 8-bit number P with an
+\ unsigned number Q:
+\
+\   (A P) = |A| * Q
+\
+\ ******************************************************************************
+
+.MLU2
+
+ AND #%01111111         \ Clear the sign bit in P, so P = |A|
+ STA P
+
+                        \ Fall through into MULTU to calculate:
+                        \
+                        \   (A P) = P * Q
+                        \         = |A| * Q
+
+\ ******************************************************************************
+\
+\       Name: MULTU
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = P * Q
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of unsigned 8-bit numbers:
+\
+\   (A P) = P * Q
+\
+\ ******************************************************************************
+
+.MULTU
+
+ LDX Q                  \ Set X = Q
+
+ BEQ MU1                \ If X = Q = 0, jump to MU1 to copy X into P and A,
+                        \ clear the C flag and return from the subroutine using
+                        \ a tail call
+
+                        \ Otherwise fall through into MU11 to set (A P) = P * X
+
+\ ******************************************************************************
+\
+\       Name: MU11
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = P * X
+\  Deep dive: Shift-and-add multiplication
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of two unsigned 8-bit numbers:
+\
+\   (A P) = P * X
+\
+\ This uses the same shift-and-add approach as MULT1, but it's simpler as we
+\ are dealing with unsigned numbers in P and X.
+\
+\ ******************************************************************************
+
+.MU11
+
+                        \ BBC Master port: for X <> 0 this calculates exactly
+                        \ the same result as the original shift-and-add loop
+                        \ using the quarter-square tables (see SQ1L), and
+                        \ returns with the same register, flag and memory state
+                        \ (A = high byte, P = low byte, T = X - 1, X = 0, the
+                        \ C flag clear and the Z and N flags set for X = 0).
+                        \ The V flag is not preserved, but no caller relies on
+                        \ it. For X = 0 (which no caller does) we run the
+                        \ original loop
+
+ DEX                    \ Set T = X - 1
+ STX T
+
+ INX                    \ Restore X, and if it is zero, jump to MU11Z to run
+ BEQ MU11Z              \ the original code
+
+ LDA P                  \ Patch P into the operands of the table look-ups
+ STA MUU1+1
+ STA MUU3+1
+ EOR #&FF
+ STA MUU2+1
+ STA MUU4+1
+
+ SEC                    \ Calculate the low byte of P * X = f(P + X) - f(|P - X|)
+.MUU1                   \ and store it in P
+ LDA SQ1L,X
+.MUU2
+ SBC SQ2L,X
+ STA P
+
+.MUU3                   \ Calculate the high byte of P * X in A
+ LDA SQ1H,X
+.MUU4
+ SBC SQ2H,X
+
+ LDX #0                 \ Set X = 0 and the Z and N flags, as in the original
+
+ CLC                    \ Clear the C flag, as in the original
+
+ RTS                    \ Return from the subroutine
+
+.MU11Z
+
+ LDA #0                 \ This is the original code, which we run for X = 0
+                        \ (with T = &FF), so that we return exactly the same
+ LDX #8                 \ results as the original
+ LSR P
+
+.MUL6
+
+ BCC P%+4
+ ADC T
+ ROR A
+ ROR P
+ DEX
+ BNE MUL6
+
+ RTS
+
+\ ******************************************************************************
+\
+\       Name: MU6
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Set P(1 0) = (A A)
+\
+\ ------------------------------------------------------------------------------
+\
+\ In practice this is only called via a BEQ following an AND instruction, in
+\ which case A = 0, so this routine effectively does this:
+\
+\   P(1 0) = 0
+\
+\ ******************************************************************************
+
+.MU6
+
+ STA P+1                \ Set P(1 0) = (A A)
+ STA P
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: FMLTU2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate A = K * sin(A)
+\  Deep dive: The sine, cosine and arctan tables
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following:
+\
+\   A = K * sin(A)
+\
+\ Because this routine uses the sine lookup table SNE, we can also call this
+\ routine to calculate cosine multiplication. To calculate the following:
+\
+\   A = K * cos(B)
+\
+\ call this routine with B + 16 in the accumulator, as sin(B + 16) = cos(B).
+\
+\ ******************************************************************************
+
+.FMLTU2
+
+ AND #%00011111         \ Restrict A to bits 0-5 (so it's in the range 0-31)
+
+ TAX                    \ Set Q = sin(A) * 256
+ LDA SNE,X
+ STA Q
+
+ LDA K                  \ Set A to the radius in K
+
+                        \ Fall through into FMLTU to do the following:
+                        \
+                        \   (A ?) = A * Q
+                        \         = K * sin(A) * 256
+                        \
+                        \ which is equivalent to:
+                        \
+                        \   A = K * sin(A)
+
+\ ******************************************************************************
+\
+\       Name: FMLTU
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate A = A * Q / 256
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of two unsigned 8-bit numbers, returning only
+\ the high byte of the result:
+\
+\   (A ?) = A * Q
+\
+\ or, to put it another way:
+\
+\   A = A * Q / 256
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              The C flag is set
+\
+\ ******************************************************************************
+
+.FMLTU
+
+                        \ BBC Master port: this calculates exactly the same
+                        \ result as the original shift-and-add loop, using the
+                        \ quarter-square tables (see SQ1L):
+                        \
+                        \   A = (A * Q) / 256 = HI(f(A + Q) - f(|A - Q|))
+                        \
+                        \ and returns with the same register, flag and memory
+                        \ state as the original, which leaves X, Y and Q
+                        \ unchanged, P = 0, the C flag set and the Z and N flags
+                        \ set as for a zero result (because the original finishes
+                        \ with LSR P setting P to zero). The V flag is not
+                        \ preserved, but no caller relies on it
+
+ STA FMU1+1             \ Patch A into the operands of the table look-ups
+ STA FMU3+1
+ EOR #&FF
+ STA FMU2+1
+ STA FMU4+1
+
+ PHX                    \ Store X on the stack, as we use it as the index
+
+ LDX Q                  \ Set X = Q
+
+ SEC                    \ Calculate the low byte of f(A + Q) - f(|A - Q|),
+.FMU1                   \ which we only need for the borrow
+ LDA SQ1L,X
+.FMU2
+ SBC SQ2L,X
+
+.FMU3                   \ Calculate the high byte, which is the result
+ LDA SQ1H,X
+.FMU4
+ SBC SQ2H,X
+
+ PLX                    \ Restore X
+
+ STZ P                  \ Set P = 0, as in the original
+
+ BIT SQ1L               \ Set the Z flag and clear the N flag (SQ1L contains 0),
+                        \ as in the original
+
+ SEC                    \ Set the C flag, as in the original
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: MLTU2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P+1 P) = (A ~P) * Q
+\  Deep dive: Shift-and-add multiplication
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of an unsigned 16-bit number and an unsigned
+\ 8-bit number:
+\
+\   (A P+1 P) = (A ~P) * Q
+\
+\ where ~P means P EOR %11111111 (i.e. P with all its bits flipped). In other
+\ words, if you wanted to calculate &1234 * &56, you would:
+\
+\   * Set A to &12
+\   * Set P to &34 EOR %11111111 = &CB
+\   * Set Q to &56
+\
+\ before calling MLTU2.
+\
+\ This routine is like a mash-up of MU11 and FMLTU. It uses part of FMLTU's
+\ inverted argument trick to work out whether or not to do an addition, and like
+\ MU11 it sets up a counter in X to extract bits from (P+1 P). But this time we
+\ extract 16 bits from (P+1 P), so the result is a 24-bit number. The core of
+\ the algorithm is still the shift-and-add approach explained in MULT1, just
+\ with more bits.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   Q                   Q is preserved
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   MLTU2-2             Set Q to X, so this calculates (A P+1 P) = (A ~P) * X
+\
+\ ******************************************************************************
+
+ STX Q                  \ Store X in Q
+
+.MLTU2
+
+                        \ BBC Master port: this calculates exactly the same
+                        \ result as the original 16-bit shift-and-add loop, i.e.
+                        \
+                        \   (A P+1 P) = (A ~P) * Q
+                        \
+                        \ by adding two 8-bit x 8-bit products from the
+                        \ quarter-square tables (see SQ1L), and returns with the
+                        \ same register, flag and memory state (Q unchanged,
+                        \ X = 0, C clear, Z set and N clear as for X = 0). The V
+                        \ flag is not preserved, but no caller relies on it
+
+ STA MLT2               \ Store the high byte of the multiplier for later
+
+ LDX Q                  \ Set X = Q, which we use as the table index
+
+ LDA P                  \ Calculate ~P * Q into (MLT2+1 P)
+ EOR #&FF
+ STA MLU21+1
+ STA MLU23+1
+ EOR #&FF
+ STA MLU22+1
+ STA MLU24+1
+ SEC
+.MLU21
+ LDA SQ1L,X
+.MLU22
+ SBC SQ2L,X
+ STA P
+.MLU23
+ LDA SQ1H,X
+.MLU24
+ SBC SQ2H,X
+ STA MLT2+1
+
+ LDA MLT2               \ Calculate A * Q into (A MLT2+2)
+ STA MLU25+1
+ STA MLU27+1
+ EOR #&FF
+ STA MLU26+1
+ STA MLU28+1
+ SEC
+.MLU25
+ LDA SQ1L,X
+.MLU26
+ SBC SQ2L,X
+ STA MLT2+2
+.MLU27
+ LDA SQ1H,X
+.MLU28
+ SBC SQ2H,X
+ TAX                    \ Store the high byte in X for now
+
+ LDA MLT2+1             \ Add the two products, so (A P+1 P) is the result
+ CLC
+ ADC MLT2+2
+ STA P+1
+ TXA
+ ADC #0
+
+ LDX #0                 \ Set X = 0, as in the original
+
+ BIT SQ1L               \ Set the Z flag and clear the N flag (SQ1L contains 0),
+                        \ as in the original, which ends with X = 0
+
+ CLC                    \ Clear the C flag, as in the original
+
+ RTS                    \ Return from the subroutine
+
+.MLT2
+
+ SKIP 3                 \ Temporary storage
+
+\ ******************************************************************************
+\
+\       Name: CPYIN
+\       Type: Subroutine
+\   Category: Main loop
+\    Summary: Copy a ship data block from INF to INWK (BBC Master port)
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is an unrolled version of the loop at MAL2 in the main flight loop:
+\
+\   LDY #NI%-1 : .MAL2 LDA (INF),Y : STA INWK,Y : DEY : BPL MAL2
+\
+\ It returns with the same registers and flags (A = INWK, Y = &FF, N set, Z
+\ clear, C unchanged).
+\
+\ ******************************************************************************
+
+.CPYIN
+
+ FOR I%, NI%-1, 0, -1
+  LDY #I%
+  LDA (INF),Y
+  STA INWK+I%
+ NEXT
+
+ LDY #&FF
+
+ RTS
+
+\ ******************************************************************************
+\
+\       Name: CPYOUT
+\       Type: Subroutine
+\   Category: Main loop
+\    Summary: Copy a ship data block from INWK to INF (BBC Master port)
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is an unrolled version of the loop at MAL3 in the main flight loop:
+\
+\   LDY #NI%-1 : .MAL3 LDA INWK,Y : STA (INF),Y : DEY : BPL MAL3
+\
+\ It returns with the same registers and flags (A = INWK, Y = &FF, N set, Z
+\ clear, C unchanged).
+\
+\ ******************************************************************************
+
+.CPYOUT
+
+ FOR I%, NI%-1, 0, -1
+  LDY #I%
+  LDA INWK+I%
+  STA (INF),Y
+ NEXT
+
+ LDY #&FF
+
+ RTS
+
+\ ******************************************************************************
+\
+\       Name: MUT3
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: An unused routine that does the same as MUT2
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine is never actually called, but it is identical to MUT2, as the
+\ extra instructions have no effect.
+\
+\ ******************************************************************************
+
+.MUT3
+
+ LDX ALP1               \ Set P = ALP1, though this gets overwritten by the
+ STX P                  \ following, so this has no effect
+
+                        \ Fall through into MUT2 to do the following:
+                        \
+                        \   (S R) = XX(1 0)
+                        \   (A P) = Q * A
+
+\ ******************************************************************************
+\
+\       Name: MUT2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (S R) = XX(1 0) and (A P) = Q * A
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following assignment, and multiplication of two signed 8-bit numbers:
+\
+\   (S R) = XX(1 0)
+\   (A P) = Q * A
+\
+\ ******************************************************************************
+
+.MUT2
+
+ LDX XX+1               \ Set S = XX+1
+ STX S
+
+                        \ Fall through into MUT1 to do the following:
+                        \
+                        \   R = XX
+                        \   (A P) = Q * A
+
+\ ******************************************************************************
+\
+\       Name: MUT1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate R = XX and (A P) = Q * A
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following assignment, and multiplication of two signed 8-bit numbers:
+\
+\   R = XX
+\   (A P) = Q * A
+\
+\ ******************************************************************************
+
+.MUT1
+
+ LDX XX                 \ Set R = XX
+ STX R
+
+                        \ Fall through into MULT1 to do the following:
+                        \
+                        \   (A P) = Q * A
+
+\ ******************************************************************************
+\
+\       Name: MULT1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = Q * A
+\  Deep dive: Shift-and-add multiplication
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of two 8-bit sign-magnitude numbers:
+\
+\   (A P) = Q * A
+\
+\ ******************************************************************************
+
+.MULT1
+
+                        \ BBC Master port: this calculates exactly the same
+                        \ result as the original shift-and-add loop, i.e.
+                        \
+                        \   (A P) = |A| * |Q|, with the sign of A * Q
+                        \
+                        \ using the quarter-square tables (see SQ1L), and
+                        \ returns with the same register, flag and memory state
+                        \ (T = sign, T1 = |Q| - 1, X = 0, C clear, Z and N set
+                        \ by the final ORA T, and for |Q| = 0, the same state as
+                        \ the original's mu10). The V flag is not preserved, but
+                        \ no caller relies on it
+                        \
+                        \ |Q| is usually the same as on the last call, so we
+                        \ patch it into the table look-ups and only re-patch
+                        \ when it changes
+
+ TAX                    \ Store A in X
+
+ EOR Q                  \ Set T to the sign bit of Q * A
+ AND #%10000000
+ STA T
+
+ LDA Q                  \ Set A = |Q|
+ AND #%01111111
+
+ BEQ mu10               \ If |Q| = 0 jump to mu10 (with A set to 0)
+
+ DEC A                  \ Set T1 = |Q| - 1, as in the original
+ STA T1
+ INC A
+
+ CMP M1LAST             \ If |Q| is the same value as last time, the table
+ BEQ MTU0               \ look-ups are already patched, so skip the following
+
+ STA M1LAST             \ Patch |Q| into the operands of the table look-ups
+ STA MTU1+1
+ STA MTU3+1
+ EOR #&FF
+ STA MTU2+1
+ STA MTU4+1
+
+.MTU0
+
+ TXA                    \ Set X = |A|
+ AND #%01111111
+ TAX
+
+ SEC                    \ Calculate the low byte of |A| * |Q| and store it in P
+.MTU1
+ LDA SQ1L,X
+.MTU2
+ SBC SQ2L+&FF,X
+ STA P
+
+.MTU3                   \ Calculate the high byte of |A| * |Q| in A
+ LDA SQ1H,X
+.MTU4
+ SBC SQ2H+&FF,X
+
+ LDX #0                 \ Set X = 0, as in the original
+
+ CLC                    \ Clear the C flag, as in the original
+
+ ORA T                  \ Set the sign bit of the result that we stored in T
+
+ RTS                    \ Return from the subroutine
+
+.mu10
+
+                        \ If we get here, the result is 0, A = 0 and X is the
+                        \ original argument A
+
+ TXA                    \ Set the C flag to bit 0 of the argument A, as in the
+ LSR A                  \ original
+
+ LDA #0                 \ Set A = P = 0, which also sets the Z flag and clears
+ STA P                  \ the N flag, as in the original
+
+ RTS                    \ Return from the subroutine
+
+.M1LAST
+
+ EQUB 0                 \ The value of |Q| currently patched into the table
+                        \ look-ups above
+
+\ ******************************************************************************
+\
+\       Name: MULT12
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (S R) = Q * A
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate:
+\
+\   (S R) = Q * A
+\
+\ ******************************************************************************
+
+.MULT12
+
+ JSR MULT1              \ Set (A P) = Q * A
+
+ STA S                  \ Set (S R) = (A P)
+ LDA P                  \           = Q * A
+ STA R
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: TAS3
+\       Type: Subroutine
+\   Category: Maths (Geometry)
+\    Summary: Calculate the dot product of XX15 and an orientation vector
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the dot product of the vector in XX15 and one of the orientation
+\ vectors, as determined by the value of Y. If vect is the orientation vector,
+\ we calculate this:
+\
+\   (A X) = vect . XX15
+\         = vect_x * XX15 + vect_y * XX15+1 + vect_z * XX15+2
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   Y                   The orientation vector:
+\
+\                         * If Y = 10, calculate nosev . XX15
+\
+\                         * If Y = 16, calculate roofv . XX15
+\
+\                         * If Y = 22, calculate sidev . XX15
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   (A X)               The result of the dot product
+\
+\ ******************************************************************************
+
+.TAS3
+
+ LDX INWK,Y             \ Set Q = the Y-th byte of INWK, i.e. vect_x
+ STX Q
+
+ LDA XX15               \ Set A = XX15
+
+ JSR MULT12             \ Set (S R) = Q * A
+                        \           = vect_x * XX15
+
+ LDX INWK+2,Y           \ Set Q = the Y+2-th byte of INWK, i.e. vect_y
+ STX Q
+
+ LDA XX15+1             \ Set A = XX15+1
+
+ JSR MAD                \ Set (A X) = Q * A + (S R)
+                        \           = vect_y * XX15+1 + vect_x * XX15
+
+ STA S                  \ Set (S R) = (A X)
+ STX R
+
+ LDX INWK+4,Y           \ Set Q = the Y+2-th byte of INWK, i.e. vect_z
+ STX Q
+
+ LDA XX15+2             \ Set A = XX15+2
+
+                        \ Fall through into MAD to set:
+                        \
+                        \   (A X) = Q * A + (S R)
+                        \           = vect_z * XX15+2 + vect_y * XX15+1 +
+                        \             vect_x * XX15
+
+\ ******************************************************************************
+\
+\       Name: MAD
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A X) = Q * A + (S R)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate
+\
+\   (A X) = Q * A + (S R)
+\
+\ ******************************************************************************
+
+.MAD
+
+ JSR MULT1              \ Call MULT1 to set (A P) = Q * A
+
+                        \ Fall through into ADD to do:
+                        \
+                        \   (A X) = (A P) + (S R)
+                        \         = Q * A + (S R)
+
+\ ******************************************************************************
+\
+\       Name: ADD
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A X) = (A P) + (S R)
+\  Deep dive: Adding sign-magnitude numbers
+\
+\ ------------------------------------------------------------------------------
+\
+\ Add two 16-bit sign-magnitude numbers together, calculating:
+\
+\   (A X) = (A P) + (S R)
+\
+\ ******************************************************************************
+
+.ADD
+
+ STA T1                 \ Store argument A in T1
+
+ AND #%10000000         \ Extract the sign (bit 7) of A and store it in T
+ STA T
+
+ EOR S                  \ EOR bit 7 of A with S. If they have different bit 7s
+ BMI MU8                \ (i.e. they have different signs) then bit 7 in the
+                        \ EOR result will be 1, which means the EOR result is
+                        \ negative. So the AND, EOR and BMI together mean "jump
+                        \ to MU8 if A and S have different signs"
+
+                        \ If we reach here, then A and S have the same sign, so
+                        \ we can add them and set the sign to get the result
+
+ LDA R                  \ Add the least significant bytes together into X:
+ CLC                    \
+ ADC P                  \   X = P + R
+ TAX
+
+ LDA S                  \ Add the most significant bytes together into A. We
+ ADC T1                 \ stored the original argument A in T1 earlier, so we
+                        \ can do this with:
+                        \
+                        \   A = A  + S + C
+                        \     = T1 + S + C
+
+ ORA T                  \ If argument A was negative (and therefore S was also
+                        \ negative) then make sure result A is negative by
+                        \ OR'ing the result with the sign bit from argument A
+                        \ (which we stored in T)
+
+ RTS                    \ Return from the subroutine
+
+.MU8
+
+                        \ If we reach here, then A and S have different signs,
+                        \ so we can subtract their absolute values and set the
+                        \ sign to get the result
+
+ LDA S                  \ Clear the sign (bit 7) in S and store the result in
+ AND #%01111111         \ U, so U now contains |S|
+ STA U
+
+ LDA P                  \ Subtract the least significant bytes into X:
+ SEC                    \
+ SBC R                  \   X = P - R
+ TAX
+
+ LDA T1                 \ Restore the A of the argument (A P) from T1 and
+ AND #%01111111         \ clear the sign (bit 7), so A now contains |A|
+
+ SBC U                  \ Set A = |A| - |S|
+
+                        \ At this point we have |A P| - |S R| in (A X), so we
+                        \ need to check whether the subtraction above was the
+                        \ right way round (i.e. that we subtracted the smaller
+                        \ absolute value from the larger absolute value)
+
+ BCS MU9                \ If |A| >= |S|, our subtraction was the right way
+                        \ round, so jump to MU9 to set the sign
+
+                        \ If we get here, then |A| < |S|, so our subtraction
+                        \ above was the wrong way round (we actually subtracted
+                        \ the larger absolute value from the smaller absolute
+                        \ value). So let's subtract the result we have in (A X)
+                        \ from zero, so that the subtraction is the right way
+                        \ round
+
+ STA U                  \ Store A in U
+
+ TXA                    \ Set X = 0 - X using two's complement (to negate a
+ EOR #&FF               \ number in two's complement, you can invert the bits
+ ADC #1                 \ and add one - and we know the C flag is clear as we
+ TAX                    \ didn't take the BCS branch above, so the ADC will do
+                        \ the correct addition)
+
+ LDA #0                 \ Set A = 0 - A, which we can do this time using a
+ SBC U                  \ subtraction with the C flag clear
+
+ ORA #%10000000         \ We now set the sign bit of A, so that the EOR on the
+                        \ next line will give the result the opposite sign to
+                        \ argument A (as T contains the sign bit of argument
+                        \ A). This is the same as giving the result the same
+                        \ sign as argument S (as A and S have different signs),
+                        \ which is what we want, as S has the larger absolute
+                        \ value
+
+.MU9
+
+ EOR T                  \ If we get here from the BCS above, then |A| >= |S|,
+                        \ so we want to give the result the same sign as
+                        \ argument A, so if argument A was negative, we flip
+                        \ the sign of the result with an EOR (to make it
+                        \ negative)
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: TIS1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A ?) = (-X * A + (S R)) / 96
+\  Deep dive: Shift-and-subtract division
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following expression between sign-magnitude numbers, ignoring
+\ the low byte of the result:
+\
+\   (A ?) = (-X * A + (S R)) / 96
+\
+\ This uses the same shift-and-subtract algorithm as TIS2, just with the
+\ quotient A hard-coded to 96.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   Q                   Gets set to the value of argument X
+\
+\ ******************************************************************************
+
+.TIS1
+
+ STX Q                  \ Set Q = X
+
+ EOR #%10000000         \ Flip the sign bit in A
+
+ JSR MAD                \ Set (A X) = Q * A + (S R)
+                        \           = X * -A + (S R)
+
+.DVID96
+
+ TAX                    \ Set T to the sign bit of the result
+ AND #%10000000
+ STA T
+
+ TXA                    \ Set A to the high byte of the result with the sign bit
+ AND #%01111111         \ cleared, so (A ?) = |X * A + (S R)|
+
+                        \ The following is identical to TIS2, except Q is
+                        \ hard-coded to 96, so this does A = A / 96
+
+ LDX #254               \ Set T1 to have bits 1-7 set, so we can rotate through
+ STX T1                 \ 7 loop iterations, getting a 1 each time, and then
+                        \ getting a 0 on the 8th iteration... and we can also
+                        \ use T1 to catch our result bits into bit 0 each time
+
+.DVL3
+
+ ASL A                  \ Shift A to the left
+
+ CMP #96                \ If A < 96 skip the following subtraction
+ BCC DV4
+
+ SBC #96                \ Set A = A - 96
+                        \
+                        \ Going into this subtraction we know the C flag is
+                        \ set as we passed through the BCC above, and we also
+                        \ know that A >= 96, so the C flag will still be set
+                        \ once we are done
+
+.DV4
+
+ ROL T1                 \ Rotate the counter in T1 to the left, and catch the
+                        \ result bit into bit 0 (which will be a 0 if we didn't
+                        \ do the subtraction, or 1 if we did)
+
+ BCS DVL3               \ If we still have set bits in T1, loop back to DVL3 to
+                        \ do the next iteration of 7
+
+ LDA T1                 \ Fetch the result from T1 into A
+
+ ORA T                  \ Give A the sign of the result that we stored above
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: DV42
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (P R) = 256 * DELTA / z_hi
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following division and remainder:
+\
+\   P = DELTA / (the Y-th stardust particle's z_hi coordinate)
+\
+\   R = remainder as a fraction of A, where 1.0 = 255
+\
+\ Another way of saying the above is this:
+\
+\   (P R) = 256 * DELTA / z_hi
+\
+\ DELTA is a value between 1 and 40, and the minimum z_hi is 16 (dust particles
+\ are removed at lower values than this), so this means P is between 0 and 2
+\ (as 40 / 16 = 2.5, so the maximum result is P = 2 and R = 128.
+\
+\ This uses the same shift-and-subtract algorithm as TIS2, but this time we
+\ keep the remainder.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   Y                   The number of the stardust particle to process
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              The C flag is cleared
+\
+\ ******************************************************************************
+
+.DV42
+
+ LDA SZ,Y               \ Fetch the Y-th dust particle's z_hi coordinate into A
+
+                        \ Fall through into DV41 to do:
+                        \
+                        \   (P R) = 256 * DELTA / A
+                        \         = 256 * DELTA / Y-th stardust particle's z_hi
+
+\ ******************************************************************************
+\
+\       Name: DV41
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (P R) = 256 * DELTA / A
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following division and remainder:
+\
+\   P = DELTA / A
+\
+\   R = remainder as a fraction of A, where 1.0 = 255
+\
+\ Another way of saying the above is this:
+\
+\   (P R) = 256 * DELTA / A
+\
+\ This uses the same shift-and-subtract algorithm as TIS2, but this time we
+\ keep the remainder.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              The C flag is cleared
+\
+\ ******************************************************************************
+
+.DV41
+
+ STA Q                  \ Store A in Q
+
+ LDA DELTA              \ Fetch the speed from DELTA into A
+
+                        \ Fall through into DVID4 to do:
+                        \
+                        \   (P R) = 256 * A / Q
+                        \         = 256 * DELTA / A
+
+\ ******************************************************************************
+\
+\       Name: DVID4
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (P R) = 256 * A / Q
+\  Deep dive: Shift-and-subtract division
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following division and remainder:
+\
+\   P = A / Q
+\
+\   R = remainder as a fraction of Q, where 1.0 = 255
+\
+\ Another way of saying the above is this:
+\
+\   (P R) = 256 * A / Q
+\
+\ This uses the same shift-and-subtract algorithm as TIS2, but this time we
+\ keep the remainder.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              The C flag is cleared
+\
+\ ******************************************************************************
+
+.DVID4
+
+                        \ BBC Master port: if A < Q then the original loop
+                        \ below always leaves the quotient P = 0 and the
+                        \ remainder A unchanged, so we skip straight to LL28+4
+                        \ in that case (the state of X and the flags at this
+                        \ point make no difference to LL28+4). Otherwise we run
+                        \ the original loop, unrolled (the original sets X = 8
+                        \ as a loop counter, but X is overwritten by LL28+4)
+
+ CMP Q                  \ If A >= Q, jump to DV4L to do the division
+ BCS DV4L
+
+ STZ P                  \ A < Q, so set P = 0, leave A as the remainder, and
+ JMP LL28+4             \ jump to LL28+4 to calculate R
+
+.DV4L
+
+ ASL A                  \ Shift A left and store in P (we will build the result
+ STA P                  \ in P)
+
+ LDA #0                 \ Set A = 0 for us to build a remainder
+
+ FOR I%, 1, 8
+
+  ROL A                 \ Shift A to the left
+
+  BCS P%+6              \ If the C flag is set (i.e. bit 7 of A was set) then
+                        \ skip straight to the subtraction
+
+  CMP Q                 \ If A < Q skip the following subtraction (with the C
+  BCC P%+5              \ flag clear)
+
+  SBC Q                 \ A >= Q, so set A = A - Q
+
+  SEC                   \ Set the C flag, so that P gets a 1 shifted into bit 0
+
+  ROL P                 \ Shift P to the left, pulling the C flag into bit 0
+
+ NEXT
+
+ JMP LL28+4             \ Jump to LL28+4 to convert the remainder in A into an
+                        \ integer representation of the fractional value A / Q,
+                        \ in R, where 1.0 = 255. LL28+4 always returns with the
+                        \ C flag cleared, and we return from the subroutine
+                        \ using a tail call
+
+\ ******************************************************************************
+\
+\       Name: DVID3B2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate K(3 2 1 0) = (A P+1 P) / (z_sign z_hi z_lo)
+\  Deep dive: Shift-and-subtract division
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following:
+\
+\   K(3 2 1 0) = (A P+1 P) / (z_sign z_hi z_lo)
+\
+\ The actual division here is done as an 8-bit calculation using LL31, but this
+\ routine shifts both the numerator (the top part of the division) and the
+\ denominator (the bottom part of the division) around to get the multi-byte
+\ result we want.
+\
+\ Specifically, it shifts both of them to the left as far as possible, keeping a
+\ tally of how many shifts get done in each one - and specifically, the
+\ difference in the number of shifts between the top and bottom (as shifting
+\ both of them once in the same direction won't change the result). It then
+\ divides the two highest bytes with the simple 8-bit routine in LL31, and
+\ shifts the result by the difference in the number of shifts, which acts as a
+\ scale factor to get the correct result.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   K(3 2 1 0)          The result of the division
+\
+\   X                   X is preserved
+\
+\ ******************************************************************************
+
+.DVID3B2
+
+ STA P+2                \ Set P+2 = A
+
+ LDA INWK+6             \ Set Q = z_lo
+ STA Q
+
+ LDA INWK+7             \ Set R = z_hi
+ STA R
+
+ LDA INWK+8             \ Set S = z_sign
+ STA S
+
+.DVID3B
+
+                        \ Given the above assignments, we now want to calculate
+                        \ the following to get the result we want:
+                        \
+                        \   K(3 2 1 0) = P(2 1 0) / (S R Q)
+
+ LDA P                  \ Make sure P(2 1 0) is at least 1
+ ORA #1
+ STA P
+
+ LDA P+2                \ Set T to the sign of P+2 * S (i.e. the sign of the
+ EOR S                  \ result) and store it in T
+ AND #%10000000
+ STA T
+
+ LDY #0                 \ Set Y = 0 to store the scale factor
+
+ LDA P+2                \ Clear the sign bit of P+2, so the division can be done
+ AND #%01111111         \ with positive numbers and we'll set the correct sign
+                        \ below, once all the maths is done
+                        \
+                        \ This also leaves A = P+2, which we use below
+
+.DVL9
+
+                        \ We now shift (A P+1 P) left until A >= 64, counting
+                        \ the number of shifts in Y. This makes the top part of
+                        \ the division as large as possible, thus retaining as
+                        \ much accuracy as we can.  When we come to return the
+                        \ final result, we shift the result by the number of
+                        \ places in Y, and in the correct direction
+
+ CMP #64                \ If A >= 64, jump down to DV14
+ BCS DV14
+
+ ASL P                  \ Shift (A P+1 P) to the left
+ ROL P+1
+ ROL A
+
+ INY                    \ Increment the scale factor in Y
+
+ BNE DVL9               \ Loop up to DVL9 (this BNE is effectively a JMP, as Y
+                        \ will never be zero)
+
+.DV14
+
+                        \ If we get here, A >= 64 and contains the highest byte
+                        \ of the numerator, scaled up by the number of left
+                        \ shifts in Y
+
+ STA P+2                \ Store A in P+2, so we now have the scaled value of
+                        \ the numerator in P(2 1 0)
+
+ LDA S                  \ Set A = |S|
+ AND #%01111111
+
+ BMI DV9                \ If bit 7 of A is set, jump down to DV9 to skip the
+                        \ left-shifting of the denominator (though this branch
+                        \ instruction has no effect as bit 7 of the above AND
+                        \ can never be set, which is why this instruction was
+                        \ removed from later versions)
+
+.DVL6
+
+                        \ We now shift (S R Q) left until bit 7 of S is set,
+                        \ reducing Y by the number of shifts. This makes the
+                        \ bottom part of the division as large as possible, thus
+                        \ retaining as much accuracy as we can. When we come to
+                        \ return the final result, we shift the result by the
+                        \ total number of places in Y, and in the correct
+                        \ direction, to give us the correct result
+                        \
+                        \ We set A to |S| above, so the following actually
+                        \ shifts (A R Q)
+
+ DEY                    \ Decrement the scale factor in Y
+
+ ASL Q                  \ Shift (A R Q) to the left
+ ROL R
+ ROL A
+
+ BPL DVL6               \ Loop up to DVL6 to do another shift, until bit 7 of A
+                        \ is set and we can't shift left any further
+
+.DV9
+
+                        \ We have now shifted both the numerator and denominator
+                        \ left as far as they will go, keeping a tally of the
+                        \ overall scale factor of the various shifts in Y. We
+                        \ can now divide just the two highest bytes to get our
+                        \ result
+
+ STA Q                  \ Set Q = A, the highest byte of the denominator
+
+ LDA #254               \ Set R to have bits 1-7 set, so we can pass this to
+ STA R                  \ LL31 to act as the bit counter in the division
+
+ LDA P+2                \ Set A to the highest byte of the numerator
+
+ JSR LL31               \ Call LL31 to calculate:
+                        \
+                        \   R = 256 * A / Q
+                        \     = 256 * numerator / denominator
+
+                        \ The result of our division is now in R, so we just
+                        \ need to shift it back by the scale factor in Y
+
+ LDA #0                 \ Set K(3 2 1) = 0 to hold the result (we populate K
+ STA K+1                \ next)
+ STA K+2
+ STA K+3
+
+ TYA                    \ If Y is positive, jump to DV12
+ BPL DV12
+
+                        \ If we get here then Y is negative, so we need to shift
+                        \ the result R to the left by Y places, and then set the
+                        \ correct sign for the result
+
+ LDA R                  \ Set A = R
+
+.DVL8
+
+ ASL A                  \ Shift (K+3 K+2 K+1 A) left
+ ROL K+1
+ ROL K+2
+ ROL K+3
+
+ INY                    \ Increment the scale factor in Y
+
+ BNE DVL8               \ Loop back to DVL8 until we have shifted left by Y
+                        \ places
+
+ STA K                  \ Store A in K so the result is now in K(3 2 1 0)
+
+ LDA K+3                \ Set K+3 to the sign in T, which we set above to the
+ ORA T                  \ correct sign for the result
+ STA K+3
+
+ RTS                    \ Return from the subroutine
+
+.DV13
+
+                        \ If we get here then Y is zero, so we don't need to
+                        \ shift the result R, we just need to set the correct
+                        \ sign for the result
+
+ LDA R                  \ Store R in K so the result is now in K(3 2 1 0)
+ STA K
+
+ LDA T                  \ Set K+3 to the sign in T, which we set above to the
+ STA K+3                \ correct sign for the result
+
+ RTS                    \ Return from the subroutine
+
+.DV12
+
+ BEQ DV13               \ We jumped here having set A to the scale factor in Y,
+                        \ so this jumps up to DV13 if Y = 0
+
+                        \ If we get here then Y is positive and non-zero, so we
+                        \ need to shift the result R to the right by Y places
+                        \ and then set the correct sign for the result. We also
+                        \ know that K(3 2 1) will stay 0, as we are shifting the
+                        \ lowest byte to the right, so no set bits will make
+                        \ their way into the top three bytes
+
+ LDA R                  \ Set A = R
+
+.DVL10
+
+ LSR A                  \ Shift A right
+
+ DEY                    \ Decrement the scale factor in Y
+
+ BNE DVL10              \ Loop back to DVL10 until we have shifted right by Y
+                        \ places
+
+ STA K                  \ Store the shifted A in K so the result is now in
+                        \ K(3 2 1 0)
+
+ LDA T                  \ Set K+3 to the sign in T, which we set above to the
+ STA K+3                \ correct sign for the result
+
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \

@@ -52,7 +52,7 @@ def load_port():
     return mem
 
 SENT = 0xFFF0
-CMP_RANGES = [(0x0000, 0x0100), (0x0300, 0x0400), (0x0D40, 0x0F39)]
+CMP_RANGES = [(0x0000, 0x0100), (0x0300, 0x0400), (0x0900, 0x0AB0), (0x0D40, 0x0F39)]
 
 class Runner:
     def __init__(self, image, symtab):
@@ -74,7 +74,8 @@ class Runner:
         self.mem[0x1FF] = (SENT - 1) >> 8
         cpu.pc = self.syms[name]
         n = 0
-        while cpu.pc != SENT:
+        stop = self.syms.get(name + '_STOP', SENT)
+        while cpu.pc != SENT and cpu.pc != stop:
             cpu.step()
             n += 1
             if n > 200000:
@@ -197,6 +198,17 @@ def MLS1():
     return check('MLS1', all8x8(lambda a, b, r: (a, r.randrange(256), r.randrange(256), r.randrange(2), {A1: b}), None, step=STEP))
 
 @test
+def MULTS_repeat():
+    # same P for runs of consecutive calls, exercising the patch cache hits
+    P = Z('P')
+    return check('MULTS', all8x8(lambda b, a, r: (a, r.randrange(256), r.randrange(256), r.randrange(2), {P: b}), None, step=STEP))
+
+@test
+def MULT1_repeat():
+    Q = Z('Q')
+    return check('MULT1', all8x8(lambda b, a, r: (a, r.randrange(256), r.randrange(256), r.randrange(2), {Q: b}), None, step=STEP))
+
+@test
 def MULT1():
     Q = Z('Q')
     return check('MULT1', all8x8(lambda a, b, r: (a, r.randrange(256), r.randrange(256), r.randrange(2), {Q: b}), None, step=STEP))
@@ -244,6 +256,37 @@ def TIS2():
 def LL5():
     Q, R = Z('Q'), Z('R')
     return check('LL5', all8x8(lambda a, b, r: (r.randrange(256), r.randrange(256), r.randrange(256), r.randrange(2), {Q: a, R: b}), None, step=STEP))
+
+@test
+def DVID3B2():
+    P, I = Z('P'), Z('INWK')
+    return check('DVID3B2', rnd_cases(lambda r: (r.randrange(256), r.randrange(256), r.randrange(256), r.randrange(2),
+        {P: r.randrange(256), P + 1: r.randrange(256), I + 6: r.randrange(256), I + 7: r.randrange(256), I + 8: r.randrange(256)}), 20000 if QUICK else 100000))
+
+def ship_copy(oname, pname):
+    INF = Z('INF')
+    def gen(r):
+        a = 0x0900 + 36 * r.randrange(12)
+        mb = {INF: a & 255, INF + 1: a >> 8}
+        for i in range(36):
+            mb[a + i] = r.randrange(256)
+            mb[Z('INWK') + i] = r.randrange(256)
+        return (r.randrange(256), r.randrange(256), r.randrange(256), r.randrange(2), mb)
+    # the original has no CPYIN/CPYOUT routine, so run its loop at MAL2/MAL3
+    # (preceded by its LDY #NI%-1) and compare with the port's subroutine
+    return check(oname, rnd_cases(gen, 2000 if QUICK else 20000), pname)
+
+@test
+def CPYIN():
+    ORIG.syms['CPYIN_O'] = OS['MAL2'] - 2
+    ORIG.syms['CPYIN_O_STOP'] = OS['MAL2'] + 8
+    return ship_copy('CPYIN_O', 'CPYIN')
+
+@test
+def CPYOUT():
+    ORIG.syms['CPYOUT_O'] = OS['MAL3'] - 2
+    ORIG.syms['CPYOUT_O_STOP'] = OS['MAL3'] + 8
+    return ship_copy('CPYOUT_O', 'CPYOUT')
 
 if __name__ == '__main__':
     names = [a for a in sys.argv[1:] if not a.startswith('--')] or list(TESTS)
