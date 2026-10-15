@@ -17,6 +17,7 @@ rm -rf "$OUT/tree"; mkdir -p "$OUT/tree/build" "$OUT/tree/tools"
 cp -R "$ROOT/src" "$OUT/tree/src"
 cp "$ROOT/build.sh" "$OUT/tree/build.sh"
 cp "$ROOT/tools/beebasm" "$OUT/tree/tools/beebasm"
+cp "$ROOT"/tools/*.py "$OUT/tree/tools/" 2>/dev/null || true
 # build.sh needs no orig-symbols; keep its output for the error check
 ( cd "$OUT/tree" && sh ./build.sh > "$OUT/build.log" 2>&1 ) || { cat "$OUT/build.log"; echo "mkbuild: build.sh failed" >&2; exit 1; }
 cp "$OUT/tree/build/compile.txt" "$OUT/compile.txt"
