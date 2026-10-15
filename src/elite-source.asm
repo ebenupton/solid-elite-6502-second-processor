@@ -6867,8 +6867,8 @@ ENDMACRO
  AND #%10000000
  STA T
 
- LDA INWK+1,X           \ Fetch roofv_x_hi into A and clear the sign bit, so
- AND #%01111111         \ A = |roofv_x_hi|
+ EOR INWK+1,X           \ A = T EOR roofv_x_hi = roofv_x_hi with bit 7 cleared,
+                        \ so A = |roofv_x_hi|
 
  LSR A                  \ Set (A P) = (A P) / 16
  ROR P                  \           = |roofv_x_hi roofv_x_lo| / 16
@@ -6887,8 +6887,8 @@ ENDMACRO
  EOR RAT2               \ Give it the sign as if we multiplied by the direction
                         \ by the pitch or roll direction
 
- STX Q                  \ Store the value of X so it can be restored after the
-                        \ call to ADD
+                        \ Q still holds X from the STX Q before the first ADD
+                        \ (ADD does not write Q), so no need to store it again
 
  JSR ADD                \ (A X) = (A P) + (S R)
                         \       = -/+roofv_x / 16 + (1 - 1/512) * nosev_x
@@ -7943,7 +7943,9 @@ ENDMACRO
 
 .STL1
 
- JSR DV42               \ Call DV42 to set the following:
+ LDA SZ,Y               \ Fetch z_hi and save it in ZZ (the original value of
+ STA ZZ                 \ z_hi, used below to remove the existing particle),
+ JSR DV41               \ then call DV41 (what DV42 does after its LDA SZ,Y):
                         \
                         \   (P R) = 256 * DELTA / z_hi
                         \         = 256 * speed / z_hi
@@ -7971,10 +7973,9 @@ ENDMACRO
                         \
                         \ starting with the low bytes
 
- LDA SZ,Y               \ And then we do the high bytes
- STA ZZ                 \
- SBC DELT4+1            \ We also set ZZ to the original value of z_hi, which we
- STA SZ,Y               \ use below to remove the existing particle
+ LDA ZZ                 \ And then we do the high bytes (ZZ = original z_hi)
+ SBC DELT4+1            \
+ STA SZ,Y               \
                         \
                         \ So now we have result 2 above:
                         \
@@ -21718,17 +21719,20 @@ ENDMACRO
  CMP Q                  \ If A >= Q, then the answer will not fit in one byte,
  BCS LL2                \ so jump to LL2 to return 255
 
- LDX #%11111110         \ Set R to have bits 1-7 set, as in the original (we no
- STX R                  \ longer use these bits to count the loop, but they set
-                        \ the final C flag in the same way)
+ LDX #%11111110         \ Set X = %11111110, as in the original (callers may
+                        \ see X). R itself no longer needs presetting: all
+                        \ eight of its original bits are shifted out by the
+                        \ ROLs below, and the only one that survives (bit 0, as
+                        \ the final C flag) is replaced by the CLC at the end
 
 .LL31
 
                         \ BBC Master port: the original loops round the
                         \ following eight times, using the bits in R as a
-                        \ counter (so it must be called with R = %11111110). We
+                        \ counter (so it was called with R = %11111110). We
                         \ unroll the loop, which gives exactly the same results
-                        \ (R, A and the flags), only faster
+                        \ (R, A and the flags), only faster. The entry value
+                        \ of R no longer matters
 
  FOR I%, 1, 8
 
@@ -21747,6 +21751,9 @@ ENDMACRO
   ROL R                 \ Rotate the result bit into R
 
  NEXT
+
+ CLC                    \ The original's final C was bit 0 of R = %11111110,
+                        \ i.e. always clear
 
  RTS                    \ R left with remainder of division
 
@@ -21946,8 +21953,12 @@ ENDMACRO
  JSR FMLTU              \ Set Q = A * Q / 256
  STA Q                  \       = |sidev_z| * z_lo / 256
 
+ TXA                    \ Set X = X + 6, using the C flag that FMLTU always
+ ADC #5                 \ returns set (so no CLC is needed); X is not used by
+ TAX                    \ LL38, and the EOR below is offset by -6 to match
+
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
- EOR XX16+5,X
+ EOR XX16+5-6,X
 
  JSR LL38               \ Set (S A) = (S R) + (A Q)
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
@@ -21960,12 +21971,7 @@ ENDMACRO
  INY                    \ Set Y = Y + 2
  INY
 
- TXA                    \ Set X = X + 6
- CLC
- ADC #6
- TAX
-
- CMP #17                \ If X < 17, loop back to ll51 for the next vector
+ CPX #17                \ If X < 17, loop back to ll51 for the next vector
  BCC ll51
 
  RTS                    \ Return from the subroutine
@@ -39541,9 +39547,6 @@ ENDIF
                         \ result
 
  STA Q                  \ Set Q = A, the highest byte of the denominator
-
- LDA #254               \ Set R to have bits 1-7 set, so we can pass this to
- STA R                  \ LL31 to act as the bit counter in the division
 
  LDA P+2                \ Set A to the highest byte of the numerator
 

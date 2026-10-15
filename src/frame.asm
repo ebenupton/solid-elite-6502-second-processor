@@ -1860,26 +1860,17 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  CLC
  ADC #8
  STA fz_n
-.ft13
  LDY fz_t
+.ft13                   \ Y = row (T_MARKDIRTY preserves Y, R_XL, R_XR)
  CPY R_CT
  BCC ft14
  CPY R_CB
  BEQ P%+4
  BCS ft16
- LDA R_XL
- PHA
- LDA R_XR
- PHA
  JSR T_MARKDIRTY
- PLA
- STA R_XR
- PLA
- STA R_XL
 .ft14
- INC fz_t
- LDA fz_t
- CMP fz_n
+ INY
+ CPY fz_n
  BCC ft13
 .ft16
  LDY fz_u
