@@ -6640,8 +6640,9 @@ ENDMACRO
  LDX INWK+3,Y
  STX S
 
- LDX INWK,Y             \ These instructions have no effect as MAD overwrites
- STX P                  \ X and P when called, but they set X = P = nosev_x_lo
+                        \ BBC Master port: the original's dead LDX/STX P
+                        \ instructions are omitted here and below, as MAD
+                        \ (MULT1) always overwrites X and P
 
  LDA INWK+1,Y           \ Set A = -nosev_x_hi
  EOR #%10000000
@@ -6653,15 +6654,12 @@ ENDMACRO
                         \
                         \ nosev_y = nosev_y - alpha * nosev_x_hi
 
- STX P                  \ This instruction has no effect as MAD overwrites P,
-                        \ but it sets P = nosev_y_lo
-
  LDX INWK,Y             \ Set (S R) = nosev_x
  STX R
  LDX INWK+1,Y
  STX S
 
- LDA INWK+3,Y           \ Set A = nosev_y_hi
+                        \ A still contains nosev_y_hi from the STA above
 
  JSR MAD                \ Set (A X) = Q * A + (S R)
  STA INWK+1,Y           \           = alpha * nosev_y_hi + nosev_x
@@ -6670,9 +6668,6 @@ ENDMACRO
                         \
                         \ nosev_x = nosev_x + alpha * nosev_y_hi
 
- STX P                  \ This instruction has no effect as MAD overwrites P,
-                        \ but it sets P = nosev_x_lo
-
  LDA BETA               \ Set Q = beta (the pitch angle to rotate through)
  STA Q
 
@@ -6680,10 +6675,6 @@ ENDMACRO
  STX R
  LDX INWK+3,Y
  STX S
- LDX INWK+4,Y
-
- STX P                  \ This instruction has no effect as MAD overwrites P,
-                        \ but it sets P = nosev_y
 
  LDA INWK+5,Y           \ Set A = -nosev_z_hi
  EOR #%10000000
@@ -6695,15 +6686,12 @@ ENDMACRO
                         \
                         \ nosev_y = nosev_y - beta * nosev_z_hi
 
- STX P                  \ This instruction has no effect as MAD overwrites P,
-                        \ but it sets P = nosev_y_lo
-
  LDX INWK+4,Y           \ Set (S R) = nosev_z
  STX R
  LDX INWK+5,Y
  STX S
 
- LDA INWK+3,Y           \ Set A = nosev_y_hi
+                        \ A still contains nosev_y_hi from the STA above
 
  JSR MAD                \ Set (A X) = Q * A + (S R)
  STA INWK+5,Y           \           = beta * nosev_y_hi + nosev_z
@@ -23526,6 +23514,8 @@ ENDMACRO
  ORA XX15+4
  BEQ LL60
 
+.LL57a
+
  LSR XX15+1             \ Shift XX15(1 0) to the right
  ROR XX15
 
@@ -23535,8 +23525,10 @@ ENDMACRO
  LSR U                  \ Shift (U T) to the right
  ROR T
 
- JMP LL57               \ Jump back to LL57 to see if we can shift the result
-                        \ any more
+ LSR A                  \ A = U OR XX15+1 OR XX15+4 before the shifts, and
+ BNE LL57a              \ OR commutes with LSR, so A >> 1 is the new OR of
+                        \ the high bytes; loop while it is non-zero, else
+                        \ fall through into LL60 (only comments in between)
 
 \ ******************************************************************************
 \
@@ -37859,8 +37851,7 @@ ENDIF
 
 .px4s
 
- JSR H_STAROFF          \ Frame layer hook: star Y is off screen
- RTS
+ JMP H_STAROFF          \ Frame layer hook: star Y is off screen (tail call)
 
 \ ******************************************************************************
 \

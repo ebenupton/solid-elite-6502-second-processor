@@ -394,23 +394,55 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 .fsh3
  TYA                    \ advance the destination past the XX2 copy
  CLC
- ADC fsh2+1
- STA fsh5+1
+ ADC fsh2+1             \ d = lo0 (C = carry into hi)
+ STA fsh5+1             \ patch d+0, d+1, d+2, d+3 into the unrolled loop
+ INC A                  \ (INC A leaves C alone)
+ STA fsh5a+1
+ INC A
+ STA fsh5b+1
+ INC A
+ STA fsh5c+1
  LDA fsh2+2
  ADC #0
  STA fsh5+2
- LDY #0
- LDX f_nv4
+ STA fsh5a+2
+ STA fsh5b+2
+ STA fsh5c+2
+ LDA fsh5+1             \ rare: d+k wrapped into the next page
+ CMP #&FD
+ BCC fsh7
+ INC fsh5c+2
+ CMP #&FE
+ BCC fsh7
+ INC fsh5b+2
+ CMP #&FF
+ BCC fsh7
+ INC fsh5a+2
+.fsh7
+ LDA f_nv4              \ 4 * nv bytes, a multiple of 4
  BEQ fsh6
+ SEC
+ SBC #4
+ TAY                    \ Y = f_nv4-4 .. 0 step -4, C = 1 in the loop
 .fsh4
+ LDA XX3+3,Y
+.fsh5c
+ STA &FFFF,Y            \ patched: d+3
+ LDA XX3+2,Y
+.fsh5b
+ STA &FFFF,Y            \ patched: d+2
+ LDA XX3+1,Y
+.fsh5a
+ STA &FFFF,Y            \ patched: d+1
  LDA XX3,Y
 .fsh5
- STA &FFFF,Y            \ patched
- INY
- DEX
- BNE fsh4
-.fsh6
+ STA &FFFF,Y            \ patched: d
  TYA
+ SBC #4
+ TAY
+ BCS fsh4
+.fsh6
+ LDA f_nv4
  CLC
  ADC fsh5+1
  STA F_DLP
@@ -2386,18 +2418,16 @@ MAXPT = 140             \ points per frame
  STA f_pi
 .fbd5
  LDX f_ci
- LDY f_pi
- INY
- TYA
+ LDA f_pi
+ INC A
  CMP F_CVE,X
  BCS fbd6
  LDX f_pi               \ segment f_pi -> f_pi + 1
- JSR f_ptA
- LDX f_pi
+ JSR f_ptA              \ (preserves X)
  INX
- JSR f_ptB
+ JSR f_ptB              \ (preserves X)
+ STX f_pi               \ f_pi + 1 (f_seg16 does not use f_pi)
  JSR f_seg16
- INC f_pi
  JMP fbd5
 .fbd6
                         \ (a crater's full ellipse is closed; the meridians'
@@ -2667,9 +2697,6 @@ MAXPT = 140             \ points per frame
  INC sg_y+1
  LDA sg_y               \ done at y1
  CMP sg_y1
- BNE fsg_m
- LDA sg_y+1
- CMP sg_y1+1
  BNE fsg_m
  RTS
 .fsg_m
