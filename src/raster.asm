@@ -4386,6 +4386,15 @@ ENDMACRO
   LDX #HI(r7_line)
   JMP r_c7x
 .slow0
+  LDA R_X0+1              \ 8-bit end points: bank 7 (clipped)
+  ORA R_X1+1
+  ORA R_Y0+1
+  ORA R_Y1+1
+  BNE slow1
+  LDA #LO(r7_linec)
+  LDX #HI(r7_linec)
+  JMP r_c7x
+.slow1
   LDA R_Y0                \ rows touched -> this buffer's row range
   CMP R_Y1
   LDA R_Y0+1

@@ -552,10 +552,13 @@ FOR r, 0, 23
 NEXT
 
 \ ============================================================================
-\ r7_line: R_LINE's fast path (both ends inside the window, 8-bit), R_LINE's
-\ pixels (Bresenham along the major axis from the left / top end).  Pointer
-\ RZ_PP (+ Y = row AND 7), pixel mask l_m, colour by row AND 7 (r7_lct); X =
-\ row; DIRTY[b][row] extended per pixel; the buffer's row range per line.
+\ r7_line: R_LINE for 8-bit end points (0..255), R_LINE's pixels (Bresenham
+\ along the major axis from the left / top end).  Pointer RZ_PP (+ Y = row
+\ AND 7), pixel mask l_m, colour by row AND 7 (r7_lct); X = row; DIRTY[b][row]
+\ extended per pixel; the buffer's row range per line.  r7_line: both ends
+\ inside the window.  r7_linec: otherwise; the pixels before the first one
+\ inside the window are stepped over, and the loops stop at the first one
+\ past it (the pixels inside are one run: x and y are monotonic).
 \ ============================================================================
 l_x0 = &18
 l_y0 = &19
@@ -567,14 +570,24 @@ l_n  = &1E
 l_a  = &1F
 l_b  = &20
 l_x  = &21
+l_k  = &22              \ kind (0..3)
+l_c  = &23              \ 0: inside, 8: clipped
 
 .r7_lct SKIP 8          \ colour byte by row AND 7
 .r7_ldl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
 .r7_ldr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 .r7_lbuf EQUB &FF       \ buffer the loops are patched for
+.r7_cr1 EQUB 0          \ CR + 1
+.r7_cb1 EQUB 0          \ CB + 1
 
+.r7_linec
+  LDA #8
+  BRA r7_lgo
 .r7_line
+  LDA #0
+.r7_lgo
 {
+  STA l_c
   LDX R_PRBUF
   CPX r7_lbuf
   BEQ pd
@@ -588,6 +601,14 @@ l_x  = &21
   STA lxu_p1+2
   STA lxd_p0+2
   STA lxd_p1+2
+  STA lylc_p0+2
+  STA lylc_p1+2
+  STA lyrc_p0+2
+  STA lyrc_p1+2
+  STA lxuc_p0+2
+  STA lxuc_p1+2
+  STA lxdc_p0+2
+  STA lxdc_p1+2
   LDA r7_ldr,X
   STA lyl_p2+2
   STA lyl_p3+2
@@ -597,6 +618,14 @@ l_x  = &21
   STA lxu_p3+2
   STA lxd_p2+2
   STA lxd_p3+2
+  STA lylc_p2+2
+  STA lylc_p3+2
+  STA lyrc_p2+2
+  STA lyrc_p3+2
+  STA lxuc_p2+2
+  STA lxuc_p3+2
+  STA lxdc_p2+2
+  STA lxdc_p3+2
 .pd
   LDY #6
 .ct
@@ -615,23 +644,6 @@ l_x  = &21
   STA l_x1
   LDA R_Y1
   STA l_y1
-  LDX R_PRBUF             \ the buffer's dirty rows
-  LDA l_y0
-  LDY l_y1
-  CMP l_y1
-  BCC o1
-  TAY
-  LDA l_y1
-.o1
-  CMP R_PRDYT,X
-  BCS o2
-  STA R_PRDYT,X
-.o2
-  TYA
-  CMP R_PRDYB,X
-  BCC o3
-  STA R_PRDYB,X
-.o3
   SEC
   LDA l_x1
   SBC l_x0
@@ -680,21 +692,49 @@ l_x  = &21
   LDA #1
   ROL A                   \ 2: y decreases, 3: increases
 .go
+  STA l_k
+  INC l_n                 \ pixels = steps + 1 (0: 256)
+  LDX l_y0                \ X = row, l_x = x
+  LDA l_c
+  BEQ in
+  JSR clip                \ clipped: to the first pixel inside (C = 1: none)
+  BCC in
+  RTS
+.in
+  LDA l_y0                \ the byte of (l_x, row X): RZ_PP + Y
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PP+1
+  LDA l_x
+  AND #&FC
   ASL A
-  TAX
-  LDA tab,X
+  STA RZ_PP
+  BCC s1
+  INC RZ_PP+1
+.s1
+  LDA l_x
+  AND #3
+  TAY
+  LDA r7_lm,Y             \ pixels x..3 AND pixels 0..x = pixel x
+  AND r7_rm,Y
+  STA l_m
+  LDA l_k
+  ORA l_c
+  ASL A
+  TAY
+  LDA tab,Y
   STA jp+1
-  LDA tab+1,X
+  LDA tab+1,Y
   STA jp+2
-  LDA l_y0
+  TXA
   AND #7
   TAY
-  INC l_n                 \ pixels = steps + 1 (0: 256)
-  LDX l_y0
 .jp
   JMP &FFFF
 .tab
-  EQUW lyl, lyr, lxu, lxd
+  EQUW lyl, lyr, lxu, lxd, 0, 0, 0, 0, lylc, lyrc, lxuc, lxdc
 .swap
   LDX l_x1
   LDY l_x0
@@ -705,8 +745,8 @@ l_x  = &21
   STX l_y0
   STY l_y1
   RTS
-\ start: A = steps: l_n = A, l_e = (A DIV 2) - l_b; l_x = x0; RZ_PP = byte
-\ of column x0 in row y0's character row (its row 0), l_m = pixel mask
+\ start: A = steps: l_n = A, l_e = (A DIV 2) - l_b, l_x = x0, the buffer's
+\ dirty rows += y0..y1 (in the window)
 .start
   STA l_n
   LSR A
@@ -715,25 +755,96 @@ l_x  = &21
   STA l_e
   LDA l_x0
   STA l_x
-  AND #3
-  TAX
-  LDA r7_lm,X             \ pixels x..3 AND pixels 0..x = pixel x
-  AND r7_rm,X
-  STA l_m
+  LDX R_PRBUF
   LDA l_y0
-  LSR A
-  LSR A
-  AND #&FE
-  ORA #&40
-  STA RZ_PP+1
-  LDA l_x0
-  AND #&FC
-  ASL A
-  STA RZ_PP
-  BCC s1
-  INC RZ_PP+1
-.s1
+  LDY l_y1
+  CMP l_y1
+  BCC t0
+  TAY
+  LDA l_y1
+.t0
+  CMP R_CT                \ A = top, Y = bottom (clamped to the window)
+  BCS t1
+  LDA R_CT
+.t1
+  CMP R_PRDYT,X
+  BCS t2
+  STA R_PRDYT,X
+.t2
+  TYA
+  CMP R_CB
+  BCC t3
+  LDA R_CB
+.t3
+  CMP R_PRDYB,X
+  BCC t4
+  STA R_PRDYB,X
+.t4
   RTS
+\ clip: step from pixel 0 (l_x, row X) over the pixels outside the window
+\ (l_n counting down, l_e as the loops); C = 1 if none is inside.  Then
+\ l_y0 = the row.  Bounds for the loops: r7_cr1, r7_cb1.
+.clip
+  LDA R_CR
+  INC A
+  STA r7_cr1
+  LDA R_CB
+  INC A
+  STA r7_cb1
+.cl
+  CPX R_CT                \ inside?
+  BCC out
+  CPX r7_cb1
+  BCS out
+  LDA l_x
+  CMP R_CL
+  BCC out
+  CMP r7_cr1
+  BCS out
+  STX l_y0
+  CLC
+  RTS
+.out
+  DEC l_n
+  BNE step
+  SEC
+  RTS
+.step
+  LDA l_k                 \ major step, then minor if the error carries
+  CMP #2
+  BCS sx
+  INX                     \ y major: y + 1
+  LDA l_e
+  CLC
+  ADC l_a
+  STA l_e
+  BCC cl
+  SBC l_b
+  STA l_e
+  LDA l_k
+  BEQ sxl
+  INC l_x
+  BRA cl
+.sxl
+  DEC l_x
+  BRA cl
+.sx
+  INC l_x                 \ x major: x + 1
+  LDA l_e
+  CLC
+  ADC l_a
+  STA l_e
+  BCC cl
+  SBC l_b
+  STA l_e
+  LDA l_k
+  CMP #3
+  BEQ syd
+  DEX
+  BRA cl
+.syd
+  INX
+  BRA cl
 .lyl
   LDA (RZ_PP),Y
   EOR r7_lct,Y
@@ -773,6 +884,7 @@ l_x  = &21
   LDA #&11
   STA l_m
   LDA RZ_PP
+  SEC
   SBC #8
   STA RZ_PP
   BCS lyl
@@ -919,6 +1031,213 @@ l_x  = &21
   INC RZ_PP+1
   BRA lxd
 .lxd_d
+  RTS
+.lylc
+  LDA (RZ_PP),Y
+  EOR r7_lct,Y
+  AND l_m
+  EOR (RZ_PP),Y
+  STA (RZ_PP),Y
+  LDA l_x
+.^lylc_p0 CMP R_DIRTYL0,X
+  BCS lylc_1
+.^lylc_p1 STA R_DIRTYL0,X
+.lylc_1
+.^lylc_p2 CMP R_DIRTYR0,X
+  BCC lylc_2
+.^lylc_p3 STA R_DIRTYR0,X
+.lylc_2
+  DEC l_n
+  BEQ lylc_d
+  INX
+  CPX r7_cb1
+  BCS lylc_d
+  INY
+  CPY #8
+  BNE lylc_y
+  LDY #0
+  LDA RZ_PP+1
+  ADC #1
+  STA RZ_PP+1
+.lylc_y
+  LDA l_e
+  CLC
+  ADC l_a
+  STA l_e
+  BCC lylc
+  SBC l_b
+  STA l_e
+  DEC l_x
+  LDA l_x
+  CMP R_CL
+  BCC lylc_d
+  ASL l_m
+  BCC lylc
+  LDA #&11
+  STA l_m
+  LDA RZ_PP
+  SEC
+  SBC #8
+  STA RZ_PP
+  BCS lylc
+  DEC RZ_PP+1
+  BRA lylc
+.lylc_d
+  RTS
+.lyrc
+  LDA (RZ_PP),Y
+  EOR r7_lct,Y
+  AND l_m
+  EOR (RZ_PP),Y
+  STA (RZ_PP),Y
+  LDA l_x
+.^lyrc_p0 CMP R_DIRTYL0,X
+  BCS lyrc_1
+.^lyrc_p1 STA R_DIRTYL0,X
+.lyrc_1
+.^lyrc_p2 CMP R_DIRTYR0,X
+  BCC lyrc_2
+.^lyrc_p3 STA R_DIRTYR0,X
+.lyrc_2
+  DEC l_n
+  BEQ lyrc_d
+  INX
+  CPX r7_cb1
+  BCS lyrc_d
+  INY
+  CPY #8
+  BNE lyrc_y
+  LDY #0
+  LDA RZ_PP+1
+  ADC #1
+  STA RZ_PP+1
+.lyrc_y
+  LDA l_e
+  CLC
+  ADC l_a
+  STA l_e
+  BCC lyrc
+  SBC l_b
+  STA l_e
+  INC l_x
+  LDA l_x
+  CMP r7_cr1
+  BCS lyrc_d
+  LSR l_m
+  BCC lyrc
+  LDA #&88
+  STA l_m
+  LDA RZ_PP
+  ADC #7
+  STA RZ_PP
+  BCC lyrc
+  INC RZ_PP+1
+  BRA lyrc
+.lyrc_d
+  RTS
+.lxuc
+  LDA (RZ_PP),Y
+  EOR r7_lct,Y
+  AND l_m
+  EOR (RZ_PP),Y
+  STA (RZ_PP),Y
+  LDA l_x
+.^lxuc_p0 CMP R_DIRTYL0,X
+  BCS lxuc_1
+.^lxuc_p1 STA R_DIRTYL0,X
+.lxuc_1
+.^lxuc_p2 CMP R_DIRTYR0,X
+  BCC lxuc_2
+.^lxuc_p3 STA R_DIRTYR0,X
+.lxuc_2
+  DEC l_n
+  BEQ lxuc_d
+  LDA l_e
+  CLC
+  ADC l_a
+  STA l_e
+  BCC lxuc_x
+  SBC l_b
+  STA l_e
+  DEX
+  CPX R_CT
+  BCC lxuc_d
+  DEY
+  BPL lxuc_y
+  LDY #7
+  LDA RZ_PP+1
+  SEC
+  SBC #2
+  STA RZ_PP+1
+.lxuc_y
+.lxuc_x
+  INC l_x
+  LDA l_x
+  CMP r7_cr1
+  BCS lxuc_d
+  LSR l_m
+  BCC lxuc
+  LDA #&88
+  STA l_m
+  LDA RZ_PP
+  ADC #7
+  STA RZ_PP
+  BCC lxuc
+  INC RZ_PP+1
+  BRA lxuc
+.lxuc_d
+  RTS
+.lxdc
+  LDA (RZ_PP),Y
+  EOR r7_lct,Y
+  AND l_m
+  EOR (RZ_PP),Y
+  STA (RZ_PP),Y
+  LDA l_x
+.^lxdc_p0 CMP R_DIRTYL0,X
+  BCS lxdc_1
+.^lxdc_p1 STA R_DIRTYL0,X
+.lxdc_1
+.^lxdc_p2 CMP R_DIRTYR0,X
+  BCC lxdc_2
+.^lxdc_p3 STA R_DIRTYR0,X
+.lxdc_2
+  DEC l_n
+  BEQ lxdc_d
+  LDA l_e
+  CLC
+  ADC l_a
+  STA l_e
+  BCC lxdc_x
+  SBC l_b
+  STA l_e
+  INX
+  CPX r7_cb1
+  BCS lxdc_d
+  INY
+  CPY #8
+  BNE lxdc_y
+  LDY #0
+  LDA RZ_PP+1
+  ADC #1
+  STA RZ_PP+1
+.lxdc_y
+.lxdc_x
+  INC l_x
+  LDA l_x
+  CMP r7_cr1
+  BCS lxdc_d
+  LSR l_m
+  BCC lxdc
+  LDA #&88
+  STA l_m
+  LDA RZ_PP
+  ADC #7
+  STA RZ_PP
+  BCC lxdc
+  INC RZ_PP+1
+  BRA lxdc
+.lxdc_d
   RTS
 }
 
