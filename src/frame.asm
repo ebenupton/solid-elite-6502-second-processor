@@ -2613,10 +2613,9 @@ MAXPT = 140             \ points per frame
  LDA sg_y+1             \ the segment must reach rows NDT..NDB:
  BMI fsg_a              \ y1 > NDT and y0 <= NDB
  BNE fsg_x
- LDA sg_y
- CMP R_NDB
- BEQ fsg_a
- BCS fsg_x
+ LDA R_NDB
+ CMP sg_y
+ BCC fsg_x              \ NDB < y0: misses
 .fsg_a
  LDA sg_y1+1
  BMI fsg_x
@@ -2713,20 +2712,20 @@ MAXPT = 140             \ points per frame
  STA sg_err
  INX
 .fsg_m2
- STX fsg_t
- LDA sg_sx
+ BIT sg_sx              \ N = sign of dx
  BMI fsg_m3
- LDA sg_x
+ TXA
  CLC
- ADC fsg_t
+ ADC sg_x
  STA sg_x
  BCC P%+5
  INC sg_x+1
  JMP fsg_row
 .fsg_m3
- LDA sg_x
+ TXA                    \ x - step = x + ~step + 1 (same A, C, V as SBC)
+ EOR #&FF
  SEC
- SBC fsg_t
+ ADC sg_x
  STA sg_x
  BCS P%+5
  DEC sg_x+1

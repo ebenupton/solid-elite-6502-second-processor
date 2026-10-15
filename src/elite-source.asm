@@ -7657,6 +7657,7 @@ ENDMACRO
  LDY LSP                \ If byte LSP-1 of LSY2 = &FF, jump to BL7 to tidy up
  LDA #&FF               \ and return from the subroutine, as the point that has
  CMP LSY2-1,Y           \ been passed to BLINE is the start of a segment, so all
+ CLC                    \ Clear C for the CNT addition at BL7 (keeps Z)
  BEQ BL7                \ we need to do is save the coordinate in K5, without
                         \ moving the pointer in LSP
 
@@ -7720,7 +7721,8 @@ ENDMACRO
  LDY LSP                \ Set Y = LSP
 
  LDA LSY2-1,Y           \ If byte LSP-1 of LSY2 is not &FF, jump down to BL8
- CMP #&FF               \ to skip the following (X1, Y1) code
+ INC A                  \ to skip the following (X1, Y1) code (INC A sets Z
+                        \ as CMP #&FF would but keeps C = 0 for BL7)
  BNE BL8
 
                         \ Byte LSP-1 of LSY2 is &FF, which indicates that we
@@ -7768,7 +7770,6 @@ ENDMACRO
  STA K5+3               \ They now become the "previous point" in the next call
 
  LDA CNT                \ Set CNT = CNT + STP
- CLC
  ADC STP
  STA CNT
 
@@ -33766,47 +33767,25 @@ ENDIF
                         \ The call to FMLTU also sets the C flag, so in the
                         \ following, ADC #15 adds 16 rather than 15
 
- LDA CNT2               \ If (CNT2 + 16) mod 64 >= 33 then this sets the C flag,
- ADC #15                \ otherwise it's clear, so this means that:
- AND #63                \
- CMP #33                \   * C is clear if the segment starts in the first or
-                        \     last quarter of the circle, 0 to 90 degrees or 270
-                        \     to 360 degrees
-                        \
-                        \   * C is set if the segment starts in the second or
-                        \     third quarter of the circle, 90 to 270 degrees
-                        \
-                        \ In other words, the C flag contains the sign bit for
-                        \ cos(CNT2), which is positive for 0 to 90 degrees or
-                        \ 270 to 360 degrees, and negative for 90 to 270 degrees
-
- LDA #0                 \ Shift the C flag into the sign bit of XX16+4, so:
- ROR A                  \ XX16+4 has the correct sign for cos(CNT2)
- STA XX16+4             \
-                        \ Because we set the following above:
-                        \
-                        \   K+2 = |u_y| * |cos(CNT2)|
-                        \   P   = |u_x| * |cos(CNT2)|
-                        \
-                        \ we can add XX16+4 as the high byte to give us the
-                        \ following:
-                        \
-                        \   (XX16+4 K+2) = |u_y| * cos(CNT2)
-                        \   (XX16+4 P)   = |u_x| * cos(CNT2)
-
  LDA XX16+5             \ Set S = the sign of XX16+2 * XX16+5
  EOR XX16+2             \       = the sign of v_x * XX16+5
  STA S                  \
-                        \ So because we set this above:
-                        \
-                        \   (XX16+5 R) = |v_x| * sin(CNT2)
-                        \
-                        \ we now have this:
-                        \
-                        \   (S R) = v_x * sin(CNT2)
+                        \ so (S R) = v_x * sin(CNT2) (this leaves the C flag
+                        \ set from FMLTU for the ADC #15 below)
 
- LDA XX16+4             \ Set A = the sign of XX16 * XX16+4
- EOR XX16               \       = the sign of u_x * XX16+4
+ LDA CNT2               \ If (CNT2 + 16) mod 64 >= 33 then this sets the C flag,
+ ADC #15                \ otherwise it's clear, so C is the sign bit of
+ AND #63                \ cos(CNT2)
+ CMP #33                \
+
+ LDA #0                 \ Shift the C flag into the sign bit of XX16+4, so:
+ ROR A                  \ XX16+4 has the correct sign for cos(CNT2)
+ STA XX16+4             \ (XX16+4 K+2) = |u_y| * cos(CNT2)
+                        \ (XX16+4 P)   = |u_x| * cos(CNT2)
+
+ EOR XX16               \ Set A = the sign of XX16 * XX16+4
+                        \       = the sign of u_x * XX16+4
+                        \ (A still holds XX16+4), so (A P) = u_x * cos(CNT2)
                         \
                         \ So because we set this above:
                         \
@@ -33831,10 +33810,9 @@ ENDIF
  ADC #1
  TAX
 
- LDA T                  \ And then the high byte in T, making sure to leave the
- EOR #%01111111         \ sign bit alone
- ADC #0
- STA T
+ LDA #%10000000         \ And then the high byte in T, making sure to leave the
+ SBC T                  \ sign bit alone: with C = (X was 0) from the ADC #1,
+ STA T                  \ &80 - T - (1 - C) = (T EOR &7F) + C (mod 256)
 
 .PL42
 
@@ -33905,10 +33883,9 @@ ENDIF
  ADC #1
  TAX
 
- LDA T                  \ And then the high byte in T, making sure to leave the
- EOR #%01111111         \ sign bit alone
- ADC #0
- STA T
+ LDA #%10000000         \ And then the high byte in T, making sure to leave the
+ SBC T                  \ sign bit alone: with C = (X was 0) from the ADC #1,
+ STA T                  \ &80 - T - (1 - C) = (T EOR &7F) + C (mod 256)
 
 .PL43
 
