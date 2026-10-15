@@ -1008,6 +1008,16 @@ mp_ke = MZ+23           \ the flags hold for k < mp_ke
  ROR mz_dl+2
  ROR mz_dl+1
  ROR mz_dl
+ LDX #LO(mp_two)        \ the row routine for this circle
+ LDY #HI(mp_two)
+ BIT mp_p2
+ BMI P%+6
+ LDX #LO(mp_two1)
+ LDY #HI(mp_two1)
+ STX mpj1+1
+ STY mpj1+2
+ STX mpj2+1
+ STY mpj2+2
  STZ mz_C
  STZ mz_C+1
  STZ mz_k
@@ -1075,7 +1085,8 @@ mp_ke = MZ+23           \ the flags hold for k < mp_ke
  STA mz_c+1
  LDX mz_yd
  LDA mp_F
- JSR mp_two
+.mpj1
+ JSR mp_two             \ (patched: mp_two1 for the first circle)
 .mp_up
  BIT mp_G               \ row cy - k: centre ceil(2 cx - C) = 2 cx - floor(C)
  BPL mp_adv
@@ -1088,14 +1099,12 @@ mp_ke = MZ+23           \ the flags hold for k < mp_ke
  STA mz_c+1
  LDX mz_yu
  LDA mp_G
+.mpj2
  JSR mp_two
 .mp_adv
  BIT mp_past            \ D -= dl, dl += K2 (past the ellipse once D < 0)
  BMI mp_a2
- SEC
- LDA mz_D
- SBC mz_dl
- STA mz_D
+ SEC                    \ (D is kept to 1/256: its low byte is not used)
  LDA mz_D+1
  SBC mz_dl+1
  STA mz_D+1
@@ -1254,6 +1263,76 @@ mp_ke = MZ+23           \ the flags hold for k < mp_ke
 \ half-chord mp_ss. A crossing at or left of the span's left end flips the
 \ row's start colour, one right of the span is dropped, one inside is added.
 
+\ mp_two1: the same for the first circle, whose rows are still empty
+\ (R_NDN = 0): crossings are stored in order, the count written once
+
+.mp_two1
+ ASL A
+ ASL A                  \ C = X- valid, N = X+ valid
+ STA mt_t
+ LDY #0
+ BCC m1p
+ LDA mz_c               \ X-: c - s (C set)
+ SBC mp_ss
+ STA mt_x
+ LDA mz_c+1
+ SBC #0
+ BMI m1f
+ BNE m1p
+ LDA mt_x
+ CMP R_NDISCL,X
+ BCC m1f
+ BEQ m1f
+ CMP R_NDISCR,X
+ BEQ P%+4
+ BCS m1p
+ STA R_NDX0,X
+ INY
+ BNE m1p
+.m1f
+ LDA R_NDP,X
+ EOR #1
+ STA R_NDP,X
+.m1p
+ BIT mt_t
+ BPL m1e
+ LDA mz_c               \ X+: c + s
+ CLC
+ ADC mp_ss
+ STA mt_x
+ LDA mz_c+1
+ ADC #0
+ BMI m1g
+ BNE m1e
+ LDA mt_x
+ CMP R_NDISCL,X
+ BCC m1g
+ BEQ m1g
+ CMP R_NDISCR,X
+ BEQ P%+4
+ BCS m1e
+ CPY #0
+ BNE m1q
+ STA R_NDX0,X
+ INY
+ TYA
+ STA R_NDN,X
+ RTS
+.m1q
+ STA R_NDX1,X
+ INY
+.m1e
+ TYA
+ STA R_NDN,X
+ RTS
+.m1g
+ LDA R_NDP,X
+ EOR #1
+ STA R_NDP,X
+ TYA
+ STA R_NDN,X
+ RTS
+
 .mpt_l                  \ X- left of the span: flip, then X+
  JSR mpt_f
  JMP mpt2
@@ -1290,17 +1369,9 @@ mp_ke = MZ+23           \ the flags hold for k < mp_ke
  CMP R_NDISCR,X
  BEQ P%+4
  BCS mpt9
- LDY R_NDN,X
+ LDY R_NDN,X             \ (the second circle: insert in order)
  INC R_NDN,X
- BIT mp_p2
- BMI mpi
- CPY #0                 \ the first circle: append (0 or 1 there already)
- BNE mpu1
- STA R_NDX0,X
- RTS
-.mpu1
- STA R_NDX1,X
- RTS
+ JMP mpi
 .mpt_f
  LDA R_NDP,X
  EOR #1

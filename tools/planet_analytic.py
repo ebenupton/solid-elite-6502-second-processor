@@ -183,7 +183,7 @@ def analytic_rows_fixed(cx, cy, r, normals, ndt, ndb, ndl, ndr, pol=1):
         if K0 >= (s * s + s) * 65536 + 16384:
             s += 1
         # the row loop tracks D/2 (16.16): D(k)/2 - D(k+1)/2 = K2 (2k + 1) / 2
-        D = K0 >> 1
+        D = K0 >> 9                 # (kept to 1/256)
         dl = K2 >> 1
         inc = K2
         H = (s * s - s) >> 1        # s drops when D/2 < H + 1/8 (D < s^2 - s + 1/4)
@@ -195,7 +195,7 @@ def analytic_rows_fixed(cx, cy, r, normals, ndt, ndb, ndl, ndr, pol=1):
                 break
             # s = round(sqrt(D))
             if not past:
-                while s > 0 and D < H * 65536 + 8192:
+                while s > 0 and D < H * 256 + 0x20:
                     s -= 1
                     H -= s
             ss = 0 if past else s
@@ -218,10 +218,10 @@ def analytic_rows_fixed(cx, cy, r, normals, ndt, ndb, ndl, ndr, pol=1):
                         st[1].append(b)
             # next k
             if not past:
-                if dl > D:
+                if dl >> 8 > D:
                     past = True
                 else:
-                    D -= dl
+                    D -= dl >> 8
                     dl = min(dl + inc, 0xFFFFFFFF)
             Cd += c["a"]
             k += 1
