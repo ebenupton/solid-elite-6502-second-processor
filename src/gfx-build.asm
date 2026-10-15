@@ -60,7 +60,8 @@ INCLUDE "src/faces.asm"
 .F_TMR  SKIP 24         \ non-empty cells per row
 .F_SHR0 SKIP 24
 .F_SHR1 SKIP 24
-.F_HW   SKIP 256        \ planet half-widths
+ALIGN &100              \ (page-aligned so code size changes never add
+.F_HW   SKIP 256        \ page-crossing cycles to the indexed loads): planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
 .F_DL   SKIP 1536       \ ship records: XX2 then XX3 copies
 .F_DLEND
