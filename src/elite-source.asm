@@ -34290,7 +34290,8 @@ ENDIF
 
 .PLS22
 
- JSR H_PCURVE           \ Frame layer: a new curve of the planet's detail
+ JSR PM_HOOK            \ Frame layer: a new curve of the planet's detail
+                        \ (PM_HOOK: the meridians' constants, then H_PCURVE)
 
  LDX #0                 \ Set CNT = 0
  STX CNT
@@ -40955,6 +40956,8 @@ ENDMACRO
  FACE       25,      -37,      -11,         30      \ Face 10
  FACE      -25,      -37,      -11,         30      \ Face 11
  FACE        0,        0,     -112,         30      \ Face 12
+
+ INCLUDE "src/planet4.asm"     \ Filled planet: the meridians' constants
 
  BANK_END% = P%
 

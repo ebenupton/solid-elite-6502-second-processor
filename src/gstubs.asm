@@ -118,6 +118,11 @@
  JSR F_INIT
  JMP gback
 
+.G_MERID                \ (from bank 6) PM_MERID in bank 4, then back to 6
+ JSR gback
+ JSR PM_MERID
+ JMP tback
+
 .G_PCURVE
  STA gA
  LDA #GFXBANK

@@ -25,6 +25,7 @@ RASTBANK = 5
 GFXBANK = 6
 ELITEBANK = 4
 HZIMG = &BB00           \ where bank 6 carries the HAZEL code image
+MCB = 24                \ bytes of a meridian circle's constants (f_merid, planet4.asm)
 
 CLEAR &C000, &E000
 ORG &C000
@@ -37,6 +38,12 @@ INCLUDE "src/raster_hz.asm"     \ the rasteriser's cross-bank stubs (bank 5 <-> 
 .HZ_CODE_END
 
 INCLUDE "src/raster_vars.asm"
+.PM_OK   SKIP 1         \ bit 7: PM_BLK1/2 hold this frame's meridian constants
+.PM_R    SKIP 1         \ the planet's radius (F_PLANET)
+.PM_BLK1 SKIP MCB       \ roofv's circle (planet4.asm -> f_merid)
+.PM_BLK2 SKIP MCB       \ sidev's
+.PM_CX   SKIP 2         \ the planet's centre (f_merid -> PM_MERID)
+.PM_CY   SKIP 2
 .HZ_END
 PRINT "HAZEL: code ", ~HZ_START, "-", ~HZ_CODE_END-1, " data to ", ~HZ_END-1, " free ", &E000-HZ_END
 ASSERT HZ_END <= &E000

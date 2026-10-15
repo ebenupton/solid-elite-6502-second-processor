@@ -515,6 +515,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_PLY+1
  LDA K
  STA F_PLR
+ STA PM_R
  LDA TYPE
  STA F_PLT
  LDA INWK+7
@@ -669,6 +670,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 .f_reset
  LDA #0                 \ empty the per-frame lists
+ STA PM_OK
  STA F_NSHIP
  STA F_NLINE
  STA F_NDOT
@@ -2369,7 +2371,6 @@ MAXPT = 140             \ points per frame
  BEQ fnb9
  LDA #1
  STA R_NDF
- JSR f_zerobounds
  LDA F_PLT              \ colour B: green land on a meridian planet, a dark
  CMP #128               \ crater otherwise
  BNE fbd1
@@ -2377,8 +2378,9 @@ MAXPT = 140             \ points per frame
  STA R_DBE
  LDA #&AF
  STA R_DBO
- BNE fbd2
+ JMP f_merid            \ the meridians: from the true geometry
 .fbd1
+ JSR f_zerobounds
  LDA #&50
  STA R_DBE
  LDA #&A0
@@ -2409,61 +2411,14 @@ MAXPT = 140             \ points per frame
  INC f_pi
  JMP fbd5
 .fbd6
- LDX f_ci               \ a half ellipse is closed outside the disc: E2 ->
- LDA F_CVT,X            \ E2 + n -> E1 + n -> E1, n = d rotated by 90 degrees,
- CMP #40                \ d = E2 - E1 (|d| = the diameter), so the closing
- BCS fbd7               \ sides lie on the tangents at E1 and E2
- LDA F_CVE,X
- SEC
- SBC #1
- STA fz_n               \ E2
- CMP F_CVS,X
- BEQ fbd7
- BCC fbd7
- LDY F_CVS,X            \ E1
- STY fz_i
- LDX fz_n               \ n = (-(y2 - y1), x2 - x1)
- LDA F_PYL,Y
- SEC
- SBC F_PYL,X
- STA cl_nx
- LDA F_PYH,Y
- SBC F_PYH,X
- STA cl_nx+1
- LDA F_PXL,X
- SEC
- SBC F_PXL,Y
- STA cl_ny
- LDA F_PXH,X
- SBC F_PXH,Y
- STA cl_ny+1
- LDX fz_n               \ E2 -> E2 + n
- JSR f_ptA
- LDX fz_n
- JSR f_ptB
- JSR f_addnB
- JSR f_seg16
- LDX fz_i               \ E2 + n -> E1 + n
- JSR f_ptB
- JSR f_addnB
- LDX fz_n
- JSR f_ptA
- JSR f_addnA
- JSR f_seg16
- LDX fz_i               \ E1 + n -> E1
- JSR f_ptA
- JSR f_addnA
- LDX fz_i
- JSR f_ptB
- JSR f_seg16
+                        \ (a crater's full ellipse is closed; the meridians'
+                        \ half ellipses go to f_merid instead)
 .fbd7
  INC f_ci
  JMP fbd3
 
 .f_ci EQUB 0
 .f_pi EQUB 0
-.cl_nx EQUW 0
-.cl_ny EQUW 0
 
 .f_ptA                  \ segment start = point X
  LDA F_PXL,X
@@ -2484,40 +2439,6 @@ MAXPT = 140             \ points per frame
  LDA F_PYL,X
  STA sg_by
  LDA F_PYH,X
- STA sg_by+1
- RTS
-
-.f_addnA                \ start += n
- LDA sg_ax
- CLC
- ADC cl_nx
- STA sg_ax
- LDA sg_ax+1
- ADC cl_nx+1
- STA sg_ax+1
- LDA sg_ay
- CLC
- ADC cl_ny
- STA sg_ay
- LDA sg_ay+1
- ADC cl_ny+1
- STA sg_ay+1
- RTS
-
-.f_addnB                \ end += n
- LDA sg_bx
- CLC
- ADC cl_nx
- STA sg_bx
- LDA sg_bx+1
- ADC cl_nx+1
- STA sg_bx+1
- LDA sg_by
- CLC
- ADC cl_ny
- STA sg_by
- LDA sg_by+1
- ADC cl_ny+1
  STA sg_by+1
  RTS
 
@@ -2877,6 +2798,43 @@ MAXPT = 140             \ points per frame
  BCC P%+3
  RTS
  JMP fpa1
+
+\ ------------------------------------------------------------------------------
+\ f_merid: the meridian planet's colour boundaries from the true geometry.
+\ Elite draws the visible halves of two great circles, in the planes normal to
+\ sidev and roofv; here each is projected exactly instead of via Elite's
+\ polylines. For a great circle with normal m (Elite axes, y up, negated if
+\ need be so that mz >= 0) and row Ys = y - cy (down), the projected ellipse
+\ crosses the row at x = cx + a Ys -/+ sqrt(D), D = K0 - K2 Ys^2, with
+\ a = -mx my' / rho2, K0 = r^2 mz^2 / rho2, K2 = mz^2 |m|^2 / rho2^2,
+\ my' = -my, rho2 = mx^2 + mz^2. The X- crossing is on the visible hemisphere
+\ iff the side function f = m.p is <= 0 at the row's left limb point, X+ iff
+\ it is at the right one; along the limb f changes sign only at the circle's
+\ nodes (rows cy -/+ w, w = r mx / sqrt(mx^2 + my^2)), so both tests are row
+\ comparisons, and the row starts (left limb) on the f > 0 side iff X- is not
+\ valid. Colour B where the surface point is on the same side of both planes
+\ (as the polyline construction had it). Boundary pixel = ceil(x), with
+\ sqrt(D) rounded to the nearest integer.
+\ Per circle: constants (planet4.asm PM_HOOK, run from the H_PCURVE hook: a
+\ few 16-bit multiplies and divides, once per frame), then rows in pairs
+\ cy + k, cy - k from the centre out, with D(k), s(k) = round(sqrt(D(k))) and
+\ cx + a k stepped incrementally (planet4.asm PM_MERID, in bank 4 for room:
+\ reached through G_MERID).
+\ tools/planet_analytic.py (analytic_rows_fixed) models this code exactly.
+\ ------------------------------------------------------------------------------
+
+.f_merid
+ BIT PM_OK              \ the constants (at PLS22 time)
+ BMI fmw0
+ JMP f_nobounds
+.fmw0
+ LDX #3                 \ the centre for bank 4
+.fmw1
+ LDA F_PLX,X
+ STA PM_CX,X
+ DEX
+ BPL fmw1
+ JMP G_MERID
 
 \ ------------------------------------------------------------------------------
 \ f_behind: is ship f_si behind the planet, with the first vertex of its first

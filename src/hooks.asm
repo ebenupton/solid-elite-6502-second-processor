@@ -448,26 +448,20 @@
  RTS
 
 \ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
-\ curve. H_BPT: BLINE has the next point in K6(1 0), K6(3 2): record it.
-\ Both preserve A and the flags.
+\ curve (PLS22 calls PM_HOOK, in bank 4, which comes here). H_BPT: BLINE has
+\ the next point in K6(1 0), K6(3 2): record it. Both preserve X, Y and C
+\ (both callers reload A and set N and Z straight after).
 
 .H_PCURVE
- PHP
- PHA
  LDA QQ11
  ORA GFORCE
  BNE hpc9
- JSR G_PCURVE
-.hpc9
- PLA
- PLP
- RTS
+ JMP G_PCURVE
 
 .H_BPT
- PHP
- PHA
  LDA QQ11
  ORA GFORCE
  BNE hpc9
- JSR G_PPOINT
- JMP hpc9
+ JMP G_PPOINT
+.hpc9
+ RTS
