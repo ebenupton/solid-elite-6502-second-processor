@@ -691,9 +691,9 @@ r_bdx3 = R_BDX30
   STA r_pt98+2
   STA r_pt110+2
   STA r_pt130+2
-  STA r_pt131+2
   STA r_pt139+2
   STA r_pt142+2
+  STA r_pt154+2
   LDA r_sbh_bdp,X          \ group r_bdp
   STA r_pt87+2
   STA r_pt91+2
@@ -702,38 +702,31 @@ r_bdx3 = R_BDX30
   STA r_pt138+2
   STA r_pt141+2
   STA r_pt143+2
+  STA r_pt155+2
   LDA r_sbh_bdx0,X          \ group r_bdx0
   STA r_pt93+2
   STA r_pt100+2
   STA r_pt134+2
-  STA r_pt150+2
-  STA r_pt151+2
-  STA r_pt152+2
-  STA r_pt153+2
+  STA r_pt400+2
+  STA r_pt401+2
   LDA r_sbh_bdx1,X          \ group r_bdx1
   STA r_pt94+2
   STA r_pt101+2
   STA r_pt135+2
-  STA r_pt154+2
-  STA r_pt155+2
-  STA r_pt156+2
-  STA r_pt157+2
+  STA r_pt402+2
+  STA r_pt403+2
   LDA r_sbh_bdx2,X          \ group r_bdx2
   STA r_pt95+2
   STA r_pt102+2
   STA r_pt136+2
-  STA r_pt158+2
-  STA r_pt159+2
-  STA r_pt160+2
-  STA r_pt161+2
+  STA r_pt404+2
+  STA r_pt405+2
   LDA r_sbh_bdx3,X          \ group r_bdx3
   STA r_pt96+2
   STA r_pt103+2
   STA r_pt137+2
-  STA r_pt162+2
-  STA r_pt163+2
-  STA r_pt164+2
-  STA r_pt165+2
+  STA r_pt406+2
+  STA r_pt407+2
   LDA r_sbh_dl,X          \ group r_dl
   STA r_pt01+2
   STA r_pt02+2
@@ -808,9 +801,12 @@ r_bdx3 = R_BDX30
   STA r_pt54+2
   STA r_pt89+2
   STA r_pt97+2
+  STA r_pt131+2
   STA r_pt132+2
   STA r_pt144+2
-  STA r_pt149+2
+  STA r_pt150+2
+  STA r_pt152+2
+  STA r_pt399+2
   LDA r_sbh_sr,X          \ group r_sr
   STA r_pt18+2
   STA r_pt22+2
@@ -822,6 +818,8 @@ r_bdx3 = R_BDX30
   STA r_pt133+2
   STA r_pt140+2
   STA r_pt145+2
+  STA r_pt151+2
+  STA r_pt153+2
   RTS
 }
 .r_sbh_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
@@ -2492,6 +2490,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .r_dmb
 {
   STA end+1
+  STX st+1
 .lp
 .^r_pt88 LDA r_dl,X
   INC A
@@ -2534,9 +2533,21 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .end
   CPX #0
   BNE lp
+  DEX                     \ rows st .. end-1 may have WL/WR (r_dq leaves
+  CPX r_wb                \ r_wt/r_wb to this)
+  BCC e1
+  STX r_wb
+.e1
+.st
+  LDX #0
+  CPX r_wt
+  BCS e2
+  STX r_wt
+.e2
   RTS
 .chb
-  JSR r_dq
+  JMP r_dq
+.^r_dmbx
   LDX RZ_Y
   BRA nx
 .ch
@@ -2563,25 +2574,14 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 
 
 
+
 \ r_dq: X = row of a two-colour disc whose span, colour and boundary count
-\ are unchanged (no dirty): only moved boundaries' strips are written.
-\ Strips out of order: r_drg (a full repaint).
-.r_dqg
-  LDY RZ_Y
-  JMP r_drg
+\ are unchanged (no dirty): each moved boundary's strip (old .. new) is
+\ written in the colour on the side it moved from.  Strips out of order:
+\ r_drg (a full repaint; partial writes are harmless).
 .r_dq
 {
   STX RZ_Y
-  LDA R_NDN,X
-  STA r_cn
-  CMP #5
-  BCS r_dqg
-.^r_pt149 LDA r_sl,X
-  INC A
-  STA RZ_T6               \ the last strip's end so far
-  STZ r_wmax
-  LDA #&FF
-  STA r_wmin
   TXA                     \ row pointers
   AND #7
   STA RZ_PA
@@ -2594,246 +2594,325 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
-  TXA
-  TAY
-  JSR r_bcols             \ colour bytes of indices 0 / 1 (EOR P)
+  TXA                     \ colours: T2 even segments, T1 odd
+  LSR A
+  BCS od
+  LDA R_DCE
+  LDY R_DBE
+  BRA ev
+.od
+  LDA R_DCO
+  LDY R_DBO
+.ev
+  STA RZ_T2
+  STY RZ_T1
   LDA R_NDP,X
   LSR A
-  LDA r_cA
-  LDY r_cB
-  BCC cc
-  LDA r_cB
-  LDY r_cA
-.cc
-  STA r_cA
-  STY r_cB
-  LDA r_cn                \ boundary 0
-  CMP #1
-  BCS k0
-  JMP done
-.k0
-  LDX RZ_Y
+  BCC np
+  LDA RZ_T2
+  STY RZ_T2
+  STA RZ_T1
+.np
+  LDA R_NDN,X
+  STA RZ_T5
+.^r_pt399 LDA r_sl,X
+  INC A
+  STA RZ_T6               \ strips must start at or after this
+  STZ RZ_T4               \ extent of the writes (none)
+  STZ RZ_T3
+  DEC RZ_T5               \ boundary 0
+  BMI done0
+.^r_pt400 LDY r_bdx0,X      \ Y = old, A = new
+  STY RZ_T0
   LDA R_NDX0,X
-  STA RZ_T2               \ new
-.^r_pt150 CMP r_bdx0,X
-  BNE m0
-.^r_pt151 LDA r_bdx0,X      \ unmoved: it is the next strip's limit
-  STA RZ_T6
-  JMP n0
-.m0
-.^r_pt152 LDA r_bdx0,X
-  STA RZ_T0               \ old
-  LDA RZ_T2
-.^r_pt153 STA r_bdx0,X
   CMP RZ_T0
-  BCC lt0
-  CMP RZ_T6               \ moved right: old .. new-1, the left colour;
-  BCC gk0               \ (new = max) and old = min >= the last max
-  LDA RZ_T0
-  CMP RZ_T6
-  BCC gk0
-  STA RZ_SB
-  LDY RZ_T2
+  BEQ s0
+.^r_pt401 STA r_bdx0,X
+  BCC l0
+  CPY RZ_T6               \ moved right: old .. new-1 in the colour left of it
+  BCC g0
+  STA RZ_T6
+  DEC A
+  TAY
+  LDX RZ_T0
+  STY RZ_T3               \ (extent of the writes)
+  LDA RZ_T4
+  BNE r0
+  STX RZ_T4
+.r0
+  LDA RZ_T2
+  JSR r_sw
+  LDX RZ_Y
+  BRA n0
+.l0
+  CMP RZ_T6               \ moved left: new .. old-1 in the colour right of it
+  BCC g0
   STY RZ_T6
   DEY
-  LDA r_cA
-  BRA w0
-.gk0
+  TAX
+  STY RZ_T3
+  LDA RZ_T4
+  BNE q0
+  STX RZ_T4
+.q0
+  LDA RZ_T1
+  JSR r_sw
+  LDX RZ_Y
+  BRA n0
+.s0
+  STA RZ_T6               \ unmoved: the next strip starts after it
+  BRA n0
+.done0
+  JMP done
+.g0
   JMP gen
-.lt0
-  CMP RZ_T6               \ moved left: new .. old-1, the right colour
-  BCC gk0
-  STA RZ_SB
-  LDY RZ_T0
-  STY RZ_T6
-  DEY
-  LDA r_cB
-.w0
-  JSR strip
 .n0
-  LDA r_cn                \ boundary 1
-  CMP #2
-  BCS k1
-  JMP done
-.k1
-  LDX RZ_Y
+  DEC RZ_T5               \ boundary 1
+  BMI done1
+.^r_pt402 LDY r_bdx1,X      \ Y = old, A = new
+  STY RZ_T0
   LDA R_NDX1,X
-  STA RZ_T2               \ new
-.^r_pt154 CMP r_bdx1,X
-  BNE m1
-.^r_pt155 LDA r_bdx1,X      \ unmoved: it is the next strip's limit
-  STA RZ_T6
-  JMP n1
-.m1
-.^r_pt156 LDA r_bdx1,X
-  STA RZ_T0               \ old
-  LDA RZ_T2
-.^r_pt157 STA r_bdx1,X
   CMP RZ_T0
-  BCC lt1
-  CMP RZ_T6               \ moved right: old .. new-1, the left colour;
-  BCC gk1               \ (new = max) and old = min >= the last max
-  LDA RZ_T0
-  CMP RZ_T6
-  BCC gk1
-  STA RZ_SB
-  LDY RZ_T2
+  BEQ s1
+.^r_pt403 STA r_bdx1,X
+  BCC l1
+  CPY RZ_T6               \ moved right: old .. new-1 in the colour left of it
+  BCC g1
+  STA RZ_T6
+  DEC A
+  TAY
+  LDX RZ_T0
+  STY RZ_T3               \ (extent of the writes)
+  LDA RZ_T4
+  BNE r1
+  STX RZ_T4
+.r1
+  LDA RZ_T1
+  JSR r_sw
+  LDX RZ_Y
+  BRA n1
+.l1
+  CMP RZ_T6               \ moved left: new .. old-1 in the colour right of it
+  BCC g1
   STY RZ_T6
   DEY
-  LDA r_cB
-  BRA w1
-.gk1
+  TAX
+  STY RZ_T3
+  LDA RZ_T4
+  BNE q1
+  STX RZ_T4
+.q1
+  LDA RZ_T2
+  JSR r_sw
+  LDX RZ_Y
+  BRA n1
+.s1
+  STA RZ_T6               \ unmoved: the next strip starts after it
+  BRA n1
+.done1
+  JMP done
+.g1
   JMP gen
-.lt1
-  CMP RZ_T6               \ moved left: new .. old-1, the right colour
-  BCC gk1
-  STA RZ_SB
-  LDY RZ_T0
-  STY RZ_T6
-  DEY
-  LDA r_cA
-.w1
-  JSR strip
 .n1
-  LDA r_cn                \ boundary 2
-  CMP #3
-  BCS k2
-  JMP done
-.k2
-  LDX RZ_Y
+  DEC RZ_T5               \ boundary 2
+  BMI done2
+.^r_pt404 LDY r_bdx2,X      \ Y = old, A = new
+  STY RZ_T0
   LDA R_NDX2,X
-  STA RZ_T2               \ new
-.^r_pt158 CMP r_bdx2,X
-  BNE m2
-.^r_pt159 LDA r_bdx2,X      \ unmoved: it is the next strip's limit
-  STA RZ_T6
-  JMP n2
-.m2
-.^r_pt160 LDA r_bdx2,X
-  STA RZ_T0               \ old
-  LDA RZ_T2
-.^r_pt161 STA r_bdx2,X
   CMP RZ_T0
-  BCC lt2
-  CMP RZ_T6               \ moved right: old .. new-1, the left colour;
-  BCC gk2               \ (new = max) and old = min >= the last max
-  LDA RZ_T0
-  CMP RZ_T6
-  BCC gk2
-  STA RZ_SB
-  LDY RZ_T2
-  STY RZ_T6
-  DEY
-  LDA r_cA
-  BRA w2
-.gk2
-  JMP gen
-.lt2
-  CMP RZ_T6               \ moved left: new .. old-1, the right colour
-  BCC gk2
-  STA RZ_SB
-  LDY RZ_T0
-  STY RZ_T6
-  DEY
-  LDA r_cB
-.w2
-  JSR strip
-.n2
-  LDA r_cn                \ boundary 3
-  CMP #4
-  BCS k3
-  JMP done
-.k3
+  BEQ s2
+.^r_pt405 STA r_bdx2,X
+  BCC l2
+  CPY RZ_T6               \ moved right: old .. new-1 in the colour left of it
+  BCC g2
+  STA RZ_T6
+  DEC A
+  TAY
+  LDX RZ_T0
+  STY RZ_T3               \ (extent of the writes)
+  LDA RZ_T4
+  BNE r2
+  STX RZ_T4
+.r2
+  LDA RZ_T2
+  JSR r_sw
   LDX RZ_Y
-  LDA R_NDX3,X
-  STA RZ_T2               \ new
-.^r_pt162 CMP r_bdx3,X
-  BNE m3
-.^r_pt163 LDA r_bdx3,X      \ unmoved: it is the next strip's limit
-  STA RZ_T6
-  JMP n3
-.m3
-.^r_pt164 LDA r_bdx3,X
-  STA RZ_T0               \ old
-  LDA RZ_T2
-.^r_pt165 STA r_bdx3,X
-  CMP RZ_T0
-  BCC lt3
-  CMP RZ_T6               \ moved right: old .. new-1, the left colour;
-  BCC gk3               \ (new = max) and old = min >= the last max
-  LDA RZ_T0
-  CMP RZ_T6
-  BCC gk3
-  STA RZ_SB
-  LDY RZ_T2
+  BRA n2
+.l2
+  CMP RZ_T6               \ moved left: new .. old-1 in the colour right of it
+  BCC g2
   STY RZ_T6
   DEY
-  LDA r_cB
-  BRA w3
-.gk3
+  TAX
+  STY RZ_T3
+  LDA RZ_T4
+  BNE q2
+  STX RZ_T4
+.q2
+  LDA RZ_T1
+  JSR r_sw
+  LDX RZ_Y
+  BRA n2
+.s2
+  STA RZ_T6               \ unmoved: the next strip starts after it
+  BRA n2
+.done2
+  JMP done
+.g2
   JMP gen
-.lt3
-  CMP RZ_T6               \ moved left: new .. old-1, the right colour
-  BCC gk3
-  STA RZ_SB
-  LDY RZ_T0
+.n2
+  DEC RZ_T5               \ boundary 3
+  BMI done3
+.^r_pt406 LDY r_bdx3,X      \ Y = old, A = new
+  STY RZ_T0
+  LDA R_NDX3,X
+  CMP RZ_T0
+  BEQ s3
+.^r_pt407 STA r_bdx3,X
+  BCC l3
+  CPY RZ_T6               \ moved right: old .. new-1 in the colour left of it
+  BCC g3
+  STA RZ_T6
+  DEC A
+  TAY
+  LDX RZ_T0
+  STY RZ_T3               \ (extent of the writes)
+  LDA RZ_T4
+  BNE r3
+  STX RZ_T4
+.r3
+  LDA RZ_T1
+  JSR r_sw
+  LDX RZ_Y
+  BRA n3
+.l3
+  CMP RZ_T6               \ moved left: new .. old-1 in the colour right of it
+  BCC g3
   STY RZ_T6
   DEY
-  LDA r_cA
-.w3
-  JSR strip
+  TAX
+  STY RZ_T3
+  LDA RZ_T4
+  BNE q3
+  STX RZ_T4
+.q3
+  LDA RZ_T2
+  JSR r_sw
+  LDX RZ_Y
+  BRA n3
+.s3
+  STA RZ_T6               \ unmoved: the next strip starts after it
+  BRA n3
+.done3
+  JMP done
+.g3
+  JMP gen
 .n3
 .done
   LDY RZ_Y
-  LDA r_wmax
+  LDA RZ_T3
   BEQ none
   STA R_WR,Y
-  LDA r_wmin
+  LDA RZ_T4
   STA R_WL,Y
-  CPY r_wt
-  BCS wz
-  STY r_wt
-.wz
-  STY r_wb
 .none
-  RTS
+  JMP r_dmbx
 .gen
-  JMP r_dqg
-.strip                    \ RZ_SB .. Y in colour byte A
+  LDY RZ_Y
+  JSR r_drg
+  JMP r_dmbx
+}
+
+\ r_sw: pixels X .. Y (X <= Y) of the row (RZ_PA/RZ_PB set) in colour A.
+\ Clobbers A, X, Y, RZ_COL, RZ_SA, RZ_SA+1, RZ_T7.
+.r_sw
+{
   STA RZ_COL
-  STY RZ_TA+1
-  STY r_wmax
-  LDA r_wmin
-  CMP RZ_SB
-  BCC sk
-  LDA RZ_SB
-  STA r_wmin
-.sk
-  LDX RZ_SB
-  TYA
-  EOR RZ_SB
+  STY RZ_SA
+  TXA
+  EOR RZ_SA
   CMP #4
-  BCS lg
+  BCS multi
   LDA r_lm,X              \ one byte
   AND r_rm,Y
   STA RZ_T7
   LDY r_xo,X
   CPX #&80
-  BCS hb
+  BCS h1
   LDA RZ_COL
   EOR (RZ_PA),Y
   AND RZ_T7
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
   RTS
-.hb
+.h1
   LDA RZ_COL
   EOR (RZ_PB),Y
   AND RZ_T7
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
-.lg
+.multi
+  CPY #&80
+  BCS mb
+  LDA r_xo,Y              \ both in columns 0..31
+  STA RZ_SA+1
+  LDY r_xo,X
+  LDA RZ_COL
+  EOR (RZ_PA),Y
+  AND r_lm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  CPY RZ_SA+1             \ (C = 0)
+.la
+  TYA
+  ADC #8
+  TAY
+  CPY RZ_SA+1
+  BCS lsa
+  LDA RZ_COL
+  STA (RZ_PA),Y
+  BRA la
+.lsa
+  LDX RZ_SA
+  LDA RZ_COL
+  EOR (RZ_PA),Y
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  RTS
+.mb
+  CPX #&80
+  BCC cross
+  LDA r_xo,Y              \ both in columns 32..63
+  STA RZ_SA+1
+  LDY r_xo,X
+  LDA RZ_COL
+  EOR (RZ_PB),Y
+  AND r_lm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  CPY RZ_SA+1             \ (C = 0)
+.lb
+  TYA
+  ADC #8
+  TAY
+  CPY RZ_SA+1
+  BCS lsb
+  LDA RZ_COL
+  STA (RZ_PB),Y
+  BRA lb
+.lsb
+  LDX RZ_SA
+  LDA RZ_COL
+  EOR (RZ_PB),Y
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  RTS
+.cross
+  STX RZ_SB
+  STY RZ_TA+1
   JMP r_lput2
 }
 
@@ -2850,14 +2929,28 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ span.  Otherwise r_drg (a full repaint).
 \ ============================================================================
 .r_dpeg
-  LDY RZ_Y
-  JMP r_drg
+  JMP r_dpgl
 .r_dpe
 {
   STX RZ_Y
 .^r_pt132 LDA r_sl,X
   CMP #&FF
   BEQ r_dpeg
+  LDA R_NDN,X             \ (early out: counts differing by 2 or more, or
+  CLC                     \ the same count with the colour flipped)
+  ADC #1
+  SEC
+.^r_pt154 SBC r_bdn,X
+  CMP #3
+  BCS r_dpeg
+  CMP #1
+  BNE e9
+  LDA R_NDP,X
+.^r_pt155 EOR r_bdp,X
+  LSR A
+  BCS r_dpeg
+.e9
+.^r_pt131 LDA r_sl,X
   STA r_ev+7              \ old left end
   LDA R_NDISCL,X          \ new left end (clamped to the window)
   CMP R_CL
@@ -2891,9 +2984,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .^r_pt130 CMP r_bdn,X
   BEQ same
   BCC fewer
-  SBC #1                  \ one more boundary than before:
-.^r_pt131 CMP r_bdn,X
-  BNE r_dpeg
+  SBC #1                  \ one more boundary than before
   LDA R_NDP,X
 .^r_pt138 EOR r_bdp,X
   LSR A
@@ -2967,28 +3058,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   INC A
   STA r_ev+7,Y
   STY r_ns                \ edges - 1
-  LDY #0                  \ strips in order: max(e) <= min(e+1)
-.ord
-  LDA r_ev,Y
-  CMP r_ev+7,Y
-  BCS o1
-  LDA r_ev+7,Y
-.o1
-  STA RZ_T0
-  LDA r_ev+1,Y
-  CMP r_ev+8,Y
-  BCC o2
-  LDA r_ev+8,Y
-.o2
-  CMP RZ_T0
-  BCC gen
-  INY
-  CPY r_ns
-  BCC ord
-  BRA go
-.gen
-  JMP r_dpeg
-.go
   TXA                     \ row pointers, colours
   AND #7
   STA RZ_PA
@@ -3007,24 +3076,40 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA #&FF
   STA r_wmin
   STZ r_wmax
-  LDY #0                  \ the strips
+  STZ RZ_T6               \ strips must start at or after this (in order;
+  LDY #0                  \ else r_dpeg: partial writes are harmless)
 .st
   STY r_cl
-  LDA r_ev,Y
-  CMP r_ev+7,Y
-  BEQ nx
-  BCC lt
-  DEC A                   \ moved right: old .. new-1 take the colour left
-  STA RZ_TA+1             \ of the edge
   LDA r_ev+7,Y
-  STA RZ_SB
-  DEY                     \ (colour index edge-1; the left end: black)
-  BRA col
-.lt
-  STA RZ_SB               \ moved left: new .. old-1 take the colour right
-  LDA r_ev+7,Y            \ of the edge (the right end: black)
+  STA RZ_T0
+  LDA r_ev,Y
+  CMP RZ_T0
+  BEQ eq
+  BCC lt
+  LDX RZ_T0               \ moved right: old .. new-1 take the colour left
+  CPX RZ_T6               \ of the edge
+  BCC gen
+  STA RZ_T6
   DEC A
   STA RZ_TA+1
+  STX RZ_SB
+  DEY                     \ (colour index edge-1; the left end: black)
+  BRA col
+.eq
+  CMP RZ_T6
+  BCC gen
+  STA RZ_T6
+  BRA nx
+.gen
+  JMP r_dpeg
+.lt
+  CMP RZ_T6               \ moved left: new .. old-1 take the colour right
+  BCC gen                 \ of the edge (the right end: black)
+  STA RZ_SB
+  LDX RZ_T0
+  STX RZ_T6
+  DEX
+  STX RZ_TA+1
   CPY r_ns
   BNE col
   LDY #&FF
@@ -3050,7 +3135,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCC c4
   STA r_wmax
 .c4
-  JSR r_lput2
+  LDX RZ_SB
+  LDY RZ_TA+1
+  LDA RZ_COL
+  JSR r_sw
 .nx
   LDY r_cl
   INY
@@ -3082,6 +3170,55 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STY r_wb
 .none
   RTS
+}
+
+\ r_dpgl: r_dpe's fallback (row RZ_Y, not dirty)
+.r_dpgl
+{
+  LDY RZ_Y                \ not dirty: if the span did not shrink, repaint
+.^r_pt150 LDA r_sl,Y        \ the new one segment by segment (no black)
+  CMP #&FF
+  BEQ full
+  STA r_oL
+  LDA R_NDISCL,Y
+  CMP R_CL
+  BCS l1
+  LDA R_CL
+.l1
+  CMP r_oL
+  BEQ l2
+  BCS full
+.l2
+  STA r_nL
+  LDA R_NDISCR,Y
+  CMP R_CR
+  BCC r1
+  LDA R_CR
+.r1
+  STA r_nR
+.^r_pt151 CMP r_sr,Y
+  BCC full
+  JSR r_rowset
+  JSR r_bcols
+  LDA #&FF
+  STA r_wmin
+  STZ r_wmax
+  JSR r_segw
+  LDY RZ_Y
+  LDA r_nL
+.^r_pt152 STA r_sl,Y
+  LDA r_nR
+.^r_pt153 STA r_sr,Y
+  JSR r_bstore
+  LDA r_wmax
+  BEQ x
+  STA R_WR,Y
+  LDA r_wmin
+  STA R_WL,Y
+.x
+  RTS
+.full
+  JMP r_drg
 }
 
 \ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
@@ -4739,8 +4876,73 @@ ENDMACRO
   STA (RZ_PB),Y
   RTS
 .long
-  STX R_XL                \ a span (r_rowset for the run page)
-  LDY RZ_Y
+  STX R_XL                \ up to 12 bytes: masked ends, whole bytes stored
+  TYA                     \ through a byte pointer
+  SEC
+  SBC R_XL
+  CMP #48
+  BCS span
+  LDA RZ_PP               \ (RZ_PP holds a planted RTS's address: keep it)
+  PHA
+  LDA RZ_PP+1
+  PHA
+  LDA r_xo,X
+  ORA RZ_PA
+  STA RZ_PP
+  LDA RZ_PA+1
+  CPX #&80
+  ADC #0
+  STA RZ_PP+1
+  LDA RZ_COL              \ first byte: from X on
+  EOR (RZ_PP)
+  AND r_lm,X
+  EOR (RZ_PP)
+  STA (RZ_PP)
+  LDA R_XR                \ whole bytes: last/4 - first/4 - 1
+  LSR A
+  LSR A
+  STA RZ_T7
+  TXA
+  LSR A
+  LSR A
+  SEC
+  SBC RZ_T7
+  EOR #&FF
+  TAY
+  BEQ lb
+.wl
+  LDA RZ_PP
+  CLC
+  ADC #8
+  STA RZ_PP
+  BCC wl1
+  INC RZ_PP+1
+.wl1
+  LDA RZ_COL
+  STA (RZ_PP)
+  DEY
+  BNE wl
+.lb
+  LDA RZ_PP               \ last byte: up to the last pixel
+  CLC
+  ADC #8
+  STA RZ_PP
+  BCC lb1
+  INC RZ_PP+1
+.lb1
+  LDX R_XR
+  LDA RZ_COL
+  EOR (RZ_PP)
+  AND r_rm,X
+  EOR (RZ_PP)
+  STA (RZ_PP)
+  PLA
+  STA RZ_PP+1
+  PLA
+  STA RZ_PP
+  RTS
+.span
+  LDY RZ_Y                \ a span (r_rowset for the run page)
   JSR r_rowset
   LDX R_XL
   JMP r_spc
