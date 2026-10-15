@@ -619,6 +619,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR T_SETBUF
 
  JSR f_text1            \ text cells to be erased: background them (old dirty)
+ JSR f_sight1           \ and the sights, if they have gone
  JSR T_STARERASE        \ undo last time's stars in this buffer
  JSR f_discs            \ the disc layer (sun or planet), incremental
  JSR f_disc2            \ the other disc, if both are on screen (full spans)
@@ -628,6 +629,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_lasers           \ our laser beams and the sights
  JSR f_stars            \ stardust, on black only
  JSR f_text2            \ text on top
+ JSR f_sight2           \ and the sights
 
  LDX #&21               \ restore the zero page
 .ff4
@@ -747,6 +749,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA &FE34
 
  LDA #0                 \ buffer 0's state: empty (TT66 blacked it)
+ STA F_SGS
  JSR T_SETBUF
  JSR T_RESETBUF
  LDA #&FF
@@ -813,6 +816,8 @@ ENDMACRO
  FPATCH ft_sr3, F_SHR0, F_SHR1
  FPATCH ft_wd1, R_DIRTYL0, R_DIRTYL1
  FPATCH ft_wd2, R_DIRTYR0, R_DIRTYR1
+ FPATCH fsw_d1, R_DIRTYL0, R_DIRTYL1
+ FPATCH fsw_d2, R_DIRTYR0, R_DIRTYR1
  RTS
 
 \ ------------------------------------------------------------------------------
@@ -971,8 +976,10 @@ ENDMACRO
 .fsu1
  LDA #LO(F_HW2)
  STA fpr_ld+1
+ STA fpr_ld2+1
  LDA #HI(F_HW2)
  STA fpr_ld+2
+ STA fpr_ld2+2
  JMP f_discspans
 
 .f_plrows
@@ -997,53 +1004,141 @@ ENDMACRO
 .fpr1
  LDA #LO(F_HW)
  STA fpr_ld+1
+ STA fpr_ld2+1
  LDA #HI(F_HW)
  STA fpr_ld+2
+ STA fpr_ld2+2
 
-.f_discspans            \ rows of the disc (f_cx, f_cy, f_r) within the window
- LDA #255
+.fds_none
+ LDA #1
  STA R_NDT
  LDA #0
  STA R_NDB
- LDY R_CT
-.fpr2
- TYA                    \ d = y - cy (16-bit)
+ RTS
+
+.f_discspans            \ rows of the disc (f_cx, f_cy, f_r) within the window
+ LDA #255               \ (rows outside R_NDT..R_NDB are not looked at)
+ STA R_NDT
+ LDA #0
+ STA R_NDB
+ LDA f_cy               \ fz_p = top row = cy - r, fz_q = bottom row = cy + r
  SEC
+ SBC f_r
+ STA fz_p
+ LDA f_cy+1
+ SBC #0
+ STA fz_p+1
+ LDA f_cy
+ CLC
+ ADC f_r
+ STA fz_q
+ LDA f_cy+1
+ ADC #0
+ STA fz_q+1
+ BMI fds_none           \ bottom above the screen
+ BNE fdx1               \ bottom below row 255: clamp
+ LDA fz_q
+ CMP R_CB
+ BCC fdx2
+.fdx1
+ LDA R_CB
+ STA fz_q
+.fdx2
+ LDA fz_p+1             \ top
+ BMI fdx3               \ above row 0: clamp
+ BNE fds_none           \ below row 255
+ LDA fz_p
+ CMP R_CT
+ BCS fdx4
+.fdx3
+ LDA R_CT
+ STA fz_p
+.fdx4
+ LDA fz_q               \ empty if top > bottom
+ CMP fz_p
+ BCC fds_none
+ STA R_NDB
+ LDA fz_p
+ STA R_NDT
+ SEC                    \ d = top - cy (16-bit signed, |d| <= r)
  SBC f_cy
  STA fz_t
  LDA #0
  SBC f_cy+1
- BPL fpr3
- EOR #&FF               \ |d|
  STA fz_u
- LDA fz_t
- EOR #&FF
- CLC
- ADC #1
- STA fz_t
- LDA fz_u
- ADC #0
-.fpr3
- BNE fpr8               \ |d| > 255
- LDA fz_t
- CMP f_r
- BEQ fpr4
- BCS fpr8
-.fpr4
- TAX
-.fpr_ld
- LDA F_HW,X             \ patched
- STA fz_t
+ LDA f_cx+1             \ fast path if the whole disc is inside the window
+ BNE fds_slow           \ horizontally: cx - r >= CL and cx + r <= CR
  LDA f_cx
  SEC
- SBC fz_t
+ SBC f_r
+ BCC fds_slow
+ CMP R_CL
+ BCC fds_slow
+ LDA f_cx
+ CLC
+ ADC f_r
+ BCS fds_slow
+ CMP R_CR
+ BEQ fds_fast
+ BCS fds_slow
+.fds_fast
+ LDY R_NDT
+.fdf1
+ LDX fz_t               \ |d|
+ LDA fz_u
+ BPL fdf2
+ TXA
+ EOR #&FF
+ TAX
+ INX
+.fdf2
+.fpr_ld
+ LDA F_HW,X             \ patched: half-width
+ STA fz_n
+ LDA f_cx
+ SEC
+ SBC fz_n
+ STA R_NDISCL,Y
+ LDA f_cx
+ CLC
+ ADC fz_n
+ STA R_NDISCR,Y
+ INC fz_t               \ d++
+ BNE P%+4
+ INC fz_u
+ CPY R_NDB
+ INY
+ BCC fdf1
+ RTS
+
+.fds_slow
+ LDY R_NDT
+.fpr2
+ LDX fz_t               \ |d|
+ LDA fz_u
+ BPL fpr4
+ TXA
+ EOR #&FF
+ TAX
+ INX
+.fpr4
+.fpr_ld2
+ LDA F_HW,X             \ patched: half-width
+ STA fz_n
+ LDA fz_t
+ PHA
+ LDA fz_u
+ PHA
+ LDA f_cx
+ SEC
+ SBC fz_n
  STA fz_p
  LDA f_cx+1
  SBC #0
  STA fz_p+1
  LDA f_cx
  CLC
- ADC fz_t
+ ADC fz_n
  STA fz_q
  LDA f_cx+1
  ADC #0
@@ -1054,21 +1149,23 @@ ENDMACRO
  STA R_NDISCL,Y
  LDA R_XR
  STA R_NDISCR,Y
- CPY R_NDT
- BCS P%+5
- STY R_NDT
- STY R_NDB
- BNE fpr9
+ JMP fpr9
 .fpr8
  LDA #255
  STA R_NDISCL,Y
  LDA #0
  STA R_NDISCR,Y
 .fpr9
+ PLA
+ STA fz_u
+ PLA
+ STA fz_t
+ INC fz_t
+ BNE P%+4
+ INC fz_u
+ CPY R_NDB
  INY
- CPY R_CB
  BCC fpr2
- BEQ fpr2
  RTS
 
 .f_cx EQUW 0
@@ -1598,34 +1695,6 @@ ENDMACRO
  LDY #2*Y-1
  JSR f_line8
 .fla2
- LDA GSIGHT
- BEQ fla9
- LDA #FC_SIGHT
- JSR f_setcol
- LDA #X-20
- STA fz_t
- LDA #Y
- STA fz_u
- LDX #X-11
- LDY #Y
- JSR f_line8
- LDA #X+11
- STA fz_t
- LDX #X+20
- LDY #Y
- JSR f_line8
- LDA #X
- STA fz_t
- LDA #Y-20
- STA fz_u
- LDX #X
- LDY #Y-11
- JSR f_line8
- LDA #Y+11
- STA fz_u
- LDX #X
- LDY #Y+20
- JSR f_line8
 .fla9
  RTS
 
@@ -2011,3 +2080,145 @@ NEXT
 .F_FONT
  INCBIN "src/font.bin"
 
+
+\ ------------------------------------------------------------------------------
+\ Laser sights: four short arms about (128, 96), drawn after everything else
+\ and only redrawn when something was written over them (like the text)
+\ ------------------------------------------------------------------------------
+
+SGX = 128
+SGY = 96
+SGIN = 11               \ arms run from SGIN to SGOUT pixels from the centre
+SGOUT = 20
+
+.F_SGS EQUB 0, 0        \ per buffer: the sights are drawn in it
+
+\ f_sight1: sights shown in this buffer but no longer wanted: mark them dirty
+
+.f_sight1
+ LDX F_BACK
+ LDA F_SGS,X
+ BEQ fsg9
+ LDA GSIGHT
+ BNE fsg9
+ LDA #0
+ STA F_SGS,X
+ LDA #SGX-SGOUT
+ STA R_XL
+ LDA #SGX+SGOUT
+ STA R_XR
+ LDY #SGY
+ JSR T_MARKDIRTY
+ LDA #SGX
+ STA R_XL
+ STA R_XR
+ LDY #SGY-SGOUT
+.fsg1
+ STY fz_i
+ JSR T_MARKDIRTY
+ LDY fz_i
+ INY
+ CPY #SGY+SGOUT+1
+ BCC fsg1
+.fsg9
+ RTS
+
+\ f_wcov: does anything written this frame in row Y cover x = A .. X?
+\ (R_WL/R_WR, or this buffer's new dirty extent). C set if so. Keeps Y.
+
+.f_wcov
+ STA fz_t
+ STX fz_u
+ LDA R_WR,Y             \ written: WL..WR (WR = 0: none)
+ BEQ fwc2
+ CMP fz_t
+ BCC fwc2
+ LDA fz_u
+ CMP R_WL,Y
+ BCS fwc9
+.fwc2
+.fsw_d2
+ LDA R_DIRTYR0,Y        \ patched
+ BEQ fwc8
+ CMP fz_t
+ BCC fwc8
+ LDA fz_u
+.fsw_d1
+ CMP R_DIRTYL0,Y        \ patched
+ BCS fwc9
+.fwc8
+ CLC
+.fwc9
+ RTS
+
+.f_sight2
+ LDA GSIGHT
+ BEQ fsg9
+ LDX F_BACK
+ LDA F_SGS,X
+ BEQ fsg3               \ not drawn yet
+ LDY #SGY               \ overwritten anywhere?
+ LDA #SGX-SGOUT
+ LDX #SGX+SGOUT
+ JSR f_wcov
+ BCS fsg3
+ LDY #SGY-SGOUT
+.fsg2
+ LDA #SGX
+ LDX #SGX
+ JSR f_wcov
+ BCS fsg3
+ INY
+ CPY #SGY+SGOUT+1
+ BCC fsg2
+ RTS
+.fsg3
+ LDX F_BACK
+ LDA #&FF
+ STA F_SGS,X
+ LDA F_CPE+FC_SIGHT     \ horizontal arms (row SGY is even)
+ STA R_COLE
+ STA R_COLO
+ LDA #SGX-SGOUT
+ STA R_XL
+ LDA #SGX-SGIN
+ STA R_XR
+ LDY #SGY
+ JSR T_SPAN
+ LDA #SGX+SGIN
+ STA R_XL
+ LDA #SGX+SGOUT
+ STA R_XR
+ LDY #SGY
+ JSR T_SPAN
+ LDY #SGY-SGOUT         \ vertical arms: pixel 0 of byte column 32
+.fsg4
+ CPY #SGY-SGIN+1
+ BCC fsg5
+ CPY #SGY+SGIN
+ BCC fsg6
+.fsg5
+ TYA                    \ fz_p = &4000 + (y DIV 8) * &200 + 256 + (y MOD 8)
+ AND #7
+ STA fz_p
+ TYA
+ LSR A
+ LSR A
+ AND #%11111110
+ ORA #&41
+ STA fz_p+1
+ STY fz_i
+ LDY #0
+ LDA (fz_p),Y
+ AND #&77
+ STA fz_t
+ LDA F_CPE+FC_SIGHT
+ AND #&88
+ ORA fz_t
+ STA (fz_p),Y
+ LDY fz_i
+.fsg6
+ INY
+ CPY #SGY+SGOUT+1
+ BCC fsg4
+ RTS
