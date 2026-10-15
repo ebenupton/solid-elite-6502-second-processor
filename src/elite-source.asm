@@ -7939,15 +7939,19 @@ ENDMACRO
 
 .STL1
 
- LDA SZ,Y               \ Fetch z_hi and save it in ZZ (the original value of
- STA ZZ                 \ z_hi, used below to remove the existing particle),
- JSR DV41               \ then call DV41 (what DV42 does after its LDA SZ,Y):
+ LDA SZ,Y               \ Fetch z_hi and call DV41 (what DV42 does after its
+ JSR DV41               \ LDA SZ,Y):
                         \
                         \   (P R) = 256 * DELTA / z_hi
                         \         = 256 * speed / z_hi
                         \
                         \ The maximum value returned is P = 2 and R = 128 (see
                         \ DV42 for an explanation)
+                        \
+                        \ BBC Master port: the original saved z_hi in ZZ here,
+                        \ but ZZ is only read back below (and is rewritten at
+                        \ STC1/KILL1 before PIXEL2 reads it), so we re-read
+                        \ SZ,Y below instead (it is unchanged until then)
 
  LDA R                  \ Set A = R, so now:
                         \
@@ -7969,7 +7973,7 @@ ENDMACRO
                         \
                         \ starting with the low bytes
 
- LDA ZZ                 \ And then we do the high bytes (ZZ = original z_hi)
+ LDA SZ,Y               \ And then we do the high bytes (SZ,Y = original z_hi)
  SBC DELT4+1            \
  STA SZ,Y               \
                         \
@@ -21848,23 +21852,9 @@ ENDMACRO
  STY XX17               \ Set XX17 = Y, so XX17 now contains the offset of the
                         \ current vertex's data
 
- LDA (V),Y              \ Fetch byte #0 for this vertex into XX15, so:
- STA XX15               \
-                        \   XX15 = magnitude of the vertex's x-coordinate
-
- INY                    \ Increment Y to point to byte #1
-
- LDA (V),Y              \ Fetch byte #1 for this vertex into XX15+2, so:
- STA XX15+2             \
-                        \   XX15+2 = magnitude of the vertex's y-coordinate
-
- INY                    \ Increment Y to point to byte #2
-
- LDA (V),Y              \ Fetch byte #2 for this vertex into XX15+4, so:
- STA XX15+4             \
-                        \   XX15+4 = magnitude of the vertex's z-coordinate
-
- INY                    \ Increment Y to point to byte #3
+ INY                    \ Point Y to byte #3 (bytes #0-#2 are only fetched
+ INY                    \ below at LL49, once we know the vertex is visible)
+ INY
 
  LDA (V),Y              \ Fetch byte #3 for this vertex into T, so:
  STA T                  \
@@ -21943,6 +21933,16 @@ ENDMACRO
                         \ vertex
 
 .LL49
+
+ LDY XX17               \ Fetch bytes #0-#2 for this vertex into XX15,
+ LDA (V),Y              \ XX15+2 and XX15+4 (the magnitudes of the vertex's
+ STA XX15               \ x, y and z coordinates)
+ INY
+ LDA (V),Y
+ STA XX15+2
+ INY
+ LDA (V),Y
+ STA XX15+4
 
  LDA T                  \ Fetch byte #5 for this vertex into A and store it, so
  STA XX15+1             \ XX15+1 now has the sign of the vertex's x-coordinate
@@ -33911,12 +33911,6 @@ ENDIF
  STA Q                  \       = sin((CNT2 + 16) mod 32)
                         \       = |cos(CNT2)|
 
- LDA K2+1               \ Set A = K2+1
-                        \       = |u_y|
-
- JSR FMLTU              \ Set K+2 = A * Q / 256
- STA K+2                \         = |u_y| * |cos(CNT2)|
-
  LDA K2                 \ Set A = K2
                         \       = |u_x|
 
@@ -34003,8 +33997,9 @@ ENDIF
                         \
                         \   (S R) = v_y * sin(CNT2)
 
- LDA K+2                \ Set P = K+2 = |u_y| * cos(CNT2)
- STA P
+ LDA K2+1               \ Set P = |u_y| * |cos(CNT2)| (moved here from above:
+ JSR FMLTU              \ Q still holds |cos(CNT2)|, K2+1 is unchanged and
+ STA P                  \ FMLTU preserves Y, so no K+2 temporary is needed)
 
  LDA XX16+4             \ Set A = the sign of XX16+1 * XX16+4
  EOR XX16+1             \       = the sign of u_y * XX16+4
@@ -38498,11 +38493,9 @@ INCLUDE "build/dashtab.asm"
 .MTU4
  SBC SQ2H+&FF,X
 
- LDX #0                 \ Set X = 0, as in the original
-
- CLC                    \ Clear the C flag, as in the original
-
  ORA T                  \ Set the sign bit of the result that we stored in T
+                        \ (X and the C flag are dead at every caller, so the
+                        \ original's X = 0 and C = 0 are not reproduced)
 
  RTS                    \ Return from the subroutine
 
@@ -38590,7 +38583,10 @@ INCLUDE "build/dashtab.asm"
 
  LDA XX15               \ Set A = XX15
 
- JSR MULT12             \ Set (S R) = Q * A
+ JSR MULT1              \ Set (S R) = Q * A (MULT12 inlined)
+ STA S
+ LDA P
+ STA R
                         \           = vect_x * XX15
 
  LDX INWK+2,Y           \ Set Q = the Y+2-th byte of INWK, i.e. vect_y
