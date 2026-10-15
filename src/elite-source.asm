@@ -8094,8 +8094,11 @@ ENDMACRO
                         \   (A X) = (A P) + (S R)
                         \         = -y / 256 * alpha + x
 
- STA XX+1               \ Set XX(1 0) = (A X), which gives us result 6 above:
- STX XX                 \
+ STA S                  \ BBC Master port: set (S R) = XX(1 0) = (A X) directly
+ STX R                  \ (this is what MUT2 used to do from XX), and keep XX
+ STX XX                 \ for later; XX+1 is not read again before the STA XX+1
+                        \ below, so it is not stored here
+                        \
                         \   x = x - alpha * y / 256
 
  LDX BET1               \ Fetch the pitch magnitude into X
@@ -8112,23 +8115,16 @@ ENDMACRO
                         \
                         \   Q = -beta * y_hi / 256
 
- JSR MUT2               \ Call MUT2 to calculate:
-                        \
-                        \   (S R) = XX(1 0) = x
+ JSR MULT1              \ Call MULT1 to calculate ((S R) = x was set above):
                         \
                         \   (A P) = Q * A
                         \         = (-beta * y_hi / 256) * (-beta * y_hi / 256)
                         \         = (beta * y / 256) ^ 2
 
- ASL P                  \ Double (A P), store the top byte in A and set the C
- ROL A                  \ flag to bit 7 of the original A, so this does:
- STA T                  \
-                        \   (T P) = (A P) << 1
-                        \         = 2 * (beta * y / 256) ^ 2
-
- LDA #0                 \ Set bit 7 in A to the sign bit from the A in the
- ROR A                  \ calculation above and apply it to T, so we now have:
- ORA T                  \
+ ASL P                  \ Double (A P), keeping the sign bit of the original A
+ ROL A                  \ (C = original bit 7), so (A P) = (A P) * 2 with the
+ BCC P%+4               \ doubling retaining the sign of (A P) (T and the C flag
+ ORA #%10000000         \ are dead here: ADD writes T first and ignores C)
                         \   (A P) = (A P) * 2
                         \         = 2 * (beta * y / 256) ^ 2
                         \
@@ -21925,8 +21921,9 @@ ENDMACRO
 
  LDA XX16,X             \ Set A = |sidev_x|
 
- JSR FMLTU              \ Set T = A * Q / 256
- STA T                  \       = |sidev_x| * x_lo / 256
+ JSR FMLTU              \ Set R = A * Q / 256
+ STA R                  \       = |sidev_x| * x_lo / 256
+                        \ (stored straight into R: FMLTU does not touch R)
 
  LDA XX15+1             \ Set S to the sign of x_sign * sidev_x
  EOR XX16+1,X
@@ -21939,9 +21936,6 @@ ENDMACRO
 
  JSR FMLTU              \ Set Q = A * Q / 256
  STA Q                  \       = |sidev_y| * y_lo / 256
-
- LDA T                  \ Set R = T
- STA R                  \       = |sidev_x| * x_lo / 256
 
  LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
  EOR XX16+3,X
@@ -38174,10 +38168,7 @@ ENDIF
  STA P                  \ can reach it with a branch)
  RTS
 
- TAX                    \ Set T1 = |A| - 1, as in the original, and X = |A|
- DEX
- STX T1
- INX
+ TAX                    \ Set X = |A| (T1 = |A| - 1 is set at the end)
 
  LDA P                  \ Set A = P AND 31
  AND #31
@@ -38206,7 +38197,8 @@ ENDIF
 .MSU4
  SBC SQ2H+&FF,X
 
- LDX T1                 \ Set X = |A| - 1, as in the original
+ DEX                    \ Set T1 = X = |A| - 1, as in the original (X is
+ STX T1                 \ still |A| as the look-ups above don't change it)
 
  CLC                    \ Clear the C flag, as in the original
 
@@ -38261,7 +38253,7 @@ ENDIF
  STA P                  \ Copy A into P and X
  TAX
 
- BNE MU11               \ If X = 0 fall through into MU1 to return a 0,
+ BNE MU11A              \ If X = 0 fall through into MU1 to return a 0,
                         \ otherwise jump to MU11 to return P * X
 
 \ ******************************************************************************
@@ -38385,23 +38377,19 @@ ENDIF
 
 .MU11
 
-                        \ BBC Master port: for X <> 0 this calculates exactly
-                        \ the same result as the original shift-and-add loop
-                        \ using the quarter-square tables (see SQ1L), and
-                        \ returns with the same register, flag and memory state
-                        \ (A = high byte, P = low byte, T = X - 1, X = 0, the
-                        \ C flag clear and the Z and N flags set for X = 0).
-                        \ The V flag is not preserved, but no caller relies on
-                        \ it. For X = 0 (which no caller does) we run the
-                        \ original loop
-
- DEX                    \ Set T = X - 1
- STX T
-
- INX                    \ Restore X, and if it is zero, jump to MU11Z to run
- BEQ MU11Z              \ the original code
+                        \ BBC Master port: this calculates exactly the same
+                        \ result as the original shift-and-add loop using the
+                        \ quarter-square tables (see SQ1L), and returns with
+                        \ the same register, flag and memory state (A = high
+                        \ byte, P = low byte, T = X - 1, X = 0, the C flag
+                        \ clear and the Z and N flags set for X = 0). The V
+                        \ flag is not preserved, but no caller relies on it.
+                        \ MU11 is only ever entered with X <> 0 (from SQUA2
+                        \ via BNE and from MULTU after BEQ MU1), so the
+                        \ original loop for X = 0 is not needed
 
  LDA P                  \ Patch P into the operands of the table look-ups
+.MU11A                  \ (SQUA2 enters here with A = P already)
  STA MUU1+1
  STA MUU3+1
  EOR #&FF
@@ -38420,29 +38408,14 @@ ENDIF
 .MUU4
  SBC SQ2H,X
 
+ DEX                    \ Set T = X - 1 (X is unchanged by the look-ups)
+ STX T
+
  LDX #0                 \ Set X = 0 and the Z and N flags, as in the original
 
  CLC                    \ Clear the C flag, as in the original
 
  RTS                    \ Return from the subroutine
-
-.MU11Z
-
- LDA #0                 \ This is the original code, which we run for X = 0
-                        \ (with T = &FF), so that we return exactly the same
- LDX #8                 \ results as the original
- LSR P
-
-.MUL6
-
- BCC P%+4
- ADC T
- ROR A
- ROR P
- DEX
- BNE MUL6
-
- RTS
 
 \ ******************************************************************************
 \
@@ -38560,27 +38533,23 @@ ENDIF
 
  LDX Q                  \ Set X = Q
 
- SEC                    \ Calculate the low byte of f(A + Q) - f(|A - Q|),
-.FMU1                   \ which we only need for the borrow
- LDA SQ1L,X
-.FMU2
- SBC SQ2L,X
+.FMU1                   \ Compare the low bytes of f(A + Q) and f(|A - Q|),
+ LDA SQ1L,X             \ which we only need for the borrow (CMP sets C
+.FMU2                   \ exactly as SEC:SBC would)
+ CMP SQ2L,X
 
 .FMU3                   \ Calculate the high byte, which is the result
  LDA SQ1H,X
 .FMU4
- SBC SQ2H,X
+ SBC SQ2H,X             \ A * Q >= 0 fits in 16 bits, so this never borrows
+                        \ and leaves the C flag set, as in the original
 
  PLX                    \ Restore X
 
  STZ P                  \ Set P = 0, as in the original
 
- BIT SQ1L               \ Set the Z flag and clear the N flag (SQ1L contains 0),
-                        \ as in the original
-
- SEC                    \ Set the C flag, as in the original
-
- RTS                    \ Return from the subroutine
+ RTS                    \ Return from the subroutine (Z/N/V are not live in
+                        \ any caller)
 
 \ ******************************************************************************
 \
@@ -39115,9 +39084,8 @@ ENDIF
                         \ so we can subtract their absolute values and set the
                         \ sign to get the result
 
- LDA S                  \ Clear the sign (bit 7) in S and store the result in
- AND #%01111111         \ U, so U now contains |S|
- STA U
+ AND #%01111111         \ A = (T1 AND %10000000) EOR S on entry, so its low 7
+ STA U                  \ bits are those of S, and U now contains |S|
 
  LDA P                  \ Subtract the least significant bytes into X:
  SEC                    \
