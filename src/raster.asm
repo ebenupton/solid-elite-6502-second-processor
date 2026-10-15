@@ -1,0 +1,3885 @@
+\ ============================================================================
+\ raster.asm -- filled-polygon / disc-layer / line / dot / star rasteriser for
+\ the double-buffered CMYK MODE 1 Elite (BBC Master, 65C02).  See
+\ docs/DESIGN.md for the screen layout and the frame model.
+\
+\ Two files: raster_vars.asm holds every variable and array the caller reads
+\ or writes (assemble it first, anywhere both sides can see, e.g. HAZEL
+\ &C000-&DFFF; 2453 bytes, no alignment); this file holds the code, tables and
+\ private state (INCLUDE it at &8000 in its own sideways bank; it ALIGNs
+\ itself to a page, so another start costs up to 255 bytes).  It references
+\ no Elite symbol; all labels start with r_ / R_ / RZ_.  CPU 1 is selected.
+\ The store runs are self-modified (an RTS is planted and removed again), so
+\ it must run from RAM.
+\
+\ ---------------------------------------------------------------- zero page
+\ &06-&27 are used (the caller saves/restores them around rendering).
+\   R_COLE, R_COLO  fill colour pair: byte for even rows, byte for odd rows
+\   R_XL, R_XR      span ends for R_SPAN / R_MARKDIRTY (inclusive pixels)
+\   R_CL, R_CR      clip window x min/max (inclusive). 1 <= CL <= CR <= 254
+\   R_CT, R_CB      clip window y min/max (inclusive). 0 <= CT <= CB <= 191
+\   R_DCE, R_DCO    disc colour pair (R_DISCROWS)
+\   everything else in &10-&27 is internal scratch (RZ_*), clobbered by calls.
+\ The clip window should stay constant from frame to frame; R_CLEARALL (or
+\ black the window and R_RESETBUF) both buffers after changing it.
+\
+\ ---------------------------------------------------------------- variables
+\ (raster_vars.asm; empty span: L = 255, R = 0; for R_WL/R_WR, R = 0)
+\   R_PN               polygon vertex count (1..16; more are ignored)
+\   R_PXL/R_PXH/R_PYL/R_PYH  16-entry vertex arrays (signed 16-bit, y down)
+\   R_X0,R_Y0,R_X1,R_Y1      line end points, signed 16-bit words (lo, hi)
+\   R_SN               star count (0..24)
+\   R_SX,R_SY,R_SS     24-entry star arrays: x, y (8-bit), size 1..3
+\   R_SCOL             star colour byte (R_INIT sets &FF = logical colour 3)
+\   R_NDT, R_NDB       new disc rows for R_DISCROWS (NDT > NDB: no disc)
+\   R_NDISCL/R_NDISCR  new disc spans (rows NDT..NDB only) [192 each]
+\   R_DIRTYL0/R0, R_DIRTYL1/R1  per-buffer dirty extents  [192 each]
+\   R_DISCL0/R0,  R_DISCL1/R1   per-buffer disc spans     [192 each]
+\   R_WL, R_WR         this frame's written extents (see R_DISCROWS) [192]
+\ Coordinates passed to R_POLY / R_LINE must lie in -16384..16383.
+\
+\ ---------------------------------------------------------------- routines
+\ Registers A, X, Y are not preserved unless stated.  Decimal mode must be off.
+\
+\ R_INIT       once at startup: clip window = 1..254 x 1..191, R_SCOL = &FF,
+\              all per-buffer state empty, R_SETBUF 0.  Does not touch the
+\              screen: follow with R_CLEARALL (or R_RESETBUF on a black
+\              window) for each buffer.
+\ R_SETBUF     A = buffer 0/1 whose state arrays (dirty, disc, stars) the
+\              following calls use.  Call it before drawing each frame (it is
+\              cheap when the buffer does not change).  It self-modifies the
+\              code: 67 operands are patched (~2500 cycles) on a change.
+\ R_RESETBUF   forget the current buffer's state (no dirty, no disc, no
+\              stars) without touching the screen; the caller guarantees the
+\              buffer's clip window is black.  ~5000 cycles.  No R_INIT needed.
+\ R_CLEARALL   black the whole clip window and R_RESETBUF (~115000 cycles).
+\ R_SPAN       Y = row, fill pixels R_XL..R_XR (within the clip window, XL<=XR)
+\              with the colour pair.  Pure drawing: no state is updated.
+\              Pass R_COLE = R_COLO = 0 for black.
+\ R_POLY       filled convex polygon (R_PN, R_PXL..R_PYH, colour pair), either
+\              winding.  Pixel (x,y) (centre at integer x,y) is filled when it
+\              is inside, using a top-left rule: rows y0 <= y < y1 of each
+\              edge, pixels ceil(xleft) <= x < ceil(xright), exact integer
+\              edge stepping from the upper end point, so polygons sharing an
+\              edge tile with no gaps or overlaps.  Clipped to the window.
+\              Extends DIRTY of the current buffer.  Fast path when every
+\              coordinate is 0..255.
+\ R_LINE       1-pixel line R_X0,R_Y0 - R_X1,R_Y1 (inclusive), clipped; pixel
+\              colour = the dither at its position.  Bresenham along the major
+\              axis stepped in the increasing direction; minor coordinate =
+\              round-half-up.  Extends DIRTY.  Fast path when both ends are
+\              inside the window.
+\ R_DOT        X = x, Y = y, A = size: 1 = 1x1, 2 = 2x1, 3 = 2x2 (right/down).
+\              Clipped.  Extends DIRTY.
+\ R_STARERASE  black every star pixel R_STARPLOT set last time in this buffer.
+\ R_STARPLOT   plot stars R_SX/SY/SS (R_SN of them) in R_SCOL.  A star row's
+\              pixels within one screen byte are set only if all of them are
+\              black there (else that byte is left alone); remembered for
+\              R_STARERASE.  Plotted stars are not added to R_WL/R_WR (they
+\              only ever replace black and precede the text overlay).
+\ R_DISCROWS   the incremental disc layer for the current buffer (see below).
+\ R_MARKDIRTY  Y = row, extend this buffer's DIRTY[y] by R_XL..R_XR (use it
+\              for anything else drawn into the buffer, e.g. text, so the next
+\              R_DISCROWS on this buffer repairs it).
+\ R_WMERGE     fold DIRTY of the current buffer into R_WL/R_WR (optional).
+\
+\ Frame order for buffer b:  R_SETBUF b; R_STARERASE; (fill R_NDISC*, R_NDT,
+\ R_NDB, R_DCE/R_DCO) R_DISCROWS; R_POLY/R_LINE/R_DOT ...; R_STARPLOT; text.
+\
+\ R_DISCROWS, per row y of the clip window: writes the disc colour on the new
+\ span minus the intact part of the old one (old span minus old dirty) and
+\ black on (old span + old dirty) minus the new span; then DISC[b][y] = new,
+\ DIRTY[b][y] = empty.  Where the old disc is intact and an end moves, the
+\ bytes between the old and new end are rewritten whole (black / disc / disc
+\ from the new end on): pixels outside the disc there are black anyway.  It
+\ also starts the frame's R_WL/R_WR (clearing last frame's rows): afterwards
+\ they hold, per row, the extent of the disc-layer writes and of the star
+\ bytes erased.  Shapes are NOT added to R_WL/R_WR: what was written this
+\ frame is R_WL/R_WR[y] union DIRTY[b][y] (or call R_WMERGE at the end).
+\ Rows of R_NDISCL/R in NDT..NDB with NDISCL = 255 (or L > R) are empty;
+\ spans are clamped to the clip window.
+\ ============================================================================
+
+CPU 1
+
+R_COLE  = &06
+R_COLO  = &07
+R_XL    = &08
+R_XR    = &09
+R_CL    = &0A
+R_CR    = &0B
+R_CT    = &0C
+R_CB    = &0D
+R_DCE   = &0E
+R_DCO   = &0F
+RZ_PA   = &10           \ (lo = y AND 7, hi = row page)  bytes of columns 0..31
+RZ_PB   = &12           \ (lo = y AND 7, hi = row page+1) columns 32..63
+RZ_PP   = &14           \ RTS plant pointer / pixel pointer
+RZ_COL  = &16           \ this row's colour byte
+RZ_Y    = &17           \ current row
+RZ_SA   = &18           \ edge A: x (16)            } side 0 (offset 0)
+RZ_TA   = &1A           \ edge A: error term (16)   }
+RZ_SB   = &1C           \ edge B: x (16)            } side 1 (offset 4)
+RZ_TB   = &1E           \ edge B: error term (16)   }
+RZ_T0   = &20
+RZ_T1   = &21
+RZ_T2   = &22
+RZ_T3   = &23
+RZ_T4   = &24
+RZ_T5   = &25
+RZ_T6   = &26
+RZ_T7   = &27
+
+r_opSTA = &9D           \ STA abs,X
+r_opRTS = &60
+
+\ ============================================================================
+\ Page-aligned per-x tables
+\ ============================================================================
+ALIGN &100
+.r_start
+.r_xo                   \ (8 * (x DIV 4)) AND &FF : edge byte offset
+FOR x, 0, 255
+  EQUB (x * 2) AND &F8
+NEXT
+.r_j                    \ 3 * (x DIV 4): run entry offset (column x DIV 4 + 1)
+FOR x, 0, 255
+  EQUB 3 * (x DIV 4)
+NEXT
+.r_lm                   \ pixels (x AND 3)..3 of a byte
+FOR x, 0, 255
+  EQUB ((&F0 >> (x AND 3)) AND &F0) OR (&0F >> (x AND 3))
+NEXT
+.r_rm                   \ pixels 0..(x AND 3) of a byte
+FOR x, 0, 255
+  EQUB ((&F0 << (3 - (x AND 3))) AND &F0) OR ((&0F << (3 - (x AND 3))) AND &0F)
+NEXT
+
+\ ============================================================================
+\ The store runs: one page per character row r (24), STA &4000+&200r+8c,X for
+\ c = 1..63 then RTS (190 bytes).  The 66 bytes after each run hold variables.
+\ ============================================================================
+MACRO R_RUN r
+  FOR c, 1, 63
+    STA &4000 + r * &200 + c * 8, X
+  NEXT
+  RTS
+  EQUB 0                  \ spare: the 'nothing planted' target (offset 190)
+ENDMACRO
+
+MACRO R_ENDPAGE r
+  ASSERT P% <= r_run0 + (r + 1) * &100
+  ALIGN &100
+ENDMACRO
+
+.r_run0 R_RUN 0
+.r_s0y SKIP 48          \ star records, buffer 0: row
+.r_dsz EQUB 0           \ R_DOT
+.r_dx EQUB 0
+.r_dy EQUB 0
+.r_k EQUB 0             \ stars
+.r_si EQUB 0
+R_ENDPAGE 0
+.r_run1 R_RUN 1
+.r_s0x SKIP 48          \ buffer 0: x of first pixel
+R_ENDPAGE 1
+.r_run2 R_RUN 2
+.r_s0a SKIP 48          \ buffer 0: mask set in column x DIV 4
+R_ENDPAGE 2
+.r_run3 R_RUN 3
+.r_s1y SKIP 48          \ buffer 1 (= buffer 0 + &300)
+R_ENDPAGE 3
+.r_run4 R_RUN 4
+.r_s1x SKIP 48
+R_ENDPAGE 4
+.r_run5 R_RUN 5
+.r_s1a SKIP 48
+R_ENDPAGE 5
+.r_run6 R_RUN 6
+.r_s0b SKIP 48          \ buffer 0: mask set in column x DIV 4 + 1
+R_ENDPAGE 6
+.r_run7 R_RUN 7
+R_ENDPAGE 7
+.r_run8 R_RUN 8
+R_ENDPAGE 8
+.r_run9 R_RUN 9
+.r_s1b SKIP 48
+R_ENDPAGE 9
+.r_run10 R_RUN 10
+.r_buf EQUB 0           \ current buffer
+.r_dyt EQUB &FF, &FF    \ per buffer: rows that may have a dirty extent
+.r_dyb EQUB 0, 0
+.r_dst EQUB &FF, &FF    \ per buffer: rows of its disc
+.r_dsb EQUB 0, 0
+.r_scnt EQUB 0, 0       \ per buffer: star records
+.r_ecnt EQUB 0, 0       \ per buffer: star records erased, not yet in WL
+.r_wt EQUB &FF          \ rows of WL/WR that may be non-empty
+.r_wb EQUB 0
+.r_cx EQUB 0            \ COLE EOR COLO
+.r_cr1 EQUB 0           \ CR + 1
+.r_cb1 EQUB 0           \ CB + 1
+.r_n EQUB 0
+.r_slow EQUB 0
+.r_side EQUB 0
+.r_side4 EQUB 0
+.r_i0 EQUB 0
+.r_i1 EQUB 0
+.r_yminL EQUB 0
+.r_yminH EQUB 0
+.r_ymaxL EQUB 0
+.r_ymaxH EQUB 0
+.r_ystart EQUB 0
+.r_top EQUB 0
+.r_ylast EQUB 0
+.r_yend EQUB 0
+.r_xclip EQUB 0
+.r_cc EQUB 0
+.r_cidx EQUB 0, 0
+.r_ccnt EQUB 0, 0
+.r_cend EQUB 0, 0
+R_ENDPAGE 10
+.r_run11 R_RUN 11
+.r_m0 EQUB 0            \ 32-bit dividend / product; quotient m0,m1
+.r_m1 EQUB 0
+.r_m2 EQUB 0            \ remainder m2,m3
+.r_m3 EQUB 0
+.r_v0 EQUB 0            \ divisor
+.r_v1 EQUB 0
+.r_ma EQUW 0            \ multiplicand
+.r_mb EQUW 0            \ multiplier
+.r_sbd EQUB 0           \ R_SETBUF delta
+.r_ov SKIP 28           \ variables of routines never active together
+R_ENDPAGE 11
+.r_run12 R_RUN 12
+\ r_bmn: black on [r_ba, r_bb] minus [r_nL, r_nR]
+.r_bmn
+{
+  LDA r_nR
+  CMP r_nL
+  BCC whole
+  LDA r_nR
+  CMP r_ba
+  BCC whole
+  LDA r_bb
+  CMP r_nL
+  BCC whole
+  LDA r_ba
+  CMP r_nL
+  BCS b2
+  LDX r_nL
+  DEX
+  JSR r_dw
+.b2
+  LDA r_nR
+  CMP r_bb
+  BCS done
+  INC A
+  LDX r_bb
+  JMP r_dw
+.whole
+  LDA r_ba
+  LDX r_bb
+  JMP r_dw
+.done
+  RTS
+}
+
+R_ENDPAGE 12
+\ overlay: edge set-up (r_eset)
+r_edy = r_ov + 0
+r_ek0 = r_ov + 2
+r_ex0 = r_ov + 4
+r_eadx = r_ov + 6
+r_eneg = r_ov + 8
+r_eq = r_ov + 9
+r_er = r_ov + 11
+r_ea = r_ov + 13
+r_eb = r_ov + 15
+\ overlay: R_DISCROWS rows
+r_nt = r_ov + 0
+r_nb = r_ov + 1
+r_lo = r_ov + 2
+r_hi = r_ov + 3
+r_oL = r_ov + 4
+r_oR = r_ov + 5
+r_dL = r_ov + 6
+r_dR = r_ov + 7
+r_nL = r_ov + 8
+r_nR = r_ov + 9
+r_iL = r_ov + 10
+r_iR = r_ov + 11
+r_wmin = r_ov + 12
+r_wmax = r_ov + 13
+r_dcol = r_ov + 14
+r_ba = r_ov + 15
+r_bb = r_ov + 16
+r_tl = r_ov + 17
+r_dya = r_ov + 18
+r_dyz = r_ov + 19
+r_fe = r_ov + 20
+r_fo = r_ov + 21
+\ overlay: R_LINE
+r_lxm = r_ov + 0
+r_maj0 = r_ov + 1
+r_min0 = r_ov + 3
+r_dmaj = r_ov + 5
+r_admin = r_ov + 7
+r_smin = r_ov + 9
+r_wlo = r_ov + 10
+r_whi = r_ov + 11
+r_vlo = r_ov + 12
+r_vhi = r_ov + 13
+r_ilo = r_ov + 14
+r_ihi = r_ov + 16
+r_err = r_ov + 18
+r_e2maj = r_ov + 20
+r_e2min = r_ov + 22
+r_cmaj = r_ov + 24
+r_cmin = r_ov + 25
+r_lcnt = r_ov + 27
+.r_run13 R_RUN 13
+.R_SETBUF
+{
+  AND #1
+  CMP r_buf
+  BEQ done
+  STA r_buf
+  TAX
+  LDA dtab,X
+  STA r_sbd
+  LDX #0
+.lp
+  LDA r_ptab,X
+  STA RZ_T0
+  LDA r_ptab+1,X
+  STA RZ_T1
+  LDA (RZ_T0)
+  CLC
+  ADC r_sbd
+  STA (RZ_T0)
+  INX
+  INX
+  CPX #r_ptab_end - r_ptab
+  BNE lp
+.done
+  RTS
+.dtab
+  EQUB &FD, 3
+}
+R_ENDPAGE 13
+.r_run14 R_RUN 14
+.r_addr
+  TYA
+  AND #7
+  ORA r_xo,X
+  STA RZ_PP
+  TYA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  CPX #&80
+  ADC #0
+  STA RZ_PP+1
+  RTS
+.r_pclip
+{
+  CPX R_CL
+  BCC out
+  CPX R_CR
+  BEQ ok1
+  BCS out
+.ok1
+  CPY R_CT
+  BCC out
+  CPY R_CB
+  BEQ ok2
+  BCS out
+.ok2
+  JSR r_pset
+  JMP r_cyrow
+.out
+  RTS
+}
+R_ENDPAGE 14
+.r_run15 R_RUN 15
+.r_pset
+{
+  JSR r_addr
+  LDA r_lm,X
+  AND r_rm,X
+  STA RZ_T6
+  TYA
+  LSR A
+  LDA R_COLE
+  BCC ev
+  LDA R_COLO
+.ev
+  EOR (RZ_PP)
+  AND RZ_T6
+  EOR (RZ_PP)
+  STA (RZ_PP)
+  TXA
+.^r_pt01 CMP r_dl,Y
+  BCS n1
+.^r_pt02 STA r_dl,Y
+.n1
+.^r_pt03 CMP r_dr,Y
+  BCC n2
+.^r_pt04 STA r_dr,Y
+.n2
+  RTS
+}
+R_ENDPAGE 15
+.r_run16 R_RUN 16
+.r_cyrow
+{
+  PHX
+  LDX r_buf
+  TYA
+  CMP r_dyt,X
+  BCS n3
+  STA r_dyt,X
+.n3
+  CMP r_dyb,X
+  BCC n4
+  STA r_dyb,X
+.n4
+  PLX
+  RTS
+}
+.R_SPAN
+{
+  LDA R_XR
+  CMP R_XL
+  BCC out
+  JSR r_rowset
+  TYA
+  LSR A
+  LDA R_COLE
+  BCC ev
+  LDA R_COLO
+.ev
+  STA RZ_COL
+  LDX R_XL
+  JMP r_spc
+.out
+  RTS
+}
+R_ENDPAGE 16
+.r_run17 R_RUN 17
+.R_DOT
+{
+  STA r_dsz
+  STX r_dx
+  STY r_dy
+  JSR r_pclip
+  LDA r_dsz
+  CMP #2
+  BCC done
+  LDX r_dx
+  INX
+  BEQ row2
+  LDY r_dy
+  JSR r_pclip
+.row2
+  LDA r_dsz
+  CMP #3
+  BCC done
+  LDY r_dy
+  INY
+  BEQ done
+  LDX r_dx
+  JSR r_pclip
+  LDX r_dx
+  INX
+  BEQ done
+  JSR r_pclip
+.done
+  RTS
+}
+R_ENDPAGE 17
+.r_run18 R_RUN 18
+.R_MARKDIRTY
+{
+  LDA R_XL
+.^r_pt05 CMP r_dl,Y
+  BCS n1
+.^r_pt06 STA r_dl,Y
+.n1
+  LDA R_XR
+.^r_pt07 CMP r_dr,Y
+  BCC n2
+.^r_pt08 STA r_dr,Y
+.n2
+  LDX r_buf
+  TYA
+  CMP r_dyt,X
+  BCS n3
+  STA r_dyt,X
+.n3
+  CMP r_dyb,X
+  BCC n4
+  STA r_dyb,X
+.n4
+  RTS
+}
+.R_WMERGE
+{
+  LDY R_CT
+.lp
+.^r_pt42 LDA r_dr,Y
+  BEQ nx
+  TAX
+.^r_pt43 LDA r_dl,Y
+  JSR r_wlu
+.nx
+  CPY R_CB
+  INY
+  BCC lp
+  RTS
+}
+R_ENDPAGE 18
+.r_run19 R_RUN 19
+.r_div32
+{
+  LDX #16
+.lp
+  ASL r_m0
+  ROL r_m1
+  ROL r_m2
+  ROL r_m3
+  BCS sb
+  LDA r_m2
+  CMP r_v0
+  LDA r_m3
+  SBC r_v1
+  BCC ns
+.sb
+  LDA r_m2
+  SBC r_v0
+  STA r_m2
+  LDA r_m3
+  SBC r_v1
+  STA r_m3
+  INC r_m0
+.ns
+  DEX
+  BNE lp
+  RTS
+}
+R_ENDPAGE 19
+.r_run20 R_RUN 20
+.r_mul16
+{
+  LDA #0
+  STA r_m2
+  STA r_m3
+  LDX #16
+.lp
+  LSR r_mb+1
+  ROR r_mb
+  BCC ns
+  CLC
+  LDA r_m2
+  ADC r_ma
+  STA r_m2
+  LDA r_m3
+  ADC r_ma+1
+  STA r_m3
+.ns
+  ROR r_m3
+  ROR r_m2
+  ROR r_m1
+  ROR r_m0
+  DEX
+  BNE lp
+  RTS
+}
+R_ENDPAGE 20
+.r_run21 R_RUN 21
+.r_dp1
+{
+  JSR r_rowset
+  STZ RZ_COL
+.^r_pt46 LDA r_dl,Y
+  STA R_XL
+  STA R_WL,Y
+.^r_pt47 LDA r_dr,Y
+  STA R_XR
+  STA R_WR,Y
+  LDA #&FF
+.^r_pt48 STA r_dl,Y
+  LDA #0
+.^r_pt49 STA r_dr,Y
+  CPY r_wt
+  BCS w1
+  STY r_wt
+.w1
+  CPY r_wb
+  BCC w2
+  STY r_wb
+.w2
+  LDX R_XL
+  JMP r_spc
+}
+R_ENDPAGE 21
+.r_run22 R_RUN 22
+.r_wlu
+{
+  STA RZ_T0
+  LDA R_WR,Y
+  BNE ne
+  LDA RZ_T0
+  STA R_WL,Y
+  TXA
+  STA R_WR,Y
+  BRA rg
+.ne
+  LDA RZ_T0
+  CMP R_WL,Y
+  BCS u1
+  STA R_WL,Y
+.u1
+  TXA
+  CMP R_WR,Y
+  BCC rg
+  STA R_WR,Y
+.rg
+  CPY r_wt
+  BCS u2
+  STY r_wt
+.u2
+  CPY r_wb
+  BCC u3
+  STY r_wb
+.u3
+  RTS
+}
+R_ENDPAGE 22
+.r_run23 R_RUN 23
+.R_STARERASE
+{
+  LDX r_buf
+  LDA r_scnt,X
+  STA r_ecnt,X
+  STA r_k
+  STZ r_scnt,X
+  LDX #0
+  CPX r_k
+  BCS edone
+.el
+.^r_pt30 LDA r_s0y,X      \ byte address
+  STA RZ_PP
+.^r_pt31 LDA r_s0x,X
+  STA RZ_PP+1
+  LDA (RZ_PP)
+.^r_pt32 AND r_s0a,X      \ inverse mask
+  STA (RZ_PP)
+.^r_pt33 LDA r_s0b,X
+  CMP #&FF
+  BEQ en
+  LDY #8
+  AND (RZ_PP),Y
+  STA (RZ_PP),Y
+.en
+  INX
+  CPX r_k
+  BCC el
+.edone
+  RTS
+}
+R_ENDPAGE 23
+
+ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
+ASSERT r_s1a = r_s0a + &300 AND r_s1b = r_s0b + &300
+
+\ ============================================================================
+\ Per-buffer row arrays: buffer 1's are buffer 0's + &300 (R_SETBUF adds 3 to
+\ the high byte of every patched operand).
+\ ============================================================================
+.r_ta SKIP 192          \ polygon edge tables
+.r_tb SKIP 192
+
+\ the API arrays live in raster_vars.asm
+r_dl = R_DIRTYL0
+r_dr = R_DIRTYR0
+r_sl = R_DISCL0
+r_sr = R_DISCR0
+r_dl1 = R_DIRTYL1
+r_dr1 = R_DIRTYR1
+r_sl1 = R_DISCL1
+r_sr1 = R_DISCR1
+
+\ ============================================================================
+\ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
+\ (RZ_PP+1 and r_jsr+2).  Clobbers A.
+\ ============================================================================
+.r_rowset
+  STY RZ_Y
+  TYA
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  TYA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  TYA
+  LSR A
+  LSR A
+  LSR A
+  CLC
+  ADC #HI(r_run0)
+  STA RZ_PP+1
+  STA r_jsr+2
+  RTS
+
+\ ============================================================================
+\ r_spc: the span core.  Row set up (r_rowset), RZ_COL = colour byte,
+\ X = R_XL = left pixel, R_XR = right pixel, R_XL <= R_XR.  Clobbers A, X, Y,
+\ RZ_T7, RZ_PP.
+\ ============================================================================
+.r_spc
+{
+  TXA
+  EOR R_XR
+  CMP #4
+  BCC one                 \ both ends in one byte
+  LDY r_xo,X
+  CPX #&80
+  BCC la
+  LDA (RZ_PB),Y           \ left edge, columns 32..63
+  EOR RZ_COL
+  AND r_lm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  BRA run
+.la
+  LDA (RZ_PA),Y           \ left edge, columns 0..31
+  EOR RZ_COL
+  AND r_lm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+.run
+  LDA r_j,X               \ entry: column xl DIV 4 + 1
+  STA r_jsr+1
+  LDX R_XR
+  LDA r_j-4,X             \ plant: column xr DIV 4
+  CMP r_jsr+1
+  BEQ norun
+  STA RZ_PP
+  LDA #r_opRTS
+  STA (RZ_PP)
+  LDX RZ_PA
+  LDA RZ_COL
+.^r_jsr
+  JSR &FFFF
+  LDA #r_opSTA
+  STA (RZ_PP)
+  LDX R_XR
+.norun
+  LDY r_xo,X              \ right edge
+  CPX #&80
+  BCS rb
+  LDA (RZ_PA),Y
+  EOR RZ_COL
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  RTS
+.rb
+  LDA (RZ_PB),Y
+  EOR RZ_COL
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  RTS
+.one
+  LDY r_xo,X
+  LDA r_lm,X
+  LDX R_XR
+  AND r_rm,X
+  STA RZ_T7
+  CPX #&80
+  BCS ob
+  LDA (RZ_PA),Y
+  EOR RZ_COL
+  AND RZ_T7
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  RTS
+.ob
+  LDA (RZ_PB),Y
+  EOR RZ_COL
+  AND RZ_T7
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  RTS
+}
+
+\ ============================================================================
+\ R_SPAN: Y = row, R_XL..R_XR, colour pair R_COLE/R_COLO.
+\ ============================================================================
+
+\ ============================================================================
+\ R_SETBUF: A = buffer.  Patches every buffer-dependent operand.
+\ ============================================================================
+
+\ ============================================================================
+\ Pixel address: X = x, Y = y -> RZ_PP = address of the byte.  Keeps X, Y.
+\ ============================================================================
+
+\ ============================================================================
+\ r_pset: X = x, Y = y (inside the clip window): pixel in the colour pair's
+\ dither, extends DIRTY[y] and the buffer's row range.  Clobbers A; keeps X, Y.
+\ ============================================================================
+
+\ r_cyrow: extend the current buffer's row range by row Y (keeps X, Y)
+
+\ r_pclip: X = x, Y = y: r_pset (and row range) if inside the clip window
+
+\ ============================================================================
+\ R_DOT: X = x, Y = y, A = size (1 = 1x1, 2 = 2x1, 3 = 2x2)
+\ ============================================================================
+
+\ ============================================================================
+\ R_MARKDIRTY: Y = row, extend DIRTY[b][y] by R_XL..R_XR.
+\ ============================================================================
+
+\ ============================================================================
+\ Arithmetic.  r_div8: A / r_v0 -> r_m0 quotient, A remainder (clobbers X).
+\ r_div32: (r_m3..r_m0) / (r_v1,r_v0), needs r_m3,r_m2 < divisor -> quotient
+\ r_m1,r_m0, remainder r_m3,r_m2 (clobbers A, X).
+\ r_mul16: r_ma * r_mb -> r_m3..r_m0 (r_mb destroyed; clobbers A, X).
+\ ============================================================================
+.r_div8
+{
+  STA r_m1                \ remainder-to-be
+  STZ r_m0
+  LDA r_v0                \ divisor shifted up to just above the dividend
+  STA r_m2
+  STZ r_m3
+  LDX #0
+.up
+  INX
+  ASL r_m2
+  ROL r_m3
+  BNE dn
+  LDA r_m2
+  CMP r_m1
+  BCC up
+  BEQ up
+.dn
+  LSR r_m3                \ X quotient bits
+  ROR r_m2
+  ASL r_m0
+  LDA r_m1
+  CMP r_m2
+  BCC ns
+  SBC r_m2
+  STA r_m1
+  INC r_m0
+.ns
+  DEX
+  BNE dn
+  LDA r_m1
+  RTS
+}
+
+
+
+\ ============================================================================
+\ R_POLY
+\ ============================================================================
+.R_POLY
+{
+  LDA R_PN
+  BNE pn1
+  RTS
+.pn1
+  CMP #17
+  BCC n_ok
+  LDA #16
+.n_ok
+  STA r_n
+  \ fast path when every high byte is zero
+  TAX
+  DEX
+  LDA #0
+.hl
+  ORA R_PXH,X
+  ORA R_PYH,X
+  DEX
+  BPL hl
+  STA r_slow
+  TAX
+  BNE scan16
+  JMP r_pf8
+.scan16
+  LDA R_PYL
+  STA r_yminL
+  STA r_ymaxL
+  LDA R_PYH
+  STA r_yminH
+  STA r_ymaxH
+  STZ r_top
+  LDX #1
+  CPX r_n
+  BEQ rows
+.vl
+  LDA R_PYL,X             \ y < ymin ?
+  CMP r_yminL
+  LDA R_PYH,X
+  SBC r_yminH
+  BVC v1
+  EOR #&80
+.v1
+  BPL notless
+  LDA R_PYL,X
+  STA r_yminL
+  LDA R_PYH,X
+  STA r_yminH
+  STX r_top
+  BRA notmore
+.notless
+  LDA r_ymaxL             \ ymax < y ?
+  CMP R_PYL,X
+  LDA r_ymaxH
+  SBC R_PYH,X
+  BVC v2
+  EOR #&80
+.v2
+  BPL notmore
+  LDA R_PYL,X
+  STA r_ymaxL
+  LDA R_PYH,X
+  STA r_ymaxH
+.notmore
+  INX
+  CPX r_n
+  BNE vl
+.rows
+  \ row range
+  LDA r_yminH
+  BMI ys_ct
+  BNE out0                \ ymin > 255
+  LDA r_yminL
+  CMP R_CB
+  BEQ ys_ok
+  BCS out0                \ ymin > CB
+.ys_ok
+  CMP R_CT
+  BCS ys_set
+.ys_ct
+  LDA R_CT
+.ys_set
+  STA r_ystart
+  LDX r_ymaxH
+  BMI out0
+  BNE yl_cb
+  CMP r_ymaxL
+  BCS out0                \ ystart >= ymax : no rows
+  LDA r_ymaxL
+  DEC A
+  CMP R_CB
+  BCC yl_set
+.yl_cb
+  LDA R_CB
+.yl_set
+  STA r_ylast
+  INC A
+  STA r_yend
+  BRA go
+.out0
+  RTS
+.go
+  \ extend this buffer's row range
+  LDX r_buf
+  LDA r_ystart
+  CMP r_dyt,X
+  BCS c1
+  STA r_dyt,X
+.c1
+  LDA r_ylast
+  CMP r_dyb,X
+  BCC c2
+  STA r_dyb,X
+.c2
+  \ constants
+  LDA R_CR
+  INC A
+  STA r_cr1
+  LDA R_CB
+  INC A
+  STA r_cb1
+  LDA R_COLE
+  EOR R_COLO
+  STA r_cx
+  LDY r_ystart
+  JSR r_rowset
+  TYA
+  LSR A
+  LDA R_COLE
+  BCC ev
+  LDA R_COLO
+.ev
+  STA RZ_COL
+  LDA r_top
+  STA r_cidx
+  STA r_cidx+1
+  LDA r_n
+  STA r_ccnt
+  STA r_ccnt+1
+  LDX #0
+  JSR r_adv
+  BCS out0
+  LDX #1
+  JSR r_adv
+  BCS out0
+  JMP r_psl
+}
+
+\ ----------------------------------------------------------------------------
+\ r_adv: X = side (0: chain A walks forward, 1: chain B walks backward).
+\ Finds the side's next edge reaching below row RZ_Y and sets it up.
+\ C = 0: alive; C = 1: chain finished or row past the window (stop).
+\ ----------------------------------------------------------------------------
+.r_adv
+{
+  STX r_side
+  TXA
+  ASL A
+  ASL A
+  STA r_side4
+.lp
+  LDA RZ_Y
+  CMP r_yend
+  BCS dead
+  LDX r_side
+  LDA r_ccnt,X
+  BEQ dead
+  DEC r_ccnt,X
+  LDA r_cidx,X
+  STA r_i0
+  CPX #0
+  BNE back
+  INC A
+  CMP r_n
+  BCC got
+  LDA #0
+  BRA got
+.back
+  DEC A
+  BPL got
+  LDA r_n
+  DEC A
+.got
+  STA r_cidx,X
+  STA r_i1
+  TAY
+  LDA R_PYH,Y
+  BMI lp                  \ y1 < 0 <= row
+  BNE ok
+  LDA RZ_Y
+  CMP R_PYL,Y
+  BCS lp                  \ y1 <= row: no rows here
+.ok
+  LDA R_PYH,Y
+  BNE big
+  LDA R_PYL,Y
+  CMP r_cb1
+  BCC se
+.big
+  LDA r_cb1
+.se
+  STA r_cend,X
+  JSR r_eset
+  CLC
+  RTS
+.dead
+  SEC
+  RTS
+}
+
+\ ----------------------------------------------------------------------------
+\ r_eset: set up edge r_i0 -> r_i1 (y1 > row >= y0) for side r_side at row
+\ RZ_Y: x = x0 + ceil(dx*k/dy) with k = row - y0, kept as S and error t with
+\ dx*k = dy*(S-x0) - t, 0 <= t < dy; per row S += a, t -= b (a = floor(dx/dy),
+\ b = dx - a*dy), borrow: t += dy, S += 1.  Installs a, b, dy into the row loop.
+\ ----------------------------------------------------------------------------
+.r_eset
+{
+  LDY r_i0
+  LDX r_i1
+.^r_esgen
+  SEC
+  LDA R_PYL,X
+  SBC R_PYL,Y
+  STA r_edy
+  LDA R_PYH,X
+  SBC R_PYH,Y
+  STA r_edy+1
+  SEC
+  LDA RZ_Y
+  SBC R_PYL,Y
+  STA r_ek0
+  LDA #0
+  SBC R_PYH,Y
+  STA r_ek0+1
+  LDA R_PXL,Y
+  STA r_ex0
+  LDA R_PXH,Y
+  STA r_ex0+1
+  STZ r_eneg
+  SEC
+  LDA R_PXL,X
+  SBC R_PXL,Y
+  STA r_eadx
+  LDA R_PXH,X
+  SBC R_PXH,Y
+  STA r_eadx+1
+  BPL pos
+  DEC r_eneg
+  SEC
+  LDA #0
+  SBC r_eadx
+  STA r_eadx
+  LDA #0
+  SBC r_eadx+1
+  STA r_eadx+1
+.pos
+  \ q, r = adx / dy
+  LDA r_eadx
+  CMP r_edy
+  LDA r_eadx+1
+  SBC r_edy+1
+  BCS ndiv
+  LDA r_eadx
+  STA r_er
+  LDA r_eadx+1
+  STA r_er+1
+  STZ r_eq
+  STZ r_eq+1
+  BRA ddone
+.ndiv
+  LDA r_eadx+1
+  ORA r_edy+1
+  BNE d16
+  LDA r_edy
+  STA r_v0
+  LDA r_eadx
+  JSR r_div8
+  STA r_er
+  STZ r_er+1
+  LDA r_m0
+  STA r_eq
+  STZ r_eq+1
+  BRA ddone
+.d16
+  LDA r_eadx
+  STA r_m0
+  LDA r_eadx+1
+  STA r_m1
+  STZ r_m2
+  STZ r_m3
+  LDA r_edy
+  STA r_v0
+  LDA r_edy+1
+  STA r_v1
+  JSR r_div32
+  LDA r_m0
+  STA r_eq
+  LDA r_m1
+  STA r_eq+1
+  LDA r_m2
+  STA r_er
+  LDA r_m3
+  STA r_er+1
+.ddone
+  LDA r_eneg
+  BNE negab
+  LDA r_eq
+  STA r_ea
+  LDA r_eq+1
+  STA r_ea+1
+  LDA r_er
+  STA r_eb
+  LDA r_er+1
+  STA r_eb+1
+  BRA abdone
+.negab
+  LDA r_er
+  ORA r_er+1
+  BNE rnz
+  SEC                     \ a = -q, b = 0
+  LDA #0
+  SBC r_eq
+  STA r_ea
+  LDA #0
+  SBC r_eq+1
+  STA r_ea+1
+  STZ r_eb
+  STZ r_eb+1
+  BRA abdone
+.rnz
+  LDA r_eq                \ a = -q-1, b = dy - r
+  EOR #&FF
+  STA r_ea
+  LDA r_eq+1
+  EOR #&FF
+  STA r_ea+1
+  SEC
+  LDA r_edy
+  SBC r_er
+  STA r_eb
+  LDA r_edy+1
+  SBC r_er+1
+  STA r_eb+1
+.abdone
+  LDX r_side4
+  LDA r_ek0
+  ORA r_ek0+1
+  BNE k0nz
+  LDA r_ex0
+  STA RZ_SA,X
+  LDA r_ex0+1
+  STA RZ_SA+1,X
+  STZ RZ_TA,X
+  STZ RZ_TA+1,X
+  JMP install
+.k0nz                     \ clipped start: q2, r2 = adx*k / dy
+  LDA r_eadx
+  STA r_ma
+  LDA r_eadx+1
+  STA r_ma+1
+  LDA r_ek0
+  STA r_mb
+  LDA r_ek0+1
+  STA r_mb+1
+  JSR r_mul16
+  LDA r_edy
+  STA r_v0
+  LDA r_edy+1
+  STA r_v1
+  JSR r_div32
+  LDX r_side4
+  LDA r_eneg
+  BNE kneg
+  LDA r_m2
+  ORA r_m3
+  BEQ kz
+  SEC                     \ S = x0 + q2 + 1, t = dy - r2
+  LDA r_ex0
+  ADC r_m0
+  STA RZ_SA,X
+  LDA r_ex0+1
+  ADC r_m1
+  STA RZ_SA+1,X
+  SEC
+  LDA r_edy
+  SBC r_m2
+  STA RZ_TA,X
+  LDA r_edy+1
+  SBC r_m3
+  STA RZ_TA+1,X
+  JMP install
+.kz
+  CLC                     \ S = x0 + q2, t = 0
+  LDA r_ex0
+  ADC r_m0
+  STA RZ_SA,X
+  LDA r_ex0+1
+  ADC r_m1
+  STA RZ_SA+1,X
+  STZ RZ_TA,X
+  STZ RZ_TA+1,X
+  JMP install
+.kneg
+  SEC                     \ S = x0 - q2, t = r2
+  LDA r_ex0
+  SBC r_m0
+  STA RZ_SA,X
+  LDA r_ex0+1
+  SBC r_m1
+  STA RZ_SA+1,X
+  LDA r_m2
+  STA RZ_TA,X
+  LDA r_m3
+  STA RZ_TA+1,X
+.install
+  LDA r_slow
+  BNE islow
+  RTS
+.islow
+  LDA r_side
+  BNE isb
+  LDA r_eb
+  STA r_sbLA+1
+  LDA r_eb+1
+  STA r_sbHA+1
+  LDA r_edy
+  STA r_sdLA+1
+  LDA r_edy+1
+  STA r_sdHA+1
+  LDA r_ea
+  STA r_saLA+1
+  LDA r_ea+1
+  STA r_saHA+1
+  RTS
+.isb
+  LDA r_eb
+  STA r_sbLB+1
+  LDA r_eb+1
+  STA r_sbHB+1
+  LDA r_edy
+  STA r_sdLB+1
+  LDA r_edy+1
+  STA r_sdHB+1
+  LDA r_ea
+  STA r_saLB+1
+  LDA r_ea+1
+  STA r_saHB+1
+  RTS
+}
+
+
+\ ============================================================================
+\ R_POLY 8-bit path: every vertex x, y in 0..255.
+\ Phase A walks both chains from the top vertex, running each edge's exact
+\ DDA (x = x0 + ceil(dx*k/dy)) down a per-row table: chain A (forward) into
+\ r_ta, chain B (backward) into r_tb.  Phase B fills each row from the left
+\ table to the right one (exclusive), keeping the RTS planted in the current
+\ character row's store run until its position changes.
+\ ============================================================================
+.r_pf8
+{
+  LDA R_CR
+  INC A
+  STA r_cr1
+  LDX r_n
+  DEX
+  STX r_top
+  LDA R_PYL,X
+  STA r_yminL
+  STA r_ymaxL
+  STZ r_xclip
+.sc
+  LDA R_PYL,X
+  CMP r_yminL
+  BCS s1
+  STA r_yminL
+  STX r_top
+.s1
+  CMP r_ymaxL
+  BCC s2
+  STA r_ymaxL
+.s2
+  LDA R_PXL,X
+  CMP R_CL
+  BCC s3
+  CMP r_cr1
+  BCC s4
+.s3
+  INC r_xclip
+.s4
+  DEX
+  BPL sc
+  \ rows ystart..ylast
+  LDA r_yminL
+  CMP R_CT
+  BCS y1
+  LDA R_CT
+.y1
+  STA r_ystart
+  CMP r_ymaxL
+  BCS out
+  CMP R_CB
+  BEQ y2
+  BCS out
+.y2
+  LDA r_ymaxL
+  DEC A
+  CMP R_CB
+  BCC y3
+  LDA R_CB
+.y3
+  STA r_ylast
+  INC A
+  STA r_yend
+  \ chain A: forward into r_ta
+  LDA #LO(r_ta)
+  STA r_lsh_t+1
+  STA r_lz_t+1
+  LDA #HI(r_ta)
+  STA r_lsh_t+2
+  STA r_lz_t+2
+  LDA r_n
+  STA r_cc
+  LDX r_top
+.ca
+  LDA R_PYL,X
+  CMP r_ymaxL
+  BEQ cad
+  DEC r_cc
+  BMI cad
+  STX r_i0
+  INX
+  CPX r_n
+  BCC ca1
+  LDX #0
+.ca1
+  STX r_i1
+  JSR r_e8
+  LDX r_i1
+  BRA ca
+.out
+  RTS
+.cad
+  \ chain B: backward into r_tb
+  LDA #LO(r_tb)
+  STA r_lsh_t+1
+  STA r_lz_t+1
+  LDA #HI(r_tb)
+  STA r_lsh_t+2
+  STA r_lz_t+2
+  LDA r_n
+  STA r_cc
+  LDX r_top
+.cb
+  LDA R_PYL,X
+  CMP r_ymaxL
+  BEQ cbd
+  DEC r_cc
+  BMI cbd
+  STX r_i0
+  DEX
+  BPL cb1
+  LDX r_n
+  DEX
+.cb1
+  STX r_i1
+  JSR r_e8
+  LDX r_i1
+  BRA cb
+.cbd
+  \ which table is the left one?
+  LDA r_ystart
+  CLC
+  ADC r_ylast
+  ROR A
+  TAY
+  LDA r_ta,Y
+  CMP r_tb,Y
+  BCC aleft
+  BNE bleft
+  LDY r_ystart
+.os
+  LDA r_ta,Y
+  CMP r_tb,Y
+  BCC aleft
+  BNE bleft
+  INY
+  CPY r_yend
+  BCC os
+  RTS                     \ no pixels
+.aleft
+  LDX #0
+  BRA ori
+.bleft
+  LDX #2
+.ori
+  LDA otab,X
+  STA r_pbl1+1
+  LDA otab+1,X
+  STA r_pbl1+2
+  LDA otab+2,X
+  STA r_pbr1+1
+  STA r_pbr2+1
+  LDA otab+3,X
+  STA r_pbr1+2
+  STA r_pbr2+2
+  \ horizontal clip: clamp both tables into CL..CR+1
+  LDA r_xclip
+  BEQ nocl
+  LDY r_ystart
+.cl
+  LDA r_ta,Y
+  CMP R_CL
+  BCS cl1
+  LDA R_CL
+.cl1
+  CMP r_cr1
+  BCC cl2
+  LDA r_cr1
+.cl2
+  STA r_ta,Y
+  LDA r_tb,Y
+  CMP R_CL
+  BCS cl3
+  LDA R_CL
+.cl3
+  CMP r_cr1
+  BCC cl4
+  LDA r_cr1
+.cl4
+  STA r_tb,Y
+  INY
+  CPY r_yend
+  BCC cl
+.nocl
+  \ this buffer's dirty row range
+  LDX r_buf
+  LDA r_ystart
+  CMP r_dyt,X
+  BCS d1
+  STA r_dyt,X
+.d1
+  LDA r_ylast
+  CMP r_dyb,X
+  BCC d2
+  STA r_dyb,X
+.d2
+  \ phase B set-up
+  SEC
+  LDA r_yend
+  SBC r_ystart
+  STA RZ_SA               \ rows to do
+  LDA R_COLE
+  EOR R_COLO
+  STA RZ_SB
+  LDY r_ystart
+  JSR r_rowset
+  LDA RZ_PP+1
+  STA r_jsr2+2
+  LDA #190                \ nothing planted
+  STA RZ_PP
+  TYA
+  LSR A
+  LDA R_COLE
+  BCC ev
+  LDA R_COLO
+.ev
+  STA RZ_COL
+  JMP r_pb
+.otab
+  EQUW r_ta, r_tb, r_ta
+}
+
+\ r_e8: edge r_i0 -> r_i1 of an 8-bit polygon into the table at (RZ_T4)
+.r_e8
+{
+  LDY r_i0
+  LDX r_i1
+  LDA R_PYL,X
+  CMP R_PYL,Y
+  BCC out
+  BEQ out                 \ not going down
+  CMP r_yend
+  BCC e1
+  LDA r_yend
+.e1
+  STA RZ_T2               \ end row (exclusive)
+  CMP r_ystart
+  BEQ out
+  BCC out
+  LDA R_PYL,Y
+  CMP RZ_T2
+  BCS out
+  CMP r_ystart
+  BCS e2
+  JMP clipped
+.out
+  RTS
+.e2
+  STA RZ_T3               \ start row
+  SEC
+  LDA R_PYL,X
+  SBC R_PYL,Y
+  STA RZ_T1               \ dy
+  LDA R_PXL,Y
+  STA RZ_T0               \ S = x0
+  SEC
+  LDA R_PXL,X
+  SBC R_PXL,Y
+  BCC neg
+  CMP RZ_T1
+  BCS pdiv
+  TAX                     \ steep, a = 0, b = dx
+  LDA #0
+  CPX #0
+  BEQ z0
+  JMP shallow
+.z0
+  JMP zloop
+.pdiv
+  JSR r_dvq               \ A = r, r_m0 = q
+  TAX
+  BEQ pz
+  LDA r_m0
+  JMP shallow
+.pz
+  LDA r_m0
+  JMP zloop
+.neg
+  EOR #&FF
+  INC A                   \ adx
+  CMP RZ_T1
+  BCS ndiv
+  EOR #&FF                \ steep, a = -1, b = dy - adx
+  SEC
+  ADC RZ_T1
+  TAX
+  LDA #&FF                \ a = -1
+  JMP shallow
+.ndiv
+  JSR r_dvq
+  CMP #0
+  BNE nr
+  SEC                     \ a = -q
+  SBC r_m0
+  JMP zloop
+.nr
+  EOR #&FF                \ b = dy - r, a = NOT q
+  SEC
+  ADC RZ_T1
+  TAX
+  LDA r_m0
+  EOR #&FF
+  JMP shallow
+.clipped                  \ starts above the window: general set-up at ystart
+  LDA r_ystart
+  STA RZ_Y
+  STA RZ_T3
+  STZ r_side4
+  STZ r_side
+  JSR r_esgen             \ S, t -> RZ_SA, RZ_TA; a, b, dy -> r_ea, r_eb, r_edy
+  LDA RZ_SA
+  STA RZ_T0
+  LDA r_edy
+  STA RZ_T1
+  LDX r_eb
+  BNE c1
+  LDA r_ea
+  JMP zloop1
+.c1
+  LDA r_ea
+  JMP shallow1
+\ shallow: X = b, A = a
+.shallow
+  STZ RZ_TA
+.shallow1
+  DEC A
+  STA r_lsh_a+1
+  DEX
+  STX r_lsh_b+1
+  LDA RZ_T1
+  STA r_lsh_d+1
+  LDA RZ_T2
+  STA r_lsh_e+1
+  LDY RZ_T3
+  LDA RZ_T0
+  CLC
+  JMP r_lsh
+\ b = 0: A = a
+.zloop
+.zloop1
+  STA r_lz_a+1
+  LDA RZ_T2
+  STA r_lz_e+1
+  LDY RZ_T3
+  LDA RZ_T0
+  CLC
+  JMP r_lz
+}
+
+
+\ r_dvq: A / RZ_T1 (A >= RZ_T1 >= 1) -> r_m0 quotient, A remainder.
+\ Repeated subtraction when the quotient is small (divisor >= 16).
+.r_dvq
+{
+  LDX RZ_T1
+  CPX #16
+  BCC small
+  LDX #&FF                \ divisor >= 16: quotient < 16
+  SEC
+.lp
+  INX
+  SBC RZ_T1
+  BCS lp
+  ADC RZ_T1
+  STX r_m0
+  RTS
+.small
+  STA RZ_T6               \ divisor < 16: quotient < 16 unless A >= 16 * d
+  TXA
+  ASL A
+  ASL A
+  STA RZ_T7               \ 4d
+  ASL A
+  ASL A                   \ 16d (< 256)
+  CMP RZ_T6
+  BEQ long
+  BCC long
+  LDA RZ_T6
+  LDX #&FC
+  SEC
+.l4
+  INX
+  INX
+  INX
+  INX
+  SBC RZ_T7
+  BCS l4
+  ADC RZ_T7
+  DEX
+.l1
+  INX
+  SBC RZ_T1
+  BCS l1
+  ADC RZ_T1
+  STX r_m0
+  RTS
+.long
+  LDA RZ_T6
+  LDX RZ_T1
+  STX r_v0
+  JMP r_div8
+}
+
+\ The DDA loops (Y = row, run to the patched end row)
+.r_lsh                    \ |dx| >= dy: A = x, RZ_TA = error
+.r_lsh_t
+  STA &FFFF,Y
+  INY
+  TAX
+  LDA RZ_TA
+.r_lsh_b
+  SBC #0                  \ b - 1 (C = 0)
+  BCS lsh1
+.r_lsh_d
+  ADC #0                  \ dy
+  INX
+.lsh1
+  STA RZ_TA
+  TXA
+.r_lsh_a
+  ADC #0                  \ a - 1 (C = 1)
+.r_lsh_e
+  CPY #0
+  BCC r_lsh
+  RTS
+.r_lz                     \ b = 0: A = x
+.r_lz_t
+  STA &FFFF,Y
+  INY
+.r_lz_a
+  ADC #0                  \ a (C = 0)
+.r_lz_e
+  CPY #0
+  BCC r_lz
+  RTS
+
+\ ----------------------------------------------------------------------------
+\ Phase B: rows RZ_Y.., RZ_SA of them; left table r_pbl1, right (exclusive)
+\ r_pbr1/r_pbr2.  Row pointers, run page (RZ_PP+1, r_jsr2+2), RZ_COL set;
+\ RZ_PP = the planted RTS (190: none).
+\ ----------------------------------------------------------------------------
+.pb_one
+  LDY r_xo,X
+  LDA r_lm,X
+  LDX R_XR
+  AND r_rm,X
+  STA RZ_T7
+  CPX #&80
+  BCS pb_ob
+  LDA (RZ_PA),Y
+  EOR RZ_COL
+  AND RZ_T7
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  JMP pb_skip
+.pb_ob
+  LDA (RZ_PB),Y
+  EOR RZ_COL
+  AND RZ_T7
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  JMP pb_skip
+.r_pb
+  LDY RZ_Y
+.r_pbl1
+  LDA &FFFF,Y
+.r_pbr1
+  CMP &FFFF,Y
+  BCS pb_skip
+  STA R_XL
+  TAX
+.r_pt60 CMP r_dl,Y
+  BCS pb_d1
+.r_pt61 STA r_dl,Y
+.pb_d1
+.r_pbr2
+  LDA &FFFF,Y
+  DEC A
+  STA R_XR
+.r_pt62 CMP r_dr,Y
+  BCC pb_d2
+.r_pt63 STA r_dr,Y
+.pb_d2
+  EOR R_XL
+  CMP #4
+  BCC pb_one
+  LDY r_xo,X
+  CPX #&80
+  BCS pb_lb
+  LDA (RZ_PA),Y
+  EOR RZ_COL
+  AND r_lm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+.pb_l2
+  LDA r_j,X
+  STA r_jsr2+1
+  LDX R_XR
+  LDA r_j-4,X
+  CMP r_jsr2+1
+  BEQ pb_norun
+  CMP RZ_PP
+  BNE pb_plant
+.pb_go
+  LDX RZ_PA
+  LDA RZ_COL
+.r_jsr2
+  JSR &FFFF
+  LDX R_XR
+.pb_norun
+  LDY r_xo,X
+  CPX #&80
+  BCS pb_rb
+  LDA (RZ_PA),Y
+  EOR RZ_COL
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+.pb_skip
+  DEC RZ_SA
+  BEQ pb_end
+  INC RZ_Y
+  LDA RZ_COL
+  EOR RZ_SB               \ COLE EOR COLO
+  STA RZ_COL
+  INC RZ_PA
+  INC RZ_PB
+  LDA RZ_PA
+  CMP #8
+  BEQ pb_cr
+  JMP r_pb
+.pb_end
+  LDA #r_opSTA            \ take the RTS out again
+  STA (RZ_PP)
+  RTS
+.pb_lb
+  LDA (RZ_PB),Y
+  EOR RZ_COL
+  AND r_lm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  BRA pb_l2
+.pb_rb
+  LDA (RZ_PB),Y
+  EOR RZ_COL
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  BRA pb_skip
+.pb_plant
+  TAY
+  LDA #r_opSTA
+  STA (RZ_PP)
+  STY RZ_PP
+  LDA #r_opRTS
+  STA (RZ_PP)
+  BRA pb_go
+.pb_cr
+  LDA #r_opSTA            \ next character row: new run page
+  STA (RZ_PP)
+  LDA #190
+  STA RZ_PP
+  STZ RZ_PA
+  STZ RZ_PB
+  LDA RZ_PA+1
+  CLC
+  ADC #2
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  INC RZ_PP+1
+  INC r_jsr2+2
+  JMP r_pb
+
+\ ----------------------------------------------------------------------------
+\ Slow row loop: 16-bit edge x.
+\ ----------------------------------------------------------------------------
+.r_psl
+  LDA RZ_SA
+  CMP RZ_SB
+  LDA RZ_SA+1
+  SBC RZ_SB+1
+  BVC ps_v
+  EOR #&80
+.ps_v
+  BMI ps_al
+  LDA RZ_SB
+  STA RZ_T0
+  LDA RZ_SB+1
+  STA RZ_T1
+  LDA RZ_SA
+  STA RZ_T2
+  LDA RZ_SA+1
+  STA RZ_T3
+  BRA ps_lr
+.ps_al
+  LDA RZ_SA
+  STA RZ_T0
+  LDA RZ_SA+1
+  STA RZ_T1
+  LDA RZ_SB
+  STA RZ_T2
+  LDA RZ_SB+1
+  STA RZ_T3
+.ps_lr
+  LDA RZ_T3
+  BMI ps_skip
+  BNE ps_rbig
+  LDX RZ_T2
+  BRA ps_r
+.ps_rbig
+  LDX r_cr1
+.ps_r
+  LDA RZ_T1
+  BMI ps_lcl
+  BNE ps_skip
+  LDA RZ_T0
+  BRA ps_l
+.ps_lcl
+  LDA R_CL
+.ps_l
+  CMP R_CL
+  BCS ps_c1
+  LDA R_CL
+.ps_c1
+  STA R_XL
+  CPX r_cr1
+  BCC ps_c2
+  LDX r_cr1
+.ps_c2
+  STX R_XR
+  CMP R_XR
+  BCS ps_skip
+  DEC R_XR
+  TAX
+  JSR r_spc
+  LDY RZ_Y
+  LDA R_XL
+.r_pt13 CMP r_dl,Y
+  BCS ps_d1
+.r_pt14 STA r_dl,Y
+.ps_d1
+  LDA R_XR
+.r_pt15 CMP r_dr,Y
+  BCC ps_skip
+.r_pt16 STA r_dr,Y
+.ps_skip
+  LDA RZ_TA
+  SEC
+.r_sbLA SBC #0
+  STA RZ_TA
+  LDA RZ_TA+1
+.r_sbHA SBC #0
+  STA RZ_TA+1
+  BCS ps_a1
+  LDA RZ_TA
+.r_sdLA ADC #0
+  STA RZ_TA
+  LDA RZ_TA+1
+.r_sdHA ADC #0
+  STA RZ_TA+1
+  BRA ps_a2
+.ps_a1
+  CLC
+.ps_a2
+  LDA RZ_SA
+.r_saLA ADC #0
+  STA RZ_SA
+  LDA RZ_SA+1
+.r_saHA ADC #0
+  STA RZ_SA+1
+  LDA RZ_TB
+  SEC
+.r_sbLB SBC #0
+  STA RZ_TB
+  LDA RZ_TB+1
+.r_sbHB SBC #0
+  STA RZ_TB+1
+  BCS ps_b1
+  LDA RZ_TB
+.r_sdLB ADC #0
+  STA RZ_TB
+  LDA RZ_TB+1
+.r_sdHB ADC #0
+  STA RZ_TB+1
+  BRA ps_b2
+.ps_b1
+  CLC
+.ps_b2
+  LDA RZ_SB
+.r_saLB ADC #0
+  STA RZ_SB
+  LDA RZ_SB+1
+.r_saHB ADC #0
+  STA RZ_SB+1
+  INC RZ_Y
+  LDA RZ_COL
+  EOR r_cx
+  STA RZ_COL
+  LDA RZ_PA
+  INC A
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  BNE ps_nr
+  LDA RZ_PA+1
+  CLC
+  ADC #2
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  INC RZ_PP+1
+  INC r_jsr+2
+.ps_nr
+  LDA RZ_Y
+  CMP r_cend
+  BNE ps_e1
+  LDX #0
+  JSR r_adv
+  BCS ps_done
+  LDA RZ_Y
+.ps_e1
+  CMP r_cend+1
+  BNE ps_e2
+  LDX #1
+  JSR r_adv
+  BCS ps_done
+.ps_e2
+  JMP r_psl
+.ps_done
+  RTS
+
+\ ============================================================================
+\ R_DISCROWS
+\ ============================================================================
+.R_DISCROWS
+{
+  LDA R_NDT
+  CMP R_CT
+  BCS t1
+  LDA R_CT
+.t1
+  STA r_nt
+  LDA R_NDB
+  CMP R_CB
+  BCC t2
+  LDA R_CB
+.t2
+  STA r_nb
+  CMP r_nt
+  BCS t3
+  LDA #&FF
+  STA r_nt
+  STZ r_nb
+.t3
+  \ clear last frame's WL/WR rows
+  LDX r_wt
+  CPX r_wb
+  BEQ wc
+  BCS wcd
+.wc
+  STZ R_WR,X
+  CPX r_wb
+  INX
+  BCC wc
+.wcd
+  LDA #&FF
+  STA r_wt
+  STZ r_wb
+  \ lo..hi = old disc rows + dirty rows + new disc rows
+  LDX r_buf
+  LDA r_dst,X
+  CMP r_dyt,X
+  BCC t4
+  LDA r_dyt,X
+.t4
+  CMP r_nt
+  BCC t5
+  LDA r_nt
+.t5
+  STA r_lo
+  LDA r_dsb,X
+  CMP r_dyb,X
+  BCS t6
+  LDA r_dyb,X
+.t6
+  CMP r_nb
+  BCS t7
+  LDA r_nb
+.t7
+  STA r_hi
+  LDA r_dyt,X             \ dirty rows (for the loop split)
+  STA r_dya
+  LDA r_dyb,X
+  STA r_dyz
+  LDA r_nt
+  STA r_dst,X
+  LDA r_nb
+  STA r_dsb,X
+  LDA #&FF
+  STA r_dyt,X
+  STZ r_dyb,X
+  LDA r_hi
+  CMP r_lo
+  BCS go
+  JMP stars
+.go
+  \ rows of lo..hi outside nt..nb: new = empty
+  LDX r_lo
+.pf1
+  CPX r_nt
+  BCS pf2
+  LDA #&FF
+  STA R_NDISCL,X
+  STZ R_NDISCR,X
+  CPX r_hi
+  INX
+  BCC pf1
+.pf2
+  LDX r_nb
+  INX
+  CPX r_lo
+  BCS pf3
+  LDX r_lo
+.pf3
+  CPX r_hi
+  BEQ pf4
+  BCS pf5
+.pf4
+  LDA #&FF
+  STA R_NDISCL,X
+  STZ R_NDISCR,X
+  INX
+  BNE pf3
+.pf5
+  \ split lo..hi at the dirty rows: A-loop (no dirty) / B-loop
+  LDA r_dyz
+  CMP r_dya
+  BCC alla                \ no dirty rows
+  LDA r_dya               \ clip the dirty rows to lo..hi
+  CMP r_lo
+  BCS s1
+  LDA r_lo
+  STA r_dya
+.s1
+  LDA r_dyz
+  CMP r_hi
+  BCC s2
+  LDA r_hi
+  STA r_dyz
+.s2
+  LDX r_lo                \ lo .. dyt-1
+  LDA r_dya
+  JSR r_dla
+  LDX r_dya               \ dyt .. dyb
+  LDA r_dyz
+  INC A
+  JSR r_dlb
+  LDX r_dyz               \ dyb+1 .. hi
+  INX
+  BRA tail
+.alla
+  LDX r_lo
+.tail
+  LDA r_hi
+  INC A
+  JSR r_dla
+.stars
+  \ erased star bytes -> WL/WR (row and columns from the byte address)
+  LDX r_buf
+  LDA r_ecnt,X
+  STA r_k
+  STZ r_ecnt,X
+  LDX #0
+.ml
+  CPX r_k
+  BCS mdone
+  STX r_si
+.^r_pt28 LDA r_s0x,X      \ high byte: &40 + 2 * (row DIV 8) + (column >= 32)
+  STA RZ_T1
+  AND #&3E
+  ASL A
+  ASL A
+  STA RZ_T0
+.^r_pt29 LDA r_s0y,X      \ low byte: 8 * (column AND 31) + (row AND 7)
+  TAY
+  AND #7
+  ORA RZ_T0
+  STA RZ_T0               \ row
+  TYA
+  LSR A
+  LSR A
+  LSR A
+  LSR RZ_T1
+  BCC m0
+  ORA #32
+.m0
+  ASL A
+  ASL A
+  STA RZ_T2               \ first pixel of the byte
+  ORA #3
+  TAY
+.^r_pt56 LDA r_s0b,X
+  CMP #&FF
+  BEQ m1
+  INY                     \ and the next byte
+  INY
+  INY
+  INY
+.m1
+  CPY R_CR
+  BCC m2
+  LDY R_CR
+.m2
+  TYA
+  TAX
+  LDA RZ_T2
+  CMP R_CL
+  BCS m3
+  LDA R_CL
+.m3
+  LDY RZ_T0
+  JSR r_wlu
+  LDX r_si
+  INX
+  BRA ml
+.mdone
+  RTS
+}
+
+
+\ r_dp1: Y = row with dirty extent and no disc (old or new)
+
+\ r_dla: rows X .. A-1 with no dirty extent.  r_dlb: rows X .. A-1, any.
+.r_dla
+{
+  STA end+1
+  CPX end+1
+  BCS done
+.lp
+  LDA R_NDISCL,X
+.^r_pt26 CMP r_sl,X
+  BNE ch
+  LDA R_NDISCR,X
+.^r_pt27 CMP r_sr,X
+  BNE ch
+.nx
+  INX
+.end
+  CPX #0
+  BNE lp
+.done
+  RTS
+.ch
+  JSR r_dp2
+  LDX RZ_Y
+  BRA nx
+}
+
+.r_dlb
+{
+  STA end+1
+  CPX end+1
+  BCS done
+.lp
+.^r_pt25 LDA r_dl,X
+  INC A
+  BNE gd                  \ dirty
+  LDA R_NDISCL,X
+.^r_pt54 CMP r_sl,X
+  BNE ch
+  LDA R_NDISCR,X
+.^r_pt55 CMP r_sr,X
+  BNE ch
+.nx
+  INX
+.end
+  CPX #0
+  BNE lp
+.done
+  RTS
+.ch
+  JSR r_dp2
+  LDX RZ_Y
+  BRA nx
+.gd
+  TXA
+  TAY
+  LDA R_NDISCL,Y
+.^r_pt45 AND r_sl,Y
+  INC A
+  BNE gg
+  JSR r_dp1               \ no disc, old or new: black the dirty extent
+  LDX RZ_Y
+  BRA nx
+.gg
+  JSR r_drg
+  LDX RZ_Y
+  BRA nx
+}
+
+\ r_dp2: X = row, dirty empty, disc changed.  The old disc is intact, so
+\ when the bytes between each old and new end lie inside the window and the
+\ two ends' bytes are apart, those bytes are simply rewritten (black, disc,
+\ or the disc masked at the new end) without reading the screen.  Otherwise
+\ r_drg.
+.r_dp2g
+  TXA
+  TAY
+  JMP r_drg
+.r_dp2
+{
+  STX RZ_Y
+.^r_pt50 LDA r_sl,X
+  STA RZ_T0               \ oL
+  LDA R_NDISCL,X
+  STA RZ_T2               \ nL
+  CMP RZ_T0
+  BCC l1
+  LDY RZ_T0               \ Y = min L, A = max L
+  BRA l2
+.l1
+  TAY
+  LDA RZ_T0
+.l2
+  STY RZ_T6
+  ORA #3
+  STA RZ_T4               \ last pixel of the left ends' bytes
+.^r_pt51 LDA r_sr,X
+  STA RZ_T1               \ oR
+  LDA R_NDISCR,X
+  STA RZ_T3               \ nR
+  CMP RZ_T1
+  BCC r1
+  TAY                     \ Y = max R, A = min R
+  LDA RZ_T1
+  BRA r2
+.r1
+  LDY RZ_T1
+.r2
+  STY RZ_T7
+  CMP RZ_T4
+  BEQ r_dp2g
+  BCC r_dp2g                 \ ends' bytes meet (or a span is empty)
+  AND #&FC
+  STA RZ_COL              \ first pixel of the right ends' bytes
+  LDA RZ_T2               \ a moving end's bytes must lie in the window
+  CMP RZ_T0
+  BEQ ok1
+  LDA RZ_T6
+  AND #&FC
+  CMP R_CL
+  BCC r_dp2g
+.ok1
+  LDA RZ_T3
+  CMP RZ_T1
+  BEQ ok
+  LDA RZ_T7
+  ORA #3
+  CMP R_CR
+  BEQ ok
+  BCS r_dp2g
+.ok
+  LDA RZ_T2
+.^r_pt53 STA r_sl,X
+  LDA RZ_T3
+.^r_pt52 STA r_sr,X
+  TXA                     \ row pointers
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  TXA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  TXA
+  LSR A
+  LDA R_DCE
+  BCC ev
+  LDA R_DCO
+.ev
+  STA RZ_T5               \ disc colour of this row
+  \ left end
+  LDA RZ_T6
+  AND #&FC
+  STA r_wmin
+  LDA RZ_T2
+  CMP RZ_T0
+  BEQ lsame
+  LDX RZ_T2               \ the new end's byte: disc from nL on
+  LDA r_lm,X
+  AND RZ_T5
+  LDY r_xo,X
+  CPX #&80
+  BCS lb1
+  STA (RZ_PA),Y
+  BRA lb2
+.lb1
+  STA (RZ_PB),Y
+.lb2
+  LDA RZ_T2
+  EOR RZ_T0
+  CMP #4
+  BCC right
+  LDA RZ_T6               \ adjacent bytes?
+  AND #&FC
+  ADC #6                  \ (C = 1)
+  CMP RZ_T4
+  BNE lfar
+  LDA RZ_T2               \ the old end's byte is next to it
+  CMP RZ_T0
+  LDX RZ_T0
+  LDA #0                  \ shrinking: that byte black
+  BCS lnb
+  LDA RZ_T5               \ growing: all disc
+.lnb
+  JSR r_bput
+  BRA right
+.lfar
+  LDA RZ_T2               \ and the bytes up to the old end
+  CMP RZ_T0
+  BCC lgrow
+  SBC #4                  \ shrinking: black oL .. nL-4
+  STA r_fe
+  LDX RZ_T0
+  LDA #0
+  BRA lfill
+.lgrow
+  ADC #4                  \ growing: disc nL+4 .. oL
+  TAX
+  LDA RZ_T0
+  STA r_fe
+  LDA RZ_T5
+.lfill
+  JSR r_fill
+  BRA right
+.lsame
+  LDA RZ_COL
+  STA r_wmin
+.right
+  LDA RZ_T7
+  ORA #3
+  STA r_wmax
+  LDA RZ_T3
+  CMP RZ_T1
+  BEQ rsame
+  LDX RZ_T3               \ the new end's byte: disc up to nR
+  LDA r_rm,X
+  AND RZ_T5
+  LDY r_xo,X
+  CPX #&80
+  BCS rb1
+  STA (RZ_PA),Y
+  BRA rb2
+.rb1
+  STA (RZ_PB),Y
+.rb2
+  LDA RZ_T3
+  EOR RZ_T1
+  CMP #4
+  BCC fin
+  LDA RZ_T7               \ adjacent bytes?
+  ORA #3
+  SBC #7                  \ (C = 1)
+  CMP RZ_COL
+  BNE rfar
+  LDA RZ_T3               \ the old end's byte is next to it
+  CMP RZ_T1
+  LDX RZ_T1
+  LDA #0                  \ shrinking: that byte black
+  BCC rnb
+  LDA RZ_T5               \ growing: all disc
+.rnb
+  JSR r_bput
+  BRA fin
+.rfar
+  LDA RZ_T3
+  CMP RZ_T1
+  BCS rgrow
+  ADC #4                  \ shrinking: black nR+4 .. oR
+  TAX
+  LDA RZ_T1
+  STA r_fe
+  LDA #0
+  BRA rfill
+.rgrow
+  LDX RZ_T1               \ growing: disc oR .. nR-4
+  SBC #4
+  STA r_fe
+  LDA RZ_T5
+.rfill
+  JSR r_fill
+  BRA fin
+.rsame
+  LDA RZ_T4
+  STA r_wmax
+.fin
+  LDY RZ_Y
+  LDA r_wmin
+  STA R_WL,Y
+  LDA r_wmax
+  STA R_WR,Y
+  CPY r_wt
+  BCS w1
+  STY r_wt
+.w1
+  STY r_wb                \ rows go upwards
+  RTS
+}
+
+\ r_bput: A -> the byte holding pixel X of the row at RZ_PA/RZ_PB (keeps X)
+.r_bput
+  LDY r_xo,X
+  CPX #&80
+  BCS bp1
+  STA (RZ_PA),Y
+  RTS
+.bp1
+  STA (RZ_PB),Y
+  RTS
+
+\ r_fill: A -> the bytes of the row from the one holding pixel X to the one
+\ holding pixel r_fe (X <= r_fe)
+.r_fill
+{
+  PHA
+  TXA
+  EOR r_fe
+  BMI cross               \ crosses column 32: byte by byte
+  LDY r_fe
+  LDA r_xo,Y
+  STA r_fo
+  LDY r_xo,X
+  PLA
+  CPX #&80
+  BCS hi
+.lo
+  STA (RZ_PA),Y
+  CPY r_fo
+  BEQ done
+  INY
+  INY
+  INY
+  INY
+  INY
+  INY
+  INY
+  INY
+  BRA lo
+.hi
+  STA (RZ_PB),Y
+  CPY r_fo
+  BEQ done
+  INY
+  INY
+  INY
+  INY
+  INY
+  INY
+  INY
+  INY
+  BRA hi
+.done
+  RTS
+.cross
+  PLA
+.cl
+  PHA
+  JSR r_bput
+  TXA
+  ORA #3
+  CMP r_fe
+  BCS cdone
+  TXA
+  CLC
+  ADC #4
+  TAX
+  PLA
+  BRA cl
+.cdone
+  PLA
+  RTS
+}
+
+\ r_drg: general disc row, Y = row
+.r_drg
+{
+  JSR r_rowset
+  LDA #&FF
+  STA r_wmin
+  STZ r_wmax
+  TYA
+  LSR A
+  LDA R_DCE
+  BCC e
+  LDA R_DCO
+.e
+  STA r_dcol
+.^r_pt17 LDA r_sl,Y
+  STA r_oL
+.^r_pt18 LDA r_sr,Y
+  STA r_oR
+.^r_pt19 LDA r_dl,Y
+  STA r_dL
+.^r_pt20 LDA r_dr,Y
+  STA r_dR
+  LDA R_NDISCL,Y
+  CMP R_CL
+  BCS n1
+  LDA R_CL
+.n1
+  STA r_nL
+  LDA R_NDISCR,Y
+  CMP R_CR
+  BCC n2
+  LDA R_CR
+.n2
+  STA r_nR
+  CMP r_nL
+  BCS n3
+  LDA #&FF
+  STA r_nL
+  STZ r_nR
+.n3
+.gen1
+  \ intact = old - dirty (the larger piece)
+  LDA r_oR
+  CMP r_oL
+  BCC iempty
+  LDA r_dR
+  CMP r_dL
+  BCC iwhole
+  LDA r_dR
+  CMP r_oL
+  BCC iwhole
+  LDA r_oR
+  CMP r_dL
+  BCC iwhole
+  LDA r_dL
+  SEC
+  SBC r_oL
+  BCS i1
+  LDA #0
+.i1
+  STA r_tl
+  LDA r_oR
+  SEC
+  SBC r_dR
+  BCS i2
+  LDA #0
+.i2
+  CMP r_tl
+  BEQ usel
+  BCC usel
+  LDX r_dR
+  INX
+  STX r_iL
+  LDA r_oR
+  STA r_iR
+  BRA idone
+.usel
+  LDA r_tl
+  BEQ iempty
+  LDA r_oL
+  STA r_iL
+  LDX r_dL
+  DEX
+  STX r_iR
+  BRA idone
+.iwhole
+  LDA r_oL
+  STA r_iL
+  LDA r_oR
+  STA r_iR
+  BRA idone
+.iempty
+  LDA #&FF
+  STA r_iL
+  STZ r_iR
+.idone
+  \ disc colour on new - intact
+  LDA r_nR
+  CMP r_nL
+  BCC nodisc
+  LDA r_dcol
+  STA RZ_COL
+  LDA r_iR
+  CMP r_iL
+  BCC full
+  LDA r_iR
+  CMP r_nL
+  BCC full
+  LDA r_nR
+  CMP r_iL
+  BCC full
+  LDA r_nL
+  CMP r_iL
+  BCS d2
+  LDX r_iL
+  DEX
+  JSR r_dw
+.d2
+  LDA r_iR
+  CMP r_nR
+  BCS nodisc
+  INC A
+  LDX r_nR
+  JSR r_dw
+  BRA nodisc
+.full
+  LDA r_nL
+  LDX r_nR
+  JSR r_dw
+.nodisc
+  \ black on (old + dirty) - new
+  STZ RZ_COL
+  LDA r_oR
+  CMP r_oL
+  BCC oe
+  LDA r_dR
+  CMP r_dL
+  BCC de
+  LDX r_oR
+  INX
+  CPX r_dL
+  BCC sep
+  LDX r_dR
+  INX
+  CPX r_oL
+  BCC sep
+  LDA r_oL
+  CMP r_dL
+  BCC h1
+  LDA r_dL
+.h1
+  STA r_ba
+  LDA r_oR
+  CMP r_dR
+  BCS h2
+  LDA r_dR
+.h2
+  STA r_bb
+  JSR r_bmn
+  BRA fin
+.sep
+  LDA r_dL
+  STA r_ba
+  LDA r_dR
+  STA r_bb
+  JSR r_bmn
+.de
+  LDA r_oL
+  STA r_ba
+  LDA r_oR
+  STA r_bb
+  JSR r_bmn
+  BRA fin
+.oe
+  LDA r_dR
+  CMP r_dL
+  BCC fin
+  LDA r_dL
+  STA r_ba
+  LDA r_dR
+  STA r_bb
+  JSR r_bmn
+.fin
+  LDY RZ_Y
+  LDA r_nL
+.^r_pt21 STA r_sl,Y
+  LDA r_nR
+.^r_pt22 STA r_sr,Y
+  LDA #&FF
+.^r_pt23 STA r_dl,Y
+  LDA #0
+.^r_pt24 STA r_dr,Y
+  LDA r_wmax
+  STA R_WR,Y
+  BEQ nw
+  LDA r_wmin
+  STA R_WL,Y
+  CPY r_wt
+  BCS w1
+  STY r_wt
+.w1
+  CPY r_wb
+  BCC nw
+  STY r_wb
+.nw
+  RTS
+}
+
+\ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
+.r_dw
+{
+  STA R_XL
+  STX R_XR
+  CMP r_wmin
+  BCS w1
+  STA r_wmin
+.w1
+  CPX r_wmax
+  BCC w2
+  STX r_wmax
+.w2
+  LDX R_XL
+  JMP r_spc
+}
+
+\ r_wlu: Y = row, A = xmin, X = xmax: WL/WR[y] |= [A, X]; extends r_wt/r_wb.
+\ Keeps Y.
+
+\ ============================================================================
+\ R_WMERGE: WL/WR |= DIRTY[b] over the clip rows.
+\ ============================================================================
+
+\ ============================================================================
+\ R_CLEARALL: black the clip window, reset the current buffer's state.
+\ ============================================================================
+.R_CLEARALL
+{
+  STZ RZ_COL
+  LDY R_CT
+.cl
+  JSR r_rowset
+  LDA R_CL
+  STA R_XL
+  LDA R_CR
+  STA R_XR
+  LDX R_CL
+  JSR r_spc
+  LDY RZ_Y
+  CPY R_CB
+  BCS cdone
+  INY
+  BRA cl
+.cdone
+  JSR R_RESETBUF
+  LDY R_CT                \ WL/WR: the whole window was written
+.cw
+  LDA R_CL
+  STA R_WL,Y
+  LDA R_CR
+  STA R_WR,Y
+  CPY R_CB
+  INY
+  BCC cw
+  LDA R_CT
+  CMP r_wt
+  BCS w1
+  STA r_wt
+.w1
+  LDA R_CB
+  CMP r_wb
+  BCC w2
+  STA r_wb
+.w2
+  RTS
+}
+
+\ ============================================================================
+\ R_RESETBUF: forget all of the current buffer's state (no dirty extents, no
+\ disc, no stars) without touching the screen; the caller guarantees that
+\ the clip window of this buffer is black.  R_INIT need not be called again.
+\ ============================================================================
+.R_RESETBUF
+{
+  LDY #191
+.cs
+  LDA #&FF
+.^r_pt38 STA r_dl,Y
+.^r_pt39 STA r_sl,Y
+  LDA #0
+.^r_pt40 STA r_dr,Y
+.^r_pt41 STA r_sr,Y
+  DEY
+  CPY #&FF
+  BNE cs
+  LDX r_buf
+  LDA #&FF
+  STA r_dyt,X
+  STA r_dst,X
+  STZ r_dyb,X
+  STZ r_dsb,X
+  STZ r_scnt,X
+  STZ r_ecnt,X
+  RTS
+}
+
+\ ============================================================================
+\ R_INIT
+\ ============================================================================
+.R_INIT
+{
+  LDA #1
+  STA R_CL
+  STA R_CT
+  LDA #254
+  STA R_CR
+  LDA #191
+  STA R_CB
+  LDA #&FF
+  STA R_SCOL
+  STA R_NDT
+  STZ R_NDB
+  STZ R_SN
+  STZ R_PN
+  LDA #0
+  JSR R_SETBUF
+  LDY #191
+.il
+  LDA #&FF                \ nopatch: both buffers explicitly
+  STA r_dl,Y              \ nopatch
+  STA r_sl,Y              \ nopatch
+  STA r_dl1,Y
+  STA r_sl1,Y
+  STA R_WL,Y
+  LDA #0
+  STA r_dr,Y              \ nopatch
+  STA r_sr,Y              \ nopatch
+  STA r_dr1,Y
+  STA r_sr1,Y
+  STA R_WR,Y
+  DEY
+  CPY #&FF
+  BNE il
+  LDX #1
+.ib
+  LDA #&FF
+  STA r_dyt,X
+  STA r_dst,X
+  STZ r_dyb,X
+  STZ r_dsb,X
+  STZ r_scnt,X
+  STZ r_ecnt,X
+  DEX
+  BPL ib
+  LDA #&FF
+  STA r_wt
+  STZ r_wb
+  RTS
+}
+
+\ ============================================================================
+\ Stars
+\ ============================================================================
+
+.R_STARPLOT
+{
+  STZ r_k
+  STZ RZ_TA+1
+.sl
+  LDX RZ_TA+1
+  CPX R_SN
+  BCS sdone
+  CPX #24
+  BCS sdone
+  LDA R_SX,X
+  STA RZ_SA
+  LDA R_SY,X
+  STA RZ_SA+1
+  LDA R_SS,X
+  STA RZ_TA
+  JSR r_strow
+  LDA RZ_TA
+  CMP #3
+  BCC snext
+  INC RZ_SA+1
+  BEQ snext
+  JSR r_strow
+.snext
+  INC RZ_TA+1
+  BRA sl
+.sdone
+  LDX r_buf
+  LDA r_k
+  STA r_scnt,X
+  RTS
+}
+
+\ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
+\ Each of the (one or two) bytes it touches is set only if all its star
+\ pixels there are black; the byte address and inverse masks are recorded.
+.r_strow
+{
+  LDY RZ_SA+1
+  CPY R_CT
+  BCC o1
+  CPY R_CB
+  BEQ r1
+  BCC r1
+.o1
+  RTS
+.r1
+  LDX RZ_SA
+  STZ RZ_SB+1
+  LDA RZ_TA
+  CMP #2
+  BCS two
+  CPX R_CL                \ one pixel
+  BCC o1
+  CPX R_CR
+  BEQ one
+  BCS o1
+.one
+  LDA r_lm,X
+  AND r_rm,X
+  BRA mset
+.two
+  CPX R_CL                \ two pixels, both inside: the fast case
+  BCC clip
+  CPX R_CR
+  BCS clip
+  TXA
+  AND #3
+  CMP #3
+  BEQ split
+  LDA r_lm,X
+  AND r_rm+1,X
+  BRA mset
+.split
+  LDA #&88
+  STA RZ_SB+1
+  LDA #&11
+  BRA mset
+.clip
+  STZ RZ_SB               \ general: pixel by pixel
+  CPX R_CL
+  BCC c2
+  CPX R_CR
+  BEQ c1
+  BCS c2
+.c1
+  LDA r_lm,X
+  AND r_rm,X
+  STA RZ_SB
+.c2
+  INX
+  BEQ c4
+  CPX R_CL
+  BCC c4
+  CPX R_CR
+  BEQ c3
+  BCS c4
+.c3
+  LDA r_lm,X
+  AND r_rm,X
+  PHA
+  TXA
+  AND #3
+  BEQ c5
+  PLA
+  ORA RZ_SB
+  STA RZ_SB
+  BRA c4
+.c5
+  PLA
+  STA RZ_SB+1
+.c4
+  LDX RZ_SA
+  LDA RZ_SB
+  ORA RZ_SB+1
+  BNE ms2
+  RTS
+.ms2
+  LDA RZ_SB
+.mset
+  STA RZ_SB
+  TYA                     \ RZ_PP = byte of (X, Y)
+  AND #7
+  ORA r_xo,X
+  STA RZ_PP
+  TYA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  CPX #&80
+  ADC #0
+  STA RZ_PP+1
+  LDA #&FF                \ byte A
+  STA RZ_T0
+  LDA RZ_SB
+  BEQ ba
+  AND (RZ_PP)
+  BNE ba
+  LDA R_SCOL
+  AND RZ_SB
+  ORA (RZ_PP)
+  STA (RZ_PP)
+  LDA RZ_SB
+  EOR #&FF
+  STA RZ_T0
+.ba
+  LDA #&FF                \ byte B (next column)
+  STA RZ_T1
+  LDA RZ_SB+1
+  BEQ bb
+  LDY #8
+  AND (RZ_PP),Y
+  BNE bb
+  LDA R_SCOL
+  AND RZ_SB+1
+  ORA (RZ_PP),Y
+  STA (RZ_PP),Y
+  LDA RZ_SB+1
+  EOR #&FF
+  STA RZ_T1
+.bb
+  LDA RZ_T0
+  AND RZ_T1
+  CMP #&FF
+  BEQ o2                  \ nothing set
+  LDX r_k
+  CPX #48
+  BCS o2
+  LDA RZ_PP
+.^r_pt34 STA r_s0y,X
+  LDA RZ_PP+1
+.^r_pt35 STA r_s0x,X
+  LDA RZ_T0
+.^r_pt36 STA r_s0a,X
+  LDA RZ_T1
+.^r_pt37 STA r_s0b,X
+  INC r_k
+.o2
+  RTS
+}
+
+\ ============================================================================
+\ R_LINE
+\ ============================================================================
+.R_LINE
+{
+  LDA R_X0+1              \ both ends in the window: the fast path
+  ORA R_X1+1
+  ORA R_Y0+1
+  ORA R_Y1+1
+  BNE slow0
+  LDA R_X0
+  CMP R_CL
+  BCC slow0
+  CMP R_CR
+  BEQ f1
+  BCS slow0
+.f1
+  LDA R_X1
+  CMP R_CL
+  BCC slow0
+  CMP R_CR
+  BEQ f2
+  BCS slow0
+.f2
+  LDA R_Y0
+  CMP R_CT
+  BCC slow0
+  CMP R_CB
+  BEQ f3
+  BCS slow0
+.f3
+  LDA R_Y1
+  CMP R_CT
+  BCC slow0
+  CMP R_CB
+  BEQ f4
+  BCS slow0
+.f4
+  JMP r_lf
+.slow0
+  LDA R_Y0                \ rows touched -> this buffer's row range
+  CMP R_Y1
+  LDA R_Y0+1
+  SBC R_Y1+1
+  BVC yc0
+  EOR #&80
+.yc0
+  BMI y0top
+  LDX #4
+  LDY #0
+  BRA yc1
+.y0top
+  LDX #0
+  LDY #4
+.yc1
+  LDA R_Y0+1,X            \ top
+  BMI yt_ct
+  BNE yno
+  LDA R_Y0,X
+  CMP R_CT
+  BCS yt1
+.yt_ct
+  LDA R_CT
+.yt1
+  STA RZ_T0
+  LDA R_Y0+1,Y            \ bottom
+  BMI yno
+  BNE yb_cb
+  LDA R_Y0,Y
+  CMP R_CB
+  BCC yb1
+.yb_cb
+  LDA R_CB
+.yb1
+  CMP RZ_T0
+  BCC yno
+  LDX r_buf
+  CMP r_dyb,X
+  BCC yb2
+  STA r_dyb,X
+.yb2
+  LDA RZ_T0
+  CMP r_dyt,X
+  BCS yno
+  STA r_dyt,X
+.yno
+  LDX #2                  \ d = P1 - P0 -> T0,T1 (x) T2,T3 (y); |d| -> T4..T7
+.dl
+  SEC
+  LDA R_X1,X
+  SBC R_X0,X
+  STA RZ_T0,X
+  STA RZ_T4,X
+  LDA R_X1+1,X
+  SBC R_X0+1,X
+  STA RZ_T1,X
+  STA RZ_T5,X
+  BPL dp
+  SEC
+  LDA #0
+  SBC RZ_T0,X
+  STA RZ_T4,X
+  LDA #0
+  SBC RZ_T1,X
+  STA RZ_T5,X
+.dp
+  DEX
+  DEX
+  BPL dl
+  LDX #0                  \ X = major axis offset (0 = x, 2 = y)
+  LDY #2                  \ Y = minor
+  LDA RZ_T4
+  CMP RZ_T6
+  LDA RZ_T5
+  SBC RZ_T7
+  BCS mx
+  LDX #2
+  LDY #0
+.mx
+  STX RZ_PA               \ major axis offset
+  STY RZ_PA+1             \ minor axis offset
+  LDA R_CL,X
+  STA r_wlo
+  LDA R_CR,X
+  STA r_whi
+  LDA R_CL,Y
+  STA r_vlo
+  LDA R_CR,Y
+  STA r_vhi
+  LDA RZ_T4,X
+  STA r_dmaj
+  LDA RZ_T5,X
+  STA r_dmaj+1
+  LDA RZ_T4,Y
+  STA r_admin
+  LDA RZ_T5,Y
+  STA r_admin+1
+  STZ r_smin              \ minor step: sign(d minor), negated if swapped
+  ORA RZ_T4,Y
+  BEQ sdone
+  LDA RZ_T1,Y
+  EOR RZ_T1,X
+  BMI sneg
+  LDA #1
+  BRA sst
+.sneg
+  LDA #&FF
+.sst
+  STA r_smin
+.sdone
+  LDA #0                  \ start at P1 when d major < 0
+  BIT RZ_T1,X
+  BPL ns
+  LDA #4
+.ns
+  STA RZ_PB
+  CLC
+  ADC RZ_PA
+  TAY
+  LDA R_X0,Y
+  STA r_maj0
+  LDA R_X0+1,Y
+  STA r_maj0+1
+  LDA RZ_PB
+  CLC
+  ADC RZ_PA+1
+  TAY
+  LDA R_X0,Y
+  STA r_min0
+  LDA R_X0+1,Y
+  STA r_min0+1
+  LDA RZ_PA
+  EOR #2
+  STA r_lxm               \ non-zero: x major
+.mdone
+  LDA r_dmaj
+  ORA r_dmaj+1
+  BNE nz
+  LDA r_maj0+1            \ a single point
+  ORA r_min0+1
+  BNE out1
+  LDX r_maj0
+  LDY r_min0
+  LDA r_lxm
+  BNE pt
+  LDX r_min0
+  LDY r_maj0
+.pt
+  JMP r_pclip
+.out1
+  RTS
+.nz
+  SEC                     \ ilo = max(0, wlo - maj0)
+  LDA r_wlo
+  SBC r_maj0
+  STA r_ilo
+  LDA #0
+  SBC r_maj0+1
+  STA r_ilo+1
+  BPL il1
+  STZ r_ilo
+  STZ r_ilo+1
+.il1
+  SEC                     \ ihi = min(dmaj, whi - maj0)
+  LDA r_whi
+  SBC r_maj0
+  STA r_ihi
+  LDA #0
+  SBC r_maj0+1
+  STA r_ihi+1
+  BMI out1
+  LDA r_dmaj
+  CMP r_ihi
+  LDA r_dmaj+1
+  SBC r_ihi+1
+  BCS ih1
+  LDA r_dmaj
+  STA r_ihi
+  LDA r_dmaj+1
+  STA r_ihi+1
+.ih1
+  LDA r_ihi
+  CMP r_ilo
+  LDA r_ihi+1
+  SBC r_ilo+1
+  BCC out1
+  SEC
+  LDA r_ihi
+  SBC r_ilo
+  INC A
+  STA r_lcnt
+  CLC
+  LDA r_maj0
+  ADC r_ilo
+  STA r_cmaj
+  LDA r_dmaj
+  ASL A
+  STA r_e2maj
+  STA r_v0
+  LDA r_dmaj+1
+  ROL A
+  STA r_e2maj+1
+  STA r_v1
+  LDA r_admin
+  ASL A
+  STA r_e2min
+  LDA r_admin+1
+  ROL A
+  STA r_e2min+1
+  LDA r_ilo
+  ORA r_ilo+1
+  BNE fullq
+  STZ r_m0                \ starts in the window: q = 0, r = dmaj
+  STZ r_m1
+  LDA r_dmaj
+  STA r_m2
+  LDA r_dmaj+1
+  STA r_m3
+  BRA qdone
+.fullq
+  \ q, r = (2*ilo*admin + dmaj) / (2*dmaj)
+  LDA r_ilo
+  STA r_ma
+  LDA r_ilo+1
+  STA r_ma+1
+  LDA r_admin
+  STA r_mb
+  LDA r_admin+1
+  STA r_mb+1
+  JSR r_mul16
+  ASL r_m0
+  ROL r_m1
+  ROL r_m2
+  ROL r_m3
+  CLC
+  LDA r_m0
+  ADC r_dmaj
+  STA r_m0
+  LDA r_m1
+  ADC r_dmaj+1
+  STA r_m1
+  BCC a1
+  INC r_m2
+  BNE a1
+  INC r_m3
+.a1
+  JSR r_div32
+.qdone
+  LDA r_m2
+  STA r_err
+  LDA r_m3
+  STA r_err+1
+  LDA r_smin
+  BMI qneg
+  CLC
+  LDA r_min0
+  ADC r_m0
+  STA r_cmin
+  LDA r_min0+1
+  ADC r_m1
+  STA r_cmin+1
+  BRA lp
+.qneg
+  SEC
+  LDA r_min0
+  SBC r_m0
+  STA r_cmin
+  LDA r_min0+1
+  SBC r_m1
+  STA r_cmin+1
+.lp
+  LDA r_cmin+1
+  BMI lowside
+  BNE highside
+  LDA r_cmin
+  CMP r_vlo
+  BCC lowside
+  CMP r_vhi
+  BEQ inwin
+  BCS highside
+.inwin
+  LDA r_lxm
+  BEQ pym
+  LDX r_cmaj
+  LDY r_cmin
+  JSR r_pset
+  BRA step
+.pym
+  LDX r_cmin
+  LDY r_cmaj
+  JSR r_pset
+  BRA step
+.lowside
+  LDA r_smin
+  BEQ out
+  BMI out
+  BRA step
+.highside
+  LDA r_smin
+  BEQ out
+  BPL out
+.step
+  DEC r_lcnt
+  BEQ out
+  INC r_cmaj
+  CLC
+  LDA r_err
+  ADC r_e2min
+  STA r_err
+  LDA r_err+1
+  ADC r_e2min+1
+  STA r_err+1
+  BCS sb
+  LDA r_err
+  CMP r_e2maj
+  LDA r_err+1
+  SBC r_e2maj+1
+  BCS sb
+  JMP lp
+.sb
+  LDA r_err
+  SBC r_e2maj
+  STA r_err
+  LDA r_err+1
+  SBC r_e2maj+1
+  STA r_err+1
+  LDA r_smin
+  BMI dm
+  INC r_cmin
+  BNE back
+  INC r_cmin+1
+  BRA back
+.dm
+  LDA r_cmin
+  BNE d1
+  DEC r_cmin+1
+.d1
+  DEC r_cmin
+  BRA back
+.back
+  JMP lp
+.out
+  RTS
+}
+
+
+\ ----------------------------------------------------------------------------
+\ r_lf: R_LINE with both ends inside the window (8-bit).  Bresenham with a
+\ byte pointer and a pixel mask; same pixels as the general path.
+\ ZP: RZ_PP pointer, RZ_COL colour, RZ_Y row, RZ_SA mask, RZ_SA+1 error,
+\ RZ_TA count, RZ_TA+1 x, RZ_SB run start x, RZ_SB+1 COLE EOR COLO,
+\ RZ_TB minor sign, RZ_T2 major delta, RZ_T3 minor delta.
+\ ----------------------------------------------------------------------------
+.r_lf
+{
+  LDX r_buf               \ this buffer's dirty rows
+  LDA R_Y0
+  LDY R_Y1
+  CMP R_Y1
+  BCC o1
+  TAY
+  LDA R_Y1
+.o1
+  CMP r_dyt,X
+  BCS o2
+  STA r_dyt,X
+.o2
+  TYA
+  CMP r_dyb,X
+  BCC o3
+  STA r_dyb,X
+.o3
+  LDA R_COLE
+  EOR R_COLO
+  STA RZ_SB+1
+  LDA R_X1
+  SEC
+  SBC R_X0
+  BCS a1
+  EOR #&FF
+  INC A
+.a1
+  STA RZ_T2               \ |dx|
+  LDA R_Y1
+  SEC
+  SBC R_Y0
+  BCS a2
+  EOR #&FF
+  INC A
+.a2
+  STA RZ_T3               \ |dy|
+  CMP RZ_T2
+  BCC xm
+  BEQ xm
+  JMP ym
+.xm                       \ x major: start at the left end
+  LDX R_X0
+  LDY R_Y0
+  LDA R_Y1
+  CPX R_X1
+  BCC x1
+  BEQ x1
+  LDX R_X1
+  LDY R_Y1
+  LDA R_Y0
+.x1
+  STY RZ_Y
+  CMP RZ_Y                \ end y >= start y: step down
+  LDA #0
+  BCS x2
+  LDA #&FF
+.x2
+  STA RZ_TB+1             \ y direction
+  JSR start
+  LDA RZ_T2
+  INC A
+  STA RZ_TA
+  LDA RZ_T2
+  LSR A
+  SEC
+  SBC RZ_T2
+  STA RZ_SA+1             \ (dx DIV 2) - dx
+  BRA xl
+.xd
+  LDX RZ_TA+1
+  JMP dirt
+.xl
+  LDA RZ_COL
+  EOR (RZ_PP)
+  AND RZ_SA
+  EOR (RZ_PP)
+  STA (RZ_PP)
+  DEC RZ_TA
+  BEQ xd
+  INC RZ_TA+1
+  LSR RZ_SA
+  BCC xk
+  LDA #&88                \ next byte
+  STA RZ_SA
+  LDA RZ_PP
+  ADC #7                  \ (C = 1)
+  STA RZ_PP
+  BCC xk0
+  INC RZ_PP+1
+.xk0
+  CLC
+.xk
+  LDA RZ_SA+1
+  ADC RZ_T3
+  BCS xs
+  STA RZ_SA+1
+  BRA xl
+.xs
+  SBC RZ_T2
+  STA RZ_SA+1
+  LDY RZ_Y                \ the row's run: RZ_SB .. x-1
+  LDA RZ_SB
+.^r_pt72 CMP r_dl,Y
+  BCS xs1
+.^r_pt73 STA r_dl,Y
+.xs1
+  LDA RZ_TA+1
+  STA RZ_SB
+  DEC A
+.^r_pt74 CMP r_dr,Y
+  BCC xs2
+.^r_pt75 STA r_dr,Y
+.xs2
+  LDA RZ_COL
+  EOR RZ_SB+1
+  STA RZ_COL
+  LDA RZ_PP
+  AND #7
+  BIT RZ_TB+1
+  BMI xup
+  INC RZ_Y
+  CMP #7
+  BEQ xdn8
+  INC RZ_PP
+  JMP xl
+.xdn8
+  LDA RZ_PP
+  CLC
+  ADC #&F9
+  STA RZ_PP
+  LDA RZ_PP+1
+  ADC #1
+  STA RZ_PP+1
+  JMP xl
+.xup
+  DEC RZ_Y
+  CMP #0
+  BEQ xup8
+  DEC RZ_PP
+  JMP xl
+.xup8
+  LDA RZ_PP
+  SEC
+  SBC #&F9
+  STA RZ_PP
+  LDA RZ_PP+1
+  SBC #1
+  STA RZ_PP+1
+  JMP xl
+.ym                       \ y major: start at the top end
+  LDX R_X0
+  LDY R_Y0
+  LDA R_X1
+  CPY R_Y1
+  BCC y1
+  BEQ y1
+  LDX R_X1
+  LDY R_Y1
+  LDA R_X0
+.y1
+  STY RZ_Y
+  STX RZ_TA+1
+  CMP RZ_TA+1             \ end x >= start x: step right
+  LDA #0
+  BCS y2
+  LDA #&FF
+.y2
+  STA RZ_TB               \ x direction
+  STZ RZ_TB+1             \ y: always down
+  JSR start
+  LDA RZ_T3
+  INC A
+  STA RZ_TA
+  LDA RZ_T3
+  LSR A
+  SEC
+  SBC RZ_T3
+  STA RZ_SA+1             \ (dy DIV 2) - dy
+.yl
+  LDA RZ_COL
+  EOR (RZ_PP)
+  AND RZ_SA
+  EOR (RZ_PP)
+  STA (RZ_PP)
+  LDY RZ_Y                \ DIRTY[y] |= x
+  LDA RZ_TA+1
+.^r_pt68 CMP r_dl,Y
+  BCS yd1
+.^r_pt69 STA r_dl,Y
+.yd1
+.^r_pt70 CMP r_dr,Y
+  BCC yd2
+.^r_pt71 STA r_dr,Y
+.yd2
+  DEC RZ_TA
+  BEQ yd
+  INC RZ_Y                \ next row down
+  LDA RZ_COL
+  EOR RZ_SB+1
+  STA RZ_COL
+  LDA RZ_PP
+  AND #7
+  CMP #7
+  BEQ yw
+  INC RZ_PP
+  BRA yr
+.yw
+  LDA RZ_PP               \ next character row: +&1F9
+  CLC
+  ADC #&F9
+  STA RZ_PP
+  LDA RZ_PP+1
+  ADC #1
+  STA RZ_PP+1
+.yr
+  LDA RZ_SA+1
+  CLC
+  ADC RZ_T2
+  BCS ys
+  STA RZ_SA+1
+  BRA yl
+.yd
+  RTS
+.yj
+  JMP yl
+.ys
+  SBC RZ_T3
+  STA RZ_SA+1
+  LDA RZ_TB
+  BMI yleft
+  INC RZ_TA+1
+  LSR RZ_SA
+  BCC yj
+  LDA #&88
+  STA RZ_SA
+  LDA RZ_PP
+  ADC #7
+  STA RZ_PP
+  BCC yj
+  INC RZ_PP+1
+  BRA yj
+.yleft
+  DEC RZ_TA+1
+  ASL RZ_SA
+  BCC yj
+  LDA #&11
+  STA RZ_SA
+  LDA RZ_PP
+  SEC
+  SBC #8
+  STA RZ_PP
+  BCS yj
+  DEC RZ_PP+1
+  BRA yj
+\ start: pixel X, row RZ_Y: pointer, mask, colour, x, run start
+.start
+  STX RZ_TA+1
+  STX RZ_SB
+  LDY RZ_Y
+  JSR r_addr
+  LDA r_lm,X
+  AND r_rm,X
+  STA RZ_SA
+  TYA
+  LSR A
+  LDA R_COLE
+  BCC st1
+  LDA R_COLO
+.st1
+  STA RZ_COL
+  RTS
+\ dirt: DIRTY[RZ_Y] |= RZ_SB .. X
+.dirt
+  LDY RZ_Y
+  LDA RZ_SB
+.^r_pt64 CMP r_dl,Y
+  BCS dt1
+.^r_pt65 STA r_dl,Y
+.dt1
+  TXA
+.^r_pt66 CMP r_dr,Y
+  BCC dt2
+.^r_pt67 STA r_dr,Y
+.dt2
+  RTS
+}
+
+\ ============================================================================
+\ R_SETBUF's patch list: the high byte of each buffer-dependent operand.
+\ ============================================================================
+.r_ptab
+  EQUW r_pt01+2, r_pt02+2, r_pt03+2, r_pt04+2, r_pt05+2, r_pt06+2
+  EQUW r_pt07+2, r_pt08+2, r_pt60+2, r_pt61+2, r_pt62+2, r_pt63+2
+  EQUW r_pt13+2, r_pt14+2, r_pt15+2, r_pt16+2, r_pt17+2, r_pt18+2
+  EQUW r_pt19+2, r_pt20+2, r_pt21+2, r_pt22+2, r_pt23+2, r_pt24+2
+  EQUW r_pt25+2, r_pt26+2, r_pt27+2, r_pt28+2, r_pt29+2, r_pt30+2
+  EQUW r_pt31+2, r_pt32+2, r_pt33+2, r_pt34+2, r_pt35+2, r_pt36+2
+  EQUW r_pt37+2, r_pt38+2, r_pt39+2, r_pt40+2, r_pt41+2, r_pt42+2
+  EQUW r_pt43+2, r_pt45+2, r_pt46+2, r_pt47+2, r_pt48+2
+  EQUW r_pt49+2, r_pt50+2, r_pt51+2, r_pt52+2, r_pt53+2, r_pt54+2, r_pt55+2
+  EQUW r_pt56+2, r_pt64+2, r_pt65+2, r_pt66+2, r_pt67+2
+  EQUW r_pt68+2, r_pt69+2, r_pt70+2, r_pt71+2, r_pt72+2, r_pt73+2
+  EQUW r_pt74+2, r_pt75+2
+.r_ptab_end
+
+.r_end
+PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end
