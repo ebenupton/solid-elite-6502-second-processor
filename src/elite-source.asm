@@ -8115,16 +8115,31 @@ ENDMACRO
                         \         = (-beta * y_hi / 256) * (-beta * y_hi / 256)
                         \         = (beta * y / 256) ^ 2
 
- ASL P                  \ Double (A P), keeping the sign bit of the original A
- ROL A                  \ (C = original bit 7), so (A P) = (A P) * 2 with the
- BCC P%+4               \ doubling retaining the sign of (A P) (T and the C flag
- ORA #%10000000         \ are dead here: ADD writes T first and ignores C)
+ ASL P                  \ Double (A P). MULT1 was called with A = Q, so the
+ ROL A                  \ result is positive (sign = A EOR Q = 0) and its high
+                        \ byte is at most 127*127/256 = 63, so after the
+                        \ doubling A < 128 and C = 0:
                         \   (A P) = (A P) * 2
                         \         = 2 * (beta * y / 256) ^ 2
                         \
-                        \ with the doubling retaining the sign of (A P)
+                        \ Inline ADD for a positive (A P): T and T1 are dead
+                        \ afterwards (PIX1's ADD writes them first; the IRQ
+                        \ never reads them), except that MU8/MU9 read T = 0
 
- JSR ADD                \ Call ADD to calculate:
+ STA T1                 \ T1 = A (as ADD would)
+ LDA S                  \ If S is negative the signs differ: subtract via MU8
+ BMI stl_mu8
+ LDA R                  \ Same sign: X = P + R (C = 0 from the ROL above)
+ ADC P
+ TAX
+ LDA S                  \ A = S + T1 (ORA T is a no-op as T would be 0)
+ ADC T1
+ BRA stl_add
+.stl_mu8
+ STZ T                  \ ADD would have set T = sign of A = 0, and A = S here
+ JSR MU8                \ = (T1 AND &80) EOR S, exactly as at ADD's BMI MU8
+.stl_add
+                        \ Now (A X) = (A P) + (S R), as from JSR ADD:
                         \
                         \   (A X) = (A P) + (S R)
                         \         = 2 * (beta * y / 256) ^ 2 + x
@@ -20077,10 +20092,12 @@ ENDMACRO
  CMP Q                  \ If A >= Q then jump to TI4 to return a 1 with the
  BCS TI4                \ correct sign
 
- LDX #%11111110         \ Set T to have bits 1-7 set, so we can rotate through 7
- STX T                  \ loop iterations, getting a 1 each time, and then
-                        \ getting a 0 on the 8th iteration... and we can also
-                        \ use T to catch our result bits into bit 0 each time
+ LDX #%11110000         \ Set T = %11110000 so that only the top 6 quotient
+ STX T                  \ bits are generated: the 2nd/4th/6th ROLs shift out
+                        \ bits 6/4/2 (1,1,0) to end the loop after 6
+                        \ iterations, and bits 1-0 (zero) end up in bits 7-6,
+                        \ leaving T = quotient / 4 (the two low quotient bits
+                        \ are discarded by the /4 below anyway)
 
 .TIL2
 
@@ -20101,10 +20118,8 @@ ENDMACRO
                         \ do the subtraction, or 1 if we did)
 
                         \ The loop is unrolled twice: the carry out of this
-                        \ first ROL (bits 7/5/3/1 of %11111110, always 1) is
-                        \ discarded by the ASL below, and the loop test uses
-                        \ the carry from the second ROL (bits 6/4/2/0 =
-                        \ 1,1,1,0), so we still do exactly 8 iterations
+                        \ first ROL is discarded by the ASL below, and the
+                        \ loop test uses the carry from the second ROL
 
  ASL A                  \ Second copy of the iteration
 
@@ -20118,24 +20133,16 @@ ENDMACRO
  BCS TIL2               \ If we still have set bits in T, loop back to TIL2 to
                         \ do the next pair of iterations
 
-                        \ We've done the division and now have a result in the
-                        \ range 0-255 here, which we need to reduce to the range
-                        \ 0-96. We can do that by multiplying the result by 3/8,
-                        \ as 256 * 3/8 = 96
+                        \ T now holds the 8-bit quotient / 4; reduce to 0-96
+                        \ by multiplying the quotient by 3/8
 
- LDA T                  \ Set T = T / 4
- LSR A
- LSR A
- STA T
+ LDA T                  \ Set A = T / 2 + T (+ bit 0 of T via the carry)
+ LSR A                  \       = 3/8 of the quotient, as in the original
+ ADC T
 
- LSR A                  \ Set T = T / 8 + T / 4
- ADC T                  \       = 3T / 8
- STA T
-
- TYA                    \ Fetch the sign bit of the original argument A
- AND #%10000000
-
- ORA T                  \ Apply the sign bit to T
+ CPY #%10000000         \ Apply the sign bit of the original argument A (C is
+ BCC P%+4               \ set to bit 7 of Y); the magnitude is < 128
+ ORA #%10000000
 
  RTS                    \ Return from the subroutine
 
@@ -37760,20 +37767,17 @@ INCLUDE "build/dashtab.asm"
                         \ is often the roll angle), so we patch it into the
                         \ table look-ups and only re-patch when it changes
 
- TAX                    \ Set X = A
+ STA T                  \ Store the whole of A in T for now (the TRB below
+                        \ reduces it to just the sign bit)
 
- AND #%10000000         \ Set T to the sign bit of A
- STA T
+ AND #%01111111         \ Set A = |A|
 
- TXA                    \ Set A = |A|
- AND #%01111111
-
- BNE P%+7               \ If A = 0, set P(1 0) = 0 and return from the
- STA P+1                \ subroutine, as in MU6 (this is MU6, copied here so we
- STA P                  \ can reach it with a branch)
- RTS
+ BEQ MSZ                \ If A = 0, jump to MSZ to set P(1 0) = 0 and return
+                        \ (T = A = the sign bit already in this case)
 
  TAX                    \ Set X = |A| (T1 = |A| - 1 is set at the end)
+
+ TRB T                  \ Clear bits 0-6 of T, so T = the sign bit of A
 
  LDA P                  \ Set A = P AND 31
  AND #31
@@ -37811,6 +37815,12 @@ INCLUDE "build/dashtab.asm"
                         \ we put into T above
 
  RTS                    \ Return from the subroutine
+
+.MSZ
+
+ STA P+1                \ A = 0, so set P(1 0) = 0 and return from the
+ STA P                  \ subroutine, as in MU6 (Z is set and N clear from the
+ RTS                    \ AND above, C and V unchanged, as before)
 
 .MSLAST
 
@@ -37885,59 +37895,6 @@ INCLUDE "build/dashtab.asm"
 
 \ ******************************************************************************
 \
-\       Name: MLU1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following assignment, and multiply the Y-th stardust particle's
-\ y-coordinate with an unsigned number Q:
-\
-\   Y1 = y_hi
-\
-\   (A P) = |y_hi| * Q
-\
-\ ******************************************************************************
-
-.MLU1
-
- LDA SY,Y               \ Set Y1 the Y-th byte of SY
- STA Y1
-
-                        \ Fall through into MLU2 to calculate:
-                        \
-                        \   (A P) = |A| * Q
-
-\ ******************************************************************************
-\
-\       Name: MLU2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = |A| * Q
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of a sign-magnitude 8-bit number P with an
-\ unsigned number Q:
-\
-\   (A P) = |A| * Q
-\
-\ ******************************************************************************
-
-.MLU2
-
- AND #%01111111         \ Clear the sign bit in P, so P = |A|
- STA P
-
-                        \ Fall through into MULTU to calculate:
-                        \
-                        \   (A P) = P * Q
-                        \         = |A| * Q
-
-\ ******************************************************************************
-\
 \       Name: MULTU
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
@@ -37993,8 +37950,68 @@ INCLUDE "build/dashtab.asm"
                         \ via BNE and from MULTU after BEQ MU1), so the
                         \ original loop for X = 0 is not needed
 
- LDA P                  \ Patch P into the operands of the table look-ups
-.MU11A                  \ (SQUA2 enters here with A = P already)
+ LDA P                  \ Set A = P and join the table look-ups at MU11A below
+ BRA MU11A              \ (MLU1 and MLU2 fall through to MU11A with A = P
+                        \ already, saving a LDA P there)
+
+\ ******************************************************************************
+\
+\       Name: MLU1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following assignment, and multiply the Y-th stardust particle's
+\ y-coordinate with an unsigned number Q:
+\
+\   Y1 = y_hi
+\
+\   (A P) = |y_hi| * Q
+\
+\ ******************************************************************************
+
+.MLU1
+
+ LDA SY,Y               \ Set Y1 the Y-th byte of SY
+ STA Y1
+
+                        \ Fall through into MLU2 to calculate:
+                        \
+                        \   (A P) = |A| * Q
+
+\ ******************************************************************************
+\
+\       Name: MLU2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = |A| * Q
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of a sign-magnitude 8-bit number P with an
+\ unsigned number Q:
+\
+\   (A P) = |A| * Q
+\
+\ ******************************************************************************
+
+.MLU2
+
+ AND #%01111111         \ Clear the sign bit in P, so P = |A|
+ STA P
+
+ LDX Q                  \ Set X = Q (A = P is unchanged)
+
+ BEQ MU1                \ If X = Q = 0, jump to MU1 to copy X into P and A,
+                        \ clear the C flag and return from the subroutine using
+                        \ a tail call
+
+                        \ Otherwise fall through into MU11A with A = P to set
+                        \ (A P) = P * X = |A| * Q
+
+.MU11A                  \ (SQUA2, MU11 and MLU2 enter here with A = P already)
  STA MUU1+1
  STA MUU3+1
  EOR #&FF
@@ -38494,14 +38511,11 @@ INCLUDE "build/dashtab.asm"
 
 .mu10
 
-                        \ If we get here, the result is 0, A = 0 and X is the
-                        \ original argument A
+                        \ If we get here, the result is 0 and A = 0 (the C, Z
+                        \ and N flags and X are dead at every caller, so the
+                        \ original's flag state is not reproduced)
 
- TXA                    \ Set the C flag to bit 0 of the argument A, as in the
- LSR A                  \ original
-
- LDA #0                 \ Set A = P = 0, which also sets the Z flag and clears
- STA P                  \ the N flag, as in the original
+ STA P                  \ Set A = P = 0
 
  RTS                    \ Return from the subroutine
 
@@ -38685,18 +38699,15 @@ INCLUDE "build/dashtab.asm"
                         \ so we can subtract their absolute values and set the
                         \ sign to get the result
 
- AND #%01111111         \ A = (T1 AND %10000000) EOR S on entry, so its low 7
- STA U                  \ bits are those of S, and U now contains |S|
-
  LDA P                  \ Subtract the least significant bytes into X:
  SEC                    \
  SBC R                  \   X = P - R
  TAX
 
- LDA T1                 \ Restore the A of the argument (A P) from T1 and
- AND #%01111111         \ clear the sign (bit 7), so A now contains |A|
-
- SBC U                  \ Set A = |A| - |S|
+ LDA T1                 \ Set A = |A| - |S| - borrow. A and S have opposite
+ EOR #%10000000         \ signs, so (T1 EOR &80) - S is either
+ SBC S                  \ (|A|+&80) - (|S|+&80) or |A| - |S|, giving the same
+                        \ result byte, C and V (V=0) as |A| - |S|
 
                         \ At this point we have |A P| - |S R| in (A X), so we
                         \ need to check whether the subtraction above was the
@@ -38707,11 +38718,7 @@ INCLUDE "build/dashtab.asm"
                         \ round, so jump to MU9 to set the sign
 
                         \ If we get here, then |A| < |S|, so our subtraction
-                        \ above was the wrong way round (we actually subtracted
-                        \ the larger absolute value from the smaller absolute
-                        \ value). So let's subtract the result we have in (A X)
-                        \ from zero, so that the subtraction is the right way
-                        \ round
+                        \ above was the wrong way round, so negate (A X)
 
  STA U                  \ Store A in U
 
@@ -38721,16 +38728,11 @@ INCLUDE "build/dashtab.asm"
  TAX                    \ didn't take the BCS branch above, so the ADC will do
                         \ the correct addition)
 
- LDA #0                 \ Set A = 0 - A, which we can do this time using a
- SBC U                  \ subtraction with the C flag clear
-
- ORA #%10000000         \ We now set the sign bit of A, so that the EOR on the
-                        \ next line will give the result the opposite sign to
-                        \ argument A (as T contains the sign bit of argument
-                        \ A). This is the same as giving the result the same
-                        \ sign as argument S (as A and S have different signs),
-                        \ which is what we want, as S has the larger absolute
-                        \ value
+ LDA #%10000000         \ Set A = (0 - U - borrow) OR &80. The negated high
+ SBC U                  \ byte is always 0..127 (|S R| - |A P| <= &7FFF), so
+                        \ &80 - U - borrow gives the same A, with C=0 and
+                        \ V=0 exactly as before. The sign bit makes the EOR
+                        \ below give the result the sign of S
 
 .MU9
 
