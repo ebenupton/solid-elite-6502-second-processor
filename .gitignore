@@ -4,3 +4,5 @@ ref/
 .DS_Store
 __pycache__/
 .claude/
+elite-master.ssd
+jsbeeb-*.json.gz
