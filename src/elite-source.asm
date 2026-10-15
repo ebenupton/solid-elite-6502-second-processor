@@ -21330,8 +21330,6 @@ ENDMACRO
 
 .LL91
 
- JSR H_ZN                \ Frame layer hook (see hooks.asm)
-
                         \ By this point z_hi is 0 and X contains the number of
                         \ right shifts we had to do, plus the scale factor from
                         \ the blueprint
@@ -40102,24 +40100,30 @@ ENDMACRO
 
 .SHIP_MISSILE_VERTICES
 
+                        \ Port: vertices 5-16 (the fins and the body corners
+                        \ they stand on) list face 15 (always visible) so LL9
+                        \ projects them whenever they are within their
+                        \ visibility distance: the frame layer draws the fins
+                        \ as two-sided triangles from any side (tools/faces.py)
+
       \    x,    y,    z, face1, face2, face3, face4, visibility
  VERTEX    0,    0,   68,     0,      1,    2,     3,         31    \ Vertex 0
  VERTEX    8,   -8,   36,     1,      2,    4,     5,         31    \ Vertex 1
  VERTEX    8,    8,   36,     2,      3,    4,     7,         31    \ Vertex 2
  VERTEX   -8,    8,   36,     0,      3,    6,     7,         31    \ Vertex 3
  VERTEX   -8,   -8,   36,     0,      1,    5,     6,         31    \ Vertex 4
- VERTEX    8,    8,  -44,     4,      7,    8,     8,         31    \ Vertex 5
- VERTEX    8,   -8,  -44,     4,      5,    8,     8,         31    \ Vertex 6
- VERTEX   -8,   -8,  -44,     5,      6,    8,     8,         31    \ Vertex 7
- VERTEX   -8,    8,  -44,     6,      7,    8,     8,         31    \ Vertex 8
- VERTEX   12,   12,  -44,     4,      7,    8,     8,          8    \ Vertex 9
- VERTEX   12,  -12,  -44,     4,      5,    8,     8,          8    \ Vertex 10
- VERTEX  -12,  -12,  -44,     5,      6,    8,     8,          8    \ Vertex 11
- VERTEX  -12,   12,  -44,     6,      7,    8,     8,          8    \ Vertex 12
- VERTEX   -8,    8,  -12,     6,      7,    7,     7,          8    \ Vertex 13
- VERTEX   -8,   -8,  -12,     5,      6,    6,     6,          8    \ Vertex 14
- VERTEX    8,    8,  -12,     4,      7,    7,     7,          8    \ Vertex 15
- VERTEX    8,   -8,  -12,     4,      5,    5,     5,          8    \ Vertex 16
+ VERTEX    8,    8,  -44,    15,     15,   15,    15,         31    \ Vertex 5 (port: faces 15)
+ VERTEX    8,   -8,  -44,    15,     15,   15,    15,         31    \ Vertex 6 (port: faces 15)
+ VERTEX   -8,   -8,  -44,    15,     15,   15,    15,         31    \ Vertex 7 (port: faces 15)
+ VERTEX   -8,    8,  -44,    15,     15,   15,    15,         31    \ Vertex 8 (port: faces 15)
+ VERTEX   12,   12,  -44,    15,     15,   15,    15,          8    \ Vertex 9 (port: faces 15)
+ VERTEX   12,  -12,  -44,    15,     15,   15,    15,          8    \ Vertex 10 (port: faces 15)
+ VERTEX  -12,  -12,  -44,    15,     15,   15,    15,          8    \ Vertex 11 (port: faces 15)
+ VERTEX  -12,   12,  -44,    15,     15,   15,    15,          8    \ Vertex 12 (port: faces 15)
+ VERTEX   -8,    8,  -12,    15,     15,   15,    15,          8    \ Vertex 13 (port: faces 15)
+ VERTEX   -8,   -8,  -12,    15,     15,   15,    15,          8    \ Vertex 14 (port: faces 15)
+ VERTEX    8,    8,  -12,    15,     15,   15,    15,          8    \ Vertex 15 (port: faces 15)
+ VERTEX    8,   -8,  -12,    15,     15,   15,    15,          8    \ Vertex 16 (port: faces 15)
 
 .SHIP_MISSILE_EDGES
 

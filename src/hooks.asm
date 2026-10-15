@@ -291,13 +291,6 @@
 
 .hcnt EQUB 0
 
-\ H_ZN: LL91: remember the halved z for the face brightness
-
-.H_ZN
- LDA XX18+6
- STA GZN
- RTS
-
 \ H_SHPPT: a distant ship drawn as a dot at (K3, K4)
 
 .H_SHPPT

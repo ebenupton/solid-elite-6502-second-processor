@@ -169,4 +169,3 @@
 .GNV     EQUB 0
 .GSUNON  EQUB 0         \ non-zero: SUN drew the sun this frame (LSO, SUNX valid)
 .GSUNR   EQUB 0         \ the sun's radius this frame
-.GZN     EQUB 0         \ LL9's halved z (XX18+6 at LL91) for the ship being recorded

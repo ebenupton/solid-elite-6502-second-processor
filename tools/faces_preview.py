@@ -2,10 +2,10 @@
 """Preview the filled ships of tools/faces.py.
 
 Renders every ship type at a few orientations into a 256 x 192 MODE 1 space
-view (CMYK inks, the faces' 2x2 dithers, detail lines in the hue's detail ink)
+view (CMYK inks, the faces' 2x2 dithers)
 the way the port will: Elite's projection (x = 128 + 256 x / z, y = 96 - 256 y
 / z), Elite's face visibility (tools/faces.elite_xx2 models LL9 part 5's
-arithmetic), the XX2 -> level tables, far-to-near painting of the visible faces.
+arithmetic), each face's fixed colour, details and fins in the port's drawing order.
 
 It also checks, per view:
   * holes: pixels inside the ship's silhouette (all faces filled) that the
@@ -15,7 +15,8 @@ It also checks, per view:
   * stale vertices: a filled face using a vertex LL9 would not have projected.
 
     python3 tools/faces_preview.py      -> scratch/faces/<type>_<name>.png (2x),
-                                           scratch/faces/contact_1.png, contact_2.png
+                                           scratch/faces/contact_1.png, contact_2.png,
+                                           closeup_1.png, closeup_2.png (nearer, 6 views)
 """
 import math
 import os
@@ -35,6 +36,7 @@ VIEWS = [  # (yaw, pitch, roll) in degrees applied to the ZINF orientation (nose
     (200, 30, -20),
     (-20, 75, 0),
 ]
+CLOSE_VIEWS = VIEWS + [(8, 6, 0), (172, 12, 30)]
 
 
 def rotm(yaw, pitch, roll):
@@ -99,6 +101,9 @@ def line(canvas, a, b, ink):
 
 
 def render(t, s, view, dist=None):
+    """Draw ship s as the port does: fins behind the body (neither face they
+    stand between visible), the visible faces, the surface details over them,
+    then the other fins (one face visible, then both)."""
     M = orientation(view)
     R = max(math.sqrt(v['x'] ** 2 + v['y'] ** 2 + v['z'] ** 2) for v in s['verts'])
     z = dist if dist else R * 256 / 72
@@ -108,41 +113,48 @@ def render(t, s, view, dist=None):
     pts = project(s, pos, M)
     projected = [any((g < len(xx2) and xx2[g]) or g == 15 for g in v['faces']) and v['vis'] >= xx4
                  for v in s['verts']]
-    hue = F.SHIP_HUE[t]
-    ramp = F.HUES[hue][1]
-    cf = F.face_c(s)
     canvas = [[0] * W for _ in range(H)]
-    sil = [[0] * W for _ in range(H)]
     issues = []
-    order = []
-    for f, p in enumerate(s['polys']):
-        if not p:
+
+    def cell(c):
+        return SW.cell(*SW.ALL[c])
+
+    def poly(verts, c, what):
+        for v in verts:
+            if not projected[v]:
+                issues.append('%s uses unprojected vertex %d' % (what, v))
+        fill(canvas, [pts[v] for v in verts], cell(c))
+
+    def fins(k):
+        for d in s['fins']:
+            a, b = d['faces']
+            if xx4 <= d['vis'] and (xx2[a] != 0) + (xx2[b] != 0) == k:
+                poly(d['verts'], d['col'], 'fin')
+    fins(0)
+    shown = {}
+    for f in range(len(s['faces'])):
+        p = s['nodes'][f]['poly']
+        if len(p) < 3 or not xx2[f]:
             continue
-        fill(sil, [pts[v] for v in p], None)
-        if xx2[f]:
-            order.append((sum(pts[v][2] for v in p) / len(p), f))
-    levels = {}
-    for _, f in sorted(order, reverse=True):
-        p = s['polys'][f]
-        poly = [pts[v] for v in p]
-        area = sum(poly[i][0] * poly[(i + 1) % len(p)][1] - poly[(i + 1) % len(p)][0] * poly[i][1]
+        pp = [pts[v] for v in p]
+        area = sum(pp[i][0] * pp[(i + 1) % len(p)][1] - pp[(i + 1) % len(p)][0] * pp[i][1]
                    for i in range(len(p)))
         if area < -1:
             issues.append('face %d anticlockwise on screen (area %.0f)' % (f, area))
-        for v in p:
-            if not projected[v]:
-                issues.append('face %d uses unprojected vertex %d' % (f, v))
-        lv = F.FAR_LEVEL if xx2[f] == 255 else F.level_of(xx2[f], cf[f], zn)
-        levels[f] = lv
-        fill(canvas, poly, SW.cell(*SW.ALL[ramp[lv]]))
-    ink = F.hue_detail_ink(hue)
-    for i in s['detail']:
-        e = s['edges'][i]
-        if e['vis'] >= xx4 and (xx2[e['f1']] or xx2[e['f2']]):
-            line(canvas, pts[e['v1']], pts[e['v2']], ink)
-    holes = sum(1 for y in range(H) for x in range(W) if sil[y][x] and not canvas[y][x])
-    # a hole pixel can legitimately be black dither: recount with a mask of fills
-    return canvas, holes, issues, levels, xx2
+        poly(p, s['col'][f], 'face %d' % f)
+        shown[f] = s['col'][f]
+    for d in s['dets']:
+        f1, f2 = d['faces']
+        if xx4 > d['vis'] or not (xx2[f1] or xx2[f2]):
+            continue
+        if d['kind'] == 'poly':
+            poly(d['verts'], d['col'], 'detail')
+        else:
+            ink = SW.ALL[d['col']].index(4)
+            line(canvas, pts[d['verts'][0]], pts[d['verts'][1]], ink)
+    fins(1)
+    fins(2)
+    return canvas, 0, issues, shown, xx2
 
 
 def coverage_holes(t, s, view):
@@ -192,9 +204,7 @@ def to_image(canvas, scale=1, perceived=False, holes=None):
 
 
 def main():
-    ships = F.load_ships()
-    for t, s in ships:
-        F.reconstruct(s)
+    ships = F.prepare(F.load_ships())
     os.makedirs(OUTDIR, exist_ok=True)
     cells = []
     total_bad = 0
@@ -205,7 +215,7 @@ def main():
             holes, hmask = coverage_holes(t, s, vw)
             if holes > 2 or issues:
                 total_bad += 1
-            print('%2d %-28s view %-14s holes %4d  levels %s %s' % (
+            print('%2d %-28s view %-14s holes %4d  colours %s %s' % (
                 t, s['name'], vw, holes,
                 ' '.join('f%d:%d' % kv for kv in sorted(levels.items())),
                 '; '.join(issues)))
@@ -229,6 +239,28 @@ def main():
             for i, im in enumerate(row):
                 cs.paste(im, (4 + i * (W + 4), y + 12))
         cs.save(os.path.join(OUTDIR, 'contact_%d.png' % (k + 1)))
+    # close-ups (dithers blended as the eye sees them), two more views: nearly head-on and
+    # nearly from behind
+    close = []
+    for t, s in ships:
+        R = max(math.sqrt(v['x'] ** 2 + v['y'] ** 2 + v['z'] ** 2) for v in s['verts'])
+        row = []
+        for vw in CLOSE_VIEWS:
+            canvas, _, issues, _, _ = render(t, s, vw, dist=R * 256 / 112)
+            if issues:
+                total_bad += 1
+                print('%2d %-28s close view %s: %s' % (t, s['name'], vw, '; '.join(issues)))
+            row.append(to_image(canvas, perceived=True))
+        close.append((t, s['name'], row))
+    for k, chunk in enumerate((close[:7], close[7:])):
+        cs = Image.new('RGB', (len(CLOSE_VIEWS) * (W + 4) + 4, len(chunk) * (H + 16) + 4), (60, 60, 60))
+        d = ImageDraw.Draw(cs)
+        for r, (t, name, row) in enumerate(chunk):
+            y = 4 + r * (H + 16)
+            d.text((6, y), '%d %s' % (t, name), fill=(255, 255, 255))
+            for i, im in enumerate(row):
+                cs.paste(im, (4 + i * (W + 4), y + 12))
+        cs.save(os.path.join(OUTDIR, 'closeup_%d.png' % (k + 1)))
     print('views with holes/issues:', total_bad)
 
 
