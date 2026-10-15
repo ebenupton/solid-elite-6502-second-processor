@@ -22225,14 +22225,11 @@ ENDMACRO
  STA XX3,X              \ Store the low byte of the result in the X-th byte of
                         \ the heap at XX3
 
- INX                    \ Increment the heap pointer in X to point to the next
-                        \ byte
-
  LDA #0                 \ And then subtract the high bytes
  SBC U
 
- STA XX3,X              \ Store the low byte of the result in the X-th byte of
-                        \ the heap at XX3
+ STA XX3+1,X            \ Store the high byte of the result in byte X+1 of the
+                        \ heap at XX3 (X is not needed after LL66)
 
  JMP LL66               \ Jump down to LL66
 
@@ -23697,7 +23694,7 @@ ENDMACRO
 
                         \ If we get here, (x1, y1) is on-screen
 
- LDA XX13               \ If XX13 is non-zero, i.e. (x2, y2) is off-screen, jump
+ TXA                    \ If XX13 (still in X) is non-zero, i.e. (x2, y2) is off-screen, jump
  BNE LL108              \ to LL108 to halve it before continuing at LL83
 
                         \ If we get here, the high bytes are all zero, which

@@ -434,18 +434,15 @@
 .hframe                 \ the frame, preserving A, X, Y and the flags (the
  PHP                    \ main loop's next DORND uses the carry M% leaves)
  PHA
- TXA
- PHA
- TYA
- PHA
+ PHX
+ PHY
  JSR G_FRAME
- PLA
- TAY
- PLA
- TAX
+ PLY
+ PLX
  PLA
  PLP
  RTS
+ EQUB 0, 0, 0, 0        \ padding: keeps raster_vars' tables (R_DIRTYL0/1, R_WL at &xx03) from moving to &xxFF and page-crossing on every indexed read
 
 \ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
 \ curve (PLS22 calls PM_HOOK, in bank 4, which comes here). H_BPT: BLINE has

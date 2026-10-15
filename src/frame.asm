@@ -2620,10 +2620,9 @@ MAXPT = 140             \ points per frame
  LDA sg_y1+1
  BMI fsg_x
  BNE fsg_b
- LDA sg_y1
- CMP R_NDT
- BEQ fsg_x
- BCS fsg_b
+ LDA R_NDT
+ CMP sg_y1
+ BCC fsg_b              \ y1 > NDT: reaches the span
 .fsg_x
  RTS
 .fsg_b
@@ -2638,8 +2637,7 @@ MAXPT = 140             \ points per frame
 .fsg_e
  STA sg_r
  STX sg_q
- LDA #0
- STA sg_err
+ STZ sg_err
 .fsg_row                \ row sg_y: record the crossing if it's in range
  LDA sg_y+1
  BMI fsg_n              \ above the screen
