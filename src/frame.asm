@@ -581,20 +581,16 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 .ff1
 
- LDA &26                \ save the zero page the rasteriser uses (&06-&27)
- STA f_zsave+&20        \ and the frame layer's (&D2-&E1): the last two
- LDA &27                \ bytes here, then &06-&15, &16-&25 and FZ in one
- STA f_zsave+&21        \ loop of 16
- LDX #15
-.ff3
- LDA &06,X
- STA f_zsave,X
- LDA &16,X
- STA f_zsave+&10,X
- LDA FZ,X
- STA f_zsave+&22,X
- DEX
- BPL ff3
+ \ save the zero page the rasteriser uses (&06-&27) and the frame layer's
+ \ (&D2-&E1), unrolled
+ FOR z, &06, &27
+  LDA z
+  STA f_zsave + z - &06
+ NEXT
+ FOR z, 0, 15
+  LDA FZ + z
+  STA f_zsave + &22 + z
+ NEXT
 
  BIT GMODE
  BMI ff2
@@ -641,18 +637,14 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_text2            \ text on top
  JSR f_sight2           \ and the sights
 
- LDX #&21               \ restore the zero page
-.ff4
- LDA f_zsave,X
- STA &06,X
- DEX
- BPL ff4
- LDX #15
-.ff4a
- LDA f_zsave+&22,X
- STA FZ,X
- DEX
- BPL ff4a
+ FOR z, &06, &27         \ restore the zero page
+  LDA f_zsave + z - &06
+  STA z
+ NEXT
+ FOR z, 0, 15
+  LDA f_zsave + &22 + z
+  STA FZ + z
+ NEXT
 
  SEI                    \ CPU back to main RAM, and flip at the next vsync
  LDA #0
