@@ -758,7 +758,9 @@ r_bdx3 = R_BDX30
   STA r_pt46+2
   STA r_pt48+2
   STA r_pt60+2
+  STA r_pt410+2
   STA r_pt61+2
+  STA r_pt411+2
   STA r_pt88+2
   LDA r_sbh_dr,X          \ group r_dr
   STA r_pt03+2
@@ -770,7 +772,9 @@ r_bdx3 = R_BDX30
   STA r_pt47+2
   STA r_pt49+2
   STA r_pt62+2
+  STA r_pt412+2
   STA r_pt63+2
+  STA r_pt413+2
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
   STA r_pt36+2
@@ -1527,15 +1531,21 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDX #2
 .ori
   LDA otab,X
-  STA r_pbl1+1
+  STA r_pbl1_e+1
+  STA r_pbl1_o+1
   LDA otab+1,X
-  STA r_pbl1+2
+  STA r_pbl1_e+2
+  STA r_pbl1_o+2
   LDA otab+2,X
-  STA r_pbr1+1
-  STA r_pbr2+1
+  STA r_pbr1_e+1
+  STA r_pbr2_e+1
+  STA r_pbr1_o+1
+  STA r_pbr2_o+1
   LDA otab+3,X
-  STA r_pbr1+2
-  STA r_pbr2+2
+  STA r_pbr1_e+2
+  STA r_pbr2_e+2
+  STA r_pbr1_o+2
+  STA r_pbr2_o+2
   \ horizontal clip: clamp both tables into CL..CR+1
   LDA r_xclip
   BEQ nocl
@@ -1588,7 +1598,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDY r_ystart
   JSR r_rowset
   LDA RZ_PP+1
-  STA r_jsr2+2
+  STA r_jsr2_e+2
+  STA r_jsr2_o+2
   LDA #190                \ nothing planted
   STA RZ_PP
   TYA
@@ -1825,122 +1836,236 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ RZ_PP = the planted RTS (190: none).
 \ ----------------------------------------------------------------------------
 
-.pb_one
+.r_pb                     \ even and odd rows: a copy each (colour R_COLE / R_COLO)
+  LDA RZ_Y
+  LSR A
+  BCC pbe
+  JMP r_pb_o
+.pbe
+  JMP r_pb_e
+.pb_one_e
   LDY r_xo,X
   LDA r_lm,X
   LDX R_XR
   AND r_rm,X
   STA RZ_T7
   CPX #&80
-  BCS pb_ob
+  BCS pb_ob_e
   LDA (RZ_PA),Y
-  EOR RZ_COL
+  EOR R_COLE
   AND RZ_T7
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
-  JMP pb_skip
-.pb_ob
+  JMP pb_skip_e
+.pb_ob_e
   LDA (RZ_PB),Y
-  EOR RZ_COL
+  EOR R_COLE
   AND RZ_T7
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-  JMP pb_skip
-.r_pb
+  JMP pb_skip_e
+.r_pb_e
   LDY RZ_Y
-.r_pbl1
+.r_pbl1_e
   LDA &FFFF,Y
-.r_pbr1
+.r_pbr1_e
   CMP &FFFF,Y
-  BCS pb_skip
+  BCS pb_skip_e
   STA R_XL
   TAX
 .r_pt60 CMP r_dl,Y
-  BCS pb_d1
+  BCS pb_d1_e
 .r_pt61 STA r_dl,Y
-.pb_d1
-.r_pbr2
+.pb_d1_e
+.r_pbr2_e
   LDA &FFFF,Y
   DEC A
   STA R_XR
 .r_pt62 CMP r_dr,Y
-  BCC pb_d2
+  BCC pb_d2_e
 .r_pt63 STA r_dr,Y
-.pb_d2
+.pb_d2_e
   EOR R_XL
   CMP #4
-  BCC pb_one
+  BCC pb_one_e
   LDY r_xo,X
   CPX #&80
-  BCS pb_lb
+  BCS pb_lb_e
   LDA (RZ_PA),Y
-  EOR RZ_COL
+  EOR R_COLE
   AND r_lm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
-.pb_l2
+.pb_l2_e
   LDA r_j,X
-  STA r_jsr2+1
+  STA r_jsr2_e+1
   LDX R_XR
   LDA r_j-4,X
-  CMP r_jsr2+1
-  BEQ pb_norun
+  CMP r_jsr2_e+1
+  BEQ pb_norun_e
   CMP RZ_PP
-  BNE pb_plant
-.pb_go
+  BNE pb_plant_e
+.pb_go_e
   LDX RZ_PA
-  LDA RZ_COL
-.r_jsr2
+  LDA R_COLE
+.r_jsr2_e
   JSR &FFFF
   LDX R_XR
-.pb_norun
+.pb_norun_e
   LDY r_xo,X
   CPX #&80
-  BCS pb_rb
+  BCS pb_rb_e
   LDA (RZ_PA),Y
-  EOR RZ_COL
+  EOR R_COLE
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
-.pb_skip
+.pb_skip_e
   DEC RZ_SA
-  BEQ pb_end
+  BNE pb_c_e
+  JMP pb_end
+.pb_c_e
   INC RZ_Y
-  LDA RZ_COL
-  EOR RZ_SB               \ COLE EOR COLO
-  STA RZ_COL
   INC RZ_PA
   INC RZ_PB
-  LDA RZ_PA
-  CMP #8
-  BEQ pb_cr
-  JMP r_pb
-.pb_end
-  LDA #r_opSTA            \ take the RTS out again
-  STA (RZ_PP)
-  RTS
-.pb_lb
+  JMP r_pb_o
+.pb_lb_e
   LDA (RZ_PB),Y
-  EOR RZ_COL
+  EOR R_COLE
   AND r_lm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-  BRA pb_l2
-.pb_rb
+  BRA pb_l2_e
+.pb_rb_e
   LDA (RZ_PB),Y
-  EOR RZ_COL
+  EOR R_COLE
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-  BRA pb_skip
-.pb_plant
+  BRA pb_skip_e
+.pb_plant_e
   TAY
   LDA #r_opSTA
   STA (RZ_PP)
   STY RZ_PP
   LDA #r_opRTS
   STA (RZ_PP)
-  BRA pb_go
+  BRA pb_go_e
+.pb_one_o
+  LDY r_xo,X
+  LDA r_lm,X
+  LDX R_XR
+  AND r_rm,X
+  STA RZ_T7
+  CPX #&80
+  BCS pb_ob_o
+  LDA (RZ_PA),Y
+  EOR R_COLO
+  AND RZ_T7
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  JMP pb_skip_o
+.pb_ob_o
+  LDA (RZ_PB),Y
+  EOR R_COLO
+  AND RZ_T7
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  JMP pb_skip_o
+.r_pb_o
+  LDY RZ_Y
+.r_pbl1_o
+  LDA &FFFF,Y
+.r_pbr1_o
+  CMP &FFFF,Y
+  BCS pb_skip_o
+  STA R_XL
+  TAX
+.r_pt410 CMP r_dl,Y
+  BCS pb_d1_o
+.r_pt411 STA r_dl,Y
+.pb_d1_o
+.r_pbr2_o
+  LDA &FFFF,Y
+  DEC A
+  STA R_XR
+.r_pt412 CMP r_dr,Y
+  BCC pb_d2_o
+.r_pt413 STA r_dr,Y
+.pb_d2_o
+  EOR R_XL
+  CMP #4
+  BCC pb_one_o
+  LDY r_xo,X
+  CPX #&80
+  BCS pb_lb_o
+  LDA (RZ_PA),Y
+  EOR R_COLO
+  AND r_lm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+.pb_l2_o
+  LDA r_j,X
+  STA r_jsr2_o+1
+  LDX R_XR
+  LDA r_j-4,X
+  CMP r_jsr2_o+1
+  BEQ pb_norun_o
+  CMP RZ_PP
+  BNE pb_plant_o
+.pb_go_o
+  LDX RZ_PA
+  LDA R_COLO
+.r_jsr2_o
+  JSR &FFFF
+  LDX R_XR
+.pb_norun_o
+  LDY r_xo,X
+  CPX #&80
+  BCS pb_rb_o
+  LDA (RZ_PA),Y
+  EOR R_COLO
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+.pb_skip_o
+  DEC RZ_SA
+  BNE pb_c_o
+  JMP pb_end
+.pb_c_o
+  INC RZ_Y
+  INC RZ_PA
+  INC RZ_PB
+  LDA RZ_PA
+  CMP #8
+  BEQ pb_cr
+  JMP r_pb_e
+.pb_lb_o
+  LDA (RZ_PB),Y
+  EOR R_COLO
+  AND r_lm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  BRA pb_l2_o
+.pb_rb_o
+  LDA (RZ_PB),Y
+  EOR R_COLO
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  BRA pb_skip_o
+.pb_plant_o
+  TAY
+  LDA #r_opSTA
+  STA (RZ_PP)
+  STY RZ_PP
+  LDA #r_opRTS
+  STA (RZ_PP)
+  BRA pb_go_o
+.pb_end
+  LDA #r_opSTA            \ take the RTS out again
+  STA (RZ_PP)
+  RTS
 .pb_cr
   LDA #r_opSTA            \ next character row: new run page
   STA (RZ_PP)
@@ -1955,8 +2080,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   INC A
   STA RZ_PB+1
   INC RZ_PP+1
-  INC r_jsr2+2
-  JMP r_pb
+  INC r_jsr2_e+2
+  INC r_jsr2_o+2
+  JMP r_pb_e
 
 \ ----------------------------------------------------------------------------
 \ r_pf16: R_POLY with some coordinate outside 0..255 (rows r_ystart..r_ylast
