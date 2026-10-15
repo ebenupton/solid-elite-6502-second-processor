@@ -34,7 +34,7 @@
 \   R_PXL/R_PXH/R_PYL/R_PYH  16-entry vertex arrays (signed 16-bit, y down)
 \   R_X0,R_Y0,R_X1,R_Y1      line end points, signed 16-bit words (lo, hi)
 \   R_SN               star count (0..24)
-\   R_SX,R_SY,R_SS     24-entry star arrays: x, y (8-bit), size 1..3
+\   R_SX,R_SY,R_SS     24-entry star arrays: x, y (8-bit), size 1..3 (0: none)
 \   R_SCOL             star colour byte (R_INIT sets &FF = logical colour 3)
 \   R_NDT, R_NDB       new disc rows for R_DISCROWS (NDT > NDB: no disc)
 \   R_NDISCL/R_NDISCR  new disc spans (rows NDT..NDB only) [192 each]
@@ -4118,12 +4118,13 @@ ENDMACRO
   BCS sdone
   CPX #24
   BCS sdone
+  LDA R_SS,X
+  BEQ snext               \ (size 0: no star)
+  STA RZ_TA
   LDA R_SX,X
   STA RZ_SA
   LDA R_SY,X
   STA RZ_SA+1
-  LDA R_SS,X
-  STA RZ_TA
   JSR r_strow
   LDA RZ_TA
   CMP #3

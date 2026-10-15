@@ -68,10 +68,6 @@ fz_u    = FZ+15
 .F_DS       SKIP MAXDT  \ size 1..3
 .F_DC       SKIP MAXDT  \ colour index
 
-.F_STV      SKIP 24     \ star valid flags, by star index (1..NOSTM)
-.F_STX      SKIP 24
-.F_STY      SKIP 24
-.F_STS      SKIP 24
 
 .F_PLON     EQUB 0      \ planet disc recorded this frame
 .F_PLX      EQUW 0      \ centre x (16-bit signed screen)
@@ -139,7 +135,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_PLON
  LDX #23
 .fin1
- STA F_STV,X
+ STA R_SS,X
  DEX
  BPL fin1
  JSR f_tmclear
@@ -332,7 +328,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_tmclear
  LDX #23                \ the stars will be re-recorded too
 .fdi1
- STA F_STV,X
+ STA R_SS,X
  DEX
  BPL fdi1
  LDY f_ysav
@@ -501,33 +497,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  INC F_NDOT
 .fdo9
  LDY f_ysav
- RTS
-
-\ F_STAR: star Y. C clear = off screen (invalid); C set = at X = x, A = y,
-\ size from ZZ.
-
-.F_STAR
- BCS fst1
- LDA #0
- STA F_STV,Y
- RTS
-.fst1
- STA F_STY,Y
- TXA
- STA F_STX,Y
- LDX #1
- LDA ZZ
- CMP #144
- BCS fst2
- INX
- CMP #80
- BCS fst2
- INX
-.fst2
- TXA
- STA F_STS,Y
- LDA #&FF
- STA F_STV,Y
  RTS
 
 \ F_PLANET: record the planet: centre (K3, K4) 16-bit, radius K, TYPE
@@ -1846,24 +1815,9 @@ ENDMACRO
 .fla9
  RTS
 
-.f_stars                \ gather the valid stars into R_SX/R_SY/R_SS
- LDX #0
- LDY #1
-.fst5
- LDA F_STV,Y
- BEQ fst6
- LDA F_STX,Y
- STA R_SX,X
- LDA F_STY,Y
- STA R_SY,X
- LDA F_STS,Y
- STA R_SS,X
- INX
-.fst6
- INY
- CPY #19                \ stars are 1..NOSTM, and NOSTM is only ever NOST = 18
- BCC fst5
- STX R_SN
+.f_stars                \ stars 1..NOSTM (NOSTM is only ever NOST = 18), recorded
+ LDA #19                \ by the hooks straight into R_SX/R_SY/R_SS (R_SS = 0: none)
+ STA R_SN
  JMP T_STARPLOT
 
 \ ------------------------------------------------------------------------------

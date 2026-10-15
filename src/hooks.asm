@@ -67,8 +67,21 @@
  BNE hsd
  PLA
  PLA
- SEC
- JSR G_STAR
+ LDA hA                 \ record star Y straight into the rasteriser's arrays
+ STA R_SY,Y             \ (by star index; R_SS = 0: not on screen)
+ TXA
+ STA R_SX,Y
+ LDX #1
+ LDA ZZ
+ CMP #144
+ BCS hst2
+ INX
+ CMP #80
+ BCS hst2
+ INX
+.hst2
+ TXA
+ STA R_SS,Y
 .hpxc
  LDA ZZ                 \ leave C = (ZZ >= 80) and A = ZZ as PIXEL would
  CMP #80
@@ -90,8 +103,9 @@
  BEQ P%+6
  CLC                    \ (outside record mode: see H_STAR; F_DSTAR returns
  JMP G_DSTAR            \ C set)
- CLC
- JSR G_STAR
+ LDA #0                 \ star Y is not on screen
+ STA R_SS,Y
+ LDA #ELITEBANK         \ (A as the bank stub used to leave it)
  SEC                    \ as PIXEL2's BCS PX4 leaves it
  RTS
 
