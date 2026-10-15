@@ -343,13 +343,69 @@ ALIGN &100
   LDA dlh,X
   STA ld1+2
   STA sd1+2
+  STA fl1+2
+  STA fs1+2
   LDA drh,X
   STA ld2+2
   STA sd2+2
-.row
+  STA fl2+2
+  STA fs2+2
+  STZ rj+2                \ (no run page yet)
+.frow                     \ fast path: extent inside columns 1..62
+.fl2
+  LDA R_DIRTYR0,Y
+  BEQ fnx
+  CMP #252
+  BCS slow
+  TAX
+  ORA #3
+  STA R_WR,Y
+  LDA r7_jr,X             \ plant the RTS after column R DIV 4
+  STA RZ_PP
+.fl1
+  LDX R_DIRTYL0,Y
+  CPX #4
+  BCC slow
+  TXA
+  AND #&FC
+  STA R_WL,Y
+  LDA r7_jl,X             \ enter at column L DIV 4
+  STA rj+1
+  LDA #&FF
+.fs1
+  STA R_DIRTYL0,Y
+  LDA #0
+.fs2
+  STA R_DIRTYR0,Y
+  LDA r7_rp,Y
+  CMP rj+2
+  BEQ fpg
+  STA rj+2
+  STA RZ_PP+1
+.fpg
+  LDA #&60
+  STA (RZ_PP)
+  STY RZ_Y
+  TYA
+  AND #7
+  TAX
+  LDA #0
+  JSR rj
+  LDA #&9D
+  STA (RZ_PP)
+  LDY RZ_Y
+.fnx
+  INY
+  CPY c_YE
+  BCC frow
+  RTS
+.slow                     \ an end in column 0 or 63: the general row code
+  JSR row1
+  BRA fnx
+\ row1: row Y, general (the border columns' bytes masked)
+.row1
 .ld2
   LDA R_DIRTYR0,Y
-  BEQ nx
   STA c_R
   ORA #3
   STA R_WR,Y
@@ -394,16 +450,14 @@ ALIGN &100
   AND #7
   TAX
   LDA #0
-.rj
-  JSR &FFFF
+  JSR rj
   LDA #&9D
   STA (RZ_PP)
   LDY RZ_Y
 .nx
-  INY
-  CPY c_YE
-  BCC row
   RTS
+.rj
+  JMP &FFFF
 .e0
   STY RZ_Y
   JSR edge0
@@ -472,6 +526,14 @@ NEXT
 .r7_j3                    \ run offset of byte column k (1..63)
 FOR k, 0, 63
   EQUB LO(3 * (k - 1))
+NEXT
+.r7_jl                    \ run offset of byte column x DIV 4 (x >= 4)
+FOR x, 0, 255
+  EQUB LO(3 * (x DIV 4 - 1))
+NEXT
+.r7_jr                    \ run offset of byte column x DIV 4 + 1 (the RTS)
+FOR x, 0, 255
+  EQUB LO(3 * (x DIV 4))
 NEXT
 .r7_rp                    \ run page of row y
 FOR y, 0, 191
