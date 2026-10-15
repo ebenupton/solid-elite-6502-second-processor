@@ -6786,11 +6786,11 @@ ENDMACRO
 
 .MVS5
 
- LDA INWK+1,X           \ Fetch roofv_x_hi, clear the sign bit, divide by 2 and
- AND #%01111111         \ store in T, so:
+ LDA INWK+1,X           \ Fetch roofv_x_hi, store it in S (the high byte of the
+ STA S                  \ subtraction below, fixed up for the borrow later),
+ AND #%01111111         \ then clear the sign bit and divide by 2, so:
  LSR A                  \
- STA T                  \ T = |roofv_x_hi| / 2
-                        \   = |roofv_x| / 512
+                        \ A = |roofv_x_hi| / 2 = |roofv_x| / 512
                         \
                         \ The above is true because:
                         \
@@ -6802,16 +6802,15 @@ ENDMACRO
                         \                    + roofv_x_lo / 512
                         \                  = |roofv_x_hi| / 2
 
- LDA INWK,X             \ Now we do the following subtraction:
+ EOR #&FF               \ Now we do the following subtraction:
  SEC                    \
- SBC T                  \ (S R) = (roofv_x_hi roofv_x_lo) - |roofv_x| / 512
+ ADC INWK,X             \ (S R) = (roofv_x_hi roofv_x_lo) - |roofv_x| / 512
  STA R                  \       = (1 - 1/512) * roofv_x
                         \
-                        \ by doing the low bytes first
+                        \ low byte as lo + ~A + 1 = lo - A (same result and C)
 
- LDA INWK+1,X           \ And then the high bytes (the high byte of the right
- SBC #0                 \ side of the subtraction being 0)
- STA S
+ BCS P%+4               \ And then the high byte: decrement S if the low byte
+ DEC S                  \ borrowed (same as roofv_x_hi - 0 - borrow)
 
  LDA INWK,Y             \ Set P = nosev_x_lo
  STA P
@@ -6864,29 +6863,22 @@ ENDMACRO
  LDA INWK,X             \ Set P = roofv_x_lo
  STA P
 
- LDA INWK+1,X           \ Fetch the sign of roofv_x_hi (bit 7) and store in T
- AND #%10000000
- STA T
+ LDA INWK+1,X           \ Fetch roofv_x_hi and give it the sign of -roofv_x
+ EOR RAT2               \ as if multiplied by the pitch or roll direction
+ EOR #%10000000         \ (RAT2 is 0 or &80, so bits 0-6 are unchanged)
 
- EOR INWK+1,X           \ A = T EOR roofv_x_hi = roofv_x_hi with bit 7 cleared,
-                        \ so A = |roofv_x_hi|
-
- LSR A                  \ Set (A P) = (A P) / 16
- ROR P                  \           = |roofv_x_hi roofv_x_lo| / 16
- LSR A                  \           = |roofv_x| / 16
+ LSR A                  \ Set (A P) = (A P) / 16, which leaves P as
+ ROR P                  \ |roofv_x| / 16 low byte (the sign bit never reaches
+ LSR A                  \ P) and A = %0000sxxx, where s is the sign
  ROR P
  LSR A
  ROR P
  LSR A
  ROR P
 
- ORA T                  \ Set the sign of A to the opposite sign to T (i.e. the
- EOR #%10000000         \ sign of the original -roofv_x), so now:
-                        \
-                        \ (A P) = -roofv_x / 16
-
- EOR RAT2               \ Give it the sign as if we multiplied by the direction
-                        \ by the pitch or roll direction
+ CMP #8                 \ Move the sign from bit 3 to bit 7: if s = 1 then
+ BCC P%+4               \ A is 8-15 and C = 1, so add &78 to get &80-&87,
+ ADC #&77               \ giving (A P) = -/+ roofv_x / 16
 
                         \ Q still holds X from the STX Q before the first ADD
                         \ (ADD does not write Q), so no need to store it again
@@ -7697,13 +7689,16 @@ ENDMACRO
  LDA K6                 \ Set XX15+4 = x_lo of new point
  STA XX15+4
 
- LDA K6+1               \ Set XX15+5 = x_hi of new point
- STA XX15+5
+ STZ SWAP               \ Set SWAP = 0 (LL145's own prologue, done here so we
+                        \ can enter at LL147)
+
+ LDA K6+1               \ Set XX15+5 = x_hi of new point, leaving it in A as
+ STA XX15+5             \ LL147 expects
 
                         \ XX12(1 0) = y of new point was set at the start of
                         \ BLINE (H_BPT does not touch it)
 
- JSR LL145              \ Call LL145 to see if the new line segment needs to be
+ JSR LL147              \ Call LL145 to see if the new line segment needs to be
                         \ clipped to fit on-screen, returning the clipped line's
                         \ end-points in (X1, Y1) and (X2, Y2)
 
@@ -20428,18 +20423,26 @@ ENDMACRO
 
 .LL5
 
- LDY R                  \ Set (Y S) = (R Q)
+                        \ BBC Master port: the original keeps the high byte of
+                        \ the dividend in Y and uses T as the loop counter; we
+                        \ swap them (dividend high byte in T, counter in Y) so
+                        \ the shifts can use ROL T directly. On exit T = 0 and
+                        \ Y = 0 exactly as before (all of T's bits are shifted
+                        \ out by the 16 shifts; SBC #64 only touches bits 6-7),
+                        \ and A, X, C, V, N, Z, Q and S are unchanged
+
+ LDA R                  \ Set (T S) = (R Q)
+ STA T
  LDA Q
  STA S
 
-                        \ So now to calculate Q = SQRT(Y S)
+                        \ So now to calculate Q = SQRT(T S)
 
  LDX #0                 \ Set X = 0, to hold the remainder
 
  STX Q                  \ Set Q = 0, to hold the result
 
- LDA #8                 \ Set T = 8, to use as a loop counter
- STA T
+ LDY #8                 \ Set Y = 8, to use as a loop counter
 
 .LL6
 
@@ -20448,17 +20451,15 @@ ENDMACRO
 
  BNE LL8                \ If X > Q, jump to LL8
 
- CPY #64                \ If Y < 64, jump to LL7 with the C flag clear,
- BCC LL7                \ otherwise fall through into LL8 with the C flag set
+ LDA T                  \ If T < 64, jump to LL7 with the C flag clear,
+ CMP #64                \ otherwise fall through into LL8 with the C flag set
+ BCC LL7
 
 .LL8
 
- TYA                    \ Set Y = Y - 64
- SBC #64                \
- TAY                    \ This subtraction will work as we know C is set from
-                        \ the BCC above, and the result will not underflow as we
-                        \ already checked that Y >= 64, so the C flag is also
-                        \ set for the next subtraction
+ LDA T                  \ Set T = T - 64 (C is set here)
+ SBC #64
+ STA T
 
  TXA                    \ Set X = X - Q
  SBC Q
@@ -20469,29 +20470,25 @@ ENDMACRO
  ROL Q                  \ Shift the result in Q to the left, shifting the C flag
                         \ into bit 0 and bit 7 into the C flag
 
- ASL S                  \ Shift the dividend in (Y S) to the left, inserting
- TYA                    \ bit 7 from above into bit 0
+ TXA                    \ Shift (A T S) = (X T S) left twice, then X = A
+ ASL S
+ ROL T
  ROL A
- TAY
-
- TXA                    \ Shift the remainder in X to the left
- ROL A
- TAX
-
- ASL S                  \ Shift the dividend in (Y S) to the left
- TYA
- ROL A
- TAY
-
- TXA                    \ Shift the remainder in X to the left
+ ASL S
+ ROL T
  ROL A
  TAX
 
- DEC T                  \ Decrement the loop counter
+ DEY                    \ Decrement the loop counter
 
  BNE LL6                \ Loop back to LL6 until we have done 8 loops
 
  RTS                    \ Return from the subroutine
+
+ NOP                    \ BBC Master port: padding (never executed) to keep LL5
+                        \ the original size, so LL28 and everything after it in
+                        \ main RAM stay put (a 1-byte shift moves LL28's page
+                        \ crossing from a rarely taken BCS to a often taken BCC)
 
 \ ******************************************************************************
 \
