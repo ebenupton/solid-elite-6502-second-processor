@@ -63,6 +63,7 @@ const HZ = (n, k = 1) => hz(S(n), k);
 const curBank = () => cpu.romsel & 15;
 
 const PL9 = S("PL9"), HPC = S("H_PCURVE"), FRES = S("f_reset"), TT100 = S("TT100"), TT170 = S("TT170");
+let orbitPhase = 0;
 let iter = -1, started = false, pl = null, curves = [], nframes = 0;
 const jf = openSync(`${OUT}/frames.jsonl`, "w"), sf = openSync(`${OUT}/screens.bin`, "w");
 
@@ -73,6 +74,16 @@ function handler(pc) {
         return false;
     }
     if (pc === TT100 && started) { iter++; if (iter >= FRAMES) return true; return false; }
+       // --orbit SPEED: (stress test, not the real game) move the planet's
+    // circle along a Lissajous path at G_PLANET, SPEED radians per frame, and
+    // --orbitr R sets its radius
+    if (a.orbit && pc === S("G_PLANET") && (R[S("TYPE")] & 1) === 0) {
+        orbitPhase += +a.orbit;
+        const x = Math.round(128 + 110 * Math.sin(orbitPhase)), y = Math.round(96 + 80 * Math.cos(orbitPhase * 1.37));
+        R[S("K3")] = x & 255; R[S("K3") + 1] = (x >> 8) & 255;
+        R[S("K4")] = y & 255; R[S("K4") + 1] = (y >> 8) & 255;
+        if (a.orbitr) { R[S("K")] = +a.orbitr + Math.round(6 * Math.sin(orbitPhase * 0.7)); R[S("K") + 1] = 0; }
+    }
     if (pc === PL9 && curBank() === 4) {
         pl = { inwk: zp(S("INWK"), 36), k: zp(S("K"), 4), k3: zp(S("K3"), 2), k4: zp(S("K4"), 2), type: zp(S("TYPE"))[0] };
         curves = [];

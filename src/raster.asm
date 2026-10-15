@@ -3073,6 +3073,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   INC A
   STA r_ev+7,Y
   STY r_ns                \ edges - 1
+  LDA r_ev,Y              \ old and new spans apart (a gap between them): the
+  CMP r_ev+7              \ strips would write into the gap, which r_drg (the
+  BCC gen                 \ fallback after a partial write) doesn't cover
+  LDA r_ev+7,Y
+  CMP r_ev
+  BCC gen
   TXA                     \ row pointers, colours
   AND #7
   STA RZ_PA
