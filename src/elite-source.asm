@@ -9610,6 +9610,7 @@ ENDMACRO
                         \ the delete character, so continue on
 
  DEC XC                 \ We want to delete the character to the left of the
+ JSR H_DEL              \ Frame layer hook (see hooks.asm)
                         \ text cursor and move the cursor back one
 
  LDA XC                 \ Set SC(1 0) to the address of the character block at
@@ -9652,6 +9653,8 @@ ENDMACRO
                         \ subroutine
 
 .RR3
+
+ JSR H_CHAR                \ Frame layer hook (see hooks.asm)
 
  ASL A                  \ Set A = &40 + 2 * YC + PTMP, the page containing the
  ADC PTMP               \ character block (the C flag is clear as YC < 24)
@@ -10689,6 +10692,7 @@ ENDMACRO
 
  LDA #VSCAN             \ Set 6522 System VIA T1C-L timer 1 high-order counter
  STA VIA+&45            \ (SHEILA &45) to VSCAN (57) to start the T1 counter
+ JSR H_VSYNC            \ Frame layer: flip buffers, show the front one
                         \ counting down from 14622 at a rate of 1 MHz
 
  LDA HFX                \ If HFX is non-zero, jump to jvec to leave the screen
@@ -10750,6 +10754,7 @@ ENDMACRO
 
  LDA #%00010100         \ Set the Video ULA control register (SHEILA &20) to
  STA VIA+&20            \ %00010100, which is the same as switching to mode 2
+ JSR H_SPLIT            \ Frame layer: the dashboard is in main RAM
                         \ (i.e. the dashboard) but with no cursor
 
  LDA ESCP               \ Set logical colour 3 to yellow (&34), or white (&30)
@@ -13500,7 +13505,7 @@ ENDMACRO
 
  JSR TTX66              \ Clear the screen and draw a border box
 
- JSR HFS1               \ Call HFS1 below and then fall through into the same
+ JSR H_HFS              \ Frame layer: HFS1 twice, drawn directly
                         \ routine, so this effectively runs HFS1 twice, and as
                         \ HFS1 draws 8 concentric rings, this means we draw 16
                         \ of them in all
@@ -16281,7 +16286,11 @@ ENDMACRO
 
  JSR DENGY              \ Call DENGY to deplete our energy banks by 1
 
+ JSR H_LAS1             \ Frame layer: show our laser beams
+
 .LASLI2
+
+ JSR H_LAS2             \ Frame layer: remove our laser beams
 
                         \ --- Mod: Code removed for Demonstration Disc: ------->
 
@@ -16589,6 +16598,8 @@ ENDMACRO
 
 .SIGHT
 
+ JSR H_SIGHT                \ Frame layer hook (see hooks.asm)
+
  LDY VIEW               \ Fetch the laser power for our new view
  LDA LASER,Y
 
@@ -16678,6 +16689,8 @@ ENDMACRO
 \ ******************************************************************************
 
 .TTX66
+
+ JSR G_DIRECT           \ Frame layer: direct drawing from now on
 
  LDA #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case
  STA QQ17
@@ -16778,6 +16791,8 @@ ENDIF
 
 .tt66
 
+ JSR H_FORCE1                \ Frame layer hook (see hooks.asm)
+
  LDX #0                 \ Set (X1, Y1) to (0, 0)
  STX X1
  STX Y1
@@ -16795,7 +16810,9 @@ ENDIF
  STA X1
  STA X2
 
- JSR BOS2               \ Call BOS2 below, which will call BOS1 twice, and then
+ JSR BOS2               \ Frame layer: draw the four lines, then GFORCE off
+ JSR BOS2
+ JMP H_FORCE0
                         \ fall through into BOS2 again, so we effectively do
                         \ BOS1 four times, decrementing X1 and X2 each time
                         \ before calling LOIN, so this whole loop-within-a-loop
@@ -16969,6 +16986,8 @@ ENDIF
 \ ******************************************************************************
 
 .CLYNS
+
+ JSR H_CLYNS                \ Frame layer hook (see hooks.asm)
 
  LDA #20                \ Move the text cursor to row 20, near the bottom of
  STA YC                 \ the screen
@@ -18486,7 +18505,7 @@ ENDIF
 
 .TT100
 
- JSR M%                 \ Call M% to iterate through the main flight loop
+ JSR H_MFRAME           \ Call M% to iterate through the main flight loop
 
  DEC DLY                \ Decrement the delay counter in DLY, so any in-flight
                         \ messages get removed once the counter reaches zero
@@ -19451,7 +19470,7 @@ ENDIF
 
 .D2
 
- JSR M%                 \ Call the M% routine to do the main flight loop once,
+ JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
                         \ which will display our exploding canister scene and
                         \ move everything about
 
@@ -19938,7 +19957,7 @@ ENDIF
 
  STA INWK+3             \ Set y_lo = 0, so the ship remains in the screen centre
 
- JSR LL9                \ Call LL9 to display the ship
+ JSR H_LL9F              \ Call LL9 to display the ship (then the frame)
 
  DEC MCNT               \ Decrement the main loop counter
 
@@ -23241,6 +23260,8 @@ ENDMACRO
  ORA XX1+31             \ have now drawn something on-screen for this ship
  STA XX1+31
 
+ JSR H_SHPPT            \ Frame layer: record the dot
+
  LDA #8                 \ Set A = 8 so when we call LL18+2 next, byte #0 of the
                         \ heap gets set to 8, for the 8 bytes we just stuck on
                         \ the heap
@@ -24228,6 +24249,8 @@ ENDMACRO
                         \ three coordinates until z_hi is 0
 
 .LL91
+
+ JSR H_ZN                \ Frame layer hook (see hooks.asm)
 
                         \ By this point z_hi is 0 and X contains the number of
                         \ right shifts we had to do, plus the scale factor from
@@ -25532,6 +25555,8 @@ ENDMACRO
 
 .EE31
 
+ JSR H_EE31                \ Frame layer hook (see hooks.asm)
+
  LDA #%00001000         \ If bit 3 of the ship's byte #31 is clear, then there
  BIT XX1+31             \ is nothing already being shown for this ship, so skip
  BEQ LL74               \ to LL74 as we don't need to erase anything from the
@@ -25931,6 +25956,8 @@ ENDMACRO
 \ ******************************************************************************
 
 .LL155
+
+ JSR H_LL155               \ Frame layer hook (see hooks.asm)
 
  LDY #0                 \ Fetch the first byte from the ship line heap into A,
  LDA (XX19),Y           \ which contains the number of bytes in the heap
@@ -33193,7 +33220,7 @@ ENDIF
  BEQ P%+5               \ explosion cloud to remove, so skip the following
                         \ instruction
 
- JSR PTCLS              \ Call PTCLS to remove the existing cloud by drawing it
+ JSR H_PTCLSE           \ Call PTCLS to remove the existing cloud by drawing it
                         \ again
 
  LDA INWK+6             \ Set T = z_lo
@@ -36307,6 +36334,7 @@ ENDIF
                         \ to the maximum y-coordinate of the new sun on-screen
 
  BCS PLF3-3             \ If CHKON set the C flag then the new sun's circle does
+ JSR H_SUN              \ Frame layer: record the sun
                         \ not appear on-screen, so jump to WPLS (via the JMP at
                         \ the top of this routine) to remove the sun from the
                         \ screen, returning from the subroutine using a tail
@@ -36830,6 +36858,8 @@ ENDIF
 
 .CIRCLE
 
+ JSR H_CIRC                \ Frame layer hook (see hooks.asm)
+
  JSR CHKON              \ Call CHKON to check whether the circle fits on-screen
 
  BCS RTS2               \ If CHKON set the C flag then the circle does not fit
@@ -37019,6 +37049,8 @@ ENDIF
 \ ******************************************************************************
 
 .WPLS2
+
+ JSR H_WPLS2                \ Frame layer hook (see hooks.asm)
 
  LDY LSX2               \ If LSX2 is non-zero (which indicates the ball line
  BNE WP1                \ heap is empty), jump to WP1 to reset the line heap
@@ -38095,6 +38127,8 @@ ENDIF
 
 .LOIN
 
+ JSR H_LOIN                \ Frame layer hook (see hooks.asm)
+
  STY YSAV               \ Store Y into YSAV, so we can preserve it across the
                         \ call to this subroutine
 
@@ -39033,6 +39067,8 @@ ENDIF
 
  STA HCOL               \ Store the colour byte in HCOL
 
+ JSR H_SKIP             \ Frame layer hook: nothing to draw in record mode
+
  STY YSAV               \ Store Y into YSAV, so we can preserve it across the
                         \ call to this subroutine
 
@@ -39363,7 +39399,7 @@ ENDIF
  AND #%01111111         \ sign bit, so A = |Y1|
 
  CMP #96                \ If |Y1| >= 96 then it's off the screen (as 96 is half
- BCS PX4                \ the screen height), so return from the subroutine (as
+ BCS px4s                \ the screen height), so return from the subroutine (as
                         \ PX4 contains an RTS)
 
  LDA Y1                 \ Fetch the y-coordinate offset into A
@@ -39433,7 +39469,11 @@ ENDIF
 \
 \ ******************************************************************************
 
+ JSR H_STAR             \ Frame layer hook: record star Y in record mode
+
 .PIXEL
+
+ JSR H_DOT                \ Frame layer hook (see hooks.asm)
 
  STY T1                 \ Store Y in T1 so we can restore it at the end of the
                         \ subroutine
@@ -39498,6 +39538,11 @@ ENDIF
 .PX4
 
  RTS                    \ Return from the subroutine
+
+.px4s
+
+ JSR H_STAROFF          \ Frame layer hook: star Y is off screen
+ RTS
 
 \ ******************************************************************************
 \
@@ -40833,3 +40878,5 @@ ENDMACRO
 
  SAVE "build/ELTMAIN.bin", CODE%, MAIN_END%, TT170
  SAVE "build/ELTBANK.bin", BANK%, BANK_END%, BANK%
+
+INCLUDE "src/gfx-build.asm"

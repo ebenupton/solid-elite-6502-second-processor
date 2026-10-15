@@ -109,7 +109,8 @@ excl("LSO", 192); excl("LSX2", 78); excl("LSY2", 78);  // sun and planet line he
 for (let a = 0x0ab0; a < 0x0d40; a++) EXCLUDE.add(a);    // ship line heaps
 excl("COMX"); excl("COMY"); excl("COMC");                 // compass dot position (display)
 for (let a = 0xb0; a < 0xd1; a++) EXCLUDE.add(a);         // zero page &B0-&D0 is not used by the game
-if (LASCT_INJECT) excl("LASCT");                          // real-time input, injected at each read
+if (LASCT_INJECT) excl("LASCT");
+excl("LSP");                                              // ball line heap pointer (drawing only)                          // real-time input, injected at each read
 
 async function makeMachine(model, disc) {
     const s = new MachineSession(model);
@@ -168,6 +169,11 @@ async function run(label, model, disc, syms, opts) {
         }
         if (opts.traceIter !== undefined && snaps.length === opts.traceIter + 1 && labelAt[pc] !== undefined && trace.length < 200000)
             trace.push(labelAt[pc] + " A=" + cpu.a.toString(16) + " RAND=" + s.readMemory(0, 4).map(x => x.toString(16)).join(",") + " Q=" + s.readMemory(0x90, 1)[0].toString(16) + " P=" + s.readMemory(0x1b, 3).map(x => x.toString(16)).join(",") + " C=" + (cpu.p.c ? 1 : 0));
+        if (args.dtrace && started && snaps.length === +args.dtrace && pc === syms.DORND && trace.length < 400000) {
+            const sp = cpu.s, ret = (s.readMemory(0x101 + sp, 1)[0] | (s.readMemory(0x102 + sp, 1)[0] << 8)) - 2;
+            let best = null; for (const [k, v] of Object.entries(syms)) if (v <= ret && v >= 0x0f40 && (!best || v > best[1]) && (ret < 0x8000) === (v < 0x8000)) best = [k, v];
+            trace.push((best ? best[0] + "+" + (ret - best[1]) : ret.toString(16)) + " RAND=" + s.readMemory(0, 4).map(x => x.toString(16)).join(","));
+        }
         if (pc === tt170 && !started) {
             started = true;
             init = Buffer.from(snapshot(s));
@@ -244,6 +250,10 @@ const port = await run("port", "Master", PORT_DISC, psyms, {
 });
 
 // --- Optional control-flow trace of one iteration ---------------------------
+if (args.dtrace) {
+    writeFileSync(`${OUT}/dtrace-orig.txt`, orig.trace.join("\n"));
+    writeFileSync(`${OUT}/dtrace-port.txt`, port.trace.join("\n"));
+}
 if (TRACE !== undefined) {
     const a = orig.trace, b = port.trace;
     writeFileSync(`${OUT}/trace-orig.txt`, a.join("\n"));

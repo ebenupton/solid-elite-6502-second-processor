@@ -8,7 +8,9 @@ mkdir -p build
 $BEEBASM -i src/elite-source.asm -v > build/compile.txt
 $BEEBASM -i src/elite-source.asm -d > build/symbols.txt 2>/dev/null
 TRTBL=$(python3 -c "import re;print(re.search(r\"'TRTBL':(\\d+)\", open('build/symbols.txt').read()).group(1))")
-$BEEBASM -i src/elite-loader.asm -D TRTBL=$TRTBL -v > build/compile-loader.txt
+GINIT=$(python3 -c "import re;print(re.search(r\"'G_INIT':(\\d+)\", open('build/symbols.txt').read()).group(1))")
+HZLEN=$(python3 -c "import re;t=open('build/symbols.txt').read();g=lambda n:int(re.search(r\"'\"+n+r\"':(\\d+)\",t).group(1));print(g('HZ_CODE_END')-g('HZ_START'))")
+$BEEBASM -i src/elite-loader.asm -D TRTBL=$TRTBL -D GINIT=$GINIT -D HZLEN=$HZLEN -v > build/compile-loader.txt
 rm -f build/elite-master.ssd
 $BEEBASM -i src/elite-disc.asm -do build/elite-master.ssd -boot ELITE -opt 3 -title "ELITE DEMO"
-grep -E "^(Main code|Bank 4|Port workspace)" build/compile.txt
+grep -E "^(Main code|Bank 4|Port workspace|HAZEL|Bank 5|Bank 6)" build/compile.txt

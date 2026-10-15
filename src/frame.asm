@@ -103,7 +103,35 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ ------------------------------------------------------------------------------
 
 .F_INIT
+ LDX #&21               \ R_INIT uses &06-&27: keep Elite's values
+.fin0
+ LDA &06,X
+ STA f_zsave,X
+ DEX
+ BPL fin0
  JSR T_INIT
+ LDX #&21
+.fin4
+ LDA f_zsave,X
+ STA &06,X
+ DEX
+ BPL fin4
+ LDA #ACCY+4            \ clear shadow RAM's screen (buffer 1)
+ STA &FE34
+ LDA #&40
+ STA fin3+2
+ LDA #0
+ TAX
+.fin3
+ STA &4000,X
+ INX
+ BNE fin3
+ INC fin3+2
+ LDY fin3+2
+ CPY #&70
+ BNE fin3
+ LDA #ACCY
+ STA &FE34
  LDA #0
  STA F_NSHIP
  STA F_NLINE
@@ -123,8 +151,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ cells in each row so empty rows cost nothing.
 \ ------------------------------------------------------------------------------
 
-.f_tmclear              \ clear the text map and both shown maps
- LDA #0
+.f_tmclear              \ clear the text map and buffer 0's shown map (buffer
+ LDA #0                 \ 1 keeps its own: it still holds that picture)
  TAX
 .ftc1
  STA F_TM,X
@@ -133,16 +161,12 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_SH0,X
  STA F_SH0+256,X
  STA F_SH0+512,X
- STA F_SH1,X
- STA F_SH1+256,X
- STA F_SH1+512,X
  INX
  BNE ftc1
  LDX #23
 .ftc2
  STA F_TMR,X
  STA F_SHR0,X
- STA F_SHR1,X
  DEX
  BPL ftc2
  RTS
@@ -305,6 +329,11 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  CLI
  STY f_ysav
  JSR f_tmclear
+ LDX #23                \ the stars will be re-recorded too
+.fdi1
+ STA F_STV,X
+ DEX
+ BPL fdi1
  LDY f_ysav
  RTS
 
@@ -473,6 +502,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ F_PLANET: record the planet: centre (K3, K4) 16-bit, radius K, TYPE
 
 .F_PLANET
+ LDA TYPE
+ LSR A
+ BCS fpl1
  LDA K3
  STA F_PLX
  LDA K3+1
@@ -488,6 +520,23 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDA #&FF
  STA F_PLON
  RTS
+.fpl1                   \ the sun
+ LDA K3
+ STA F_SUX
+ LDA K3+1
+ STA F_SUX+1
+ LDA K4
+ STA F_SUY
+ LDA K4+1
+ STA F_SUY+1
+ LDA K
+ STA GSUNR
+ LDA #&FF
+ STA GSUNON
+ RTS
+
+.F_SUX EQUW 0
+.F_SUY EQUW 0
 
 \ F_SHPPT: record a distant ship as a 2x2 dot at (K3, K4), in its hue
 
@@ -524,13 +573,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JMP f_reset            \ not a space view: just forget what was recorded
 
 .ff1
- BIT GMODE
- BMI ff2
- JSR f_enter            \ first space-mode frame since the screen was cleared
-
-.ff2
- LDA GFLIP              \ wait for the previous flip, so the back buffer is
- BNE ff2                \ no longer on screen
 
  LDX #&21               \ save the zero page the rasteriser uses (&06-&27)
 .ff3
@@ -544,7 +586,24 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA f_zsave+&22,X
  DEX
  BPL ff3a
+
+ BIT GMODE
+ BMI ff2
+ JSR f_enter            \ first space-mode frame since the screen was cleared
+
+.ff2
+ LDA GFLIP              \ wait for the previous flip, so the back buffer is
+ BNE ff2                \ no longer on screen
+
  JSR f_bufpatch
+ LDA #2                 \ the clip window inside the border (the zero page
+ STA R_CL               \ copy is Elite's between frames)
+ LDA #253
+ STA R_CR
+ LDA #1
+ STA R_CT
+ LDA #191
+ STA R_CB
 
  LDA F_BACK             \ let the CPU see the back buffer at &4000-&6FFF
  ASL A
@@ -886,66 +945,62 @@ ENDMACRO
  SEC
  RTS
 
-\ f_sunrows: the sun's spans from Elite's own sun line heap: row y has
-\ half-width LSO[y] about SUNX (16-bit) when non-zero.
+\ f_sunrows / f_plrows: a disc's spans into R_NDISCL/R and R_NDT/R_NDB, from
+\ its centre (16-bit screen coordinates) and radius (8-bit), using a cached
+\ half-width table per disc (rebuilt only when the radius changes)
 
 .f_sunrows
- LDA #255
- STA R_NDT
- LDA #0
- STA R_NDB
- LDY R_CT
-.fsr1
- LDA LSO,Y
- BEQ fsr8
- STA fz_t
- LDA SUNX
- SEC
- SBC fz_t
- STA fz_p
- LDA SUNX+1
- SBC #0
- STA fz_p+1
- LDA SUNX
- CLC
- ADC fz_t
- STA fz_q
- LDA SUNX+1
- ADC #0
- STA fz_q+1
- JSR f_clamp
- BCS fsr8
- LDA R_XL
- STA R_NDISCL,Y
- LDA R_XR
- STA R_NDISCR,Y
- CPY R_NDT
- BCS P%+5
- STY R_NDT
- STY R_NDB
- BNE fsr9
-.fsr8
- LDA #255
- STA R_NDISCL,Y
- LDA #0
- STA R_NDISCR,Y
-.fsr9
- INY
- CPY R_CB
- BCC fsr1
- BEQ fsr1
- RTS
-
-\ f_plrows: the planet's spans, from the half-width table F_HW (rebuilt when
-\ the radius changes): row y is in the disc when |y - cy| <= r.
+ LDA F_SUX
+ STA f_cx
+ LDA F_SUX+1
+ STA f_cx+1
+ LDA F_SUY
+ STA f_cy
+ LDA F_SUY+1
+ STA f_cy+1
+ LDA GSUNR
+ STA f_r
+ CMP f_hw2r
+ BEQ fsu1
+ STA f_hw2r
+ LDA #LO(F_HW2)
+ STA fhw_st+1
+ LDA #HI(F_HW2)
+ STA fhw_st+2
+ JSR f_hwbuild
+.fsu1
+ LDA #LO(F_HW2)
+ STA fpr_ld+1
+ LDA #HI(F_HW2)
+ STA fpr_ld+2
+ JMP f_discspans
 
 .f_plrows
+ LDA F_PLX
+ STA f_cx
+ LDA F_PLX+1
+ STA f_cx+1
+ LDA F_PLY
+ STA f_cy
+ LDA F_PLY+1
+ STA f_cy+1
  LDA F_PLR
+ STA f_r
  CMP f_hwr
  BEQ fpr1
  STA f_hwr
+ LDA #LO(F_HW)
+ STA fhw_st+1
+ LDA #HI(F_HW)
+ STA fhw_st+2
  JSR f_hwbuild
 .fpr1
+ LDA #LO(F_HW)
+ STA fpr_ld+1
+ LDA #HI(F_HW)
+ STA fpr_ld+2
+
+.f_discspans            \ rows of the disc (f_cx, f_cy, f_r) within the window
  LDA #255
  STA R_NDT
  LDA #0
@@ -954,10 +1009,10 @@ ENDMACRO
 .fpr2
  TYA                    \ d = y - cy (16-bit)
  SEC
- SBC F_PLY
+ SBC f_cy
  STA fz_t
  LDA #0
- SBC F_PLY+1
+ SBC f_cy+1
  BPL fpr3
  EOR #&FF               \ |d|
  STA fz_u
@@ -971,25 +1026,26 @@ ENDMACRO
 .fpr3
  BNE fpr8               \ |d| > 255
  LDA fz_t
- CMP F_PLR
+ CMP f_r
  BEQ fpr4
  BCS fpr8
 .fpr4
  TAX
- LDA F_HW,X
+.fpr_ld
+ LDA F_HW,X             \ patched
  STA fz_t
- LDA F_PLX
+ LDA f_cx
  SEC
  SBC fz_t
  STA fz_p
- LDA F_PLX+1
+ LDA f_cx+1
  SBC #0
  STA fz_p+1
- LDA F_PLX
+ LDA f_cx
  CLC
  ADC fz_t
  STA fz_q
- LDA F_PLX+1
+ LDA f_cx+1
  ADC #0
  STA fz_q+1
  JSR f_clamp
@@ -1015,22 +1071,27 @@ ENDMACRO
  BEQ fpr2
  RTS
 
+.f_cx EQUW 0
+.f_cy EQUW 0
+.f_r  EQUB 0
 .f_hwr EQUB 0           \ radius F_HW was built for (0 = none)
+.f_hw2r EQUB 0          \ radius F_HW2 was built for
 
-\ f_hwbuild: F_HW[d] = floor(sqrt(r*r - d*d)) for d = 0..r, r = f_hwr, by
-\ walking x down from r while x*x + d*d > r*r (error kept as e = r*r - d*d -
-\ x*x, 16-bit signed).
+\ f_hwbuild: table[d] = floor(sqrt(r*r - d*d)) for d = 0..r (r = f_r, table
+\ patched into fhw_st), by walking x down from r while x*x + d*d > r*r
+\ (error e = r*r - d*d - x*x, 16-bit signed)
 
 .f_hwbuild
- LDX f_hwr              \ x = r
+ LDX f_r                \ x = r
  LDA #0
  STA fz_p               \ e = 0 (d = 0, x = r)
  STA fz_p+1
  LDY #0                 \ d
 .fhw1
  TXA
- STA F_HW,Y
- CPY f_hwr
+.fhw_st
+ STA F_HW,Y             \ patched
+ CPY f_r
  BEQ fhw9
  TYA                    \ e -= 2d + 1 ; d++
  ASL A
@@ -1872,11 +1933,11 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  STA f_rmk
  CPY #0
  BNE P%+7
- LDA #&77               \ pixel 0 of column 0 is the border
+ LDA #&33               \ pixels 0-1 of column 0 are the border
  STA f_lmk
  CPY #31
  BNE P%+7
- LDA #&EE               \ pixel 255 is the border
+ LDA #&CC               \ pixels 254-255 are the border
  STA f_rmk
  LDA fz_i               \ first line y = 8*row
  ASL A

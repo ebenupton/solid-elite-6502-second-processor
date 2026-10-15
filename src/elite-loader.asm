@@ -183,6 +183,14 @@
  LDY #HI(MESS2)         \ into sideways RAM bank 4
  JSR OSCLI
 
+ LDX #LO(MESS5)         \ *SRLOAD BANK5 8000 5: the rasteriser
+ LDY #HI(MESS5)
+ JSR OSCLI
+
+ LDX #LO(MESS6)         \ *SRLOAD BANK6 8000 6: the frame layer and HAZEL image
+ LDY #HI(MESS6)
+ JSR OSCLI
+
  LDX #LO(MESS3)         \ *LOAD DIALS 7000, to load the BBC Master's mode 2
  LDY #HI(MESS3)         \ dashboard image
  JSR OSCLI
@@ -297,6 +305,14 @@
  EQUS "SRLOAD ELTBANK 8000 4"
  EQUB 13
 
+.MESS5
+ EQUS "SRLOAD BANK5 8000 5"
+ EQUB 13
+
+.MESS6
+ EQUS "SRLOAD BANK6 8000 6"
+ EQUB 13
+
 .MESS3
 
  EQUS "LOAD DIALS 7000"
@@ -377,8 +393,25 @@
  STA ROMSEL             \ keeps it paged in
 
  LDA ACCCON             \ Make sure ACCCON bits D, E and X are clear, so main
- AND #%11111000         \ RAM is displayed and accessed at &3000 to &7FFF
- STA ACCCON
+ AND #%11110000         \ RAM is displayed and accessed at &3000 to &7FFF, and
+ ORA #%00001000         \ set bit Y so HAZEL (&C000-&DFFF) is RAM from now on
+ STA ACCCON             \ (the MOS doesn't touch &C000-&DFFF during the game)
+
+ LDA #6                 \ Copy the HAZEL image from bank 6 (&B800) to &C000
+ STA ROMSEL             \ and clear the rest of HAZEL
+ LDX #0
+.HZC1
+ FOR I%, 0, (HZLEN-1) DIV 256
+  LDA &B800 + I% * 256,X
+  STA &C000 + I% * 256,X
+ NEXT
+ INX
+ BNE HZC1
+
+ LDA #ROMBANK           \ Back to bank 4
+ STA ROMSEL
+
+ JSR GINIT              \ Initialise the frame layer and rasteriser
 
  CLI                    \ Re-enable interrupts
 
