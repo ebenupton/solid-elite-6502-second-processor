@@ -7,7 +7,7 @@
 \
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser (raster.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (frame.asm), the ship
-\                    faces and colours (faces.asm), and at &B800 an image of
+\                    faces and colours (faces.asm), and at HZIMG (&BB00) an image of
 \                    HAZEL's code, which the loader copies to &C000
 \
 \ HAZEL (&C000-&DFFF, ACCCON bit Y set permanently once loading is done) holds
@@ -22,7 +22,7 @@ MAXDT = 64              \ dots per frame
 RASTBANK = 5
 GFXBANK = 6
 ELITEBANK = 4
-HZIMG = &B800           \ where bank 6 carries the HAZEL code image
+HZIMG = &BB00           \ where bank 6 carries the HAZEL code image
 
 CLEAR &C000, &E000
 ORG &C000

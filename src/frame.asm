@@ -517,9 +517,16 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_PLR
  LDA TYPE
  STA F_PLT
+ LDA INWK+7
+ STA F_PLZH
+ LDA INWK+6
+ STA F_PLZL
  LDA #&FF
  STA F_PLON
  RTS
+
+.F_PLZH EQUB 0          \ the planet's z (hi, lo), for hiding ships behind it
+.F_PLZL EQUB 0
 .fpl1                   \ the sun
  LDA K3
  STA F_SUX
@@ -1454,6 +1461,10 @@ ENDMACRO
  LDA #255
  STA f_d
 
+ JSR f_behind           \ hidden behind the planet?
+ BCC P%+3
+ RTS
+
  LDA #0
  STA f_f
 .fsh_face
@@ -1522,6 +1533,17 @@ ENDMACRO
  INX
  CPX fz_n
  BCC fsh_v
+ LDY f_f                \ far ships (XX2 = 255: Elite skipped the normal test)
+ LDA (fz_dl),Y          \ cull back faces by their winding on screen, except
+ CMP #255               \ the station (mirrored until its first TIDY)
+ BNE fsh_draw
+ LDX f_si
+ LDA F_STYP,X
+ CMP #SST
+ BEQ fsh_draw
+ JSR f_winding
+ BCC fsh_next
+.fsh_draw
  JSR T_POLY
 .fsh_next
  LDA fz_n               \ next face list entry
@@ -2826,3 +2848,188 @@ MAXPT = 140             \ points per frame
  BCC P%+3
  RTS
  JMP fpa1
+
+\ ------------------------------------------------------------------------------
+\ f_behind: is ship f_si behind the planet, with the first vertex of its first
+\ visible face inside the planet's disc? C set if so (don't draw it)
+\ ------------------------------------------------------------------------------
+
+.f_behind
+ LDA F_PLON
+ BEQ fbh8
+ LDX f_si               \ further away than the planet?
+ LDA F_PLZL
+ CMP F_SZL,X
+ LDA F_PLZH
+ SBC F_SZH,X
+ BCS fbh8               \ planet z >= ship z: in front
+ LDY #0                 \ first visible face: its first vertex
+ STY f_f
+ LDA fz_ft
+ STA fz_p
+ LDA fz_ft+1
+ STA fz_p+1
+.fbh1
+ LDY f_f
+ CPY f_nf
+ BCS fbh8
+ LDA (fz_dl),Y
+ BNE fbh2
+ LDY #0                 \ skip this face's list entry
+ LDA (fz_p),Y
+ SEC
+ ADC fz_p
+ STA fz_p
+ BCC P%+4
+ INC fz_p+1
+ INC f_f
+ JMP fbh1
+.fbh2
+ LDY #1                 \ XX3 offset of the vertex
+ LDA (fz_p),Y
+ TAY
+ LDA (fz_v3),Y          \ dx = x - planet x (16-bit)
+ SEC
+ SBC F_PLX
+ STA fz_t
+ INY
+ LDA (fz_v3),Y
+ SBC F_PLX+1
+ JSR f_abs16            \ -> A = |dx| if < 256, else C set
+ BCS fbh8
+ STA f_bdx
+ INY
+ LDA (fz_v3),Y          \ dy = y - planet y
+ SEC
+ SBC F_PLY
+ STA fz_t
+ INY
+ LDA (fz_v3),Y
+ SBC F_PLY+1
+ JSR f_abs16
+ BCS fbh8
+ CMP F_PLR              \ |dy| <= r and |dx| <= half-width(|dy|)?
+ BEQ fbh3
+ BCS fbh8
+.fbh3
+ TAX
+ LDA F_HW,X
+ CMP f_bdx
+ BCC fbh8
+ SEC
+ RTS
+.fbh8
+ CLC
+ RTS
+
+.f_bdx EQUB 0
+
+\ f_abs16: (A fz_t) 16-bit signed -> A = |value| and C clear if < 256, else
+\ C set
+
+.f_abs16
+ BPL fab1
+ EOR #&FF
+ STA fz_u
+ LDA fz_t
+ EOR #&FF
+ CLC
+ ADC #1
+ STA fz_t
+ LDA fz_u
+ ADC #0
+.fab1
+ BNE fab9
+ LDA fz_t
+ CLC
+ RTS
+.fab9
+ SEC
+ RTS
+
+\ f_winding: the face just gathered into R_PXL/R_PYL (low bytes; a far ship is
+\ small, so differences fit in 8 bits): C set if it is clockwise on screen
+\ (front-facing), i.e. (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0) > 0
+
+.f_winding
+ LDA R_PXL+1
+ SEC
+ SBC R_PXL
+ STA fw_a
+ LDA R_PYL+2
+ SEC
+ SBC R_PYL
+ JSR f_smul             \ (x1 - x0) * (y2 - y0)
+ STA fw_h
+ STX fw_l
+ LDA R_PYL+1
+ SEC
+ SBC R_PYL
+ STA fw_a
+ LDA R_PXL+2
+ SEC
+ SBC R_PXL
+ JSR f_smul             \ (y1 - y0) * (x2 - x0)
+ STA fw_t
+ STX fw_t+1
+ LDA fw_l               \ first - second, 16-bit signed
+ SEC
+ SBC fw_t+1
+ STA fw_l
+ LDA fw_h
+ SBC fw_t
+ BVC P%+4
+ EOR #&80
+ BMI fwn9               \ negative: back face
+ ORA fw_l
+ BEQ fwn9               \ zero: edge-on
+ SEC
+ RTS
+.fwn9
+ CLC
+ RTS
+
+\ f_smul: A * fw_a, both signed 8-bit -> A (high), X (low), signed 16-bit
+
+.f_smul
+ STA fw_b
+ STA fw_bo
+ LDA #0
+ STA fw_t2
+ LDX #8
+.fsm1                   \ unsigned (fw_a * fw_b), then correct for signs
+ LSR fw_b
+ BCC fsm2
+ CLC
+ ADC fw_a
+.fsm2
+ ROR A
+ ROR fw_t2
+ DEX
+ BNE fsm1
+ TAX                    \ A = high byte of the unsigned product
+ LDA fw_a               \ if fw_a < 0, high -= original b; if b < 0, high -= a
+ BPL fsm3
+ TXA
+ SEC
+ SBC fw_bo
+ TAX
+.fsm3
+ LDA fw_bo
+ BPL fsm4
+ TXA
+ SEC
+ SBC fw_a
+ TAX
+.fsm4
+ TXA
+ LDX fw_t2
+ RTS
+
+.fw_a  EQUB 0
+.fw_b  EQUB 0
+.fw_bo EQUB 0
+.fw_t  EQUW 0
+.fw_t2 EQUB 0
+.fw_h  EQUB 0
+.fw_l  EQUB 0

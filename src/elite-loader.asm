@@ -57,6 +57,9 @@
  VSCAN = 57             \ The split position in the split-screen mode (as in the
                         \ game)
 
+ HZIMG = &BB00          \ Where bank 6 carries the HAZEL code image (as in
+                        \ gfx-build.asm)
+
  ROMBANK = 4            \ The sideways RAM bank that holds the rest of the game
 
  VIA = &FE00            \ Memory-mapped hardware (SHEILA)
@@ -397,12 +400,12 @@
  ORA #%00001000         \ set bit Y so HAZEL (&C000-&DFFF) is RAM from now on
  STA ACCCON             \ (the MOS doesn't touch &C000-&DFFF during the game)
 
- LDA #6                 \ Copy the HAZEL image from bank 6 (&B800) to &C000
+ LDA #6                 \ Copy the HAZEL image from bank 6 (HZIMG) to &C000
  STA ROMSEL             \ and clear the rest of HAZEL
  LDX #0
 .HZC1
  FOR I%, 0, (HZLEN-1) DIV 256
-  LDA &B800 + I% * 256,X
+  LDA HZIMG + I% * 256,X
   STA &C000 + I% * 256,X
  NEXT
  INX
