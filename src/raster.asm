@@ -277,7 +277,7 @@ R_ENDPAGE 10
 .r_ov SKIP 59           \ variables of routines never active together
 R_ENDPAGE 11
 .r_run12 R_RUN 12
-.r_s1k SKIP 48          \ buffer 1: column (+&40: two bytes)
+.r_s1k SKIP 48          \ buffer 1: star's first pixel
 R_ENDPAGE 12
 \ overlay: edge set-up (r_eset)
 r_edy = r_ov + 0
@@ -346,7 +346,7 @@ r_cmaj = r_ov + 24
 r_cmin = r_ov + 25
 r_lcnt = r_ov + 27
 .r_run13 R_RUN 13
-.r_s0k SKIP 48          \ buffer 0: column (+&40: two bytes)
+.r_s0k SKIP 48          \ buffer 0: star's first pixel
 R_ENDPAGE 13
 .r_run14 R_RUN 14
 .r_addr
@@ -2356,34 +2356,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPX r_k
   BCS mdone
   STX r_si
-.^r_pt28 LDA r_s0r,X      \ row
-  STA RZ_T0
-.^r_pt29 LDA r_s0k,X      \ byte column (+&40: two bytes)
-  STA RZ_T1
-  AND #&3F
-  ASL A
-  ASL A
-  STA RZ_T2               \ first pixel
-  ORA #3
-  BIT RZ_T1
-  BVC m0
-  CLC
-  ADC #4
-.m0
-  TAY
-.m1
-  CPY R_CR
-  BCC m2
-  LDY R_CR
-.m2
-  TYA
+.^r_pt28 LDY r_s0r,X      \ row
+.^r_pt29 LDA r_s0k,X      \ first pixel: pixels it .. it + 1
   TAX
-  LDA RZ_T2
-  CMP R_CL
-  BCS m3
-  LDA R_CL
-.m3
-  LDY RZ_T0
+  INX
   JSR r_wlu
   LDX r_si
   INX
@@ -4242,6 +4218,9 @@ ENDMACRO
   CPX #&80
   ADC #0
   STA RZ_PP+1
+  LDX r_k                 \ (record slot; X = x is in RZ_SA)
+  CPX #48
+  BCS o2
   LDA #&FF                \ byte A
   STA RZ_T0
   LDA RZ_SB
@@ -4257,47 +4236,35 @@ ENDMACRO
   STA RZ_T0
 .ba
   LDA #&FF                \ byte B (next column)
-  STA RZ_T1
-  LDA RZ_SB+1
+  LDY RZ_SB+1
   BEQ bb
+  TYA
   LDY #8
   AND (RZ_PP),Y
-  BNE bb
+  BNE bf
   LDA R_SCOL
   AND RZ_SB+1
   ORA (RZ_PP),Y
   STA (RZ_PP),Y
   LDA RZ_SB+1
   EOR #&FF
-  STA RZ_T1
+  BRA bb
+.bf
+  LDA #&FF
 .bb
-  LDA RZ_T0
-  AND RZ_T1
+.^r_pt37 STA r_s0b,X
+  AND RZ_T0
   CMP #&FF
   BEQ o2                  \ nothing set
-  LDX r_k
-  CPX #48
-  BCS o2
   LDA RZ_PP
 .^r_pt34 STA r_s0y,X
   LDA RZ_PP+1
 .^r_pt35 STA r_s0x,X
   LDA RZ_T0
 .^r_pt36 STA r_s0a,X
-  LDA RZ_T1
-.^r_pt37 STA r_s0b,X
   LDA RZ_SA+1
 .^r_pt76 STA r_s0r,X      \ row
-  LDA RZ_SA               \ column (+&40: and the next)
-  LSR A
-  LSR A
-  STA RZ_T2
-  LDA RZ_T1
-  CMP #&FF
-  LDA RZ_T2
-  BCS rk3
-  ORA #&40
-.rk3
+  LDA RZ_SA               \ first pixel (the star's pixels: it and the next)
 .^r_pt77 STA r_s0k,X
   INC r_k
 .o2
