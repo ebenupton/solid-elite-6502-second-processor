@@ -1973,10 +1973,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA r_lsh_t+1
   STA r_lz_t+1
   STA r_x16_t+1
+  STA r_x16_f+1
   LDA #HI(r_ta)
   STA r_lsh_t+2
   STA r_lz_t+2
   STA r_x16_t+2
+  STA r_x16_f+2
   LDA r_n
   STA r_cc
   LDX r_top
@@ -2005,10 +2007,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA r_lsh_t+1
   STA r_lz_t+1
   STA r_x16_t+1
+  STA r_x16_f+1
   LDA #HI(r_tb)
   STA r_lsh_t+2
   STA r_lz_t+2
   STA r_x16_t+2
+  STA r_x16_f+2
   LDA r_n
   STA r_cc
   LDX r_top
@@ -2136,9 +2140,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CMP r_cr1
   BCC st
 .hi
+  BIT r_ea+1              \ right of the window, moving right: stays there
+  BPL fh
   LDA r_cr1
   BRA st
 .lo
+  BIT r_ea+1              \ left of it, moving left: stays there
+  BMI fl
   LDA R_CL
 .st
 .^r_x16_t
@@ -2179,6 +2187,18 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA RZ_SA+1
   BRA lp
 .done
+  RTS
+.fh
+  LDA r_cr1
+  BRA fi
+.fl
+  LDA R_CL
+.fi
+.^r_x16_f
+  STA &FFFF,Y
+  INY
+  CPY ye+1
+  BCC fi
   RTS
 }
 
