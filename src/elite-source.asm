@@ -6815,29 +6815,22 @@ ENDMACRO
  LDA INWK,Y             \ Set P = nosev_x_lo
  STA P
 
- LDA INWK+1,Y           \ Fetch the sign of nosev_x_hi (bit 7) and store in T
- AND #%10000000
- STA T
+ LDA INWK+1,Y           \ Fetch nosev_x_hi and give it the sign as if we
+ EOR RAT2               \ multiplied by the pitch or roll direction (RAT2 is
+                        \ 0 or &80, so bits 0-6 are unchanged)
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi into A and clear the sign bit, so
- AND #%01111111         \ A = |nosev_x_hi|
-
- LSR A                  \ Set (A P) = (A P) / 16
- ROR P                  \           = |nosev_x_hi nosev_x_lo| / 16
- LSR A                  \           = |nosev_x| / 16
+ LSR A                  \ Set (A P) = (A P) / 16, which leaves P as
+ ROR P                  \ |nosev_x| / 16 low byte (the sign bit never reaches
+ LSR A                  \ P) and A = %0000sxxx, where s is the sign
  ROR P
  LSR A
  ROR P
  LSR A
  ROR P
 
- ORA T                  \ Set the sign of A to the sign in T (i.e. the sign of
-                        \ the original nosev_x), so now:
-                        \
-                        \ (A P) = nosev_x / 16
-
- EOR RAT2               \ Give it the sign as if we multiplied by the direction
-                        \ by the pitch or roll direction
+ CMP #8                 \ Move the sign from bit 3 to bit 7: if s = 1 then
+ BCC P%+4               \ A is 8-15 and C = 1, so add &78 to get &80-&87,
+ ADC #&77               \ giving (A P) = +/- nosev_x / 16
 
  STX Q                  \ Store the value of X so it can be restored after the
                         \ call to ADD
@@ -8032,13 +8025,13 @@ ENDMACRO
                         \
                         \   XX(1 0) = (A P) + x
 
- STA XX+1               \ First we do the low bytes:
+ TAX                    \ First we do the low bytes (high byte of (A P) in X):
  LDA P                  \
  ADC SXL,Y              \   XX(1 0) = (A P) + x_lo
  STA XX
 
- LDA X1                 \ And then we do the high bytes:
- ADC XX+1               \
+ TXA                    \ And then we do the high bytes:
+ ADC X1                 \
  STA XX+1               \   XX(1 0) = XX(1 0) + (x_hi 0)
                         \
                         \ so we get our result:
@@ -8094,9 +8087,9 @@ ENDMACRO
                         \         = -y / 256 * alpha + x
 
  STA S                  \ BBC Master port: set (S R) = XX(1 0) = (A X) directly
- STX R                  \ (this is what MUT2 used to do from XX), and keep XX
- STX XX                 \ for later; XX+1 is not read again before the STA XX+1
-                        \ below, so it is not stored here
+ STX R                  \ (this is what MUT2 used to do from XX); neither XX
+                        \ nor XX+1 is read again before being rewritten, so
+                        \ neither is stored here
                         \
                         \   x = x - alpha * y / 256
 
@@ -8187,9 +8180,9 @@ ENDMACRO
  CMP #120               \ particle, as it's gone off the side of the screen,
  BCS KILL1              \ and rejoin at STC1 with the new particle
 
- LDA YY+1               \ Set Y1 and y_hi to the high byte of YY in YY+1, so
- STA SY,Y               \ the new x-coordinate is in (y_hi y_lo) and the high
- STA Y1                 \ byte is in Y1
+ LDA SY,Y               \ Set Y1 to y_hi (PIX1 stored the new y_hi in SY,Y), so
+ STA Y1                 \ the new y-coordinate is in (y_hi y_lo) and the high
+                        \ byte is in Y1
 
  AND #%01111111         \ If |y_hi| >= 120 then jump to KILL1 to recycle this
  CMP #120               \ particle, as it's gone off the top or bottom of the
@@ -10737,7 +10730,9 @@ ENDMACRO
 
  LDA #%00010100         \ Set the Video ULA control register (SHEILA &20) to
  STA VIA+&20            \ %00010100, which is the same as switching to mode 2
- JSR H_SPLIT            \ Frame layer: the dashboard is in main RAM
+ LDA GACCX              \ Frame layer: the dashboard is in main RAM (H_SPLIT,
+ ORA #ACCY              \ inlined)
+ STA &FE34
                         \ (i.e. the dashboard) but with no cursor
 
  LDA ESCP               \ Set logical colour 3 to yellow (&34), or white (&30)
@@ -37645,7 +37640,9 @@ ENDIF
 
  JSR ADD                \ Set (A X) = (A P) + (S R)
 
- STA YY+1               \ Set YY+1 to A, the high byte of the result
+ STA SY,Y               \ BBC Master port: set y_hi to A, the high byte of the
+                        \ result, directly (STL1 reloads it from SY,Y; YY+1 is
+                        \ not read again before being rewritten)
 
  TXA                    \ Set SYL+Y to X, the low byte of the result
  STA SYL,Y
@@ -38607,18 +38604,36 @@ ENDIF
                         \ X = 0, C clear, Z set and N clear as for X = 0). The V
                         \ flag is not preserved, but no caller relies on it
 
- STA MLT2               \ Store the high byte of the multiplier for later
+ STA MLU25+1            \ Patch the high byte of the multiplier (A) into the
+ STA MLU27+1            \ A * Q look-ups below, and ~A into the SQ2 look-ups
+ EOR #&FF
+ STA MLU26+1
+ STA MLU28+1
 
  LDX Q                  \ Set X = Q, which we use as the table index
 
- LDA P                  \ Calculate ~P * Q into (MLT2+1 P)
+ SEC                    \ Calculate A * Q, patching the low byte into the
+.MLU25                  \ operand at MLT2L+1 and the high byte into the
+ LDA SQ1L,X             \ operand at MLT2H+1
+.MLU26
+ SBC SQ2L,X
+ STA MLT2L+1
+.MLU27
+ LDA SQ1H,X
+.MLU28
+ SBC SQ2H,X
+ STA MLT2H+1
+
+                        \ The product is exact and non-negative (< 2^16), so
+                        \ the 16-bit subtraction never borrows and C is set
+
+ LDA P                  \ Calculate ~P * Q into (A P)
+ STA MLU22+1
+ STA MLU24+1
  EOR #&FF
  STA MLU21+1
  STA MLU23+1
- EOR #&FF
- STA MLU22+1
- STA MLU24+1
- SEC
+                        \ C is still set from above
 .MLU21
  LDA SQ1L,X
 .MLU22
@@ -38628,31 +38643,13 @@ ENDIF
  LDA SQ1H,X
 .MLU24
  SBC SQ2H,X
- STA MLT2+1
 
- LDA MLT2               \ Calculate A * Q into (A MLT2+2)
- STA MLU25+1
- STA MLU27+1
- EOR #&FF
- STA MLU26+1
- STA MLU28+1
- SEC
-.MLU25
- LDA SQ1L,X
-.MLU26
- SBC SQ2L,X
- STA MLT2+2
-.MLU27
- LDA SQ1H,X
-.MLU28
- SBC SQ2H,X
- TAX                    \ Store the high byte in X for now
-
- LDA MLT2+1             \ Add the two products, so (A P+1 P) is the result
- CLC
- ADC MLT2+2
+ CLC                    \ Add the two products, so (A P+1 P) is the result
+.MLT2L
+ ADC #0                 \ Gets modified (low byte of A * Q)
  STA P+1
- TXA
+.MLT2H
+ LDA #0                 \ Gets modified (high byte of A * Q)
  ADC #0
 
  LDX #0                 \ Set X = 0, Z set and N clear, as in the original
@@ -38662,10 +38659,6 @@ ENDIF
                         \ never carries out
 
  RTS                    \ Return from the subroutine
-
-.MLT2
-
- SKIP 3                 \ Temporary storage
 
 \ ******************************************************************************
 \

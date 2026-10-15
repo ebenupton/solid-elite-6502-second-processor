@@ -1759,7 +1759,7 @@ ENDMACRO
  INX
 .fst6
  INY
- CPY #24
+ CPY #19                \ stars are 1..NOSTM, and NOSTM is only ever NOST = 18
  BCC fst5
  STX R_SN
  JMP T_STARPLOT
