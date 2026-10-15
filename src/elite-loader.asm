@@ -215,9 +215,10 @@
  LDY #HI(MESS3)         \ image (tools/dashboard.py)
  JSR OSCLI
 
-IF DASHDUAL
-
- LDA #&70               \ Copy the dashboard (&7000-&7DFF) to shadow RAM too,
+ LDA #&70               \ Copy the dashboard (&7000-&7DFF) to shadow RAM too
+                        \ (DASHDUAL: the dashboard is kept in both; otherwise
+                        \ shadow RAM keeps this static image, so a split that
+                        \ lands a line late shows the same pixels),
  STA DCP1+2             \ a page at a time through a buffer at &2000 (below
  STA DCP3+2             \ &3000, so not switched by ACCCON X)
 
@@ -257,8 +258,6 @@ IF DASHDUAL
  LDA DCP3+2
  CMP #&7E
  BNE DCP0
-
-ENDIF
 
  LDX #0                 \ Copy the second stage to STAGE2%
 

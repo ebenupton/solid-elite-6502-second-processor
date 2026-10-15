@@ -109,6 +109,14 @@
 
  VSCAN = 57             \ Defines the split position in the split-screen mode
 
+ SPLITT = VSCAN * 256 + 30 + 128   \ BBC Master port: the timer 1 count from vsync
+                        \ to the dashboard split: the original's, plus two
+                        \ scan lines (128 us), so the IRQ's ACCCON write
+                        \ lands on the dashboard's first two lines (its top
+                        \ frame line, which shadow RAM's copy of the static
+                        \ image also has) rather than the space view's last
+                        \ two
+
 \ BBC Master port: colours. The space view is a four-colour mode 1 screen with
 \ logical colours 0 = black, 1 = cyan, 2 = magenta, 3 = yellow. A mode 1 byte
 \ holds four pixels; the following bytes have all four pixels set to a colour,
@@ -131,7 +139,7 @@
                         \ main and shadow RAM (every dashboard write goes to
                         \ both), so no ACCCON change is needed at the
                         \ dashboard; 0 = main RAM only, and the IRQ's timer 1
-                        \ interrupt shows main RAM at the dashboard (H_SPLIT)
+                        \ interrupt shows main RAM at the dashboard (IRQ1)
 
 MACRO DPUT              \ BBC Master port: store A in the dashboard at (SC),Y
  IF DASHDUAL
@@ -9740,7 +9748,13 @@ ENDMACRO
 \
 \ If DASHDUAL is set, the dashboard is in both main and shadow RAM, so the timer
 \ 1 interrupt (at the space view / dashboard boundary) is only the MOS's.
-\ Otherwise the dashboard is in main RAM only and H_SPLIT shows main RAM there.
+\ Otherwise the dashboard is in main RAM only and the timer 1 interrupt shows
+\ main RAM there (ACCCON D = 0) and sets GFRONT = 0 until the next vsync, so
+\ the frame layer's ACCCON writes (which OR in GFRONT, at any point in the
+\ frame) can't show shadow RAM in the dashboard; H_VSYNC keeps the real front
+\ buffer in GFRS. Shadow RAM &7000-&7DFF holds a copy of the static dashboard
+\ image (the loader copies it), so a split that lands a line late is
+\ invisible.
 \
 \ This routine and the variables it uses must stay in main RAM below &3000.
 \
@@ -9756,12 +9770,10 @@ ENDMACRO
  STA DL                 \ routines like WSCAN can set DL to 0 and then wait for
                         \ it to change to non-zero to catch the vertical sync
 
- STA VIA+&44            \ Set 6522 System VIA T1C-L timer 1 low-order counter
-                        \ (SHEILA &44) to 30
-
- LDA #VSCAN             \ Set 6522 System VIA T1C-L timer 1 high-order counter
- STA VIA+&45            \ (SHEILA &45) to VSCAN (57) to start the T1 counter
-                        \ counting down from 14622 at a rate of 1 MHz
+ LDA #LO(SPLITT)         \ BBC Master port: start the System VIA's timer 1
+ STA VIA+&44            \ counting down from SPLITT (1 MHz), so its interrupt
+ LDA #HI(SPLITT)         \ (the MOS's clock tick, once a frame as in the
+ STA VIA+&45            \ original) comes at the space view / dashboard split
 
  JSR H_VSYNC            \ Frame layer: flip buffers, show the front one
 
@@ -9799,8 +9811,9 @@ ENDMACRO
 IF NOT(DASHDUAL)
 
  BVC jvec0              \ Timer 1 (the space view / dashboard boundary): show
- LDA GACCX              \ main RAM, which holds the dashboard (H_SPLIT, inlined)
- ORA #ACCY
+ STZ GFRONT             \ main RAM, which holds the dashboard, until the next
+ LDA GACCX              \ vsync: GFRONT = 0 too, as the frame layer's own
+ ORA #ACCY              \ ACCCON writes use it (H_VSYNC restores it)
  STA &FE34
 
 ENDIF
@@ -25004,7 +25017,6 @@ ENDMACRO
 .dcol   EQUB 0          \ DIL: the colour number
 .dtmp   EQUB 0
 .dsb    EQUB 0          \ SCAN: the y-coordinate of the stick's base
-.dX1    EQUB 0          \ the x-coordinate of a dot (ddot)
 .ddn    EQUB 0          \ ddot: lines to go
 .dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
 .deq    EQUB 0          \ DSEG: the segment's end byte, pixels in it
@@ -25015,7 +25027,6 @@ ENDMACRO
 .dmx    EQUB 0
 .dsx    EQUB 0
 .dtv    EQUB 0
-.dti    EQUB 0          \ SCAN: the dot tables' index
 
 \ Colour numbers for the bar indicators, and their byte pairs
 
@@ -25523,13 +25534,19 @@ ENDMACRO
  LDA dme
  BCC P%+5
  EOR dmx
+ LDX SCH                \ (in row 0, write shadow RAM's copy too: see DSEGD)
+ CPX #&72
  LDX dln
+ BCS dsg7
+ JSR DSEGD
+ JMP dsg8
 .dsg7
  DPUT
  EOR dmx                \ the next line's
  INY
  DEX
  BNE dsg7
+.dsg8
  LDX dsx
  INX
  BNE dsg1
@@ -25683,30 +25700,142 @@ ENDMACRO
  LDA #246
  STA Y1
 
- LDA TYPE               \ X = the dot tables' index: 4 * type + (dX1 AND 3)
+ LDA TYPE               \ dti = the dot tables' index: 4 * type + (dX1 AND 3)
  ASL A
  ASL A
  STA dtmp
  LDA dX1
  AND #3
  ORA dtmp
- TAX
+ STA dti
 
- LDA #2                 \ the dot: lines Y1 and Y1 - 1, leaving Y1 one less, as
- STA ddn                \ the original's CPIX4 did (the stardust code reads it)
- LDA Y1
- DEC Y1
- JSR ddot               \ (leaves SC, Y at line Y1, the dot's top line)
- STX dti
+ LDA Y1                 \ dL = the dot's lower line (it covers dL - 1 and dL),
+ STA dL                 \ leaving Y1 one less, as the original's CPIX4 did (the
+ DEC Y1                 \ stardust code reads it)
 
- LDX Y1                 \ the stick's length, as the original: up from line
- INX                    \ Y1 - 1 for Y1 + 1 - dsb lines if that is positive,
- TXA                    \ down from Y1 + 2 for dsb - Y1 - 1 lines if negative
- SEC                    \ (Y1 is now one less than the dot's lower line)
+ LDX Y1                 \ dlen = the stick's length, as the original: up from
+ INX                    \ line dL - 2 for dL - dsb lines if that is positive,
+ TXA                    \ down from dL + 1 for dsb - dL lines if negative
+ SEC
  SBC dsb
- TAX                    \ (X = 0 if there is no stick, as the original)
- BEQ scnz               \ (C set)
- STA dtv                \ (positive: up, negative: down)
+ STA dlen
+
+ LDA dL                 \ Draw the dot no higher than lines 194-195 (off the
+ CMP #195               \ dashboard's first two lines, which the IRQ's split
+ BCS P%+10              \ may show from shadow RAM's static copy): a dot that
+ LDA #195               \ high always has a downward stick, which then ends
+ STA dL                 \ on the same line, one shorter
+ INC dlen
+
+ TSX                    \ Called from MV30, to erase the ship before it moves?
+ LDA &101,X             \ Then defer the erase until the next SCAN call that
+ CMP #LO(MV30+2)        \ draws (normally its redraw at the end of MVEIT,
+ BNE scnw               \ which then skips both if the dot hasn't moved), so
+ LDA &102,X             \ the ship never vanishes from the scanner for a
+ CMP #HI(MV30+2)        \ frame. EOR drawing commutes, so deferring an erase
+ BNE scnw               \ changes nothing else
+
+ BIT dpend              \ (first draw any other pending erase)
+ BPL scdf1
+ JSR scswap
+ LDX dti
+ LDA dL
+ JSR sdraw
+ JMP sexit              \ (p* = this dot now)
+.scdf1
+ LDA #&FF               \ Remember the dot as pending
+ STA dpend
+ JSR scswap
+
+.sexit                  \ Return as if the dot in p* had just been drawn: X = 0,
+ LDA plen               \ Y = the last line drawn AND 7, C as the original
+ BEQ sdz
+ BMI sdd
+ LDA pL                 \ up: the last line is pL - 1 - plen, C set
+ CLC
+ SBC plen
+ AND #7
+ TAY
+ LDX #0
+ SEC
+ RTS
+.sdd
+ LDA dsb                \ down: the last line is dsb, C set iff it is the
+ AND #7                 \ first line of a character row
+ TAY
+ CLC
+ BNE P%+3
+ SEC
+ LDX #0
+ RTS
+.sdz
+ LDA pL                 \ no stick: Y = the dot's top line, A = X = 0, C set
+ SEC
+ SBC #1
+ AND #7
+ TAY
+ LDA #0
+ TAX
+ SEC
+ RTS
+
+.scnw                   \ Draw it now, but if its erase is pending: if they
+ BIT dpend              \ are the same dot, neither need drawing
+ BPL scnw2
+ LDA pti
+ CMP dti
+ BNE scnw1
+ LDA pX1
+ CMP dX1
+ BNE scnw1
+ LDA pL
+ CMP dL
+ BNE scnw1
+ LDA plen
+ CMP dlen
+ BNE scnw1
+ STZ dpend
+ JMP sexit
+.scnw1
+ STZ dpend              \ else first draw (erase) the pending dot: swap it into
+ JSR scswap             \ d*, draw it, and swap this one back
+ LDX dti
+ LDA dL
+ JSR sdraw
+ JSR scswap
+.scnw2
+ LDX dti
+ LDA dL
+ JMP sdraw
+
+\ scswap: swap this dot's variables (dti, dX1, dL, dlen) with the pending ones
+
+.scswap
+ LDX #3
+.scsw1
+ LDA dti,X
+ LDY pti,X
+ STA pti,X
+ TYA
+ STA dti,X
+ DEX
+ BPL scsw1
+ RTS
+
+\ sdraw: EOR a scanner dot (dot tables' index X, x-coordinate dX1, lower line
+\ A) and its stick (dlen lines, up if positive, down if negative), returning
+\ as the original SCAN did: X = 0, Y = the last line drawn AND 7, C set after
+\ an upward stick or none, after a downward one set iff its last line is the
+\ first of a character row
+
+.sdraw
+ STX dti
+ LDY #2
+ STY ddn
+ JSR ddot               \ (leaves SC, Y at the dot's top line)
+
+ LDA dlen
+ BEQ scnz
  LDX dti
  TXA                    \ the stick: the dot's middle pixel, which is in its
  AND #3                 \ second byte if dX1 AND 3 = 3
@@ -25730,7 +25859,7 @@ ENDMACRO
  STA dstab+5
  STA dstab+7
 
- LDX dtv
+ LDX dlen
  BMI scndn
 
 .scnup                  \ up from the dot's top line
@@ -25750,6 +25879,8 @@ ENDMACRO
 
 .scnz                   \ No stick: return as the original, with A = X = 0,
  LDA #0                 \ Y = the dot's top line AND 7 and C set
+ TAX
+ SEC
  RTS
 
 .scndn                  \ down from the dot's lower line, X = -(length)
@@ -25773,6 +25904,17 @@ ENDMACRO
  INX
  BNE scd1
  RTS
+
+.dti    EQUB 0          \ SCAN: this dot's tables' index, x-coordinate (also
+.dX1    EQUB 0          \ ddot's), lower line and stick length (signed); in
+.dL     EQUB 0          \ this order, as pti..plen (scswap)
+.dlen   EQUB 0
+.dpend  EQUB 0          \ SCAN: bit 7 set if a deferred erase is pending
+.pti    EQUB 0          \ SCAN: the pending dot (as dti, dX1, dL, dlen)
+.pX1    EQUB 0
+.pL     EQUB 0
+.plen   EQUB 0
+
 
 
 
@@ -32144,10 +32286,26 @@ ENDIF
 
  LDA COMX               \ Set X1 = COMX, the x-coordinate of the dot
  STA X1
+
+ CMP #186               \ BBC Master port: draw it at dX1 = COMX kept inside the
+ BCS P%+4               \ compass ring (186..204, so its pixels stay left of the
+ LDA #186               \ panel divider at x = 207)
+ CMP #205
+ BCC P%+4
+ LDA #204
  STA dX1
 
  AND #3                 \ X = the dot tables' index: colour 14 (in front) or
  TAX                    \ 15 (behind)
+
+ LDA COMY               \ and on lower line COMY kept to 195..213, inside the
+ CMP #195               \ ring and off the dashboard's first two lines (which
+ BCS P%+4               \ the IRQ's split may show from shadow RAM's static
+ LDA #195               \ copy)
+ CMP #214
+ BCC P%+4
+ LDA #213
+ STA dtmp
 
  LDA COMC               \ Fetch the compass dot's colour from COMC
  CMP #&F0
@@ -32158,7 +32316,7 @@ ENDIF
  TAX
  LDA #2
  STA ddn
- LDA Y1
+ LDA dtmp
  DEC Y1
  JMP ddot
 
@@ -32169,7 +32327,7 @@ ENDIF
  TAX
  LDA #1
  STA ddn
- LDA Y1
+ LDA dtmp
  JMP ddot
 
 \ ******************************************************************************
@@ -35719,11 +35877,10 @@ ENDIF
 
 INCLUDE "build/dashtab.asm"
 
-\ BBC Master port: DWR (dashboard writes to both RAMs, DASHDUAL only) lives
+\ BBC Master port: DWR (dashboard writes to both RAMs) lives
 \ here in bank 4, outside &3000-&7FFF, as it switches ACCCON X; the rest of
 \ the dashboard routines are in main RAM (see DASHBOARD)
 
-IF DASHDUAL
 
 \ DWR: store A at (SC),Y in main RAM and in shadow RAM (the dashboard's two
 \ copies), preserving A, X, Y. Interrupts are held off while ACCCON X is set,
@@ -35745,7 +35902,19 @@ IF DASHDUAL
  PLP
  RTS
 
-ENDIF
+
+\ DSEGD: DSEG's line loop for the dashboard's top character row, writing both
+\ main and shadow RAM: the IRQ's split (ACCCON D = 0) can land a few lines late
+\ when the MOS has interrupts disabled, and the top row's bars (speed, forward
+\ shield, lines 2-4) are then shown from shadow RAM for that frame
+
+.DSEGD
+ JSR DWR
+ EOR dmx
+ INY
+ DEX
+ BNE DSEGD
+ RTS
 
 \ ******************************************************************************
 \

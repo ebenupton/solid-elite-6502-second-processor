@@ -175,27 +175,28 @@
  STA GFORCE
  RTS
 
-\ H_VSYNC / H_SPLIT: called by the IRQ handler at vertical sync (flip, show
-\ the front buffer) and at the dashboard split (show main RAM). A only.
+\ H_VSYNC: called by the IRQ handler at vertical sync (flip, show the front
+\ buffer). A only. (The dashboard split is handled in the IRQ itself.)
 
 .H_VSYNC
- LDA GFLIP
- BEQ hv1
- LDA GPEND
- STA GFRONT
+ LDA GFLIP              \ GFRS = the front buffer: the pending one if a flip
+ BEQ hv0                \ is due, 0 (main RAM) in direct mode (the IRQ's
+ LDA GPEND              \ dashboard split zeroes GFRONT until vsync, so GFRS
+ STA GFRS               \ keeps it)
  STZ GFLIP
+.hv0
+ BIT GMODE
+ BMI hv1
+ STZ GFRS
 .hv1
- LDA GFRONT
+ LDA GFRS
+ STA GFRONT
  ORA GACCX
  ORA #ACCY
  STA &FE34
  RTS
 
-.H_SPLIT
- LDA GACCX
- ORA #ACCY
- STA &FE34
- RTS
+.GFRS EQUB 0
 
 \ H_EE31: LL9 has projected the ship; in record mode record it (and its laser
 \ beam if it is firing at us) instead of drawing edges

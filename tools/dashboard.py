@@ -283,8 +283,13 @@ LX0, RX0 = 16, 208          # bar left edges (32 pixels each)
 
 
 def bar_scale(cv, x0, row, kind):
-    """The scale under a bar: a dim baseline on line 7 and ticks on line 6"""
+    """The scale under a bar: a baseline on line 7 and ticks on line 6 (in the
+    bottom row, whose line 7 is the frame, the baseline on line 6 and no
+    ticks, so nothing touches the frame)"""
     y = row * 8
+    if row == 6:
+        cv.hline(x0, x0 + 31, y + 6, SCALE)
+        return
     cv.hline(x0, x0 + 31, y + 7, SCALE)
     if kind == 'centre':                    # roll / pitch: centre and ends
         for x in (x0, x0 + 31):
