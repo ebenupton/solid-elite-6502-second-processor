@@ -194,6 +194,10 @@
  LDY #HI(MESS6)
  JSR OSCLI
 
+ LDX #LO(MESS7)         \ *SRLOAD BANK7 8000 7: the rasteriser's second bank
+ LDY #HI(MESS7)
+ JSR OSCLI
+
  LDX #LO(MESS3)         \ *LOAD DIALS 7000, to load the BBC Master's mode 2
  LDY #HI(MESS3)         \ dashboard image
  JSR OSCLI
@@ -314,6 +318,10 @@
 
 .MESS6
  EQUS "SRLOAD BANK6 8000 6"
+ EQUB 13
+
+.MESS7
+ EQUS "SRLOAD BANK7 8000 7"
  EQUB 13
 
 .MESS3

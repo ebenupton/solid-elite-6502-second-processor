@@ -6,6 +6,8 @@
 \ been SAVEd). Produces:
 \
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser (raster.asm)
+\   build/BANK7.bin  sideways RAM bank 7: the rasteriser's cold code
+\                    (raster7.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (frame.asm), the ship
 \                    faces and colours (faces.asm), and at HZIMG (&BB00) an image of
 \                    HAZEL's code, which the loader copies to &C000
@@ -31,6 +33,7 @@ ORG &C000
 INCLUDE "src/gstubs.asm"
 INCLUDE "src/tramp.asm"
 INCLUDE "src/hooks.asm"
+INCLUDE "src/raster_hz.asm"     \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
 .HZ_CODE_END
 
 INCLUDE "src/raster_vars.asm"
@@ -66,3 +69,11 @@ PRINT "Bank 6: frame layer &8000-", ~B6_END-1, " free to HAZEL image ", HZIMG-B6
 ASSERT B6_END <= HZIMG
 COPYBLOCK HZ_START, HZ_CODE_END, HZIMG
 SAVE "build/BANK6.bin", &8000, HZIMG + HZ_CODE_END - HZ_START, &8000
+
+CLEAR &8000, &C000
+ORG &8000
+INCLUDE "src/raster7.asm"       \ the rasteriser's second bank (cold code)
+.B7_END
+PRINT "Bank 7: rasteriser (2) &8000-", ~B7_END-1, " free ", &C000-B7_END
+ASSERT B7_END <= &C000
+SAVE "build/BANK7.bin", &8000, B7_END, &8000

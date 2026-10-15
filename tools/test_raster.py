@@ -33,6 +33,10 @@ ZP = dict(R_COLE=0x06, R_COLO=0x07, R_XL=0x08, R_XR=0x09, R_CL=0x0A, R_CR=0x0B,
 # ----------------------------------------------------------------------------- build
 VARS = 0xC000                      # raster_vars.asm (HAZEL in the real build)
 SRCV = os.path.join(ROOT, 'src', 'raster_vars.asm')
+SRCH = os.path.join(ROOT, 'src', 'raster_hz.asm')
+SRC7 = os.path.join(ROOT, 'src', 'raster7.asm')
+HZ = 0xDC00                        # raster_hz.asm (HAZEL code in the real build)
+ROMSEL, ROMSELCOPY = 0xFE30, 0xF4
 
 
 def assemble(org):
@@ -41,8 +45,11 @@ def assemble(org):
     w = os.path.join(d, 'w.asm')
     with open(w, 'w') as f:
         f.write('ORG &%X\nINCLUDE "%s"\n.r_vars_end\n' % (VARS, SRCV))
+        f.write('ORG &%X\nINCLUDE "%s"\n.r_hz_end\n' % (HZ, SRCH))
         f.write('ORG &%X\nINCLUDE "%s"\n' % (org, SRC))
-        f.write('SAVE "r.bin", &%X, P%%\nSAVE "v.bin", &%X, r_vars_end\n' % (org, VARS))
+        f.write('SAVE "r.bin", &%X, P%%\n' % org)
+        f.write('CLEAR &8000, &C000\nORG &8000\nINCLUDE "%s"\nSAVE "r7.bin", &8000, P%%\n' % SRC7)
+        f.write('SAVE "h.bin", &%X, r_hz_end\n' % HZ)
     r = subprocess.run([BEEBASM, '-i', w, '-d', '-labels', os.path.join(d, 'w.lab')],
                        cwd=d, capture_output=True, text=True)
     if r.returncode != 0 or 'error' in r.stdout.lower():
@@ -51,10 +58,12 @@ def assemble(org):
     txt = open(os.path.join(d, 'w.lab')).read()
     syms = {k: int(v) for k, v in re.findall(r"'([^']+)':(-?\d+)L?", txt)}
     data = open(os.path.join(d, 'r.bin'), 'rb').read()
-    msg = [l for l in r.stdout.splitlines() if l.startswith('raster.asm')]
+    data7 = open(os.path.join(d, 'r7.bin'), 'rb').read()
+    datah = open(os.path.join(d, 'h.bin'), 'rb').read()
+    msg = [l for l in r.stdout.splitlines() if l.startswith('raster')]
     import shutil
     shutil.rmtree(d, ignore_errors=True)
-    return syms, data, (msg[0] if msg else '')
+    return syms, (data, data7, datah), ('; '.join(msg))
 
 
 def check_patch_sites():
@@ -99,13 +108,20 @@ def check_patch_sites():
 # ----------------------------------------------------------------------------- machine
 class Machine:
     def __init__(self, org, seed=1):
-        self.syms, data, self.sizemsg = assemble(org)
+        self.syms, (data, data7, datah), self.sizemsg = assemble(org)
         self.org = org
         self.mem = [0] * 65536
         rnd = random.Random(seed)
         for a in range(65536):
             self.mem[a] = rnd.randrange(256)
         self.mem[self.org:self.org + len(data)] = list(data)
+        self.mem[HZ:HZ + len(datah)] = list(datah)
+        b7 = [rnd.randrange(256) for _ in range(0x4000)]
+        b7[0:len(data7)] = list(data7)
+        self.banks = {5: None, 7: b7}
+        self.bank = 5
+        self.mem[ROMSEL] = 5
+        self.mem[ROMSELCOPY] = 5
         self.lo, self.hi = self.syms['r_start'], self.syms['r_end']
         self.image = list(data)
         self.mpu = MPU(memory=self.mem)
@@ -129,10 +145,18 @@ class Machine:
         mpu.pc = self.syms[name] if isinstance(name, str) else name
         c0 = mpu.processorCycles
         step = mpu.step
+        banks = self.banks
         while mpu.pc != RET:
             step()
+            nb = mem[ROMSEL]
+            if nb != self.bank:             # sideways bank switch
+                banks[self.bank] = mem[0x8000:0xC000]
+                mem[0x8000:0xC000] = banks[nb]
+                self.bank = nb
             if mpu.processorCycles - c0 > maxcyc:
                 raise RuntimeError('runaway in %s' % name)
+        if self.bank != 5:
+            raise AssertionError('%s returned with bank %d paged' % (name, self.bank))
         self.cycles = mpu.processorCycles - c0
         if self.guard:
             self.check_writes(snap, name)
@@ -141,8 +165,9 @@ class Machine:
     def check_writes(self, snap, name):
         mem = self.mem
         v0, v1 = VARS, self.syms['r_vars_end']
-        for lo, hi in ((0, 0x06), (0x28, 0x100), (0x200, 0x4000), (0x7000, self.lo),
-                       (self.hi, v0), (v1, 0x10000)):
+        h0, h1 = HZ, self.syms['r_hz_end']
+        for lo, hi in ((0, 0x06), (0x28, ROMSELCOPY), (ROMSELCOPY + 1, 0x100), (0x200, 0x4000),
+                       (0x7000, self.lo), (self.hi, v0), (v1, h0), (h1, ROMSEL), (ROMSEL + 1, 0x10000)):
             if mem[lo:hi] != snap[lo:hi]:
                 for a in range(lo, hi):
                     if mem[a] != snap[a]:
@@ -569,7 +594,7 @@ class Tester:
                 outline = convex_hull(outline)
             cover = {}
             for t in tris:
-                _, sp = self.poly_case(t, ref, self.m.rd('r_buf'), dirt)
+                _, sp = self.poly_case(t, ref, self.m.rd('R_PRBUF'), dirt)
                 for y, (l, r) in sp.items():
                     for x in range(l, r + 1):
                         cover[(x, y)] = cover.get((x, y), 0) + 1
@@ -593,6 +618,7 @@ class Tester:
                 missing = need - set(cover)
                 gaps += len(missing)
         return 'polyhedra: %d gap px, %d fold-overlap px' % (gaps, getattr(self, 'folds', 0))
+
 
     # --------------------------------------------------------------- lines, dots
     def test_lines(self, n):
@@ -653,7 +679,9 @@ class Tester:
         """Multi-frame sequences on two buffers: after each frame the buffer
         must equal [disc over black, polys, lines, dots, stars]."""
         m, rnd = self.m, self.rnd
-        self.set_clip((1, 254, 1, 191))
+        sc0 = scenario or ''
+        # the game's window is 2..253 while discs may reach 1..254
+        self.set_clip((2, 253, 1, 191) if sc0.startswith('band') and rnd.random() < 0.6 else (1, 254, 1, 191))
         bufs = [bytes(rnd.randrange(256) for _ in range(0x3000)) for _ in range(2)]
         outside = [None, None]
         use_reset = rnd.random() < 0.5
@@ -747,8 +775,13 @@ class Tester:
                 for y in range(ndt, ndb + 1) if spans else []:
                     xs = sorted(int(cx + c[0] + c[1] * (y - cy)) for c in curves
                                 if min(c[2], c[3]) <= y - cy <= max(c[2], c[3]))
-                    xs = [max(0, min(255, v)) for v in xs]
                     p_ = (1 if y > cy + eq else 0) ^ (1 if rnd.random() < 0.02 else 0)
+                    l_, r_ = spans.get(y, (255, 0))
+                    if l_ <= r_:            # the frame layer's guarantee: boundaries
+                        p_ ^= sum(1 for v in xs if v <= l_) & 1     # inside (L, R],
+                        xs = [v for v in xs if l_ < v <= r_]        # left crossings
+                    else:                                           # folded into P
+                        xs = []
                     bnd[y] = (xs, p_)
                     m.wr('R_NDN', len(xs), y)
                     m.wr('R_NDP', p_ | (rnd.randrange(128) << 1), y)
@@ -777,6 +810,7 @@ class Tester:
             ref = Ref(outside[b], self.clip)
             ref.blackwin()
             for y, (l, r) in spans.items():
+                l, r = max(l, self.clip[0]), min(r, self.clip[1])
                 if y in bnd:
                     xs, p_ = bnd[y]
                     for x in range(l, r + 1):
@@ -836,8 +870,13 @@ class Tester:
                 diff = [i for i in range(0x3000) if got[i] != ref.b[i]]
                 a = diff[0]
                 y = (a // 0x200) * 8 + (a & 7)
-                raise AssertionError('frame %d (%s, buf %d): %d bytes differ, first row %d col %d'
-                                     % (f, sc, b, len(diff), y, (a % 0x200) // 8))
+                rows = sorted(set((d // 0x200) * 8 + (d & 7) for d in diff))
+                if os.environ.get('RDEBUG'):
+                    ra = (y >> 3) * 0x200 + (y & 7)
+                    print('got', ''.join('%02x' % got[ra + 8 * c] for c in range(64)))
+                    print('exp', ''.join('%02x' % ref.b[ra + 8 * c] for c in range(64)))
+                raise AssertionError('frame %d (%s, buf %d): %d bytes differ, first row %d col %d; rows %s'
+                                     % (f, sc, b, len(diff), y, (a % 0x200) // 8, rows[:12]))
             # written-extent check: every byte that changed vs this buffer's last
             # frame lies in WL/WR (disc, star erase/plot) or DIRTY (shapes)
             old = bufs[b]
@@ -981,7 +1020,7 @@ def bench(m, rnd):
         cs.append(t.draw_line(rnd.randrange(-3000, -100), rnd.randrange(-3000, 3000), rnd.randrange(100, 200), rnd.randrange(50, 150), 0xFF, 0xFF))
     out.append('R_LINE from far off screen: %6.0f cycles' % (sum(cs) / len(cs)))
     # disc layer steady state
-    def disc_frames(cx, cy, r, vx, vy, n=8, ships=0, bands=None):
+    def disc_frames(cx, cy, r, vx, vy, n=8, ships=0, bands=None, vr=0):
         res = []
         m.wr('R_NDF', 1 if bands else 0)
         m.wr('R_DBE', 0x33)
@@ -1009,10 +1048,12 @@ def bench(m, rnd):
                     m.wr('R_NDISCL', l, y); m.wr('R_NDISCR', rr, y)
                     if bands:
                         xs = sorted(int(cx + o + f * bands) for o in (-r * 0.4, r * 0.3))
-                        m.wr('R_NDN', 2, y)
-                        m.wr('R_NDP', 1 if y > cy else 0, y)
-                        m.wr('R_NDX0', max(0, min(255, xs[0])), y)
-                        m.wr('R_NDX1', max(0, min(255, xs[1])), y)
+                        p_ = (1 if y > cy else 0) ^ (sum(1 for v in xs if v <= l) & 1)
+                        xs = [v for v in xs if l < v <= rr]
+                        m.wr('R_NDN', len(xs), y)
+                        m.wr('R_NDP', p_, y)
+                        for i, v in enumerate(xs):
+                            m.wr('R_NDX%d' % i, v, y)
             else:
                 m.wr('R_NDT', 255); m.wr('R_NDB', 0)
             m.wzp('R_DCE', 0x5A); m.wzp('R_DCO', 0xA5)
@@ -1022,6 +1063,7 @@ def bench(m, rnd):
                 t.draw_poly([(x, y), (x + 30, y + 10), (x + 10, y + 25)], 0xFF, 0x0F)
             cx += vx
             cy += vy
+            r += vr
         return res[4:]
     for name, args in (('no disc, nothing dirty', (0, 0, 0, 0, 0)),
                        ('no disc, 3 small ships moving', (0, 0, 0, 0, 0, 8, 3)),
@@ -1032,7 +1074,8 @@ def bench(m, rnd):
                        ('planet r=200 + 3 ships', (128, 260, 200, 1, -1, 8, 3)),
                        ('planet r=80, 2 boundaries static', (128, 96, 80, 0, 0, 8, 0, 0)),
                        ('planet r=80, 2 bounds move 1px/fr', (128, 96, 80, 0, 0, 8, 0, 1)),
-                       ('planet r=80, bounds+disc 1px/fr', (128, 96, 80, 1, 0, 8, 0, 1))):
+                       ('planet r=80, bounds+disc 1px/fr', (128, 96, 80, 1, 0, 8, 0, 1)),
+                       ('planet r=80, bounds 1px, disc grows', (128, 96, 80, 0, 0, 8, 0, 1, 0.7))):
         v = disc_frames(*args)
         out.append('R_DISCROWS %-36s %6.0f cycles/frame' % (name + ':', sum(v) / len(v)))
     m.wr('R_NDF', 0)
