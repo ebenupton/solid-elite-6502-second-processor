@@ -713,10 +713,14 @@ class Tester:
         ships = [(rnd.uniform(0, 256), rnd.uniform(0, 192), rnd.uniform(-3, 3), rnd.uniform(-3, 3)) for _ in range(rnd.randrange(0, 4))]
         dce, dco = rnd.randrange(256), rnd.randrange(256)
         dbe, dbo = rnd.randrange(256), rnd.randrange(256)
-        bands = sc in ('bands', 'bandmix')
+        bands = sc in ('bands', 'bandmix', 'bandjump')
         if bands:
             cx, cy, rad = rnd.uniform(40, 216), rnd.uniform(30, 160), rnd.uniform(20, 110)
             vx, vy, vr = rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-0.3, 0.3)
+        if sc == 'bandjump':    # a small two-colour disc moving fast (a crater planet
+            rad = rnd.uniform(8, 40)        # as the view turns): narrow rows whose old
+            vx, vy = rnd.uniform(-30, 30), rnd.uniform(-20, 20)    # and new spans are apart
+            vr = rnd.uniform(-1, 1)
         def newcurve():
             return [rnd.uniform(-rad, rad), rnd.uniform(-1.5, 1.5), rnd.uniform(-rad, rad), rnd.uniform(-rad, rad)]
         curves = [newcurve() for _ in range(rnd.randrange(0, 5))]
@@ -903,6 +907,8 @@ class Tester:
             self.stat('starplot', (len(stars), cyc_p))
             # move the disc
             cx, cy, rad = cx + vx, cy + vy, max(0, rad + vr)
+            if sc == 'bandjump' and not (-40 < cx < 296 and -40 < cy < 232):
+                cx, cy = rnd.uniform(40, 216), rnd.uniform(30, 160)
 
 
 def summarize(stats):
@@ -1137,6 +1143,8 @@ def main():
     run('lines', t.test_lines, int(2000 * scale))
     for sc in ('none', 'sun', 'planet', 'mixed', 'jumpy', 'bands', 'bandmix', 'bands'):
         run('frames', t.test_frames, int(40 * scale) + 4, sc)
+    for k in range(6):          # regression: r_dpe's strips into the gap between
+        run('bandjump', t.test_frames, int(40 * scale) + 4, 'bandjump')   # spans apart
     print(summarize(t.stats))
 
 
