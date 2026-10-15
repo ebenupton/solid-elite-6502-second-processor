@@ -581,18 +581,20 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 .ff1
 
- LDX #&21               \ save the zero page the rasteriser uses (&06-&27)
+ LDA &26                \ save the zero page the rasteriser uses (&06-&27)
+ STA f_zsave+&20        \ and the frame layer's (&D2-&E1): the last two
+ LDA &27                \ bytes here, then &06-&15, &16-&25 and FZ in one
+ STA f_zsave+&21        \ loop of 16
+ LDX #15
 .ff3
  LDA &06,X
  STA f_zsave,X
- DEX
- BPL ff3
- LDX #15                \ and the frame layer's (&D2-&E1)
-.ff3a
+ LDA &16,X
+ STA f_zsave+&10,X
  LDA FZ,X
  STA f_zsave+&22,X
  DEX
- BPL ff3a
+ BPL ff3
 
  BIT GMODE
  BMI ff2
@@ -1827,9 +1829,14 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  LDY #31
 .ft12
  LDA (fz_q),Y
- BEQ ft17
+ BEQ ft17a
  CMP (fz_p),Y
- BEQ ft17
+ BNE ft15
+.ft17a
+ DEY
+ BPL ft12
+ BMI ft18
+.ft15
  LDA #0                 \ this cell goes: forget it, mark it dirty
  STA (fz_q),Y
  LDX fz_i

@@ -8001,19 +8001,18 @@ ENDMACRO
                         \
                         \   (S R) = YY(1 0) = (A P) + y
 
- STA YY+1               \ First we do the low bytes with:
- LDA P                  \
- ADC SYL,Y              \   YY+1 = A
- STA YY                 \   R = YY = P + y_lo
- STA R                  \
-                        \ so we get this:
+ TAX                    \ First we do the low bytes, keeping the high byte of
+ LDA P                  \ (A P) in X:
+ ADC SYL,Y              \
+ STA R                  \   R = P + y_lo
                         \
-                        \   (? R) = YY(1 0) = (A P) + y_lo
+                        \ (YY is not written here: both YY and YY+1 are
+                        \ overwritten by the STA YY+1/STX YY after the ADD
+                        \ below before anything reads them)
 
- LDA Y1                 \ And then we do the high bytes with:
- ADC YY+1               \
- STA YY+1               \   S = YY+1 = y_hi + YY+1
- STA S                  \
+ TXA                    \ And then we do the high bytes with:
+ ADC Y1                 \
+ STA S                  \   S = y_hi + A
                         \ so we get our result:
                         \
                         \   (S R) = YY(1 0) = (A P) + (y_hi y_lo)
@@ -8135,12 +8134,14 @@ ENDMACRO
                         \   (A X) = (A P) + (S R)
                         \         = 2 * (beta * y / 256) ^ 2 + x
 
- STA XX+1               \ Store the high byte A in XX+1
+ STA SX,Y               \ BBC Master port: store the high byte A straight into
+                        \ x_hi (SX is not read by PIX1/PIXEL2, which use X1, and
+                        \ XX+1 is dead: rewritten at the top of STL1 before use)
 
  TXA                    \ Store the low byte X in x_lo
  STA SXL,Y
 
-                        \ So (XX+1 x_lo) now contains:
+                        \ So (x_hi x_lo) now contains:
                         \
                         \   x = x + 2 * (beta * y / 256) ^ 2
                         \
@@ -8154,8 +8155,7 @@ ENDMACRO
 \STX R
  STA S
 
- LDA #0                 \ Set P = 0
- STA P
+ STZ P                  \ Set P = 0
 
  LDA BETA               \ Set A = -beta, so:
  EOR #%10000000         \
@@ -8175,14 +8175,13 @@ ENDMACRO
                         \ particle during the calculations above
 
                         \ We now have our newly moved stardust particle at
-                        \ x-coordinate (XX+1 x_lo) and y-coordinate (YY+1 y_lo)
+                        \ x-coordinate (x_hi x_lo) and y-coordinate (YY+1 y_lo)
                         \ and distance z_hi, so we draw it if it's still on
                         \ screen, otherwise we recycle it as a new bit of
                         \ stardust and draw that
 
- LDA XX+1               \ Set X1 and x_hi to the high byte of XX in XX+1, so
- STA X1                 \ the new x-coordinate is in (x_hi x_lo) and the high
- STA SX,Y               \ byte is in X1
+ LDA SX,Y               \ Set X1 to the new x_hi, so the new x-coordinate is in
+ STA X1                 \ (x_hi x_lo) and the high byte is in X1
 
  AND #%01111111         \ If |x_hi| >= 120 then jump to KILL1 to recycle this
  CMP #120               \ particle, as it's gone off the side of the screen,

@@ -67,7 +67,6 @@
  BNE hsd
  PLA
  PLA
- LDA hA
  SEC
  JSR G_STAR
 .hpxc
