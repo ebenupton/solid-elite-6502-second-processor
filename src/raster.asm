@@ -4341,7 +4341,29 @@ ENDMACRO
   BEQ f4
   BCS slow0
 .f4
+  LDA R_X1                \ 8 or more pixels on the major axis: bank 7's
+  SEC                     \ r7_line, else r_lf
+  SBC R_X0
+  BCS p1
+  EOR #&FF
+  INC A
+.p1
+  CMP #8
+  BCS long
+  LDA R_Y1
+  SEC
+  SBC R_Y0
+  BCS p2
+  EOR #&FF
+  INC A
+.p2
+  CMP #8
+  BCS long
   JMP r_lf
+.long
+  LDA #LO(r7_line)
+  LDX #HI(r7_line)
+  JMP r_c7x
 .slow0
   LDA R_Y0                \ rows touched -> this buffer's row range
   CMP R_Y1
