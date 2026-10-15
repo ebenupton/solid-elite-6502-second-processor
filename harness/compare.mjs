@@ -159,7 +159,29 @@ async function run(label, model, disc, syms, opts) {
             for (let a = st[i][1]; a < Math.min(end, 0x10000); a++) lookup[a] = st[i][0];
         }
     }
-    const bucket = pc => pc >= 0xc000 ? "MOS" : (model !== "Master" && pc >= 0x8000) ? "ROM" : pc < 0x0f40 ? "low" : (lookup[pc] || "?");
+    // --fine: port profile by every label, bank-aware (bank 4/5/6/7 label sets from their source files)
+    let fineTabs = null;
+    if (PF && args.fine && model === "Master") {
+        const labelsIn = f => new Set([...readFileSync(f, "latin1").matchAll(/^\.\^?([A-Za-z_][A-Za-z0-9_%]*)/gm)].map(m => m[1]));
+        const SRC = decodeURIComponent(new URL("..", import.meta.url).pathname);
+        const b5 = labelsIn(`${SRC}/src/raster.asm`), b7 = labelsIn(`${SRC}/src/raster7.asm`);
+        const b6 = new Set([...labelsIn(`${SRC}/src/frame.asm`), ...labelsIn(`${SRC}/src/faces.asm`)]);
+        fineTabs = { 4: [], 5: [], 6: [], 7: [], main: [] };
+        for (const [k, v] of Object.entries(syms)) {
+            if (v < 0x0f40) continue;
+            if (v >= 0x8000 && v < 0xc000) fineTabs[b5.has(k) ? 5 : b6.has(k) ? 6 : b7.has(k) ? 7 : 4].push([v, k]);
+            else fineTabs.main.push([v, k]);
+        }
+        for (const t of Object.values(fineTabs)) t.sort((x, y) => x[0] - y[0]);
+    }
+    const look = (t, pc) => { let lo = 0, hi = t.length - 1, r = null; while (lo <= hi) { const m = (lo + hi) >> 1; if (t[m][0] <= pc) { r = t[m][1]; lo = m + 1; } else hi = m - 1; } return r; };
+    const fineBucket = pc => {
+        if (pc >= 0xe000) return "MOS";
+        if (pc >= 0xc000) return "HZ:" + (look(fineTabs.main, pc) || "?");
+        if (pc >= 0x8000) { const b = cpu.romsel & 15; return `b${b}:` + (look(fineTabs[b] || [], pc) || "?"); }
+        return pc < 0x0f40 ? "low" : (look(fineTabs.main, pc) || "?");
+    };
+    const bucket = fineTabs ? fineBucket : pc => pc >= 0xc000 ? "MOS" : (model !== "Master" && pc >= 0x8000) ? "ROM" : pc < 0x0f40 ? "low" : (lookup[pc] || "?");
     const cyc = () => cpu.cycleSeconds * 2e6 + cpu.currentCycles;
     const handler = pc => {
         if (PF && snaps.length >= PF[0] && snaps.length < PF[1]) {
@@ -333,5 +355,6 @@ if (args.profile) {
     for (const k of [...keys].sort((x, y) => Math.max(port.prof[y] || 0, orig.prof[y] || 0) - Math.max(port.prof[x] || 0, orig.prof[x] || 0)).slice(0, 60))
         log(`  ${k.padEnd(20)} ${((orig.prof[k] || 0) / (b - a)).toFixed(0).padStart(8)} ${((port.prof[k] || 0) / (b - a)).toFixed(0).padStart(8)} ${(((port.prof[k] || 0) - (orig.prof[k] || 0)) / (b - a)).toFixed(0).padStart(8)}`);
 }
+if (args.profile) writeFileSync(`${OUT}/prof.json`, JSON.stringify({ orig: orig.prof, port: port.prof, n: (([a, b]) => b - a)(String(args.profile).split("-").map(Number)) }));
 writeFileSync(`${OUT}/report.txt`, report.join("\n") + "\n");
 process.exit(0);

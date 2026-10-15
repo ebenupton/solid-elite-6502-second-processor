@@ -46,5 +46,5 @@ console.log(`iterations ${FROM}-${FROM + N}: ${(tot / N).toFixed(0)} cycles/iter
 const grp = {};
 for (const [k, v] of Object.entries(prof)) { const g = k.startsWith("b5:") ? "raster(b5)" : k.startsWith("b6:") ? "frame(b6)" : k.startsWith("HAZEL") ? "hooks(HAZEL)" : k.startsWith("b4:") ? "elite(b4)" : k === "MOS" ? "MOS" : "elite(main)"; grp[g] = (grp[g] || 0) + v; }
 for (const [k, v] of Object.entries(grp).sort((x, y) => y[1] - x[1])) console.log("TOTAL " + k.padEnd(22), (v / N).toFixed(0).padStart(8), (100 * v / tot).toFixed(1).padStart(6) + "%");
-const rows = Object.entries(prof).sort((x, y) => y[1] - x[1]).slice(0, +(a.top || 45));
+const rows = Object.entries(prof).sort((x, y) => y[1] - x[1]).filter(([k]) => !a.grep || k.includes(a.grep)).slice(0, +(a.top || 45));
 for (const [k, v] of rows) console.log(k.padEnd(28), (v / N).toFixed(0).padStart(8), (100 * v / tot).toFixed(1).padStart(6) + "%");
