@@ -79,7 +79,20 @@ def check_patch_sites():
                 sites.add(m.group(2))
     missing = sites - listed
     assert not bad, 'unpatched buffer references: %s' % bad
-    assert not missing, 'patch sites not in r_ptab: %s' % missing
+    assert not missing, 'patch sites not in R_SETBUF: %s' % missing
+    # each site must be patched with its own array's high byte
+    txt = open(SRC).read()
+    use = dict(re.findall(r'\.\^?(r_pt\d+)\s+[A-Z]{3}\s+(r_\w+)', txt))
+    grp = None
+    for ln in txt[txt.index('.R_SETBUF'):].splitlines():
+        m = re.search(r'group (r_\w+)', ln)
+        if m:
+            grp = m.group(1)
+        m = re.match(r'\s*STA (r_pt\d+)\+2', ln)
+        if m:
+            assert use[m.group(1)] == grp, 'site %s patched as %s' % (m.group(1), grp)
+        if ln.startswith('}'):
+            break
     return len(sites)
 
 
@@ -135,6 +148,9 @@ class Machine:
                     if mem[a] != snap[a]:
                         raise AssertionError('%s wrote &%04X' % (name, a))
         # module code outside the variable/table areas must be restored (the runs)
+        w0 = self.syms.get('r_wcrun')
+        if w0 is not None and mem[w0:w0 + 3 * 193 + 1] != snap[w0:w0 + 3 * 193 + 1]:
+            raise AssertionError('%s left r_wcrun modified' % name)
         r0 = self.syms['r_run0']
         for r in range(24):
             base = r0 + 256 * r
@@ -668,6 +684,17 @@ class Tester:
         stars = [(rnd.randrange(256), rnd.randrange(192), rnd.randrange(1, 4)) for _ in range(rnd.randrange(0, 25))]
         ships = [(rnd.uniform(0, 256), rnd.uniform(0, 192), rnd.uniform(-3, 3), rnd.uniform(-3, 3)) for _ in range(rnd.randrange(0, 4))]
         dce, dco = rnd.randrange(256), rnd.randrange(256)
+        dbe, dbo = rnd.randrange(256), rnd.randrange(256)
+        bands = sc in ('bands', 'bandmix')
+        if bands:
+            cx, cy, rad = rnd.uniform(40, 216), rnd.uniform(30, 160), rnd.uniform(20, 110)
+            vx, vy, vr = rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-0.3, 0.3)
+        def newcurve():
+            return [rnd.uniform(-rad, rad), rnd.uniform(-1.5, 1.5), rnd.uniform(-rad, rad), rnd.uniform(-rad, rad)]
+        curves = [newcurve() for _ in range(rnd.randrange(0, 5))]
+        eq = rnd.uniform(-rad, rad)
+        drawn_cols = [None, None]
+        m.wr('R_NDF', 0)
         for f in range(nframes):
             b = f & 1
             if f == reset_at:       # e.g. leaving direct drawing: both black, state reset
@@ -702,6 +729,47 @@ class Tester:
                 l, r = spans.get(y, (255, 0))
                 m.wr('R_NDISCL', l, y)
                 m.wr('R_NDISCR', r, y)
+            bnd = {}
+            ndf = 0
+            if bands:
+                for c in curves:                    # drift, sometimes jump
+                    c[0] += rnd.uniform(-2.5, 2.5)
+                    if rnd.random() < 0.03:
+                        c[:] = newcurve()
+                if rnd.random() < 0.05 and curves:
+                    curves.pop(rnd.randrange(len(curves)))
+                if rnd.random() < 0.05 and len(curves) < 4:
+                    curves.append(newcurve())
+                eq += rnd.uniform(-1, 1)
+                if rnd.random() < 0.1:
+                    dce, dco, dbe, dbo = (rnd.randrange(256) for _ in range(4))
+                ndf = 0 if (sc == 'bandmix' and (f // 5) % 3 == 2) else 1
+                for y in range(ndt, ndb + 1) if spans else []:
+                    xs = sorted(int(cx + c[0] + c[1] * (y - cy)) for c in curves
+                                if min(c[2], c[3]) <= y - cy <= max(c[2], c[3]))
+                    xs = [max(0, min(255, v)) for v in xs]
+                    p_ = (1 if y > cy + eq else 0) ^ (1 if rnd.random() < 0.02 else 0)
+                    bnd[y] = (xs, p_)
+                    m.wr('R_NDN', len(xs), y)
+                    m.wr('R_NDP', p_ | (rnd.randrange(128) << 1), y)
+                    for i in range(4):
+                        m.wr('R_NDX%d' % i, xs[i] if i < len(xs) else rnd.randrange(256), y)
+                if not ndf:
+                    bnd = {}
+            m.wr('R_NDF', ndf)
+            m.wr('R_DBE', dbe)
+            m.wr('R_DBO', dbo)
+            cols = (dce, dco, dbe, dbo)
+            if drawn_cols[b] is not None and drawn_cols[b] != cols:
+                # the caller's colour change: fold this buffer's old disc into dirty
+                for y in range(192):
+                    l = m.rd('R_DISCL0', y + 0x300 * b)
+                    r = m.rd('R_DISCR0', y + 0x300 * b)
+                    if l <= r:
+                        m.wzp('R_XL', l)
+                        m.wzp('R_XR', r)
+                        m.call('R_MARKDIRTY', y=y)
+            drawn_cols[b] = cols
             m.wzp('R_DCE', dce)
             m.wzp('R_DCO', dco)
             cyc_d = m.call('R_DISCROWS')
@@ -709,7 +777,13 @@ class Tester:
             ref = Ref(outside[b], self.clip)
             ref.blackwin()
             for y, (l, r) in spans.items():
-                ref.span(y, l, r, dce, dco)
+                if y in bnd:
+                    xs, p_ = bnd[y]
+                    for x in range(l, r + 1):
+                        c = p_ ^ (sum(1 for v in xs if v <= x) & 1)
+                        ref.setpix(x, y, dbe if c else dce, dbo if c else dco)
+                else:
+                    ref.span(y, l, r, dce, dco)
             # WL/WR must cover every changed pixel so far
             wl = [(m.rd('R_WL', y), m.rd('R_WR', y)) for y in range(192)]
             # shapes
@@ -907,8 +981,11 @@ def bench(m, rnd):
         cs.append(t.draw_line(rnd.randrange(-3000, -100), rnd.randrange(-3000, 3000), rnd.randrange(100, 200), rnd.randrange(50, 150), 0xFF, 0xFF))
     out.append('R_LINE from far off screen: %6.0f cycles' % (sum(cs) / len(cs)))
     # disc layer steady state
-    def disc_frames(cx, cy, r, vx, vy, n=8, ships=0):
+    def disc_frames(cx, cy, r, vx, vy, n=8, ships=0, bands=None):
         res = []
+        m.wr('R_NDF', 1 if bands else 0)
+        m.wr('R_DBE', 0x33)
+        m.wr('R_DBO', 0xCC)
         for b in range(2):
             m.call('R_SETBUF', a=b)
             m.call('R_CLEARALL')
@@ -930,6 +1007,12 @@ def bench(m, rnd):
                 for y in range(min(spans), max(spans) + 1):
                     l, rr = spans.get(y, (255, 0))
                     m.wr('R_NDISCL', l, y); m.wr('R_NDISCR', rr, y)
+                    if bands:
+                        xs = sorted(int(cx + o + f * bands) for o in (-r * 0.4, r * 0.3))
+                        m.wr('R_NDN', 2, y)
+                        m.wr('R_NDP', 1 if y > cy else 0, y)
+                        m.wr('R_NDX0', max(0, min(255, xs[0])), y)
+                        m.wr('R_NDX1', max(0, min(255, xs[1])), y)
             else:
                 m.wr('R_NDT', 255); m.wr('R_NDB', 0)
             m.wzp('R_DCE', 0x5A); m.wzp('R_DCO', 0xA5)
@@ -946,9 +1029,13 @@ def bench(m, rnd):
                        ('sun r=40 static', (128, 96, 40, 0, 0)),
                        ('planet r=200 moving 1px/frame', (128, 260, 200, 1, -1)),
                        ('planet r=200 static', (128, 260, 200, 0, 0)),
-                       ('planet r=200 + 3 ships', (128, 260, 200, 1, -1, 8, 3))):
+                       ('planet r=200 + 3 ships', (128, 260, 200, 1, -1, 8, 3)),
+                       ('planet r=80, 2 boundaries static', (128, 96, 80, 0, 0, 8, 0, 0)),
+                       ('planet r=80, 2 bounds move 1px/fr', (128, 96, 80, 0, 0, 8, 0, 1)),
+                       ('planet r=80, bounds+disc 1px/fr', (128, 96, 80, 1, 0, 8, 0, 1))):
         v = disc_frames(*args)
-        out.append('R_DISCROWS %-32s %6.0f cycles/frame' % (name + ':', sum(v) / len(v)))
+        out.append('R_DISCROWS %-36s %6.0f cycles/frame' % (name + ':', sum(v) / len(v)))
+    m.wr('R_NDF', 0)
     # stars
     m.call('R_SETBUF', a=0)
     m.call('R_CLEARALL')
@@ -1001,7 +1088,7 @@ def main():
     run('polys', t.test_polys, int(3000 * scale))
     run('meshes', t.test_meshes, int(60 * scale))
     run('lines', t.test_lines, int(2000 * scale))
-    for sc in ('none', 'sun', 'planet', 'mixed', 'jumpy'):
+    for sc in ('none', 'sun', 'planet', 'mixed', 'jumpy', 'bands', 'bandmix', 'bands'):
         run('frames', t.test_frames, int(40 * scale) + 4, sc)
     print(summarize(t.stats))
 

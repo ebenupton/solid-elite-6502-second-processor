@@ -7645,6 +7645,8 @@ ENDMACRO
  ADC T                  \ point on the circle but as a screen coordinate, to go
  STA K6+3               \ along with the screen x-coordinate in K6(1 0)
 
+ JSR H_BPT              \ Frame layer: record the point for the filled detail
+
  LDA FLAG               \ If FLAG = 0, jump down to BL1
  BEQ BL1
 
@@ -34296,6 +34298,8 @@ ENDIF
 \ ******************************************************************************
 
 .PLS22
+
+ JSR H_PCURVE           \ Frame layer: a new curve of the planet's detail
 
  LDX #0                 \ Set CNT = 0
  STX CNT

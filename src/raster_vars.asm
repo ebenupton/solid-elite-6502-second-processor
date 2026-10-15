@@ -2,7 +2,7 @@
 \ raster_vars.asm -- the variables and arrays of raster.asm that its caller
 \ reads or writes.  Assemble it (before INCLUDEing raster.asm) anywhere in
 \ memory both the caller and the rasteriser can see (e.g. HAZEL, &C000-&DFFF).
-\ No ORG and no alignment: it is placed at P%.  2453 bytes.
+\ No ORG and no alignment: it is placed at P%.  5914 bytes.
 \ See raster.asm for what each one means.
 \ ============================================================================
 
@@ -34,6 +34,34 @@
 .R_DISCR1   SKIP 192
 .R_WL       SKIP 192        \ this frame's written extents (empty: R=0)
 .R_WR       SKIP 192
+\ two-colour discs (R_DISCROWS): rows NDT..NDB, used when R_NDF <> 0
+.R_NDF      SKIP 1          \ 0: no boundaries this frame (disc all colour A)
+.R_DBE      SKIP 1          \ colour B pair (even, odd rows)
+.R_DBO      SKIP 1
+.R_NDN      SKIP 192        \ boundaries in the row, 0..4
+.R_NDP      SKIP 192        \ bit 0: colour (0 = A, 1 = B) at the span's left end
+.R_NDX0     SKIP 192        \ boundary x, ascending: pixels >= x take the other
+.R_NDX1     SKIP 192        \ colour; values <= NDISCL or > NDISCR are allowed
+.R_NDX2     SKIP 192
+.R_NDX3     SKIP 192
+\ private to raster.asm: polygon edge tables
+.R_PTA      SKIP 192
+.R_PTB      SKIP 192
+\ private to raster.asm: each buffer's last boundaries (raw), &500 apart
+.R_BDN0     SKIP 192
+.R_BDP0     SKIP 192
+.R_BDX00    SKIP 192
+.R_BDX10    SKIP 192
+.R_BDX20    SKIP 192
+.R_BDX30    SKIP 192
+            SKIP &500 - 6 * 192
+.R_BDN1     SKIP 192
+.R_BDP1     SKIP 192
+.R_BDX01    SKIP 192
+.R_BDX11    SKIP 192
+.R_BDX21    SKIP 192
+.R_BDX31    SKIP 192
 
 ASSERT R_Y1 = R_Y0 + 4
 ASSERT R_DIRTYL1 = R_DIRTYL0 + &300
+ASSERT R_BDN1 = R_BDN0 + &500

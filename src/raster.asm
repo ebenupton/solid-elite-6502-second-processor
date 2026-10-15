@@ -36,6 +36,15 @@
 \   R_DIRTYL0/R0, R_DIRTYL1/R1  per-buffer dirty extents  [192 each]
 \   R_DISCL0/R0,  R_DISCL1/R1   per-buffer disc spans     [192 each]
 \   R_WL, R_WR         this frame's written extents (see R_DISCROWS) [192]
+\   R_NDF              0: this frame's disc is plain colour A (the arrays
+\                      below are ignored); else each disc row has:
+\   R_NDN              boundaries in the row, 0..4                 [192]
+\   R_NDX0..R_NDX3     their x, ascending: pixels >= x take the other colour;
+\                      values <= NDISCL or > NDISCR are allowed     [192]
+\   R_NDP              bit 0: colour at the span's left end before any
+\                      flip (0 = A = R_DCE/R_DCO, 1 = B = R_DBE/R_DBO) [192]
+\   R_DBE, R_DBO       colour B pair
+\   (R_PTA/R_PTB, R_BD*: private to this file.)
 \ Coordinates passed to R_POLY / R_LINE must lie in -16384..16383.
 \
 \ ---------------------------------------------------------------- routines
@@ -46,9 +55,9 @@
 \              screen: follow with R_CLEARALL (or R_RESETBUF on a black
 \              window) for each buffer.
 \ R_SETBUF     A = buffer 0/1 whose state arrays (dirty, disc, stars) the
-\              following calls use.  Call it before drawing each frame (it is
-\              cheap when the buffer does not change).  It self-modifies the
-\              code: 67 operands are patched (~2500 cycles) on a change.
+\              following calls use.  Call it before drawing each frame.  It
+\              self-modifies the code: ~85 operand high bytes are stored
+\              (~400 cycles) when the buffer changes.
 \ R_RESETBUF   forget the current buffer's state (no dirty, no disc, no
 \              stars) without touching the screen; the caller guarantees the
 \              buffer's clip window is black.  ~5000 cycles.  No R_INIT needed.
@@ -98,6 +107,13 @@
 \ frame is R_WL/R_WR[y] union DIRTY[b][y] (or call R_WMERGE at the end).
 \ Rows of R_NDISCL/R in NDT..NDB with NDISCL = 255 (or L > R) are empty;
 \ spans are clamped to the clip window.
+\ Two-colour discs (R_NDF <> 0): pixel x of a disc row has colour R_NDP
+\ EOR (the number of its boundaries <= x).  Each buffer remembers its rows'
+\ boundaries; a row whose span, colour and boundary count are unchanged and
+\ has no dirty extent only gets the strips between each boundary's old and
+\ new position written; anything else is repainted whole.  A change of the
+\ colours A/B must be handled by the caller as now: fold the old disc into
+\ DIRTY (R_MARKDIRTY) first.
 \ ============================================================================
 
 CPU 1
@@ -199,8 +215,10 @@ R_ENDPAGE 5
 .r_s0b SKIP 48          \ buffer 0: mask set in column x DIV 4 + 1
 R_ENDPAGE 6
 .r_run7 R_RUN 7
+.r_s0r SKIP 48          \ star records, buffer 0: row
 R_ENDPAGE 7
 .r_run8 R_RUN 8
+.r_s1r SKIP 48          \ buffer 1: row
 R_ENDPAGE 8
 .r_run9 R_RUN 9
 .r_s1b SKIP 48
@@ -233,6 +251,8 @@ R_ENDPAGE 9
 .r_ylast EQUB 0
 .r_yend EQUB 0
 .r_xclip EQUB 0
+.r_bon EQUB 0           \ R_DISCROWS: this frame uses boundaries
+.r_bmode EQUB 0, 0      \ per buffer: its rows may hold boundaries
 .r_cc EQUB 0
 .r_cidx EQUB 0, 0
 .r_ccnt EQUB 0, 0
@@ -248,42 +268,10 @@ R_ENDPAGE 10
 .r_ma EQUW 0            \ multiplicand
 .r_mb EQUW 0            \ multiplier
 .r_sbd EQUB 0           \ R_SETBUF delta
-.r_ov SKIP 28           \ variables of routines never active together
+.r_ov SKIP 45           \ variables of routines never active together
 R_ENDPAGE 11
 .r_run12 R_RUN 12
-\ r_bmn: black on [r_ba, r_bb] minus [r_nL, r_nR]
-.r_bmn
-{
-  LDA r_nR
-  CMP r_nL
-  BCC whole
-  LDA r_nR
-  CMP r_ba
-  BCC whole
-  LDA r_bb
-  CMP r_nL
-  BCC whole
-  LDA r_ba
-  CMP r_nL
-  BCS b2
-  LDX r_nL
-  DEX
-  JSR r_dw
-.b2
-  LDA r_nR
-  CMP r_bb
-  BCS done
-  INC A
-  LDX r_bb
-  JMP r_dw
-.whole
-  LDA r_ba
-  LDX r_bb
-  JMP r_dw
-.done
-  RTS
-}
-
+.r_s1k SKIP 48          \ buffer 1: column (+&40: two bytes)
 R_ENDPAGE 12
 \ overlay: edge set-up (r_eset)
 r_edy = r_ov + 0
@@ -318,6 +306,19 @@ r_dya = r_ov + 18
 r_dyz = r_ov + 19
 r_fe = r_ov + 20
 r_fo = r_ov + 21
+r_bv = r_ov + 22        \ boundaries: new (4), then old (4) at r_bv+4
+r_nn = r_ov + 30        \ new count / colour; old count / colour
+r_np = r_ov + 31
+r_on = r_ov + 32
+r_op = r_ov + 33
+r_ns = r_ov + 34        \ strips to write (r_dp2)
+r_cA = r_ov + 35        \ this row's colour A, B bytes
+r_cB = r_ov + 36
+r_dcr = r_ov + 37       \ r_dp2: right end colour
+r_segs = r_ov + 38      \ r_drg: repaint the new span segment by segment
+r_cl = r_ov + 39        \ r_canon: span, count in
+r_cr = r_ov + 40
+r_cn = r_ov + 41
 \ overlay: R_LINE
 r_lxm = r_ov + 0
 r_maj0 = r_ov + 1
@@ -338,34 +339,7 @@ r_cmaj = r_ov + 24
 r_cmin = r_ov + 25
 r_lcnt = r_ov + 27
 .r_run13 R_RUN 13
-.R_SETBUF
-{
-  AND #1
-  CMP r_buf
-  BEQ done
-  STA r_buf
-  TAX
-  LDA dtab,X
-  STA r_sbd
-  LDX #0
-.lp
-  LDA r_ptab,X
-  STA RZ_T0
-  LDA r_ptab+1,X
-  STA RZ_T1
-  LDA (RZ_T0)
-  CLC
-  ADC r_sbd
-  STA (RZ_T0)
-  INX
-  INX
-  CPX #r_ptab_end - r_ptab
-  BNE lp
-.done
-  RTS
-.dtab
-  EQUB &FD, 3
-}
+.r_s0k SKIP 48          \ buffer 0: column (+&40: two bytes)
 R_ENDPAGE 13
 .r_run14 R_RUN 14
 .r_addr
@@ -698,8 +672,8 @@ ASSERT r_s1a = r_s0a + &300 AND r_s1b = r_s0b + &300
 \ Per-buffer row arrays: buffer 1's are buffer 0's + &300 (R_SETBUF adds 3 to
 \ the high byte of every patched operand).
 \ ============================================================================
-.r_ta SKIP 192          \ polygon edge tables
-.r_tb SKIP 192
+r_ta = R_PTA            \ polygon edge tables (raster_vars)
+r_tb = R_PTB
 
 \ the API arrays live in raster_vars.asm
 r_dl = R_DIRTYL0
@@ -710,6 +684,189 @@ r_dl1 = R_DIRTYL1
 r_dr1 = R_DIRTYR1
 r_sl1 = R_DISCL1
 r_sr1 = R_DISCR1
+r_bdn = R_BDN0          \ per-buffer boundary rows (patched like r_dl)
+r_bdp = R_BDP0
+r_bdx0 = R_BDX00
+r_bdx1 = R_BDX10
+r_bdx2 = R_BDX20
+r_bdx3 = R_BDX30
+
+\ ============================================================================
+\ R_SETBUF: A = buffer.  Patches every buffer-dependent operand (high byte).
+\ ============================================================================
+.R_SETBUF
+{
+  AND #1
+  CMP r_buf
+  BNE go
+  RTS
+.go
+  STA r_buf
+  TAX
+  LDA r_sbh_bdn,X          \ group r_bdn
+  STA r_pt86+2
+  STA r_pt92+2
+  STA r_pt98+2
+  STA r_pt108+2
+  STA r_pt110+2
+  LDA r_sbh_bdp,X          \ group r_bdp
+  STA r_pt87+2
+  STA r_pt91+2
+  STA r_pt99+2
+  STA r_pt109+2
+  STA r_pt111+2
+  LDA r_sbh_bdx0,X          \ group r_bdx0
+  STA r_pt93+2
+  STA r_pt100+2
+  STA r_pt104+2
+  STA r_pt113+2
+  STA r_pt119+2
+  STA r_pt123+2
+  STA r_pt127+2
+  LDA r_sbh_bdx1,X          \ group r_bdx1
+  STA r_pt94+2
+  STA r_pt101+2
+  STA r_pt105+2
+  STA r_pt114+2
+  STA r_pt120+2
+  STA r_pt125+2
+  STA r_pt128+2
+  LDA r_sbh_bdx2,X          \ group r_bdx2
+  STA r_pt95+2
+  STA r_pt102+2
+  STA r_pt106+2
+  STA r_pt115+2
+  STA r_pt121+2
+  LDA r_sbh_bdx3,X          \ group r_bdx3
+  STA r_pt96+2
+  STA r_pt103+2
+  STA r_pt107+2
+  STA r_pt116+2
+  STA r_pt122+2
+  LDA r_sbh_dl,X          \ group r_dl
+  STA r_pt01+2
+  STA r_pt02+2
+  STA r_pt05+2
+  STA r_pt06+2
+  STA r_pt13+2
+  STA r_pt14+2
+  STA r_pt19+2
+  STA r_pt23+2
+  STA r_pt25+2
+  STA r_pt38+2
+  STA r_pt43+2
+  STA r_pt46+2
+  STA r_pt48+2
+  STA r_pt60+2
+  STA r_pt61+2
+  STA r_pt64+2
+  STA r_pt65+2
+  STA r_pt68+2
+  STA r_pt69+2
+  STA r_pt78+2
+  STA r_pt79+2
+  STA r_pt82+2
+  STA r_pt83+2
+  STA r_pt88+2
+  LDA r_sbh_dr,X          \ group r_dr
+  STA r_pt03+2
+  STA r_pt04+2
+  STA r_pt07+2
+  STA r_pt08+2
+  STA r_pt15+2
+  STA r_pt16+2
+  STA r_pt20+2
+  STA r_pt24+2
+  STA r_pt40+2
+  STA r_pt42+2
+  STA r_pt47+2
+  STA r_pt49+2
+  STA r_pt62+2
+  STA r_pt63+2
+  STA r_pt66+2
+  STA r_pt67+2
+  STA r_pt70+2
+  STA r_pt71+2
+  STA r_pt80+2
+  STA r_pt81+2
+  STA r_pt84+2
+  STA r_pt85+2
+  LDA r_sbh_s0a,X          \ group r_s0a
+  STA r_pt32+2
+  STA r_pt36+2
+  LDA r_sbh_s0b,X          \ group r_s0b
+  STA r_pt33+2
+  STA r_pt37+2
+  LDA r_sbh_s0k,X          \ group r_s0k
+  STA r_pt29+2
+  STA r_pt77+2
+  LDA r_sbh_s0r,X          \ group r_s0r
+  STA r_pt28+2
+  STA r_pt76+2
+  LDA r_sbh_s0x,X          \ group r_s0x
+  STA r_pt31+2
+  STA r_pt35+2
+  LDA r_sbh_s0y,X          \ group r_s0y
+  STA r_pt30+2
+  STA r_pt34+2
+  LDA r_sbh_sl,X          \ group r_sl
+  STA r_pt17+2
+  STA r_pt21+2
+  STA r_pt26+2
+  STA r_pt39+2
+  STA r_pt45+2
+  STA r_pt50+2
+  STA r_pt53+2
+  STA r_pt54+2
+  STA r_pt89+2
+  STA r_pt97+2
+  STA r_pt117+2
+  STA r_pt124+2
+  LDA r_sbh_sr,X          \ group r_sr
+  STA r_pt18+2
+  STA r_pt22+2
+  STA r_pt27+2
+  STA r_pt41+2
+  STA r_pt51+2
+  STA r_pt52+2
+  STA r_pt55+2
+  STA r_pt90+2
+  STA r_pt118+2
+  STA r_pt126+2
+  RTS
+}
+.r_sbh_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
+ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1)
+.r_sbh_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
+ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
+.r_sbh_s0a EQUB HI(r_s0a), HI(r_s1a)
+ASSERT LO(r_s0a) = LO(r_s1a)
+.r_sbh_s0b EQUB HI(r_s0b), HI(r_s1b)
+ASSERT LO(r_s0b) = LO(r_s1b)
+.r_sbh_s0x EQUB HI(r_s0x), HI(r_s1x)
+ASSERT LO(r_s0x) = LO(r_s1x)
+.r_sbh_s0y EQUB HI(r_s0y), HI(r_s1y)
+ASSERT LO(r_s0y) = LO(r_s1y)
+.r_sbh_sl EQUB HI(R_DISCL0), HI(R_DISCL1)
+.r_sbh_bdx3 EQUB HI(R_BDX30), HI(R_BDX31)
+ASSERT LO(R_BDX30) = LO(R_BDX31)
+.r_sbh_bdx2 EQUB HI(R_BDX20), HI(R_BDX21)
+ASSERT LO(R_BDX20) = LO(R_BDX21)
+.r_sbh_bdx1 EQUB HI(R_BDX10), HI(R_BDX11)
+ASSERT LO(R_BDX10) = LO(R_BDX11)
+.r_sbh_bdx0 EQUB HI(R_BDX00), HI(R_BDX01)
+ASSERT LO(R_BDX00) = LO(R_BDX01)
+.r_sbh_bdp EQUB HI(R_BDP0), HI(R_BDP1)
+ASSERT LO(R_BDP0) = LO(R_BDP1)
+.r_sbh_bdn EQUB HI(R_BDN0), HI(R_BDN1)
+ASSERT LO(R_BDN0) = LO(R_BDN1)
+.r_sbh_s0r EQUB HI(r_s0r), HI(r_s1r)
+ASSERT LO(r_s0r) = LO(r_s1r)
+.r_sbh_s0k EQUB HI(r_s0k), HI(r_s1k)
+ASSERT LO(r_s0k) = LO(r_s1k)
+ASSERT LO(R_DISCL0) = LO(R_DISCL1)
+.r_sbh_sr EQUB HI(R_DISCR0), HI(R_DISCR1)
+ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 
 \ ============================================================================
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
@@ -824,10 +981,6 @@ r_sr1 = R_DISCR1
 
 \ ============================================================================
 \ R_SPAN: Y = row, R_XL..R_XR, colour pair R_COLE/R_COLO.
-\ ============================================================================
-
-\ ============================================================================
-\ R_SETBUF: A = buffer.  Patches every buffer-dependent operand.
 \ ============================================================================
 
 \ ============================================================================
@@ -1789,6 +1942,7 @@ r_sr1 = R_DISCR1
 \ r_pbr1/r_pbr2.  Row pointers, run page (RZ_PP+1, r_jsr2+2), RZ_COL set;
 \ RZ_PP = the planted RTS (190: none).
 \ ----------------------------------------------------------------------------
+
 .pb_one
   LDY r_xo,X
   LDA r_lm,X
@@ -2103,17 +2257,7 @@ r_sr1 = R_DISCR1
   STA r_nt
   STZ r_nb
 .t3
-  \ clear last frame's WL/WR rows
-  LDX r_wt
-  CPX r_wb
-  BEQ wc
-  BCS wcd
-.wc
-  STZ R_WR,X
-  CPX r_wb
-  INX
-  BCC wc
-.wcd
+  JSR r_wclear            \ clear last frame's WL/WR rows
   LDA #&FF
   STA r_wt
   STZ r_wb
@@ -2156,33 +2300,55 @@ r_sr1 = R_DISCR1
   JMP stars
 .go
   \ rows of lo..hi outside nt..nb: new = empty
+  LDX r_hi
+  INX
+  STX RZ_T0               \ hi + 1
+  LDA r_nt                \ lo .. min(nt, hi+1) - 1
+  CMP RZ_T0
+  BCC pa
+  LDA RZ_T0
+.pa
+  STA pe1+1
   LDX r_lo
-.pf1
-  CPX r_nt
-  BCS pf2
+  CPX pe1+1
+  BCS pb
   LDA #&FF
+.pf1
   STA R_NDISCL,X
   STZ R_NDISCR,X
-  CPX r_hi
   INX
-  BCC pf1
-.pf2
-  LDX r_nb
+.pe1
+  CPX #0
+  BNE pf1
+.pb
+  LDA r_nt                \ no new disc: done
+  CMP #&FF
+  BEQ pf5
+  LDX r_nb                \ max(nb+1, lo) .. hi
   INX
   CPX r_lo
-  BCS pf3
+  BCS pc
   LDX r_lo
-.pf3
-  CPX r_hi
-  BEQ pf4
+.pc
+  CPX RZ_T0
   BCS pf5
-.pf4
+  LDA RZ_T0
+  STA pe2+1
   LDA #&FF
+.pf4
   STA R_NDISCL,X
   STZ R_NDISCR,X
   INX
-  BNE pf3
+.pe2
+  CPX #0
+  BNE pf4
 .pf5
+  LDX r_buf               \ boundaries this frame or last time: r_dbm
+  LDA R_NDF
+  ORA r_bmode,X
+  BEQ plain
+  JMP r_dbm
+.plain
   \ split lo..hi at the dirty rows: A-loop (no dirty) / B-loop
   LDA r_dyz
   CMP r_dya
@@ -2216,6 +2382,7 @@ r_sr1 = R_DISCR1
   INC A
   JSR r_dla
 .stars
+.^r_dstars
   \ erased star bytes -> WL/WR (row and columns from the byte address)
   LDX r_buf
   LDA r_ecnt,X
@@ -2226,37 +2393,21 @@ r_sr1 = R_DISCR1
   CPX r_k
   BCS mdone
   STX r_si
-.^r_pt28 LDA r_s0x,X      \ high byte: &40 + 2 * (row DIV 8) + (column >= 32)
-  STA RZ_T1
-  AND #&3E
-  ASL A
-  ASL A
+.^r_pt28 LDA r_s0r,X      \ row
   STA RZ_T0
-.^r_pt29 LDA r_s0y,X      \ low byte: 8 * (column AND 31) + (row AND 7)
-  TAY
-  AND #7
-  ORA RZ_T0
-  STA RZ_T0               \ row
-  TYA
-  LSR A
-  LSR A
-  LSR A
-  LSR RZ_T1
-  BCC m0
-  ORA #32
-.m0
+.^r_pt29 LDA r_s0k,X      \ byte column (+&40: two bytes)
+  STA RZ_T1
+  AND #&3F
   ASL A
   ASL A
-  STA RZ_T2               \ first pixel of the byte
+  STA RZ_T2               \ first pixel
   ORA #3
+  BIT RZ_T1
+  BVC m0
+  CLC
+  ADC #4
+.m0
   TAY
-.^r_pt56 LDA r_s0b,X
-  CMP #&FF
-  BEQ m1
-  INY                     \ and the next byte
-  INY
-  INY
-  INY
 .m1
   CPY R_CR
   BCC m2
@@ -2279,7 +2430,782 @@ r_sr1 = R_DISCR1
 }
 
 
+
+\ ============================================================================
+\ Two-colour discs.  r_dbm: R_DISCROWS' rows lo..hi when this frame or this
+\ buffer's last one has boundaries.
+\ ============================================================================
+.r_dbm
+{
+  LDX r_buf
+  LDA r_bmode,X           \ plain last time: its rows had no boundaries
+  BNE m1
+  LDX r_lo
+.m0
+.^r_pt110 STZ r_bdn,X
+.^r_pt111 STZ r_bdp,X
+  CPX r_hi
+  INX
+  BCC m0
+  LDX r_buf
+.m1
+  LDA R_NDF
+  STA r_bmode,X
+  LDA #1
+  STA r_bon
+  LDX r_lo                \ rows without new boundaries: count 0, colour A
+.z1
+  LDA R_NDF
+  BEQ z2
+  CPX r_nt
+  BCC z2
+  CPX r_nb
+  BEQ z3
+  BCC z3
+.z2
+  STZ R_NDN,X
+  STZ R_NDP,X
+.z3
+  CPX r_hi
+  INX
+  BCC z1
+  LDX r_lo
+  LDA r_hi
+  INC A
+  JSR r_dmb
+  STZ r_bon
+  JMP r_dstars
+}
+
+\ r_dmb: rows X .. A-1 with boundaries: unchanged rows cost a few compares
+.r_dmb
+{
+  STA end+1
+.lp
+.^r_pt88 LDA r_dl,X
+  INC A
+  BNE gd                  \ dirty
+  LDA R_NDISCL,X
+.^r_pt89 CMP r_sl,X
+  BNE ch
+  LDA R_NDISCR,X
+.^r_pt90 CMP r_sr,X
+  BNE ch
+  LDA R_NDP,X
+.^r_pt91 EOR r_bdp,X
+  LSR A
+  BCS ch
+  LDA R_NDN,X
+.^r_pt92 CMP r_bdn,X
+  BNE ch
+  TAY
+  BEQ nx
+  LDA R_NDX0,X
+.^r_pt93 CMP r_bdx0,X
+  BNE chb
+  DEY
+  BEQ nx
+  LDA R_NDX1,X
+.^r_pt94 CMP r_bdx1,X
+  BNE chb
+  DEY
+  BEQ nx
+  LDA R_NDX2,X
+.^r_pt95 CMP r_bdx2,X
+  BNE chb
+  DEY
+  BEQ nx
+  LDA R_NDX3,X
+.^r_pt96 CMP r_bdx3,X
+  BNE chb
+.nx
+  INX
+.end
+  CPX #0
+  BNE lp
+  RTS
+.chb
+  JSR r_dpbq
+  LDX RZ_Y
+  BRA nx
+.ch
+  JSR r_dp2
+  LDX RZ_Y
+  BRA nx
+.gd
+  TXA
+  TAY
+  LDA R_NDISCL,Y
+.^r_pt97 AND r_sl,Y
+  INC A
+  BNE gg
+  JSR r_dp1               \ no disc, old or new: black the dirty extent
+  LDX RZ_Y
+  BRA nx
+.gg
+  JSR r_drg
+  LDX RZ_Y
+  BRA nx
+}
+
+
+\ r_dpbq: X = row whose span, colour and boundary count are unchanged (no
+\ dirty) but whose boundaries moved: only the strips between each old and
+\ new position are written.  Strips out of order or touching the span's
+\ ends: r_drg (a full repaint).
+.r_dpbq
+{
+  STX RZ_Y
+  LDA R_NDN,X
+  CMP #3
+  BCS gq
+  JMP r_dq2               \ one or two boundaries: the unrolled path
+.gq
+  CMP #5
+  BCS gen
+  STA r_cn
+  LDA R_NDX0,X            \ new (r_bv) and old (r_bv+4) boundaries
+  STA r_bv
+  LDA R_NDX1,X
+  STA r_bv+1
+  LDA R_NDX2,X
+  STA r_bv+2
+  LDA R_NDX3,X
+  STA r_bv+3
+.^r_pt113 LDA r_bdx0,X
+  STA r_bv+4
+.^r_pt114 LDA r_bdx1,X
+  STA r_bv+5
+.^r_pt115 LDA r_bdx2,X
+  STA r_bv+6
+.^r_pt116 LDA r_bdx3,X
+  STA r_bv+7
+.^r_pt117 LDA r_sl,X      \ strips (min .. max of old and new) in order,
+  INC A                   \ inside the span
+  STA RZ_T1
+  LDY #0
+.p1
+  LDA r_bv,Y
+  CMP r_bv+4,Y
+  BCC p2
+  LDA r_bv+4,Y            \ A = min
+.p2
+  CMP RZ_T1
+  BCC gen
+  LDA r_bv,Y
+  CMP r_bv+4,Y
+  BCS p3
+  LDA r_bv+4,Y            \ A = max
+.p3
+  STA RZ_T1
+  INY
+  CPY r_cn
+  BCC p1
+.^r_pt118 LDA r_sr,X
+  CMP RZ_T1
+  BCS ok
+.gen
+  LDY RZ_Y
+  JMP r_drg
+.ok
+  TXA                     \ row pointers, colours
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  TXA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  TXA
+  TAY
+  JSR r_bcols
+  LDA R_NDP,X
+  AND #1
+  STA r_np
+  LDA #&FF
+  STA r_wmin
+  STZ r_wmax
+  LDY #0
+.p4
+  STY r_ns
+  LDA r_bv,Y
+  CMP r_bv+4,Y
+  BEQ nx
+  BCC lt
+  DEC A                   \ moved right: old .. new-1, left colour
+  STA RZ_TA+1
+  LDA r_bv+4,Y
+  STA RZ_SB
+  TYA
+  BRA wr
+.lt
+  STA RZ_SB               \ moved left: new .. old-1, right colour
+  LDA r_bv+4,Y
+  DEC A
+  STA RZ_TA+1
+  TYA
+  INC A
+.wr
+  EOR r_np
+  LSR A
+  LDA r_cA
+  BCC c1
+  LDA r_cB
+.c1
+  STA RZ_COL
+  LDA RZ_SB
+  CMP r_wmin
+  BCS c2
+  STA r_wmin
+.c2
+  LDA RZ_TA+1
+  CMP r_wmax
+  BCC c3
+  STA r_wmax
+.c3
+  JSR r_lput2
+.nx
+  LDY r_ns
+  INY
+  CPY r_cn
+  BCC p4
+  LDX RZ_Y                \ remember the new boundaries
+  LDA r_bv
+.^r_pt119 STA r_bdx0,X
+  LDA r_bv+1
+.^r_pt120 STA r_bdx1,X
+  LDA r_bv+2
+.^r_pt121 STA r_bdx2,X
+  LDA r_bv+3
+.^r_pt122 STA r_bdx3,X
+  TXA
+  TAY
+  LDA r_wmax
+  BEQ none
+  STA R_WR,Y
+  LDA r_wmin
+  STA R_WL,Y
+  CPY r_wt
+  BCS wz
+  STY r_wt
+.wz
+  STY r_wb
+.none
+  RTS
+}
+
+
+\ r_dq2: r_dpbq for one or two boundaries (A = count), unrolled.
+.r_dq2
+{
+  STA r_cn
+  LDA R_NDX0,X            \ boundary 0: T4 = min, T5 = max of old, new
+  STA RZ_T2
+.^r_pt123 LDA r_bdx0,X
+  STA RZ_T0
+  CMP RZ_T2
+  BCC a1
+  STA RZ_T5
+  LDA RZ_T2
+  STA RZ_T4
+  BRA a2
+.a1
+  STA RZ_T4
+  LDA RZ_T2
+  STA RZ_T5
+.a2
+.^r_pt124 LDA r_sl,X      \ inside the span
+  CMP RZ_T4
+  BCS gen
+  LDA RZ_T5
+  STA RZ_T6               \ (the last strip's max)
+  LDA r_cn
+  CMP #2
+  BCC a5
+  LDA R_NDX1,X            \ boundary 1: T6 = max, T7 = min
+  STA RZ_T3
+.^r_pt125 LDA r_bdx1,X
+  STA RZ_T1
+  CMP RZ_T3
+  BCC a3
+  STA RZ_T6
+  LDA RZ_T3
+  BRA a4
+.a3
+  LDA RZ_T3
+  STA RZ_T6
+  LDA RZ_T1
+.a4
+  CMP RZ_T5               \ strips in order
+  BCC gen
+.a5
+.^r_pt126 LDA r_sr,X
+  CMP RZ_T6
+  BCS ok
+.gen
+  LDY RZ_Y
+  JMP r_drg
+.ok
+  TXA                     \ row pointers, colours
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  TXA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  TXA
+  TAY
+  JSR r_bcols
+  LDA R_NDP,X
+  AND #1
+  STA r_np
+  STZ r_wmax
+  LDA RZ_T2               \ strip 0
+  CMP RZ_T0
+  BEQ s1
+  STA RZ_T7
+.^r_pt127 STA r_bdx0,X
+  LDA #0                  \ (colour index of the strip: 0 if it moved right)
+  LDY RZ_T7
+  CPY RZ_T0
+  BCS b1
+  LDA #1
+.b1
+  LDX RZ_T4
+  STX r_wmin
+  LDY RZ_T5
+  JSR wq
+.s1
+  LDA r_cn
+  CMP #2
+  BCC fin
+  LDA RZ_T3               \ strip 1
+  CMP RZ_T1
+  BEQ fin
+  LDX RZ_Y
+.^r_pt128 STA r_bdx1,X
+  LDA #1
+  LDY RZ_T3
+  CPY RZ_T1
+  BCS b2
+  LDA #0
+.b2
+  LDX r_wmax
+  BNE b3
+  LDX RZ_T3               \ (the first strip written: its start)
+  CPX RZ_T1
+  BCC b4
+  LDX RZ_T1
+.b4
+  STX r_wmin
+.b3
+  LDX RZ_T3               \ X = min, Y = max of boundary 1
+  LDY RZ_T1
+  CPX RZ_T1
+  BCC b5
+  LDX RZ_T1
+  LDY RZ_T3
+.b5
+  JSR wq
+.fin
+  LDY RZ_Y
+  LDA r_wmax
+  BEQ none
+  STA R_WR,Y
+  LDA r_wmin
+  STA R_WL,Y
+  CPY r_wt
+  BCS wz
+  STY r_wt
+.wz
+  STY r_wb
+.none
+  RTS
+\ wq: pixels X .. Y-1 in colour index A (EOR r_np)
+.wq
+  EOR r_np
+  LSR A
+  LDA r_cA
+  BCC q1
+  LDA r_cB
+.q1
+  STA RZ_COL
+  STX RZ_SB
+  DEY
+  STY RZ_TA+1
+  STY r_wmax
+  JMP r_lput2
+}
+
+\ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
+.r_bcols
+  TYA
+  LSR A
+  BCS bc1
+  LDA R_DCE
+  STA r_cA
+  LDA R_DBE
+  STA r_cB
+  RTS
+.bc1
+  LDA R_DCO
+  STA r_cA
+  LDA R_DBO
+  STA r_cB
+  RTS
+
+\ r_bstore: Y = row: remember the row's new boundaries (raw) in this buffer
+.r_bstore
+  LDA R_NDN,Y
+  CMP #5
+  BCC bs1
+  LDA #4
+.bs1
+.^r_pt98 STA r_bdn,Y
+  LDA R_NDP,Y
+  AND #1
+.^r_pt99 STA r_bdp,Y
+  LDA R_NDX0,Y
+.^r_pt100 STA r_bdx0,Y
+  LDA R_NDX1,Y
+.^r_pt101 STA r_bdx1,Y
+  LDA R_NDX2,Y
+.^r_pt102 STA r_bdx2,Y
+  LDA R_NDX3,Y
+.^r_pt103 STA r_bdx3,Y
+  RTS
+
+\ r_canon: the boundaries r_bv[X..r_cn-1] (X = Y = base) for a span r_cl..r_cr
+\ with colour A at its left end: those <= cl flip the colour, those > cr go,
+\ the rest are packed at r_bv[base..]; returns A = colour, X = base + kept.
+.r_canon
+{
+  STA RZ_TB
+.lp
+  CPY r_cn
+  BCS done
+  LDA r_bv,Y
+  CMP r_cl
+  BEQ fl
+  BCC fl
+  CMP r_cr
+  BEQ kp
+  BCS done
+.kp
+  STA r_bv,X
+  INX
+  INY
+  BRA lp
+.fl
+  LDA RZ_TB
+  EOR #1
+  STA RZ_TB
+  INY
+  BRA lp
+.done
+  LDA RZ_TB
+  RTS
+}
+
+\ r_bchk: r_dp2 with boundaries (X = row; RZ_T0..T7, RZ_COL as r_dp2 sets
+\ them).  C = 0 when old and new have the same colour at the left end and
+\ the same number of boundaries in the span, all clear of the ends' bytes,
+\ each having moved within its own strip: then r_ns, r_np, r_cA/B are set
+\ and the new boundaries remembered.  C = 1: use r_drg.
+.r_bchk
+{
+  LDA R_NDN,X
+  CMP #5
+  BCC c1
+  LDA #4
+.c1
+  STA r_cn
+  LDA R_NDX0,X
+  STA r_bv
+  LDA R_NDX1,X
+  STA r_bv+1
+  LDA R_NDX2,X
+  STA r_bv+2
+  LDA R_NDX3,X
+  STA r_bv+3
+.^r_pt104 LDA r_bdx0,X
+  STA r_bv+4
+.^r_pt105 LDA r_bdx1,X
+  STA r_bv+5
+.^r_pt106 LDA r_bdx2,X
+  STA r_bv+6
+.^r_pt107 LDA r_bdx3,X
+  STA r_bv+7
+  LDA RZ_T2               \ new: span nL..nR
+  STA r_cl
+  LDA RZ_T3
+  STA r_cr
+  LDA R_NDP,X
+  AND #1
+  LDY #0
+  LDX #0
+  JSR r_canon
+  STA r_np
+  STX r_nn
+  LDX RZ_Y
+  LDA RZ_T0               \ old: span oL..oR
+  STA r_cl
+  LDA RZ_T1
+  STA r_cr
+.^r_pt108 LDA r_bdn,X
+  CLC
+  ADC #4
+  STA r_cn
+.^r_pt109 LDA r_bdp,X
+  LDY #4
+  LDX #4
+  JSR r_canon
+  CMP r_np
+  BNE fail
+  TXA
+  SEC
+  SBC #4
+  CMP r_nn
+  BNE fail
+  TAX                     \ X = count
+  BEQ ok
+  LDA RZ_T4               \ all clear of the ends' bytes
+  CMP r_bv
+  BCS fail
+  CMP r_bv+4
+  BCS fail
+  LDA RZ_COL
+  CMP r_bv-1,X
+  BCC fail
+  CMP r_bv+3,X
+  BCC fail
+  DEX                     \ strips apart: max(i) <= min(i+1)
+  BEQ ok
+  LDY #0
+.dj
+  LDA r_bv,Y
+  CMP r_bv+4,Y
+  BCS dj1
+  LDA r_bv+4,Y            \ A = max of boundary Y
+.dj1
+  CMP r_bv+1,Y
+  BEQ dj2
+  BCS fail
+.dj2
+  CMP r_bv+5,Y
+  BEQ dj3
+  BCS fail
+.dj3
+  INY
+  DEX
+  BNE dj
+.ok
+  LDA r_nn
+  STA r_ns
+  LDY RZ_Y
+  JSR r_bcols
+  JSR r_bstore
+  LDX RZ_Y
+  CLC
+  RTS
+.fail
+  LDX RZ_Y
+  SEC
+  RTS
+}
+
+\ r_strips: write the r_ns strips between old and new boundaries (r_dp2)
+.r_strips
+{
+  LDX #0
+.lp
+  STX r_cn
+  LDA r_bv,X
+  CMP r_bv+4,X
+  BEQ nx
+  BCC nl
+  DEC A                   \ moved right: old .. new-1 take the left colour
+  STA RZ_TA+1
+  LDA r_bv+4,X
+  STA RZ_SB
+  TXA
+  BRA put
+.nl
+  STA RZ_SB               \ moved left: new .. old-1 take the right colour
+  LDA r_bv+4,X
+  DEC A
+  STA RZ_TA+1
+  TXA
+  INC A
+.put
+  EOR r_np
+  LSR A
+  LDA r_cA
+  BCC p1
+  LDA r_cB
+.p1
+  STA RZ_COL
+  LDA RZ_SB
+  CMP r_wmin
+  BCS p2
+  STA r_wmin
+.p2
+  LDA RZ_TA+1
+  CMP r_wmax
+  BCC p3
+  STA r_wmax
+.p3
+  JSR r_lput2
+.nx
+  LDX r_cn
+  INX
+  CPX r_ns
+  BCC lp
+  RTS
+}
+
+\ r_segw: r_drg with boundaries: the whole new span r_nL..r_nR, segment by
+\ segment in colours A / B (row RZ_Y, r_cA/r_cB set)
+.r_segw
+{
+  LDA r_nR
+  CMP r_nL
+  BCS go
+  RTS
+.go
+  LDY RZ_Y
+  LDA R_NDN,Y
+  CMP #5
+  BCC s1
+  LDA #4
+.s1
+  STA r_cn
+  LDA R_NDX0,Y
+  STA r_bv
+  LDA R_NDX1,Y
+  STA r_bv+1
+  LDA R_NDX2,Y
+  STA r_bv+2
+  LDA R_NDX3,Y
+  STA r_bv+3
+  LDA R_NDP,Y
+  AND #1
+  STA r_np                \ colour now
+  LDA r_nL
+  STA r_ba                \ segment start
+  LDX #0
+.lp
+  CPX r_cn
+  BCS last
+  LDA r_bv,X
+  CMP r_nL
+  BEQ flip
+  BCC flip
+  CMP r_nR
+  BEQ s2
+  BCS last
+.s2
+  CMP r_ba
+  BEQ flip                \ empty segment
+  STX r_nn
+  DEC A
+  TAX
+  JSR seg
+  LDX r_nn
+  LDA r_bv,X
+  STA r_ba
+.flip
+  LDA r_np
+  EOR #1
+  STA r_np
+  INX
+  BRA lp
+.last
+  LDX r_nR
+.seg                      \ r_ba .. X in colour r_np
+  LDA r_np
+  LSR A
+  LDA r_cA
+  BCC c1
+  LDA r_cB
+.c1
+  STA RZ_COL
+  LDA r_ba
+  JMP r_dw
+}
+
 \ r_dp1: Y = row with dirty extent and no disc (old or new)
+
+
+\ ============================================================================
+\ r_wclear: R_WR[r_wt .. r_wb] = 0 (an unrolled STZ run entered at row r_wt,
+\ stopped by an RTS planted after row r_wb).  Clobbers A, RZ_T0, RZ_T1.
+\ ============================================================================
+.r_wclear
+{
+  LDA r_wb
+  CMP r_wt
+  BCC none
+  INC A                   \ the RTS goes at row wb + 1 (3 bytes a row)
+  STA RZ_T0
+  STZ RZ_T1
+  ASL A
+  ROL RZ_T1
+  ADC RZ_T0
+  STA RZ_T0
+  LDA RZ_T1
+  ADC #HI(r_wcrun)
+  STA RZ_T1
+  LDA RZ_T0
+  CLC
+  ADC #LO(r_wcrun)
+  STA RZ_T0
+  BCC p1
+  INC RZ_T1
+.p1
+  LDA #&60
+  STA (RZ_T0)
+  LDA r_wt                \ enter at row wt
+  STA ent+1
+  STZ ent+2
+  ASL A
+  ROL ent+2
+  ADC r_wt
+  STA ent+1
+  LDA ent+2
+  ADC #HI(r_wcrun)
+  STA ent+2
+  LDA ent+1
+  CLC
+  ADC #LO(r_wcrun)
+  STA ent+1
+  BCC p2
+  INC ent+2
+.p2
+.ent
+  JSR &FFFF
+  LDA #&9C                \ STZ abs
+  STA (RZ_T0)
+.none
+  RTS
+}
+.r_wcrun
+FOR y, 0, 191
+  STZ R_WR + y
+NEXT
+  STZ r_wspare            \ row 192: where an RTS may be planted
+  RTS
+.r_wspare
+  EQUB 0
 
 \ r_dla: rows X .. A-1 with no dirty extent.  r_dlb: rows X .. A-1, any.
 .r_dla
@@ -2411,6 +3337,13 @@ r_sr1 = R_DISCR1
   BEQ ok
   BCS r_dp2g
 .ok
+  STZ r_ns
+  LDA r_bon
+  BEQ okp
+  JSR r_bchk              \ boundaries: only moved strips, or r_drg
+  BCC okp
+  JMP r_dp2g
+.okp
   LDA RZ_T2
 .^r_pt53 STA r_sl,X
   LDA RZ_T3
@@ -2433,7 +3366,26 @@ r_sr1 = R_DISCR1
   BCC ev
   LDA R_DCO
 .ev
-  STA RZ_T5               \ disc colour of this row
+  STA RZ_T5               \ disc colour of this row (both ends)
+  STA r_dcr
+  LDA r_bon
+  BEQ ev2
+  LDA r_np                \ boundaries: colour at each end
+  LSR A
+  LDA r_cA
+  BCC ev3
+  LDA r_cB
+.ev3
+  STA RZ_T5
+  LDA r_ns
+  EOR r_np
+  LSR A
+  LDA r_cA
+  BCC ev4
+  LDA r_cB
+.ev4
+  STA r_dcr
+.ev2
   \ left end
   LDA RZ_T6
   AND #&FC
@@ -2500,7 +3452,7 @@ r_sr1 = R_DISCR1
   BEQ rsame
   LDX RZ_T3               \ the new end's byte: disc up to nR
   LDA r_rm,X
-  AND RZ_T5
+  AND r_dcr
   LDY r_xo,X
   CPX #&80
   BCS rb1
@@ -2523,7 +3475,7 @@ r_sr1 = R_DISCR1
   LDX RZ_T1
   LDA #0                  \ shrinking: that byte black
   BCC rnb
-  LDA RZ_T5               \ growing: all disc
+  LDA r_dcr               \ growing: all disc
 .rnb
   JSR r_bput
   BRA fin
@@ -2541,7 +3493,7 @@ r_sr1 = R_DISCR1
   LDX RZ_T1               \ growing: disc oR .. nR-4
   SBC #4
   STA r_fe
-  LDA RZ_T5
+  LDA r_dcr
 .rfill
   JSR r_fill
   BRA fin
@@ -2549,6 +3501,10 @@ r_sr1 = R_DISCR1
   LDA RZ_T4
   STA r_wmax
 .fin
+  LDA r_ns
+  BEQ fin2
+  JSR r_strips
+.fin2
   LDY RZ_Y
   LDA r_wmin
   STA R_WL,Y
@@ -2650,6 +3606,28 @@ r_sr1 = R_DISCR1
   LDA R_DCO
 .e
   STA r_dcol
+  STZ r_segs
+  LDA r_bon
+  BEQ dn
+  JSR r_bcols             \ boundaries: plain only if none, old and new,
+  LDA R_NDN,Y             \ and the same colour
+.^r_pt86 ORA r_bdn,Y
+  BNE sg
+  LDA R_NDP,Y
+.^r_pt87 EOR r_bdp,Y
+  LSR A
+  BCS sg
+  LDA R_NDP,Y
+  LSR A
+  LDA r_cA
+  BCC sg1
+  LDA r_cB
+.sg1
+  STA r_dcol
+  BRA dn
+.sg
+  INC r_segs
+.dn
 .^r_pt17 LDA r_sl,Y
   STA r_oL
 .^r_pt18 LDA r_sr,Y
@@ -2732,6 +3710,11 @@ r_sr1 = R_DISCR1
   STA r_iL
   STZ r_iR
 .idone
+  LDA r_segs
+  BEQ dc0
+  JSR r_segw              \ boundaries: repaint the whole new span
+  JMP nodisc
+.dc0
   \ disc colour on new - intact
   LDA r_nR
   CMP r_nL
@@ -2828,6 +3811,11 @@ r_sr1 = R_DISCR1
 .^r_pt23 STA r_dl,Y
   LDA #0
 .^r_pt24 STA r_dr,Y
+  LDA r_bon
+  BEQ nb1
+  JSR r_bstore            \ remember this row's boundaries
+  LDY RZ_Y
+.nb1
   LDA r_wmax
   STA R_WR,Y
   BEQ nw
@@ -2843,6 +3831,40 @@ r_sr1 = R_DISCR1
 .nw
   RTS
 }
+
+\ r_bmn: black on [r_ba, r_bb] minus [r_nL, r_nR]
+.r_bmn
+{
+  LDA r_nR
+  CMP r_nL
+  BCC whole
+  LDA r_nR
+  CMP r_ba
+  BCC whole
+  LDA r_bb
+  CMP r_nL
+  BCC whole
+  LDA r_ba
+  CMP r_nL
+  BCS b2
+  LDX r_nL
+  DEX
+  JSR r_dw
+.b2
+  LDA r_nR
+  CMP r_bb
+  BCS done
+  INC A
+  LDX r_bb
+  JMP r_dw
+.whole
+  LDA r_ba
+  LDX r_bb
+  JMP r_dw
+.done
+  RTS
+}
+
 
 \ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
 .r_dw
@@ -2938,6 +3960,7 @@ r_sr1 = R_DISCR1
   STZ r_dsb,X
   STZ r_scnt,X
   STZ r_ecnt,X
+  STZ r_bmode,X
   RTS
 }
 
@@ -2957,6 +3980,7 @@ r_sr1 = R_DISCR1
   STA R_SCOL
   STA R_NDT
   STZ R_NDB
+  STZ R_NDF
   STZ R_SN
   STZ R_PN
   LDA #0
@@ -2987,6 +4011,7 @@ r_sr1 = R_DISCR1
   STZ r_dsb,X
   STZ r_scnt,X
   STZ r_ecnt,X
+  STZ r_bmode,X
   DEX
   BPL ib
   LDA #&FF
@@ -3176,6 +4201,19 @@ r_sr1 = R_DISCR1
 .^r_pt36 STA r_s0a,X
   LDA RZ_T1
 .^r_pt37 STA r_s0b,X
+  LDA RZ_SA+1
+.^r_pt76 STA r_s0r,X      \ row
+  LDA RZ_SA               \ column (+&40: and the next)
+  LSR A
+  LSR A
+  STA RZ_T2
+  LDA RZ_T1
+  CMP #&FF
+  LDA RZ_T2
+  BCS rk3
+  ORA #&40
+.rk3
+.^r_pt77 STA r_s0k,X
   INC r_k
 .o2
   RTS
@@ -3567,6 +4605,281 @@ r_sr1 = R_DISCR1
 }
 
 
+
+\ r_rowp: Y = row: RZ_Y, RZ_PA, RZ_PB and the row's colour RZ_COL (keeps X)
+.r_rowp
+  STY RZ_Y
+  TYA
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  TYA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  TYA
+  LSR A
+  LDA R_COLE
+  BCC rp1
+  LDA R_COLO
+.rp1
+  STA RZ_COL
+  RTS
+
+\ r_rowstep: one row down (RZ_TB+1 = 0) or up (&FF): RZ_Y, RZ_PA, RZ_PB,
+\ RZ_COL (by RZ_SB+1 = COLE EOR COLO).  Keeps X, Y.
+.r_rowstep
+{
+  LDA RZ_COL
+  EOR RZ_SB+1
+  STA RZ_COL
+  BIT RZ_TB+1
+  BMI up
+  INC RZ_Y
+  INC RZ_PA
+  INC RZ_PB
+  LDA RZ_PA
+  CMP #8
+  BNE done
+  STZ RZ_PA
+  STZ RZ_PB
+  LDA RZ_PA+1
+  CLC
+  ADC #2
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+.done
+  RTS
+.up
+  DEC RZ_Y
+  DEC RZ_PA
+  DEC RZ_PB
+  BPL done
+  LDA #7
+  STA RZ_PA
+  STA RZ_PB
+  LDA RZ_PA+1
+  SEC
+  SBC #2
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  RTS
+}
+
+
+\ r_rowp8: RZ_PA/RZ_PB from RZ_Y (keeps X, Y, RZ_COL)
+.r_rowp8
+  LDA RZ_Y
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  LDA RZ_Y
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  RTS
+
+\ r_lput: pixels RZ_SB .. RZ_TA+1 of row RZ_Y in RZ_COL (row pointers set);
+\ extends DIRTY.  Clobbers A, X, Y.
+.r_lput
+{
+  LDY RZ_Y
+  LDA RZ_SB
+.^r_pt78 CMP r_dl,Y
+  BCS p1
+.^r_pt79 STA r_dl,Y
+.p1
+  LDA RZ_TA+1
+.^r_pt80 CMP r_dr,Y
+  BCC p2
+.^r_pt81 STA r_dr,Y
+.^r_lput2                 \ (entry: no DIRTY)
+  LDA RZ_TA+1
+.p2
+  TAY                     \ Y = last pixel
+  LDX RZ_SB               \ X = first
+  EOR RZ_SB
+  CMP #4
+  BCS two
+  LDA r_lm,X              \ one byte
+  AND r_rm,Y
+  STA RZ_T7
+  LDY r_xo,X
+  CPX #&80
+  BCS h1
+  LDA RZ_COL
+  EOR (RZ_PA),Y
+  AND RZ_T7
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  RTS
+.h1
+  LDA RZ_COL
+  EOR (RZ_PB),Y
+  AND RZ_T7
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  RTS
+.two
+  STY R_XR
+  TYA                     \ adjacent bytes?
+  AND #&FC
+  STA RZ_T7
+  TXA
+  AND #&FC
+  ADC #3                  \ (C = 1 from the CMP)
+  CMP RZ_T7
+  BNE long
+  LDY r_xo,X              \ first byte: from X on
+  CPX #&80
+  BCS h2
+  LDA RZ_COL
+  EOR (RZ_PA),Y
+  AND r_lm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  BRA s2
+.h2
+  LDA RZ_COL
+  EOR (RZ_PB),Y
+  AND r_lm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+.s2
+  LDX R_XR                \ second byte: up to the last
+  LDY r_xo,X
+  CPX #&80
+  BCS h3
+  LDA RZ_COL
+  EOR (RZ_PA),Y
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  RTS
+.h3
+  LDA RZ_COL
+  EOR (RZ_PB),Y
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  RTS
+.long
+  STX R_XL                \ a span (r_rowset for the run page)
+  LDY RZ_Y
+  JSR r_rowset
+  LDX R_XL
+  JMP r_spc
+}
+
+
+\ r_lxd: x-major line steeper than 1:2, pixel by pixel.  In: X = start x,
+\ RZ_Y row, RZ_COL, RZ_TB+1 y direction, RZ_T2 dx, RZ_T3 |dy|, RZ_SB+1.
+.r_lxd
+{
+  STX RZ_TA+1
+  LDY RZ_Y
+  JSR r_addr
+  LDA r_lm,X
+  AND r_rm,X
+  STA RZ_SA
+  LDA RZ_T2
+  INC A
+  STA RZ_TA
+  LDA RZ_T2
+  LSR A
+  SEC
+  SBC RZ_T2
+  STA RZ_SA+1
+.dl
+  LDA RZ_COL
+  EOR (RZ_PP)
+  AND RZ_SA
+  EOR (RZ_PP)
+  STA (RZ_PP)
+  LDY RZ_Y                \ DIRTY[y] |= x
+  LDA RZ_TA+1
+.^r_pt82 CMP r_dl,Y
+  BCS d1
+.^r_pt83 STA r_dl,Y
+.d1
+.^r_pt84 CMP r_dr,Y
+  BCC d2
+.^r_pt85 STA r_dr,Y
+.d2
+  DEC RZ_TA
+  BEQ done
+  INC RZ_TA+1
+  LSR RZ_SA
+  BCC xk
+  LDA #&88                \ next byte
+  STA RZ_SA
+  LDA RZ_PP
+  ADC #7
+  STA RZ_PP
+  BCC xk
+  INC RZ_PP+1
+.xk
+  LDA RZ_SA+1
+  CLC
+  ADC RZ_T3
+  BCS ys
+  STA RZ_SA+1
+  BRA dl
+.done
+  RTS
+.dj
+  JMP dl
+.ys
+  SBC RZ_T2
+  STA RZ_SA+1
+  LDA RZ_COL
+  EOR RZ_SB+1
+  STA RZ_COL
+  LDA RZ_PP
+  AND #7
+  BIT RZ_TB+1
+  BMI up
+  INC RZ_Y
+  CMP #7
+  BEQ dn8
+  INC RZ_PP
+  BRA dj
+.dn8
+  LDA RZ_PP
+  CLC
+  ADC #&F9
+  STA RZ_PP
+  LDA RZ_PP+1
+  ADC #1
+  STA RZ_PP+1
+  BRA dj
+.up
+  DEC RZ_Y
+  CMP #0
+  BEQ up8
+  DEC RZ_PP
+  BRA dj
+.up8
+  LDA RZ_PP
+  SEC
+  SBC #&F9
+  STA RZ_PP
+  LDA RZ_PP+1
+  SBC #1
+  STA RZ_PP+1
+  BRA dj
+}
+
 \ ----------------------------------------------------------------------------
 \ r_lf: R_LINE with both ends inside the window (8-bit).  Bresenham with a
 \ byte pointer and a pixel mask; same pixels as the general path.
@@ -3634,97 +4947,67 @@ r_sr1 = R_DISCR1
   LDA #&FF
 .x2
   STA RZ_TB+1             \ y direction
-  JSR start
-  LDA RZ_T2
-  INC A
-  STA RZ_TA
+  STX RZ_SB               \ run start x
+  JSR r_rowp              \ row pointers and colour
+  LDA RZ_T3               \ steeper than 1:2: pixel by pixel
+  ASL A
+  BCS xdiag
+  CMP RZ_T2
+  BCC xslice
+.xdiag
+  JMP r_lxd
+.xslice
   LDA RZ_T2
   LSR A
   SEC
-  SBC RZ_T2
-  STA RZ_SA+1             \ (dx DIV 2) - dx
-  BRA xl
-.xd
-  LDX RZ_TA+1
-  JMP dirt
-.xl
-  LDA RZ_COL
-  EOR (RZ_PP)
-  AND RZ_SA
-  EOR (RZ_PP)
-  STA (RZ_PP)
-  DEC RZ_TA
-  BEQ xd
-  INC RZ_TA+1
-  LSR RZ_SA
-  BCC xk
-  LDA #&88                \ next byte
-  STA RZ_SA
-  LDA RZ_PP
-  ADC #7                  \ (C = 1)
-  STA RZ_PP
-  BCC xk0
-  INC RZ_PP+1
-.xk0
+  SBC RZ_T2               \ error: (dx DIV 2) - dx
+  LDY RZ_T2               \ pixels after the first
+  BEQ xlast
   CLC
-.xk
-  LDA RZ_SA+1
+.xrun
   ADC RZ_T3
-  BCS xs
-  STA RZ_SA+1
-  BRA xl
-.xs
+  BCS xwrap
+  INX
+  DEY
+  BNE xrun
+.xlast
+  STX RZ_TA+1             \ the last run: RZ_SB .. X
+  JMP r_lput
+.xwrap
   SBC RZ_T2
   STA RZ_SA+1
-  LDY RZ_Y                \ the row's run: RZ_SB .. x-1
-  LDA RZ_SB
-.^r_pt72 CMP r_dl,Y
-  BCS xs1
-.^r_pt73 STA r_dl,Y
-.xs1
-  LDA RZ_TA+1
-  STA RZ_SB
-  DEC A
-.^r_pt74 CMP r_dr,Y
-  BCC xs2
-.^r_pt75 STA r_dr,Y
-.xs2
-  LDA RZ_COL
+  STY RZ_TA
+  STX RZ_TA+1
+  JSR r_lput              \ this row's run: RZ_SB .. X
+  LDX RZ_TA+1
+  INX
+  STX RZ_SB
+  LDA RZ_COL              \ next row
   EOR RZ_SB+1
   STA RZ_COL
-  LDA RZ_PP
-  AND #7
   BIT RZ_TB+1
   BMI xup
   INC RZ_Y
-  CMP #7
-  BEQ xdn8
-  INC RZ_PP
-  JMP xl
-.xdn8
-  LDA RZ_PP
-  CLC
-  ADC #&F9
-  STA RZ_PP
-  LDA RZ_PP+1
-  ADC #1
-  STA RZ_PP+1
-  JMP xl
+  INC RZ_PA
+  INC RZ_PB
+  LDA RZ_PA
+  CMP #8
+  BNE xnx
+  JSR r_rowp8
+  BRA xnx
 .xup
   DEC RZ_Y
-  CMP #0
-  BEQ xup8
-  DEC RZ_PP
-  JMP xl
-.xup8
-  LDA RZ_PP
-  SEC
-  SBC #&F9
-  STA RZ_PP
-  LDA RZ_PP+1
-  SBC #1
-  STA RZ_PP+1
-  JMP xl
+  DEC RZ_PA
+  DEC RZ_PB
+  BPL xnx
+  JSR r_rowp8
+.xnx
+  LDA RZ_SA+1
+  LDY RZ_TA
+  DEY
+  BEQ xlast
+  CLC
+  BRA xrun
 .ym                       \ y major: start at the top end
   LDX R_X0
   LDY R_Y0
@@ -3863,23 +5146,6 @@ r_sr1 = R_DISCR1
   RTS
 }
 
-\ ============================================================================
-\ R_SETBUF's patch list: the high byte of each buffer-dependent operand.
-\ ============================================================================
-.r_ptab
-  EQUW r_pt01+2, r_pt02+2, r_pt03+2, r_pt04+2, r_pt05+2, r_pt06+2
-  EQUW r_pt07+2, r_pt08+2, r_pt60+2, r_pt61+2, r_pt62+2, r_pt63+2
-  EQUW r_pt13+2, r_pt14+2, r_pt15+2, r_pt16+2, r_pt17+2, r_pt18+2
-  EQUW r_pt19+2, r_pt20+2, r_pt21+2, r_pt22+2, r_pt23+2, r_pt24+2
-  EQUW r_pt25+2, r_pt26+2, r_pt27+2, r_pt28+2, r_pt29+2, r_pt30+2
-  EQUW r_pt31+2, r_pt32+2, r_pt33+2, r_pt34+2, r_pt35+2, r_pt36+2
-  EQUW r_pt37+2, r_pt38+2, r_pt39+2, r_pt40+2, r_pt41+2, r_pt42+2
-  EQUW r_pt43+2, r_pt45+2, r_pt46+2, r_pt47+2, r_pt48+2
-  EQUW r_pt49+2, r_pt50+2, r_pt51+2, r_pt52+2, r_pt53+2, r_pt54+2, r_pt55+2
-  EQUW r_pt56+2, r_pt64+2, r_pt65+2, r_pt66+2, r_pt67+2
-  EQUW r_pt68+2, r_pt69+2, r_pt70+2, r_pt71+2, r_pt72+2, r_pt73+2
-  EQUW r_pt74+2, r_pt75+2
-.r_ptab_end
 
 .r_end
 PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end

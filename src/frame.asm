@@ -665,6 +665,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_NDOT
  STA F_PLON
  STA GSUNON
+ STA F_NCV
+ STA F_NPT
  LDA #LO(F_DL)
  STA F_DLP
  LDA #HI(F_DL)
@@ -873,6 +875,7 @@ ENDMACRO
  LDA #FC_PLANO
  STA R_DCO
  JSR f_plrows           \ planet spans into R_NDISCL/R, R_NDT/R_NDB
+ JSR f_bounds           \ and its surface detail as colour boundaries
  JMP T_DISCROWS
 .fds6
  LDA #FC_SUNE
@@ -880,6 +883,7 @@ ENDMACRO
  LDA #FC_SUNO
  STA R_DCO
  JSR f_sunrows
+ JSR f_nobounds
  JMP T_DISCROWS
 .fds9
  LDA #1                 \ no disc
@@ -2223,3 +2227,602 @@ SGOUT = 20
  CPY #SGY+SGOUT+1
  BCC fsg4
  RTS
+
+\ ------------------------------------------------------------------------------
+\ Planet surface detail, filled: Elite's PLS22 computes each ellipse (half
+\ ellipses for the equator and meridian, a full one for a crater) as points
+\ passed to BLINE; we record them (F_PCURVE, F_PPOINT) and turn the curves
+\ into per-row colour boundaries for the disc layer: the disc alternates
+\ between colour A and colour B at each boundary, so the meridian and equator
+\ give a two-colour "beach ball" and a crater a filled ellipse.
+\ ------------------------------------------------------------------------------
+
+MAXCV = 3               \ curves per frame
+MAXPT = 140             \ points per frame
+
+.F_NCV EQUB 0           \ curves recorded this frame
+.F_NPT EQUB 0           \ points recorded this frame
+.F_CVS SKIP MAXCV       \ first point of each curve
+.F_CVE SKIP MAXCV       \ one past its last point
+.F_CVT SKIP MAXCV       \ TGT: 31 (half ellipse) or 64 (full)
+.F_PXL SKIP MAXPT
+.F_PXH SKIP MAXPT
+.F_PYL SKIP MAXPT
+.F_PYH SKIP MAXPT
+
+.F_PCURVE
+ STX f_xs
+ STY f_ys
+ LDX F_NCV
+ CPX #MAXCV
+ BCS fpc9
+ LDA F_NPT
+ STA F_CVS,X
+ STA F_CVE,X
+ LDA TGT
+ STA F_CVT,X
+ INC F_NCV
+.fpc9
+ LDX f_xs
+ LDY f_ys
+ RTS
+
+.F_PPOINT
+ STX f_xs
+ STY f_ys
+ LDX F_NCV
+ BEQ fpc9
+ LDY F_NPT
+ CPY #MAXPT
+ BCS fpc9
+ LDA K6
+ STA F_PXL,Y
+ LDA K6+1
+ STA F_PXH,Y
+ LDA K6+2
+ STA F_PYL,Y
+ LDA K6+3
+ STA F_PYH,Y
+ INY
+ STY F_NPT
+ TYA
+ STA F_CVE-1,X
+ JMP fpc9
+
+.f_xs EQUB 0
+.f_ys EQUB 0
+
+\ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
+
+.f_nobounds
+ LDA #0
+ STA R_NDF
+ RTS
+
+.f_zerobounds           \ rows R_NDT..R_NDB: no boundaries yet
+ LDY R_NDT
+ CPY R_NDB
+ BEQ P%+4
+ BCS fnb9
+ LDA #0
+.fnb1
+ STA R_NDN,Y
+ STA R_NDP,Y
+ CPY R_NDB
+ INY
+ BCC fnb1
+.fnb9
+ RTS
+
+\ f_bounds: the planet's curves -> R_NDN/R_NDX0-3/R_NDP for rows
+\ R_NDT..R_NDB (which f_plrows has just set), and colour B
+
+.f_bounds
+ JSR f_nobounds
+ LDA R_NDT
+ CMP R_NDB
+ BEQ P%+4
+ BCS fnb9
+ LDA F_NCV
+ BEQ fnb9
+ LDA #1
+ STA R_NDF
+ JSR f_zerobounds
+ LDA F_PLT              \ colour B: green land on a meridian planet, a dark
+ CMP #128               \ crater otherwise
+ BNE fbd1
+ LDA #&5F
+ STA R_DBE
+ LDA #&AF
+ STA R_DBO
+ BNE fbd2
+.fbd1
+ LDA #&50
+ STA R_DBE
+ LDA #&A0
+ STA R_DBO
+.fbd2
+ LDA #0
+ STA f_ci
+.fbd3                   \ for each curve
+ LDX f_ci
+ CPX F_NCV
+ BCC P%+5
+ JMP f_parity
+ LDA F_CVS,X            \ its segments
+ STA f_pi
+.fbd5
+ LDX f_ci
+ LDY f_pi
+ INY
+ TYA
+ CMP F_CVE,X
+ BCS fbd6
+ LDX f_pi               \ segment f_pi -> f_pi + 1
+ JSR f_ptA
+ LDX f_pi
+ INX
+ JSR f_ptB
+ JSR f_seg16
+ INC f_pi
+ JMP fbd5
+.fbd6
+ LDX f_ci               \ a half ellipse is closed outside the disc: E2 ->
+ LDA F_CVT,X            \ E2 + n -> E1 + n -> E1, n = d rotated by 90 degrees,
+ CMP #40                \ d = E2 - E1 (|d| = the diameter), so the closing
+ BCS fbd7               \ sides lie on the tangents at E1 and E2
+ LDA F_CVE,X
+ SEC
+ SBC #1
+ STA fz_n               \ E2
+ CMP F_CVS,X
+ BEQ fbd7
+ BCC fbd7
+ LDY F_CVS,X            \ E1
+ STY fz_i
+ LDX fz_n               \ n = (-(y2 - y1), x2 - x1)
+ LDA F_PYL,Y
+ SEC
+ SBC F_PYL,X
+ STA cl_nx
+ LDA F_PYH,Y
+ SBC F_PYH,X
+ STA cl_nx+1
+ LDA F_PXL,X
+ SEC
+ SBC F_PXL,Y
+ STA cl_ny
+ LDA F_PXH,X
+ SBC F_PXH,Y
+ STA cl_ny+1
+ LDX fz_n               \ E2 -> E2 + n
+ JSR f_ptA
+ LDX fz_n
+ JSR f_ptB
+ JSR f_addnB
+ JSR f_seg16
+ LDX fz_i               \ E2 + n -> E1 + n
+ JSR f_ptB
+ JSR f_addnB
+ LDX fz_n
+ JSR f_ptA
+ JSR f_addnA
+ JSR f_seg16
+ LDX fz_i               \ E1 + n -> E1
+ JSR f_ptA
+ JSR f_addnA
+ LDX fz_i
+ JSR f_ptB
+ JSR f_seg16
+.fbd7
+ INC f_ci
+ JMP fbd3
+
+.f_ci EQUB 0
+.f_pi EQUB 0
+.cl_nx EQUW 0
+.cl_ny EQUW 0
+
+.f_ptA                  \ segment start = point X
+ LDA F_PXL,X
+ STA sg_ax
+ LDA F_PXH,X
+ STA sg_ax+1
+ LDA F_PYL,X
+ STA sg_ay
+ LDA F_PYH,X
+ STA sg_ay+1
+ RTS
+
+.f_ptB                  \ segment end = point X
+ LDA F_PXL,X
+ STA sg_bx
+ LDA F_PXH,X
+ STA sg_bx+1
+ LDA F_PYL,X
+ STA sg_by
+ LDA F_PYH,X
+ STA sg_by+1
+ RTS
+
+.f_addnA                \ start += n
+ LDA sg_ax
+ CLC
+ ADC cl_nx
+ STA sg_ax
+ LDA sg_ax+1
+ ADC cl_nx+1
+ STA sg_ax+1
+ LDA sg_ay
+ CLC
+ ADC cl_ny
+ STA sg_ay
+ LDA sg_ay+1
+ ADC cl_ny+1
+ STA sg_ay+1
+ RTS
+
+.f_addnB                \ end += n
+ LDA sg_bx
+ CLC
+ ADC cl_nx
+ STA sg_bx
+ LDA sg_bx+1
+ ADC cl_nx+1
+ STA sg_bx+1
+ LDA sg_by
+ CLC
+ ADC cl_ny
+ STA sg_by
+ LDA sg_by+1
+ ADC cl_ny+1
+ STA sg_by+1
+ RTS
+
+\ f_seg16: boundary crossings of the segment (sg_ax, sg_ay) - (sg_bx, sg_by)
+\ (16-bit) for rows y with min(y) <= y < max(y) within R_NDT..R_NDB. A crossing
+\ left of the row's disc span flips the row's starting colour (R_NDP), one
+\ right of it is ignored, one inside is added to the row's boundaries. Long
+\ segments (|dx| or |dy| > 255) are halved, recursively.
+
+.f_seg16
+ LDA sg_bx              \ |dx| > 255 or |dy| > 255?
+ SEC
+ SBC sg_ax
+ LDA sg_bx+1
+ SBC sg_ax+1
+ BEQ fs16a
+ CMP #&FF
+ BNE fs16s
+ LDA sg_bx
+ CMP sg_ax
+ BEQ fs16s              \ dx = -256
+.fs16a
+ LDA sg_by
+ SEC
+ SBC sg_ay
+ LDA sg_by+1
+ SBC sg_ay+1
+ BEQ fs16b
+ CMP #&FF
+ BNE fs16s
+ LDA sg_by
+ CMP sg_ay
+ BEQ fs16s
+.fs16b
+ JMP f_segment
+.fs16s                  \ split at the midpoint: push the second half
+ LDA sg_bx+1
+ PHA
+ LDA sg_bx
+ PHA
+ LDA sg_by+1
+ PHA
+ LDA sg_by
+ PHA
+ LDA sg_ax              \ mid = (a + b) / 2 (arithmetic: the true sign of the
+ CLC                    \ 17-bit sum is N EOR V)
+ ADC sg_bx
+ STA fz_t
+ LDA sg_ax+1
+ ADC sg_bx+1
+ STA fz_u
+ BVC P%+4
+ EOR #&80
+ ASL A
+ ROR fz_u
+ ROR fz_t
+ LDA fz_u
+ STA sg_bx+1
+ LDA fz_t
+ STA sg_bx
+ LDA sg_ay
+ CLC
+ ADC sg_by
+ STA fz_t
+ LDA sg_ay+1
+ ADC sg_by+1
+ STA fz_u
+ BVC P%+4
+ EOR #&80
+ ASL A
+ ROR fz_u
+ ROR fz_t
+ LDA fz_u
+ STA sg_by+1
+ LDA fz_t
+ STA sg_by
+ JSR f_seg16            \ first half: a -> mid
+ LDA sg_bx              \ second half: mid -> b
+ STA sg_ax
+ LDA sg_bx+1
+ STA sg_ax+1
+ LDA sg_by
+ STA sg_ay
+ LDA sg_by+1
+ STA sg_ay+1
+ PLA
+ STA sg_by
+ PLA
+ STA sg_by+1
+ PLA
+ STA sg_bx
+ PLA
+ STA sg_bx+1
+ JMP f_seg16
+
+\ f_segment: as f_seg16 for |dx|, |dy| <= 255
+
+.f_segment
+ LDA sg_ay              \ order the end points by y: (sg_x, sg_y) is the top
+ CMP sg_by
+ LDA sg_ay+1
+ SBC sg_by+1
+ BVC P%+4
+ EOR #&80
+ BMI fsg_ok             \ a above b
+ LDA sg_ay              \ equal rows: nothing
+ CMP sg_by
+ BNE fsg_sw
+ LDA sg_ay+1
+ CMP sg_by+1
+ BNE fsg_sw
+ RTS
+.fsg_sw
+ LDX #3                 \ swap a and b
+.fsg_w
+ LDA sg_ax,X
+ LDY sg_bx,X
+ STA sg_bx,X
+ TYA
+ STA sg_ax,X
+ DEX
+ BPL fsg_w
+.fsg_ok
+ LDA sg_ax              \ start at a; dy = by - ay, dx = bx - ax
+ STA sg_x
+ LDA sg_ax+1
+ STA sg_x+1
+ LDA sg_ay
+ STA sg_y
+ LDA sg_ay+1
+ STA sg_y+1
+ LDA sg_by
+ STA sg_y1
+ SEC
+ SBC sg_ay
+ STA sg_dy
+ LDA sg_by+1
+ STA sg_y1+1
+ LDA sg_bx
+ SEC
+ SBC sg_ax
+ STA sg_dx
+ LDA sg_bx+1
+ SBC sg_ax+1
+ STA sg_sx              \ sign of dx (bit 7)
+ BPL fsg_p
+ LDA sg_dx              \ |dx|
+ EOR #&FF
+ CLC
+ ADC #1
+ STA sg_dx
+.fsg_p
+ LDA sg_y+1             \ the segment must reach rows NDT..NDB:
+ BMI fsg_a              \ y1 > NDT and y0 <= NDB
+ BNE fsg_x
+ LDA sg_y
+ CMP R_NDB
+ BEQ fsg_a
+ BCS fsg_x
+.fsg_a
+ LDA sg_y1+1
+ BMI fsg_x
+ BNE fsg_b
+ LDA sg_y1
+ CMP R_NDT
+ BEQ fsg_x
+ BCS fsg_b
+.fsg_x
+ RTS
+.fsg_b
+ LDA sg_dx              \ q = |dx| DIV dy, r = |dx| MOD dy
+ LDX #0
+.fsg_d
+ CMP sg_dy
+ BCC fsg_e
+ SBC sg_dy
+ INX
+ BNE fsg_d
+.fsg_e
+ STA sg_r
+ STX sg_q
+ LDA #0
+ STA sg_err
+.fsg_row                \ row sg_y: record the crossing if it's in range
+ LDA sg_y+1
+ BMI fsg_n              \ above the screen
+ BNE fsg_x              \ below it
+ LDY sg_y
+ CPY R_NDT
+ BCC fsg_n
+ CPY R_NDB
+ BEQ P%+4
+ BCS fsg_x
+ LDA sg_x+1             \ left of the span? (x <= NDISCL, x 16-bit)
+ BMI fsg_l
+ BNE fsg_n              \ x > 255: right of it
+ LDA R_NDISCL,Y
+ CMP sg_x
+ BCS fsg_l
+ LDA R_NDISCR,Y
+ CMP sg_x
+ BCC fsg_n              \ right of the span
+ LDX R_NDN,Y            \ inside: append (up to four)
+ CPX #4
+ BCS fsg_n
+ TXA
+ ASL A
+ TAX
+ LDA fsg_tab,X
+ STA fsg_st+1
+ LDA fsg_tab+1,X
+ STA fsg_st+2
+ LDA sg_x
+.fsg_st
+ STA R_NDX0,Y           \ patched
+ LDA R_NDN,Y
+ CLC
+ ADC #1
+ STA R_NDN,Y
+ JMP fsg_n
+.fsg_l
+ LDA R_NDP,Y            \ left of the span: flip the starting colour
+ EOR #1
+ STA R_NDP,Y
+.fsg_n
+ INC sg_y               \ next row: y++, x += sx * (q + carry of the error)
+ BNE P%+5
+ INC sg_y+1
+ LDA sg_y               \ done at y1
+ CMP sg_y1
+ BNE fsg_m
+ LDA sg_y+1
+ CMP sg_y1+1
+ BNE fsg_m
+ RTS
+.fsg_m
+ LDA sg_err
+ CLC
+ ADC sg_r
+ STA sg_err
+ LDX sg_q
+ BCS fsg_m1             \ (err + r can exceed 255 only if dy > 128)
+ CMP sg_dy
+ BCC fsg_m2
+.fsg_m1
+ SBC sg_dy
+ STA sg_err
+ INX
+.fsg_m2
+ STX fsg_t
+ LDA sg_sx
+ BMI fsg_m3
+ LDA sg_x
+ CLC
+ ADC fsg_t
+ STA sg_x
+ BCC P%+5
+ INC sg_x+1
+ JMP fsg_row
+.fsg_m3
+ LDA sg_x
+ SEC
+ SBC fsg_t
+ STA sg_x
+ BCS P%+5
+ DEC sg_x+1
+ JMP fsg_row
+
+.sg_ax  EQUW 0          \ segment end points: ax, ay, bx, by would be
+.sg_ay  EQUW 0          \ contiguous with this order for the swap: ax, ay
+.sg_bx  EQUW 0
+.sg_by  EQUW 0
+.fsg_tab
+ EQUW R_NDX0, R_NDX1, R_NDX2, R_NDX3
+.fsg_t  EQUB 0
+.sg_x   EQUW 0
+.sg_y   EQUW 0
+.sg_y1  EQUW 0
+.sg_dx  EQUB 0
+.sg_dy  EQUB 0
+.sg_sx  EQUB 0
+.sg_q   EQUB 0
+.sg_r   EQUB 0
+.sg_err EQUB 0
+
+\ f_parity: per row, sort the boundaries and set the colour at the left end
+
+.f_parity
+ LDY R_NDT
+.fpa1
+ LDA R_NDN,Y            \ sort up to four (insertion sort by hand)
+ CMP #2
+ BCC fpa5
+ LDA R_NDX0,Y
+ CMP R_NDX1,Y
+ BCC fpa2
+ LDX R_NDX1,Y
+ STA R_NDX1,Y
+ TXA
+ STA R_NDX0,Y
+.fpa2
+ LDA R_NDN,Y
+ CMP #3
+ BCC fpa5
+ LDA R_NDX1,Y           \ insert X2
+ CMP R_NDX2,Y
+ BCC fpa3
+ LDX R_NDX2,Y
+ STA R_NDX2,Y
+ TXA
+ STA R_NDX1,Y
+ LDA R_NDX0,Y
+ CMP R_NDX1,Y
+ BCC fpa3
+ LDX R_NDX1,Y
+ STA R_NDX1,Y
+ TXA
+ STA R_NDX0,Y
+.fpa3
+ LDA R_NDN,Y
+ CMP #4
+ BCC fpa5
+ LDA R_NDX2,Y           \ insert X3
+ CMP R_NDX3,Y
+ BCC fpa5
+ LDX R_NDX3,Y
+ STA R_NDX3,Y
+ TXA
+ STA R_NDX2,Y
+ LDA R_NDX1,Y
+ CMP R_NDX2,Y
+ BCC fpa5
+ LDX R_NDX2,Y
+ STA R_NDX2,Y
+ TXA
+ STA R_NDX1,Y
+ LDA R_NDX0,Y
+ CMP R_NDX1,Y
+ BCC fpa5
+ LDX R_NDX1,Y
+ STA R_NDX1,Y
+ TXA
+ STA R_NDX0,Y
+.fpa5
+.fpa8
+ CPY R_NDB
+ INY
+ BCC P%+3
+ RTS
+ JMP fpa1

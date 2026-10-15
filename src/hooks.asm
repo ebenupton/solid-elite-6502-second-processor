@@ -52,13 +52,11 @@
  ORA GFORCE
  BEQ P%+3
  RTS
- PLA
- PLA
- LDA #0
+ PLA                    \ in record mode lines are not drawn (the planet's
+ PLA                    \ meridians and craters are filled from BLINE's
+ LDA #0                 \ points instead)
  STA SWAP               \ as LOIN would for a line it didn't swap
- LDA GDRAWON
- BEQ hrts
- JMP G_LINE
+ RTS
 
 \ H_STAR: PIXEL2 has converted star Y's position to X = x, A = y
 
@@ -449,3 +447,28 @@
  PLA
  PLP
  RTS
+
+\ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
+\ curve. H_BPT: BLINE has the next point in K6(1 0), K6(3 2): record it.
+\ Both preserve A and the flags.
+
+.H_PCURVE
+ PHP
+ PHA
+ LDA QQ11
+ ORA GFORCE
+ BNE hpc9
+ JSR G_PCURVE
+.hpc9
+ PLA
+ PLP
+ RTS
+
+.H_BPT
+ PHP
+ PHA
+ LDA QQ11
+ ORA GFORCE
+ BNE hpc9
+ JSR G_PPOINT
+ JMP hpc9
