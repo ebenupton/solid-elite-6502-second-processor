@@ -37704,29 +37704,28 @@ ENDIF
                         \ So X is now the offset converted to an x-coordinate,
                         \ centred on x-coordinate 128
 
- LDA Y1                 \ Fetch the y-coordinate offset into A and clear the
- AND #%01111111         \ sign bit, so A = |Y1|
-
- CMP #96                \ If |Y1| >= 96 then it's off the screen (as 96 is half
- BCS px4s                \ the screen height), so return from the subroutine (as
-                        \ PX4 contains an RTS)
-
  LDA Y1                 \ Fetch the y-coordinate offset into A
 
- BPL PX2                \ If the y-coordinate offset is positive, jump to PX2
-                        \ to skip the following negation
+ BPL px2p               \ If it is positive, jump to px2p
+
+ CMP #&80+96            \ Negative: if |Y1| >= 96 then it's off the screen, so
+ BCS px4s               \ return via px4s (C = 1 as before)
 
  EOR #%01111111         \ The y-coordinate offset is negative, so flip all the
- ADC #1                 \ bits apart from the sign bit and subtract 1 to convert
-                        \ A from a sign-magnitude number into a traditional
-                        \ signed number, so A is now Y1 in a form that can be
-                        \ used with the SBC instruction
+ ADC #1                 \ bits apart from the sign bit and add 1 (C = 0 here)
+
+ BRA PX2                \ Join the common code
+
+.px2p
+
+ CMP #96                \ Positive: if Y1 >= 96 then it's off the screen, so
+ BCS px4s               \ return via px4s (C = 1 as before)
 
 .PX2
 
- STA T                  \ Set A = #Y + 1 - Y1
- LDA #Y+1               \
- SBC T                  \ So if Y1 is positive we display the point up from the
+ EOR #%11111111         \ Set A = #Y + 1 - Y1 (old operand) with C as before:
+ ADC #Y+1               \ SBC m is exactly ADC (m EOR &FF), so this gives the
+                        \ same A, N, Z, C and V without using T
                         \ centre at y-coordinate 97, while a negative Y1 means
                         \ down from the centre
 
@@ -39462,7 +39461,23 @@ ENDIF
                         \
                         \ This also leaves A = P+2, which we use below
 
-.DVL9
+ BNE DVC9               \ If A <> 0, go to the bit-shift loop
+
+ LDA P+1                \ A = 0. If P+1 < 128 then the first eight shifts of
+ BPL DVB8               \ (A P+1 P) all leave A < 64, so do them as one byte
+                        \ move at DVB8
+
+ LDA #0                 \ P+1 >= 128: restore A = 0 (< 64) and shift bitwise
+ BRA DVL9
+
+.DVB8
+
+ LDY P                  \ (A P+1 P) = (P+1 P 0), the same as eight left shifts
+ STY P+1
+ STZ P
+ LDY #8                 \ Y = 8 shifts so far (A = old P+1)
+
+.DVC9
 
                         \ We now shift (A P+1 P) left until A >= 64, counting
                         \ the number of shifts in Y. This makes the top part of
@@ -39474,14 +39489,16 @@ ENDIF
  CMP #64                \ If A >= 64, jump down to DV14
  BCS DV14
 
+.DVL9
+
  ASL P                  \ Shift (A P+1 P) to the left
  ROL P+1
  ROL A
 
  INY                    \ Increment the scale factor in Y
 
- BNE DVL9               \ Loop up to DVL9 (this BNE is effectively a JMP, as Y
-                        \ will never be zero)
+ CMP #64                \ Loop until A >= 64
+ BCC DVL9
 
 .DV14
 

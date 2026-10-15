@@ -1093,34 +1093,51 @@ ENDMACRO
  CMP R_CR
  BEQ fds_fast
  BCS fds_slow
-.fds_fast
+.fds_fast               \ here r <= 127 and |d| <= r, so d fits a signed byte
+ LDX f_cx
+ STX fdf_cr+1           \ patch cx and cx + 1 into the loop
+ INX
+ STX fdf_cl+1
+ LDA fpr_ld+1           \ and the half-width table into the second load
+ STA fdf_hw+1
+ LDA fpr_ld+2
+ STA fdf_hw+2
  LDY R_NDT
-.fdf1
- LDX fz_t               \ |d|
- LDA fz_u
- BPL fdf2
+ LDX fz_t               \ X = |d|, stepped by INX (d >= 0) or DEX (d < 0)
+ LDA #&E8               \ INX
+ BIT fz_u
+ BPL fdf0
  TXA
  EOR #&FF
  TAX
  INX
-.fdf2
+ LDA #&CA               \ DEX
+.fdf0
+ STA fdf_st
+ CLC
+.fdf1                   \ C = 0 here
 .fpr_ld
  LDA F_HW,X             \ patched: half-width
- STA fz_n
- LDA f_cx
- SEC
- SBC fz_n
+ EOR #&FF
+.fdf_cl
+ ADC #0                 \ patched: cx + 1 (so A = cx - n)
  STA R_NDISCL,Y
- LDA f_cx
+.fdf_cr
+ LDA #0                 \ patched: cx
  CLC
- ADC fz_n
+.fdf_hw
+ ADC F_HW,X             \ patched: half-width (A = cx + n, V as before)
  STA R_NDISCR,Y
- INC fz_t               \ d++
- BNE P%+4
- INC fz_u
  CPY R_NDB
  INY
- BCC fdf1
+ BCS fdf9
+.fdf_st
+ INX                    \ patched: INX or DEX
+ BNE fdf1
+ LDA #&E8               \ d has reached 0: count |d| up from here
+ STA fdf_st
+ BNE fdf1               \ always (A = &E8)
+.fdf9
  RTS
 
 .fds_slow
@@ -2190,10 +2207,17 @@ SGOUT = 20
  JSR f_wcov
  BCS fsg3
  LDY #SGY-SGOUT
+ LDA #SGX               \ f_wcov with A = X = SGX, R_WR/R_WL part inlined
+ STA fz_t
+ STA fz_u
 .fsg2
+ LDA R_WR,Y             \ WR >= SGX (= &80, so WR <> 0) <=> bit 7 set
+ BPL fsg7
  LDA #SGX
- LDX #SGX
- JSR f_wcov
+ CMP R_WL,Y
+ BCS fsg3
+.fsg7
+ JSR fwc2               \ this buffer's dirty extent (uses fz_t = fz_u = SGX)
  BCS fsg3
  INY
  CPY #SGY+SGOUT+1
@@ -2701,23 +2725,32 @@ MAXPT = 140             \ points per frame
  CMP sg_x
  BCC fsg_n              \ right of the span
  LDX R_NDN,Y            \ inside: append (up to four)
- CPX #4
- BCS fsg_n
- TXA
- ASL A
- TAX
- LDA fsg_tab,X
- STA fsg_st+1
- LDA fsg_tab+1,X
- STA fsg_st+2
  LDA sg_x
-.fsg_st
- STA R_NDX0,Y           \ patched
- LDA R_NDN,Y
- CLC
- ADC #1
+ CPX #1
+ BCS fsg_k1
+ STA R_NDX0,Y           \ n = 0
+ LDA #1
  STA R_NDN,Y
- JMP fsg_n
+ BRA fsg_n
+.fsg_k1
+ BNE fsg_k2
+ STA R_NDX1,Y           \ n = 1
+ LDA #2
+ STA R_NDN,Y
+ BRA fsg_n
+.fsg_k2
+ CPX #3
+ BCS fsg_k3
+ STA R_NDX2,Y           \ n = 2
+ LDA #3
+ STA R_NDN,Y
+ BRA fsg_n
+.fsg_k3
+ BNE fsg_n              \ n >= 4: full
+ STA R_NDX3,Y           \ n = 3
+ LDA #4
+ STA R_NDN,Y
+ BRA fsg_n
 .fsg_l
  LDA R_NDP,Y            \ left of the span: flip the starting colour
  EOR #1

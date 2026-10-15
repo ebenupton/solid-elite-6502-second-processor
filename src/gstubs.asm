@@ -54,13 +54,15 @@
  JMP gback
 
 .G_STAR
- STA gA
  LDA #GFXBANK
  STA &F4
  STA &FE30
- LDA gA
+ LDA hA                 \ both callers: H_STAR has A = hA; H_STAROFF has C clear so F_STAR ignores A
  JSR F_STAR
- JMP gback
+ LDA #ELITEBANK
+ STA &F4
+ STA &FE30
+ RTS
 
 .G_CHAR
  STA gA
