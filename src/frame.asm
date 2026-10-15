@@ -1905,22 +1905,26 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 .f_text2
  LDX #0
 .ft21
+ LDA F_TMR,X            \ skip empty rows in a tight loop
+ BNE ft2r
+.ft29
+ INX
+ CPX #24
+ BCC ft21
+ RTS
+.ft2r
  STX fz_i
- LDA F_TMR,X
- BNE P%+5
- JMP ft29
  JSR f_rowptr
  LDA #255               \ W = union of R_WL/R_WR and DIRTY over the 8 lines
  STA f_wl
  LDA #0
  STA f_wr
- LDA fz_i
+ TXA                    \ X = fz_i (f_rowptr preserves X)
  ASL A
  ASL A
  ASL A
  TAY
- CLC
- ADC #8
+ ADC #8                 \ C = 0: row <= 23, so 8*row < 256
  STA fz_n
 .ft22
  LDA R_WR,Y
@@ -1993,12 +1997,7 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  DEY
  BPL ft27
  LDX fz_i
-.ft29
- INX
- CPX #24
- BCS P%+5
- JMP ft21
- RTS
+ JMP ft29
 
 .f_wl EQUB 0
 .f_wr EQUB 0
@@ -2050,12 +2049,18 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  BNE P%+7
  LDA #&CC               \ pixels 254-255 are the border
  STA f_rmk
+ ASSERT F_TCOL = &FF    \ ink is all-ones: (m AND ink) OR (NOT m AND s) = m OR s
+ LDA fz_nm              \ fz_v3 = fz_nm + 8, the right byte of the cell
+ ORA #8                 \ (fz_nm = 16*col: low nibble 0, so no carry; fz_v3 is free here)
+ STA fz_v3
+ LDA fz_nm+1
+ STA fz_v3+1
  LDA fz_i               \ first line y = 8*row
  ASL A
  ASL A
  ASL A
  STA f_gy
- LDX #0
+ LDY #0
 .fgl0
  LDA f_gy               \ inside the clip window vertically?
  CMP R_CT
@@ -2064,49 +2069,29 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  BEQ P%+4
  BCS fgl3
 .fgl1
- LDA F_FONT,X           \ patched
+ LDA F_FONT,Y           \ patched
  BEQ fgl3
  PHA
  LSR A
  LSR A
  LSR A
  LSR A
- TAY
- LDA f_nib,Y
+ TAX
+ LDA f_nib,X
  AND f_lmk
- STA fz_v3               \ mask (fz_v3 is free here)
- TXA
- TAY
- LDA fz_v3
- EOR #&FF
- AND (fz_nm),Y
- STA fz_v3+1
- LDA #F_TCOL
- AND fz_v3
- ORA fz_v3+1
+ ORA (fz_nm),Y
  STA (fz_nm),Y
  PLA
  AND #15
- TAY
- LDA f_nib,Y
+ TAX
+ LDA f_nib,X
  AND f_rmk
- STA fz_v3
- TXA
- CLC
- ADC #8
- TAY
- LDA fz_v3
- EOR #&FF
- AND (fz_nm),Y
- STA fz_v3+1
- LDA #F_TCOL
- AND fz_v3
- ORA fz_v3+1
- STA (fz_nm),Y
+ ORA (fz_v3),Y
+ STA (fz_v3),Y
 .fgl3
  INC f_gy
- INX
- CPX #8
+ INY
+ CPY #8
  BCC fgl0
  RTS
 
@@ -2240,36 +2225,40 @@ SGOUT = 20
  STA R_XR
  LDY #SGY
  JSR T_SPAN
- LDY #SGY-SGOUT         \ vertical arms: pixel 0 of byte column 32
-.fsg4
- CPY #SGY-SGIN+1
- BCC fsg5
- CPY #SGY+SGIN
- BCC fsg6
-.fsg5
- TYA                    \ fz_p = &4000 + (y DIV 8) * &200 + 256 + (y MOD 8)
- AND #7
- STA fz_p
- TYA
- LSR A
- LSR A
- AND #%11111110
- ORA #&41
- STA fz_p+1
- STY fz_i
- LDY #0
- LDA (fz_p),Y
- AND #&77
+ LDA F_CPE+FC_SIGHT     \ vertical arms: pixel 0 of byte column 32
+ AND #&88               \ (loop-invariant colour bits)
  STA fz_t
- LDA F_CPE+FC_SIGHT
- AND #&88
+ ASSERT SGY-SGOUT = 76 AND SGY-SGIN = 85   \ byte = &4000 + (y DIV 8)*&200 + &100 + (y MOD 8)
+ ASSERT SGY+SGIN = 107 AND SGY+SGOUT = 116
+ LDY #3                 \ rows 76..79: &5304..&5307
+.fsg4
+ LDA &5304,Y
+ AND #&77
  ORA fz_t
- STA (fz_p),Y
- LDY fz_i
+ STA &5304,Y
+ DEY
+ BPL fsg4
+ LDY #5                 \ rows 80..85: &5500..&5505
+.fsg5
+ LDA &5500,Y
+ AND #&77
+ ORA fz_t
+ STA &5500,Y
+ DEY
+ BPL fsg5
+ LDY #4                 \ rows 107..111: &5B03..&5B07, rows 112..116: &5D00..&5D04
 .fsg6
- INY
- CPY #SGY+SGOUT+1
- BCC fsg4
+ LDA &5B03,Y
+ AND #&77
+ ORA fz_t
+ STA &5B03,Y
+ LDA &5D00,Y
+ AND #&77
+ ORA fz_t
+ STA &5D00,Y
+ DEY
+ BPL fsg6
+ SEC                    \ C = 1 on exit, as before
  RTS
 
 \ ------------------------------------------------------------------------------

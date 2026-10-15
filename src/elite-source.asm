@@ -16447,18 +16447,26 @@ ENDIF
 
 .ZINF
 
- LDY #NI%-1             \ There are NI% bytes in the INWK workspace, so set a
-                        \ counter in Y so we can loop through them
+ PHX                    \ Preserve X (callers expect it unchanged)
 
- LDA #0                 \ Set A to 0 so we can zero-fill the workspace
+ LDX #NI%/4-1           \ Zero the NI% = 36 bytes of INWK four at a time, using
+                        \ zero-page STZ zp,X (INWK+35 is still in zero page)
 
 .ZI1
 
- STA INWK,Y             \ Zero the Y-th byte of the INWK workspace
+ STZ INWK,X
+ STZ INWK+NI%/4,X
+ STZ INWK+2*NI%/4,X
+ STZ INWK+3*NI%/4,X
 
- DEY                    \ Decrement the loop counter
+ DEX                    \ Decrement the loop counter
 
- BPL ZI1                \ Loop back for the next byte, ending when we have
+ BPL ZI1
+
+ PLX                    \ Restore X
+
+ LDY #&FF               \ Return with Y = &FF as before; the comment below
+                        \ still applies to the value of Y
                         \ zero-filled the last byte at INWK, which leaves Y
                         \ with a value of &FF
 
