@@ -3,3 +3,4 @@ build/
 ref/
 .DS_Store
 __pycache__/
+.claude/
