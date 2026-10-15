@@ -31,7 +31,7 @@ R6=31, R12/R13=&0800 (screen starts &4000).
   labels x 2-14, bars x 16-47 (FS AS FU CT LT AL); scanner x 49-206, centre
   (126, line 28); compass ring centre (196, 11.5); right bars x 208-239 (SP,
   RL, DC, energy banks 1-4), labels x 241-254; bars on lines 2-4 of their row,
-  scales on lines 6-7; missiles in row 6. Bars are one pixel per unit where the
+  scales on lines 6-7 (the bottom row: line 6 only, clear of the frame); missiles in row 6. Bars are one pixel per unit where the
   value allows (speed 0-40, temperatures/shields/altitude value / 8, fuel / 2,
   energy banks ENERGY / 2 at 32 per bank); roll/pitch are 2-pixel markers at
   0-30. The dashboard routines (DIALS, DIL, DIL2, DSEG, SCAN, ddot in main
@@ -40,13 +40,27 @@ R6=31, R12/R13=&0800 (screen starts &4000).
   temporary, register and flag a caller can see exactly as the previous
   routines did (the game logic reads some: Y1 and the carry after SCAN).
 * Split: the System VIA timer 1 interrupt is still restarted at each vsync (as
-  the original: it is also the MOS's clock tick, which drives the sound), and
-  at the dashboard boundary the IRQ only calls H_SPLIT (ACCCON D = 0, because
-  the dashboard is in main RAM only). Build option DASHDUAL = 1
-  (src/elite-source.asm) keeps the dashboard in both main and shadow RAM (the
-  loader copies it; every dashboard write goes to both copies via DWR) so
+  the original: it is also the MOS's clock tick, which drives the sound), with
+  a count (SPLITT) that puts its ACCCON write on the dashboard's first two
+  lines (screen lines 192-193). It sets ACCCON D = 0 (the dashboard is in main
+  RAM only) and GFRONT = 0 until the next vsync, because the frame layer's own
+  ACCCON writes OR in GFRONT at any point of the frame (before, one landing in
+  the dashboard showed shadow RAM there for the rest of the frame: the panel
+  flicker). H_VSYNC keeps the real front buffer in GFRS and restores GFRONT.
+  The loader copies the static dashboard image to shadow RAM &7000-&7DFF too,
+  and nothing dynamic is drawn on the dashboard's first two lines (the scanner
+  and compass dots are kept below them), so a split landing a line late is
+  invisible. The MOS sometimes holds interrupts off for ~300 us (a split up to
+  ~5 lines late), so the top row's bars (speed, forward shield) are written to
+  both RAMs (DSEGD/DWR). Build option DASHDUAL = 1 (src/elite-source.asm) keeps
+  the whole dashboard in both RAMs (every write goes to both via DWR), so
   nothing at all is done at the split; it is correct but ~1.3% slower, so it
   is off.
+* Scanner: SCAN called from MV30 (the erase before a ship moves) is deferred
+  until the next SCAN call that draws (normally the ship's redraw at the end of
+  MVEIT), which then draws the erase and the redraw back to back, or neither
+  if the dot hasn't moved, so ships never vanish from the scanner for a frame.
+  EOR drawing commutes, and SCAN returns exactly as the original would have.
 * Hyperspace: the original showed the rings in a mode 5 palette; here LOIN's
   direct-drawn line colour is settable (LCOL) and the hyperspace rings are
   drawn in yellow / magenta / cyan by ring size (HFCOL); launch rings stay cyan.
