@@ -198,6 +198,16 @@ async function run(label, model, disc, syms, opts) {
         }
         return false;
     };
+    if (args.watch) {
+        const wa = parseInt(args.watch, 16);
+        cpu.debugWrite.add((addr, val) => {
+            if (addr === wa && opts.traceIter !== undefined && snaps.length === opts.traceIter + 1) {
+                let best = null; for (const [k, v] of Object.entries(syms)) if (v <= cpu.pc && v >= 0x0f40 && (!best || v > best[1])) best = [k, v];
+                trace.push(`WRITE ${args.watch}=${val.toString(16)} at ${cpu.pc.toString(16)} ${best ? best[0] + "+" + (cpu.pc - best[1]) : ""}`);
+            }
+            return false;
+        });
+    }
     cpu.debugInstruction.add(handler);
     const t0 = Date.now();
     let lastShot = 0;

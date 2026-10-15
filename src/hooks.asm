@@ -317,8 +317,26 @@
  PLA
  PLA
  JSR CHKON
- BCS hrts2
+ BCC P%+3
+ RTS
  JSR G_PLANET
+ LDA #0                 \ leave what CIRCLE2 leaves: LSX2 = 0, FLAG = 0,
+ STA LSX2               \ STP = 8/4/2 by radius and CNT = the first multiple
+ STA FLAG               \ of STP above 64 (TACTICS reads a stale CNT)
+ LDX K
+ LDA #8
+ LDY #72
+ CPX #8
+ BCC hci1
+ LDA #4
+ LDY #68
+ CPX #60
+ BCC hci1
+ LDA #2
+ LDY #66
+.hci1
+ STA STP
+ STY CNT
  CLC
  RTS
 
