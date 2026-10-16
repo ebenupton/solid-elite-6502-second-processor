@@ -7156,8 +7156,11 @@ ENDIF
                         \         = -y / 256 * alpha + x
 
  STA XX+1               \ Set XX(1 0) = (A X), which gives us result 6 above:
- STX XX                 \
-                        \   x = x - alpha * y / 256
+ STA S                  \
+ STX XX                 \   x = x - alpha * y / 256
+ STX R                  \
+                        \ Port: and (S R) = XX(1 0) now, as MUT2 did (MULTS-2
+                        \ below leaves S and R alone)
 
  LDX BET1               \ Fetch the pitch magnitude into X
 
@@ -7173,7 +7176,7 @@ ENDIF
                         \
                         \   Q = -beta * y_hi / 256
 
- JSR MUT2               \ Call MUT2 to calculate:
+ JSR MULT1              \ Call MULT1 (S and R already set) to calculate:
                         \
                         \   (S R) = XX(1 0) = x
                         \
