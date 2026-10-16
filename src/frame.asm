@@ -2010,14 +2010,13 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 \ whose pixels something overwrote this frame
 
 .f_text2
- LDX #0
+ LDX #23                \ rows 23..0 (each row is independent)
 .ft21
  LDA F_TMR,X            \ skip empty rows in a tight loop
  BNE ft2r
 .ft29
- INX
- CPX #24
- BCC ft21
+ DEX
+ BPL ft21
  RTS
 .ft2r
  STX fz_i

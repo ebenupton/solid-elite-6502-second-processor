@@ -6949,12 +6949,10 @@ ENDMACRO
  ROR P
  LSR A
  ROR P
- LSR A
- ROR P
-
- CMP #8                 \ Move the sign from bit 3 to bit 7: if s = 1 then
- BCC P%+4               \ A is 8-15 and C = 1, so add &78 to get &80-&87,
- ADC #&77               \ giving (A P) = -/+ roofv_x / 16
+ CMP #16                \ A = %000sxxxx here: C = s, then drop s from bit 4
+ AND #%00001111         \ and rotate it into bit 7 as the last shift, so
+ ROR A                  \ A = %s0000xxx and C = the bit that goes into P,
+ ROR P                  \ giving (A P) = -/+ roofv_x / 16
 
                         \ BBC Master port: ADD's two common paths are inlined
                         \ here, computing (A P) + (S R) exactly as ADD does
@@ -32035,8 +32033,11 @@ INCLUDE "build/dashtab.asm"
                         \ to skip the following negation
 
  EOR #%01111111         \ The x-coordinate offset is negative, so flip all the
- CLC                    \ bits apart from the sign bit and add 1, to convert it
- ADC #1                 \ from a sign-magnitude number to a signed number
+ INC A                  \ bits apart from the sign bit and add 1, to convert it
+                        \ from a sign-magnitude number to a signed number (INC A
+                        \ gives the same A as CLC/ADC #1; C and V are dead here:
+                        \ PX1 overwrites C via CMP before any read, and no V
+                        \ reader is reached without an intervening BIT/ADC/SBC)
 
 .PX1
 
@@ -32047,26 +32048,8 @@ INCLUDE "build/dashtab.asm"
 
  LDA Y1                 \ Fetch the y-coordinate offset into A
 
- BPL px2p               \ If it is positive, jump to px2p
-
- CMP #&80+96            \ Negative: if |Y1| >= 96 then it's off the screen, so
- BCS px4s               \ return via px4s (C = 1 as before)
-
- EOR #%10000000         \ Negative: A = m = |Y1| (0..95), C = 0 here
- BEQ px2z               \ m = 0 (negative zero) takes the original route below
-
- ADC #Y                 \ A = Y + m, which is exactly what the old sequence
-                        \ (EOR #&7F, ADC #1, EOR #&FF, ADC #Y+1) gives for
-                        \ m >= 1, with identical N, Z, C (= 0) and V
-
- BRA PX2+4              \ Skip PX2's EOR/ADC to the JSR H_STAR
-
-.px2z
-
- SEC                    \ m = 0: old path had A = 0, C = 1 here (from ADC #1 on
- BRA PX2                \ &FF), so PX2 gives A = Y+1, C = 1, V = 0 as before
-
-.px2p
+ BMI pxneg              \ If it is negative, jump to pxneg (placed after px4s
+                        \ so the positive case falls straight through)
 
  CMP #96                \ Positive: if Y1 >= 96 then it's off the screen, so
  BCS px4s               \ return via px4s (C = 1 as before)
@@ -32200,6 +32183,26 @@ INCLUDE "build/dashtab.asm"
 .px4s
 
  JMP H_STAROFF          \ Frame layer hook: star Y is off screen (tail call)
+
+.pxneg
+
+ CMP #&80+96            \ Negative: if |Y1| >= 96 then it's off the screen, so
+ BCS px4s               \ return via px4s (C = 1 as before)
+
+ EOR #%10000000         \ Negative: A = m = |Y1| (0..95), C = 0 here
+ BEQ px2z               \ m = 0 (negative zero) takes the original route below
+
+ ADC #Y                 \ A = Y + m, which is exactly what the old sequence
+                        \ (EOR #&7F, ADC #1, EOR #&FF, ADC #Y+1) gives for
+                        \ m >= 1, with identical N, Z, C (= 0) and V
+
+ JSR H_STAR             \ Frame layer hook (in record mode it does not return)
+ BRA PIXEL              \ and draw it via PIXEL as the main path does
+
+.px2z
+
+ SEC                    \ m = 0: old path had A = 0, C = 1 here (from ADC #1 on
+ BRA PX2                \ &FF), so PX2 gives A = Y+1, C = 1, V = 0 as before
 
 \ ******************************************************************************
 \
@@ -33315,15 +33318,20 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
 
 .MTUQ
 
- CMP M1LAST             \ If |Q| is the same value as last time, the table
- BEQ MTU0               \ look-ups are already patched, so skip the following
+ CMP MTU1+1             \ If |Q| is the same value as last time (the low byte
+ BEQ MTU0               \ of the LDA SQ1L,X operand, which is 0 as assembled
+                        \ because SQ1L is page-aligned, so the first call with
+                        \ |Q| = 1 to 127 always patches), skip the following.
+                        \ The CMP leaves C = 1 when we take the branch, which
+                        \ the SBC at MTU2 needs
 
- STA M1LAST             \ Record |Q| and patch |Q| into the operands of
- STA MTU1+1             \ the table look-ups
+ STA MTU1+1             \ Patch |Q| into the operands of the table look-ups
  STA MTU3+1
  EOR #&FF
  STA MTU2+1
  STA MTU4+1
+ SEC                    \ Set C for the SBC at MTU2 (on the BEQ path above, the
+                        \ CMP has already set it)
 
 .MTU0
 
@@ -33336,7 +33344,8 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
  AND #%01111111
  TAX
 
- SEC                    \ Calculate the low byte of |A| * |Q| and store it in P
+                        \ Calculate the low byte of |A| * |Q| and store it in P
+                        \ (C = 1 on both paths into MTU0)
 .MTU1
  LDA SQ1L,X
 .MTU2
@@ -33353,12 +33362,6 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
                         \ original's X = 0 and C = 0 are not reproduced)
 
  RTS                    \ Return from the subroutine
-
-.M1LAST
-
- EQUB &FF               \ The value of |Q| - 1 currently patched into the table
-                        \ look-ups above (&FF never matches, as |Q| - 1 is in
-                        \ the range 0 to 126 here, so the first call patches)
 
 \ ******************************************************************************
 \
@@ -35865,6 +35868,46 @@ ENDIF
 
 
  INCLUDE "src/planet4.asm"     \ Filled planet: the meridians' constants
+
+\ MU8v: MU8 for the two STARS callers (JSR MU8 at the inline ADDs), which read
+\ only A and X afterwards (no flags). Same inputs as MU8 (S, R, P, T1, T with
+\ T = T1 AND &80 and S, T1 of opposite signs); same A and X on every path; no
+\ memory written. As the signs differ, S - T1 - borrow = &80 + (|S| - |T1| -
+\ borrow) mod 256, so N = 1 iff |S R| >= |A P| and the low 7 bits are the
+\ magnitude; EOR T then gives it the sign of S. C and V are left differently
+\ from MU8, which these callers never read. Placed at the end of bank 4 so
+\ nothing moves.
+
+.MU8v
+
+ LDA R                  \ X = R - P
+ SEC
+ SBC P
+ TAX
+
+ LDA S                  \ A = &80 + (|S| - |T1| - borrow), N = 1 iff no borrow
+ SBC T1
+
+ BPL MU8vn              \ |S R| < |A P|: do it the original way round (MU8a)
+
+ CMP #%10000000         \ High magnitude 0: check for |S R| = |A P|
+ BEQ MU8ve
+
+.MU8vs
+
+ EOR T                  \ A = (&80 EOR T) OR magnitude = sign of S OR magnitude
+ RTS
+
+.MU8ve
+
+ CPX #0                 \ X <> 0: |S R| > |A P|, A = &80 EOR T via MU8vs
+ BNE MU8vs
+ LDA T                  \ Equal: A = T, X = 0, as MU8's BEQ MU9 path
+ RTS
+
+.MU8vn
+
+ JMP MU8a
 
  BANK_END% = P%
 
