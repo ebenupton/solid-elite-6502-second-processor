@@ -11081,7 +11081,12 @@ ENDMACRO
 
 .DVID3B2
 
- STA P+2                \ Set P+2 = A
+ TAY                    \ Set Y = A, the sign and top byte of the numerator
+                        \ (Y is reset to 0 below)
+
+ EOR INWK+8             \ Set T to the sign of A * z_sign (i.e. the sign of the
+ AND #%10000000         \ result) and store it in T
+ STA T
 
  LDA INWK+6             \ Set Q = z_lo, making sure Q is at least 1
  ORA #1
@@ -11098,24 +11103,17 @@ ENDMACRO
                         \ Given the above assignments, we now want to calculate
                         \ the following to get the result we want:
                         \
-                        \   K(3 2 1 0) = P(2 1 0) / (S R Q)
+                        \   K(3 2 1 0) = (Y P+1 P) / (S R Q)
 
- LDA P                  \ Make sure P(2 1 0) is at least 1
+ LDA P                  \ Make sure P is at least 1
  ORA #1
  STA P
 
- LDA P+2                \ Set T to the sign of P+2 * S (i.e. the sign of the
- EOR S                  \ result) and store it in T
- AND #%10000000
- STA T
+ TYA                    \ Set A = |Y|, clearing the sign bit so the division
+ LDY #0                 \ can be done with positive numbers, and set Y = 0 to
+ AND #%01111111         \ store the scale factor
 
- LDY #0                 \ Set Y = 0 to store the scale factor
-
- LDA P+2                \ Clear the sign bit of P+2, so the division can be done
- AND #%01111111         \ with positive numbers and we'll set the correct sign
-                        \ below, once all the maths is done
-                        \
-                        \ This also leaves A = P+2, which we use below
+ BEQ DVL9a              \ If A = 0, jump to DVL9a to try a whole-byte shift
 
 .DVL9
 
@@ -11137,6 +11135,29 @@ ENDMACRO
 
  BNE DVL9               \ Loop up to DVL9 (this BNE is effectively a JMP, as Y
                         \ will never be zero)
+
+.DVL9a
+
+                        \ Here A = 0 and Y = 0. If P+1 < 128, the loop above
+                        \ would shift exactly eight times (A stays below 64
+                        \ until the eighth shift), so do it as a byte move,
+                        \ (A P+1 P) = (P+1 P 0) with Y = 8, and carry on
+
+ LDA P+1                \ If bit 7 of P+1 is set, jump to DVL9b to run the
+ BMI DVL9b              \ bitwise loop from A = 0
+
+ LDY P                  \ Set (A P+1 P) = (P+1 P 0)
+ STY P+1
+ STZ P
+
+ LDY #8                 \ Count the eight shifts in Y
+
+ BRA DVL9               \ Carry on shifting bit by bit
+
+.DVL9b
+
+ TYA                    \ Set A = Y = 0 and run the bitwise loop
+ BRA DVL9
 
 .DV14
 
