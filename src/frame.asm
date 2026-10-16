@@ -671,8 +671,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  NEXT
 
  SEI                    \ CPU back to main RAM, and flip at the next vsync
- LDA #0
- STA GACCX
+ STZ GACCX
  LDA GFRONT
  ORA #ACCY
  STA &FE34

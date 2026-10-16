@@ -6902,12 +6902,10 @@ ENDMACRO
  ROR P
  LSR A
  ROR P
- LSR A
- ROR P
-
- CMP #8                 \ Move the sign from bit 3 to bit 7: if s = 1 then
- BCC P%+4               \ A is 8-15 and C = 1, so add &78 to get &80-&87,
- ADC #&77               \ giving (A P) = +/- nosev_x / 16
+ CMP #16                \ A = %000sxxxx here: C = s, then drop s from bit 4
+ AND #%00001111         \ and rotate it into bit 7 as the last shift, so
+ ROR A                  \ A = %s0000xxx and C = the bit that goes into P,
+ ROR P                  \ giving (A P) = +/- nosev_x / 16
 
  STX Q                  \ Store the value of X so it can be restored after the
                         \ call to ADD
