@@ -7019,7 +7019,8 @@ ENDIF
                         \ The maximum value returned is P = 2 and R = 128 (see
                         \ DV42 for an explanation)
 
- LDA R                  \ Set A = R, so now:
+                        \ DV42 returns with A = R (both exits of its inlined
+                        \ LL28+4 tail do STA R just before RTS), so now:
                         \
                         \   (P A) = 256 * speed / z_hi
 
