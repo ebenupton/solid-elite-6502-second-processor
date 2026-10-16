@@ -52,8 +52,9 @@
  N% = 67                \ N% is set to the number of bytes in the VDU table, so
                         \ we can loop through them below
 
- S% = &2C6C             \ The address of the main entry point workspace in the
-                        \ main game code
+ INCLUDE "build/game-addresses.asm"     \ Port: S%, the main entry point in
+                                        \ the game code (was S% = &2C6C),
+                                        \ from the game's symbols
 
  HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
                         \ paged in while the game runs (bank 6 in the original)
