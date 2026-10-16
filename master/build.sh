@@ -44,6 +44,8 @@ _MAX_COMMANDER=FALSE
 EOF
 
 : > build/compile.txt
+# the dashboard image and its tables (build/DIALS1.bin, build/dashtab.asm)
+python3 tools/dashboard.py build > /dev/null
 # the data first: the game code takes the data's addresses from it
 $BEEBASM -i src/elite-data.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i src/elite-data.asm -d > build/symbols-data.txt 2>/dev/null

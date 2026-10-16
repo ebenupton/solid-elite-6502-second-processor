@@ -39,7 +39,7 @@
  _COMPACT               = (_VARIANT = 2)
 
 IF _SNG47
- PUTFILE "build/M128Elt.bin", "M128Elt", &FF0E00, &FF0E43
+ PUTFILE "build/M128Elt.bin", "M128Elt", &FF0E00, &FF0E55
  PUTFILE "build/BDATA.bin", "BDATA", &000000, &000000
  PUTFILE "build/TOKENS.bin", "TOKENS", &000000, &000000
  PUTFILE "build/BANK4.bin", "BANK4", &000000, &000000
