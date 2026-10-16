@@ -1152,7 +1152,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP R_CR
  BCC fds_fast           \ (the fast path follows the slow one)
  BEQ fds_fast
-.fds_slow
+.fds_slow               \ (the disc crosses the window's side, or the screen's)
  LDY R_NDT
 .fpr2
  LDX fz_t               \ |d|
@@ -1166,41 +1166,48 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fpr_ld2
  LDA F_HW,X             \ patched: half-width
  STA fz_n
- LDA fz_t
- PHA
- LDA fz_u
- PHA
- LDA f_cx
- SEC
- SBC fz_n
- STA fz_p
- LDA f_cx+1
- SBC #0
- STA fz_p+1
- LDA f_cx
- CLC
+ LDA f_cx               \ right = cx + n, clamped as f_clamp does: < CL (or
+ CLC                    \ negative): empty; > CR (or > 255): CR
  ADC fz_n
- STA fz_q
+ TAX
  LDA f_cx+1
  ADC #0
- STA fz_q+1
- JSR f_clamp
- BCS fpr8
- LDA R_XL
- STA R_NDISCL,Y
- LDA R_XR
+ BMI fpr8
+ BNE fpr5
+ CPX R_CL
+ BCC fpr8
+ CPX R_CR
+ BCC fpr6
+.fpr5
+ LDX R_CR
+.fpr6
+ TXA
  STA R_NDISCR,Y
- JMP fpr9
+ LDA f_cx               \ left = cx - n: negative: CL; > 255 or > CR: empty;
+ SEC                    \ < CL: CL
+ SBC fz_n
+ TAX
+ LDA f_cx+1
+ SBC #0
+ BMI fpr3
+ BNE fpr8
+ CPX R_CR
+ BEQ fpr7
+ BCS fpr8
+ CPX R_CL
+ BCS fpr7
+.fpr3
+ LDX R_CL
+.fpr7
+ TXA
+ STA R_NDISCL,Y
+ BRA fpr9
 .fpr8
  LDA #255
  STA R_NDISCL,Y
  LDA #0
  STA R_NDISCR,Y
 .fpr9
- PLA
- STA fz_u
- PLA
- STA fz_t
  INC fz_t
  BNE P%+4
  INC fz_u
