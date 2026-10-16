@@ -1919,8 +1919,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   INY
 .pb_ye_e
   CPY #0                  \ (patched: the end row)
-  BNE pb_c_e
-  JMP pb_end
+  BEQ pb_end_j
 .pb_c_e
   STY RZ_Y
   INC RZ_PA
@@ -1957,12 +1956,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
 .pb_l2_o
-  LDA r_j,X
-  STA r_jsr2_o+1
-  LDX R_XR
-  LDA r_j-4,X
-  CMP r_jsr2_o+1
+  LDY R_XR
+  LDA r_j-4,Y
+  CMP r_j,X
   BEQ pb_norun_o
+  LDY r_j,X
+  STY r_jsr2_o+1
   CMP RZ_PP
   BNE pb_plant_o
 .pb_go_o
@@ -1970,8 +1969,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA R_COLO
 .r_jsr2_o
   JSR &FFFF
-  LDX R_XR
 .pb_norun_o
+  LDX R_XR
   LDY r_xo,X
   CPX #&80
   BCS pb_rb_o
@@ -1986,14 +1985,15 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .pb_ye_o
   CPY #0                  \ (patched: the end row)
   BNE pb_c_o
+.pb_end_j
   JMP pb_end
 .pb_c_o
   STY RZ_Y
-  INC RZ_PA
-  INC RZ_PB
-  LDA RZ_PA
-  CMP #8
-  BEQ pb_cr
+  TYA                     \ RZ_PA/RZ_PB lo = row AND 7
+  AND #7
+  BEQ pb_cr               \ (pb_cr zeroes them itself)
+  STA RZ_PA
+  STA RZ_PB
   JMP r_pbx_e
 .pb_one_o
   LDY r_xo,X
@@ -4419,14 +4419,15 @@ ENDMACRO
 .nx
   LDA RZ_TA               \ size 3: the next row
   CMP #3
-  BNE done
+  BEQ third
+  LDX RZ_TA+1             \ (snext inlined: INX, then the loop test)
+  INX
+  JMP sl
+.third
   STZ RZ_TA
   LDX RZ_SA
   INY
   BRA row
-.done
-  LDX RZ_TA+1
-  JMP snext
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).

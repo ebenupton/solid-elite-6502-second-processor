@@ -19689,13 +19689,14 @@ ENDMACRO
                         \ We now calculate the dot product XX12 . XX15 to tell
                         \ us whether or not this face is visible
 
- LDA XX12               \ Set Q = XX12
- STA Q
+ LDX XX12               \ Set X = XX12 (the multiplier for FMLTUX; X is dead
+                        \ until the TAX below, as LL38 does not touch it,
+                        \ and Q is not read before it is set below)
 
  LDA XX15               \ Set A = XX15
 
- JSR FMLTU              \ Set T = A * Q / 256
- STA R                  \ Set R = XX15 * XX12 / 256 (FMLTU below does not
+ JSR FMLTUX             \ Set T = A * X / 256
+ STA R                  \ Set R = XX15 * XX12 / 256 (FMLTUX below does not
                         \ touch R, and T is dead here, so we store straight
                         \ into R rather than going via T)
 
@@ -19703,12 +19704,11 @@ ENDMACRO
  EOR XX15+1             \
  STA S                  \   (S R) = XX15(1 0) * XX12(1 0) / 256
 
- LDA XX12+2             \ Set Q = XX12+2
- STA Q
+ LDX XX12+2             \ Set X = XX12+2
 
  LDA XX15+2             \ Set A = XX15+2
 
- JSR FMLTU              \ Set Q = A * Q
+ JSR FMLTUX             \ Set Q = A * X
  STA Q                  \       = XX15+2 * XX12+2 / 256
 
  LDA XX12+3             \ Set A = sign of XX15+3 * XX12+3, so:
@@ -19719,12 +19719,11 @@ ENDMACRO
  STA R                  \           =   XX15(1 0) * XX12(1 0) / 256
                         \             + XX15(3 2) * XX12(3 2) / 256
 
- LDA XX12+4             \ Set Q = XX12+4
- STA Q
+ LDX XX12+4             \ Set X = XX12+4
 
  LDA XX15+4             \ Set A = XX15+4
 
- JSR FMLTU              \ Set Q = A * Q
+ JSR FMLTUX             \ Set Q = A * X
  STA Q                  \       = XX15+4 * XX12+4 / 256
 
  TYA                    \ Set X = Y / 4
@@ -32648,9 +32647,12 @@ INCLUDE "build/dashtab.asm"
  STA MSU2+1
  STA MSU4+1
 
+ SEC                    \ Set C for the SBC (on the hit path, CMP found P
+                        \ equal to the remembered value, which sets C)
+
 .MSU0
 
- SEC                    \ Calculate the low byte of |A| * (P AND 31) and store
+                        \ Calculate the low byte of |A| * (P AND 31) and store
 .MSU1                   \ it in P
  LDA SQ1L,X
 .MSU2
@@ -32686,9 +32688,12 @@ INCLUDE "build/dashtab.asm"
  STA MSV2+1
  STA MSV4+1
 
+ SEC                    \ Set C for the SBC (on the hit path, CMP found P
+                        \ equal to the remembered value, which sets C)
+
 .MSV0
 
- SEC                    \ Calculate the low byte of |A| * (P AND 31) and store
+                        \ Calculate the low byte of |A| * (P AND 31) and store
 .MSV1                   \ it in P
  LDA SQ1L,X
 .MSV2
@@ -33659,8 +33664,15 @@ INCLUDE "build/dashtab.asm"
 
 .MADZ
 
- STA P                  \ Set P = 0 (A = 0 already), as MULT1 does, and fall
-                        \ through into ADD to do (A X) = (0 0) + (S R)
+ STA P                  \ Set P = 0 (A = 0 already), as MULT1 does, and do
+ STA T1                 \ ADD's (A X) = (0 0) + (S R) with its stores of
+ STA T                  \ T1 = A = 0 and T = sign of A = 0
+ LDX R                  \ X = R + 0 = R
+ LDA S                  \ If S is negative the signs differ (A's sign is 0),
+ BMI MU8                \ so do it the full way in MU8 exactly as ADD would
+ CLC                    \ Otherwise ADDS gives A = S + 0 + 0 OR 0 = S, X = R,
+ CLV                    \ N Z from S, C = 0, V = 0 (S + 0 cannot overflow)
+ RTS
 
 \ ******************************************************************************
 \

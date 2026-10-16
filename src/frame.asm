@@ -2745,13 +2745,13 @@ MAXPT = 140             \ points per frame
  LDA sg_x+1             \ left of the span? (x <= NDISCL, x 16-bit)
  BMI fsg_l
  BNE fsg_n              \ x > 255: right of it
- LDA R_NDISCL,Y
- CMP sg_x
- BCS fsg_l
- LDA R_NDISCR,Y
- CMP sg_x
- BCC fsg_n              \ right of the span
- LDA sg_x
+ LDA sg_x               \ x <= NDISCL: left of the span
+ CMP R_NDISCL,Y
+ BCC fsg_l
+ BEQ fsg_l
+ CMP R_NDISCR,Y         \ x > NDISCR: right of the span
+ BEQ P%+4
+ BCS fsg_n
  LDX R_NDN,Y            \ inside: append (up to four)
  BNE fsg_k1
  STA R_NDX0,Y           \ n = 0
@@ -2789,6 +2789,7 @@ MAXPT = 140             \ points per frame
  CPY sg_y1              \ done at y1
  BNE fsg_m
  RTS
+ EQUW 0                 \ (pad: keeps fsg_m.. and BCC fpa5 at 9EFF off a page cross)
 .fsg_m
  LDA sg_err
  CLC
