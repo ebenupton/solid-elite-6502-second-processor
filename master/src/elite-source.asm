@@ -7220,8 +7220,7 @@ ENDIF
 \STX R
  STA S
 
- LDA #0                 \ Set P = 0
- STA P
+ STZ P                  \ Set P = 0
 
  LDA BETA               \ Set A = -beta, so:
  EOR #%10000000         \
