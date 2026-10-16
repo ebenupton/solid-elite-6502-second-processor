@@ -779,15 +779,19 @@ r_bdx3 = R_BDX30
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
   STA r_pt36+2
+  STA r_pt416+2
   LDA r_sbh_s0b,X          \ group r_s0b
   STA r_pt33+2
   STA r_pt37+2
+  STA r_pt417+2
   LDA r_sbh_s0x,X          \ group r_s0x
   STA r_pt31+2
   STA r_pt35+2
+  STA r_pt415+2
   LDA r_sbh_s0y,X          \ group r_s0y
   STA r_pt30+2
   STA r_pt34+2
+  STA r_pt414+2
   LDA r_sbh_sl,X          \ group r_sl
   STA r_pt17+2
   STA r_pt21+2
@@ -4260,35 +4264,122 @@ ENDMACRO
 .R_STARPLOT
 {
   STZ r_k
-  STZ RZ_TA+1
+  LDA R_CB
+  INC A
+  STA cb1+1
+  LDX #0
 .sl
-  LDX RZ_TA+1
   CPX R_SN
   BCS sdone
   CPX #24
   BCS sdone
   LDA R_SS,X
-  BEQ snext               \ (size 0: no star)
-  STA RZ_TA
-  LDA R_SX,X
-  STA RZ_SA
-  LDA R_SY,X
-  STA RZ_SA+1
-  JSR r_strow
-  LDA RZ_TA
-  CMP #3
-  BCC snext
-  INC RZ_SA+1
-  BEQ snext
-  JSR r_strow
+  BNE some
 .snext
-  INC RZ_TA+1
+  INX
   BRA sl
 .sdone
   LDX r_buf
   LDA r_k
   STA r_scnt,X
   RTS
+.slow
+  JSR r_strow
+  LDA RZ_TA
+  CMP #3
+  BCC sd1
+  INC RZ_SA+1
+  BEQ sd1
+  JSR r_strow
+.sd1
+  LDX RZ_TA+1
+  BRA snext
+.some
+  STX RZ_TA+1
+  STA RZ_TA
+  LDY R_SY,X
+  STY RZ_SA+1
+  LDA R_SX,X
+  STA RZ_SA
+  TAX                     \ fast path: x .. x+1 inside the window, in one byte,
+  CPX R_CL                \ the row(s) inside
+  BCC slow
+  CPX R_CR
+  BCS slow
+  AND #3                  \ (two pixels split across bytes: the slow path)
+  CMP #3
+  BNE f0
+  LDA RZ_TA
+  CMP #2
+  BCS slow
+.f0
+  CPY R_CT
+  BCC slow
+.cb1
+  CPY #0                  \ (CB + 1)
+  BCS slow
+  LDA RZ_TA
+  CMP #3
+  BNE f1
+  INY                     \ size 3: the second row inside too?
+.cb2
+  CPY cb1+1
+  DEY
+  BCS slow
+.f1
+  CMP #2                  \ size 1: one pixel; 2, 3: two
+  LDA r_lm,X
+  BCS two
+  AND r_rm,X
+  BRA msk
+.two
+  AND r_rm+1,X
+.msk
+  STA RZ_SB               \ the mask
+.row
+  TYA                     \ RZ_PP = byte of (x, y)
+  AND #7
+  ORA r_xo,X
+  STA RZ_PP
+  TYA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  CPX #&80
+  ADC #0
+  STA RZ_PP+1
+  LDA (RZ_PP)             \ all black there?
+  AND RZ_SB
+  BNE nx
+  LDX r_k
+  CPX #48
+  BCS nx
+  LDA R_SCOL
+  AND RZ_SB
+  ORA (RZ_PP)
+  STA (RZ_PP)
+  LDA RZ_PP
+.^r_pt414 STA r_s0y,X
+  LDA RZ_PP+1
+.^r_pt415 STA r_s0x,X
+  LDA RZ_SB
+  EOR #&FF
+.^r_pt416 STA r_s0a,X
+  LDA #&FF
+.^r_pt417 STA r_s0b,X
+  INC r_k
+.nx
+  LDA RZ_TA               \ size 3: the next row
+  CMP #3
+  BNE done
+  STZ RZ_TA
+  LDX RZ_SA
+  INY
+  BRA row
+.done
+  LDX RZ_TA+1
+  JMP snext
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
