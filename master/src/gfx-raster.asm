@@ -3599,8 +3599,7 @@ NEXT
 .done
   RTS
 .ch
-  JSR r_dp2
-  LDX RZ_Y
+  JSR r_dp2               \ (returns X = RZ_Y)
   BRA nx
 }
 
@@ -3627,8 +3626,7 @@ NEXT
 .done
   RTS
 .ch
-  JSR r_dp2
-  LDX RZ_Y
+  JSR r_dp2               \ (returns X = RZ_Y)
   BRA nx
 .gd
   TXA
@@ -3794,30 +3792,30 @@ NEXT
   LDX RZ_T2
   TAY
   LDA RZ_T5
+  STA RZ_COL
   JSR put
   BRA fin
 .oold
   JSR oblk
 .fin
+  LDX RZ_Y                \ (X = RZ_Y on return: r_dla/r_dlb rely on it)
   LDA r_wmax              \ R_WL/R_WR: the bytes written
   BEQ none
-  LDY RZ_Y
-  STA R_WR,Y
+  STA R_WR,X
   LDA r_wmin
-  STA R_WL,Y
-  CPY r_wt
+  STA R_WL,X
+  CPX r_wt
   BCS w1
-  STY r_wt
+  STX r_wt
 .w1
-  STY r_wb                \ rows go upwards
+  STX r_wb                \ rows go upwards
 .none
   RTS
 .oblk                     \ the old span black
   LDX RZ_T0
   LDY RZ_T1
-  LDA #0
-.put                      \ pixels X .. Y in colour A (X <= Y), noted
-  PHA
+  STZ RZ_COL
+.put                      \ pixels X .. Y in colour RZ_COL (X <= Y), noted
   TXA
   AND #&FC
   CMP r_wmin
@@ -3830,8 +3828,7 @@ NEXT
   BCC p2
   STA r_wmax
 .p2
-  PLA
-  JMP r_sw
+  JMP r_sw+2              \ past r_sw's STA RZ_COL (RZ_COL already set)
 }
 
 \ r_drg: general disc row, Y = row
