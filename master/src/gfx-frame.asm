@@ -402,7 +402,7 @@ ENDIF
  STA F_SZH,X
  LDA INWK+6
  STA F_SZL,X
- LDA TYPE
+ LDA GTYPE              \ (Master port: TYPE, or DOD for the Dodo station)
  STA F_STYP,X
  LDA GNF
  STA F_SNF,X
@@ -418,6 +418,16 @@ ENDIF
  INY
  DEX
  BNE fsh1
+ LDA GTYPE              \ Master port: the alloy plate's one face has no
+ CMP #PLT               \ normal, so LL9 never marks it visible: fill it from
+ BNE fsh3               \ both sides (no winding cull)
+ LDA fsh2+1
+ STA fsh8+1
+ LDA fsh2+2
+ STA fsh8+2
+ LDA #1
+.fsh8
+ STA &FFFF              \ patched: the XX2 copy's first byte
 .fsh3
  TYA                    \ advance the destination past the XX2 copy
  CLC
@@ -1711,6 +1721,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDX f_si
  LDA F_STYP,X
  CMP #SST
+ BEQ fsh_draw
+ CMP #DOD               \ (Master port: the Dodo station too)
  BEQ fsh_draw
  JSR f_winding
  BCC fsh_next

@@ -5317,6 +5317,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  BCS nono               \ the bottom of the screen, jump to nono as the ship's
                         \ dot is off the bottom of the space view
 
+ JSR H_SHPPT            \ Port: in record mode, record the dot for the renderer
+                        \ and continue at SHPPT2 (gfx-hooks.asm)
+
  JSR Shpt               \ Call Shpt to draw a horizontal four-pixel dash for the
                         \ first row of the dot (i.e. a four-pixel dash)
 
@@ -5326,6 +5329,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
  JSR Shpt               \ Call Shpt to draw a horizontal four-pixel dash for the
                         \ second row of the dot (i.e. a four-pixel dash)
+
+.SHPPT2
 
  LDA #%00001000         \ Set bit 3 of the ship's byte #31 to record that we
  ORA XX1+31             \ have now drawn something on-screen for this ship
@@ -7680,6 +7685,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
 .EE31
 
+ JSR H_EE31             \ Port: in record mode, record the ship for the renderer
+                        \ and return from LL9 (gfx-hooks.asm)
+
  LDY #9                 \ Fetch byte #9 of the ship's blueprint, which is the
  LDA (XX0),Y            \ number of edges, and store it in XX20
  STA XX20
@@ -9061,6 +9069,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \ ******************************************************************************
 
 .LSCLR
+
+ JSR H_LSCLR            \ Port: in record mode there are no lines to erase
+                        \ (gfx-hooks.asm)
 
  LDY LSNUM              \ Set Y to the offset in the line heap LSNUM
 

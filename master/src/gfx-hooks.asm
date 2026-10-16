@@ -160,3 +160,132 @@
  PLA
  CMP #Y
  RTS
+\ H_EE31: LL9 has projected the ship (part 9, EE31); in record mode record it
+\ (and its laser beam if it is firing at us) instead of drawing its edges, and
+\ return from LL9. What LL9's parts 9 to 12 leave that the game reads is set
+\ as they would: bit 3 of byte #31 (on screen), bit 6 cleared if it fired,
+\ XX20 (edges) and CNT (the blueprint's heap size, which LL170 leaves there),
+\ and the ship line heap's byte #0 = LSNUM = 1 (no lines on the heap, so the
+\ next LL9 has nothing to erase)
+
+.H_EE31
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+3
+ RTS
+ PLA
+ PLA
+ LDY #9                 \ XX20 = the number of edges (as EE31)
+ LDA (XX0),Y
+ STA XX20
+ LDA #%00001000         \ the ship is now on screen (as EE31)
+ ORA XX1+31
+ STA XX1+31
+ LDY #12                \ faces = byte #12 / 4
+ LDA (XX0),Y
+ LSR A
+ LSR A
+ STA GNF
+ LDY #8                 \ vertices = byte #8 / 6
+ LDA (XX0),Y
+ LDX #0
+.hee1
+ CMP #6
+ BCC hee2
+ SBC #6
+ INX
+ BNE hee1
+.hee2
+ STX GNV
+ LDX TYPE               \ the faces' type: the station's slot holds the
+ CPX #SST               \ Coriolis or the Dodo (NWSPS), whose faces are
+ BNE hee3               \ type DOD's
+ LDA XX0
+ CMP XX21+2*(DOD-1)
+ BNE hee3
+ LDA XX0+1
+ CMP XX21+2*(DOD-1)+1
+ BNE hee3
+ LDX #DOD
+.hee3
+ STX GTYPE
+ JSR G_SHIP
+
+ BIT XX1+31             \ firing its lasers at us? (as EE31)
+ BVC hee9
+ LDA XX1+31
+ AND #%10111111
+ STA XX1+31
+ LDY #6
+ LDA (XX0),Y
+ TAY
+ LDX XX3,Y
+ STX XX15
+ INX
+ BEQ hee9
+ LDX XX3+1,Y
+ STX XX15+1
+ INX
+ BEQ hee9
+ LDX XX3+2,Y
+ STX XX15+2
+ LDX XX3+3,Y
+ STX XX15+3
+ LDA #0
+ STA XX15+4
+ STA XX15+5
+ STA XX12+1
+ LDA XX1+6
+ STA XX12
+ LDA XX1+2
+ BPL P%+4
+ DEC XX15+4
+ JSR CLIP
+ BCS hee9
+ LDA #FC_ELASER
+ STA GLCOL
+ JSR G_LINE
+ LDA #FC_PLINE
+ STA GLCOL
+.hee9
+ LDY #5                 \ CNT = the blueprint's maximum heap size (as LL170)
+ LDA (XX0),Y
+ STA CNT
+ LDA #1                 \ an empty line heap (as LSC2 would store it), and
+ STA LSNUM              \ A = LSNUM, Y = 0, C set, as LSCLR returns
+ LDY #0
+ STA (XX19),Y
+ SEC
+ RTS
+
+\ H_LSCLR: in record mode there are no ship lines on screen to erase: just
+\ store LSNUM in the heap's byte #0 and return, as LSCLR's LSC2 does (A =
+\ LSNUM, Y = 0, C set: LL9's callers go on to DORND, which takes in C)
+
+.H_LSCLR
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+3
+ RTS
+ PLA
+ PLA
+ LDA LSNUM
+ LDY #0
+ STA (XX19),Y
+ SEC                    \ (LSC2 is reached with C set)
+ RTS
+
+\ H_SHPPT: SHPPT has a distant ship's dot on screen at (K3, K4); in record
+\ mode record it and carry on at SHPPT2 (bit 3 of byte #31, then LSCLR),
+\ skipping the two dashes
+
+.H_SHPPT
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+3
+ RTS
+ PLA
+ PLA
+ JSR G_SHPPT
+ JMP SHPPT2
+

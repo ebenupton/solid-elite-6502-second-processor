@@ -155,5 +155,6 @@
 .GDCOL   EQUB 4         \ colour index for recorded dots
 .GNF     EQUB 0         \ faces / vertices of the ship being recorded
 .GNV     EQUB 0
+.GTYPE   EQUB 0         \ the type whose faces the ship being recorded uses
 .GSUNON  EQUB 0         \ non-zero: SUN drew the sun this frame (LSO, SUNX valid)
 .GSUNR   EQUB 0         \ the sun's radius this frame
