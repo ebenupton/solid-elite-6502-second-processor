@@ -2355,21 +2355,20 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 
 .f_glyph
  SEC
- SBC #32
- STA fz_nm               \ glyph address = F_FONT + 8 * (char - 32)
- LDA #0
- ASL fz_nm
- ROL A
- ASL fz_nm
- ROL A
- ASL fz_nm
- ROL A
- STA fz_nm+1
- LDA fz_nm
- CLC
- ADC #LO(F_FONT)
+ SBC #32                 \ glyph address = F_FONT + 8 * (char - 32)
+ PHA
+ ASL A
+ ASL A
+ ASL A
+ ASSERT LO(F_FONT) = 0
  STA fgl1+1
- LDA fz_nm+1
+ PLA
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ CLC
  ADC #HI(F_FONT)
  STA fgl1+2
  TYA                    \ screen: &4000 + row*&200 + 16*col
@@ -2407,15 +2406,24 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  ASL A
  ASL A
  ASL A
- STA f_gy
- LDY #0
+ STA f_gy               \ (C = 0: row <= 23)
+ LDA R_CT               \ the lines inside the clip window vertically:
+ SBC f_gy               \ Y from max(0, R_CT - 8*row) (minus 1 here: the
+ BCS P%+4               \ loop is entered at its INY)
+ LDA #&FF
+ TAY
+ LDA R_CB               \ to min(7, R_CB - 8*row), none if R_CB < 8*row
+ SEC
+ SBC f_gy
+ CLV                    \ V = 0 on exit, as before (ADC fz_nm+1 above)
+ BCC fgl9
+ CMP #7
+ BCC P%+4
+ LDA #7
+ INC A
+ STA fgl4+1
+ BRA fgl3
 .fgl0
- LDA f_gy               \ inside the clip window vertically?
- CMP R_CT
- BCC fgl3
- CMP R_CB
- BEQ P%+4
- BCS fgl3
 .fgl1
  LDA F_FONT,Y           \ patched
  BEQ fgl3
@@ -2437,10 +2445,11 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  ORA (fz_v3),Y
  STA (fz_v3),Y
 .fgl3
- INC f_gy
  INY
- CPY #8
+.fgl4
+ CPY #8                 \ patched (last line + 1)
  BCC fgl0
+.fgl9
  RTS
 
 .f_gy EQUB 0
