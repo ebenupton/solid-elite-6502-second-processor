@@ -461,3 +461,26 @@
  TAX
  TAY
  RTS
+
+\ H_SIGHT: SIGHT is about to draw the laser sights (two crosshairs through
+\ TT15, which leave QQ19+2 = 10 and QQ19+5 = GCYT); in record mode the frame
+\ draws them while GSIGHT is non-zero (the laser power; TT66's G_DIRECT clears
+\ it), so return from SIGHT with those as TT15 leaves them
+
+.H_SIGHT
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+3
+ RTS
+ PLA
+ PLA
+ LDY VIEW
+ LDA LASER,Y
+ STA GSIGHT
+ LDA #10
+ STA QQ19+2
+ LDA #GCYT
+ STA QQ19+5
+ LDY #1                 \ and Y = 1, C clear, as the second TT15 returns (its
+ CLC                    \ last LOIN keeps HLOIN3's Y; LOINQ ends with C clear)
+ RTS

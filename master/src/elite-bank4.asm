@@ -10600,6 +10600,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA #20                \ Set QQ19+2 to size 20 for the crosshairs size
  STA QQ19+2
 
+ JSR H_SIGHT            \ Port: in record mode the renderer draws the sights
+                        \ (gfx-hooks.asm)
+
  JSR TT15               \ Call TT15 to draw crosshairs of size 20 just to the
                         \ left of the middle of the screen
 
