@@ -108,23 +108,23 @@
  JSR PM_MERID
  JMP tback
 
-.G_PCURVE
- STA gA
- LDA #GFXBANK
- STA &F4
+.G_PCURVE               \ (F_PCURVE and F_PPOINT do not read A, and both
+ LDA #GFXBANK           \ callers, H_PCURVE and H_BPT, enter with A = 0 and
+ STA &F4                \ reload A afterwards, so A need not be kept in gA)
  STA &FE30
- LDA gA
  JSR F_PCURVE
  JMP gback
 
 .G_PPOINT
- STA gA
  LDA #GFXBANK
  STA &F4
  STA &FE30
- LDA gA
  JSR F_PPOINT
  JMP gback
+
+ SKIP 12                \ Padding: keeps everything after (stubs, hooks,
+                        \ raster_hz and the unaligned HAZEL tables) at the
+                        \ same addresses
 
 .G_DELCHAR
  LDA #GFXBANK

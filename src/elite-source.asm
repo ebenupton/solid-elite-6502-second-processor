@@ -28853,9 +28853,9 @@ ENDIF
                         \ |sin(CNT2)| without reducing X mod 32 (and the
                         \ cosine is SNE+16+X, no EOR #16 needed)
 
- LDA SNE+16,X           \ Set Q = SNE+16+X
- STA Q                  \       = sin((CNT2 + 16) mod 32)
-                        \       = |cos(CNT2)|
+ LDY SNE+16,X           \ Set Y = Q = SNE+16+X
+ STY Q                  \       = sin((CNT2 + 16) mod 32)
+                        \       = |cos(CNT2)| (Y keeps it for both P look-ups: ADD does not touch Y, and BLINE reloads Y)
 
  LDA SNE,X              \ Set X = sin(CNT2 mod 32) = |sin(CNT2)|
  TAX
@@ -28880,16 +28880,16 @@ ENDIF
  SBC SQ2H,X
  STA K
 
- LDX Q                  \ Set X = |cos(CNT2)|
+                        \ Y = |cos(CNT2)| (BLINE overwrites Y on every path)
 
 .pl4p1                  \ Set P = |u_x| * |cos(CNT2)| / 256 (K2 is patched
- LDA SQ1L,X             \ into these operands in PLS22)
+ LDA SQ1L,Y             \ into these operands in PLS22)
 .pl4p2
- CMP SQ2L,X
+ CMP SQ2L,Y
 .pl4p3
- LDA SQ1H,X
+ LDA SQ1H,Y
 .pl4p4
- SBC SQ2H,X
+ SBC SQ2H,Y
  STA P
 
  LDA CNT2               \ If CNT2 >= 33 then this sets the C flag, which is
@@ -28976,15 +28976,15 @@ ENDIF
                         \
                         \   (S R) = v_y * sin(CNT2)
 
- LDX Q                  \ Set P = |u_y| * |cos(CNT2)| / 256 (moved here from
-.pl4q1                  \ above: Q still holds |cos(CNT2)| and K2+1 is
- LDA SQ1L,X             \ patched into these operands in PLS22, so no K+2
+                        \ Set P = |u_y| * |cos(CNT2)| / 256 (moved here from
+.pl4q1                  \ above: Y still holds |cos(CNT2)| and K2+1 is
+ LDA SQ1L,Y             \ patched into these operands in PLS22, so no K+2
 .pl4q2                  \ temporary is needed)
- CMP SQ2L,X
+ CMP SQ2L,Y
 .pl4q3
- LDA SQ1H,X
+ LDA SQ1H,Y
 .pl4q4
- SBC SQ2H,X
+ SBC SQ2H,Y
  STA P
 
  LDA XX16+4             \ Set A = the sign of XX16+1 * XX16+4

@@ -4379,9 +4379,7 @@ ENDMACRO
   LDA (RZ_PP)             \ all black there?
   AND RZ_SB
   BNE nx
-  LDX r_k
-  CPX #48
-  BCS nx
+  LDX r_k                 \ (< 48 always: R_SN <= 24, <= 2 records a star)
   LDA R_SCOL
   AND RZ_SB
   ORA (RZ_PP)
@@ -4411,7 +4409,7 @@ ENDMACRO
   AND r_rm+1,X            \ two pixels: 0 only when split across bytes
   BNE msk                 \ (x AND 3 = 3: r_lm = &11, r_rm(x+1) = &88)
   JMP slow
-  SKIP 9                  \ (keeps r_strow onward, and r_ypg's page, in place)
+  SKIP 13                 \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).

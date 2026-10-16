@@ -77,9 +77,10 @@
  INC A
 .hst2
  STA R_SS,Y
- TXA                    \ A = ZZ, flags as CMP #80, as PIXEL would leave them
- CMP #80
- RTS
+ TXA                    \ A = ZZ; C = (ZZ >= 80) already, as PIXEL would leave
+ RTS                    \ it (BCS from CPX #144/#80 taken, or CPX #80 clear)
+ EQUW 0                 \ pad: keeps raster_vars' arrays (abs,X/Y page
+                        \ crossings) at the same addresses
 .hpxc
  LDA ZZ                 \ leave C = (ZZ >= 80) and A = ZZ as PIXEL would
  CMP #80
