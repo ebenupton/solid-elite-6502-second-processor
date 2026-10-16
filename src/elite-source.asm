@@ -18720,14 +18720,7 @@ ENDMACRO
                         \ to use in the calculation, increasing by 6 for each
                         \ new vector
 
- LDY #0                 \ Set Y = 0, which will contain the offset of the
-                        \ result bytes in XX12, increasing by 2 for each new
-                        \ result
-
 .ll51
-
- PHY                    \ Store the result offset on the stack, as we use Y as
-                        \ the table index
 
  LDY XX16,X             \ Set R = |sidev_x| * x_lo / 256
 .l51x1
@@ -18820,14 +18813,15 @@ ENDMACRO
 
 .l51c
 
- PLY                    \ Restore the result offset
+ LDY SQ1H+129,X         \ Set Y = 17, 19, 21 for X = 6, 12, 18 (the result
+                        \ offset + 17), using the constant bytes
+                        \ SQ1H+135/141/147 = HI(n^2 DIV 4) = 17/19/21, so we
+                        \ don't need to keep the result offset on the stack
+                        \ (SQ1H is page-aligned, so no page is crossed)
 
- STA XX12,Y             \ Store the result in XX12+Y(1 0)
+ STA XX12-17,Y          \ Store the result in XX12+Y-17(1 0)
  LDA S
- STA XX12+1,Y
-
- INY                    \ Set Y = Y + 2
- INY
+ STA XX12+1-17,Y
 
  CPX #17                \ If X < 17, loop back to ll51 for the next vector
  BCC ll51
@@ -33089,24 +33083,24 @@ INCLUDE "build/dashtab.asm"
                         \
                         \   A = (A * Q) / 256 = HI(f(A + Q) - f(|A - Q|))
                         \
-                        \ and returns with the same register, flag and memory
-                        \ state as the original, which leaves X, Y and Q
-                        \ unchanged, P = 0, the C flag set and the Z and N flags
-                        \ set as for a zero result (because the original finishes
-                        \ with LSR P setting P to zero). The V flag is not
-                        \ preserved, but no caller relies on it
+                        \ and returns with Y and Q unchanged, P = 0 and the C
+                        \ flag set, as in the original. X is returned equal
+                        \ to the multiplier rather than preserved (X is dead
+                        \ after every call of FMLTU and FMLTU2), and Z, N and
+                        \ V are not preserved, as no caller relies on them
+                        \
+                        \ FMLTUX does the same with the multiplier passed in X
+                        \ instead of Q (Q is not read)
+
+ LDX Q                  \ Set X = Q
+
+.FMLTUX
 
  STA FMU1+1             \ Patch A into the operands of the table look-ups
  STA FMU3+1
  EOR #&FF
  STA FMU2+1
  STA FMU4+1
-
- STX P                  \ Store X in P, as we use it as the index (P is set
-                        \ to 0 below anyway, and STX/LDX zp is 1 cycle
-                        \ quicker than PHX/PLX)
-
- LDX Q                  \ Set X = Q
 
 .FMU1                   \ Compare the low bytes of f(A + Q) and f(|A - Q|),
  LDA SQ1L,X             \ which we only need for the borrow (CMP sets C
@@ -33118,10 +33112,6 @@ INCLUDE "build/dashtab.asm"
 .FMU4
  SBC SQ2H,X             \ A * Q >= 0 fits in 16 bits, so this never borrows
                         \ and leaves the C flag set, as in the original
-
- LDX P                  \ Restore X (LDX sets Z/N, but they are overwritten
-                        \ by nothing below and are not live in any caller,
-                        \ as before with PLX)
 
  STZ P                  \ Set P = 0, as in the original
 

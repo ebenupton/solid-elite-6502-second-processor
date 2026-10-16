@@ -4320,6 +4320,8 @@ ENDMACRO
   STA r_scnt,X
   RTS
 .slow
+  STX RZ_SA               \ (X = x, Y = y on every branch here)
+  STY RZ_SA+1
   JSR r_strow
   LDA RZ_TA
   CMP #3
@@ -4349,9 +4351,7 @@ ENDMACRO
   STX RZ_TA+1
   STA RZ_TA
   LDY R_SY,X
-  STY RZ_SA+1
   LDA R_SX,X
-  STA RZ_SA
   TAX                     \ fast path: x .. x+1 inside the window, in one byte,
   CPX R_CL                \ the row(s) inside
   BCC slow
@@ -4372,6 +4372,7 @@ ENDMACRO
   LDA RZ_TA
   CMP #3
   BNE f1
+  STX RZ_SA               \ (x for the second row at nx)
   INY                     \ size 3: the second row inside too?
 .cb2
   CPY cb1+1

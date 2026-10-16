@@ -69,16 +69,20 @@
  PLA
  TXA
  STA R_SX,Y
- LDX #1
- LDA ZZ
- CMP #144
+ LDX ZZ                 \ X = ZZ (X is dead after PIXEL2's record-mode return)
+ CPX #144
+ BCS hst1
+ LDA #2
+ CPX #80
  BCS hst2
- INX
- CMP #80
- BCS hst2
- INX
+ INC A
 .hst2
- TXA
+ STA R_SS,Y
+ TXA                    \ A = ZZ, flags as CMP #80, as PIXEL would leave them
+ CMP #80
+ RTS
+.hst1
+ LDA #1
  STA R_SS,Y
 .hpxc
  LDA ZZ                 \ leave C = (ZZ >= 80) and A = ZZ as PIXEL would

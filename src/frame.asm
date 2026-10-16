@@ -1062,15 +1062,13 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fds_none
  LDA #1
  STA R_NDT
- LDA #0
- STA R_NDB
+ STZ R_NDB
  RTS
 
 .f_discspans            \ rows of the disc (f_cx, f_cy, f_r) within the window
  LDA #255               \ (rows outside R_NDT..R_NDB are not looked at)
  STA R_NDT
- LDA #0
- STA R_NDB
+ STZ R_NDB
  LDA f_cy               \ fz_p = top row = cy - r, fz_q = bottom row = cy + r
  SEC
  SBC f_r
@@ -1108,6 +1106,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP fz_p
  BCC fds_none
  STA R_NDB
+ STA fdf_cp+1           \ patch the bottom row into the fast loop's CPY
  LDA fz_p
  STA R_NDT
  SEC                    \ d = top - cy (16-bit signed, |d| <= r)
@@ -1137,18 +1136,16 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  SEC
  ROL A
  STA fdf_cl+1
- LDY R_NDT
+ LDY fz_p               \ = R_NDT
  LDX fz_t               \ X = |d|, stepped by INX (d >= 0) or DEX (d < 0)
- LDA #&E8               \ INX
- BIT fz_u
- BPL fdf0
+ BPL fdf0               \ (|d| <= 127, so N of d's low byte = sign of d)
  TXA
  EOR #&FF
  TAX
  INX
- LDA #&CA               \ DEX
-.fdf0
+ LDA #&CA               \ DEX (fdf_st holds INX on entry: restored at fdf9)
  STA fdf_st
+.fdf0
  CLC
 .fdf1                   \ C = 0 here
 .fpr_ld
@@ -1160,16 +1157,17 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fdf_cl
  ADC #0                 \ patched: 2cx + 1 (A = 2cx + 1 + ~(cx + n) = cx - n)
  STA R_NDISCL,Y
- CPY R_NDB
+.fdf_cp
+ CPY #0                 \ patched: R_NDB
  INY
- BCS fdf9
+ BCS fdf9               \ (C = 1: last row)
 .fdf_st
  INX                    \ patched: INX or DEX
  BNE fdf1
- LDA #&E8               \ d has reached 0: count |d| up from here
+.fdf9                   \ d has reached 0 (C = 0): count |d| up from here;
+ LDA #&E8               \ or done (C = 1): leave INX in place for next time
  STA fdf_st
- BNE fdf1               \ always (A = &E8)
-.fdf9
+ BCC fdf1
  RTS
 
 .fds_slow
