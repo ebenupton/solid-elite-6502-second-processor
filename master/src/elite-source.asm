@@ -14322,6 +14322,20 @@ ENDIF
  LDA K2                 \ Set P = K2 * Q / 256
  JSR FMLTU              \       = |u_x| * |cos(CNT2)|
  STA P
+
+ LDA XX16+5             \ Set S = the sign of XX16+2 * XX16+5
+ EOR XX16+2             \       = the sign of v_x * XX16+5
+ STA S                  \
+                        \ So because we set this above:
+                        \
+                        \   (XX16+5 R) = |v_x| * sin(CNT2)
+                        \
+                        \ we now have this:
+                        \
+                        \   (S R) = v_x * sin(CNT2)
+                        \
+                        \ (LDA/EOR/STA leave C alone, so the C flag from
+                        \ FMLTU still reaches the ADC #15 below)
                         \
                         \ The call to FMLTU also sets the C flag, so in the
                         \ following, ADC #15 adds 16 rather than 15
@@ -14354,19 +14368,8 @@ ENDIF
                         \   (XX16+4 K+2) = |u_y| * cos(CNT2)
                         \   (XX16+4 P)   = |u_x| * cos(CNT2)
 
- LDA XX16+5             \ Set S = the sign of XX16+2 * XX16+5
- EOR XX16+2             \       = the sign of v_x * XX16+5
- STA S                  \
-                        \ So because we set this above:
-                        \
-                        \   (XX16+5 R) = |v_x| * sin(CNT2)
-                        \
-                        \ we now have this:
-                        \
-                        \   (S R) = v_x * sin(CNT2)
-
- LDA XX16+4             \ Set A = the sign of XX16 * XX16+4
- EOR XX16               \       = the sign of u_x * XX16+4
+ EOR XX16               \ A still holds XX16+4, so set A = the sign of
+                        \ XX16 * XX16+4 = the sign of u_x * XX16+4
                         \
                         \ So because we set this above:
                         \
