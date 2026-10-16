@@ -7,12 +7,13 @@
 //
 // Boots with SHIFT+BREAK, runs until the first title screen ("Load New
 // Commander (Y/N)?") has drawn its rotating ship a few times (the 8th call of
-// RDKEY from TITLE's key loop), then reports ROMSEL / ACCCON, compares the
+// RDKEY after TITLE starts), then reports ROMSEL / ACCCON, compares the
 // sideways and shadow RAM images the loader installs (BANK4.bin, ANDY.bin,
 // COLD7.bin, TOKENS.bin) with what memory holds, and writes title.png.
 // Exit status 0 if the title screen was reached and the banks match.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { loadSyms, mapAt, mapOfLabel } from "./mlib.mjs";
 
 const ROOT = decodeURIComponent(new URL("..", import.meta.url).pathname);
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => {
@@ -24,8 +25,7 @@ const SYMS = args.syms || `${ROOT}master/build/symbols.txt`;
 const OUT = args.out || `${ROOT}scratch/master/boot`;
 mkdirSync(OUT, { recursive: true });
 
-const syms = {};
-for (const m of readFileSync(SYMS, "utf8").matchAll(/'([^']+)':(\d+)L?/g)) syms[m[1]] = +m[2];
+const syms = loadSyms(SYMS);
 
 const s = new MachineSession("Master");
 await s.initialise();
@@ -34,14 +34,14 @@ s.loadDisc(DISC);
 s.keyDown(16); s.reset(true); await s.runFor(2000000); s.keyUp(16);
 const cpu = s._machine.processor;
 
-// RDKEY's caller is the return address on the stack at RDKEY's first instruction
-let titleCalls = 0, done = false;
-const titleLo = syms.TITLE, titleHi = syms.CHECK;
+// Count RDKEY calls once TITLE (or its cold copy TITLE_C, in the cold area
+// from Stage B) has been entered: TITLE's key loop calls RDKEY repeatedly
+let titleCalls = 0, done = false, inTitle = false;
+const tName = syms.TITLE_C !== undefined ? "TITLE_C" : "TITLE";
+const tAddr = syms[tName], tMap = mapOfLabel(syms, tName);
 const h = pc => {
-    if (pc === syms.RDKEY) {
-        const ret = (cpu.readmem(0x101 + cpu.s) | (cpu.readmem(0x102 + cpu.s) << 8)) + 1;
-        if (ret >= titleLo && ret < titleHi && ++titleCalls >= 8) done = true;
-    }
+    if (pc === tAddr && (tMap === "m" || tMap === mapAt(cpu.romsel, pc))) inTitle = true;
+    if (pc === syms.RDKEY && inTitle && ++titleCalls >= 8) done = true;
     return done;
 };
 cpu.debugInstruction.add(h);

@@ -146,3 +146,39 @@
 .ping
  JSR far7
  EQUW ping_C
+
+.BAY
+ JSR far7j
+ EQUW BAY_C
+
+.DEATH2
+ JSR far7j
+ EQUW DEATH2_C
+
+.JAMESON
+ JSR far7
+ EQUW JAMESON_C
+
+.QU5
+ JSR far7
+ EQUW QU5_C
+
+.RES2
+ JSR far7
+ EQUW RES2_C
+
+.SVE
+ JSR far7
+ EQUW SVE_C
+
+.getzp
+ JSR far7
+ EQUW getzp_C
+
+.setzp
+ JSR far7
+ EQUW setzp_C
+
+.TT170
+ JSR far7j
+ EQUW TT170_C

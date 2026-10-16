@@ -7,9 +7,6 @@
 \ area; j4_name jumps to name (far4j) for targets that never return.
 \ ******************************************************************************
 
-.j4_BAY
- JSR far4j
- EQUW BAY
 
 .j4_FRCE
  JSR far4j
@@ -103,9 +100,6 @@
  JSR far4
  EQUW BRIS
 
-.x4_FILEPR
- JSR far4
- EQUW FILEPR
 
 .x4_MT16
  JSR far4
@@ -115,17 +109,11 @@
  JSR far4
  EQUW MT23
 
-.x4_MT26
- JSR far4
- EQUW MT26
 
 .x4_MT29
  JSR far4
  EQUW MT29
 
-.x4_OTHERFILEPR
- JSR far4
- EQUW OTHERFILEPR
 
 .x4_PAUSE
  JSR far4
@@ -202,3 +190,60 @@
 .x4_pr6
  JSR far4
  EQUW pr6
+
+.x4_CHPR
+ JSR far4
+ EQUW CHPR
+
+.x4_ECMOF
+ JSR far4
+ EQUW ECMOF
+
+.x4_FEED
+ JSR far4
+ EQUW FEED
+
+.x4_LL9
+ JSR far4
+ EQUW LL9
+
+.x4_MVEIT
+ JSR far4
+ EQUW MVEIT
+
+.x4_NWSHP
+ JSR far4
+ EQUW NWSHP
+
+
+.x4_RDKEY
+ JSR far4
+ EQUW RDKEY
+
+
+.x4_SPBLB
+ JSR far4
+ EQUW SPBLB
+
+.x4_WPSHPS
+ JSR far4
+ EQUW WPSHPS
+
+.x4_ZEKTRAN
+ JSR far4
+ EQUW ZEKTRAN
+
+.x4_ZINF
+ JSR far4
+ EQUW ZINF
+
+.x4_jmp
+ JSR far4
+ EQUW jmp
+
+.x4_t
+ JSR far4
+ EQUW t
+
+\ (x4_RDFIRE and x4_SHIFT, used only by the Master Compact's code, would be
+\ here: RDFIRE and SHIFT are not assembled for the SNG47 version)

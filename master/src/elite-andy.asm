@@ -1505,7 +1505,7 @@
 
 .bay_C
 
- JMP j4_BAY                \ Go to the docking bay (i.e. show the Status Mode
+ JMP BAY_C                \ Go to the docking bay (i.e. show the Status Mode
                         \ screen)
 
 .EQSHP_C
@@ -1777,7 +1777,7 @@
  JSR dn2_C                \ Call dn2 to make a short, high beep and delay for 1
                         \ second
 
- JMP j4_BAY                \ Jump to BAY to go to the docking bay (i.e. show the
+ JMP BAY_C                \ Jump to BAY to go to the docking bay (i.e. show the
                         \ Status Mode screen)
 
 .ed9_C

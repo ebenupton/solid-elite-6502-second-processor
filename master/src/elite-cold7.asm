@@ -964,12 +964,12 @@
  EQUW x4_MT23              \ Token 23: Move to row 10, white text, set lower case
  EQUW x4_PAUSE2            \ Token 24: Wait for a key press
  EQUW x4_BRIS              \ Token 25: Show incoming message screen, wait 2 seconds
- EQUW x4_MT26              \ Token 26: Fetch line input from keyboard (filename)
+ EQUW MT26_C              \ Token 26: Fetch line input from keyboard (filename)
  EQUW MT27_C              \ Token 27: Print mission captain's name (217-219)
  EQUW MT28_C              \ Token 28: Print mission 1 location hint (220-221)
  EQUW x4_MT29              \ Token 29: Column 6, white text, lower case in words
- EQUW x4_FILEPR            \ Token 30: Display currently selected media (disk/tape)
- EQUW x4_OTHERFILEPR       \ Token 31: Display the non-selected media (disk/tape)
+ EQUW FILEPR_C            \ Token 30: Display currently selected media (disk/tape)
+ EQUW OTHERFILEPR_C       \ Token 31: Display the non-selected media (disk/tape)
  EQUW x4_DASC              \ Token 32: Unused
 
 \ ******************************************************************************
@@ -2277,3 +2277,2276 @@
  TRB VIA+&34
  PLA
  RTS
+
+\ ******************************************************************************
+\
+\       Name: setzp
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Copy the top part of zero page (&0090 to &00FF) into the buffer at
+\             &3000
+\
+\ ******************************************************************************
+
+.setzp_C
+
+IF _COMPACT
+
+ JSR NMICLAIM_C           \ Claim the NMI workspace (&00A0 to &00A7) from the MOS
+                        \ so the game can use it
+
+ENDIF
+
+ LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
+ STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+
+ LDX #&90               \ We want to save zero page from &0090 and up, so set an
+                        \ index in X, starting from &90
+
+.sz1_C
+
+ LDA ZP,X               \ Copy the X-th byte of ZP to the X-th byte of &3000
+ STA &3000,X
+
+ INX                    \ Increment the loop counter
+
+ BNE sz1_C                \ Loop back until we have copied the last byte of zero
+                        \ page
+
+ LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
+ STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: NMIRELEASE
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Release the NMI workspace (&00A0 to &00A7) so the MOS can use it
+\             and store the top part of zero page in the buffer at &3000
+\
+\ ******************************************************************************
+
+IF _COMPACT
+
+.NMIRELEASE_C
+
+ JSR getzp_C+3            \ Call getzp+3 to restore the top part of zero page
+                        \ from the buffer at &3000, but without first claiming
+                        \ the NMI workspace (as it's already been claimed by
+                        \ this point)
+
+ LDA #143               \ Call OSBYTE 143 to issue a paged ROM service call of
+ LDX #&B                \ type &B with Y set to the previous NMI owner's ID.
+ LDY NMI                \ This releases the NMI workspace back to the original
+ JMP OSBYTE             \ owner, from whom we claimed the workspace in the
+                        \ NMICLAIM routine, and returns from the subroutine
+                        \ using a tail call
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: getzp
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Swap zero page (&0090 to &00EF) with the buffer at &3000
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   getzp+3             Restore the top part of zero page, but without first
+\                       claiming the NMI workspace (Master Compact variant only)
+\
+\ ******************************************************************************
+
+.getzp_C
+
+IF _COMPACT
+
+ JSR NMICLAIM_C           \ Claim the NMI workspace (&00A0 to &00A7) from the MOS
+                        \ so the game can use it
+
+ENDIF
+
+ LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
+ STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+
+ LDX #&90               \ We want to swap zero page from &0090 and up, so set an
+                        \ index in X, starting from &90
+
+.sz2_C
+
+ LDA ZP,X               \ Swap the X-th byte of ZP with the X-th byte of &3000
+ LDY &3000,X
+ STY ZP,X
+ STA &3000,X
+
+ INX                    \ Increment the loop counter
+
+ CPX #&F0               \ Loop back until we have swapped up to location &00EF
+ BNE sz2_C
+
+ LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
+ STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+
+                        \ Port: the original set the ROM Select latch to bank 6
+                        \ here, to page the game's data back in after disc
+                        \ access. getzp now runs in the cold area, so it leaves
+                        \ ROMSEL alone: the far call that reaches it pages the
+                        \ caller's bank back in, and NEWBRK pages Elite's home
+                        \ bank in itself before calling it
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: NMICLAIM
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Claim the NMI workspace (&00A0 to &00A7) back from the MOS so the
+\             game can use it once again
+\
+\ ******************************************************************************
+
+IF _COMPACT
+
+.NMICLAIM_C
+
+ LDA #143               \ Call OSBYTE 143 to issue a paged ROM service call of
+ LDX #&C                \ type &C with argument &FF, which is the "NMI claim"
+ LDY #&FF               \ service call that asks the current user of the NMI
+ JSR OSBYTE             \ space to clear it out
+
+ STY NMI                \ Save the returned value of Y in NMI, as it contains
+                        \ the filing system ID of the previous claimant of the
+                        \ NMI, which we need to restore once we have finished
+                        \ using the NMI workspace
+
+ RTS                    \ Return from the subroutine
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: YESNO
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Wait until either "Y" or "N" is pressed
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              Set if "Y" was pressed, clear if "N" was pressed
+\
+\ ******************************************************************************
+
+.YESNO_C
+
+ JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+                        \ the ASCII code in A and X
+
+ CMP #'Y'               \ If "Y" was pressed, return from the subroutine with
+ BNE P%+3               \ the C flag set (as the CMP sets the C flag; Port: the
+ RTS                    \ original branched to the RTS at PL6, in PLANET)
+
+ CMP #'N'               \ If "N" was not pressed, loop back to keep scanning
+ BNE YESNO_C              \ for key presses
+
+ CLC                    \ Clear the C flag
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: RESET
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Reset most variables
+\
+\ ------------------------------------------------------------------------------
+\
+\ Reset our ship and various controls, recharge shields and energy, and then
+\ fall through into RES2 to reset the stardust and the ship workspace at INWK.
+\
+\ In this subroutine, this means zero-filling the following locations:
+\
+\   * Pages &9, &A, &B, &C and &D
+\
+\   * BETA to BETA+6, which covers the following:
+\
+\     * BETA, BET1 - Set pitch to 0
+\
+\     * XC, YC - Set text cursor to (0, 0)
+\
+\     * QQ22 - Set hyperspace counters to 0
+\
+\     * ECMA - Turn E.C.M. off
+\
+\ It also sets QQ12 to &FF, to indicate we are docked, recharges the shields and
+\ energy banks, and then falls through into RES2.
+\
+\ ******************************************************************************
+
+.RESET_C
+
+ JSR ZERO_C               \ Reset the ship slots for the local bubble of universe,
+                        \ and various flight and ship status variables
+
+ LDX #6                 \ Set up a counter for zeroing BETA through BETA+6
+
+.SAL3_C
+
+ STA BETA,X             \ Zero the X-th byte after BETA
+
+ DEX                    \ Decrement the loop counter
+
+ BPL SAL3_C               \ Loop back for the next byte to zero
+
+ STX JSTGY              \ X is now negative - i.e. &FF - so this sets JSTGY to
+                        \ &FF to set the joystick Y-channel to the default
+                        \ direction
+
+ TXA                    \ X is now negative - i.e. &FF - so this sets A and QQ12
+ STA QQ12               \ to &FF to indicate we are docked
+
+ LDX #2                 \ We're now going to recharge both shields and the
+                        \ energy bank, which live in the three bytes at FSH,
+                        \ ASH (FSH+1) and ENERGY (FSH+2), so set a loop counter
+                        \ in X for 3 bytes
+
+.REL5_C
+
+ STA FSH,X              \ Set the X-th byte of FSH to &FF to charge up that
+                        \ shield/bank
+
+ DEX                    \ Decrement the loop counter
+
+ BPL REL5_C               \ Loop back to REL5 until we have recharged both shields
+                        \ and the energy bank
+
+                        \ Fall through into RES2 to reset the stardust and ship
+                        \ workspace at INWK
+
+\ ******************************************************************************
+\
+\       Name: RES2
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Reset a number of flight variables and workspaces
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is called after we launch from a space station, arrive in a new system
+\ after hyperspace, launch an escape pod, or die a cold, lonely death in the
+\ depths of space.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   Y                   Y is set to &FF
+\
+\ ******************************************************************************
+
+.RES2_C
+
+\JSR stopbd             \ This instruction is commented out in the original
+                        \ source
+
+ LDA #NOST              \ Reset NOSTM, the number of stardust particles, to the
+ STA NOSTM              \ maximum allowed (20)
+
+ LDX #&FF               \ Reset LSX2 and LSY2, the ball line heaps used by the
+ STX LSX2               \ BLINE routine for drawing circles, to &FF, to set the
+ STX LSY2               \ heap to empty
+
+ STX MSTG               \ Reset MSTG, the missile target, to &FF (no target)
+
+ LDA #128               \ Set the current pitch rate to the mid-point, 128
+ STA JSTY
+
+ STA ALP2               \ Reset ALP2 (roll sign) and BET2 (pitch sign)
+ STA BET2               \ to negative, i.e. pitch and roll negative
+
+ ASL A                  \ This sets A to 0
+
+ STA BETA               \ Reset BETA (pitch angle alpha) to 0
+
+ STA BET1               \ Reset BET1 (magnitude of the pitch angle) to 0
+
+ STA ALP2+1             \ Reset ALP2+1 (flipped roll sign) and BET2+1 (flipped
+ STA BET2+1             \ pitch sign) to positive, i.e. pitch and roll negative
+
+ STA MCNT               \ Reset MCNT (the main loop counter) to 0
+
+\STA TRIBCT             \ This instruction is commented out in the original
+                        \ source; it is left over from the Commodore 64 version
+                        \ of Elite and would reset the number of Trumbles
+
+ LDA #3                 \ Reset DELTA (speed) to 3
+ STA DELTA
+
+ STA ALPHA              \ Reset ALPHA (roll angle alpha) to 3
+
+ STA ALP1               \ Reset ALP1 (magnitude of roll angle alpha) to 3
+
+\LDA #&10               \ These instructions are commented out in the original
+\STA COL2               \ source
+
+ LDA #0                 \ Set dontclip to 0 (though this variable is never used,
+ STA dontclip           \ so this has no effect; it is left over from the
+                        \ Commodore 64 version)
+
+ LDA #2*Y-1             \ Set Yx2M1 to the number of pixel lines in the space
+ STA Yx2M1              \ view
+
+ LDA SSPR               \ Fetch the "space station present" flag, and if we are
+ BEQ P%+5               \ not inside the safe zone, skip the next instruction
+
+ JSR x4_SPBLB              \ Light up the space station bulb on the dashboard
+
+ LDA ECMA               \ Fetch the E.C.M. status flag, and if E.C.M. is off,
+ BEQ yu_C                 \ skip the next instruction
+
+ JSR x4_ECMOF              \ Turn off the E.C.M. sound
+
+.yu_C
+
+ JSR x4_WPSHPS             \ Wipe all ships from the scanner
+
+ JSR ZERO_C               \ Reset the ship slots for the local bubble of universe,
+                        \ and various flight and ship status variables
+
+ LDA #LO(LS%)           \ We have reset the ship line heap, so we now point
+ STA SLSP               \ SLSP to LS% (the byte below the ship blueprints at D%)
+ LDA #HI(LS%)           \ to indicate that the heap is empty
+ STA SLSP+1
+
+ JMP x4_ZINF            \ Finally, reset the INWK ship workspace with ZINF and
+                        \ return (Port: the original fell through into ZINF)
+
+\ ******************************************************************************
+\
+\       Name: TT170
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Main entry point for the Elite game code
+\  Deep dive: Program flow of the main game loop
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is the main entry point for the main game code.
+\
+\ ******************************************************************************
+
+.TT170_C
+
+ LDX #&FF               \ Set the stack pointer to &01FF, which is the standard
+ TXS                    \ location for the 6502 stack, so this instruction
+                        \ effectively resets the stack
+
+ JSR RESET_C              \ Call RESET to initialise most of the game variables
+
+                        \ Fall through into DEATH2 to start the game
+
+\ ******************************************************************************
+\
+\       Name: DEATH2
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Reset most of the game and restart from the title screen
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine is called following death, and when the game is quit by pressing
+\ ESCAPE when paused.
+\
+\ ******************************************************************************
+
+.DEATH2_C
+
+ LDX #&FF               \ Set the stack pointer to &01FF, which is the standard
+ TXS                    \ location for the 6502 stack, so this instruction
+                        \ effectively resets the stack
+
+ JSR RES2_C               \ Reset a number of flight variables and workspaces
+                        \ and fall through into the entry code for the game
+                        \ to restart from the title screen
+
+\ ******************************************************************************
+\
+\       Name: BR1 (Part 1 of 2)
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Show the "Load New Commander (Y/N)?" screen and start the game
+\
+\ ------------------------------------------------------------------------------
+\
+\ BRKV is set to point to BR1 by the loading process.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   QU5                 Restart the game using the last saved commander without
+\                       asking whether to load a new commander file
+\
+\ ******************************************************************************
+
+.BR1_C
+
+ JSR x4_ZEKTRAN            \ Call ZEKTRAN to clear the key logger
+
+ LDA #3                 \ Set XC = 3 (set text cursor to column 3)
+ STA XC
+
+\JSR startat            \ This instruction is commented out in the original
+                        \ source
+
+ LDX #CYL               \ Call TITLE to show a rotating Cobra Mk III (#CYL) and
+ LDA #6                 \ token 6 ("LOAD NEW {single cap}COMMANDER {all caps}
+ LDY #200               \ (Y/N)?{sentence case}{cr}{cr}"), with the ship at a
+ JSR TITLE_C              \ distance of 200, returning with the internal number
+                        \ of the key pressed in A
+
+ CPX #'Y'               \ Did we press "Y"? If not, jump to QU5, otherwise
+ BNE QU5_C                \ continue on to load a new commander
+
+\JSR stopat             \ This instruction is commented out in the original
+                        \ source
+
+ JSR DFAULT_C             \ Call DFAULT to reset the current commander data block
+                        \ to the last saved commander
+
+ JSR SVE_C                \ Call SVE to load a new commander into the last saved
+                        \ commander data block
+
+\JSR startat            \ This instruction is commented out in the original
+                        \ source
+
+.QU5_C
+
+ JSR DFAULT_C             \ Call DFAULT to reset the current commander data block
+                        \ to the last saved commander
+
+\ ******************************************************************************
+\
+\       Name: BR1 (Part 2 of 2)
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Show the "Press Fire or Space, Commander" screen and start the
+\             game
+\
+\ ------------------------------------------------------------------------------
+\
+\ BRKV is set to point to BR1 by the loading process.
+\
+\ ******************************************************************************
+
+ JSR x4_msblob             \ Reset the dashboard's missile indicators so none of
+                        \ them are targeted
+
+ LDA #7                 \ Call TITLE to show a rotating Cougar (#COU) and token
+ LDX #COU               \ 7 ("PRESS SPACE OR FIRE,{single cap}COMMANDER.{cr}
+ LDY #100               \ {cr}"), with the ship at a distance of 100, returning
+ JSR TITLE_C              \ with the internal number of the key pressed in A
+
+ JSR ping_C               \ Set the target system coordinates (QQ9, QQ10) to the
+                        \ current system coordinates (QQ0, QQ1) we just loaded
+
+ JSR TT111_C              \ Select the system closest to galactic coordinates
+                        \ (QQ9, QQ10)
+
+ JSR x4_jmp                \ Set the current system to the selected system
+
+ LDX #5                 \ We now want to copy the seeds for the selected system
+                        \ in QQ15 into QQ2, where we store the seeds for the
+                        \ current system, so set up a counter in X for copying
+                        \ 6 bytes (for three 16-bit seeds)
+
+                        \ The label below is called likeTT112 because this code
+                        \ is almost identical to the TT112 loop in the hyp1
+                        \ routine
+
+.likeTT112_C
+
+ LDA QQ15,X             \ Copy the X-th byte in QQ15 to the X-th byte in QQ2
+ STA QQ2,X
+
+ DEX                    \ Decrement the counter
+
+ BPL likeTT112_C          \ Loop back to likeTT112 if we still have more bytes to
+                        \ copy
+
+ INX                    \ Set X = 0 (as we ended the above loop with X = &FF)
+
+ STX EV                 \ Set EV, the extra vessels spawning counter, to 0, as
+                        \ we are entering a new system with no extra vessels
+                        \ spawned
+
+ LDA QQ3                \ Set the current system's economy in QQ28 to the
+ STA QQ28               \ selected system's economy from QQ3
+
+ LDA QQ5                \ Set the current system's tech level in tek to the
+ STA tek                \ selected system's economy from QQ5
+
+ LDA QQ4                \ Set the current system's government in gov to the
+ STA gov                \ selected system's government from QQ4
+
+                        \ Fall through into the docking bay routine below
+
+\ ******************************************************************************
+\
+\       Name: BAY
+\       Type: Subroutine
+\   Category: Status
+\    Summary: Go to the docking bay (i.e. show the Status Mode screen)
+\
+\ ------------------------------------------------------------------------------
+\
+\ We end up here after the start-up process (load commander etc.), as well as
+\ after a successful save, an escape pod launch, a successful docking, the end
+\ of a cargo sell, and various errors (such as not having enough cash, entering
+\ too many items when buying, trying to fit an item to your ship when you
+\ already have it, running out of cargo space, and so on).
+\
+\ ******************************************************************************
+
+.BAY_C
+
+ LDA #&FF               \ Set QQ12 = &FF (the docked flag) to indicate that we
+ STA QQ12               \ are docked
+
+ LDA #f8                \ Jump into the main loop at FRCE, setting the key
+ JMP j4_FRCE               \ that's "pressed" to red key f8 (so we show the Status
+                        \ Mode screen)
+
+\ ******************************************************************************
+\
+\       Name: DFAULT
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Reset the current commander data block to the last saved commander
+\
+\ ******************************************************************************
+
+.DFAULT_C
+
+ LDX #NT%+8             \ The size of the last saved commander data block is NT%
+                        \ bytes, and it is preceded by the 8 bytes of the
+                        \ commander name (seven characters plus a carriage
+                        \ return). The commander data block at NAME is followed
+                        \ by the commander data block, so we need to copy the
+                        \ name and data from the "last saved" buffer at NA% to
+                        \ the current commander workspace at NAME. So we set up
+                        \ a counter in X for the NT% + 8 bytes that we want to
+                        \ copy
+
+.QUL1_C
+
+ LDA NA%-1,X            \ Copy the X-th byte of NA%-1 to the X-th byte of
+ STA NAME-1,X           \ NAME-1 (the -1 is because X is counting down from
+                        \ NT% + 8 to 1)
+
+ DEX                    \ Decrement the loop counter
+
+ BNE QUL1_C               \ Loop back for the next byte of the commander data
+                        \ block
+
+ STX QQ11               \ X is 0 by the end of the above loop, so this sets QQ11
+                        \ to 0, which means we will be showing a view without a
+                        \ boxed title at the top (i.e. we're going to use the
+                        \ screen layout of a space view in the following)
+
+                        \ If the commander check below fails, we keep jumping
+                        \ back to here to crash the game with an infinite loop
+
+.doitagain_C
+
+ JSR CHECK_C              \ Call the CHECK subroutine to calculate the checksum
+                        \ for the current commander block at NA%+8 and put it
+                        \ in A
+
+ CMP CHK                \ Test the calculated checksum against CHK
+
+IF _REMOVE_CHECKSUMS
+
+ NOP                    \ If we have disabled checksums, then ignore the result
+ NOP                    \ of the comparison and fall through into the next part
+
+ELSE
+
+ BNE doitagain_C          \ If the calculated checksum does not match CHK, then
+                        \ loop back to repeat the check - in other words, we
+                        \ enter an infinite loop here, as the checksum routine
+                        \ will keep returning the same incorrect value
+
+ENDIF
+
+                        \ The checksum CHK is correct, so now we check whether
+                        \ CHK2 = CHK EOR A9, and if this check fails, bit 7 of
+                        \ the competition flags at COK gets set, to indicate
+                        \ to Acornsoft via the competition code that there has
+                        \ been some hacking going on with this competition entry
+
+ EOR #&A9               \ X = checksum EOR &A9
+ TAX
+
+ LDA COK                \ Set A to the competition flags in COK
+
+ CPX CHK2               \ If X = CHK2, then skip the next instruction
+ BEQ tZ_C
+
+ ORA #%10000000         \ Set bit 7 of A to indicate this commander file has
+                        \ been tampered with
+
+.tZ_C
+
+ ORA #%00001000         \ Set bit 3 of A to denote that this is the Master
+                        \ version (which is the same flag as the Apple II
+                        \ version)
+
+ STA COK                \ Store the updated competition flags in COK
+
+\JSR CHECK2             \ These instructions are commented out in the original
+\                       \ source
+\CMP CHK3
+\BNE doitagain
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: TITLE
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Display a title screen with a rotating ship and prompt
+\
+\ ------------------------------------------------------------------------------
+\
+\ Display the title screen, with a rotating ship and a text token at the bottom
+\ of the screen.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The number of the extended token to show below the
+\                       rotating ship (see variable TKN1 for details of
+\                       recursive tokens)
+\
+\   X                   The type of the ship to show (see variable XX21 for a
+\                       list of ship types)
+\
+\   Y                   The distance to show the ship rotating, once it has
+\                       finished moving towards us
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   X                   If a key is being pressed, X contains the ASCII code
+\                       of the key pressed
+\
+\ ******************************************************************************
+
+.TITLE_C
+
+ STY distaway           \ Store the ship distance in distaway
+
+ PHA                    \ Store the token number on the stack for later
+
+ STX TYPE               \ Store the ship type in location TYPE
+
+ JSR RESET_C              \ Reset our ship so we can use it for the rotating
+                        \ title ship
+
+ JSR x4_ZEKTRAN            \ Call ZEKTRAN to clear the key logger
+
+ JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace
+
+ LDA #32                \ Set the mode 1 palette to yellow (colour 1), white
+ JSR x4_DOVDU19            \ (colour 2) and cyan (colour 3)
+
+ LDA #13                \ Clear the top part of the screen, draw a border box,
+ JSR x4_TT66               \ and set the current view type in QQ11 to 13 (rotating
+                        \ ship view)
+
+ LDA #RED               \ Switch to colour 2, which is white in the title screen
+ STA COL
+
+ LDA #0                 \ Set QQ11 to 0, so from here on we are using a space
+ STA QQ11               \ view
+
+ LDA #96                \ Set nosev_z hi = 96 (96 is the value of unity in the
+ STA INWK+14            \ rotation vector)
+
+ LDA #96                \ Set A = 96 as the distance that the ship starts at
+
+ STA INWK+7             \ Set z_hi, the high byte of the ship's z-coordinate,
+                        \ to 96, which is the distance at which the rotating
+                        \ ship starts out before coming towards us
+
+ LDX #127               \ Set roll counter = 127, so don't dampen the roll and
+ STX INWK+29            \ make the roll direction clockwise
+
+ STX INWK+30            \ Set pitch counter = 127, so don't dampen the pitch and
+                        \ set the pitch direction to dive
+
+ INX                    \ Set QQ17 to 128 (so bit 7 is set) to switch to
+ STX QQ17               \ Sentence Case, with the next letter printing in upper
+                        \ case
+
+ LDA TYPE               \ Set up a new ship, using the ship type in TYPE
+ JSR x4_NWSHP
+
+ LDA #6                 \ Move the text cursor to column 6
+ STA XC
+
+ LDA #30                \ Print recursive token 144 ("---- E L I T E ----")
+ JSR plf_C                \ followed by a newline
+
+ LDA #10                \ Print a line feed to move the text cursor down a line
+ JSR x4_TT26
+
+ LDA #6                 \ Move the text cursor to column 6 again
+ STA XC
+
+ LDA PATG               \ If PATG = 0, skip the following two lines, which
+ BEQ awe_C                \ print the author credits (PATG can be toggled by
+                        \ pausing the game and pressing "X")
+
+ LDA #13                \ Print extended token 13 ("BY D.BRABEN & I.BELL")
+ JSR DETOK_C
+
+.awe_C
+
+ LDY #0                 \ Set DELTA = 0 (i.e. ship speed = 0)
+ STY DELTA
+
+ STY JSTK               \ Set JSTK = 0 (i.e. keyboard, not joystick)
+
+ LDA #20                \ Move the text cursor to row 20
+ STA YC
+
+ LDA #1                 \ Move the text cursor to column 1
+ STA XC
+
+ PLA                    \ Restore the recursive token number we stored on the
+                        \ stack at the start of this subroutine
+
+ JSR DETOK_C              \ Print the extended token in A
+
+ LDA #7                 \ Move the text cursor to column 7
+ STA XC
+
+ LDA #12                \ Print extended token 12 ("({single cap}C) ACORNSOFT
+ JSR DETOK_C              \ 1986")
+
+ LDA #12                \ Set CNT2 = 12 as the outer loop counter for the loop
+ STA CNT2               \ starting at TLL2
+
+ LDA #5                 \ Set the main loop counter in MCNT to 5, to act as the
+ STA MCNT               \ inner loop counter for the loop starting at TLL2
+
+ STZ JSTK               \ Set JSTK = 0 (i.e. keyboard, not joystick)
+
+.TLL2_C
+
+ LDA INWK+7             \ If z_hi (the ship's distance) is 1, jump to TL1 to
+ CMP #1                 \ skip the following decrement
+ BEQ TL1_C
+
+ DEC INWK+7             \ Decrement the ship's distance, to bring the ship
+                        \ a bit closer to us
+
+.TL1_C
+
+ JSR x4_MVEIT              \ Move the ship in space according to the orientation
+                        \ vectors and the new value in z_hi
+
+ LDX distaway           \ Set z_lo to the distance value we passed to the
+ STX INWK+6             \ routine, so this is the closest the ship gets to us
+
+ LDA #0                 \ Set x_lo = 0, so the ship remains in the screen centre
+ STA INWK
+
+ STA INWK+3             \ Set y_lo = 0, so the ship remains in the screen centre
+
+ JSR x4_LL9                \ Call LL9 to display the ship
+
+ DEC MCNT               \ Decrement the main loop counter
+
+IF _SNG47
+
+ LDA VIA+&40            \ Read 6522 System VIA input register IRB (SHEILA &40)
+
+ AND #%00010000         \ Bit 4 of IRB (PB4) is clear if joystick 1's fire
+                        \ button is pressed, otherwise it is set, so AND'ing
+                        \ the value of IRB with %10000 extracts this bit
+
+ELIF _COMPACT
+
+ JSR x4_RDFIRE             \ Call RDFIRE to check whether the joystick's fire
+                        \ button is being pressed
+
+ BCS TL3_C                \ If the C flag is set then the joystick fire button
+                        \ is being pressed, so jump to TL3
+
+ENDIF
+
+IF _SNG47
+
+ BEQ TL3_C                \ If the joystick fire button is pressed, jump to TL3
+
+ENDIF
+
+ JSR x4_RDKEY              \ Scan the keyboard for a key press and return the ASCII
+                        \ code of the key pressed in A and X (or 0 for no key
+                        \ press)
+
+ BEQ TLL2_C               \ If no key was pressed, loop back up to move/rotate
+                        \ the ship and check again for a key press
+
+ RTS                    \ Return from the subroutine
+
+.TL3_C
+
+ DEC JSTK               \ Joystick fire button was pressed, so set JSTK to &FF
+                        \ (it was set to 0 above), to disable keyboard and
+                        \ enable joysticks
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: CHECK
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Calculate the checksum for the last saved commander data block
+\  Deep dive: Commander save files
+\
+\ ------------------------------------------------------------------------------
+\
+\ The checksum for the last saved commander data block is saved as part of the
+\ commander file, in two places (CHK AND CHK2), to protect against file
+\ tampering. This routine calculates the checksum and returns it in A.
+\
+\ This algorithm is also implemented in elite-checksum.py.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   A                   The checksum for the last saved commander data block
+\
+\ ******************************************************************************
+
+.CHECK_C
+
+ LDX #NT%-3             \ Set X to the size of the commander data block, less
+                        \ 3 (as there are two checksum bytes and the save count)
+
+ CLC                    \ Clear the C flag so we can do addition without the
+                        \ C flag affecting the result
+
+ TXA                    \ Seed the checksum calculation by setting A to the
+                        \ size of the commander data block, less 2
+
+                        \ We now loop through the commander data block,
+                        \ starting at the end and looping down to the start
+                        \ (so at the start of this loop, the X-th byte is the
+                        \ last byte of the commander data block, i.e. the save
+                        \ count)
+
+.QUL2_C
+
+ ADC NA%+7,X            \ Add the X-1-th byte of the data block to A, plus the
+                        \ C flag
+
+ EOR NA%+8,X            \ EOR A with the X-th byte of the data block
+
+ DEX                    \ Decrement the loop counter
+
+ BNE QUL2_C               \ Loop back for the next byte in the calculation, until
+                        \ we have added byte #0 and EOR'd with byte #1 of the
+                        \ data block
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: CHECK2
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Calculate the third checksum for the last saved commander data
+\             block (Commodore 64 and Apple II versions only)
+\
+\ ******************************************************************************
+
+.CHECK2_C
+
+\LDX #NT%-3             \ These instructions are commented out in the original
+\                       \ source (they are from the Commodore 64 and Apple II
+\CLC                    \ versions, and implement the third commander checksum
+\                       \ which the Master version doesn't have)
+\TXA
+\
+\.QU2L2
+\
+\STX T
+\EOR T
+\ROR A
+\
+\ADC NA%+7,X
+\
+\EOR NA%+8,X
+\
+\DEX
+\
+\BNE QU2L2
+\
+\RTS
+
+\ ******************************************************************************
+\
+\       Name: JAMESON
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Restore the default JAMESON commander
+\
+\ ******************************************************************************
+
+.JAMESON_C
+
+ LDY #(NAEND%-NA2%)     \ We are going to copy the default commander at NA2%
+                        \ over the top of the last saved commander at NA%, so
+                        \ set a counter to copy all the bytes between NA2% and
+                        \ NAEND%
+
+.JAMEL1_C
+
+ LDA NA2%,Y             \ Copy the Y-th byte of NA2% to the Y-th byte of NA%
+ STA NA%,Y
+
+ DEY                    \ Decrement the loop counter
+
+ BPL JAMEL1_C             \ Loop back until we have copied the whole commander
+
+ LDY #7                 \ Set oldlong to 7, the length of the commander name
+ STY oldlong            \ "JAMESON"
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: TRNME
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Copy the last saved commander's name from INWK to NA%
+\
+\ ******************************************************************************
+
+.TRNME_C
+
+ LDX #7                 \ The commander's name can contain a maximum of 7
+                        \ characters, and is terminated by a carriage return,
+                        \ so set up a counter in X to copy 8 characters
+
+ LDA thislong           \ Copy the length of the commander's name from thislong
+ STA oldlong            \ to oldlong (though this is never used, so this
+                        \ doesn't have any effect)
+
+.GTL1_C
+
+ LDA INWK+5,X           \ Copy the X-th byte of INWK+5 to the X-th byte of NA%
+ STA NA%,X
+
+ DEX                    \ Decrement the loop counter
+
+ BPL GTL1_C               \ Loop back until we have copied all 8 bytes
+
+                        \ Fall through into TR1 to copy the name back from NA%
+                        \ to INWK. This isn't necessary as the name is already
+                        \ there, but it does save one byte, as we don't need an
+                        \ RTS here
+
+\ ******************************************************************************
+\
+\       Name: TR1
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Copy the last saved commander's name from NA% to INWK
+\
+\ ******************************************************************************
+
+.TR1_C
+
+ LDX #7                 \ The commander's name can contain a maximum of 7
+                        \ characters, and is terminated by a carriage return,
+                        \ so set up a counter in X to copy 8 characters
+
+.GTL2_C
+
+ LDA NA%,X              \ Copy the X-th byte of NA% to the X-th byte of INWK+5
+ STA INWK+5,X
+
+ DEX                    \ Decrement the loop counter
+
+ BPL GTL2_C               \ Loop back until we have copied all 8 bytes
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: GTNMEW
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Fetch the name of a commander file to save or load
+\
+\ ------------------------------------------------------------------------------
+\
+\ Get the commander's name for loading or saving a commander file. The name is
+\ stored in the INWK workspace and is terminated by a return character (13).
+\
+\ If ESCAPE is pressed or a blank name is entered, then the name stored is set
+\ to the name from the last saved commander block.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   INWK                The full filename, including drive and directory, in
+\                       the form ":0.E.JAMESON", for example, terminated by a
+\                       return character (13)
+\
+\ ******************************************************************************
+
+.GTNMEW_C
+
+.GTNME_C
+
+ LDX #4                 \ First we want to copy the drive and directory part of
+                        \ the commander file from NA%-5, so set a counter in X
+                        \ for 5 bytes, as the string is of the form ":0.E."
+
+.GTL3_C
+
+ LDA NA%-5,X            \ Copy the X-th byte from NA%-5 to INWK
+ STA INWK,X
+
+ DEX                    \ Decrement the loop counter
+
+ BPL GTL3_C               \ Loop back until the whole drive and directory string
+                        \ has been copied to INWK to INWK+4
+
+ LDA #7                 \ The call to MT26 below uses the OSWORD block at RLINE
+ STA RLINE+2            \ to fetch the line, and RLINE+2 defines the maximum
+                        \ line length allowed, so this changes the maximum
+                        \ length to 7 (as that's the longest commander name
+                        \ allowed)
+
+ LDA #8                 \ Print extended token 8 ("{single cap}COMMANDER'S
+ JSR DETOK_C              \ NAME? ")
+
+ JSR MT26_C               \ Call MT26 to fetch a line of text from the keyboard
+                        \ to INWK+5, with the text length in Y, so INWK now
+                        \ contains the full pathname of the file, as in
+                        \ ":0.E.JAMESON", for example
+
+ LDA #9                 \ Reset the maximum length in RLINE+2 to the original
+ STA RLINE+2            \ value of 9
+
+ TYA                    \ The OSWORD call returns the length of the commander's
+                        \ name in Y, so transfer this to A
+
+ BEQ TR1_C                \ If A = 0, no name was entered, so jump to TR1 to copy
+                        \ the last saved commander's name from NA% to INWK
+                        \ and return from the subroutine there
+
+ STY thislong           \ Store the length of the length of the commander's that
+                        \ was entered in thislong
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: MT26
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Fetch a line of text from the keyboard
+\  Deep dive: Extended text tokens
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   Y                   The size of the entered text, or 0 if none was entered
+\
+\   INWK+5              The entered text, terminated by a carriage return
+\
+\   C flag              Set if ESCAPE was pressed
+\
+\ ******************************************************************************
+
+.MT26_C
+
+ LDA COL                \ Store the current colour on the stack
+ PHA
+
+ LDA #RED               \ Switch to colour 2, which is magenta in the trade view
+ STA COL
+
+ LDY #8                 \ Wait for 8/50 of a second (0.16 seconds)
+ JSR x4_DELAY
+
+ JSR x4_FLKB               \ Call FLKB to flush the keyboard buffer
+
+ LDY #0                 \ Set Y = 0 to hold the length of the text entered
+
+.OSW0L_C
+
+ JSR x4_TT217              \ Scan the keyboard until a key is pressed, and return
+                        \ the key's ASCII code in A (and X)
+
+ CMP #13                \ If RETURN was pressed, jump to OSW03
+ BEQ OSW03_C
+
+ CMP #27                \ If ESCAPE was pressed, jump to OSW04
+ BEQ OSW04_C
+
+ CMP #127               \ If DELETE was pressed, jump to OSW05
+ BEQ OSW05_C
+
+IF _COMPACT
+
+ PHX                    \ Store X on the stack so we can retrieve it after the
+                        \ call to SHIFT
+
+ PHA                    \ Store the number of the key being pressed on the stack
+
+ JSR x4_SHIFT              \ If SHIFT is not being pressed, jump to noshift to skip
+ BPL noshift_C            \ the following
+
+ PLA                    \ SHIFT is being pressed, so fetch the number of the key
+                        \ being pressed from the stack
+
+ CMP #'@'               \ If A >= ASCII "@", then we are pressing a letter key,
+ BCS P%+4               \ so skip the following instruction
+
+ EOR #%00010000         \ We are pressing SHIFT and a number key, so flip bit 4
+                        \ of the key number, which flips the letter between the
+                        \ ASCII code of the number being pressed and the ASCII
+                        \ code of the number being pressed when SHIFT is being
+                        \ held down (so SHIFT-1 will enter !, SHIFT-2 will enter
+                        \ ", and so on)
+
+ PHA                    \ Push the updated key number onto the stack
+
+.noshift_C
+
+ PLA                    \ Retrieve the values of X and A we stored on the stack
+ PLX                    \ above
+
+ENDIF
+
+ CPY RLINE+2            \ If Y >= RLINE+2 (the maximum line length from the
+ BCS OSW01_C              \ OSWORD configuration block at RLINE), then jump to
+                        \ OSW01 to give an error beep as we have reached the
+                        \ character limit
+
+ CMP RLINE+3            \ If the key pressed is less than the character in
+ BCC OSW01_C              \ RLINE+3 (the lowest allowed character from the OSWORD
+                        \ configuration block at RLINE), then jump to OSW01
+                        \ to give an error beep as the key pressed is out of
+                        \ range
+
+ CMP RLINE+4            \ If the key pressed is greater than or equal to the
+ BCS OSW01_C              \ character in RLINE+4 (the highest allowed character
+                        \ from the OSWORD configuration block at RLINE), then
+                        \ jump to OSW01 to give an error beep as the key
+                        \ pressed is out of range
+
+ STA INWK+5,Y           \ Store the key's ASCII code in the Y-th byte of INWK+5
+
+ INY                    \ Increment Y to point to the next free byte in INWK+5
+
+ EQUB &2C               \ Skip the next instruction by turning it into
+                        \ &2C &A9 &07, or BIT &07A9, which does nothing apart
+                        \ from affect the flags
+
+.OSW01_C
+
+ LDA #7                 \ Set A to the beep character, so the next instruction
+                        \ makes a system beep
+
+.OSW06_C
+
+ JSR x4_CHPR               \ Print the character in A (and clear the C flag)
+
+ BCC OSW0L_C              \ Loop back to OSW0L to fetch another key press (this
+                        \ BCC is effectively a JMP as CHPR clears the C flag)
+
+.OSW03_C
+
+ STA INWK+5,Y           \ Store the return character in the Y-th byte of INWK+5
+
+ LDA #12                \ Print a newline
+ JSR x4_CHPR
+
+ EQUB &24               \ Skip the next instruction by turning it into &24 &38,
+                        \ or BIT &0038, which does nothing apart from affect the
+                        \ flags
+
+.OSW04_C
+
+ SEC                    \ Set the C flag as ESCAPE was pressed
+
+ PLA                    \ Restore the original colour from the stack and set it
+ STA COL                \ as the current colour
+
+ RTS                    \ Return from the subroutine
+
+.OSW05_C
+
+ TYA                    \ If the length of the line so far in Y is 0, then we
+ BEQ OSW01_C              \ just pressed DELETE on an empty line, so jump to
+                        \ OSW01 give an error beep
+
+ DEY                    \ Otherwise we want to delete a character, so decrement
+                        \ the length of the line so far in Y
+
+ LDA #127               \ Set A = 127 and jump back to OSW06 to print the
+ BNE OSW06_C              \ character in A (i.e. the DELETE character) and listen
+                        \ for the next key press
+
+\ ******************************************************************************
+\
+\       Name: FILEPR
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Display the currently selected media (disk or tape)
+\  Deep dive: Extended text tokens
+\
+\ ******************************************************************************
+
+.FILEPR_C
+
+ LDA #3                 \ Print extended token 3 + DISK, i.e. token 3 or 2 (as
+ CLC                    \ DISK can be 0 or &FF). In other versions of the game,
+ ADC DISK               \ such as the Commodore 64 version, token 2 is "disk"
+ JMP DETOK_C              \ and token 3 is "tape", so this displays the currently
+                        \ selected media, but this system is unused in the
+                        \ Master version and tokens 2 and 3 contain different
+                        \ text
+
+\ ******************************************************************************
+\
+\       Name: OTHERFILEPR
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Display the non-selected media (disk or tape)
+\  Deep dive: Extended text tokens
+\
+\ ******************************************************************************
+
+.OTHERFILEPR_C
+
+ LDA #2                 \ Print extended token 2 - DISK, i.e. token 2 or 3 (as
+ SEC                    \ DISK can be 0 or &FF). In other versions of the game,
+ SBC DISK               \ such as the Commodore 64 version, token 2 is "disk"
+ JMP DETOK_C              \ and token 3 is "tape", so this displays the other,
+                        \ non-selected media, but this system is unused in the
+                        \ Master version and tokens 2 and 3 contain different
+                        \ text
+
+\ ******************************************************************************
+\
+\       Name: ZERO
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Reset the local bubble of universe and ship status
+\
+\ ------------------------------------------------------------------------------
+\
+\ This resets the following workspaces to zero:
+\
+\   * UP workspace variables from FRIN to de, which include the ship slots for
+\     the local bubble of universe, and various flight and ship status variables
+\
+\ ******************************************************************************
+
+.ZERO_C
+
+ LDX #(de-FRIN)         \ We're going to zero the UP workspace variables from
+                        \ FRIN to de, so set a counter in X for the correct
+                        \ number of bytes
+
+ LDA #0                 \ Set A = 0 so we can zero the variables
+
+.ZEL2_C
+
+ STA FRIN,X             \ Zero the X-th byte of FRIN to de
+
+ DEX                    \ Decrement the loop counter
+
+ BPL ZEL2_C               \ Loop back to zero the next variable until we have done
+                        \ them all
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: GTDIR
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Fetch the name of an ADFS directory on the Master Compact and
+\             change to that directory
+\
+\ ******************************************************************************
+
+IF _COMPACT
+
+.GTDIR_C
+
+ LDA #2                 \ Print extended token 2 ("{cr}WHICH DRIVE?")
+ JSR DETOK_C
+
+ LDA #19                \ The call to MT26 below uses the OSWORD block at RLINE
+ STA RLINE+2            \ to fetch the line, and RLINE+2 defines the maximum
+                        \ line length allowed, so this changes the maximum
+                        \ length to 19 (as that's the longest directory name
+                        \ allowed)
+
+ JSR MT26_C               \ Call MT26 to fetch a line of text from the keyboard
+                        \ to INWK+5, with the text length in Y, so INWK now
+                        \ contains the full directory name
+
+ LDA #9                 \ Reset the maximum length in RLINE+2 to the original
+ STA RLINE+2            \ value of 9
+
+ TYA                    \ The OSWORD call returns the length of the commander's
+                        \ name in Y, so transfer this to A
+
+ BEQ GTDIR_C-1            \ If A = 0, no name was entered, so jump to DIR-1 to
+                        \ return from the subroutine (as GTDIR-1 contains an
+                        \ RTS)
+
+                        \ We now copy the entered filename from INWK to DIRI, so
+                        \ that it overwrites the filename part of the string,
+                        \ i.e. the "12345678901234567890" part of
+                        \ "DIR 12345678901234567890"
+
+ LDX #18                \ Set up a counter in X to count from 18 to 0, so that
+                        \ we copy the string starting at INWK+5 to DIRI+4
+                        \ onwards (i.e. "12345678901234567890")
+
+.DIRL_C
+
+ LDA INWK+5,X           \ Copy the X-th byte of INWK+5 to the X-th byte of
+ STA DIRI+4,X           \ DIRI+4
+
+ DEX                    \ Decrement the loop counter
+
+ BPL DIRL_C               \ Loop back to DIRL to copy the next character until we
+                        \ have copied the whole filename
+
+ JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+                        \ can use it, and store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ LDX #LO(DIRI)          \ Set (Y X) to point to DIRI ("DIR <name entered>")
+ LDY #HI(DIRI)
+
+ JSR OSCLI              \ Call OSCLI to run the OS command in DIRI, which
+                        \ changes the disc directory to the name entered
+
+ JMP getzp_C              \ Call getzp to restore the top part of zero page from
+                        \ the buffer at &3000 and return from the subroutine
+                        \ using a tail call
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: CATS
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Ask for a disc drive number and print a catalogue of that drive
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine asks for a disc drive number, and if it is a valid number (0-3)
+\ it displays a catalogue of the disc in that drive. It also updates the OS
+\ command at CTLI so that when that command is run, it catalogues the correct
+\ drive.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              Clear if a valid drive number was entered (0-3), set
+\                       otherwise
+\
+\ ******************************************************************************
+
+.CATS_C
+
+IF _SNG47
+
+ JSR GTDRV_C              \ Get an ASCII disc drive number from the keyboard in A,
+                        \ setting the C flag if an invalid drive number was
+                        \ entered
+
+ BCS DELT_C-1             \ If the C flag is set, then an invalid drive number was
+                        \ entered, so return from the subroutine (as DELT-1
+                        \ contains an RTS)
+
+ STA CTLI+4             \ Store the drive number in the fifth byte of the
+                        \ command string at CTLI, so it overwrites the "1" in
+                        \ "CAT 1" with the drive number to catalogue
+
+ STA DTW7               \ Store the drive number in DTW7, so printing extended
+                        \ token 4 will show the correct drive number (as token 4
+                        \ contains the {drive number} jump code, which calls
+                        \ MT16 to print the character in DTW7)
+
+ELIF _COMPACT
+
+ JSR GTDIR_C              \ Get a directory name from the keyboard and change to
+                        \ that directory
+
+ENDIF
+
+ LDA #3                 \ Print extended token 3, which clears the screen and
+ JSR DETOK_C              \ prints the boxed-out title "DRIVE {drive number}
+                        \ CATALOGUE"
+
+ LDA #1                 \ Set the CATF flag to 1, so that the TT26 routine will
+ STA CATF               \ print out the disc catalogue correctly
+
+ STA XC                 \ Move the text cursor to column 1
+
+IF _SNG47
+
+ JSR getzp_C              \ Call getzp to store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ELIF _COMPACT
+
+ JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+                        \ can use it, and store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ENDIF
+
+ LDX #LO(CTLI)          \ Set (Y X) to point to the OS command at CTLI, which
+ LDY #HI(CTLI)          \ contains a dot and the drive number, which is the
+                        \ DFS command for cataloguing that drive (*. being short
+                        \ for *CAT)
+
+ JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+                        \ catalogues the disc
+
+ JSR getzp_C              \ Call getzp to restore the top part of zero page from
+                        \ the buffer at &3000
+
+ STZ CATF               \ Set the CATF flag to 0, so the TT26 routine reverts to
+                        \ standard formatting
+
+ CLC                    \ Clear the C flag
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: DELT
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Catalogue a disc, ask for a filename to delete, and delete the
+\             file
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine asks for a disc drive number, and if it is a valid number (0-3)
+\ it displays a catalogue of the disc in that drive. It then asks for a filename
+\ to delete, updates the OS command at DELI so that when that command is run, it
+\ deletes the correct file, and then it does the deletion.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   DELT-1              Contains an RTS
+\
+\ ******************************************************************************
+
+.DELT_C
+
+ JSR CATS_C               \ Call CATS to ask for a drive number (or a directory
+                        \ name on the Master Compact) and catalogue that disc
+                        \ or directory
+
+ BCS SVE_C                \ If the C flag is set then an invalid drive number was
+                        \ entered as part of the catalogue process, so jump to
+                        \ SVE to display the disc access menu
+
+IF _SNG47
+
+ LDA CTLI+4             \ The call to CATS above put the drive number into
+ STA DELI+8             \ CTLI+4, so copy the drive number into DELI+8 so that
+                        \ the drive number in the "DELETE :1.1234567" string
+                        \ gets updated (i.e. the number after the colon)
+
+ENDIF
+
+ LDA #8                 \ Print extended token 8 ("{single cap}COMMANDER'S
+ JSR DETOK_C              \ NAME? ")
+
+ JSR MT26_C               \ Call MT26 to fetch a line of text from the keyboard
+                        \ to INWK+5, with the text length in Y
+
+ TYA                    \ If no text was entered (Y = 0) then jump to SVE to
+ BEQ SVE_C                \ display the disc access menu
+
+IF _SNG47
+
+                        \ We now copy the entered filename from INWK to DELI, so
+                        \ that it overwrites the filename part of the string,
+                        \ i.e. the "E.1234567" part of "DELETE :1.1234567"
+
+ LDX #9                 \ Set up a counter in X to count from 9 to 1, so that we
+                        \ copy the string starting at INWK+4+1 (i.e. INWK+5) to
+                        \ DELI+9+1 (i.e. DELI+10 onwards, or "1.1234567")
+                        \
+                        \ Note that this is a bug - X should be set to 8, as a
+                        \ value of 9 overwrites the first character of the
+                        \ "SAVE" command in savosc
+                        \
+                        \ This means that if you delete a file, it breaks the
+                        \ save command, so you can't save a commander file if
+                        \ you have previously deleted a file
+
+ELIF _COMPACT
+
+                        \ We now copy the entered filename from INWK to DELI, so
+                        \ that it overwrites the filename part of the string,
+                        \ i.e. the "1234567890" part of "DELETE 1234567890"
+
+ LDX #8                 \ Set up a counter in X to count from 8 to 0, so that we
+                        \ copy the string starting at INWK+5+0 (i.e. INWK+5) to
+                        \ DELI+7+0 (i.e. DELI+7 onwards, or "1234567890")
+
+ENDIF
+
+.DELL1_C
+
+IF _SNG47
+
+ LDA INWK+4,X           \ Copy the X-th byte of INWK+4 to the X-th byte of
+ STA DELI+9,X           \ DELI+9
+
+ DEX                    \ Decrement the loop counter
+
+ BNE DELL1_C              \ Loop back to DELL1 to copy the next character until we
+                        \ have copied the whole filename
+
+ JSR getzp_C              \ Call getzp to store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ELIF _COMPACT
+
+ LDA INWK+5,X           \ Copy the X-th byte of INWK+5 to the X-th byte of
+ STA DELI+7,X           \ DELI+7
+
+ DEX                    \ Decrement the loop counter
+
+ BPL DELL1_C              \ Loop back to DELL1 to copy the next character until we
+                        \ have copied the whole filename
+
+ JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+                        \ can use it, and store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ENDIF
+
+ LDX #LO(DELI)          \ Set (Y X) to point to the OS command at DELI, which
+ LDY #HI(DELI)          \ contains the DFS command for deleting this file
+
+ JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+                        \ deletes the file
+
+ JSR getzp_C              \ Call getzp to restore the top part of zero page from
+                        \ the buffer at &3000
+
+ JMP SVE_C                \ Jump to SVE to display the disc access menu and return
+                        \ from the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: SVE
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Display the disk access menu and process saving of commander files
+\  Deep dive: Commander save files
+\             The competition code
+\
+\ ******************************************************************************
+
+.SVE_C
+
+ TSX                    \ Transfer the stack pointer to X and store it in
+ STX stackpt            \ stackpt, so we can restore it in the NEWBRK routine
+
+ JSR TRADEMODE2_C         \ Set the palette for trading screens and switch the
+                        \ current colour to white
+
+ LDA #1                 \ Print extended token 1, the disc access menu, which
+ JSR DETOK_C              \ presents these options:
+                        \
+                        \   1. Load New Commander
+                        \   2. Save Commander {commander name}
+                        \   3. Catalogue
+                        \   4. Delete A File
+                        \   5. Default JAMESON
+                        \   6. Exit
+
+ JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+                        \ the ASCII code in A and X
+
+ CMP #'1'               \ Option 1 was chosen, so jump to loading to load a new
+ BEQ loading_C            \ commander
+
+ CMP #'2'               \ Option 2 was chosen, so jump to SV1 to save the
+ BEQ SV1_C                \ current commander
+
+ CMP #'3'               \ Option 3 was chosen, so jump to feb10 to catalogue a
+ BEQ feb10_C              \ disc
+
+ CMP #'4'               \ If option 4 wasn't chosen, skip the next two
+ BNE jan18_C              \ instructions
+
+ JSR DELT_C               \ Option 4 was chosen, so call DELT to delete a file
+
+ JMP SVE_C                \ Jump to SVE to display the disc access menu again and
+                        \ return from the subroutine using a tail call
+
+.jan18_C
+
+ CMP #'5'               \ If option 5 wasn't chosen, skip to feb13 to exit the
+ BNE feb13_C              \ menu
+
+ LDA #224               \ Print extended token 224 ("ARE YOU SURE?")
+ JSR DETOK_C
+
+ JSR YESNO_C              \ Call YESNO to wait until either "Y" or "N" is pressed
+
+ BCC feb13_C              \ If "N" was pressed, jump to feb13
+
+ JSR JAMESON_C            \ Otherwise "Y" was pressed, so call JAMESON to set the
+                        \ last saved commander to the default "JAMESON"
+                        \ commander
+
+ JMP DFAULT_C             \ Jump to DFAULT to reset the current commander data
+                        \ block to the last saved commander, returning from the
+                        \ subroutine using a tail call
+
+.feb13_C
+
+ CLC                    \ Option 5 was chosen, so clear the C flag to indicate
+                        \ that nothing was loaded
+
+ RTS                    \ Return from the subroutine
+
+.feb10_C
+
+ JSR CATS_C               \ Call CATS to ask for a drive number (or a directory
+                        \ name on the Master Compact) and catalogue that disc
+                        \ or directory
+
+ JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+                        \ the ASCII code in A and X
+
+ JMP SVE_C                \ Jump to SVE to display the disc access menu and return
+                        \ from the subroutine using a tail call
+
+.loading_C
+
+ JSR GTNMEW_C             \ If we get here then option 1 (load) was chosen, so
+                        \ call GTNMEW to fetch the name of the commander file
+                        \ to load (including drive number and directory) into
+                        \ INWK
+
+IF _SNG47
+
+ JSR GTDRV_C              \ Get an ASCII disc drive number from the keyboard in A,
+                        \ setting the C flag if an invalid drive number was
+                        \ entered
+
+ BCS jan2186_C            \ If the C flag is set, then an invalid drive number was
+                        \ entered, so return from the subroutine (as DELT-1
+                        \ contains an RTS)
+
+ STA lodosc+6           \ Store the ASCII drive number in lodosc+6, which is the
+                        \ drive character of the load filename string ":1.E."
+
+ENDIF
+
+ JSR LOD_C                \ Call LOD to load the commander file
+
+ JSR TRNME_C              \ Transfer the commander filename from INWK to NA%
+
+ SEC                    \ Set the C flag to indicate we loaded a new commander
+
+.jan2186_C
+
+ RTS                    \ Return from the subroutine
+
+.SV1_C
+
+ JSR GTNMEW_C             \ If we get here then option 2 (save) was chosen, so
+                        \ call GTNMEW to fetch the name of the commander file
+                        \ to save (including drive number and directory) into
+                        \ INWK
+
+ JSR TRNME_C              \ Transfer the commander filename from INWK to NA%
+
+ LSR SVC                \ Halve the save count value in SVC
+
+ LDA #4                 \ Print extended token 4, which is blank (this was where
+ JSR DETOK_C              \ the competition number was printed in older versions,
+                        \ but the competition was long gone by the time of the
+                        \ BBC Master version
+
+ LDX #NT%               \ We now want to copy the current commander data block
+                        \ from location TP to the last saved commander block at
+                        \ NA%+8, so set a counter in X to copy the NT% bytes in
+                        \ the commander data block
+
+.SVL1_C
+
+ LDA TP,X               \ Copy the X-th byte of TP to the X-th byte of NA%+8
+\STA &0B00,X            \
+ STA NA%+8,X            \ The STA is commented out in the original source
+
+ DEX                    \ Decrement the loop counter
+
+ BPL SVL1_C               \ Loop back until we have copied all the bytes in the
+                        \ commander data block
+
+\JSR CHECK2             \ These instructions are commented out in the original
+\                       \ source
+\STA CHK3
+
+ JSR CHECK_C              \ Call CHECK to calculate the checksum for the last
+                        \ saved commander and return it in A
+
+ STA CHK                \ Store the checksum in CHK, which is at the end of the
+                        \ last saved commander block
+
+ PHA                    \ Store the checksum on the stack
+
+ ORA #%10000000         \ Set K = checksum with bit 7 set
+ STA K
+
+ EOR COK                \ Set K+2 = K EOR COK (the competition flags)
+ STA K+2
+
+ EOR CASH+2             \ Set K+1 = K+2 EOR CASH+2 (the third cash byte)
+ STA K+1
+
+ EOR #&5A               \ Set K+3 = K+1 EOR &5A EOR TALLY+1 (the high byte of
+ EOR TALLY+1            \ the kill tally)
+ STA K+3
+
+ CLC                    \ Clear the C flag so the call to BPRNT does not include
+                        \ a decimal point
+
+ JSR TT67_C               \ Call TT67 twice to print two newlines
+ JSR TT67_C
+
+ PLA                    \ Restore the checksum from the stack
+
+ EOR #&A9               \ Store the checksum EOR &A9 in CHK2, the penultimate
+ STA CHK2               \ byte of the last saved commander block
+
+                        \ We now copy the current commander data block into the
+                        \ TAP% staging area, though this has no effect as we
+                        \ then ignore the result (this code is left over from
+                        \ the Apple II version)
+
+ LDY #NT%               \ Set a counter in X to copy the NT% bytes in the
+                        \ commander data block
+
+.copyme2_C
+
+ LDA NA%+8,Y            \ Copy the X-th byte of NA% to the X-th byte of TAP%
+ STA TAP%,Y
+
+ DEY                    \ Decrement the loop counter
+
+ BPL copyme2_C            \ Loop back until we have copied all the bytes in the
+                        \ commander data block
+
+IF _SNG47
+
+ JSR GTDRV_C              \ Get an ASCII disc drive number from the keyboard in A,
+                        \ setting the C flag if an invalid drive number was
+                        \ entered
+
+ BCS SVEX9_C              \ If the C flag is set, then an invalid drive number was
+                        \ entered, so skip the next two instructions
+
+ STA savosc+6           \ Store the ASCII drive number in savosc+6, which is the
+                        \ drive character of the save filename string ":1.E."
+
+ENDIF
+
+ JSR wfile_C              \ Call wfile to save the commander file
+
+.SVEX9_C
+
+ JSR DFAULT_C             \ Call DFAULT to reset the current commander data
+                        \ block to the last saved commander
+
+.SVEX_C
+
+ CLC                    \ Clear the C flag to indicate that no new commander
+                        \ file was loaded
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: GTDRV
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Get an ASCII disc drive number from the keyboard
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   A                   The ASCII value of the entered drive number ("0" to "3")
+\
+\   C flag              Clear if a valid drive number was entered (0-3), set
+\                       otherwise
+\
+\ ******************************************************************************
+
+.GTDRV_C
+
+ LDA #2                 \ Print extended token 2 ("{cr}WHICH DRIVE?")
+ JSR DETOK_C
+
+ JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+                        \ the ASCII code in A and X
+
+ ORA #%00010000         \ Set bit 4 of A, perhaps to avoid printing any control
+                        \ characters in the next instruction
+
+ JSR x4_CHPR               \ Print the character in A
+
+ PHA                    \ Store A on the stack so we can retrieve it after the
+                        \ call to FEED
+
+ JSR x4_FEED               \ Print a newline
+
+ PLA                    \ Restore A from the stack
+
+ CMP #'0'               \ If A < ASCII "0", then it is not a valid drive number,
+ BCC LOR_C                \ so jump to LOR to set the C flag and return from the
+                        \ subroutine
+
+ CMP #'4'               \ If A >= ASCII "4", then it is not a valid drive
+                        \ number, and this CMP sets the C flag, otherwise it is
+                        \ a valid drive number in the range 0-3, so clear it
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: LOD
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Load a commander file
+\
+\ ------------------------------------------------------------------------------
+\
+\ The filename should be stored at INWK, terminated with a carriage return (13).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   LOR                 Set the C flag and return from the subroutine
+\
+\ ******************************************************************************
+
+.LOD_C
+
+ JSR rfile_C              \ Call rfile to load the commander file to the TAP%
+                        \ staging area
+
+ LDA TAP%               \ If the first byte of the loaded file has bit 7 set,
+ BMI ELT2F_C              \ jump to ELT2F, as this is an invalid commander file
+                        \
+                        \ ELT2F contains a BRK instruction, which will force an
+                        \ interrupt to call the address in BRKV, which will
+                        \ print out the system error at ELT2F
+
+ LDY #NT%               \ We have successfully loaded the commander file to the
+                        \ TAP% staging area, so now we want to copy it to the
+                        \ last saved commander data block at NA%+8, so we set up
+                        \ a counter in Y to copy NT% bytes
+
+.copyme_C
+
+ LDA TAP%,Y             \ Copy the Y-th byte of TAP% to the Y-th byte of NA%+8
+ STA NA%+8,Y
+
+ DEY                    \ Decrement the loop counter
+
+ BPL copyme_C             \ Loop back until we have copied all NT% bytes
+
+.LOR_C
+
+ SEC                    \ Set the C flag
+
+ RTS                    \ Return from the subroutine
+
+.ELT2F_C
+
+ LDA #9                 \ Print extended token 9 ("{cr}{all caps}ILLEGAL ELITE
+ JSR DETOK_C              \ II FILE{sentence case}")
+
+ JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+                        \ the ASCII code in A and X
+
+ JMP SVE_C                \ Jump to SVE to display the disc access menu and return
+                        \ from the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: backtonormal
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Disable the keyboard, set the SVN flag to 0, and return with A = 0
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine is unused in this version of Elite (it is left over from the
+\ 6502 Second Processor version).
+\
+\ ******************************************************************************
+
+.backtonormal_C
+
+ RTS                    \ Return from the subroutine, as backtonormal does
+                        \ nothing in this version of Elite (it is left over from
+                        \ the 6502 Second Processor version)
+
+\ ******************************************************************************
+\
+\       Name: CLDELAY
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Delay by iterating through 5 * 256 (1280) empty loops
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine is unused in this version of Elite (it is left over from the
+\ 6502 Second Processor version).
+\
+\ ******************************************************************************
+
+.CLDELAY_C
+
+ RTS                    \ Return from the subroutine, as CLDELAY does nothing in
+                        \ this version of Elite (it is left over from the 6502
+                        \ Second Processor version)
+
+\ ******************************************************************************
+\
+\       Name: wfile
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Save the commander file
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine copies a commander file into the commbuf file buffer at &0E7E,
+\ and then saves it.
+\
+\ ******************************************************************************
+
+.wfile_C
+
+ LDY #NT%               \ We first want to copy the current commander data block
+                        \ to the commbuf file buffer so we can do a file save
+                        \ operation, so we set a counter in Y to copy the NT%
+                        \ bytes in the commander data block
+
+.wfileL1_C
+
+ LDA NA%+8,Y            \ Copy the Y-th byte of NA%+8 to the Y-th byte of the
+ STA commbuf,Y          \ commbuf file buffer
+
+ DEY                    \ Decrement the loop counter
+
+ BPL wfileL1_C            \ Loop back until we have copied all the bytes in the
+                        \ commander data block
+
+ LDA #0                 \ The save file is 256 bytes long but only NT% (76) of
+                        \ those contain data, so before we save we need to zero
+                        \ out the rest of the 256-byte block, so we set A = 0 to
+                        \ do this
+
+ LDY #NT%               \ Set an index in Y to point the byte after the end of
+                        \ the first NT% bytes in the commander data block
+
+.wfileL2_C
+
+ STA commbuf,Y          \ Zero the Y-th byte of the commbuf file buffer
+
+ INY                    \ Increment the loop counter
+
+ BNE wfileL2_C            \ Loop back until we have zeroed the rest of the
+                        \ 256-byte block
+
+ LDY #0                 \ Now we need to change the save command at savosc to
+                        \ contain the commander name as the filename, so set an
+                        \ index in Y so we can copy the commander name from NA%
+                        \ into the savosc command
+
+.wfileL3_C
+
+ LDA NA%,Y              \ Fetch the Y-th character of the commander name at NA%
+
+ CMP #13                \ If the character is a carriage return then we have
+ BEQ wfileL4_C            \ reached the end of the name, so jump to wfileL4 as we
+                        \ have now copied the whole name
+
+IF _SNG47
+
+ STA savosc+10,Y        \ Store the Y-th character of the commander name in the
+                        \ Y-th character of savosc+10, where savosc+10 points to
+                        \ the JAMESON part of the save command in savosc:
+                        \
+                        \   "SAVE :1.E.JAMESON  E7E +100 0 0"
+
+ELIF _COMPACT
+
+ STA savosc+5,Y         \ Store the Y-th character of the commander name in the
+                        \ Y-th character of savosc+5, where savosc+5 points to
+                        \ the JAMESON part of the save command in savosc:
+                        \
+                        \   "SAVE JAMESON  E7E +100 0 0"
+
+ENDIF
+
+ INY                    \ Increment the loop counter
+
+ CPY #7                 \ If Y < 7 then there may be more characters in the
+ BCC wfileL3_C            \ name, so loop back to wfileL3 to fetch the next one
+
+.wfileL4_C
+
+ LDA #' '               \ We have copied the name into the savosc command
+                        \ string, but the new name might be shorter than the
+                        \ previous one, so we now need to blank out the rest
+                        \ of the name with spaces, so we load the space
+                        \ character into A
+
+.wfileL5_C
+
+IF _SNG47
+
+ STA savosc+10,Y        \ Store the Y-th character of the commander name in the
+                        \ Y-th character of savosc+10, which will be directly
+                        \ after the last letter we copied above
+
+ELIF _COMPACT
+
+ STA savosc+5,Y         \ Store the Y-th character of the commander name in the
+                        \ Y-th character of savosc+5, which will be directly
+                        \ after the last letter we copied above
+
+ENDIF
+
+ INY                    \ Increment the loop counter
+
+ CPY #7                 \ If Y < 7 then we haven't yet blanked out the whole
+ BCC wfileL4_C            \ name, so loop back to wfileL4 to blank the next one
+                        \ until the save string is ready for use
+
+IF _SNG47
+
+ JSR getzp_C              \ Call getzp to store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ELIF _COMPACT
+
+ JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+                        \ can use it, and store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ENDIF
+
+ LDX #LO(savosc)        \ Set (Y X) to point to the OS command at savosc, which
+ LDY #HI(savosc)        \ contains the DFS command for saving the commander file
+
+ JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+                        \ saves the commander file
+
+ JMP getzp_C              \ Call getzp to restore the top part of zero page from
+                        \ the buffer at &3000 and return from the subroutine
+                        \ using a tail call
+
+\ ******************************************************************************
+\
+\       Name: rfile
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Load the commander file
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine loads a commander file into the commbuf file buffer at &0E7E, and
+\ then copies it to the TAP% staging area (though the latter is not used in this
+\ version, as it's left over from the Commodore 64 version).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   INWK+5              The filename, terminated by a carriage return
+\
+\ ******************************************************************************
+
+.rfile_C
+
+ LDY #0                 \ We start by changing the load command at lodosc to
+                        \ contain the filename that was just entered by the
+                        \ user, so we set an index in Y so we can copy the
+                        \ filename from INWK+5 into the lodosc command
+
+.rfileL3_C
+
+ LDA INWK+5,Y           \ Fetch the Y-th character of the filename
+
+ CMP #13                \ If the character is a carriage return then we have
+ BEQ rfileL4_C            \ reached the end of the filename, so jump to rfileL4 as
+                        \ we have now copied the whole filename
+
+IF _SNG47
+
+ STA lodosc+10,Y        \ Store the Y-th character of the filename in the Y-th
+                        \ character of lodosc+10, where lodosc+10 points to the
+                        \ JAMESON part of the load command in lodosc:
+                        \
+                        \   "LOAD :1.E.JAMESON  E7E"
+
+ELIF _COMPACT
+
+ STA lodosc+5,Y         \ Store the Y-th character of the filename in the Y-th
+                        \ character of lodosc+5, where lodosc+5 points to the
+                        \ JAMESON part of the load command in lodosc:
+                        \
+                        \   "LOAD JAMESON  E7E"
+
+ENDIF
+
+ INY                    \ Increment the loop counter
+
+ CPY #7                 \ If Y < 7 then there may be more characters in the
+ BCC rfileL3_C            \ name, so loop back to rfileL3 to fetch the next one
+
+.rfileL4_C
+
+ LDA #' '               \ We have copied the name into the lodosc command
+                        \ string, but the new name might be shorter than the
+                        \ previous one, so we now need to blank out the rest of
+                        \ the name with spaces, so we load the space character
+                        \ into A
+
+.rfileL5_C
+
+IF _SNG47
+
+ STA lodosc+10,Y        \ Store the Y-th character of the filename in the Y-th
+                        \ character of lodosc+10, which will be directly after
+                        \ the last letter we copied above
+
+ELIF _COMPACT
+
+ STA lodosc+5,Y         \ Store the Y-th character of the filename in the Y-th
+                        \ character of lodosc+5, which will be directly after
+                        \ the last letter we copied above
+
+ENDIF
+
+ INY                    \ Increment the loop counter
+
+ CPY #7                 \ If Y < 7 then we haven't yet blanked out the whole
+ BCC rfileL4_C            \ name, so loop back to rfileL4 to blank the next one
+                        \ until the load string is ready for use
+
+IF _SNG47
+
+ JSR getzp_C              \ Call getzp to store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ELIF _COMPACT
+
+ JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+                        \ can use it, and store the top part of zero page in the
+                        \ the buffer at &3000, as it gets corrupted by the MOS
+                        \ during disc access
+
+ENDIF
+
+ LDX #LO(lodosc)        \ Set (Y X) to point to the OS command at lodosc, which
+ LDY #HI(lodosc)        \ contains the DFS command for loading the commander
+                        \ file
+
+ JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+                        \ loads the commander file
+
+ JSR getzp_C              \ Call getzp to restore the top part of zero page from
+                        \ the buffer at &3000
+
+                        \ We now copy the newly loaded commander data block to
+                        \ the TAP% staging area, though this has no effect as we
+                        \ then ignore the result (this code is left over from
+                        \ the Commodore 64 version)
+
+ LDY #NT%               \ Set a counter in Y to copy the NT% bytes in the
+                        \ commander data block
+
+.rfileL1_C
+
+ LDA commbuf,Y          \ Copy the Y-th byte of the commbuf file buffer to the
+ STA TAP%,Y             \ Y-th byte of the TAP% staging area
+
+ DEY                    \ Decrement the loop counter
+
+ BPL rfileL1_C            \ Loop back until we have copied all the bytes in the
+                        \ newly loaded commander data block
+
+ RTS                    \ Return from the subroutine
+
+ RTS                    \ This instruction has no effect as we already returned
+                        \ from the subroutine
