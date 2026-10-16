@@ -9831,8 +9831,9 @@ ENDMACRO
                         \ Port: the product by quarter squares (the tables QSL
                         \ and QSH, elite-hi.asm), with exactly the original's
                         \ results: (A P) = |A| * (P AND 31) with A's sign (the
-                        \ shift-and-add only used bits 0-4 of P), X = T1 =
-                        \ |A| - 1, T = the sign, Y kept, C clear, N and Z from A
+                        \ shift-and-add only used bits 0-4 of P), T1 =
+                        \ |A| - 1, T = the sign, Y kept, N and Z from A (X and
+                        \ C are left differently, but no caller reads them)
 
  STA T                  \ Set T = A for now
 
@@ -9873,11 +9874,7 @@ ENDMACRO
  LDA QSH+1,X
  SBC QSH,Y
 
- LDX T1                 \ X = |A| - 1, as the original leaves it
-
  PLY                    \ Restore Y
-
- CLC                    \ Clear the C flag, as the original leaves it
 
  ORA T                  \ Give A the sign bit of the original argument A that
                         \ we stored in T
