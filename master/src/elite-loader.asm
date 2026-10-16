@@ -583,6 +583,52 @@ ENDIF
  LDA #&48               \ And finally &0D00 = PHA, which completes the handler
  STA &0D00
 
+                        \ Port: put the MOS's default back in the vectors at
+                        \ &0200-&0235 (from the demo port's loader, 538f3de). A
+                        \ ROM may have hooked one (the machine this was reported
+                        \ on hooks BYTEV through an extended vector), and a
+                        \ hook would then run on every call and could write its
+                        \ private workspace, a page of HAZEL (the table at
+                        \ &0DF0), which the renderer uses. Kept: BRKV and IRQ1V
+                        \ (&0202-&0205) and WRCHV (&020E-&020F), which the game
+                        \ sets itself, and the filing system vectors FILEV to
+                        \ FSCV (&0212-&021F), which must stay the DFS's for the
+                        \ disc access the game makes when docked. MOS 3.20 and
+                        \ 3.50 hold the default table's length at &FFB6 and its
+                        \ address at &FFB7
+
+ LDA &FFB7              \ Point VRL's LDA at the default vector table
+ STA VRL+1
+ LDA &FFB8
+ STA VRL+2
+ LDY &FFB6              \ Y = the table's length
+
+.VRL1
+
+ DEY                    \ Next byte, from the top down
+ BMI VRL4
+
+ CPY #&02               \ Keep BRKV and IRQ1V (&0202-&0205)
+ BCC VRL
+ CPY #&06
+ BCC VRL1
+ CPY #&0E               \ Keep WRCHV (&020E-&020F)
+ BEQ VRL1
+ CPY #&0F
+ BEQ VRL1
+ CPY #&12               \ Keep the filing system vectors (&0212-&021F)
+ BCC VRL
+ CPY #&20
+ BCC VRL1
+
+.VRL
+
+ LDA &FFFF,Y            \ Copy the default (the address is set above)
+ STA &0200,Y
+ BRA VRL1
+
+.VRL4
+
  CLI
 
  LDA #SBANK             \ Set the RAM copy of the currently selected paged ROM
