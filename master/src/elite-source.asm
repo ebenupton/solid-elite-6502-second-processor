@@ -9801,99 +9801,63 @@ ENDIF
 
 .MULTS
 
- TAX                    \ Set X = A, so now we can calculate P * X instead of
-                        \ P * A to get our result, and we can use the algorithm
-                        \ from MU11 to do that, just unrolled (as MU11 returns
-                        \ P * X)
+                        \ Port: the product by quarter squares (the tables QSL
+                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ results: (A P) = |A| * (P AND 31) with A's sign (the
+                        \ shift-and-add only used bits 0-4 of P), X = T1 =
+                        \ |A| - 1, T = the sign, Y kept, C clear, N and Z from A
 
- AND #%10000000         \ Set T to the sign bit of A
+ TAX                    \ Set T to the sign bit of A
+ AND #%10000000
  STA T
 
  TXA                    \ Set A = |A|
  AND #%01111111
 
  BEQ MU6                \ If A = 0, jump to MU6 to set P(1 0) = 0 and return
-                        \ from the subroutine using a tail call
 
- TAX                    \ Set T1 = X - 1
- DEX                    \
- STX T1                 \ We subtract 1 as the C flag will be set when we want
-                        \ to do an addition in the loop below
+ TAX                    \ Set T1 = X = |A| - 1
+ DEX
+ STX T1
 
- LDA #0                 \ Set A = 0 so we can start building the answer in A
+ PHY                    \ Keep Y
 
- LSR P                  \ Set P = P >> 1
-                        \ and C flag = bit 0 of P
+ LDA P                  \ Set P = b = P AND 31
+ AND #31
+ STA P
 
-                        \ We are now going to work our way through the bits of
-                        \ P, and do a shift-add for any bits that are set,
-                        \ keeping the running total in A, but instead of using a
-                        \ loop like MU11, we just unroll it, starting with bit 0
-
- BCC P%+4               \ If C (i.e. the next bit from P) is set, do the
- ADC T1                 \ addition for this bit of P:
-                        \
-                        \   A = A + T1 + C
-                        \     = A + X - 1 + 1
-                        \     = A + X
-
- ROR A                  \ Shift A right to catch the next digit of our result,
-                        \ which the next ROR sticks into the left end of P while
-                        \ also extracting the next bit of P
-
- ROR P                  \ Add the overspill from shifting A to the right onto
-                        \ the start of P, and shift P right to fetch the next
-                        \ bit for the calculation into the C flag
-
- BCC P%+4               \ Repeat the shift-and-add loop for bit 1
+ SEC                    \ Set X = b + |A| (< 256)
  ADC T1
- ROR A
- ROR P
+ TAX
 
- BCC P%+4               \ Repeat the shift-and-add loop for bit 2
- ADC T1
- ROR A
- ROR P
+ LDA P                  \ Set Y = |b - |A||
+ CLC
+ SBC T1
+ BCS mlt1
+ EOR #&FF
+ ADC #1
 
- BCC P%+4               \ Repeat the shift-and-add loop for bit 3
- ADC T1
- ROR A
- ROR P
+.mlt1
 
- BCC P%+4               \ Repeat the shift-and-add loop for bit 4
- ADC T1
- ROR A
- ROR P
+ TAY
 
- LSR A                  \ Just do the "shift" part for bit 5
- ROR P
+ LDA QSL,X              \ Set (A P) = (b + |A|)^2 / 4 - (b - |A|)^2 / 4
+ SEC                    \           = b * |A|
+ SBC QSL,Y
+ STA P
+ LDA QSH,X
+ SBC QSH,Y
 
- LSR A                  \ Just do the "shift" part for bit 6
- ROR P
+ LDX T1                 \ X = |A| - 1, as the original leaves it
 
- LSR A                  \ Just do the "shift" part for bit 7
- ROR P
+ PLY                    \ Restore Y
+
+ CLC                    \ Clear the C flag, as the original leaves it
 
  ORA T                  \ Give A the sign bit of the original argument A that
-                        \ we put into T above
+                        \ we stored in T
 
  RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MU6
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Set P(1 0) = (A A)
-\
-\ ------------------------------------------------------------------------------
-\
-\ In practice this is only called via a BEQ following an AND instruction, in
-\ which case A = 0, so this routine effectively does this:
-\
-\   P(1 0) = 0
-\
-\ ******************************************************************************
 
 .MU6
 
@@ -10067,90 +10031,76 @@ ENDIF
 
 .MU11
 
+                        \ Port: the product by quarter squares (the tables QSL
+                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ results: (A P) = P * X (X = 0: P * 256), T = X - 1,
+                        \ X = 0, Y kept, C clear (callers use it)
+
  DEX                    \ Set T = X - 1
- STX T                  \
-                        \ We subtract 1 as the C flag will be set when we want
-                        \ to do an addition in the loop below
+ STX T
 
- LDA #0                 \ Set A = 0 so we can start building the answer in A
+ INX                    \ If X = 0, jump to mu0 (the original treats X = 0 as
+ BEQ mu0                \ 256)
 
-\LDX #8                 \ This instruction is commented out in the original
-                        \ source
+ PHY                    \ Keep Y
 
- TAX                    \ Copy A into X. There is a comment in the original
-                        \ source here that says "just in case", which refers to
-                        \ the MU11 routine in the BBC Micro cassette and disc
-                        \ versions, which set X to 0 (as they use X as a loop
-                        \ counter)
-                        \
-                        \ The version here doesn't use a loop, but this
-                        \ instruction makes sure the unrolled version returns
-                        \ the same results as the loop versions, just in case
-                        \ something out there relies on MU11 returning X = 0
+ LDA P                  \ Set Y = |P - X|
+ CLC
+ SBC T
+ BCS mu4
+ EOR #&FF
+ ADC #1
 
- LSR P                  \ Set P = P >> 1
-                        \ and C flag = bit 0 of P
+.mu4
 
-                        \ We now repeat the following four instruction block
-                        \ eight times, one for each bit in P. In the BBC Micro
-                        \ cassette and disc versions of Elite the following is
-                        \ done with a loop, but it is marginally faster to
-                        \ unroll the loop and have eight copies of the code,
-                        \ though it does take up a bit more memory (though that
-                        \ isn't a big concern when you have a 6502 Second
-                        \ Processor)
+ TAY
 
- BCC P%+4               \ If C (i.e. bit 0 of P) is set, do the
- ADC T                  \ addition for this bit of P:
-                        \
-                        \   A = A + T + C
-                        \     = A + X - 1 + 1
-                        \     = A + X
-
- ROR A                  \ Shift A right to catch the next digit of our result,
-                        \ which the next ROR sticks into the left end of P while
-                        \ also extracting the next bit of P
-
- ROR P                  \ Add the overspill from shifting A to the right onto
-                        \ the start of P, and shift P right to fetch the next
-                        \ bit for the calculation into the C flag
-
- BCC P%+4               \ Repeat for the second time
+ LDA P                  \ Set X = P + X, with C set if it is 256 or more
+ SEC
  ADC T
- ROR A
- ROR P
+ TAX
 
- BCC P%+4               \ Repeat for the third time
- ADC T
- ROR A
- ROR P
+ BCS mu5                \ If P + X >= 256, jump to mu5 for the tables' upper
+                        \ halves
 
- BCC P%+4               \ Repeat for the fourth time
- ADC T
- ROR A
- ROR P
+ LDA QSL,X              \ Set (A P) = (P + X)^2 / 4 - (P - X)^2 / 4
+ SEC                    \           = P * X
+ SBC QSL,Y
+ STA P
+ LDA QSH,X
+ SBC QSH,Y
 
- BCC P%+4               \ Repeat for the fifth time
- ADC T
- ROR A
- ROR P
+ PLY                    \ Restore Y
 
- BCC P%+4               \ Repeat for the sixth time
- ADC T
- ROR A
- ROR P
-
- BCC P%+4               \ Repeat for the seventh time
- ADC T
- ROR A
- ROR P
-
- BCC P%+4               \ Repeat for the eighth time
- ADC T
- ROR A
- ROR P
+ LDX #0                 \ X = 0 and C clear, as the original leaves them
+ CLC
 
  RTS                    \ Return from the subroutine
+
+.mu5
+
+ LDA QSL+256,X          \ As above, with P + X - 256 in X
+ SEC
+ SBC QSL,Y
+ STA P
+ LDA QSH+256,X
+ SBC QSH,Y
+
+ PLY                    \ Restore Y
+
+ LDX #0                 \ X = 0 and C clear, as the original leaves them
+ CLC
+
+ RTS                    \ Return from the subroutine
+
+.mu0
+
+ LDA P                  \ (A P) = P * 256, C clear
+ STZ P
+ CLC
+
+ RTS                    \ Return from the subroutine
+
 
 \ ******************************************************************************
 \
@@ -10475,129 +10425,62 @@ ENDIF
 
 .MULT1
 
+                        \ Port: the product by quarter squares (the tables QSL
+                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ results: (A P) = |A| * |Q| with the sign of A EOR Q,
+                        \ T = the sign, Y kept; |Q| = 0: A = P = 0, X = the
+                        \ argument A, C = its bit 0, Z set; else X = 0, T1 =
+                        \ |Q| - 1, C clear, N and Z from A
+
  TAX                    \ Store A in X
 
- AND #%01111111         \ Set P = |A| >> 1
- LSR A                  \ and C flag = bit 0 of A
- STA P
-
- TXA                    \ Restore argument A
-
- EOR Q                  \ Set bit 7 of A and T if Q and A have different signs,
- AND #%10000000         \ clear bit 7 if they have the same signs, 0 all other
- STA T                  \ bits, i.e. T contains the sign bit of Q * A
+ EOR Q                  \ Set T to the sign bit of Q * A
+ AND #%10000000
+ STA T
 
  LDA Q                  \ Set A = |Q|
  AND #%01111111
 
- BEQ mu10               \ If |Q| = 0 jump to mu10 (with A set to 0)
+ BEQ mu10               \ If |Q| = 0 jump to mu10
+
+ PHY                    \ Keep Y
+
+ STX P                  \ Keep the argument A in P for now
 
  TAX                    \ Set T1 = |Q| - 1
- DEX                    \
- STX T1                 \ We subtract 1 as the C flag will be set when we want
-                        \ to do an addition in the loop below
+ DEX
+ STX T1
 
-                        \ We are now going to work our way through the bits of
-                        \ P, and do a shift-add for any bits that are set,
-                        \ keeping the running total in A. We already set up
-                        \ the first shift at the start of this routine, as
-                        \ P = |A| >> 1 and C = bit 0 of A, so we now need to set
-                        \ up a loop to sift through the other 7 bits in P
+ LDA P                  \ Set P = |A|
+ AND #%01111111
+ STA P
 
- LDA #0                 \ Set A = 0 so we can start building the answer in A
-
- TAX                    \ Copy A into X. There is a comment in the original
-                        \ source here that says "just in case", which refers to
-                        \ the MULT1 routine in the BBC Micro cassette and disc
-                        \ versions, which set X to 0 (as they use X as a loop
-                        \ counter)
-                        \
-                        \ The version here doesn't use a loop, but this
-                        \ instruction makes sure the unrolled version returns
-                        \ the same results as the loop versions, just in case
-                        \ something out there relies on MULT1 returning X = 0
-
-\.MUL4                  \ These instructions are commented out in the original
-\                       \ source. They contain the original loop version of the
-\BCC P%+4               \ code that's used in the BBC Micro cassette and disc
-\ADC T1                 \ versions
-\
-\ROR A
-\ROR P
-\
-\DEX
-\
-\BNE MUL4
-\
-\LSR A
-\ROR P
-\
-\ORA T
-\
-\RTS
-\
-\.mu10
-\
-\STA P
-\
-\RTS
-
-                        \ We now repeat the following four instruction block
-                        \ seven times, one for each remaining bit in P. In the
-                        \ BBC Micro cassette and disc versions of Elite the
-                        \ following is done with a loop, but it is marginally
-                        \ faster to unroll the loop and have seven copies of
-                        \ the code, though it does take up a bit more memory
-
- BCC P%+4               \ If C (i.e. the next bit from P) is set, do the
- ADC T1                 \ addition for this bit of P:
-                        \
-                        \   A = A + T1 + C
-                        \     = A + |Q| - 1 + 1
-                        \     = A + |Q|
-
- ROR A                  \ As mentioned above, this ROR shifts A right and
-                        \ catches bit 0 in C - giving another digit for our
-                        \ result - and the next ROR sticks that bit into the
-                        \ left end of P while also extracting the next bit of P
-                        \ for the next addition
-
- ROR P                  \ Add the overspill from shifting A to the right onto
-                        \ the start of P, and shift P right to fetch the next
-                        \ bit for the calculation
-
- BCC P%+4               \ Repeat for the second time
+ SEC                    \ Set X = |A| + |Q| (< 256)
  ADC T1
- ROR A
- ROR P
+ TAX
 
- BCC P%+4               \ Repeat for the third time
- ADC T1
- ROR A
- ROR P
+ LDA P                  \ Set Y = ||A| - |Q||
+ CLC
+ SBC T1
+ BCS mlt2
+ EOR #&FF
+ ADC #1
 
- BCC P%+4               \ Repeat for the fourth time
- ADC T1
- ROR A
- ROR P
+.mlt2
 
- BCC P%+4               \ Repeat for the fifth time
- ADC T1
- ROR A
- ROR P
+ TAY
 
- BCC P%+4               \ Repeat for the sixth time
- ADC T1
- ROR A
- ROR P
+ LDA QSL,X              \ Set (A P) = (|A| + |Q|)^2 / 4 - (|A| - |Q|)^2 / 4
+ SEC                    \           = |A| * |Q|
+ SBC QSL,Y
+ STA P
+ LDA QSH,X
+ SBC QSH,Y
 
- BCC P%+4               \ Repeat for the seventh time
- ADC T1
- ROR A
- ROR P
+ PLY                    \ Restore Y
 
- LSR A                  \ Rotate (A P) once more to get the final result, as
- ROR P                  \ we only pushed 7 bits through the above process
+ LDX #0                 \ X = 0 and C clear, as the original leaves them
+ CLC
 
  ORA T                  \ Set the sign bit of the result that we stored in T
 
@@ -10605,10 +10488,13 @@ ENDIF
 
 .mu10
 
- STA P                  \ If we get here, the result is 0 and A = 0, so set
-                        \ P = 0 so (A P) = 0
+ TXA                    \ The result is 0: as the original, C = bit 0 of the
+ LSR A                  \ argument A (still in X), A = P = 0 and Z set
+ LDA #0
+ STA P
 
  RTS                    \ Return from the subroutine
+
 
 \ ******************************************************************************
 \

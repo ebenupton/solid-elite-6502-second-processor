@@ -13,3 +13,33 @@
 
  INCLUDE "src/gfx-gstubs.asm"       \ stubs that page the frame layer in
  INCLUDE "src/gfx-hooks.asm"        \ the hooks in Elite's drawing code
+
+\ ******************************************************************************
+\
+\       Name: QSL, QSH
+\       Type: Variable
+\   Category: Maths (Arithmetic)
+\    Summary: Port: quarter squares for MULTS, MU11 and MULT1
+\
+\ ------------------------------------------------------------------------------
+\
+\ QSL and QSH are the low and high bytes of n^2 / 4 (rounded down) for n =
+\ 0..511, so a * b = QS(a + b) - QS(|a - b|) for 8-bit a and b. The
+\ multiplications that use them run in game context only (never with ACCCON
+\ X set, which would hide these tables).
+\
+\ ******************************************************************************
+
+ ALIGN &100
+
+.QSL
+
+FOR n, 0, 511
+ EQUB LO(n * n DIV 4)
+NEXT
+
+.QSH
+
+FOR n, 0, 511
+ EQUB HI(n * n DIV 4)
+NEXT
