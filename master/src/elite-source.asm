@@ -10505,21 +10505,18 @@ ENDMACRO
 
  PHY                    \ Keep Y
 
- STX P                  \ Keep the argument A in P for now
+ DEC A                  \ Set T1 = |Q| - 1
+ STA T1
 
- TAX                    \ Set T1 = |Q| - 1
- DEX
- STX T1
-
- LDA P                  \ Set P = |A|
+ TXA                    \ Set Y = |A| (Y is free, as it is saved on the stack)
  AND #%01111111
- STA P
+ TAY
 
  SEC                    \ Set X = |A| + |Q| (< 256)
  ADC T1
  TAX
 
- LDA P                  \ Set Y = ||A| - |Q||
+ TYA                    \ Set Y = ||A| - |Q||
  CLC
  SBC T1
  BCS mlt2
