@@ -47,7 +47,7 @@ ASSERT HZ_SCR_END <= &C2C0      \ DFS's lasting state is at &C2C0-&C2FF
 
 ORG &C300
 .HZ_START
-INCLUDE "src/gfx-gstubs.asm"
+INCLUDE "src/gfx-gvars.asm"
 INCLUDE "src/gfx-tramp.asm"
 INCLUDE "src/gfx-hooks.asm"
 INCLUDE "src/gfx-raster_hz.asm" \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
