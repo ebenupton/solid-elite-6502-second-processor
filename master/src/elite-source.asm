@@ -260,53 +260,12 @@
                         \ (this shares a location with LSX2 and is the address
                         \ used in the *SAVE and *LOAD OS commands)
 
- XX21 = &8000           \ The address of the ship blueprints lookup table, as
-                        \ set in elite-data.asm
+ INCLUDE "build/data-addresses.asm"
 
- E% = &8042             \ The address of the default NEWB ship bytes, as set in
-                        \ elite-data.asm
-
- KWL% = &8063           \ The address of the kill tally fraction table, as set
-                        \ in elite-data.asm
-
- KWH% = &8084           \ The address of the kill tally integer table, as set in
-                        \ elite-data.asm
-
- QQ18 = &A000           \ The address of the text token table, as set in
-                        \ elite-data.asm
-
- SNE = &A3C0            \ The address of the sine lookup table, as set in
-                        \ elite-data.asm
-
- ACT = &A3E0            \ The address of the arctan lookup table, as set in
-                        \ elite-data.asm
-
- TKN1 = &A400           \ The address of the extended token table, as set in
-                        \ elite-data.asm
-
-IF _SNG47
-
- RUPLA = &AF48          \ The address of the extended system description system
-                        \ number table, as set in elite-data.asm
-
- RUGAL = &AF62          \ The address of the extended system description galaxy
-                        \ number table, as set in elite-data.asm
-
- RUTOK = &AF7C          \ The address of the extended system description token
-                        \ table, as set in elite-data.asm
-
-ELIF _COMPACT
-
- RUPLA = &AF43          \ The address of the extended system description system
-                        \ number table, as set in elite-data.asm
-
- RUGAL = &AF5D          \ The address of the extended system description galaxy
-                        \ number table, as set in elite-data.asm
-
- RUTOK = &AF77          \ The address of the extended system description token
-                        \ table, as set in elite-data.asm
-
-ENDIF
+                        \ Port: the addresses of the game data (XX21, E%, KWL%,
+                        \ KWH%, QQ18, SNE, ACT, TKN1, RUPLA, RUGAL, RUTOK), as
+                        \ set in elite-data.asm, which build.sh assembles first
+                        \ and takes these from (they were constants here)
 
  HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
                         \ paged in while the game runs (bank 6 in the original)
