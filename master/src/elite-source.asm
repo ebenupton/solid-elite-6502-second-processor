@@ -7062,19 +7062,22 @@ ENDIF
                         \
                         \   (S R) = YY(1 0) = (A P) + y
 
- STA YY+1               \ First we do the low bytes with:
+ STA S                  \ First we do the low bytes with:
  LDA P                  \
- ADC SYL,Y              \   YY+1 = A
- STA YY                 \   R = YY = P + y_lo
- STA R                  \
+ ADC SYL,Y              \   S = A (temporarily)
+ STA R                  \   R = P + y_lo
+                        \
                         \ so we get this:
                         \
-                        \   (? R) = YY(1 0) = (A P) + y_lo
+                        \   (? R) = (A P) + y_lo
+                        \
+                        \ (YY(1 0) is not written here, as it is overwritten
+                        \ by STA YY+1 / STX YY after the ADD below before it
+                        \ is ever read)
 
  LDA Y1                 \ And then we do the high bytes with:
- ADC YY+1               \
- STA YY+1               \   S = YY+1 = y_hi + YY+1
- STA S                  \
+ ADC S                  \
+ STA S                  \   S = y_hi + S
                         \ so we get our result:
                         \
                         \   (S R) = YY(1 0) = (A P) + (y_hi y_lo)
