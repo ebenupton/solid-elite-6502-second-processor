@@ -362,26 +362,26 @@ ALIGN &100
   LDA r7_jr,X             \ plant the RTS after column R DIV 4
   STA RZ_PP
 .fl1
-  LDX R_DIRTYL0,Y
-  CPX #4
-  BCC slow
-  TXA
-  AND #&FC
+  LDA R_DIRTYL0,Y
+  AND #&FC                \ L AND &FC = 0 <=> L < 4
+  BEQ slow
   STA R_WL,Y
-  LDA r7_jl,X             \ enter at column L DIV 4
-  STA rj+1
+  TAX
+  LDA r7_jl,X             \ enter at column L DIV 4 (r7_jl(L AND &FC) = r7_jl(L))
+  STA fj+1
   LDA #&FF
 .fs1
   STA R_DIRTYL0,Y
   LDA r7_rp,Y
-  STA rj+2
+  STA fj+2
   STA RZ_PP+1
   LDA #&60
   STA (RZ_PP)
   LDA #0
 .fs2
   STA R_DIRTYR0,Y
-  JSR rj                  \ (the run keeps Y)
+.fj
+  JSR &FFFF               \ patched: straight into the row run (the run keeps Y)
   LDA #&99
   STA (RZ_PP)
 .fnx

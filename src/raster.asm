@@ -1963,10 +1963,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .r_jsr2_o
   JSR &FFFF
 .pb_norun_o
-  LDX R_XR
+  LDX R_XR                \ N = (XR >= &80)
+  BMI pb_rb_o
   LDY r_xo,X
-  CPX #&80
-  BCS pb_rb_o
   LDA (RZ_PA),Y
   EOR R_COLO
   AND r_rm,X
@@ -1977,9 +1976,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   INY
 .pb_ye_o
   CPY #0                  \ (patched: the end row)
-  BNE pb_c_o
-.pb_end_j
-  JMP pb_end
+.pb_end_j                 \ (also BEQ pb_end_j from the even half: Z = 1)
+  BEQ pb_end
 .pb_c_o
   STY RZ_Y
   TYA                     \ RZ_PA/RZ_PB lo = row AND 7
@@ -2017,6 +2015,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA (RZ_PB),Y
   BRA pb_l2_o
 .pb_rb_o
+  LDY r_xo,X
   LDA (RZ_PB),Y
   EOR R_COLO
   AND r_rm,X

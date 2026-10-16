@@ -6880,9 +6880,10 @@ ENDMACRO
  SBC T1
  BCC mvs5r              \ |S R| < |A P|, or high byte 0: rare, so let ADD
  BEQ mvs5r              \ redo the whole sum from scratch (exact results)
- ORA #%10000000         \ |S R| > |A P|: K+1 = A with the sign of S, as
- EOR T                  \ ADD's MU8s (its C = 0 is dead: the second half
- STA K+1                \ recomputes every flag)
+ BIT T1                 \ |S R| > |A P|: K+1 = A (0..127) with the sign of S,
+ BMI P%+4               \ i.e. the opposite of the sign of T1, as ADD's MU8s
+ ORA #%10000000         \ (C, V = 0 dead: the second half recomputes them)
+ STA K+1
  BRA mvs5h
 
 .mvs5r
@@ -6942,25 +6943,24 @@ ENDMACRO
  ROR P                  \ giving (A P) = +/- nosev_x / 16
 
                         \ BBC Master port: ADD inlined as in the second half,
-                        \ computing (A P) + (S R) exactly as ADD does (same T1,
-                        \ T), but storing straight into K(1 0) so X is never
+                        \ computing (A P) + (S R) exactly as ADD does (same T1;
+                        \ T is dead), but storing straight into K(1 0) so X is never
                         \ clobbered (Q is no longer written here: the callers
                         \ do STX Q after their last call, giving the same Q)
 
- STA T1                 \ ADD's prologue: T1 = A, T = sign of A, and jump to
- AND #%10000000         \ mvs5a if A and S have different signs
- STA T
- EOR S
- BMI mvs5a
+ STA T1                 \ ADD's prologue: T1 = A, and jump to mvs5a if A and
+ EOR S                  \ S have different signs (T is not needed: both paths
+ BMI mvs5a              \ get the sign from T1 or the carry instead)
 
  LDA R                  \ Same signs (ADD's first path):
  CLC                    \
  ADC P                  \   K = R + P
  STA K                  \
- LDA S                  \   K+1 = (S + T1 + C) OR T
- ADC T1
- ORA T
- STA K+1                \ Set K(1 0) = (1 - 1/512) * roofv_x +/- nosev_x / 16
+ LDA S                  \   K+1 = (S + T1 + C) OR sign, where the sign is
+ ADC T1                 \   the carry out (both negative: S, T1 >= &80 so
+ BCC P%+4               \   C = 1; both positive: S + T1 + C <= &7F+7+1, so
+ ORA #%10000000         \   C = 0)
+ STA K+1               \ Set K(1 0) = (1 - 1/512) * roofv_x +/- nosev_x / 16
 
 .mvs5h
 
@@ -8099,9 +8099,8 @@ ENDMACRO
  JSR MU8a               \ |S R| < |A P|: MU8's original way round
  BRA stl_b8w
 .stl_b8
- LDA R                  \ Inline MU8 (signs differ): X = R - P
- SEC
- SBC P
+ LDA R                  \ Inline MU8 (signs differ): X = R - P (C = 1 from
+ SBC P                  \ MLS1, which always returns with C set)
  TAX
  LDA S                  \ S, T1 have opposite signs, so A = &80 + (|S| - |T1|
  SBC T1                 \ - borrow) mod 256: N = 1 iff |S R| >= |A P|
@@ -18852,7 +18851,8 @@ ENDMACRO
  LDA SQ1H,Y
 .l51z4
  SBC SQ2H,Y             \ This never borrows, so the C flag is set
- STA Q
+ TAY                    \ Keep the product Q in Y (Y is free until the LDY
+                        \ SQ1H+129,X below, and Q is dead after LL51)
 
  TXA                    \ Set X = X + 6, using the C flag that the SBC above
  ADC #5                 \ always leaves set (so no CLC is needed); X is not
@@ -18861,14 +18861,14 @@ ENDMACRO
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
  EOR XX16+5-6,X
 
-                        \ Set (S A) = (S R) + (A Q), with LL38 inlined
+                        \ Set (S A) = (S R) + (A Y), with LL38 inlined
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
                         \             + |sidev_z| * z_lo
 
  EOR S                  \ If A and S have different signs, jump to l51d to
  BMI l51d               \ subtract
 
- LDA Q                  \ Set A = R + Q (the C flag is clear, as the ADC #5
+ TYA                    \ Set A = R + Y (the C flag is clear, as the ADC #5
  ADC R                  \ above gives X <= 18 without a carry)
 
 .l51c
@@ -18890,19 +18890,18 @@ ENDMACRO
 
 .l51d
 
- LDA R                  \ Set A = R - Q
- SEC
- SBC Q
+ TYA                    \ C is clear (ADC #5 above), so A = Y - R - 1 and
+ SBC R                  \ C is set iff Y > R (i.e. iff R - Y underflows);
+ EOR #%11111111         \ then A = ~(Y - R - 1) = R - Y (EOR keeps C)
 
- BCS l51c               \ If there was no underflow, A and S are correct
+ BCC l51c               \ If there was no underflow, A and S are correct
 
  LDA S                  \ Otherwise flip the sign of S
  EOR #%10000000
  STA S
 
- LDA R                  \ C is clear, so A = ~(R - Q - 1) = Q - R
- SBC Q
- EOR #%11111111
+ TYA                    \ C is still set, so A = Y - R
+ SBC R
 
  BRA l51c
 
@@ -33696,9 +33695,19 @@ INCLUDE "build/dashtab.asm"
  STA T                  \ T1 = A = 0 and T = sign of A = 0
  LDX R                  \ X = R + 0 = R
  LDA S                  \ If S is negative the signs differ (A's sign is 0),
- BMI MU8                \ so do it the full way in MU8 exactly as ADD would
+ BMI MADZn              \ so do what MU8 would do with P = T1 = T = 0 at MADZn
  CLC                    \ Otherwise ADDS gives A = S + 0 + 0 OR 0 = S, X = R,
  CLV                    \ N Z from S, C = 0, V = 0 (S + 0 cannot overflow)
+ RTS
+
+.MADZn
+
+ CLV                    \ MU8 with P = T1 = T = 0 gives X = R, V = 0 and: if
+ CMP #%10000000         \ S <> &80 or R <> 0, A = S, C = 0 (MU8s with A = S,
+ BNE MU8s               \ whose ORA/EOR T leave A = S, N = 1, Z = 0); if
+ CPX #0                 \ S = &80 and R = 0, A = 0, X = 0, C = 1, Z = 1, N = 0
+ BNE MU8s               \ (MU9). CMP/CPX leave C = 1, so TXA gives the latter
+ TXA
  RTS
 
 \ ******************************************************************************
