@@ -11312,7 +11312,7 @@ ENDMACRO
  SBC Q                  \
  ROL R                  \   R = 256 * A / Q
  BCS LL31new            \     = 256 * numerator / denominator
- JMP LL312new
+ BCC LL312new           \ Port: C is clear here, so this is a JMP
 
 .LL29new
 
@@ -11320,17 +11320,14 @@ ENDMACRO
  SEC
  ROL R
  BCS LL31new
- LDA R
 
 .LL312new
 
                         \ The result of our division is now in R, so we just
                         \ need to shift it back by the scale factor in Y
 
- LDA #0                 \ Set K(3 2 1) = 0 to hold the result (we populate K
- STA K+1                \ next)
- STA K+2
- STA K+3
+ STZ K+1                \ Set K(2 1) = 0 to hold the result (we populate K
+ STZ K+2                \ next; K+3 is set by every path below)
 
  TYA                    \ If Y is positive, jump to DV12
  BPL DV12
@@ -11338,6 +11335,8 @@ ENDMACRO
                         \ If we get here then Y is negative, so we need to shift
                         \ the result R to the left by Y places, and then set the
                         \ correct sign for the result
+
+ STZ K+3                \ Set K+3 = 0 for the shift below
 
  LDA R                  \ Set A = R
 
