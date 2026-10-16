@@ -115,3 +115,48 @@
  JMP G_PPOINT
 .hpc9
  RTS
+
+\ H_STAR: PIXEL2 has star Y's screen position in X = x, A = y and is about to
+\ fall into PIXEL; in record mode it is recorded straight into the
+\ rasteriser's arrays, by star index (R_SS: 2 = a dash, ZZ >= 80, 3 = a
+\ double-height dash, as PIXEL draws them; 0 = none), and PIXEL2 returns as
+\ PIXEL would: T1 = Y, C = (ZZ >= 80), N and Z from Y. Outside record mode
+\ A is restored and PIXEL draws it
+
+.H_STAR
+ STA R_SY,Y
+ LDA QQ11
+ ORA GFORCE
+ BNE hst9
+ PLA
+ PLA
+ TXA
+ STA R_SX,Y
+ LDA #2
+ LDX ZZ
+ CPX #80
+ BCS P%+4
+ LDA #3
+ STA R_SS,Y
+ STY T1
+ LDY T1
+ RTS
+.hst9
+ LDA R_SY,Y
+ RTS
+
+\ H_STAROFF: PIXEL2 found star Y off screen (entered by JMP, with C set and
+\ A = |Y1| compared with #Y): in record mode it is not on screen. Returns as
+\ PIXEL2's BCS PXR1 did
+
+.H_STAROFF
+ PHA
+ LDA QQ11
+ ORA GFORCE
+ BNE hso9
+ LDA #0
+ STA R_SS,Y
+.hso9
+ PLA
+ CMP #Y
+ RTS

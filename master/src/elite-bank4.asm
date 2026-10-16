@@ -2783,8 +2783,9 @@
  AND #%01111111         \ sign bit, so A = |Y1|
 
  CMP #Y                 \ If |Y1| >= #Y then it's off the screen (as #Y is half
- BCS PXR1               \ the screen height), so return from the subroutine (as
-                        \ PXR1 contains an RTS)
+ BCS PXOFF              \ the screen height), so return from the subroutine (Port:
+                        \ via H_STAROFF, gfx-hooks.asm, as the renderer records
+                        \ that it is off screen)
 
  LDA Y1                 \ Fetch the y-coordinate offset into A
 
@@ -2807,6 +2808,10 @@
 
                         \ Fall through into PIXEL to draw the stardust at the
                         \ screen coordinates in (X, A)
+
+ JSR H_STAR             \ Port: in record mode, record star Y's position for the
+                        \ renderer and return from PIXEL2 (gfx-hooks.asm),
+                        \ otherwise fall into PIXEL to draw it
 
 \ ******************************************************************************
 \
@@ -2961,6 +2966,10 @@
  LDY T1                 \ Restore Y from T1, so Y is preserved by the routine
 
  RTS                    \ Return from the subroutine
+
+.PXOFF
+
+ JMP H_STAROFF          \ Port: PIXEL2's star Y is off screen (gfx-hooks.asm)
 
 \ ******************************************************************************
 \

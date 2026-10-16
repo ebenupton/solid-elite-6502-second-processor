@@ -1985,8 +1985,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  RTS
 
 .f_stars                \ stars 1..NOSTM (NOSTM is only ever NOST = 18), recorded
- LDA #19                \ by the hooks straight into R_SX/R_SY/R_SS (R_SS = 0: none)
- STA R_SN
+ LDA #NOST+1            \ by the hooks straight into R_SX/R_SY/R_SS (R_SS = 0: none)
+ STA R_SN               \ (Master port: NOST = 20)
  JMP T_STARPLOT
 
 \ ------------------------------------------------------------------------------

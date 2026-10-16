@@ -174,7 +174,7 @@
 \ screen) come here (via G_DSTAR) to note it, so that f_unstar can remove it.
 \ Preserves X and Y; returns C set if it was clear.
 
-NDSTAR = 19             \ stars 1..NOSTM (NOSTM <= NOST = 18)
+NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 
 .F_DSTAR
  BCC fdzo
