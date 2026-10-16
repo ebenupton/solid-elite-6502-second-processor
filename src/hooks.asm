@@ -68,19 +68,24 @@
  TXA                    \ record mode: the RTS below returns from PIXEL2
  STA R_SX,Y
  LDX ZZ                 \ X = ZZ (X is dead after PIXEL2's record-mode return)
- LDA #1                 \ size 1 (ZZ >= 144), 2 (80..143), 3 (< 80)
- CPX #144
- BCS hst2
- INC A
- CPX #80
- BCS hst2
- INC A
-.hst2
+ CPX #144               \ size 1 (ZZ >= 144), 2 (80..143), 3 (< 80); each exit
+ BCC hst2               \ leaves A = ZZ (N, Z from it) and C = (ZZ >= 80), as
+ LDA #1                 \ PIXEL would leave them
  STA R_SS,Y
- TXA                    \ A = ZZ; C = (ZZ >= 80) already, as PIXEL would leave
- RTS                    \ it (BCS from CPX #144/#80 taken, or CPX #80 clear)
- EQUW 0                 \ pad: keeps raster_vars' arrays (abs,X/Y page
-                        \ crossings) at the same addresses
+ TXA
+ RTS
+.hst2
+ CPX #80
+ BCC hst3
+ LDA #2
+ STA R_SS,Y
+ TXA
+ RTS
+.hst3
+ LDA #3
+ STA R_SS,Y
+ TXA
+ RTS
 .hpxc
  LDA ZZ                 \ leave C = (ZZ >= 80) and A = ZZ as PIXEL would
  CMP #80
@@ -457,7 +462,7 @@
  PLA
  PLP
  RTS
- EQUB 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 \ padding: keeps raster_vars' tables (R_DIRTYL0/1, R_WL at &xx03) from moving to &xxFF and page-crossing on every indexed read
+ EQUB 0, 0 \ padding: keeps raster_vars' tables (R_DIRTYL0/1, R_WL at &xx03) from moving to &xxFF and page-crossing on every indexed read
 
 \ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
 \ curve (PLS22 calls PM_HOOK, in bank 4, which comes here). H_BPT: BLINE has

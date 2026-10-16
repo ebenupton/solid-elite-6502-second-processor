@@ -4357,15 +4357,9 @@ ENDMACRO
   CPY #0                  \ (CB + 1)
   BCS slow
   LDA RZ_TA
-  CMP #3
-  BNE f1
-  STX RZ_SA               \ (x for the second row at nx)
-  CPY R_CB                \ size 3: the second row inside too? (y + 1 <= CB)
-  BCS slow
-.f1
   CMP #2                  \ size 1: one pixel; 2, 3: two
-  LDA r_lm,X
   BCS two
+  LDA r_lm,X
   AND r_rm,X
 .msk
   STA RZ_SB               \ the mask
@@ -4408,10 +4402,17 @@ ENDMACRO
   INY
   BRA row
 .two
+  BEQ two2                \ (Z from CMP #2: size 2)
+  STX RZ_SA               \ (x for the second row at nx)
+  CPY R_CB                \ size 3: the second row inside too? (y + 1 <= CB)
+  BCS jslow
+.two2
+  LDA r_lm,X
   AND r_rm+1,X            \ two pixels: 0 only when split across bytes
   BNE msk                 \ (x AND 3 = 3: r_lm = &11, r_rm(x+1) = &88)
+.jslow
   JMP slow
-  SKIP 13                 \ (keeps r_strow onward, and r_ypg's page, in place)
+  SKIP 12                 \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).

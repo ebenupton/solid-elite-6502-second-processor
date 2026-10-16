@@ -7526,14 +7526,12 @@ ENDMACRO
  LDA K5+3               \ with the new point's y below; harmless on the
  STA XX15+3             \ first-call path, which never reads it)
 
- TXA                    \ Set K6(3 2) = (T X) + K4(1 0)
- ADC K4                 \             = y-coord of centre + y-coord of new point
- STA K6+2               \
- STA XX12               \ Also set XX12(1 0) = K6(3 2) for LL145 in BL1, and
- STA K5+2               \ K5(3 2) = K6(3 2) for the next call (as BL7 did)
- LDA K4+1               \ so K6(3 2) now contains the y-coordinate of the new
- ADC T                  \ point on the circle but as a screen coordinate, to go
- STA K6+3               \ along with the screen x-coordinate in K6(1 0)
+ TXA                    \ Set K5(3 2) = XX12(1 0) = (T X) + K4(1 0)
+ ADC K4                 \   = y-coord of centre + y-coord of new point, as a
+ STA XX12               \ screen coordinate: XX12 for LL145 in BL1, K5(3 2)
+ STA K5+2               \ for the next call (as BL7 did) and for F_PPOINT,
+ LDA K4+1               \ which reads the new point's y from K5(3 2) (K6(3 2)
+ ADC T                  \ is no longer written: nothing else reads it)
  STA XX12+1
  STA K5+3
 
@@ -18199,46 +18197,46 @@ ENDMACRO
  CMP Q                  \ If A >= Q then jump to TI4 to return a 1 with the
  BCS TI4                \ correct sign
 
- LDX #%11110000         \ Set T = %11110000 so that only the top 6 quotient
- STX T                  \ bits are generated: the 2nd/4th/6th ROLs shift out
-                        \ bits 6/4/2 (1,1,0) to end the loop after 6
-                        \ iterations, and bits 1-0 (zero) end up in bits 7-6,
-                        \ leaving T = quotient / 4 (the two low quotient bits
-                        \ are discarded by the /4 below anyway)
+ STZ T                  \ Set T = 0; the six fully-unrolled iterations below
+                        \ shift the top 6 quotient bits into bits 5-0 of T,
+                        \ leaving bits 7-6 clear, so T = quotient / 4 exactly
+                        \ as the old %11110000-sentinel loop produced
 
-.TIL2
-
- ASL A                  \ Shift A to the left
-
+ ASL A                  \ Iteration 1: shift A to the left
  CMP Q                  \ If A < Q skip the following subtraction
  BCC P%+4
+ SBC Q                  \ A >= Q (C set), so set A = A - Q (C stays set)
+ ROL T                  \ Catch the quotient bit into bit 0 of T
 
- SBC Q                  \ A >= Q, so set A = A - Q
-                        \
-                        \ Going into this subtraction we know the C flag is
-                        \ set as we passed through the BCC above, and we also
-                        \ know that A >= Q, so the C flag will still be set once
-                        \ we are done
-
- ROL T                  \ Rotate the counter in T to the left, and catch the
-                        \ result bit into bit 0 (which will be a 0 if we didn't
-                        \ do the subtraction, or 1 if we did)
-
-                        \ The loop is unrolled twice: the carry out of this
-                        \ first ROL is discarded by the ASL below, and the
-                        \ loop test uses the carry from the second ROL
-
- ASL A                  \ Second copy of the iteration
-
+ ASL A                  \ Iteration 2
  CMP Q
  BCC P%+4
-
  SBC Q
-
  ROL T
 
- BCS TIL2               \ If we still have set bits in T, loop back to TIL2 to
-                        \ do the next pair of iterations
+ ASL A                  \ Iteration 3
+ CMP Q
+ BCC P%+4
+ SBC Q
+ ROL T
+
+ ASL A                  \ Iteration 4
+ CMP Q
+ BCC P%+4
+ SBC Q
+ ROL T
+
+ ASL A                  \ Iteration 5
+ CMP Q
+ BCC P%+4
+ SBC Q
+ ROL T
+
+ ASL A                  \ Iteration 6
+ CMP Q
+ BCC P%+4
+ SBC Q
+ ROL T                  \ C = 0 here (bit 7 of T was 0), as after the old loop
 
                         \ T now holds the 8-bit quotient / 4; reduce to 0-96
                         \ by multiplying the quotient by 3/8

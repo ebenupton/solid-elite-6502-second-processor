@@ -606,13 +606,13 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
  \ save the zero page the rasteriser uses (&06-&27) and the frame layer's
  \ (&D2-&E1), unrolled
- FOR z, &06, &27
-  LDA z
-  STA f_zsave + z - &06
+ FOR z, &06, &27        \ (on the stack: LDA zp/PHA is a cycle cheaper than
+  LDA z                 \ LDA zp/STA abs; PLA/STA zp costs what LDA abs/STA zp
+  PHA                   \ did)
  NEXT
  FOR z, 0, 15
   LDA FZ + z
-  STA f_zsave + &22 + z
+  PHA
  NEXT
 
  BIT GMODE
@@ -661,13 +661,13 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_stars            \ stardust, on black only (last: erasing it next
                         \ time restores black, so it needs no WL/WR)
 
- FOR z, &06, &27         \ restore the zero page
-  LDA f_zsave + z - &06
-  STA z
- NEXT
- FOR z, 0, 15
-  LDA f_zsave + &22 + z
+ FOR z, 15, 0, -1        \ restore the zero page (pushed at ff1)
+  PLA
   STA FZ + z
+ NEXT
+ FOR z, &27, &06, -1
+  PLA
+  STA z
  NEXT
 
  SEI                    \ CPU back to main RAM, and flip at the next vsync
@@ -700,7 +700,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDY f_ysav
  RTS
 
-.f_zsave SKIP &22+16
+.f_zsave SKIP &22
+ SKIP 216               \ (spare)
 
 \ f_enter: switch from direct drawing to double buffering. Main RAM (buffer
 \ 0) has just been cleared by TT66 and holds the border; shadow RAM (buffer 1)
@@ -2522,9 +2523,9 @@ MAXPT = 140             \ points per frame
  STA F_PXL,Y
  LDA K6+1
  STA F_PXH,Y
- LDA K6+2
+ LDA K5+2               \ (BLINE leaves the new point's y in K5(3 2))
  STA F_PYL,Y
- LDA K6+3
+ LDA K5+3
  STA F_PYH,Y
  INY
  STY F_NPT
@@ -2540,20 +2541,23 @@ MAXPT = 140             \ points per frame
  STA R_NDF
  RTS
 
-.f_zerobounds           \ rows R_NDT..R_NDB: no boundaries yet
+.f_zerobounds           \ rows R_NDT..R_NDB: no boundaries yet (only caller
+                        \ fbd1, where f_bounds has checked R_NDT <= R_NDB)
+ LDY R_NDB
+ INY
+ STY fnb_e+1
  LDY R_NDT
- CPY R_NDB
- BEQ P%+4
- BCS fnb9
  LDA #0
 .fnb1
  STA R_NDN,Y
  STA R_NDP,Y
- CPY R_NDB
  INY
- BCC fnb1
+.fnb_e
+ CPY #0                 \ patched: R_NDB+1
+ BNE fnb1
 .fnb9
  RTS
+ EQUB 0                 \ pad: keeps what follows (F_TM onward) in place
 
 \ f_bounds: the planet's curves -> R_NDN/R_NDX0-3/R_NDP for rows
 \ R_NDT..R_NDB (which f_plrows has just set), and colour B
