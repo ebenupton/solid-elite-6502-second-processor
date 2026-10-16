@@ -515,6 +515,25 @@ ENDIF
  INC HZC+5
  DEY
  BNE HZC
+
+ ASSERT LOWLEN <= &0D00 - &0840 \ (never into page &0D)
+
+.LWC                    \ Port: and the low code from &4400 to &0840, exactly
+                        \ LOWLEN bytes (page &0D is off limits)
+ LDA &4400              \ (both addresses patched as the copy goes)
+ STA &0840
+ INC LWC+1
+ BNE P%+5
+ INC LWC+2
+ INC LWC+4
+ BNE P%+5
+ INC LWC+5
+ LDA LWC+4
+ CMP #LO(&0840+LOWLEN)
+ BNE LWC
+ LDA LWC+5
+ CMP #HI(&0840+LOWLEN)
+ BNE LWC
  CLI
 
  LDA #SBANK             \ Set the RAM copy of the currently selected paged ROM
@@ -656,6 +675,10 @@ ENDIF
  EQUB HOMEBANK, %00001001 \ RAM at &4000 (screen buffer A) and copied to HAZEL
  EQUW &4000, HZLEN      \ after the last disc access (see LDEND), as DFS uses
                         \ HAZEL
+
+ EQUW MESS13            \ LOWCODE: game code for main RAM &0840-&0CFF, staged
+ EQUB HOMEBANK, %00001001 \ at &4400 and copied into place with HAZEL (LDEND)
+ EQUW &4400, LOWLEN
 
  EQUW 0
 
@@ -1471,6 +1494,11 @@ ENDIF
 .MESS12
 
  EQUS "L.HAZEL FFFF1300"    \ Port: *LOAD HAZEL FFFF1300
+ EQUB 13
+
+.MESS13
+
+ EQUS "L.LOWCODE FFFF1300"  \ Port: *LOAD LOWCODE FFFF1300
  EQUB 13
 
 \ ******************************************************************************
