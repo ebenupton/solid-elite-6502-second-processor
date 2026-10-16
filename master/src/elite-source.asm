@@ -42829,12 +42829,46 @@ ENDIF
 
  INCBIN "build/BANK4D.bin"
 
+ INCLUDE "src/elite-stubs7.asm"     \ stubs into the cold area (far7, far7j)
+
  INCLUDE "src/elite-bank4.asm"
 
 .BANK4_END%
 
  PRINT "Bank 4: &8000-", ~BANK4_END%-1, " free ", &C000-BANK4_END%
  SAVE "build/BANK4.bin", &8000, &C000, &8000
+
+\ ******************************************************************************
+\
+\ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
+\ (&87): ANDY at &8000-&8FFF (elite-andy.asm) and sideways RAM bank 7 from
+\ &AC40 (elite-cold7.asm, after the stubs that lead out of the cold area).
+\ Bank 7 below &AC40 is kept for the renderer's cold code.
+\
+\ ******************************************************************************
+
+ CLEAR &8000, &C000
+ ORG &8000
+
+ INCLUDE "src/elite-andy.asm"
+
+.ANDY_END%
+
+ PRINT "ANDY: &8000-", ~ANDY_END%-1, " free ", &9000-ANDY_END%
+ ASSERT ANDY_END% <= &9000
+ SAVE "build/ANDY.bin", &8000, &9000, &8000
+
+ CLEAR &8000, &C000
+ ORG &AC40
+
+ INCLUDE "src/elite-coldstubs.asm"  \ stubs out of the cold area (far4, far4j)
+
+ INCLUDE "src/elite-cold7.asm"
+
+.COLD7_END%
+
+ PRINT "Bank 7 cold: &AC40-", ~COLD7_END%-1, " free ", &C000-COLD7_END%
+ SAVE "build/COLD7.bin", &AC40, &C000, &AC40
 
  PRINT "Addresses for the scramble routines in elite-checksum.py"
  PRINT "F% = ", ~F%

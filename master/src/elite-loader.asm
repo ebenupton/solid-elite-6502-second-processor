@@ -115,6 +115,10 @@ ENDIF
 
  SKIP 1                 \ Temporary storage, used in a number of places
 
+.LEN
+
+ SKIP 2                 \ Port: the number of bytes left to copy (FTAB)
+
  ORG &00F4              \ Set the assembly address to &00F4
 
 .LATCH
@@ -432,20 +436,30 @@ ENDIF
  LDA FTAB+5,X
  STA P+1
 
- LDY FTAB+6,X           \ (T Y) = the number of bytes, a non-zero multiple of
- LDA FTAB+7,X           \ 256 (Y = 0)
- STA T
+ LDA FTAB+6,X           \ LEN(1 0) = the number of bytes (non-zero)
+ STA LEN
+ LDA FTAB+7,X
+ STA LEN+1
 
 .LDC
 
- LDA (ZP),Y             \ Copy a page
- STA (P),Y
- INY
- BNE LDC
+ LDA (ZP)               \ Copy a byte
+ STA (P)
 
- INC ZP+1               \ Next page
+ INC ZP                 \ Next source byte
+ BNE P%+4
+ INC ZP+1
+
+ INC P                  \ Next destination byte
+ BNE P%+4
  INC P+1
- DEC T
+
+ LDA LEN                \ Count it off LEN(1 0)
+ BNE P%+4
+ DEC LEN+1
+ DEC LEN
+ LDA LEN
+ ORA LEN+1
  BNE LDC
 
  LDA #%00001001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
@@ -549,6 +563,14 @@ ENDIF
  EQUW MESS4             \ BANK4: Elite's home bank
  EQUB HOMEBANK, %00001001
  EQUW &8000, &4000
+
+ EQUW MESS5             \ ANDY: the cold area's first part, ANDY &8000-&8FFF
+ EQUB &87, %00001001
+ EQUW &8000, &1000
+
+ EQUW MESS6             \ COLD7: the cold area's second part, bank 7 &AC40-&BFFF
+ EQUB 7, %00001001      \ (above the space for the renderer's code there)
+ EQUW &AC40, &C000-&AC40
 
  EQUW 0
 
@@ -1324,6 +1346,16 @@ ENDIF
 .MESS4
 
  EQUS "L.BANK4 FFFF1300"    \ Port: *LOAD BANK4 FFFF1300
+ EQUB 13
+
+.MESS5
+
+ EQUS "L.ANDY FFFF1300"     \ Port: *LOAD ANDY FFFF1300
+ EQUB 13
+
+.MESS6
+
+ EQUS "L.COLD7 FFFF1300"    \ Port: *LOAD COLD7 FFFF1300
  EQUB 13
 
 \ ******************************************************************************
