@@ -1831,6 +1831,28 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   JMP pb_skip_e
+.pb_plant_e
+  TAY
+  LDA #r_opSTA
+  STA (RZ_PP)
+  STY RZ_PP
+  LDA #r_opRTS
+  STA (RZ_PP)
+  JMP pb_go_e
+.pb_lb_e
+  LDA (RZ_PB),Y
+  EOR R_COLE
+  AND r_lm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  JMP pb_l2_e
+.pb_rb_e
+  LDA (RZ_PB),Y
+  EOR R_COLE
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  JMP pb_skip_e
 .r_pb_e
   LDY RZ_Y
 .r_pbl1_e
@@ -1895,50 +1917,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   INC RZ_Y
   INC RZ_PA
   INC RZ_PB
-  JMP r_pb_o
-.pb_lb_e
-  LDA (RZ_PB),Y
-  EOR R_COLE
-  AND r_lm,X
-  EOR (RZ_PB),Y
-  STA (RZ_PB),Y
-  BRA pb_l2_e
-.pb_rb_e
-  LDA (RZ_PB),Y
-  EOR R_COLE
-  AND r_rm,X
-  EOR (RZ_PB),Y
-  STA (RZ_PB),Y
-  BRA pb_skip_e
-.pb_plant_e
-  TAY
-  LDA #r_opSTA
-  STA (RZ_PP)
-  STY RZ_PP
-  LDA #r_opRTS
-  STA (RZ_PP)
-  BRA pb_go_e
-.pb_one_o
-  LDY r_xo,X
-  LDA r_lm,X
-  LDX R_XR
-  AND r_rm,X
-  STA RZ_T7
-  CPX #&80
-  BCS pb_ob_o
-  LDA (RZ_PA),Y
-  EOR R_COLO
-  AND RZ_T7
-  EOR (RZ_PA),Y
-  STA (RZ_PA),Y
-  JMP pb_skip_o
-.pb_ob_o
-  LDA (RZ_PB),Y
-  EOR R_COLO
-  AND RZ_T7
-  EOR (RZ_PB),Y
-  STA (RZ_PB),Y
-  JMP pb_skip_o
 .r_pb_o
   LDY RZ_Y
 .r_pbl1_o
@@ -2007,6 +1985,27 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CMP #8
   BEQ pb_cr
   JMP r_pb_e
+.pb_one_o
+  LDY r_xo,X
+  LDA r_lm,X
+  LDX R_XR
+  AND r_rm,X
+  STA RZ_T7
+  CPX #&80
+  BCS pb_ob_o
+  LDA (RZ_PA),Y
+  EOR R_COLO
+  AND RZ_T7
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  JMP pb_skip_o
+.pb_ob_o
+  LDA (RZ_PB),Y
+  EOR R_COLO
+  AND RZ_T7
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  JMP pb_skip_o
 .pb_lb_o
   LDA (RZ_PB),Y
   EOR R_COLO
@@ -2028,7 +2027,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STY RZ_PP
   LDA #r_opRTS
   STA (RZ_PP)
-  BRA pb_go_o
+  JMP pb_go_o
 .pb_end
   LDA #r_opSTA            \ take the RTS out again
   STA (RZ_PP)
