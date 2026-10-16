@@ -8062,6 +8062,34 @@ ENDMACRO
  ORA T
  STA S
  BRA stl_b9
+                        \ BBC Master port: stq_n, stq_z and stl_slow are placed
+                        \ here (after an unconditional BRA) so that the hot
+                        \ branches BMI stq_n, BRA stq_q, BPL stl_same and BRA
+                        \ stl_done stay within their page
+.stq_n
+ AND #%01111111         \ Inline MULTS-2, negative case: A = |A|
+ BEQ stq_z              \ |A| = 0: (A P) = 0 via stq_z
+ TAX                    \ X = |A| (1..127)
+.stq_n1
+ LDA SQ1L,X             \ patched as stq_p1..stq_p4
+.stq_n2
+ CMP SQ2L+&FF,X
+.stq_n3
+ LDA SQ1H,X
+.stq_n4
+ SBC SQ2H+&FF,X
+ ORA #%10000000         \ Set the sign bit, as the argument was negative
+ BRA stq_q
+.stq_z
+ STA P+1                \ A = 0: as MSZ, set P+1 = 0 (P is dead), A = 0
+ BRA stq_q
+.stl_slow
+ STZ T                  \ ADD would have set T = sign of A = 0; T1, P, R, S
+ JSR MU8                \ intact, so (A X) = (A P) + (S R) as at ADD's BMI MU8
+ STA SX,Y               \ x_hi = A (SX is not read by PIX1/PIXEL2, which use
+ TXA                    \ X1, and XX+1 is dead: rewritten at the top of STL1)
+ STA SXL,Y              \ x_lo = X (overwrites the provisional value)
+ BRA stl_done
 .stl_b8z
  CPX #0                 \ High magnitude 0: X <> 0 -> |S R| > |A P|, so
  BNE stl_b8s            \ A = &80 EOR T via stl_b8s; else equal: A = T,
@@ -8155,30 +8183,6 @@ ENDMACRO
  BCC stl_slow           \ = 0, incl. equality) let MU8 do it from scratch
  STA SX,Y               \ x_hi = A
  BRA stl_done
-.stl_slow
- STZ T                  \ ADD would have set T = sign of A = 0; T1, P, R, S
- JSR MU8                \ intact, so (A X) = (A P) + (S R) as at ADD's BMI MU8
- STA SX,Y               \ x_hi = A (SX is not read by PIX1/PIXEL2, which use
- TXA                    \ X1, and XX+1 is dead: rewritten at the top of STL1)
- STA SXL,Y              \ x_lo = X (overwrites the provisional value)
- BRA stl_done
-.stq_n
- AND #%01111111         \ Inline MULTS-2, negative case: A = |A|
- BEQ stq_z              \ |A| = 0: (A P) = 0 via stq_z
- TAX                    \ X = |A| (1..127)
-.stq_n1
- LDA SQ1L,X             \ patched as stq_p1..stq_p4
-.stq_n2
- CMP SQ2L+&FF,X
-.stq_n3
- LDA SQ1H,X
-.stq_n4
- SBC SQ2H+&FF,X
- ORA #%10000000         \ Set the sign bit, as the argument was negative
- BRA stq_q
-.stq_z
- STA P+1                \ A = 0: as MSZ, set P+1 = 0 (P is dead), A = 0
- BRA stq_q
 .stl_same
  TAX                    \ Keep the high byte of (A P) (0..127) in X
  LDA R                  \ Same sign: x_lo = P + R (C = 0 from the ROL above)

@@ -1600,19 +1600,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA r_yend
 .e1
   STA RZ_T2               \ end row (exclusive)
-  CMP r_ystart
-  BEQ out
-  BCC out
   LDA R_PYL,Y
   CMP RZ_T2
-  BCS out
+  BCS out                 \ y0 >= end row
   CMP r_ystart
-  BCS e2
-  JMP clipped
-.out
-  RTS
+  BCC cl                  \ y0 < ystart (if y0 >= ystart then RZ_T2 > y0 >= ystart)
 .e2
-  STA RZ_T3               \ start row (A = y0 = R_PYL,Y, C = 1 from BCS e2)
+  STA RZ_T3               \ start row (A = y0 = R_PYL,Y, C = 1 from BCC cl not taken)
   EOR #&FF
   ADC R_PYL,X             \ dy = y1 - y0; C stays 1 (y1 > y0)
   STA RZ_T1               \ dy
@@ -1623,13 +1617,20 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCC neg
   CMP RZ_T1
   BCS pdiv
-  TAX                     \ steep, a = 0, b = dx
-  LDA #0
-  CPX #0
+  TAX                     \ steep, a = 0, b = dx (Z from TAX)
   BEQ z0
+  LDA #0
   JMP shallow
 .z0
-  JMP zloop
+  JMP zloop               \ A = X = 0
+.cl                       \ y0 < ystart: out if end row <= ystart, else clipped
+  LDA RZ_T2
+  CMP r_ystart
+  BEQ out
+  BCC out
+  JMP clipped
+.out
+  RTS
 .pdiv
   JSR r_dvq               \ A = r, r_m0 = q
   TAX
@@ -2611,10 +2612,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA R_NDISCR,X
 .^r_pt90 CMP r_sr,X
   BNE ch
-  LDA R_NDP,X
-.^r_pt91 EOR r_bdp,X
-  LSR A
-  BCS ch
+  LDA R_NDP,X             \ (R_NDP and r_bdp only ever hold 0 or 1)
+.^r_pt91 CMP r_bdp,X
+  BNE ch
   LDA R_NDN,X
 .^r_pt92 CMP r_bdn,X
   BNE ch
@@ -2641,9 +2641,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .sm
 .^r_pt88 LDA r_dl,X       \ unchanged: dirty? then repaint only the dirty part
   INC A
-  BEQ nx
-  INC r_dsub
-  BRA gd
+  BNE smd
 .nx
   INX
 .end
@@ -2661,6 +2659,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STX r_wt
 .e2
   RTS
+.smd
+  INC r_dsub
+  BRA gd
 .chb
 .^r_pt408 LDA r_dl,X
   INC A
@@ -4349,15 +4350,8 @@ ENDMACRO
   BCC slow
   CPX R_CR
   BCS slow
-  AND #3                  \ (two pixels split across bytes: the slow path)
-  CMP #3
-  BNE f0
-  LDA RZ_TA
-  CMP #2
-  BCS slow
-.f0
-  CPY R_CT
-  BCC slow
+  CPY R_CT                \ (two pixels split across bytes, x AND 3 = 3 with
+  BCC slow                \ size >= 2: caught by the mask being 0 at .two)
 .cb1
   CPY #0                  \ (CB + 1)
   BCS slow
@@ -4370,10 +4364,7 @@ ENDMACRO
 .f1
   CMP #2                  \ size 1: one pixel; 2, 3: two
   LDA r_lm,X
-  BCC one
-  AND r_rm+1,X
-  BRA msk
-.one
+  BCS two
   AND r_rm,X
 .msk
   STA RZ_SB               \ the mask
@@ -4417,6 +4408,11 @@ ENDMACRO
   LDX RZ_SA
   INY
   BRA row
+.two
+  AND r_rm+1,X            \ two pixels: 0 only when split across bytes
+  BNE msk                 \ (x AND 3 = 3: r_lm = &11, r_rm(x+1) = &88)
+  JMP slow
+  SKIP 9                  \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
