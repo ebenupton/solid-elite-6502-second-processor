@@ -46,3 +46,47 @@
 .var
  JSR far7
  EQUW var_C
+
+.DETOK
+ JSR far7
+ EQUW DETOK_C
+
+.MT13
+ JSR far7
+ EQUW MT13_C
+
+.MT14
+ JSR far7
+ EQUW MT14_C
+
+.MT15
+ JSR far7
+ EQUW MT15_C
+
+.MT2
+ JSR far7
+ EQUW MT2_C
+
+.PDESC
+ JSR far7
+ EQUW PDESC_C
+
+.TT27
+ JSR far7
+ EQUW TT27_C
+
+.TT68
+ JSR far7
+ EQUW TT68_C
+
+.cpl
+ JSR far7
+ EQUW cpl_C
+
+.ex
+ JSR far7
+ EQUW ex_C
+
+.plf
+ JSR far7
+ EQUW plf_C

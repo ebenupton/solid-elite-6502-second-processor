@@ -31,9 +31,6 @@
  JSR far4
  EQUW DELAY
 
-.x4_DETOK
- JSR far4
- EQUW DETOK
 
 .x4_DORND
  JSR far4
@@ -83,9 +80,6 @@
  JSR far4
  EQUW TT26
 
-.x4_TT27
- JSR far4
- EQUW TT27
 
 .x4_TT60
  JSR far4
@@ -103,9 +97,6 @@
  JSR far4
  EQUW TT69
 
-.x4_fwl
- JSR far4
- EQUW fwl
 
 .x4_msblob
  JSR far4
@@ -130,3 +121,47 @@
 .x4_spc
  JSR far4
  EQUW spc
+
+.x4_BPRNT
+ JSR far4
+ EQUW BPRNT
+
+.x4_BRIS
+ JSR far4
+ EQUW BRIS
+
+.x4_FILEPR
+ JSR far4
+ EQUW FILEPR
+
+.x4_MT16
+ JSR far4
+ EQUW MT16
+
+.x4_MT23
+ JSR far4
+ EQUW MT23
+
+.x4_MT26
+ JSR far4
+ EQUW MT26
+
+.x4_MT29
+ JSR far4
+ EQUW MT29
+
+.x4_OTHERFILEPR
+ JSR far4
+ EQUW OTHERFILEPR
+
+.x4_PAUSE
+ JSR far4
+ EQUW PAUSE
+
+.x4_PAUSE2
+ JSR far4
+ EQUW PAUSE2
+
+.x4_TT54
+ JSR far4
+ EQUW TT54

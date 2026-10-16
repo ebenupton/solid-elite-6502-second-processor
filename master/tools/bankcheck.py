@@ -15,6 +15,9 @@
 #    j4_name: JSR far4 / far4j : EQUW name), and never reads bank 4 data;
 #  * main and bank 4 code reach cold code only through stubs (JSR far7 /
 #    far7j : EQUW name_C), and never read cold data;
+#  * data in shadow RAM ("shadow": the extended tokens) is only read with
+#    ACCCON X set, by readers marked "bankcheck: ok"; other references to it
+#    must be immediate (#LO/#HI: its address);
 #  * a line with the comment "bankcheck: ok" is exempt (reviewed by hand).
 # Exit status 1 if any rule is broken.
 import re, sys
@@ -101,6 +104,10 @@ for f, a in FILES.items():
             if b is None or b == a or x in ("far4", "far4j", "far7", "far7j"):
                 continue                   # (the far-call code is callable from anywhere)
             where = "%s:%d" % (f, n)
+            if b == "shadow":
+                if not op.strip().startswith("#"):
+                    errors.append("%s: %s reads shadow RAM data %s outside a reader marked bankcheck: ok" % (where, a, x))
+                continue
             if mn in BRANCH:
                 errors.append("%s: branch from %s to %s %s" % (where, a, b, x))
             elif a == "cold":

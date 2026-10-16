@@ -246,22 +246,22 @@
                         \ and move the text cursor to the first cleared row
 
  LDA #204               \ Print recursive token 44 ("QUANTITY OF ")
- JSR x4_TT27
+ JSR TT27_C
 
  LDA QQ29               \ Print recursive token 48 + QQ29, which will be in the
  CLC                    \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
  ADC #208               \ prints the current item's name
- JSR x4_TT27
+ JSR TT27_C
 
  LDA #'/'               \ Print "/"
- JSR x4_TT27
+ JSR TT27_C
 
  JSR TT152_C              \ Print the unit ("t", "kg" or "g") for the current item
                         \ (as the call to TT151 above set QQ19+1 with the
                         \ appropriate value)
 
  LDA #'?'               \ Print "?"
- JSR x4_TT27
+ JSR TT27_C
 
  JSR x4_TT67               \ Print a newline
 
@@ -602,7 +602,7 @@
  STA XC
 
  LDA #205               \ Print recursive token 45 ("SELL")
- JSR x4_TT27
+ JSR TT27_C
 
  LDA #206               \ Print recursive token 46 (" CARGO{sentence case}")
  JSR x4_NLIN3              \ draw a horizontal line at pixel row 19 to box in the
@@ -680,7 +680,7 @@
  CLC                    \ Print recursive token 48 + QQ29, which will be in the
  LDA QQ29               \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
  ADC #208               \ prints the current item's name
- JSR x4_TT27
+ JSR TT27_C
 
  LDA #14                \ Move the text cursor to column 14, for the item's
  JSR x4_DOXC               \ quantity
@@ -705,10 +705,10 @@
                         \ source
 
  LDA #205               \ Print recursive token 45 ("SELL")
- JSR x4_TT27
+ JSR TT27_C
 
  LDA #206               \ Print extended token 206 ("{all caps}(Y/N)?")
- JSR x4_DETOK
+ JSR DETOK_C
 
  JSR gnum_C               \ Call gnum to get a number from the keyboard, which
                         \ will be the number of the item we want to sell,
@@ -810,10 +810,10 @@
  AND #3                 \ of which are blank in this version of Elite
  CLC
  ADC #111
- JSR x4_DETOK
+ JSR DETOK_C
 
  LDA #198               \ Print extended token 198, which is blank, but would
- JSR x4_DETOK              \ contain the text "LITTLE TRUMBLE" if the Trumbles
+ JSR DETOK_C              \ contain the text "LITTLE TRUMBLE" if the Trumbles
                         \ mission was enabled
 
  LDA TRIBBLE+1          \ If we have more than 256 Trumbles, skip to DOANS
@@ -854,7 +854,7 @@
                         \ instead and saved the above call to TT60, but you
                         \ just can't optimise everything
 
- JSR x4_fwl                \ Call fwl to print the fuel and cash levels on two
+ JSR fwl_C                \ Call fwl to print the fuel and cash levels on two
                         \ separate lines
 
  LDA CRGO               \ If our ship's cargo capacity is < 26 (i.e. we do not
@@ -862,7 +862,7 @@
  BCC P%+7               \ instructions
 
  LDA #107               \ We do have a cargo bay extension, so print recursive
- JSR x4_TT27               \ token 107 ("LARGE CARGO{sentence case} BAY")
+ JSR TT27_C               \ token 107 ("LARGE CARGO{sentence case} BAY")
 
  JMP TT210_C              \ Jump to TT210 to print the contents of our cargo bay
                         \ and return from the subroutine using a tail call
@@ -898,10 +898,10 @@
 
 .TT221_C
 
- JSR x4_TT27               \ Print the text token in A
+ JSR TT27_C               \ Print the text token in A
 
  LDA #206               \ Print extended token 206 ("{all caps}(Y/N)?")
- JSR x4_DETOK
+ JSR DETOK_C
 
  JSR x4_TT217              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A and X
@@ -978,7 +978,7 @@
  PLA                    \ Restore the item number
 
  ADC #208               \ Print recursive token 48 + A, which will be in the
- JSR x4_TT27               \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
+ JSR TT27_C               \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
                         \ prints the item's name
 
  LDA #14                \ Move the text cursor to column 14, for the price
@@ -1128,7 +1128,7 @@
 
  LDA #' '               \ Load a space character into A
 
- JMP x4_TT27               \ Print the text token in A and return from the
+ JMP TT27_C               \ Print the text token in A and return from the
                         \ subroutine using a tail call
 
 \ ******************************************************************************
@@ -1577,7 +1577,7 @@
  LDA XX13               \ Print recursive token 104 + XX13, which will be in the
  CLC                    \ range 105 ("FUEL") to 116 ("GALACTIC HYPERSPACE ")
  ADC #104               \ so this prints the current item's name
- JSR x4_TT27
+ JSR TT27_C
 
  LDA XX13               \ Call prx-3 to set (Y X) to the price of the item with
  JSR prx_C-3              \ number XX13 - 1 (as XX13 contains the item number + 1)
@@ -1770,7 +1770,7 @@
  JSR x4_spc                \ followed by a space
 
  LDA #31                \ Print recursive token 145 ("PRESENT")
- JSR x4_TT27
+ JSR TT27_C
 
 .err_C
 
@@ -2088,7 +2088,7 @@
  LDA YC                 \ Print recursive text token 80 + YC, so as YC goes from
  CLC                    \ 16 to 19, this prints "FRONT", "REAR", "LEFT" and
  ADC #80                \ "RIGHT"
- JSR x4_TT27
+ JSR TT27_C
 
  INC YC                 \ Move the text cursor down a row, and increment the
                         \ counter in YC at the same time

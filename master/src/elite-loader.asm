@@ -560,6 +560,10 @@ ENDIF
  EQUB HOMEBANK, %00001111
  EQUW &7000, &0F00
 
+ EQUW MESS7             \ TOKENS: the extended tokens, to shadow RAM &3100-&3EFF
+ EQUB HOMEBANK, %00001111
+ EQUW &3100, &0E00
+
  EQUW MESS4             \ BANK4: Elite's home bank
  EQUB HOMEBANK, %00001001
  EQUW &8000, &4000
@@ -1356,6 +1360,11 @@ ENDIF
 .MESS6
 
  EQUS "L.COLD7 FFFF1300"    \ Port: *LOAD COLD7 FFFF1300
+ EQUB 13
+
+.MESS7
+
+ EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
  EQUB 13
 
 \ ******************************************************************************
