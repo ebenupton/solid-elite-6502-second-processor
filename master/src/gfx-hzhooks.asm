@@ -1,8 +1,8 @@
 \ ******************************************************************************
 \
 \ gfx-hzhooks.asm - the hooks that must live in HAZEL: the text map's (CHPR
-\ runs with ACCCON X set, so main RAM above &3000 is hidden; split from
-\ gfx-hooks.asm)
+\ runs with ACCCON X set, so main RAM above &3000 is hidden) and the IRQ's
+\ (H_VSYNC); split from gfx-hooks.asm
 \
 \ ******************************************************************************
 
@@ -95,5 +95,33 @@
  JMP RR4
 .hdl9
  PLA
+ RTS
+
+
+\ H_VSYNC: called by IRQ1 at vertical sync (A only): a pending flip makes
+\ GPEND the front buffer; in direct mode the front buffer is shadow RAM
+\ (buffer 1); ACCCON D shows it (the timer 1 interrupt at the dashboard sets
+\ D = 1 again, as the dashboard is in shadow RAM). Only D is touched, so the
+\ main code's ACCCON X is kept
+
+.H_VSYNC
+ LDA GFLIP
+ BEQ hv0
+ LDA GPEND
+ STA GFRONT
+ STZ GFLIP
+.hv0
+ BIT GMODE
+ BMI hv1
+ LDA #1
+ STA GFRONT
+.hv1
+ LDA #1
+ BIT GFRONT
+ BEQ hv2
+ TSB &FE34
+ RTS
+.hv2
+ TRB &FE34
  RTS
 

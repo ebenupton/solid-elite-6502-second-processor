@@ -85,20 +85,20 @@
  BEQ fsy9
  STZ f_dtext
  PHX
- LDX #0
+ LDX #0                 \ (Master port: the direct-mode buffer is 1, shadow)
 .fsy2
  LDA F_TM,X
- STA F_SH0,X
+ STA F_SH1,X
  LDA F_TM+256,X
- STA F_SH0+256,X
+ STA F_SH1+256,X
  LDA F_TM+512,X
- STA F_SH0+512,X
+ STA F_SH1+512,X
  INX
  BNE fsy2
  LDX #23
 .fsy3
  LDA F_TMR,X
- STA F_SHR0,X
+ STA F_SHR1,X
  DEX
  BPL fsy3
  JSR f_tchall
@@ -113,6 +113,8 @@
 \ them, so any text drawn over them stays intact. Main RAM must be visible.
 
 .f_unstar
+ LDA #4                 \ (Master port: the stars were drawn into shadow RAM)
+ TSB &FE34
  LDY #NDSTAR-1
 .fus1
  LDA F_DSS,Y
@@ -163,11 +165,14 @@
 .fus9
  DEY
  BPL fus1
+ LDA #4
+ TRB &FE34
  RTS
 
 .f_ysav2 EQUB 0
-.f_twos  EQUB %10001000, %01000100, %00100010, %00010001
-.f_twos2 EQUB %11001100, %01100110, %00110011, %00110011 \ (AND DUSTC = &FF)
+.f_twos  EQUB %10001000 AND DUST, %01000100 AND DUST, %00100010 AND DUST, %00010001 AND DUST
+.f_twos2 EQUB %11001100 AND DUST, %01100110 AND DUST, %00110011 AND DUST, %00110011 AND DUST
+                        \ (Master port: TWOS2 AND DUST, as PIXEL draws stardust)
 
 \ F_DSTAR: outside record mode PIXEL2 draws star Y straight into main RAM;
 \ H_STAR (C set: hA = y, X = x, ZZ = distance) and H_STAROFF (C clear: off
@@ -184,12 +189,8 @@ NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
  STA F_DSY,Y
  TXA
  STA F_DSX,Y
- LDA ZZ                 \ size 1-3 as PIXEL draws it (non-zero: noted)
- CMP #144
- LDA #1
- BCS fdz1
- LDA ZZ
- CMP #80
+ LDA ZZ                 \ size 2-3 as Master's PIXEL draws it (non-zero:
+ CMP #80                \ noted)
  LDA #2
  BCS fdz1
  LDA #3

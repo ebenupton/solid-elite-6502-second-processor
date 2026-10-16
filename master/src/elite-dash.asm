@@ -14,7 +14,8 @@
 \ yellow), drawn by master/tools/dashboard.py, which also generates the
 \ colour, dot, bulb and missile tables (build/dashtab.asm) used here. It is
 \ in shadow RAM, like Master Elite's own dashboard, so these routines set
-\ ACCCON X while they write it (and run from bank 4, outside &3000-&7FFF).
+\ ACCCON X while they write it (and run from bank 4, outside &3000-&7FFF),
+\ with TSB and TRB, so that D (which buffer the IRQ shows) is kept.
 \ Colours are 2x2 dither cells, kept as a pair of bytes: the four pixels for
 \ even lines and for odd lines.
 \
@@ -42,33 +43,8 @@ DCN_MARK = 6            \ roll / pitch marker
 .dlmt                   \ the left n pixels of a byte, n = 0..3
  EQUB &00, &88, &CC, &EE
 
-.dpE    EQUB 0          \ the current colour pair (even, odd lines)
-.dpO    EQUB 0
-.dmk    EQUB 0          \ the current byte mask
-.dlo    EQUB 0          \ DSEG: byte range [dlo, dhi) of the indicator
-.dhi    EQUB 0
-.dsS    EQUB 0          \ DSEG: the segment [dsS, dsE) in pixels
-.dsE    EQUB 0
-.dl0    EQUB 0          \ DSEG: the first line and the number of lines
-.dln    EQUB 0
-.dcol   EQUB 0          \ DIL: the colour number
-.dtmp   EQUB 0
-.ddn    EQUB 0          \ ddot: lines to go
-.deq    EQUB 0          \ DSEG: the segment's end byte, pixels in it
-.der    EQUB 0
-.dsq    EQUB 0          \ DSEG: the segment's start byte, pixels from it on
-.dsr    EQUB 0
-.dme    EQUB 0          \ DSEG: the masked even-line byte, even EOR odd
-.dmx    EQUB 0
-.dsx    EQUB 0
-.dtv    EQUB 0
-.dK     EQUB 0          \ DIL: colour numbers for values >= dT and < dT
-.dK1    EQUB 0
-.dT     EQUB 0          \ DIL: the colour threshold (pixels)
-.dbank  EQUB 0, 0, 0, 0 \ the energy banks' bar lengths (32 per bank)
-.dX1    EQUB 0          \ the dot's x-coordinate (SCAN, DOT)
-.dlen   EQUB 0          \ SCAN: the stick's length (signed)
-.dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
+\ (The routines' scalar variables are in HAZEL, elite-gfx.asm: DASHV)
+
 
 \ ------------------------------------------------------------------------------
 \ DIALS: update the dashboard indicators, every iteration, as Master's DIALS.
@@ -80,8 +56,8 @@ DCN_MARK = 6            \ roll / pitch marker
 \ ------------------------------------------------------------------------------
 
 .DIALS
- LDA #%00001111         \ Shadow RAM at &3000-&7FFF (the dashboard), as Master
- STA VIA+&34            \ (and not Master's store to HAZEL &DDEB: HAZEL is the
+ LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard), as Master
+ TSB VIA+&34            \ (and not Master's store to HAZEL &DDEB: HAZEL is the
                         \ renderer's)
 
  LDA #&A0               \ SC(1 0) = &71A0: the speed indicator (right panel,
@@ -295,8 +271,8 @@ DCN_MARK = 6            \ roll / pitch marker
  LSR A
  JSR DIL
 
- LDA #%00001001         \ Main RAM back at &3000-&7FFF
- STA VIA+&34
+ LDA #4                 \ Main RAM back at &3000-&7FFF
+ TRB VIA+&34
 
  JMP COMPAS             \ and the compass, returning from there
 
@@ -698,8 +674,8 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA #246
  STA Y1
 
- LDY #%00001111         \ Shadow RAM at &3000-&7FFF (the dashboard)
- STY VIA+&34
+ LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard)
+ TSB VIA+&34
 
  LDX TYPE               \ X = the dot tables' index: 4 * class + (dX1 AND 3)
  LDA dtcls,X
@@ -777,8 +753,9 @@ DCN_MARK = 6            \ roll / pitch marker
  TAY
  LDX #0
  SEC
- LDA #%00001001         \ Main RAM back at &3000-&7FFF (A as Master leaves it)
- STA VIA+&34
+ LDA #4                 \ Main RAM back at &3000-&7FFF
+ TRB VIA+&34
+ LDA #%00001001         \ (A as Master leaves it, its ACCCON value)
  RTS
 
 .scndn                  \ down from the dot's lower line, X = -(length): lines
@@ -800,8 +777,9 @@ DCN_MARK = 6            \ roll / pitch marker
  TAY
  LDX #0
  CLC
+ LDA #4
+ TRB VIA+&34
  LDA #%00001001
- STA VIA+&34
  RTS
 
 \ ------------------------------------------------------------------------------
@@ -812,8 +790,8 @@ DCN_MARK = 6            \ roll / pitch marker
 \ ------------------------------------------------------------------------------
 
 .DOT
- LDA #%00001111         \ Shadow RAM at &3000-&7FFF (the dashboard)
- STA VIA+&34
+ LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard)
+ TSB VIA+&34
  LDA COMX
  STA X1
  CMP #186               \ dX1 = COMX kept inside the compass ring (186..204,
@@ -854,8 +832,9 @@ DCN_MARK = 6            \ roll / pitch marker
 .dot2
  LDA dtmp
  JSR ddot
- LDA #%00001001         \ Main RAM back at &3000-&7FFF
- STA VIA+&34
+ LDA #4                 \ Main RAM back at &3000-&7FFF
+ TRB VIA+&34
+ LDA #%00001001         \ (A as Master's DOT leaves it)
  RTS
 
 \ ------------------------------------------------------------------------------
@@ -874,8 +853,8 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA #&7A
  STA SC+1
  LDY #15
- LDA #%00001111
- STA VIA+&34
+ LDA #4
+ TSB VIA+&34
 .bul1
  LDA ECBT,Y
  EOR (SC),Y
@@ -890,8 +869,8 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA #&7B
  STA SC+1
  LDY #15
- LDA #%00001111
- STA VIA+&34
+ LDA #4
+ TSB VIA+&34
 .bul2
  LDA SPBT,Y
  EOR (SC),Y
@@ -899,8 +878,9 @@ DCN_MARK = 6            \ roll / pitch marker
  DEY
  BPL bul2
 .bul3
+ LDA #4
+ TRB VIA+&34
  LDA #%00001001
- STA VIA+&34
  RTS
 
 \ ------------------------------------------------------------------------------
@@ -943,8 +923,8 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA dmscolO,X
  STA dpO
 
- LDA #%00001111         \ Shadow RAM at &3000-&7FFF (the dashboard)
- STA VIA+&34
+ LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard)
+ TSB VIA+&34
  LDX #0                 \ X = the index into the shape's masks
  LDY #1                 \ Y = the line, 1 to 5
 .msb1
@@ -973,8 +953,9 @@ DCN_MARK = 6            \ roll / pitch marker
 
  LDX dsx                \ X preserved, Y = 0, as Master
  LDY #0
+ LDA #4
+ TRB VIA+&34
  LDA #%00001001
- STA VIA+&34
  RTS
 
 \ ------------------------------------------------------------------------------

@@ -4,9 +4,9 @@
 \ layer (after the Demonstration Disc port's src/hooks.asm)
 \
 \ Master port: these run in game context only, with ACCCON X clear, so they
-\ live in main RAM at &7200 (elite-hi.asm); the ones that run with X set are
-\ in HAZEL (gfx-hzhooks.asm). Elite's drawing routines call these with a
-\ single JSR at their start. "Record mode" is QQ11 = 0 (a view that draws ships) and GFORCE = 0:
+\ live in main RAM at &7200 (elite-hi.asm); the hooks that run with X set or
+\ from the IRQ are in HAZEL (gfx-hzhooks.asm). Elite's drawing routines call
+\ these with a single JSR at their start. "Record mode" is QQ11 = 0 (a view that draws ships) and GFORCE = 0:
 \ drawing is then recorded for FRAME instead of being done. A hook that takes
 \ over pulls its return address (PLA : PLA) so its RTS returns from the hooked
 \ routine itself.
@@ -142,7 +142,11 @@
  LDY T1
  RTS
 .hst9
- LDA R_SY,Y
+ LDA R_SY,Y             \ outside record mode PIXEL draws it: note where (in
+ STA hA                 \ shadow RAM, the direct-mode screen), so that the first
+ SEC                    \ frame in record mode can remove it (f_unstar)
+ JSR G_DSTAR
+ LDA hA
  RTS
 
 \ H_STAROFF: PIXEL2 found star Y off screen (entered by JMP, with C set and
@@ -153,13 +157,17 @@
  PHA
  LDA QQ11
  ORA GFORCE
- BNE hso9
+ BNE hso8
  LDA #0
  STA R_SS,Y
 .hso9
  PLA
  CMP #Y
  RTS
+.hso8
+ CLC                    \ outside record mode: star Y is no longer drawn
+ JSR G_DSTAR
+ BRA hso9
 \ H_EE31: LL9 has projected the ship (part 9, EE31); in record mode record it
 \ (and its laser beam if it is firing at us) instead of drawing its edges, and
 \ return from LL9. What LL9's parts 9 to 12 leave that the game reads is set

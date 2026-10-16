@@ -23,12 +23,6 @@
 \
 \ ******************************************************************************
 
-SINGLEBUF = 1           \ 1: the renderer draws into shadow RAM (buffer 1) only,
-                        \ which stays on show, so that Master's own drawing (EOR
-                        \ lines, pixels, text into the same screen, erased by
-                        \ drawing again) keeps working while the primitives
-                        \ move to the renderer one at a time; 0: double
-                        \ buffering (main RAM and shadow RAM, flipped at vsync)
 ACCY = 8                \ ACCCON bit Y: HAZEL at &C000-&DFFF
 MAXSH = 13              \ ships per frame
 MAXLN = 48              \ lines per frame
@@ -63,6 +57,37 @@ ASSERT P% <= RVBASE
 SKIP RVBASE - P%
 INCLUDE "src/gfx-raster_vars.asm"
 ASSERT R_DIRTYR0 = RVBASE + RVOFF
+\ The CMYK dashboard's scalar variables (elite-dash.asm), here for room in
+\ bank 4 (the dashboard routines run with ACCCON X set, so not main RAM above
+\ &3000)
+.DASHV
+.dpE    SKIP 1          \ the current colour pair (even, odd lines)
+.dpO    SKIP 1
+.dmk    SKIP 1          \ the current byte mask
+.dlo    SKIP 1          \ DSEG: byte range [dlo, dhi) of the indicator
+.dhi    SKIP 1
+.dsS    SKIP 1          \ DSEG: the segment [dsS, dsE) in pixels
+.dsE    SKIP 1
+.dl0    SKIP 1          \ DSEG: the first line and the number of lines
+.dln    SKIP 1
+.dcol   SKIP 1          \ DIL: the colour number
+.dtmp   SKIP 1
+.ddn    SKIP 1          \ ddot: lines to go
+.deq    SKIP 1          \ DSEG: the segment's end byte, pixels in it
+.der    SKIP 1
+.dsq    SKIP 1          \ DSEG: the segment's start byte, pixels from it on
+.dsr    SKIP 1
+.dme    SKIP 1          \ DSEG: the masked even-line byte, even EOR odd
+.dmx    SKIP 1
+.dsx    SKIP 1
+.dtv    SKIP 1
+.dK     SKIP 1          \ DIL: colour numbers for values >= dT and < dT
+.dK1    SKIP 1
+.dT     SKIP 1          \ DIL: the colour threshold (pixels)
+.dbank  SKIP 4 \ the energy banks' bar lengths (32 per bank)
+.dX1    SKIP 1          \ the dot's x-coordinate (SCAN, DOT)
+.dlen   SKIP 1          \ SCAN: the stick's length (signed)
+.dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
 .HZ_END
 PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
 ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00

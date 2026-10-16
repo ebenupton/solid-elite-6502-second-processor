@@ -13,7 +13,8 @@
 \ Variables shared between Elite, the IRQ handler and the graphics bank
 
 .GMODE   EQUB 0         \ bit 7 set: space mode (double buffered)
-.GFRONT  EQUB SINGLEBUF \ buffer displayed: 0 = main RAM (A), 1 = shadow (B)
+.GFRONT  EQUB 1         \ buffer displayed: 0 = main RAM (A), 1 = shadow (B, and
+                        \ Master's direct-mode screen)
 .GFLIP   EQUB 0         \ non-zero: show buffer GPEND at the next vsync
 .GPEND   EQUB 0
 .GACCX   EQUB 0         \ ACCCON X bit wanted by the main code (0 or 4)

@@ -112,10 +112,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA &06,X
  DEX
  BPL fin4
- LDA #ACCY+4            \ clear shadow RAM's screen (buffer 1)
- ORA GFRONT             \ (Master port: D as the front buffer)
- STA &FE34
- LDA #&40
+ LDA #4                 \ Master port: clear main RAM's screen (buffer 0);
+ TRB &FE34              \ shadow RAM's (buffer 1, Master's direct-mode screen,
+ LDA #&40               \ on show) is cleared by TTX66
  STA fin3+2
  LDA #0
  TAX
@@ -127,9 +126,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDY fin3+2
  CPY #&70
  BNE fin3
- LDA #ACCY
- ORA GFRONT
- STA &FE34
  LDA #0
  STA F_NSHIP
  STA F_NLINE
@@ -149,22 +145,22 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ cells in each row so empty rows cost nothing.
 \ ------------------------------------------------------------------------------
 
-.f_tmclear              \ clear the text map and buffer 0's shown map (buffer
- LDA #0                 \ 1 keeps its own: it still holds that picture)
- TAX
-.ftc1
+.f_tmclear              \ clear the text map and buffer 1's shown map (Master
+ LDA #0                 \ port: buffer 1, shadow RAM, is the direct-mode screen,
+ TAX                    \ which TTX66 blanks; buffer 0 keeps its own: it still
+.ftc1                   \ holds that picture)
  STA F_TM,X
  STA F_TM+256,X
  STA F_TM+512,X
- STA F_SH0,X
- STA F_SH0+256,X
- STA F_SH0+512,X
+ STA F_SH1,X
+ STA F_SH1+256,X
+ STA F_SH1+512,X
  INX
  BNE ftc1
  LDX #23
 .ftc2
  STA F_TMR,X
- STA F_SHR0,X
+ STA F_SHR1,X
  DEX
  BPL ftc2
  JMP f_tchall
@@ -337,25 +333,17 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ drawn directly (TT66): cancel double buffering, show and access main RAM.
 \ ------------------------------------------------------------------------------
 
-.f_direct0
-IF SINGLEBUF
- LDA #0                 \ Master port, single buffer (see elite-gfx.asm): the
- STA GMODE              \ shadow screen stays on show and Master's own drawing
- STA GSIGHT             \ owns ACCCON
- STA GLASV
-ELSE
- SEI
+.f_direct0              \ (Master port: direct mode shows shadow RAM, where
+ SEI                    \ Master's own drawing goes, buffer 1)
  LDA #0
  STA GMODE
  STA GFLIP
- STA GFRONT
- STA GACCX
  STA GSIGHT
  STA GLASV
- LDA #ACCY
- STA &FE34              \ ACCCON: HAZEL in, X = 0, D = 0
+ LDA #1
+ STA GFRONT
+ TSB &FE34              \ ACCCON D = 1: show shadow RAM (X as it is)
  CLI
-ENDIF
  STY f_ysav
  JSR f_tmclear
  LDX #23                \ the stars will be re-recorded too
@@ -671,14 +659,10 @@ ENDIF
  BNE ff2                \ no longer on screen
 
  LDA F_BACK             \ let the CPU see the back buffer at &4000-&6FFF
- ASL A
- ASL A
- STA GACCX
- SEI
- ORA GFRONT
- ORA #ACCY
- STA &FE34
- CLI
+ BEQ ffb0               \ (Master port: ACCCON X only, D is the IRQ's: the
+ LDA #4                 \ front buffer, and shadow RAM for the dashboard)
+ TSB &FE34
+.ffb0
 
  JSR T_STARERASE        \ undo last time's stars in this buffer
  JSR f_discs            \ the disc layer (sun or planet), incremental
@@ -701,19 +685,15 @@ ENDIF
   STA z
  NEXT
 
- SEI                    \ CPU back to main RAM, and flip at the next vsync
- STZ GACCX
- LDA GFRONT
- ORA #ACCY
- STA &FE34
-IF SINGLEBUF = 0        \ (single buffer: buffer 1 stays the back buffer and
- LDA F_BACK             \ on show)
+ LDA #4                 \ CPU back to main RAM, and flip at the next vsync
+ TRB &FE34
+ SEI
+ LDA F_BACK
  STA GPEND
  EOR #1
  STA F_BACK
  LDA #&FF
  STA GFLIP
-ENDIF
  CLI
 
 .f_reset
@@ -746,53 +726,35 @@ ENDIF
 \ incrementally by its next frame. Only the border is copied across.
 
 .f_enter
-IF SINGLEBUF
-                        \ Master port, single buffer: TTX66 has just cleared
- LDA #1                 \ buffer 1 (shadow RAM, on show) and drawn the border,
- STA F_BACK             \ so forget buffer 1's state
- STZ F_SGS+1
- JSR T_SETBUF
- JSR T_RESETBUF
- LDA #&FF
- STA F_DCOL+1
- LDA #0
- TAX
-.fes1
- STA F_SH1,X
- STA F_SH1+256,X
- STA F_SH1+512,X
- INX
- BNE fes1
- LDX #23
-.fes2
- STA F_SHR1,X
- DEX
- BPL fes2
- JSR f_tchall
- LDA #1
- STA GFRONT
- LDA #&80
- STA GMODE
- RTS
-ELSE
+                        \ Master port: direct mode draws into shadow RAM (buffer
+                        \ 1), which TTX66 has just cleared and given its border:
+                        \ forget buffer 1's state. Main RAM (buffer 0) still
+                        \ holds the last frame of the previous space-mode
+                        \ session, which its rasteriser state, disc colour and
+                        \ shown-text map still describe (direct mode never
+                        \ writes main RAM), so it is left alone and repaired
+                        \ incrementally by its next frame; only the border is
+                        \ copied across (main RAM has none after F_INIT)
  LDA #HI(&4000)         \ copy byte columns 0 and 63 of every line, and the
- STA fen1+2             \ whole of line 0, from main RAM to shadow RAM
+ STA fen1+2             \ whole of line 0, from shadow RAM to main RAM
  STA fen2+2
  LDA #HI(&41F8)
  STA fen5+2
  STA fen6+2
 .fen0
+ LDA #4
+ TSB &FE34              \ X = 1: shadow RAM
  LDX #7
 .fen1
  LDA &4000,X            \ column 0, lines 0-7 of this character row
  STA f_page,X
 .fen5
- LDA &41F8,X        \ column 63
+ LDA &41F8,X            \ column 63
  STA f_page+8,X
  DEX
  BPL fen1
- LDA #ACCY+4
- STA &FE34              \ X = 1: shadow RAM
+ LDA #4
+ TRB &FE34              \ X = 0: main RAM
  LDX #7
 .fen3
  LDA f_page,X
@@ -803,8 +765,6 @@ ELSE
  STA &41F8,X
  DEX
  BPL fen3
- LDA #ACCY
- STA &FE34
  LDA fen1+2
  CLC
  ADC #2
@@ -815,6 +775,8 @@ ELSE
  STA fen6+2
  CMP #&71
  BNE fen0
+ LDA #4
+ TSB &FE34
  LDX #0                 \ line 0: bytes 0, 8, 16, ... (every 8th byte of
 .fen7                   \ pages &40 and &41)
  LDA &4000,X
@@ -826,8 +788,8 @@ ELSE
  ADC #8
  TAX
  BNE fen7
- LDA #ACCY+4
- STA &FE34
+ LDA #4
+ TRB &FE34
 .fen8
  LDA f_page,X
  STA &4000,X
@@ -838,38 +800,33 @@ ELSE
  ADC #8
  TAX
  BNE fen8
- LDA #ACCY
- STA &FE34
 
- LDA #0                 \ buffer 0's state: empty (TT66 blacked it)
- STA F_SGS
+ LDA #1                 \ buffer 1's state: empty (TTX66 blacked it)
+ STA F_BACK
+ STZ F_SGS+1
  JSR T_SETBUF
  JSR T_RESETBUF
  LDA #&FF
- STA F_DCOL
+ STA F_DCOL+1
  LDA #0
  TAX
 .fen4
- STA F_SH0,X
- STA F_SH0+256,X
- STA F_SH0+512,X
+ STA F_SH1,X
+ STA F_SH1+256,X
+ STA F_SH1+512,X
  INX
  BNE fen4
  LDX #23
 .fen9
- STA F_SHR0,X
+ STA F_SHR1,X
  DEX
  BPL fen9
  JSR f_tchall
- LDA #1
- STA F_BACK
- LDA #0
- STA GFRONT
- STA GFLIP
+ STZ F_BACK             \ buffer 1 is on show: draw into buffer 0 first
+ STZ GFLIP
  LDA #&80
  STA GMODE
  RTS
-ENDIF
 
 .f_page SKIP 512
 

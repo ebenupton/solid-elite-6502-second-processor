@@ -2743,7 +2743,14 @@ ENDIF
                         \ boundary). The whole screen is now one MODE 1 screen
                         \ in one CMYK palette, set once by the loader, so there
                         \ is no switch to mode 2 and no dashboard palette (nor
-                        \ the escape pod's tint of it) here any more
+                        \ the escape pod's tint of it) here any more. The space
+                        \ view is double buffered (main or shadow RAM, shown at
+                        \ vsync by H_VSYNC), and the dashboard is in shadow RAM:
+                        \ show shadow RAM from here to the end of the frame
+                        \ (ACCCON D = 1, X as it is)
+
+ LDA #1
+ TSB VIA+&34
 
 IF _COMPACT
 
@@ -2809,6 +2816,9 @@ ENDIF
                         \ 1 MHz (as before; Port: no mode or palette change
                         \ follows, so HFX, the hyperspace effect's mode 2
                         \ colours, no longer has any effect here)
+
+ JSR H_VSYNC            \ Port: the renderer's flip: show the front buffer
+                        \ (ACCCON D; gfx-hooks.asm)
 
  PHX                    \ Call SOINT to send the current sound data to the
  JSR SOINT              \ 76489 sound chip, stashing X on the stack so it gets
@@ -3175,10 +3185,14 @@ IF _COMPACT
 
 ENDIF
 
- LDY #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STY VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
-
  TAY                    \ Set Y = the character to be printed
+
+ LDA #4                 \ Set bit 2 (X) of the Access Control Register at
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+                        \ (Port: keeping D, which buffer the IRQ shows)
+
+ TYA                    \ (A and the flags from the character, as the TAY left
+                        \ them)
 
 IF _SNG47
 
@@ -3460,8 +3474,9 @@ IF _SNG47
  JSR TTX66M             \ Otherwise we are off the bottom of the screen, so
                         \ clear the screen and draw a border box
 
- LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ LDA #4                 \ Set bit 2 (X) of the Access Control Register at
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+                        \ (Port: keeping D)
 
 ELIF _COMPACT
 
@@ -3621,8 +3636,9 @@ ENDIF
 
 .RR4
 
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #4                 \ Clear bit 2 (X) of the Access Control Register at
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+                        \ (Port: keeping D)
 
  PLX                    \ We're done printing, so restore the values of the
  PLY                    \ A, X and Y registers that we saved above and clear the
