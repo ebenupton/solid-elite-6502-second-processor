@@ -6088,6 +6088,8 @@ ENDIF
  BNE BOMBR1             \ view), return from the subroutine (as BOMBR1 contains
                         \ an RTS)
 
+ JSR H_BOMB             \ Port: a new bolt for the renderer (gfx-hooks.asm)
+
  LDY #1                 \ We now want to loop through the 10 (BOMBTBX, BOMBTBY)
                         \ coordinates, drawing a total of 9 lines between them
                         \ to make the lightning effect, so set an index in Y
@@ -6127,7 +6129,8 @@ ENDIF
                         \ line will be the end point of this line, making the
                         \ zig-zag lines all join up like a lightning bolt
 
- JSR LOIN               \ Draw a line from (X1, Y1) to (X2, Y2)
+ JSR H_LLINE            \ Draw a line from (X1, Y1) to (X2, Y2) (Port: recorded
+                        \ for the renderer in record mode, gfx-hooks.asm)
 
  INY                    \ Increment the loop counter
 

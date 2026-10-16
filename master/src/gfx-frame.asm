@@ -495,6 +495,21 @@ ENDIF
 
 \ F_LINE: record a line X1,Y1 -> X2,Y2 in colour GLCOL (8-bit screen coords)
 
+.F_BOMB                 \ Master port: a new energy bomb bolt: drop the lines of
+ BIT f_bomb             \ the bolt recorded earlier in this frame, if any
+ BPL fbo1
+ LDA f_bmark
+ STA F_NLINE
+ RTS
+.fbo1
+ LDA F_NLINE
+ STA f_bmark
+ LDA #&FF
+ STA f_bomb
+ RTS
+.f_bomb  EQUB 0
+.f_bmark EQUB 0
+
 .F_LINE
  LDX F_NLINE
  CPX #MAXLN
@@ -704,6 +719,7 @@ ENDIF
 .f_reset
  LDA #0                 \ empty the per-frame lists
  STA GLASV              \ (Master port: the beams show for one frame per LASLI)
+ STA f_bomb             \ (and no bomb bolt yet)
  STA PM_OK
  STA F_NSHIP
  STA F_NLINE

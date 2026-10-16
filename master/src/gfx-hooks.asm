@@ -510,3 +510,26 @@
  PLA
  PLA
  RTS
+
+\ The energy bomb's lightning: BOMBOFF draws nine lines with LOIN (EOR), and
+\ is called again with the same coordinates to remove them. In record mode
+\ H_BOMB (at BOMBOFF, in the space view) tells the frame layer that a new bolt
+\ starts, so only the last one recorded in a frame is drawn, and H_LLINE
+\ records each line instead of drawing it (Y kept, as LOIN keeps it)
+
+.H_BOMB
+ LDA QQ11
+ ORA GFORCE
+ BNE hbm9
+ JMP G_BOMB
+.hbm9
+ RTS
+
+.H_LLINE
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+5
+ JMP LOIN
+ LDA #FC_PLINE
+ STA GLCOL
+ JMP G_LINE
