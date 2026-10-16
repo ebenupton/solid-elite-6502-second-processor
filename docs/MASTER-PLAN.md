@@ -373,3 +373,47 @@ moved.
   x4_SCAN, ...). Docked screens drawing directly through the renderer's
   direct routines in raster7 (bank 7 below &AC40) must unpage ANDY first if
   those routines are at &8000-&8FFF.
+
+## Stage C: done (renderer, docked screens, disc glue)
+
+All of Stage C's steps are in, one commit each (git log 8aed22a..): layer
+files; loader checks of banks 4-7 and its 1770/NMI and vector defences; the
+CMYK MODE 1 dashboard (no IRQ palette change); the frame loop with the
+filled planet (disc and craters), stardust, ships with filled faces for all
+33 blueprints (tools/faces.py, depth sorted), explosion particles, lasers,
+the energy bomb, the text overlay, laser sights, the sun; double buffering
+(buffer 0 main RAM, buffer 1 shadow RAM, flipped at vsync); save, load,
+catalogue and delete through DOSCLI (HAZEL scratch invalidation, the minimal
+NMI handler put back after each command and on the error path); the
+hangar's ships drawn directly (GFORCE).
+
+Checked visually (harness/mdocked.mjs, harness/mevent.mjs, mshots.mjs
+--seedfile): title, status, buy, sell, equip, galactic and short range
+charts, data, market, inventory, the docking tunnel and hangar, the three
+mission briefings and debriefings, the escape pod, death ("GAME OVER"),
+hyperspace, the disc menu (save, load, a load error, catalogue). The docked
+and static screens are Master's own drawing (into buffer 1, with the CMYK
+palette); their layout matches the reference's.
+
+Known differences and open items:
+
+* Planet meridians (the beach ball) are not drawn (G_MERID returns): the
+  planet is a disc, with craters for crater planets.
+* The sun is a clean filled disc (no flickering fringe).
+* Face colour issues in harness/mshipshow.mjs's gallery (some faces of the
+  asteroid, rock hermit, Adder, Cougar; the shuttle, Gecko and Dodo too
+  small to show at the gallery's distances).
+* The death screen keeps the border's two top corner bytes.
+* The dashboard's first character row is drawn only in shadow RAM; main RAM
+  has a static copy for a late split.
+
+### Speed (Stage C, master/verify.sh 10000)
+
+The ratio fell to 0.897 when double buffering went in and has been brought
+back to 0.985 (4effed8): disc rows writing only the old/new difference
+without fallback, clipped disc spans without f_clamp, quarter-square
+multiplication (MULTS, MU11, MULT1, MULT3, MLTU2; bit-exact, checked with
+py65 in master/tools/multest), PIX1 not drawing in record mode. By phase:
+combat 1.59, hyperspace 1.52, approach 0.87 (big planets and the station
+close-up are the slow windows: 0.6 at worst). Speed recovery is a later
+stage (by the user's direction); candidates are listed in the final report.

@@ -233,3 +233,28 @@ The table below was the plan before the moves:
 
 The relocated build's measured layout and its speed against the reference
 are recorded in docs/MASTER-PLAN.md (Stage B results).
+
+### As built (Stage C, measured from build/compile.txt)
+
+| Region | Contents | Free |
+|---|---|---|
+| &0840-&0CBF | low code: DOKEY, DK4, TIDY, TIS2/3, DVIDT, DOCKIT, TAS*, DCS1, HITCH, FRS1, FRMIS, ANGRY, FR1; the loader's NMI code | 63 |
+| &0D00-&0DFF | off limits (DFS NMI, extended vectors, ROM workspace); the minimal NMI handler at &0D00 | - |
+| main &1300-&3F9A | flight code and data (BCODE); MULTS, MU11, MULT1, MULT3, MLTU2 by quarter squares | 101 |
+| main &4000-&6FFF | buffer 0 (main RAM) | - |
+| main &7000-&71FF | the dashboard's first character row (copy, for a late split) | - |
+| main &7200-&75FF | hi code: the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks) | (in &7A00-&7DFF) |
+| main &7600-&79FF | QSL/QSH quarter-square tables (1K) | 1024 (&7A00-&7DFF) |
+| main &7E00-&7EE0 | far-call stubs (STUBS) | 287 |
+| shadow &4000-&6FFF | buffer 1 (Master's direct-mode screen) | - |
+| shadow &7000-&7FFF | the CMYK dashboard | - |
+| ANDY &8000-&8FBE | cold code | 65 |
+| bank 4 &8000-&BFE6 | blueprints, flight code, Master drawing, the CMYK dashboard code (elite-dash) | 25 |
+| bank 5 &8000-&BF37 | rasteriser | 200 |
+| bank 6 &8000-&BD73 | frame layer, faces (gfx-faces, 33 ships), frame_cold | 652 |
+| bank 7 &8000-&AC3C | rasteriser cold code, row runs | 3 |
+| bank 7 &AC40-&BE55 | Elite cold code (incl. DOSCLI/DOSNMI disc glue) | 426 |
+| HAZEL &C000-&C2BF | rasteriser scratch (shared with DFS's catalogue cache: invalidated before each disc command) | - |
+| HAZEL &C300-&C500 | renderer code: gvars, trampolines, text hooks, cross-bank stubs | 562 (to &C733) |
+| HAZEL &C733-&DB5C | renderer state (raster_vars, dashboard scalars) | 163 (to &DC00) |
+| HAZEL &DC40-&DEC9 | renderer state (R_WR, R_NDN, stars) | 54 (to &DF00) |
