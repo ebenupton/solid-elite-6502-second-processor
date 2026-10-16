@@ -1856,7 +1856,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA &FFFF,Y
 .r_pbr1_e
   CMP &FFFF,Y
-  BCS pb_skip_e
+  BCS pb_skip_e+2         \ empty row: Y = RZ_Y already, skip the LDY RZ_Y
   TAX
 .r_pt60 CMP r_dl,Y
   BCS pb_d1_e
@@ -1920,7 +1920,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA &FFFF,Y
 .r_pbr1_o
   CMP &FFFF,Y
-  BCS pb_skip_o
+  BCS pb_skip_o+2         \ empty row: Y = RZ_Y already, skip the LDY RZ_Y
   TAX
 .r_pt410 CMP r_dl,Y
   BCS pb_d1_o
