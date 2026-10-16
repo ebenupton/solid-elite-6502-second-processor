@@ -2,6 +2,7 @@
 //
 // node harness/mshots.mjs [--disc d] [--syms s] [--at 100,250,...] [--every N]
 //                         [--iters N] [--out dir] [--tag name] [--title]
+//                         [--seedfile f]
 //
 // --at: main-loop iterations (MLOOP counts) to take a screenshot at; --every:
 // one every N iterations; --title: also one of the first title screen after
@@ -9,7 +10,7 @@
 // pilot's phase and the view (QQ11) at each are printed.
 import { runElite, loadSyms, ROOT } from "./mlib.mjs";
 import { makePilot, patchCommander } from "./mpilot.mjs";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync } from "fs";
 
 const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
 const DISC = a.disc || `${ROOT}master/build/elite-master-sng47.ssd`;
@@ -22,8 +23,12 @@ const last = Math.max(+(a.iters || 0), ...at, 0);
 // (with --ships, give --iters as the last iteration to look at)
 const pilot = makePilot();
 const pending = [];
+// --seedfile f: the boot leftovers mcompare.mjs seeded into this build (its
+// <out>/seeded.json), so that the run follows the compared one (without it a
+// build can part from the reference's run after a few thousand iterations)
+const seed = a.seedfile ? JSON.parse(readFileSync(a.seedfile, "utf8")) : null;
 await runElite({
-    disc: DISC, syms: sy, pilot, iters: last + 1, patch: patchCommander,
+    disc: DISC, syms: sy, pilot, iters: last + 1, patch: patchCommander, seed,
     onIter: (i, s, res) => {
         // --ships N: up to N shots, at least 40 iterations apart, of the space
         // view with a ship on screen (bit 3 of byte #31 in a ship's slot)
