@@ -1106,7 +1106,6 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP fz_p
  BCC fds_none
  STA R_NDB
- STA fdf_cp+1           \ patch the bottom row into the fast loop's CPY
  LDA fz_p
  STA R_NDT
  SEC                    \ d = top - cy (16-bit signed, |d| <= r)
@@ -1128,48 +1127,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  ADC f_r
  BCS fds_slow
  CMP R_CR
+ BCC fds_fast           \ (the fast path follows the slow one)
  BEQ fds_fast
- BCS fds_slow
-.fds_fast               \ here r <= 127 and |d| <= r, so d fits a signed byte
- LDA f_cx
- STA fdf_cr+1           \ patch cx and 2cx + 1 (mod 256) into the loop
- SEC
- ROL A
- STA fdf_cl+1
- LDY fz_p               \ = R_NDT
- LDX fz_t               \ X = |d|, stepped by INX (d >= 0) or DEX (d < 0)
- BPL fdf0               \ (|d| <= 127, so N of d's low byte = sign of d)
- TXA
- EOR #&FF
- TAX
- INX
- LDA #&CA               \ DEX (fdf_st holds INX on entry: restored at fdf9)
- STA fdf_st
-.fdf0
- CLC
-.fdf1                   \ C = 0 here
-.fpr_ld
- LDA F_HW,X             \ patched: half-width n
-.fdf_cr
- ADC #0                 \ patched: cx (A = cx + n <= cx + r <= 255, so C = 0)
- STA R_NDISCR,Y
- EOR #&FF
-.fdf_cl
- ADC #0                 \ patched: 2cx + 1 (A = 2cx + 1 + ~(cx + n) = cx - n)
- STA R_NDISCL,Y
-.fdf_cp
- CPY #0                 \ patched: R_NDB
- INY
- BCS fdf9               \ (C = 1: last row)
-.fdf_st
- INX                    \ patched: INX or DEX
- BNE fdf1
-.fdf9                   \ d has reached 0 (C = 0): count |d| up from here;
- LDA #&E8               \ or done (C = 1): leave INX in place for next time
- STA fdf_st
- BCC fdf1
- RTS
-
 .fds_slow
  LDY R_NDT
 .fpr2
@@ -1226,6 +1185,130 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  INY
  BCC fpr2
  RTS
+
+.fds_fast               \ here r <= 127 and |d| <= r, so d fits a signed byte
+ LDA f_cx
+ STA fsy_cr+1           \ patch cx and 2cx + 1 (mod 256) into both loops
+ STA fdf_cr+1
+ SEC
+ ROL A
+ STA fsy_cl+1
+ STA fdf_cl+1
+ LDA fz_q               \ A = B - T (B = R_NDB = fz_q, T = R_NDT = fz_p)
+ SEC
+ SBC fz_p               \ (C = 1 after: B >= T)
+ LDY fz_t               \ Y = d = T - cy (|d| <= 127, so N = sign of d)
+ BPL fdd                \ d >= 0: all rows at or below cy
+ CLC
+ ADC fz_t               \ A = b = B - cy, C = 1 iff b >= 0
+ BCS fdsym              \ b >= 0: cy is in T..B
+                        \ b < 0 (C = 0): rows T..B are cy - k for k = -b..a
+ EOR #&FF               \ (a = -d), walked up from B
+ TAY
+ INY                    \ Y = -b
+ LDX fz_q               \ X = B
+ LDA #2
+ SBC fz_t               \ (C = 0) A = a + 1 (C = 0 after)
+ STA fdf_cp+1
+ LDA #&CA               \ DEX
+ BNE fdxs
+.fdd                    \ d >= 0 (A = B - T, C = 1, Y = d): rows T..B are cy + k
+ ADC fz_t               \ for k = d..b; A = B - T + d + 1 = b + 1 <= 128 (C = 0)
+ STA fdf_cp+1
+ LDX fz_p               \ X = T
+ LDA #&E8               \ INX
+.fdxs
+ STA fdf_st
+.fdf1                   \ X = row, Y = k = |row - cy|, C = 0 here
+.fpr_ld
+ LDA F_HW,Y             \ patched: half-width table
+.fdf_cr
+ ADC #0                 \ patched: cx (A = cx + n <= cx + r <= 255, so C = 0)
+ STA R_NDISCR,X
+ EOR #&FF
+.fdf_cl
+ ADC #0                 \ patched: 2cx + 1 (A = 2cx + 1 + ~(cx + n) = cx - n)
+ STA R_NDISCL,X
+.fdf_st
+ INX                    \ patched: INX (rows below cy) or DEX (rows above cy)
+ INY
+.fdf_cp
+ CPY #0                 \ patched: last k, plus 1 (C = 0 until then)
+ BNE fdf1
+ RTS
+
+.fdsym                  \ (A = b, C = 1; a = cy - T = -d > 0)
+ TAY                    \ Y = b
+ CLC
+ ADC fz_t               \ A = b - a, C = 1 iff b >= a
+ BEQ fdse
+ BCC fdsu
+ INY                    \ b > a: rows cy - k and cy + k together for k = 0..a,
+ STY fdf_cp+1           \ then rows cy + k for k = a + 1..b
+ LDA #&E8               \ INX
+ STA fdf_st
+ LDA #1
+ SBC fz_t               \ (C = 1) A = a + 1 (C = 0 after)
+ STA fsx_y+1
+ ADC f_cy               \ A = cy + a + 1 <= B + 1 (C = 0 after)
+ STA fsx_x+1
+ STA fsy_cp+1
+ LDA #&A2               \ LDX #
+ BRA fds_c
+.fdsu                   \ b < a (C = 0): rows cy - k and cy + k together for
+ INY                    \ k = 0..b, then rows cy - k for k = b + 1..a
+ STY fsx_y+1
+ TYA
+ ADC f_cy               \ (C = 0) A = cy + b + 1 <= B + 1 (C = 0 after)
+ STA fsy_cp+1
+ LDA #2
+ SBC fz_t               \ (C = 0) A = a + 1
+ STA fdf_cp+1
+ LDA #&CA               \ DEX
+ STA fdf_st
+ LDA #&89               \ BIT # (X is already row cy - b - 1)
+ BRA fds_c
+.fdse                   \ b = a (C = 1, Y = a): rows cy - k and cy + k for k = 0..a
+ TYA
+ ADC f_cy               \ (C = 1) A = cy + a + 1
+ STA fsy_cp+1
+ LDA #&60               \ RTS
+.fds_c
+ STA fsx_x              \ what follows the symmetric loop
+ LDA fpr_ld+1           \ the symmetric loop reads n(k) at (table - cy) + (cy + k)
+ SEC
+ SBC f_cy
+ STA fsy_ld+1
+ LDA fpr_ld+2
+ SBC #0
+ STA fsy_ld+2
+ LDA f_cy               \ X = row cy - k, Y = row cy + k, from k = 0
+ TAX
+ TAY
+ CLC
+.fsyl                   \ C = 0 here
+.fsy_ld
+ LDA F_HW,Y             \ patched: half-width table - cy (crosses a page if cy > 0)
+.fsy_cr
+ ADC #0                 \ patched: cx
+ STA R_NDISCR,X
+ STA R_NDISCR,Y
+ EOR #&FF
+.fsy_cl
+ ADC #0                 \ patched: 2cx + 1
+ STA R_NDISCL,X
+ STA R_NDISCL,Y
+ DEX
+ INY
+.fsy_cp
+ CPY #0                 \ patched: last row cy + k, plus 1 (C = 0 until then)
+ BNE fsyl
+.fsx_x
+ LDX #0                 \ patched: LDX #first tail row, BIT # (no-op) or RTS
+.fsx_y
+ LDY #0                 \ patched: k of the first tail row
+ CLC
+ JMP fdf1
 
 .f_cx EQUW 0
 .f_cy EQUW 0
@@ -2733,11 +2816,10 @@ MAXPT = 140             \ points per frame
  STZ sg_err
 .fsg_row                \ row sg_y: record the crossing if it's in range
  LDY sg_y               \ Y = sg_y (low byte) for the whole loop: sg_y itself
-.fsg_ry                 \ is not updated after this (only read before here)
- LDA sg_y+1
- BMI fsg_n              \ above the screen
- BNE fsg_x              \ below it
- CPY R_NDT
+ LDA sg_y+1             \ is not updated after this (only read before here)
+ BMI fsg_hi             \ y < 0 (0 or negative here: fsg_p): rows above
+.fsg_ry                 \ the screen. From here on sg_y+1 = 0, and Y <= NDB
+ CPY R_NDT              \ <= 191 at fsg_n, so Y never wraps in this loop
  BCC fsg_n
  CPY R_NDB
  BEQ P%+4
@@ -2784,12 +2866,29 @@ MAXPT = 140             \ points per frame
  STA R_NDP,Y
 .fsg_n
  INY                    \ next row: y++, x += sx * (q + carry of the error)
- BNE P%+5
- INC sg_y+1
+.fsg_c
  CPY sg_y1              \ done at y1
  BNE fsg_m
  RTS
- EQUW 0                 \ (pad: keeps fsg_m.. and BCC fpa5 at 9EFF off a page cross)
+.fsg_hi                 \ rows above the screen: the step returns to fsg_up
+ LDX #LO(fsg_up)        \ (not fsg_ry) until y reaches 0
+ STX fsg_jj+1
+ LDX #HI(fsg_up)
+ STX fsg_jj+2
+.fsg_up
+ INY
+ BNE fsg_u1
+ INC sg_y+1
+ BEQ fsg_u0             \ y = 0: back to fsg_ry from the next row
+.fsg_u1
+ CPY sg_y1
+ BNE fsg_m
+.fsg_u0                 \ (and on the way out)
+ LDX #LO(fsg_ry)
+ STX fsg_jj+1
+ LDX #HI(fsg_ry)
+ STX fsg_jj+2
+ BRA fsg_c
 .fsg_m
  LDA sg_err
  CLC
@@ -2810,26 +2909,24 @@ MAXPT = 140             \ points per frame
  CLC
  ADC sg_x
  STA sg_x
- BCC P%+5
+ BCC fsg_jj
  INC sg_x+1
- JMP fsg_ry
+.fsg_jj
+ JMP fsg_ry             \ patched: fsg_up while y < 0
 .fsg_m3
  TXA                    \ x - step = x + ~step + 1 (same A, C, V as SBC)
  EOR #&FF
  SEC
  ADC sg_x
  STA sg_x
- BCS P%+5
+ BCS fsg_jj
  DEC sg_x+1
- JMP fsg_ry
+ BRA fsg_jj
 
 .sg_ax  EQUW 0          \ segment end points: ax, ay, bx, by would be
 .sg_ay  EQUW 0          \ contiguous with this order for the swap: ax, ay
 .sg_bx  EQUW 0
 .sg_by  EQUW 0
-.fsg_tab
- EQUW R_NDX0, R_NDX1, R_NDX2, R_NDX3
-.fsg_t  EQUB 0
 .sg_x   EQUW 0
 .sg_y   EQUW 0
 .sg_y1  EQUW 0

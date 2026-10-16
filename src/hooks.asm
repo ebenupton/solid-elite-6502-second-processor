@@ -60,19 +60,18 @@
 
 \ H_STAR: PIXEL2 has converted star Y's position to X = x, A = y
 
-.H_STAR
+.H_STAR                 \ entered by JMP (not JSR) from PIXEL2's two sites
  STA R_SY,Y             \ record star Y straight into the rasteriser's arrays
  LDA QQ11               \ (by star index; R_SS = 0: not on screen)
  ORA GFORCE
  BNE hsd
- PLA
- PLA
- TXA
+ TXA                    \ record mode: the RTS below returns from PIXEL2
  STA R_SX,Y
  LDX ZZ                 \ X = ZZ (X is dead after PIXEL2's record-mode return)
+ LDA #1                 \ size 1 (ZZ >= 144), 2 (80..143), 3 (< 80)
  CPX #144
- BCS hst1
- LDA #2
+ BCS hst2
+ INC A
  CPX #80
  BCS hst2
  INC A
@@ -81,9 +80,6 @@
  TXA                    \ A = ZZ, flags as CMP #80, as PIXEL would leave them
  CMP #80
  RTS
-.hst1
- LDA #1
- STA R_SS,Y
 .hpxc
  LDA ZZ                 \ leave C = (ZZ >= 80) and A = ZZ as PIXEL would
  CMP #80
@@ -93,6 +89,8 @@
  STA hA
  SEC                    \ outside record mode PIXEL draws it: note where
  JSR G_DSTAR            \ (F_DSTAR preserves X and Y)
+ LDA hA                 \ A = y, N/Z from it, as the old RTS to PIXEL left them
+ JMP PIXEL
 .hdd
  LDA hA
  RTS

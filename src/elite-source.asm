@@ -7809,6 +7809,24 @@ ENDMACRO
  STA stq_n2+1
  STA stq_n4+1
 
+ JSR MLSPT              \ BBC Master port: patch ALP1 AND 31 into MLS1's table
+                        \ look-ups (ALP1 is constant during STARS1, and MLS1 is
+                        \ only called from STL1)
+
+ LDA BETA               \ BBC Master port: patch -beta = BETA EOR &80 and its
+ EOR #%10000000         \ sign into STL1's inlined ADD for result 8 (BETA is
+ STA stl_t1+1           \ constant during STARS1)
+ STA stl_a1+1
+ STA stl_s1+1
+ AND #%10000000
+ STA stl_t+1
+ STA stl_o1+1
+ STA stl_e1+1
+ LSR A                  \ stl_b = BMI (&30) if -beta >= 0, BPL (&10) if not
+ LSR A
+ EOR #&30
+ STA stl_b
+
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
                         \ we can use it as a counter through all the stardust
 
@@ -7871,14 +7889,36 @@ ENDMACRO
                         \   z = z - DELT4(1 0)
                         \     = z - speed * 64
 
- JSR MLU1               \ Call MLU1 to set:
-                        \
-                        \   Y1 = y_hi
-                        \
-                        \   (A P) = |y_hi| * Q
-                        \
-                        \ So Y1 contains the original value of y_hi, which we
-                        \ use below to remove the existing particle
+                        \ BBC Master port: MLU1 and MLU2 inlined (they were
+                        \ only called from here). Patch Q (in X) into both
+                        \ inlined |A| * Q look-ups, ~Q into the SQ2 ones
+ TXA
+ STA stm_y1+1
+ STA stm_y3+1
+ STA stm_x1+1
+ STA stm_x3+1
+ EOR #&FF
+ STA stm_y2+1
+ STA stm_y4+1
+ STA stm_x2+1
+ STA stm_x4+1
+
+ LDA SY,Y               \ Set Y1 = y_hi
+ STA Y1
+
+ AND #%01111111         \ Set (A P) = |y_hi| * Q (as MLU2)
+ TAX
+ SEC
+.stm_y1
+ LDA SQ1L,X             \ patched: SQ1L + Q
+.stm_y2
+ SBC SQ2L,X             \ patched: low byte Q EOR &FF
+ STA P
+.stm_y3
+ LDA SQ1H,X             \ patched: SQ1H + Q
+.stm_y4
+ SBC SQ2H,X             \ patched: low byte Q EOR &FF
+ CLC
 
                         \ We now calculate:
                         \
@@ -7908,7 +7948,19 @@ ENDMACRO
                         \ So X1 contains the original value of x_hi, which we
                         \ use below to remove the existing particle
 
- JSR MLU2               \ Set (A P) = |x_hi| * Q
+ AND #%01111111         \ Set (A P) = |x_hi| * Q (as MLU2)
+ TAX
+ SEC
+.stm_x1
+ LDA SQ1L,X             \ patched: SQ1L + Q
+.stm_x2
+ SBC SQ2L,X             \ patched: low byte Q EOR &FF
+ STA P
+.stm_x3
+ LDA SQ1H,X             \ patched: SQ1H + Q
+.stm_x4
+ SBC SQ2H,X             \ patched: low byte Q EOR &FF
+ CLC
 
  TAX                    \ First we do the low bytes (high byte of (A P) in X):
  LDA P                  \
@@ -8147,30 +8199,34 @@ ENDMACRO
  LDA YY                 \ Set (S R) = YY(1 0) = y
  STA R                  \
  STA SYL,Y              \ y_lo result = R on every inlined path (P = 0)
+
+ STZ P                  \ Set P = 0
+
+                        \ (A P) = (-beta 0) = -beta * 256
+
+                        \ Inline PIX1's ADD for P = 0 (same memory writes T1,
+                        \ T as ADD; same V; C/N/Z/A/X are dead at PIXEL2)
+.stl_t1
+ LDA #0                 \ patched: T1 = -beta = BETA EOR &80 (set in STARS1)
+ STA T1
+.stl_t
+ LDA #0                 \ patched: T = sign of -beta
+ STA T
+
  LDA YY+1               \ The call to MAD and the two store instructions are
 \JSR MAD                \ commented out in the original source
 \STA S
 \STX R
- STA S
+ STA S                  \ A = S from here on
 
- STZ P                  \ Set P = 0
-
- LDA BETA               \ Set A = -beta, so:
- EOR #%10000000         \
-                        \   (A P) = (-beta 0)
-                        \         = -beta * 256
-
-                        \ Inline PIX1's ADD for P = 0 (same memory writes T1,
-                        \ T as ADD; same V; C/N/Z/A/X are dead at PIXEL2)
- STA T1
- AND #%10000000
- STA T
- EOR S
- BMI stl_cd
- LDA S                  \ Same sign (ADDS): A = (S + T1 + 0) OR T, X = R
- CLC
- ADC T1
- ORA T
+.stl_b
+ BMI stl_cd             \ patched: BMI (-beta >= 0) or BPL (-beta < 0), so we
+                        \ branch to stl_cd when S and -beta differ in sign
+ CLC                    \ Same sign (ADDS): A = (S + T1 + 0) OR T, X = R
+.stl_a1
+ ADC #0                 \ patched: T1
+.stl_o1
+ ORA #0                 \ patched: T
  BRA stl_cj
 .stl_cf
  LDA T1                 \ Rare MU8a/MU8e cases: redo it all via PIX1 with
@@ -8178,13 +8234,14 @@ ENDMACRO
  BRA stl_cx
 .stl_cd
  SEC                    \ Signs differ (MU8 with P = 0): X = R, C = 1, so
- LDA S                  \ A = |S| - |T1| (same V as MU8's SBC T1)
- EOR #%10000000
- SBC T1
+ EOR #%10000000         \ A = |S| - |T1| (same V as MU8's SBC T1; A = S here)
+.stl_s1
+ SBC #0                 \ patched: T1
  BCC stl_cf             \ |S R| < |A P|: let PIX1/ADD do it
  BEQ stl_cf             \ High byte 0: let PIX1/ADD do it
  ORA #%10000000         \ MU8s (its CLC dropped: C is dead at PIXEL2)
- EOR T
+.stl_e1
+ EOR #0                 \ patched: T
 .stl_cj
  STA SY,Y               \ As PIX1: y_hi = A (y_lo stored above)
  JSR PIXEL2             \ Erase the old particle, as PIX1 fell through to do
@@ -32240,7 +32297,8 @@ INCLUDE "build/dashtab.asm"
 \
 \ ******************************************************************************
 
- JSR H_STAR             \ Frame layer hook: record star Y in record mode
+ JMP H_STAR             \ Frame layer hook: record star Y in record mode
+                        \ (H_STAR returns from PIXEL2 then, else JMPs to PIXEL)
 
 .PIXEL
 
@@ -32326,8 +32384,8 @@ INCLUDE "build/dashtab.asm"
                         \ (EOR #&7F, ADC #1, EOR #&FF, ADC #Y+1) gives for
                         \ m >= 1, with identical N, Z, C (= 0) and V
 
- JSR H_STAR             \ Frame layer hook (in record mode it does not return)
- BRA PIXEL              \ and draw it via PIXEL as the main path does
+ JMP H_STAR             \ Frame layer hook: in record mode it returns from
+                        \ PIXEL2, else it draws via PIXEL as the main path does
 
 .px2z
 
@@ -32598,26 +32656,17 @@ INCLUDE "build/dashtab.asm"
 
 .MLS1
 
- LDX ALP1               \ Set P to the roll angle alpha magnitude in ALP1
- STX P                  \ (0-31), so now we calculate P * A
+                        \ BBC Master port: (A P) = |A| * (ALP1 AND 31), with the
+                        \ sign of A, via the quarter-square tables (see SQ1L).
+                        \ MLS1 is only called from STL1, and STARS1 calls MLSPT
+                        \ (below) before the STL1 loop to patch ALP1 AND 31 into
+                        \ the table look-ups (ALP1 does not change during the
+                        \ loop), so no per-call check or patch is needed. P is
+                        \ no longer set to ALP1 first (every path overwrites P)
 
-.MULTS
-
-                        \ BBC Master port: this calculates exactly the same
-                        \ result as the original unrolled shift-and-add code,
-                        \ which only uses bits 0-4 of P, i.e.
-                        \
-                        \   (A P) = |A| * (P AND 31), with the sign of A
-                        \
-                        \ using the quarter-square tables (see SQ1L), and
-                        \ returns with the same register, flag and memory state
-                        \ (T = sign of A, T1 = |A| - 1, X = |A| - 1, C clear, Z
-                        \ and N set by the final ORA T). The V flag is not
-                        \ preserved, but no caller relies on it
-                        \
-                        \ P AND 31 is usually the same as on the last call (it
-                        \ is often the roll angle), so we patch it into the
-                        \ table look-ups and only re-patch when it changes
+ SEC                    \ Set C for the SBCs below, and so that every path
+                        \ (including MSZ) returns with C set (STL1's inline
+                        \ MU8 after JSR MLS1 relies on it)
 
  TAX                    \ Set X = A, and set the N and Z flags from A
 
@@ -32625,34 +32674,8 @@ INCLUDE "build/dashtab.asm"
 
  BEQ MSZ                \ If A = 0, jump to MSZ to set P(1 0) = 0 and return
 
-                        \ A is positive, so X = |A|. The T, T1, X and C values
-                        \ that the original left are dead at all three callers
-                        \ (ADD and MULT1 overwrite them before reading them, and
-                        \ the IRQ handler never reads T or T1), so they are no
-                        \ longer reproduced
-
- LDA P                  \ If P is the same raw value as on the last miss in
-.MSUP                   \ this copy (patched into the CMP operand; starts at 0,
- CMP #0                 \ and the table operands start patched for 0 AND 31 as
- BEQ MSU0               \ the tables are page-aligned), then P AND 31 is the
-                        \ value already patched in, so skip the following
-
- STA MSUP+1             \ Remember raw P for the next call
-
- AND #31                \ Patch P AND 31 into this copy's table look-ups
- STA MSU1+1
- STA MSU3+1
- EOR #&FF
- STA MSU2+1
- STA MSU4+1
-
- SEC                    \ Set C for the SBC (on the hit path, CMP found P
-                        \ equal to the remembered value, which sets C)
-
-.MSU0
-
-                        \ Calculate the low byte of |A| * (P AND 31) and store
-.MSU1                   \ it in P
+                        \ Calculate the low byte of |A| * (ALP1 AND 31) and
+.MSU1                   \ store it in P (operands patched by MLSPT)
  LDA SQ1L,X
 .MSU2
  SBC SQ2L+&FF,X
@@ -32673,27 +32696,8 @@ INCLUDE "build/dashtab.asm"
 
  TAX                    \ Set X = |A|
 
- LDA P                  \ If P is the same raw value as on the last miss in
-.MSVP                   \ this copy, then P AND 31 is the value already patched
- CMP #0                 \ into this copy's table look-ups, so skip the following
- BEQ MSV0
-
- STA MSVP+1             \ Remember raw P for the next call
-
- AND #31                \ Patch P AND 31 into this copy's table look-ups
- STA MSV1+1
- STA MSV3+1
- EOR #&FF
- STA MSV2+1
- STA MSV4+1
-
- SEC                    \ Set C for the SBC (on the hit path, CMP found P
-                        \ equal to the remembered value, which sets C)
-
-.MSV0
-
-                        \ Calculate the low byte of |A| * (P AND 31) and store
-.MSV1                   \ it in P
+                        \ Calculate the low byte of |A| * (ALP1 AND 31) and
+.MSV1                   \ store it in P (operands patched by MLSPT)
  LDA SQ1L,X
 .MSV2
  SBC SQ2L+&FF,X
@@ -32711,9 +32715,28 @@ INCLUDE "build/dashtab.asm"
 .MSZ
 
  STA P+1                \ A = 0, so set P(1 0) = 0 and return from the
- STA P                  \ subroutine, as in MU6
- SEC                    \ Return with C set, as the other paths do (STL1's
- RTS                    \ inline MU8 after JSR MLS1 relies on it)
+ STA P                  \ subroutine, as in MU6 (C is set by the SEC above)
+ RTS
+
+.MLSPT
+
+                        \ Called by STARS1 before the STL1 loop: patch ALP1 AND
+                        \ 31 into MLS1's table look-ups (the tables are page-
+                        \ aligned). Changes A, N and Z only (C, V, X, Y kept)
+
+ LDA ALP1
+ AND #31
+ STA MSU1+1
+ STA MSU3+1
+ STA MSV1+1
+ STA MSV3+1
+ EOR #&FF
+ STA MSU2+1
+ STA MSU4+1
+ STA MSV2+1
+ STA MSV4+1
+
+ RTS
 
 \ ******************************************************************************
 \
