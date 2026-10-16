@@ -3690,24 +3690,20 @@ NEXT
   BCC c1
   LDA R_CR
 .c1
-  STA RZ_T3
   CMP RZ_T2
-  BCS c2
-  LDA #&FF
-  STA RZ_T2
-  STZ RZ_T3
-.c2
+  BCC emp                 \ nR < nL: empty (out of line)
+.c1b
+  STA RZ_T3
+.^r_pt52 STA r_sr,X
   LDA RZ_T2
 .^r_pt53 STA r_sl,X
-  LDA RZ_T3
-.^r_pt52 STA r_sr,X
   LDA RZ_T1               \ old empty: the new span
   CMP RZ_T0
   BCC jonew
   LDA RZ_T3               \ new empty: the old span black
   CMP RZ_T2
   BCC joold
-  LDA RZ_T3               \ apart (nR < oL or nL > oR): both
+                          \ apart (nR < oL or nL > oR): both (A = nR still)
   CMP RZ_T0
   BCC jboth
   LDA RZ_T1
@@ -3719,6 +3715,11 @@ NEXT
   JMP onew
 .joold
   JMP oold
+.emp
+  LDA #&FF                \ empty new span: (255, 0)
+  STA RZ_T2
+  LDA #0
+  BRA c1b
 .ovl
   LDA RZ_T2               \ overlapping: the left end (R_WL/R_WR noted here,
   CMP RZ_T0               \ the left end's strip before the right end's)
