@@ -1131,7 +1131,9 @@ ENDMACRO
  BCS fds_slow
 .fds_fast               \ here r <= 127 and |d| <= r, so d fits a signed byte
  LDX f_cx
- STX fdf_cr+1           \ patch cx and cx + 1 into the loop
+ DEX
+ STX fdf_cr+1           \ patch cx - 1 and cx + 1 into the loop
+ INX
  INX
  STX fdf_cl+1
  LDA fpr_ld+1           \ and the half-width table into the second load
@@ -1152,17 +1154,15 @@ ENDMACRO
  STA fdf_st
  CLC
 .fdf1                   \ C = 0 here
-.fpr_ld
- LDA F_HW,X             \ patched: half-width
- EOR #&FF
 .fdf_cl
- ADC #0                 \ patched: cx + 1 (so A = cx - n)
+ LDA #0                 \ patched: cx + 1
+.fpr_ld
+ SBC F_HW,X             \ patched: half-width (C = 0: A = cx - n, no borrow so C = 1)
  STA R_NDISCL,Y
 .fdf_cr
- LDA #0                 \ patched: cx
- CLC
+ LDA #0                 \ patched: cx - 1
 .fdf_hw
- ADC F_HW,X             \ patched: half-width (A = cx + n, V as before)
+ ADC F_HW,X             \ patched: half-width (C = 1: A = cx + n)
  STA R_NDISCR,Y
  CPY R_NDB
  INY

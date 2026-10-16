@@ -6843,22 +6843,21 @@ ENDMACRO
 
  LDX Q                  \ Restore the value of X from before the call to ADD
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi, clear the sign bit, divide by 2 and
- AND #%01111111         \ store in T, so:
+ LDA INWK+1,Y           \ Fetch nosev_x_hi, store it in S (the high byte of the
+ STA S                  \ subtraction below, fixed up for the borrow later),
+ AND #%01111111         \ then clear the sign bit and divide by 2, so:
  LSR A                  \
- STA T                  \ T = |nosev_x_hi| / 2
-                        \   = |nosev_x| / 512
+                        \ A = |nosev_x_hi| / 2 = |nosev_x| / 512
 
- LDA INWK,Y             \ Now we do the following subtraction:
+ EOR #&FF               \ Now we do the following subtraction:
  SEC                    \
- SBC T                  \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
+ ADC INWK,Y             \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
  STA R                  \       = (1 - 1/512) * nosev_x
                         \
-                        \ by doing the low bytes first
+                        \ low byte as lo + ~A + 1 = lo - A (same result and C)
 
- LDA INWK+1,Y           \ And then the high bytes (the high byte of the right
- SBC #0                 \ side of the subtraction being 0)
- STA S
+ BCS P%+4               \ And then the high byte: decrement S if the low byte
+ DEC S                  \ borrowed (same as nosev_x_hi - 0 - borrow)
 
  LDA INWK,X             \ Set P = roofv_x_lo
  STA P
@@ -8055,14 +8054,31 @@ ENDMACRO
                         \   (A P) = A * ALP1
                         \         = (x / 256) * alpha
 
- JSR ADD                \ Call ADD to calculate:
+                        \ Inline ADD to calculate:
                         \
-                        \   (A X) = (A P) + (S R)
-                        \         = (x / 256) * alpha + y
-                        \         = y + alpha * x / 256
+                        \   YY(1 0) = (A P) + (S R)
+                        \           = (x / 256) * alpha + y
+                        \           = y + alpha * x / 256
 
+ STA T1                 \ As ADD: T1 = A, T = sign of A
+ AND #%10000000
+ STA T
+ EOR S                  \ Signs differ: use MU8
+ BMI stl_a8
+ LDA R                  \ Same sign: YY = P + R
+ CLC
+ ADC P
+ STA YY
+ LDA S                  \ YY+1 = (S + T1 + C) OR T
+ ADC T1
+ ORA T
+ STA YY+1
+ JMP stl_a9
+.stl_a8
+ JSR MU8                \ (A X) = (A P) + (S R)
  STA YY+1               \ Set YY(1 0) = (A X) to give:
  STX YY                 \
+.stl_a9
                         \   YY(1 0) = y + alpha * x / 256
                         \
                         \ which is result 5 above, and we also have:
@@ -24805,107 +24821,112 @@ ENDMACRO
 \       Name: TRTBL
 \       Type: Variable
 \   Category: Keyboard
-\    Summary: Translation table from internal key number to ASCII (copied from
-\             BBC Master Elite)
+\    Summary: Placeholder for the keyboard translation table (moved to bank 7)
 \
 \ ------------------------------------------------------------------------------
 \
-\ BBC Master port: the cassette loader sets TRTB%(1 0) to point to the MOS 1.20
-\ keyboard translation table (via OSBYTE 172). The Master's MOS 3.20 doesn't
-\ have this table at the same place, so this is a copy of the MOS 3.20 table
-\ (and the MOS code that is interleaved with it), as included in BBC Master
-\ Elite. The Master loader points TRTB%(1 0) at this table (TRTBL), though the demo
-\ never actually uses it.
+\ BBC Master port: the copy of the MOS 3.20 keyboard translation table that
+\ BBC Master Elite includes is never read by the demo, so it has moved to
+\ sideways RAM bank 7 (TRTBL7 in elite7.asm) to make room in main RAM. The
+\ loader still points TRTB%(1 0) here, but nothing reads TRTB% as a pointer
+\ (CPYIN/CPYOUT reuse TRTB%(1 0) as INF2).
 \
 \ ******************************************************************************
+
 .TRTBL
 
+\ ******************************************************************************
+\
+\       Name: ECBLB2
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Start up the E.C.M. (light up the indicator, start the countdown
+\             and make the E.C.M. sound)
+\
+\ ******************************************************************************
 
- EQUB &00, &40, &FE     \ MOS code
- EQUB &A0, &5F, &8C
- EQUB &43, &FE, &8E
- EQUB &4F, &FE, &EA
- EQUB &AE, &4F, &FE
- EQUB &60
+.ECBLB2
 
-                        \ Internal key numbers &10 to &19:
-                        \
- EQUB &51, &33          \ Q             3
- EQUB &34, &35          \ 4             5
- EQUB &84, &38          \ f4            8
- EQUB &87, &2D          \ f7            -
- EQUB &5E, &8C          \ ^             Left arrow
+ LDA #32                \ Set the E.C.M. countdown timer in ECMA to 32
+ STA ECMA
 
- EQUB &36, &37, &BC     \ MOS code
- EQUB &00, &FC, &60
+ ASL A                  \ Call the NOISE routine with A = 64 to make the sound
+ JSR NOISE              \ of the E.C.M. being switched on
 
-                        \ Internal key numbers &20 to &29:
-                        \
- EQUB &80, &57          \ f0            W
- EQUB &45, &54          \ E             T
- EQUB &37, &49          \ 7             I
- EQUB &39, &30          \ 9             0
- EQUB &5F, &8E          \ _             Down arrow
+                        \ And fall into ECBLB to light up the E.C.M. bulb
 
- EQUB &38, &39, &BC     \ MOS code
- EQUB &00, &FD, &60
+\ ******************************************************************************
+\
+\       Name: ECBLB
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Light up the E.C.M. indicator bulb ("E") on the dashboard
+\
+\ ******************************************************************************
 
-                        \ Internal key numbers &30 to &39:
-                        \
- EQUB &31, &32          \ 1             2
- EQUB &44, &52          \ D             R
- EQUB &36, &55          \ 6             U
- EQUB &4F, &50          \ O             P
- EQUB &5B, &8F          \ [             Up arrow
+.ECBLB
 
- EQUB &81, &82, &0D     \ MOS code
- EQUB &4C, &20, &02
+ LDA #LO(ECBT)          \ The E.C.M. bulb's bitmap, at &7A70 (row 5, bytes
+ LDX #HI(ECBT)          \ 14-15)
+ LDY #&70
+ CLC
+ BCC BULB
 
-                        \ Internal key numbers &40 to &49:
-                        \
- EQUB &01, &41          \ CAPS LOCK     A
- EQUB &58, &46          \ X             F
- EQUB &59, &4A          \ Y             J
- EQUB &4B, &40          \ K             @
- EQUB &3A, &0D          \ :             RETURN
+\ ******************************************************************************
+\
+\       Name: SPBLB
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Light up the space station indicator ("S") on the dashboard
+\
+\ ******************************************************************************
 
- EQUB &83, &7F, &AE     \ MOS code
- EQUB &4C, &FE, &FD
+.SPBLB
 
-                        \ Internal key numbers &50 to &59:
-                        \
- EQUB &02, &53          \ SHIFT LOCK    S
- EQUB &43, &47          \ C             G
- EQUB &48, &4E          \ H             N
- EQUB &4C, &3B          \ L             ;
- EQUB &5D, &7F          \ ]             DELETE
+ LDA #LO(SPBT)          \ The space station bulb's bitmap, at &7B80 (row 5,
+ LDX #HI(SPBT)          \ bytes 48-49)
+ LDY #&80
+ SEC
 
- EQUB &85, &84, &86     \ MOS code
- EQUB &4C, &FA, &00
+\ ******************************************************************************
+\
+\       Name: BULB
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Draw an indicator bulb on the dashboard
+\
+\ ------------------------------------------------------------------------------
+\
+\ EOR the 16-byte bitmap at (X A) (two byte columns of 8 lines, in the MODE 1
+\ dashboard's colours, from tools/dashboard.py) onto the dashboard at &7A00 + Y
+\ (C clear) or &7B00 + Y (C set). Returns as the original (via RR4).
+\
+\ ******************************************************************************
 
-                        \ Internal key numbers &60 to &69:
-                        \
- EQUB &00, &5A          \ TAB           Z
- EQUB &20, &56          \ Space         V
- EQUB &42, &4D          \ B             M
- EQUB &2C, &2E          \ ,             .
- EQUB &2F, &8B          \ /             COPY
+.BULB
 
- EQUB &30, &31, &33     \ MOS code
- EQUB &00, &00, &00
+ STA P+1
+ STX P+2
+ STY SC
+ LDA #&7A
+ ADC #0
+ STA SC+1
 
-                        \ Internal key numbers &70 to &79:
-                        \
- EQUB &1B, &81          \ ESCAPE        f1
- EQUB &82, &83          \ f2            f3
- EQUB &85, &86          \ f5            f6
- EQUB &88, &89          \ f8            f9
- EQUB &5C, &8D          \ \             Right arrow
+ LDY #15
 
- EQUB &34, &35, &32     \ MOS code
- EQUB &2C, &4E, &E3
+.BULL1
 
+ LDA (P+1),Y
+ EOR (SC),Y
+ DPUT
+ DEY
+ BPL BULL1
 
+ LDY YSAV2              \ Return with the registers as the original's jump to
+ LDX XSAV2              \ RR4 left them
+ LDA K3
+ CLC
+ RTS
 
 \ ******************************************************************************
 \
@@ -32854,99 +32875,6 @@ ENDIF
 
 \ ******************************************************************************
 \
-\       Name: ECBLB2
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Start up the E.C.M. (light up the indicator, start the countdown
-\             and make the E.C.M. sound)
-\
-\ ******************************************************************************
-
-.ECBLB2
-
- LDA #32                \ Set the E.C.M. countdown timer in ECMA to 32
- STA ECMA
-
- ASL A                  \ Call the NOISE routine with A = 64 to make the sound
- JSR NOISE              \ of the E.C.M. being switched on
-
-                        \ And fall into ECBLB to light up the E.C.M. bulb
-
-\ ******************************************************************************
-\
-\       Name: ECBLB
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Light up the E.C.M. indicator bulb ("E") on the dashboard
-\
-\ ******************************************************************************
-
-.ECBLB
-
- LDA #LO(ECBT)          \ The E.C.M. bulb's bitmap, at &7A70 (row 5, bytes
- LDX #HI(ECBT)          \ 14-15)
- LDY #&70
- CLC
- BCC BULB
-
-\ ******************************************************************************
-\
-\       Name: SPBLB
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Light up the space station indicator ("S") on the dashboard
-\
-\ ******************************************************************************
-
-.SPBLB
-
- LDA #LO(SPBT)          \ The space station bulb's bitmap, at &7B80 (row 5,
- LDX #HI(SPBT)          \ bytes 48-49)
- LDY #&80
- SEC
-
-\ ******************************************************************************
-\
-\       Name: BULB
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Draw an indicator bulb on the dashboard
-\
-\ ------------------------------------------------------------------------------
-\
-\ EOR the 16-byte bitmap at (X A) (two byte columns of 8 lines, in the MODE 1
-\ dashboard's colours, from tools/dashboard.py) onto the dashboard at &7A00 + Y
-\ (C clear) or &7B00 + Y (C set). Returns as the original (via RR4).
-\
-\ ******************************************************************************
-
-.BULB
-
- STA P+1
- STX P+2
- STY SC
- LDA #&7A
- ADC #0
- STA SC+1
-
- LDY #15
-
-.BULL1
-
- LDA (P+1),Y
- EOR (SC),Y
- DPUT
- DEY
- BPL BULL1
-
- LDY YSAV2              \ Return with the registers as the original's jump to
- LDX XSAV2              \ RR4 left them
- LDA K3
- CLC
- RTS
-
-\ ******************************************************************************
-\
 \       Name: MSBAR
 \       Type: Subroutine
 \   Category: Dashboard
@@ -33739,19 +33667,12 @@ ENDIF
 
 .PLL4
 
- LDA CNT2               \ Set X = CNT2 mod 32
- AND #31                \
- TAX                    \ So X is the starting segment, reduced to the range 0
-                        \ to 32, so as there are 64 segments in the circle, this
-                        \ reduces the starting angle to 0 to 180 degrees, so we
-                        \ can use X as an index into the sine table (which only
-                        \ contains values for segments 0 to 31)
+ LDX CNT2               \ Set X = CNT2, the starting segment (0 to 63)
                         \
-                        \ Also, because CNT2 mod 32 is in the range 0 to 180
-                        \ degrees, we know that sin(CNT2 mod 32) is always
-                        \ positive, or to put it another way:
-                        \
-                        \   sin(CNT2 mod 32) = |sin(CNT2)|
+                        \ SNE is extended to 80 entries, with SNE+n holding
+                        \ |sin(n mod 32)|, so SNE+X = sin(CNT2 mod 32) =
+                        \ |sin(CNT2)| without reducing X mod 32 (and the
+                        \ cosine below is SNE+16+X, no EOR #16 needed)
 
  LDA SNE,X              \ Set Q = sin(X)
  STA Q                  \       = sin(CNT2 mod 32)
@@ -33769,8 +33690,8 @@ ENDIF
  JSR FMLTU              \ Set K = A * Q / 256
  STA K                  \       = |v_y| * |sin(CNT2)|
 
- LDA CNT2               \ If CNT2 >= 33 then this sets the C flag, otherwise
- CMP #33                \ it's clear, so this means that:
+ CPX #33                \ If CNT2 >= 33 then this sets the C flag (X = CNT2,
+                        \ preserved by FMLTU), otherwise it's clear, so:
                         \
                         \   * C is clear if the segment starts in the first half
                         \     of the circle, 0 to 180 degrees
@@ -33796,21 +33717,7 @@ ENDIF
                         \   (XX16+5 K) = |v_y| * sin(CNT2)
                         \   (XX16+5 R) = |v_x| * sin(CNT2)
 
- TXA                    \ X still contains CNT2 mod 32 from above (FMLTU
- EOR #16                \ preserves X), so this sets X = (CNT2 + 16) mod 32
- TAX                    \ = (CNT2 mod 32) EOR 16
-                        \
-                        \ So we can use X as a lookup index into the SNE table
-                        \ to get the cosine (as there are 16 segments in a
-                        \ quarter-circle)
-                        \
-                        \ Also, because the sine table only contains positive
-                        \ values, we know that sin((CNT2 + 16) mod 32) will
-                        \ always be positive, or to put it another way:
-                        \
-                        \   sin((CNT2 + 16) mod 32) = |cos(CNT2)|
-
- LDA SNE,X              \ Set Q = sin(X)
+ LDA SNE+16,X           \ Set Q = SNE+16+X
  STA Q                  \       = sin((CNT2 + 16) mod 32)
                         \       = |cos(CNT2)|
 
@@ -33829,7 +33736,7 @@ ENDIF
                         \ so (S R) = v_x * sin(CNT2) (this leaves the C flag
                         \ set from FMLTU for the ADC #15 below)
 
- LDA CNT2               \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
+ TXA                    \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
  ADC #207               \ then this sets the C flag, otherwise it's clear, so C
  CMP #225               \ is the sign bit of cos(CNT2): CNT2 + 208 is 225..255
                         \ only for CNT2 = 17..47 (48..63 wrap to 0..15)
@@ -37430,9 +37337,10 @@ INCLUDE "build/dashtab.asm"
 
 .SNE
 
- FOR I%, 0, 31
+ FOR I%, 0, 79          \ Entries 32-79 repeat 0-31 (SNE+n = |sin(n mod 32)|),
+                        \ so PLL4 can index SNE,X and SNE+16,X with X = 0-63
 
-  N = ABS(SIN((I% / 64) * 2 * PI))
+  N = ABS(SIN(((I% MOD 32) / 64) * 2 * PI))
 
   IF N >= 1
    EQUB 255
@@ -38108,7 +38016,9 @@ INCLUDE "build/dashtab.asm"
  STA FMU2+1
  STA FMU4+1
 
- PHX                    \ Store X on the stack, as we use it as the index
+ STX P                  \ Store X in P, as we use it as the index (P is set
+                        \ to 0 below anyway, and STX/LDX zp is 1 cycle
+                        \ quicker than PHX/PLX)
 
  LDX Q                  \ Set X = Q
 
@@ -38123,7 +38033,9 @@ INCLUDE "build/dashtab.asm"
  SBC SQ2H,X             \ A * Q >= 0 fits in 16 bits, so this never borrows
                         \ and leaves the C flag set, as in the original
 
- PLX                    \ Restore X
+ LDX P                  \ Restore X (LDX sets Z/N, but they are overwritten
+                        \ by nothing below and are not live in any caller,
+                        \ as before with PLX)
 
  STZ P                  \ Set P = 0, as in the original
 
@@ -38262,10 +38174,21 @@ INCLUDE "build/dashtab.asm"
 \
 \ ******************************************************************************
 
+INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
+                        \ so one LDY serves two bytes. TRTB%(1 0) is only set by
+                        \ the loader and never read by the game, so it is free
+
 .CPYIN
 
- FOR I%, NI%-1, 0, -1
+ LDA CPYTL,X            \ X is still the slot number (MAL1 -> GINF preserves X),
+ STA INF2               \ so INF(1 0) = UNIV(X) and INF2(1 0) = UNIV(X) + NI%/2
+ LDA CPYTH,X            \ (abs,X loads leave C and V untouched)
+ STA INF2+1
+
+ FOR I%, NI%/2-1, 0, -1
   LDY #I%
+  LDA (INF2),Y
+  STA INWK+NI%/2+I%
   LDA (INF),Y
   STA INWK+I%
  NEXT
@@ -38294,8 +38217,20 @@ INCLUDE "build/dashtab.asm"
 
 .CPYOUT
 
- FOR I%, NI%-1, 0, -1
+ PHP                    \ INF2(1 0) = INF(1 0) + NI%/2, keeping C and V
+ LDA INF
+ CLC
+ ADC #NI%/2
+ STA INF2
+ LDA INF+1
+ ADC #0
+ STA INF2+1
+ PLP
+
+ FOR I%, NI%/2-1, 0, -1
   LDY #I%
+  LDA INWK+NI%/2+I%
+  STA (INF2),Y
   LDA INWK+I%
   STA (INF),Y
  NEXT
@@ -38303,6 +38238,21 @@ INCLUDE "build/dashtab.asm"
  LDY #&FF
 
  RTS
+
+.CPYTL                  \ Low and high bytes of UNIV(X) + NI%/2, for CPYIN
+
+ FOR I%, 0, NOSH
+  EQUB LO(K% + I% * NI% + NI%/2)
+ NEXT
+
+.CPYTH
+
+ FOR I%, 0, NOSH
+  EQUB HI(K% + I% * NI% + NI%/2)
+ NEXT
+
+ ASSERT HI(CPYTL) = HI(CPYTL + NOSH)   \ no page-crossing penalty on CPYTL,X
+ ASSERT HI(CPYTH) = HI(CPYTH + NOSH)   \ or on CPYTH,X
 
 \ ******************************************************************************
 \
