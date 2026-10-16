@@ -506,13 +506,10 @@ ALIGN &100
 }
 
 ASSERT HI(r7_crep) = HI(r7_wmerge)
+ALIGN &100                \ page-aligned: no +1 page-crossing cycles on the ,X / ,Y lookups
 .r7_fr                    \ x DIV 4
 FOR x, 0, 255
   EQUB x DIV 4
-NEXT
-.r7_j3                    \ run offset of byte column k (1..63)
-FOR k, 0, 63
-  EQUB LO(3 * (k - 1))
 NEXT
 .r7_jl                    \ run offset of byte column x DIV 4 (x >= 4)
 FOR x, 0, 255
@@ -522,10 +519,16 @@ NEXT
 FOR x, 0, 255
   EQUB LO(3 * (x DIV 4))
 NEXT
+.r7_j3                    \ run offset of byte column k (1..63)
+FOR k, 0, 63
+  EQUB LO(3 * (k - 1))
+NEXT
 .r7_rp                    \ run page of row y
 FOR y, 0, 191
   EQUB HI(r7_rrun) + (y DIV 8)
 NEXT
+ASSERT LO(r7_fr) = 0 AND LO(r7_jl) = 0 AND LO(r7_jr) = 0
+ASSERT HI(r7_j3 + 63) = HI(r7_j3) AND HI(r7_rp + 191) = HI(r7_rp)
 \ the row runs: one page per character row r: STA &4000+&200r+8k-8r,Y (Y = row) for byte
 \ columns k = 1..63, then RTS
 ALIGN &100

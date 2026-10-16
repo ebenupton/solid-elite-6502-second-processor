@@ -1865,7 +1865,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .r_pbr1_e
   CMP &FFFF,Y
   BCS pb_skip_e
-  STA R_XL
   TAX
 .r_pt60 CMP r_dl,Y
   BCS pb_d1_e
@@ -1879,7 +1878,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCC pb_d2_e
 .r_pt63 STA r_dr,Y
 .pb_d2_e
-  EOR R_XL
+  TXA
+  EOR R_XR
   CMP #4
   BCC pb_one_e
   LDY r_xo,X
@@ -1930,7 +1930,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .r_pbr1_o
   CMP &FFFF,Y
   BCS pb_skip_o
-  STA R_XL
   TAX
 .r_pt410 CMP r_dl,Y
   BCS pb_d1_o
@@ -1944,7 +1943,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCC pb_d2_o
 .r_pt413 STA r_dr,Y
 .pb_d2_o
-  EOR R_XL
+  TXA
+  EOR R_XR
   CMP #4
   BCC pb_one_o
   LDY r_xo,X
@@ -1997,25 +1997,25 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JMP r_pbx_e
 .pb_one_o
   LDY r_xo,X
-  LDA r_lm,X
-  LDX R_XR
-  AND r_rm,X
-  STA RZ_T7
-  CPX #&80
+  CPX #&80                \ XL, XR differ only in bits 0-1 (XL EOR XR < 4)
   BCS pb_ob_o
   LDA (RZ_PA),Y
   EOR R_COLO
-  AND RZ_T7
+  AND r_lm,X
+  LDX R_XR
+  AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
-  JMP pb_skip_o
+  BRA pb_skip_o
 .pb_ob_o
   LDA (RZ_PB),Y
   EOR R_COLO
-  AND RZ_T7
+  AND r_lm,X
+  LDX R_XR
+  AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-  JMP pb_skip_o
+  BRA pb_skip_o
 .pb_lb_o
   LDA (RZ_PB),Y
   EOR R_COLO

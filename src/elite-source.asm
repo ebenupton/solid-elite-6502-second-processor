@@ -7039,10 +7039,9 @@ ENDMACRO
  SBC T1
  BCC mvs5s              \ |S R| < |A P|, or high byte 0: rare, so let ADD
  BEQ mvs5s              \ redo the whole sum from scratch (exact results)
- ORA #%10000000         \ |S R| > |A P|: nosev_x_hi = A with the sign of S,
- EOR T                  \ and C = 0, exactly as ADD's MU8s
- CLC
- STA INWK+1,Y
+ ORA #%10000000         \ |S R| > |A P|: nosev_x_hi = A with the sign of S
+ EOR T                  \ (ADD's MU8s also clears C, but no caller of MVS5
+ STA INWK+1,Y           \ reads C, so that is left out)
  BRA mvs5j
 
 .mvs5s
@@ -32769,8 +32768,8 @@ INCLUDE "build/dashtab.asm"
  STA P
  LDA SQ1H,X
 
- LDX #0                 \ Set X = 0 and the Z and N flags, and clear C, as in
- CLC                    \ MU11
+ LDX #0                 \ Set X = 0 and the Z and N flags, as in MU11 (C is
+                        \ already clear, as the BCS SQH above was not taken)
 
  RTS                    \ Return from the subroutine
 
