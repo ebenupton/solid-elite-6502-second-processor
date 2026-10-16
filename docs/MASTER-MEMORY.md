@@ -29,8 +29,7 @@ Short answer:
 | Main &0900-&0AFF | Yes, if RS423, cassette and speech are not used. | 512 |
 | Main &0840-&08FF | Yes, if MOS SOUND, ENVELOPE and printer are not used. | 192 |
 | Main &0800-&083F, &03E0-&03FF | Only while the MOS IRQ code never runs. Master Elite's IRQ1V handler never passes interrupts on. | 64 + 32 |
-| Main &0D00-&0D93 | As scratch between disc operations. DFS rewrites its NMI code there at the start of every operation. | 148 |
-| Main &0D94-&0D9E | Yes | 11 |
+| Main &0D00-&0DFF | **No, never** (see "Page &0D is off limits" below): the 1770 DFS NMI routine, extended vectors, ROM workspace table | 0 |
 | Main &0300-&03DF | Only if the MOS VDU and the cassette/ROM filing systems are never used again. | 224 |
 
 ---
@@ -234,13 +233,27 @@ Envelopes are at &08C0 (OSWORD 8). The MOS's 100 Hz IRQ code reads &0804-&0807 a
 | &0840-&08FF | Sound buffers, printer buffer, envelopes | Yes, if MOS SOUND, ENVELOPE and printer are unused (192 bytes) |
 | &0900-&0AFF | RS423, cassette and speech buffers | Yes, if those are unused (512 bytes) |
 | &0B00-&0CFF | Unused on the Master | **Yes** (512 bytes). No MOS 3.20 or DFS references; unchanged by all tests |
-| &0D00-&0D93 | DFS NMI routine, copied fresh (DFS &8FF9-&9002) at the start of every disc operation | Scratch between operations (148 bytes). Measured: garbage there, then SAVE/LOAD/CAT all worked. Optionally keep an RTI (&40) at &0D00 against stray NMIs |
-| &0D94-&0D9E | Unused | Yes (11 bytes) |
+| &0D00-&0D93 | DFS NMI routine, copied fresh (DFS &8FF9-&9002) at the start of every disc operation | **No** (see below) |
+| &0D94-&0D9E | Unused by MOS 3.20 and DFS 2.24 in jsbeeb | **No** (see below) |
 | &0D9F-&0DEF | Extended vectors; DFS's 7 FS vectors at &0DBA-&0DCE | No |
 | &0DF0-&0DFF | ROM private-workspace table (&0DF9 = &DA for DFS, &0DFD = &D9 for ADFS); DFS reads it on every operation | No |
 | &0E00-&12FF | Master Elite WP workspace and commander buffer (&0E7E) | Already used |
 
-Fill test: &0300-&03DF, &0840-&08FF, &0900-&0CFF, &0D00-&0D93 and &0D94-&0D9E were
+### Page &0D is off limits
+
+Never write main RAM &0D00-&0DFF while the game is loaded, at any time. The
+fill test below passed in jsbeeb, but a real Master is different: the Lander
+port hung on a real Master 128 booting from a Gotek because it built tables
+in page &0D (/Users/ebenupton/elite/elite-master-memo.md). &0D00 holds the
+1770 DFS's NMI routine, and NMIs cannot be masked (a Gotek or a late INTRQ
+can deliver one at any time); &0D9F-&0DEF are the extended vectors, which
+ROMs on a real machine hook (OSBYTE through BYTEV, for example), so any OS
+call can jump into page &0D; &0DF0-&0DFF is the ROM workspace table. A clean
+emulated Master has none of those hooks, so the emulator does not show the
+failure. The port assembles nothing there (asserted in the build), and the
+harness checks that only DFS writes the page once the game has started.
+
+Fill test (jsbeeb; superseded for page &0D by the rule above): &0300-&03DF, &0840-&08FF, &0900-&0CFF, &0D00-&0D93 and &0D94-&0D9E were
 filled with a pattern. SAVE, LOAD, CAT, the OSBYTE batch and an IRQ loop with keys all
 worked. Only &0D00-&0D5D changed (DFS's NMI code).
 
