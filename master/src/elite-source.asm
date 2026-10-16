@@ -4879,7 +4879,19 @@ ENDIF
  LDY #NI%-1             \ Set a counter in Y so we can loop through the NI%
                         \ bytes in the ship data block
 
+ BRA MAL3b              \ Port: the loop is unrolled twice; NI% = 37 is odd, so
+                        \ enter at the second copy (Y = 36, 34, ... 0 there)
+
+ ASSERT NI% MOD 2 = 1
+
 .MAL3
+
+ LDA INWK,Y             \ Load the Y-th byte of INWK and store it in the Y-th
+ STA (INF),Y            \ byte of INF
+
+ DEY                    \ Decrement the loop counter
+
+.MAL3b
 
  LDA INWK,Y             \ Load the Y-th byte of INWK and store it in the Y-th
  STA (INF),Y            \ byte of INF
