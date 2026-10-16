@@ -528,10 +528,11 @@ ENDIF
  BNE HZC
 
  ASSERT LOWLEN <= &0D00 - &0840 \ (never into page &0D)
+ ASSERT HZLEN <= &0800  \ (HAZEL's staging copy at &4000 must not reach &4800)
 
-.LWC                    \ Port: and the low code from &4400 to &0840, exactly
+.LWC                    \ Port: and the low code from &4800 to &0840, exactly
                         \ LOWLEN bytes (page &0D is off limits)
- LDA &4400              \ (both addresses patched as the copy goes)
+ LDA &4800              \ (both addresses patched as the copy goes)
  STA &0840
  INC LWC+1
  BNE P%+5
@@ -791,8 +792,8 @@ ENDIF
                         \ HAZEL
 
  EQUW MESS13            \ LOWCODE: game code for main RAM &0840-&0CFF, staged
- EQUB HOMEBANK, %00001001 \ at &4400 and copied into place with HAZEL (LDEND)
- EQUW &4400, LOWLEN
+ EQUB HOMEBANK, %00001001 \ at &4800 and copied into place with HAZEL (LDEND)
+ EQUW &4800, LOWLEN
 
  EQUW 0
 
