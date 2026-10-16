@@ -1560,6 +1560,29 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPY r_yend
   BCC cl
 .nocl
+  \ rows clamped to nothing at the top / bottom (ta = tb): trim them
+  LDY r_ystart
+.tt
+  LDA r_ta,Y
+  CMP r_tb,Y
+  BNE tt1
+  INY
+  CPY r_yend
+  BCC tt
+  RTS                     \ (no pixels at all)
+.tt1
+  STY r_ystart
+  LDY r_ylast
+.tb
+  LDA r_ta,Y
+  CMP r_tb,Y
+  BNE tb1
+  DEY
+  BRA tb
+.tb1
+  STY r_ylast
+  INY
+  STY r_yend
   \ this buffer's dirty row range
   LDX r_buf
   LDA r_ystart
