@@ -9834,31 +9834,29 @@ ENDMACRO
                         \ shift-and-add only used bits 0-4 of P), X = T1 =
                         \ |A| - 1, T = the sign, Y kept, C clear, N and Z from A
 
- TAX                    \ Set T to the sign bit of A
- AND #%10000000
- STA T
+ STA T                  \ Set T = A for now
 
- TXA                    \ Set A = |A|
- AND #%01111111
+ AND #%01111111         \ Set A = |A|
 
  BEQ MU6                \ If A = 0, jump to MU6 to set P(1 0) = 0 and return
+                        \ (T = A = its sign bit already)
 
- TAX                    \ Set T1 = X = |A| - 1
- DEX
- STX T1
+ TRB T                  \ Clear |A|'s bits in T, leaving T = the sign bit
 
  PHY                    \ Keep Y
 
- LDA P                  \ Set P = b = P AND 31
- AND #31
- STA P
+ DEC A                  \ Set T1 = |A| - 1
+ STA T1
 
- SEC                    \ Set X = b + |A| (< 256)
- ADC T1
+ LDA P                  \ Set Y = b = P AND 31
+ AND #31
+ TAY
+
+ CLC                    \ Set X = b + |A| - 1 (< 256, so C stays clear), so
+ ADC T1                 \ QSL+1,X is QS(b + |A|)
  TAX
 
- LDA P                  \ Set Y = |b - |A||
- CLC
+ TYA                    \ Set Y = |b - |A|| (C clear: b - T1 - 1 = b - |A|)
  SBC T1
  BCS mlt1
  EOR #&FF
@@ -9868,11 +9866,11 @@ ENDMACRO
 
  TAY
 
- LDA QSL,X              \ Set (A P) = (b + |A|)^2 / 4 - (b - |A|)^2 / 4
+ LDA QSL+1,X            \ Set (A P) = (b + |A|)^2 / 4 - (b - |A|)^2 / 4
  SEC                    \           = b * |A|
  SBC QSL,Y
  STA P
- LDA QSH,X
+ LDA QSH+1,X
  SBC QSH,Y
 
  LDX T1                 \ X = |A| - 1, as the original leaves it
