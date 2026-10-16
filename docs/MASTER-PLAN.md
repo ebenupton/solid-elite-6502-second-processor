@@ -83,7 +83,7 @@ A. Infrastructure
    3. Input-injection harness, the state-driven pilot script, and the compare and
       speed tool for Master Elite against itself (passing trivially for the
       unmodified build).
-B. Relocation, no rendering change
+B. Relocation, no rendering change (the target layout is docs/MASTER-MAP.md)
    1. Move Master Elite's code out of main &4000-&7FFF into sideways banks (with
       far-call stubs where code crosses banks) and its data out of bank 6, keeping
       Master's own drawing. Gate: identical state to the original.
