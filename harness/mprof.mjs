@@ -28,8 +28,11 @@ const prof = {};
 let on = false, last = 0, lastKey = null, c0 = 0, c1 = 0, installed = false, cpu;
 const cyc = () => cpu.cycleSeconds * 2e6 + cpu.currentCycles;
 const pilot = makePilot();
+// --seedfile f: the boot leftovers mcompare.mjs seeded into this build (its
+// <out>/seeded.json), so that the run follows the compared one exactly
+const seed = a.seedfile ? JSON.parse((await import("fs")).readFileSync(a.seedfile, "utf8")) : null;
 await runElite({
-    disc: DISC, syms: sy, pilot, iters: FROM + N + 1, patch: patchCommander,
+    disc: DISC, syms: sy, pilot, iters: FROM + N + 1, patch: patchCommander, seed,
     onIter: (i, s) => {
         cpu = s._machine.processor;
         if (!installed) {

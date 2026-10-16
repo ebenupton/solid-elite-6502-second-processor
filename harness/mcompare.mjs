@@ -6,7 +6,8 @@
 // node harness/mcompare.mjs [--iters 5000] [--ref disc] [--rsyms file]
 //                           [--cand disc] [--csyms file] [--seed boot|rand|none]
 //                           [--loose] [--window 200] [--out dir] [--shots N]
-//                           [--maxsecs S] [--nopatch]
+//                           [--maxsecs S] [--nopatch] [--norefcache]
+//                           [--trace FROM,TO,LABEL+LABEL,VAR+VAR~OFFSET]
 //
 // Defaults: reference = master/reference/elite-master-sng47.ssd (the released
 // SNG47 disc) with master/reference/symbols.txt (the symbols of the pristine
@@ -45,6 +46,7 @@
 import { runElite, loadSyms, regionsFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, ROOT } from "./mlib.mjs";
 import { makePilot, patchCommander } from "./mpilot.mjs";
 import { writeFileSync, mkdirSync } from "fs";
+import { makeTracer } from "./mtrace.mjs";
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => {
     if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]);
@@ -66,14 +68,18 @@ const rsy = loadSyms(RSYMS), csy = loadSyms(CSYMS);
 async function run(label, disc, sy, seed, seedBoot) {
     const pilot = makePilot();
     const phases = [];
+    // --trace FROM,TO,LABEL+LABEL,EXTRA+EXTRA (mtrace.mjs): <out>/trace-<label>.txt
+    const traceOut = [];
+    const tracer = args.trace ? makeTracer(args.trace, sy, traceOut) : null;
     const t0 = Date.now();
     const r = await runElite({
         disc, syms: sy, pilot, iters: ITERS, maxSecs: +(args.maxsecs || 4 * ITERS),
         patch: args.nopatch ? null : patchCommander, seed, seedBoot,
-        onIter: () => phases.push(pilot.P.phase),
+        onIter: (i, s, res) => { phases.push(pilot.P.phase); if (tracer) tracer(i, s, res); },
         shots: SHOTS, onShot: async (s, i) => writeFileSync(`${OUT}/${label}-${String(i).padStart(6, "0")}.png`, await s.screenshotActive({ scale: 1 })),
     });
     r.phases = phases; r.stats = pilot.P.stats; r.wall = (Date.now() - t0) / 1000;
+    if (tracer) writeFileSync(`${OUT}/trace-${label}.txt`, traceOut.join("\n") + "\n");
     console.log(`${label}: ${r.iters} iterations (${r.tt100} in flight), emulated ${r.emuSecs.toFixed(1)} s, wall ${r.wall.toFixed(1)} s${r.error ? ", STOPPED: " + r.error : ""}`);
     return r;
 }
@@ -90,7 +96,7 @@ async function cachedRef() {
     for (const f of [REF, RSYMS, `${ROOT}harness/mlib.mjs`, `${ROOT}harness/mpilot.mjs`]) h.update(readFileSync(f));
     h.update(JSON.stringify([ITERS, args.maxsecs || 0, !!args.nopatch]));
     const dir = `${ROOT}scratch/master/refcache`, file = `${dir}/${h.digest("hex")}.json.gz`;
-    if (!args.norefcache && existsSync(file)) {
+    if (!args.norefcache && !args.trace && existsSync(file)) {
         const o = JSON.parse(gunzipSync(readFileSync(file)).toString());
         o.snaps = o.snaps.map(b => Uint8Array.from(Buffer.from(b, "base64")));
         o.init = Uint8Array.from(Buffer.from(o.init, "base64"));
@@ -122,6 +128,8 @@ const seedBoot = SEED !== "boot" ? null : (cregions, written, rb) => {
     return out;
 };
 const cand = await run("cand", CAND, csy, seeds, seedBoot);
+// the boot leftovers seeded into the candidate (for mprof.mjs --seedfile)
+if (cand.seeded) writeFileSync(`${OUT}/seeded.json`, JSON.stringify(cand.seeded));
 
 const report = [];
 const log = (...x) => { const l = x.join(" "); console.log(l); report.push(l); };

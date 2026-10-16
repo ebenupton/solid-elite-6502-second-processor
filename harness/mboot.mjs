@@ -3,7 +3,7 @@
 // (sideways RAM bank 4; bank 6 in the original).
 //
 // node harness/mboot.mjs [--disc master/build/elite-master-sng47.ssd]
-//                        [--syms master/build/symbols.txt] [--out dir]
+//                        [--syms master/build/symbols.txt] [--out dir] [--polls N]
 //
 // Boots with SHIFT+BREAK, runs until the first title screen ("Load New
 // Commander (Y/N)?") has drawn its rotating ship a few times (the 8th call of
@@ -43,7 +43,7 @@ const tName = syms.TITLE_C !== undefined ? "TITLE_C" : "TITLE";
 const tAddr = syms[tName], tMap = mapOfLabel(syms, tName);
 const h = pc => {
     if (pc === tAddr && (tMap === "m" || tMap === mapAt(cpu.romsel, pc))) inTitle = true;
-    if (pc === syms.RDKEY && inTitle && ++titleCalls >= 8) done = true;
+    if (pc === syms.RDKEY && inTitle && ++titleCalls >= (+args.polls || 8)) done = true;
     return done;
 };
 cpu.debugInstruction.add(h);
