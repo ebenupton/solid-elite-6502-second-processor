@@ -565,6 +565,10 @@ ENDIF
  EQUB HOMEBANK, %00001111
  EQUW &3100, &0E00
 
+ EQUW MESS8             \ STUBS: the stubs into the cold area, to main RAM at
+ EQUB HOMEBANK, %00001001 \ &7E00-&7FFF
+ EQUW &7E00, &0200
+
  EQUW MESS4             \ BANK4: Elite's home bank
  EQUB HOMEBANK, %00001001
  EQUW &8000, &4000
@@ -1366,6 +1370,11 @@ ENDIF
 .MESS7
 
  EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
+ EQUB 13
+
+.MESS8
+
+ EQUS "L.STUBS FFFF1300"    \ Port: *LOAD STUBS FFFF1300
  EQUB 13
 
 \ ******************************************************************************

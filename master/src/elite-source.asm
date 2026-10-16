@@ -21238,7 +21238,10 @@ ENDIF
  PRINT "S.ELTH ", ~CODE_H%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_H%
 \SAVE "build/ELTH.bin", CODE_G%, P%, LOAD%
 
- INCLUDE "src/elite-stubs7.asm"     \ Port: stubs into the cold area (far7, far7j)
+ ASSERT P% <= &4000     \ Port: the main code ends below &4000. Main RAM &4000-&6FFF
+                        \ is screen buffer A in the final map and &7000-&7DFF the
+                        \ dashboard (docs/MASTER-MAP.md), so nothing of the game
+                        \ may live there
 
 \ ******************************************************************************
 \
@@ -21248,6 +21251,25 @@ ENDIF
 
  PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
  SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
+
+\ ******************************************************************************
+\
+\ Port: the stubs into the cold area, in main RAM at &7E00-&7FFF (above the
+\ dashboard, docs/MASTER-MAP.md). They are called only by game code, never
+\ while ACCCON X is set (which hides main RAM there). Saved as STUBS, which
+\ the loader copies there.
+\
+\ ******************************************************************************
+
+ ORG &7E00
+
+ INCLUDE "src/elite-stubs7.asm"     \ stubs into the cold area (far7, far7j)
+
+.STUBS_END%
+
+ PRINT "Stubs: &7E00-", ~STUBS_END%-1, " free ", &8000-STUBS_END%
+ ASSERT STUBS_END% <= &8000
+ SAVE "build/STUBS.bin", &7E00, &8000, &7E00
 
 \ ******************************************************************************
 \
