@@ -7,7 +7,8 @@
 \
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser (raster.asm)
 \   build/BANK7.bin  sideways RAM bank 7: the rasteriser's cold code
-\                    (raster7.asm)
+\                    (raster7.asm), then Elite's cold code (cold7.asm: docked
+\                    screens, charts, title, ...; called through far7.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (frame.asm), the ship
 \                    faces and colours (faces.asm), and at HZIMG (&BB00) an image of
 \                    HAZEL's code, which the loader copies to &C000
@@ -82,7 +83,8 @@ SAVE "build/BANK6.bin", &8000, HZIMG + HZ_CODE_END - HZ_START, &8000
 CLEAR &8000, &C000
 ORG &8000
 INCLUDE "src/raster7.asm"       \ the rasteriser's second bank (cold code)
+INCLUDE "src/cold7.asm"         \ Elite's cold code (docked screens, charts, ...)
 .B7_END
-PRINT "Bank 7: rasteriser (2) &8000-", ~B7_END-1, " free ", &C000-B7_END
+PRINT "Bank 7: rasteriser (2) + cold code &8000-", ~B7_END-1, " free ", &C000-B7_END
 ASSERT B7_END <= &C000
 SAVE "build/BANK7.bin", &8000, B7_END, &8000
