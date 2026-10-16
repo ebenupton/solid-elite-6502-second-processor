@@ -83,13 +83,7 @@
  JSR far4
  EQUW pr2+2
 
-.x4_pr5
- JSR far4
- EQUW pr5
 
-.x4_prq
- JSR far4
- EQUW prq
 
 
 .x4_BPRNT
@@ -172,9 +166,6 @@
  JSR far4
  EQUW WSCAN
 
-.x4_pr6
- JSR far4
- EQUW pr6
 
 .x4_CHPR
  JSR far4
@@ -222,17 +213,67 @@
  JSR far4
  EQUW ZINF
 
-.x4_jmp
- JSR far4
- EQUW jmp
 
 .x4_t
  JSR far4
  EQUW t
 
-\ (x4_RDFIRE and x4_SHIFT, used only by the Master Compact's code, would be
-\ here: RDFIRE and SHIFT are not assembled for the SNG47 version)
+\ (x4_RDFIRE, x4_SHIFT and x4_CTRLmc, used only by the Master Compact's code,
+\ would be here: RDFIRE, SHIFT and CTRLmc are not assembled for SNG47)
 
 .x4_BELL
  JSR far4
  EQUW BELL
+
+.x4_ADD
+ JSR far4
+ EQUW ADD
+
+.x4_BAD
+ JSR far4
+ EQUW BAD
+
+.x4_CTRL
+ JSR far4
+ EQUW CTRL
+
+
+.x4_HALL
+ JSR far4
+ EQUW HALL
+
+.x4_LOOK1
+ JSR far4
+ EQUW LOOK1
+
+.x4_MAS2
+ JSR far4
+ EQUW MAS2
+
+.x4_MESS
+ JSR far4
+ EQUW MESS
+
+.x4_NOISE
+ JSR far4
+ EQUW NOISE
+
+.x4_NWSPS
+ JSR far4
+ EQUW NWSPS
+
+.x4_NWSTARS
+ JSR far4
+ EQUW NWSTARS
+
+.x4_TTX66
+ JSR far4
+ EQUW TTX66
+
+.x4_Ze
+ JSR far4
+ EQUW Ze
+
+.x4_m
+ JSR far4
+ EQUW m

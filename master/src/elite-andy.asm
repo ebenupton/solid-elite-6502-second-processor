@@ -233,7 +233,7 @@
  JSR TT162_C              \ Print a space
 
  TYA                    \ Print the recursive token in Y followed by a question
- JSR x4_prq                \ mark
+ JSR prq_C                \ mark
 
 .TTX224_C
 
@@ -554,7 +554,7 @@
  JSR TT67_C               \ Print a newline
 
  LDA #176               \ Print recursive token 127 ("ITEM") followed by a
- JSR x4_prq                \ question mark
+ JSR prq_C                \ question mark
 
  JSR dn2_C                \ Call dn2 to make a short, high beep and delay for 1
                         \ second
@@ -1038,7 +1038,7 @@
  JSR GC2_C                \ which is the same as (Y X) = P * 4 because A = 0
 
  SEC                    \ We now have our final price, * 10, so we can call pr5
- JSR x4_pr5                \ to print (Y X) to 5 digits, including a decimal
+ JSR pr5_C                \ to print (Y X) to 5 digits, including a decimal
                         \ point, as the C flag is set
 
  LDY QQ19+4             \ We now move on to availability, so fetch the market
@@ -1604,7 +1604,7 @@
                         \ and move the text cursor to the first cleared row
 
  LDA #127               \ Print recursive token 127 ("ITEM") followed by a
- JSR x4_prq                \ question mark
+ JSR prq_C                \ question mark
 
  JSR gnum_C               \ Call gnum to get a number from the keyboard, which
                         \ will be the number of the item we want to purchase,
@@ -1974,7 +1974,7 @@
                         \ subroutine (as c contains an RTS)
 
  LDA #197               \ Otherwise we don't have enough cash to buy this piece
- JSR x4_prq                \ of equipment, so print recursive token 37 ("CASH")
+ JSR prq_C                \ of equipment, so print recursive token 37 ("CASH")
                         \ followed by a question mark
 
  JMP err_C                \ Jump to err to beep, pause and go to the docking bay
@@ -2104,7 +2104,7 @@
 .qv2_C
 
  LDA #175               \ Print recursive text token 15 ("VIEW ") followed by
- JSR x4_prq                \ a question mark
+ JSR prq_C                \ a question mark
 
  JSR x4_TT217              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A (and X)
@@ -3154,7 +3154,7 @@
  SEC                    \ Set the C flag so that the call to pr5 will include a
                         \ decimal point, and display the value as (Y X) / 10
 
- JSR x4_pr5                \ Print (Y X) to 5 digits, including a decimal point
+ JSR pr5_C                \ Print (Y X) to 5 digits, including a decimal point
 
  LDA #195               \ Set A to the recursive token 35 (" LIGHT YEARS") and
                         \ fall through into TT60 to print the token followed
@@ -3531,7 +3531,7 @@
  LDX QQ7                \ Fetch the 16-bit productivity value from QQ7 into
  LDY QQ7+1              \ (Y X)
 
- JSR x4_pr6                \ Print (Y X) to 5 digits with no decimal point
+ JSR pr6_C                \ Print (Y X) to 5 digits with no decimal point
 
  JSR TT162_C              \ Print a space
 
@@ -3574,7 +3574,7 @@
  ADC #11
  TAY
 
- JSR x4_pr5                \ Print (Y X) to 5 digits, not including a decimal
+ JSR pr5_C                \ Print (Y X) to 5 digits, not including a decimal
                         \ point, as the C flag will be clear (as the maximum
                         \ radius will always fit into 16 bits)
 

@@ -206,3 +206,31 @@
 .DKS3
  JSR far7
  EQUW DKS3_C
+
+.DOENTRY
+ JSR far7
+ EQUW DOENTRY_C
+
+.GTHG
+ JSR far7
+ EQUW GTHG_C
+
+.TT110
+ JSR far7
+ EQUW TT110_C
+
+.TT18
+ JSR far7
+ EQUW TT18_C
+
+.WARP
+ JSR far7
+ EQUW WARP_C
+
+.ee3
+ JSR far7
+ EQUW ee3_C
+
+.hyp
+ JSR far7
+ EQUW hyp_C

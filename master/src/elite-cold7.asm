@@ -2761,7 +2761,7 @@ ENDIF
  JSR TT111_C              \ Select the system closest to galactic coordinates
                         \ (QQ9, QQ10)
 
- JSR x4_jmp                \ Set the current system to the selected system
+ JSR jmp_C                \ Set the current system to the selected system
 
  LDX #5                 \ We now want to copy the seeds for the selected system
                         \ in QQ15 into QQ2, where we store the seeds for the
@@ -4547,6 +4547,1695 @@ ENDIF
                         \ newly loaded commander data block
 
  RTS                    \ Return from the subroutine
+
+ RTS                    \ This instruction has no effect as we already returned
+                        \ from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: DOENTRY
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Dock at the space station, show the ship hangar and work out any
+\             mission progression
+\  Deep dive: The Constrictor mission
+\             The Thargoid Plans mission
+\
+\ ******************************************************************************
+
+.DOENTRY_C
+
+ JSR RES2_C               \ Reset a number of flight variables and workspaces
+
+ JSR LAUN_C               \ Show the space station docking tunnel
+
+ LDA #0                 \ Reduce the speed to 0
+ STA DELTA
+
+ STA GNTMP              \ Cool down the lasers completely
+
+ STA QQ22+1             \ Reset the on-screen hyperspace counter
+
+ LDA #&FF               \ Recharge the forward and aft shields
+ STA FSH
+ STA ASH
+
+ STA ENERGY             \ Recharge the energy banks
+
+ JSR x4_HALL               \ Show the ship hangar
+
+ LDY #44                \ Wait for 44/50 of a second (0.88 seconds)
+ JSR x4_DELAY
+
+ LDA TP                 \ Fetch bits 0 and 1 of TP, and if they are non-zero
+ AND #%00000011         \ (i.e. mission 1 is either in progress or has been
+ BNE EN1_C                \ completed), skip to EN1
+
+ LDA TALLY+1            \ If the high byte of TALLY is zero (so we have a combat
+ BEQ EN4_C                \ rank below Competent, or we are Competent but have not
+                        \ yet earned a grand total of at least 256 kill points),
+                        \ jump to EN4 as we are not yet good enough to qualify
+                        \ for a mission
+
+ LDA GCNT               \ Fetch the galaxy number into A, and if any of bits 1-7
+ LSR A                  \ are set (i.e. A > 1), jump to EN4 as mission 1 can
+ BNE EN4_C                \ only be triggered in the first two galaxies
+
+ JMP BRIEF_C              \ If we get here then mission 1 hasn't started, we have
+                        \ reached a combat rank of at least Competent plus 128
+                        \ kill points, and we are in galaxy 0 or 1 (shown
+                        \ in-game as galaxy 1 or 2), so it's time to start
+                        \ mission 1 by calling BRIEF
+
+.EN1_C
+
+                        \ If we get here then mission 1 is either in progress or
+                        \ has been completed
+
+ CMP #%00000011         \ If bits 0 and 1 are not both set, then jump to EN2
+ BNE EN2_C
+
+ JMP DEBRIEF_C            \ Bits 0 and 1 are both set, so mission 1 is both in
+                        \ progress and has been completed, which means we have
+                        \ only just completed it, so jump to DEBRIEF to end the
+                        \ mission get our reward
+
+.EN2_C
+
+                        \ Mission 1 has been completed, so now to check for
+                        \ mission 2
+
+ LDA GCNT               \ Fetch the galaxy number into A
+
+ CMP #2                 \ If this is not galaxy 2 (shown in-game as galaxy 3),
+ BNE EN4_C                \ jump to EN4 as we can only start mission 2 in the
+                        \ third galaxy
+
+ LDA TP                 \ Extract bits 0-3 of TP into A
+ AND #%00001111
+
+ CMP #%00000010         \ If mission 1 is complete and no longer in progress,
+ BNE EN3_C                \ and mission 2 is not yet started, then bits 0-3 of TP
+                        \ will be %0010, so this jumps to EN3 if this is not the
+                        \ case
+
+ LDA TALLY+1            \ If the high byte of TALLY is < 5 (so we have a combat
+ CMP #5                 \ rank that is less than 3/8 of the way from Dangerous
+ BCC EN4_C                \ to Deadly), jump to EN4 as our rank isn't high enough
+                        \ for mission 2
+
+ JMP BRIEF2_C             \ If we get here, mission 1 is complete and no longer in
+                        \ progress, mission 2 hasn't started, we have reached a
+                        \ combat rank of 3/8 of the way from Dangerous to
+                        \ Deadly, and we are in galaxy 2 (shown in-game as
+                        \ galaxy 3), so it's time to start mission 2 by calling
+                        \ BRIEF2
+
+.EN3_C
+
+ CMP #%00000110         \ If mission 1 is complete and no longer in progress,
+ BNE EN5_C                \ and mission 2 has started but we have not yet been
+                        \ briefed and picked up the plans, then bits 0-3 of TP
+                        \ will be %0110, so this jumps to EN5 if this is not the
+                        \ case
+
+ LDA QQ0                \ Set A = the current system's galactic x-coordinate
+
+ CMP #215               \ If A <> 215 then jump to EN4
+ BNE EN4_C
+
+ LDA QQ1                \ Set A = the current system's galactic y-coordinate
+
+ CMP #84                \ If A <> 84 then jump to EN4
+ BNE EN4_C
+
+ JMP BRIEF3_C             \ If we get here, mission 1 is complete and no longer in
+                        \ progress, mission 2 has started but we have not yet
+                        \ picked up the plans, and we have just arrived at
+                        \ Ceerdi at galactic coordinates (215, 84), so we jump
+                        \ to BRIEF3 to get a mission brief and pick up the plans
+                        \ that we need to carry to Birera
+
+.EN5_C
+
+ CMP #%00001010         \ If mission 1 is complete and no longer in progress,
+ BNE EN4_C                \ and mission 2 has started and we have picked up the
+                        \ plans, then bits 0-3 of TP will be %1010, so this
+                        \ jumps to EN5 if this is not the case
+
+ LDA QQ0                \ Set A = the current system's galactic x-coordinate
+
+ CMP #63                \ If A <> 63 then jump to EN4
+ BNE EN4_C
+
+ LDA QQ1                \ Set A = the current system's galactic y-coordinate
+
+ CMP #72                \ If A <> 72 then jump to EN4
+ BNE EN4_C
+
+ JMP DEBRIEF2_C           \ If we get here, mission 1 is complete and no longer in
+                        \ progress, mission 2 has started and we have picked up
+                        \ the plans, and we have just arrived at Birera at
+                        \ galactic coordinates (63, 72), so we jump to DEBRIEF2
+                        \ to end the mission and get our reward
+
+.EN4_C
+
+\LDA CASH+2             \ These instructions are commented out in the original
+\CMP #&C4               \ source
+\BCC EN6
+\
+\LDA TP
+\AND #&10
+\BNE EN6
+\
+\JMP TBRIEF
+\
+\.EN6
+
+ JMP BAY_C                \ If we get here them we didn't start or any missions,
+                        \ so jump to BAY to go to the docking bay (i.e. show the
+                        \ Status Mode screen)
+
+\ ******************************************************************************
+\
+\       Name: LL164
+\       Type: Subroutine
+\   Category: Drawing circles
+\    Summary: Make the hyperspace sound and draw the hyperspace tunnel
+\
+\ ------------------------------------------------------------------------------
+\
+\ See the IRQ1 routine for details on the multi-coloured effect that's used.
+\
+\ ******************************************************************************
+
+.LL164_C
+
+ LDY #sohyp             \ Call the NOISE routine with Y = 10 to make the first
+ JSR x4_NOISE              \ sound of the hyperspace drive being engaged
+
+ LDY #sohyp2            \ Call the NOISE routine with Y = 11 to make the second
+ JSR x4_NOISE              \ sound of the hyperspace drive being engaged
+
+ LDA #4                 \ Set the step size for the hyperspace rings to 4, so
+                        \ there are more sections in the rings and they are
+                        \ quite round (compared to the step size of 8 used in
+                        \ the much more polygonal launch rings)
+
+ STA HFX                \ Set HFX to 4, which switches the screen mode to a full
+                        \ mode 2 screen, therefore making the hyperspace rings
+                        \ multi-coloured and all zig-zaggy (see the IRQ1 routine
+                        \ for details)
+
+ JSR HFS2_C               \ Call HFS2 to draw the hyperspace tunnel rings
+
+ STZ HFX                \ Set HFX back to 0, so we switch back to the normal
+                        \ split-screen mode
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: LAUN
+\       Type: Subroutine
+\   Category: Drawing circles
+\    Summary: Make the launch sound and draw the launch tunnel
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is shown when launching from or docking with the space station.
+\
+\ ******************************************************************************
+
+.LAUN_C
+
+ LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
+ JSR x4_NOISE              \ of the ship launching from the station
+
+ LDA #8                 \ Set the step size for the launch tunnel rings to 8, so
+                        \ there are fewer sections in the rings and they are
+                        \ quite polygonal (compared to the step size of 4 used
+                        \ in the much rounder hyperspace rings)
+
+                        \ Fall through into HFS2 to draw the launch tunnel rings
+
+\ ******************************************************************************
+\
+\       Name: HFS2
+\       Type: Subroutine
+\   Category: Drawing circles
+\    Summary: Draw the launch or hyperspace tunnel
+\
+\ ------------------------------------------------------------------------------
+\
+\ The animation gets drawn like this. First, we draw a circle of radius 8 at the
+\ centre, and then double the radius, draw another circle, double the radius
+\ again and draw a circle, and we keep doing this until the radius is bigger
+\ than 160 (which goes beyond the edge of the screen, which is 256 pixels wide,
+\ equivalent to a radius of 128). We then repeat this whole process for an
+\ initial circle of radius 9, then radius 10, all the way up to radius 15.
+\
+\ This has the effect of making the tunnel appear to be racing towards us as we
+\ hurtle out into hyperspace or through the space station's docking tunnel.
+\
+\ The hyperspace effect is done in a full mode 2 screen, which makes the rings
+\ all coloured and zig-zaggy, while the launch screen is in the normal
+\ four-colour mode 1 screen.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The step size of the straight lines making up the rings
+\                       (4 for launch, 8 for hyperspace)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   HFS1                Don't clear the screen, and draw 8 concentric rings
+\                       with the step size in STP
+\
+\ ******************************************************************************
+
+.HFS2_C
+
+ STA STP                \ Store the step size in A
+
+ LDA QQ11               \ Store the current view type in QQ11 on the stack
+ PHA
+
+ LDA #0                 \ Clear the top part of the screen, draw a border box,
+ JSR x4_TT66               \ and set the current view type in QQ11 to 0 (the space
+                        \ view)
+
+ PLA                    \ Restore the view type from the stack
+ STA QQ11
+
+.HFS1_C
+
+ LDX #X                 \ Set K3 = #X (the x-coordinate of the centre of the
+ STX K3                 \ screen)
+
+ LDX #Y                 \ Set K4 = #Y (the y-coordinate of the centre of the
+ STX K4                 \ screen)
+
+ LDX #0                 \ Set X = 0
+
+ STX XX4                \ Set XX4 = 0, which we will use as a counter for
+                        \ drawing eight concentric rings
+
+ STX K3+1               \ Set the high bytes of K3(1 0) and K4(1 0) to 0
+ STX K4+1
+
+.HFL5_C
+
+ JSR HFL1_C               \ Call HFL1 below to draw a set of rings, with each one
+                        \ twice the radius of the previous one, until they won't
+                        \ fit on-screen
+
+ INC XX4                \ Increment the counter and fetch it into X
+ LDX XX4
+
+ CPX #8                 \ If we haven't drawn 8 sets of rings yet, loop back to
+ BNE HFL5_C               \ HFL5 to draw the next ring
+
+ RTS                    \ Return from the subroutine
+
+.HFL1_C
+
+ LDA XX4                \ Set K to the ring number in XX4 (0-7) + 8, so K has
+ AND #7                 \ a value of 8 to 15, which we will use as the starting
+ CLC                    \ radius for our next set of rings
+ ADC #8
+ STA K
+
+.HFL2_C
+
+ LDA #1                 \ Set LSP = 1 to reset the ball line heap
+ STA LSP
+
+ JSR x4_CIRCLE2            \ Call CIRCLE2 to draw a circle with the centre at
+                        \ (K3(1 0), K4(1 0)) and radius K
+
+ ASL K                  \ Double the radius in K
+
+ BCS HF8_C                \ If the radius had a 1 in bit 7 before the above shift,
+                        \ then doubling K will means the circle will no longer
+                        \ fit on the screen (which is width 256), so jump to
+                        \ HF8 to stop drawing circles
+
+ LDA K                  \ If the radius in K <= 160, loop back to HFL2 to draw
+ CMP #160               \ another one
+ BCC HFL2_C
+
+.HF8_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: dockEd
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Print a message to say there is no hyperspacing allowed inside the
+\             station
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print "Docked" at the bottom of the screen to indicate we can't hyperspace
+\ when docked.
+\
+\ ******************************************************************************
+
+.dockEd_C
+
+ JSR x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+                        \ and move the text cursor to the first cleared row
+
+ LDA #15                \ Move the text cursor to column 15 (the middle of the
+ STA XC                 \ screen), setting A to 15 at the same time for the
+                        \ following call to TT27
+
+ LDA #RED               \ Switch to colour 2, which is magenta in the trade view
+ STA COL                \ or red in the chart view
+
+ LDA #205               \ Print extended token 205 ("DOCKED") and return from
+ JMP DETOK_C              \ the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: hyp
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Start the hyperspace process
+\
+\ ------------------------------------------------------------------------------
+\
+\ Called when "H" or CTRL-H is pressed during flight. Checks the following:
+\
+\   * We are in space
+\
+\   * We are not already in a hyperspace countdown
+\
+\ If CTRL is being held down, we jump to Ghy to engage the galactic hyperdrive,
+\ otherwise we check that:
+\
+\   * The selected system is not the current system
+\
+\   * We have enough fuel to make the jump
+\
+\ and if all the pre-jump checks are passed, we print the destination on-screen
+\ and start the countdown.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   TTX111              Used to rejoin this routine from the call to TTX110
+\
+\ ******************************************************************************
+
+.hyp_C
+
+ LDA QQ12               \ If we are docked (QQ12 = &FF) then jump to dockEd to
+ BNE dockEd_C             \ print an error message and return from the subroutine
+                        \ using a tail call (as we can't hyperspace when docked)
+
+ LDA QQ22+1             \ Fetch QQ22+1, which contains the number that's shown
+                        \ on-screen during hyperspace countdown
+
+ BEQ P%+3               \ If it is zero, skip the next instruction
+
+ RTS                    \ The count is non-zero, so return from the subroutine
+
+ LDA #CYAN              \ The count is zero, so switch to colour 3, which is
+ STA COL                \ cyan in the space view
+
+IF _SNG47
+
+ JSR x4_CTRL               \ Scan the keyboard to see if CTRL is currently pressed
+
+ELIF _COMPACT
+
+ JSR x4_CTRLmc             \ Scan the keyboard to see if CTRL is currently pressed
+
+ENDIF
+
+ BMI Ghy_C                \ If it is, then the galactic hyperdrive has been
+                        \ activated, so jump to Ghy to process it
+
+ LDA QQ11               \ If the current view is 0 (i.e. the space view) then
+ BEQ TTX110_C             \ jump to TTX110, which calls TT111 to set the current
+                        \ system to the nearest system to (QQ9, QQ10), and jumps
+                        \ back into this routine at TTX111 below
+
+ AND #%11000000         \ If either bit 6 or 7 of the view type is set - so
+ BNE P%+3               \ this is either the Short-range or Long-range Chart -
+                        \ then skip the following instruction
+
+ RTS                    \ This is not a chart view, so return from the
+                        \ subroutine
+
+ JSR hm_C                 \ This is a chart view, so call hm to redraw the chart
+                        \ crosshairs
+
+.TTX111_C
+
+                        \ If we get here then the current view is either the
+                        \ space view or a chart
+
+ LDA QQ8                \ If either byte of the distance to the selected system
+ ORA QQ8+1              \ in QQ8 are zero, skip the next instruction to make a
+ BNE P%+3               \ copy of the destination seeds in safehouse
+
+ RTS                    \ The selected system is the same as the current system,
+                        \ so return from the subroutine
+
+ LDX #5                 \ We now want to copy those seeds into safehouse, so we
+                        \ so set a counter in X to copy 6 bytes
+
+.sob_C
+
+ LDA QQ15,X             \ Copy the X-th byte of QQ15 into the X-th byte of
+ STA safehouse,X        \ safehouse
+
+ DEX                    \ Decrement the loop counter
+
+ BPL sob_C                \ Loop back to copy the next byte until we have copied
+                        \ all six seed bytes
+
+ LDA #7                 \ Move the text cursor to column 7, row 22 (in the
+ STA XC                 \ middle of the bottom text row)
+ LDA #22
+ STA YC
+
+ LDA #0                 \ Set QQ17 = 0 to switch to ALL CAPS
+ STA QQ17
+
+ LDA #189               \ Print recursive token 29 ("HYPERSPACE ")
+ JSR TT27_C
+
+ LDA QQ8+1              \ If the high byte of the distance to the selected
+ BNE goTT147_C            \ system in QQ8 is > 0, then it is definitely too far to
+                        \ jump (as our maximum range is 7.0 light years, or a
+                        \ value of 70 in QQ8(1 0)), so jump to TT147 via goTT147
+                        \ to print "RANGE?" and return from the subroutine using
+                        \ a tail call
+
+ LDA QQ14               \ Fetch our current fuel level from Q114 into A
+
+ CMP QQ8                \ If our fuel reserves are greater than or equal to the
+ BCS P%+5               \ distance to the selected system, then we have enough
+                        \ fuel for this jump, so skip the following instruction
+                        \ to start the hyperspace countdown
+
+.goTT147_C
+
+ JMP TT147_C              \ We don't have enough fuel to reach the destination, so
+                        \ jump to TT147 to print "RANGE?" and return from the
+                        \ subroutine using a tail call
+
+ LDA #'-'               \ Print a hyphen
+ JSR TT27_C
+
+ JSR cpl_C                \ Call cpl to print the name of the selected system
+
+                        \ Fall through into wW to start the hyperspace countdown
+
+\ ******************************************************************************
+\
+\       Name: wW
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Start a hyperspace countdown
+\
+\ ------------------------------------------------------------------------------
+\
+\ Start the hyperspace countdown (for both inter-system hyperspace and the
+\ galactic hyperdrive).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   wW2                 Start the hyperspace countdown, starting the countdown
+\                       from the value in A
+\
+\ ******************************************************************************
+
+.wW_C
+
+ LDA #15                \ The hyperspace countdown starts from 15, so set A to
+                        \ 15 so we can set the two hyperspace counters
+
+.wW2_C
+
+ STA QQ22+1             \ Set the number in QQ22+1 to A, which is the number
+                        \ that's shown on-screen during the hyperspace countdown
+
+ STA QQ22               \ Set the number in QQ22 to 15, which is the internal
+                        \ counter that counts down by 1 each iteration of the
+                        \ main game loop, and each time it reaches zero, the
+                        \ on-screen counter gets decremented, and QQ22 gets set
+                        \ to 5, so setting QQ22 to 15 here makes the first tick
+                        \ of the hyperspace counter longer than subsequent ticks
+
+ TAX                    \ Print the 8-bit number in X (i.e. 15) at text location
+ JMP ee3_C                \ (0, 1), padded to 5 digits, so it appears in the top
+                        \ left corner of the screen, and return from the
+                        \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: TTX110
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Set the current system to the nearest system and return to hyp
+\
+\ ******************************************************************************
+
+.TTX110_C
+
+                        \ This routine is only called from the hyp routine, and
+                        \ it jumps back into hyp at label TTX111
+
+ JSR TT111_C              \ Call TT111 to set the current system to the nearest
+                        \ system to (QQ9, QQ10), and put the seeds of the
+                        \ nearest system into QQ15 to QQ15+5
+
+ JMP TTX111_C             \ Return to TTX111 in the hyp routine
+
+\ ******************************************************************************
+\
+\       Name: Ghy
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Perform a galactic hyperspace jump
+\  Deep dive: Twisting the system seeds
+\             Galaxy and system seeds
+\
+\ ------------------------------------------------------------------------------
+\
+\ Engage the galactic hyperdrive. Called from the hyp routine above if CTRL-H is
+\ being pressed.
+\
+\ This routine also updates the galaxy seeds to point to the next galaxy. Using
+\ a galactic hyperdrive rotates each seed byte to the left, rolling each byte
+\ left within itself like this:
+\
+\   01234567 -> 12345670
+\
+\ to get the seeds for the next galaxy. So after 8 galactic jumps, the seeds
+\ roll round to those of the first galaxy again.
+\
+\ We always arrive in a new galaxy at galactic coordinates (96, 96), and then
+\ find the nearest system and set that as our location.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   zZ+1                Contains an RTS
+\
+\ ******************************************************************************
+
+.Ghy_C
+
+ LDX GHYP               \ Fetch GHYP, which tells us whether we own a galactic
+ BEQ zZ_C+1               \ hyperdrive, and if it is zero, which means we don't,
+                        \ return from the subroutine (as zZ+1 contains an RTS)
+
+ INX                    \ We own a galactic hyperdrive, so X is &FF, so this
+                        \ instruction sets X = 0
+
+\STX QQ8                \ These instructions are commented out in the original
+\STX QQ8+1              \ source
+
+ STX GHYP               \ The galactic hyperdrive is a one-use item, so set GHYP
+                        \ to 0 so we no longer have one fitted
+
+ STX FIST               \ Changing galaxy also clears our criminal record, so
+                        \ set our legal status in FIST to 0 ("clean")
+
+ LDA #2                 \ Call wW2 with A = 2 to start the hyperspace countdown,
+ JSR wW2_C                \ but starting the countdown from 2
+
+ LDX #5                 \ To move galaxy, we rotate the galaxy's seeds left, so
+                        \ set a counter in X for the 6 seed bytes
+
+ INC GCNT               \ Increment the current galaxy number in GCNT
+
+ LDA GCNT               \ Clear bit 3 of GCNT, so we jump from galaxy 7 back
+ AND #%11110111         \ to galaxy 0 (shown in-game as going from galaxy 8 back
+ STA GCNT               \ to the starting point in galaxy 1). We also retain any
+                        \ set bits in the high nibble, so if the galaxy number
+                        \ is manually set to 16 or higher, it will stay high
+                        \ (though the high nibble doesn't seem to get set by
+                        \ the game at any point, so it isn't clear what this is
+                        \ for, though Lave in galaxy 16 does show a unique
+                        \ system description override, so something is going on
+                        \ here...)
+
+.G1_C
+
+ LDA QQ21,X             \ Load the X-th seed byte into A
+
+ ASL A                  \ Set the C flag to bit 7 of the seed
+
+ ROL QQ21,X             \ Rotate the seed in memory, which will add bit 7 back
+                        \ in as bit 0, so this rolls the seed around on itself
+
+ DEX                    \ Decrement the counter
+
+ BPL G1_C                 \ Loop back for the next seed byte, until we have
+                        \ rotated them all
+
+\JSR DORND              \ This instruction is commented out in the original
+                        \ source, and would set A and X to random numbers, so
+                        \ perhaps the original plan was to arrive in each new
+                        \ galaxy in a random place?
+
+.zZ_C
+
+ LDA #96                \ Set (QQ9, QQ10) to (96, 96), which is where we always
+ STA QQ9                \ arrive in a new galaxy (the selected system will be
+ STA QQ10               \ set to the nearest actual system later on)
+
+ JSR TT110_C              \ Call TT110 to show the front space view
+
+ JSR TT111_C              \ Call TT111 to set the current system to the nearest
+                        \ system to (QQ9, QQ10), and put the seeds of the
+                        \ nearest system into QQ15 to QQ15+5
+                        \
+                        \ This call fixes a bug in the cassette version, where
+                        \ the galactic hyperdrive will take us to coordinates
+                        \ (96, 96) in the new galaxy, even if there isn't
+                        \ actually a system there, so if we jump when we are
+                        \ low on fuel, it is possible to get stuck in the
+                        \ middle of nowhere when changing galaxy
+                        \
+                        \ This call sets the current system correctly, so we
+                        \ always arrive at the nearest system to (96, 96)
+
+ LDX #5                 \ We now want to copy those seeds into safehouse, so we
+                        \ so set a counter in X to copy 6 bytes
+
+.dumdeedum_C
+
+ LDA QQ15,X             \ Copy the X-th byte of QQ15 into the X-th byte of
+ STA safehouse,X        \ safehouse
+
+ DEX                    \ Decrement the loop counter
+
+ BPL dumdeedum_C          \ Loop back to copy the next byte until we have copied
+                        \ all six seed bytes
+
+ LDX #0                 \ Set the distance to the selected system in QQ8(1 0)
+ STX QQ8                \ to 0
+ STX QQ8+1
+
+ LDA #116               \ Print recursive token 116 (GALACTIC HYPERSPACE ")
+ JSR x4_MESS               \ as an in-flight message
+
+                        \ Fall through into jmp to set the system to the
+                        \ current system and return from the subroutine there
+
+\ ******************************************************************************
+\
+\       Name: jmp
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Set the current system to the selected system
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   (QQ0, QQ1)          The galactic coordinates of the new system
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   hy5                 Contains an RTS
+\
+\ ******************************************************************************
+
+.jmp_C
+
+ LDA QQ9                \ Set the current system's galactic x-coordinate to the
+ STA QQ0                \ x-coordinate of the selected system
+
+ LDA QQ10               \ Set the current system's galactic y-coordinate to the
+ STA QQ1                \ y-coordinate of the selected system
+
+.hy5_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: ee3
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Print the hyperspace countdown in the top-left of the screen
+\
+\ ------------------------------------------------------------------------------
+\
+\ 5 digits, left-padding with spaces for numbers with fewer than 3 digits (so
+\ numbers < 10000 are right-aligned), with no decimal point.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   X                   The number to print
+\
+\ ******************************************************************************
+
+.ee3_C
+
+ LDA #RED               \ Switch to colour 2, which is red in the space view
+ STA COL
+
+ LDA #1                 \ Move the text cursor to column 1
+ STA XC
+
+ STA YC                 \ Move the text cursor to row 1
+
+ LDY #0                 \ Set Y = 0 for the high byte in pr6
+
+ CLC                    \ Call TT11 to print X to 3 digits with no decimal point
+ LDA #3                 \ and return from the subroutine using a tail call
+ JMP x4_TT11
+
+\ ******************************************************************************
+\
+\       Name: pr6
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Print 16-bit number, left-padded to 5 digits, no point
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print the 16-bit number in (Y X) to 5 digits, left-padding with spaces for
+\ numbers with fewer than 3 digits (so numbers < 10000 are right-aligned),
+\ with no decimal point.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   X                   The low byte of the number to print
+\
+\   Y                   The high byte of the number to print
+\
+\ ******************************************************************************
+
+.pr6_C
+
+ CLC                    \ Do not display a decimal point when printing
+
+                        \ Fall through into pr5 to print X to 5 digits
+
+\ ******************************************************************************
+\
+\       Name: pr5
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Print a 16-bit number, left-padded to 5 digits, and optional point
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print the 16-bit number in (Y X) to 5 digits, left-padding with spaces for
+\ numbers with fewer than 3 digits (so numbers < 10000 are right-aligned).
+\ Optionally include a decimal point.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   X                   The low byte of the number to print
+\
+\   Y                   The high byte of the number to print
+\
+\   C flag              If set, include a decimal point
+\
+\ ******************************************************************************
+
+.pr5_C
+
+ LDA #5                 \ Set the number of digits to print to 5
+
+ JMP x4_TT11               \ Call TT11 to print (Y X) to 5 digits and return from
+                        \ the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: TT147
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Print an error when a system is out of hyperspace range
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print "RANGE?" for when the hyperspace distance is too far
+\
+\ ******************************************************************************
+
+.TT147_C
+
+ LDA #202               \ Load A with token 42 ("RANGE") and fall through into
+                        \ prq to print it, followed by a question mark
+
+\ ******************************************************************************
+\
+\       Name: prq
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Print a text token followed by a question mark
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The text token to be printed
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   prq+3               Print a question mark
+\
+\ ******************************************************************************
+
+.prq_C
+
+ JSR TT27_C               \ Print the text token in A
+
+ LDA #'?'               \ Print a question mark and return from the
+ JMP TT27_C               \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: hyp1
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Process a jump to the system closest to (QQ9, QQ10)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do a hyperspace jump to the system closest to galactic coordinates
+\ (QQ9, QQ10), and set up the current system's state to those of the new system.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   (QQ0, QQ1)          The galactic coordinates of the new system
+\
+\   QQ2 to QQ2+6        The seeds of the new system
+\
+\   EV                  Set to 0
+\
+\   QQ28                The new system's economy
+\
+\   tek                 The new system's tech level
+\
+\   gov                 The new system's government
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   hyp1+3              Jump straight to the system at (QQ9, QQ10) without
+\                       first calculating which system is closest. We do this
+\                       if we already know that (QQ9, QQ10) points to a system
+\
+\ ******************************************************************************
+
+.hyp1_C
+
+ JSR TT111_C              \ Select the system closest to galactic coordinates
+                        \ (QQ9, QQ10)
+
+ JSR jmp_C                \ Set the current system to the selected system
+
+ LDX #5                 \ We now want to copy the seeds for the selected system
+                        \ in QQ15 into QQ2, where we store the seeds for the
+                        \ current system, so set up a counter in X for copying
+                        \ 6 bytes (for three 16-bit seeds)
+
+.TT112_C
+
+ LDA safehouse,X        \ Copy the X-th byte in safehouse to the X-th byte in
+ STA QQ2,X              \ QQ2
+
+ DEX                    \ Decrement the counter
+
+ BPL TT112_C              \ Loop back to TT112 if we still have more bytes to
+                        \ copy
+
+ INX                    \ Set X = 0 (as we ended the above loop with X = &FF)
+
+ STX EV                 \ Set EV, the extra vessels spawning counter, to 0, as
+                        \ we are entering a new system with no extra vessels
+                        \ spawned
+
+ LDA QQ3                \ Set the current system's economy in QQ28 to the
+ STA QQ28               \ selected system's economy from QQ3
+
+ LDA QQ5                \ Set the current system's tech level in tek to the
+ STA tek                \ selected system's economy from QQ5
+
+ LDA QQ4                \ Set the current system's government in gov to the
+ STA gov                \ selected system's government from QQ4
+
+                        \ Fall through into GVL to calculate the availability of
+                        \ market items in the new system
+
+\ ******************************************************************************
+\
+\       Name: GVL
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Calculate the availability of market items
+\  Deep dive: Market item prices and availability
+\             Galaxy and system seeds
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the availability for each market item and store it in AVL. This is
+\ called on arrival in a new system.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   hyR                 Contains an RTS
+\
+\ ******************************************************************************
+
+.GVL_C
+
+ JSR x4_DORND              \ Set A and X to random numbers
+
+ STA QQ26               \ Set QQ26 to the random byte that's used in the market
+                        \ calculations
+
+ LDX #0                 \ We are now going to loop through the market item
+ STX XX4                \ availability table in AVL, so set a counter in XX4
+                        \ (and X) for the market item number, starting with 0
+
+.hy9_C
+
+ LDA QQ23+1,X           \ Fetch byte #1 from the market prices table (units and
+ STA QQ19+1             \ economic_factor) for item number X and store it in
+                        \ QQ19+1
+
+ JSR var_C                \ Call var to set QQ19+3 = economy * |economic_factor|
+                        \ (and set the availability of alien items to 0)
+
+ LDA QQ23+3,X           \ Fetch byte #3 from the market prices table (mask) and
+ AND QQ26               \ AND with the random number for this system visit
+                        \ to give:
+                        \
+                        \   A = random AND mask
+
+ CLC                    \ Add byte #2 from the market prices table
+ ADC QQ23+2,X           \ (base_quantity) so we now have:
+                        \
+                        \   A = base_quantity + (random AND mask)
+
+ LDY QQ19+1             \ Fetch the byte #1 that we stored above and jump to
+ BMI TT157_C              \ TT157 if it is negative (i.e. if the economic_factor
+                        \ is negative)
+
+ SEC                    \ Set A = A - QQ19+3
+ SBC QQ19+3             \
+                        \       = base_quantity + (random AND mask)
+                        \         - (economy * |economic_factor|)
+                        \
+                        \ which is the result we want, as the economic_factor
+                        \ is positive
+
+ JMP TT158_C              \ Jump to TT158 to skip TT157
+
+.TT157_C
+
+ CLC                    \ Set A = A + QQ19+3
+ ADC QQ19+3             \
+                        \       = base_quantity + (random AND mask)
+                        \         + (economy * |economic_factor|)
+                        \
+                        \ which is the result we want, as the economic_factor
+                        \ is negative
+
+.TT158_C
+
+ BPL TT159_C              \ If A < 0, then set A = 0, so we don't have negative
+ LDA #0                 \ availability
+
+.TT159_C
+
+ LDY XX4                \ Fetch the counter (the market item number) into Y
+
+ AND #%00111111         \ Take bits 0-5 of A, i.e. A mod 64, and store this as
+ STA AVL,Y              \ this item's availability in the Y=th byte of AVL, so
+                        \ each item has a maximum availability of 63t
+
+ INY                    \ Increment the counter into XX44, Y and A
+ TYA
+ STA XX4
+
+ ASL A                  \ Set X = counter * 4, so that X points to the next
+ ASL A                  \ item's entry in the four-byte market prices table,
+ TAX                    \ ready for the next loop
+
+ CMP #63                \ If A < 63, jump back up to hy9 to set the availability
+ BCC hy9_C                \ for the next market item
+
+.hyR_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: GTHG
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Spawn a Thargoid ship and a Thargon companion
+\  Deep dive: Fixing ship positions
+\             Aggression and hostility in ship tactics
+\
+\ ******************************************************************************
+
+.GTHG_C
+
+ JSR x4_Ze                 \ Call Ze to initialise INWK to a fairly aggressive
+                        \ ship (though we increase this below)
+                        \
+                        \ Note that because Ze uses the value of X returned by
+                        \ DORND, and X contains the value of A returned by the
+                        \ previous call to DORND, this does not set the new ship
+                        \ to a totally random location
+
+ LDA #%11111111         \ Set the AI flag in byte #32 so that the ship has AI,
+ STA INWK+32            \ an aggression level of 63 out of 63, and E.C.M.
+
+ LDA #THG               \ Call NWSHP to add a new Thargoid ship to our local
+ JSR x4_NWSHP              \ bubble of universe
+
+ LDA #TGL               \ Call NWSHP to add a new Thargon ship to our local
+ JMP x4_NWSHP              \ bubble of universe, and return from the subroutine
+                        \ using a tail call
+
+\ ******************************************************************************
+\
+\       Name: MJP
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Process a mis-jump into witchspace
+\
+\ ------------------------------------------------------------------------------
+\
+\ Process a mis-jump into witchspace (which happens very rarely). Witchspace has
+\ a strange, almost dust-free aspect to it, and it is populated by aggressive
+\ Thargoids. Using our escape pod will be fatal, and our position on the
+\ galactic chart is in-between systems. It is a scary place...
+\
+\ There is a 0.78% chance that this routine is called from TT18 instead of doing
+\ a normal hyperspace, or we can manually trigger a mis-jump by holding down
+\ CTRL after first enabling the "author display" configuration option ("X") when
+\ paused.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   ptg                 Called when the user manually forces a mis-jump
+\
+\   RTS111              Contains an RTS
+\
+\ ******************************************************************************
+
+.ptg_C
+
+ LSR COK                \ Set bit 0 of the competition flags in COK, so that the
+ SEC                    \ competition code will include the fact that we have
+ ROL COK                \ manually forced a mis-jump into witchspace
+
+.MJP_C
+
+\JSR CATLOD             \ This instruction is commented out in the original
+                        \ source
+
+ LDA #3                 \ Clear the top part of the screen, draw a border box,
+ JSR x4_TT66               \ and set the current view type in QQ11 to 3
+
+ JSR LL164_C              \ Call LL164 to show the hyperspace tunnel and make the
+                        \ hyperspace sound for a second time (as we already
+                        \ called LL164 in TT18)
+
+ JSR RES2_C               \ Reset a number of flight variables and workspaces, as
+                        \ well as setting Y to &FF
+
+ STY MJ                 \ Set the mis-jump flag in MJ to &FF, to indicate that
+                        \ we are now in witchspace
+
+.MJP1_C
+
+ JSR GTHG_C               \ Call GTHG to spawn a Thargoid ship and a Thargon
+                        \ companion
+
+ LDA #2                 \ Fetch the number of Thargoid ships from MANY+THG, and
+ CMP MANY+THG           \ if it is less than or equal to 2, loop back to MJP1 to
+ BCS MJP1_C               \ spawn another one, until we have three Thargoids
+
+ STA NOSTM              \ Set NOSTM (the maximum number of stardust particles)
+                        \ to 3, so there are fewer bits of stardust in
+                        \ witchspace (normal space has a maximum of 18)
+
+ LDX #0                 \ Initialise the front space view
+ JSR x4_LOOK1
+
+ LDA QQ1                \ Fetch the current system's galactic y-coordinate in
+ EOR #%00011111         \ QQ1 and flip bits 0-5, so we end up somewhere in the
+ STA QQ1                \ vicinity of our original destination, but above or
+                        \ below it in the galactic chart
+
+ RTS                    \ Return from the subroutine
+
+.RTS111_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: TT18
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Try to initiate a jump into hyperspace
+\
+\ ------------------------------------------------------------------------------
+\
+\ Try to go through hyperspace. Called from TT102 in the main loop when the
+\ hyperspace countdown has finished.
+\
+\ ******************************************************************************
+
+.TT18_C
+
+ LDA QQ14               \ Subtract the distance to the selected system (in QQ8)
+ SEC                    \ from the amount of fuel in our tank (in QQ14) into A
+ SBC QQ8
+
+ BCS P%+4               \ If the subtraction didn't overflow, skip the next
+                        \ instruction
+
+ LDA #0                 \ The subtraction overflowed, so set A = 0 so we don't
+                        \ end up with a negative amount of fuel
+
+ STA QQ14               \ Store the updated fuel amount in QQ14
+
+ LDA QQ11               \ If the current view is not a space view, jump to ee5
+ BNE ee5_C                \ to skip the following
+
+ JSR x4_TT66               \ Clear the top part of the screen, draw a border box,
+                        \ and set the current view type in QQ11 to 0 (space
+                        \ view)
+
+ JSR LL164_C              \ Call LL164 to show the hyperspace tunnel and make the
+                        \ hyperspace sound
+
+.ee5_C
+
+IF _SNG47
+
+ JSR x4_CTRL               \ Scan the keyboard to see if CTRL is currently pressed,
+                        \ returning a negative value in A if it is
+
+ELIF _COMPACT
+
+ JSR x4_CTRLmc             \ Scan the keyboard to see if CTRL is currently pressed,
+                        \ returning a negative value in A if it is
+
+ENDIF
+
+ AND PATG               \ If the game is configured to show the author's names
+                        \ on the start-up screen, then PATG will contain &FF,
+                        \ otherwise it will be 0
+
+ BMI ptg_C                \ By now, A will be negative if we are holding down CTRL
+                        \ and author names are configured, which is what we have
+                        \ to do in order to trigger a manual mis-jump, so jump
+                        \ to ptg to do a mis-jump (ptg not only mis-jumps, but
+                        \ updates the competition flags, so Acornsoft could tell
+                        \ from the competition code whether this feature had
+                        \ been used)
+
+ JSR x4_DORND              \ Set A and X to random numbers
+
+ CMP #253               \ If A >= 253 (0.78% chance) then jump to MJP to trigger
+ BCS MJP_C                \ a mis-jump into witchspace
+
+\JSR TT111              \ This instruction is commented out in the original
+                        \ source. It finds the closest system to coordinates
+                        \ (QQ9, QQ10), but we don't need to do this as the
+                        \ crosshairs will already be on a system by this point
+
+ JSR hyp1_C+3             \ Jump straight to the system at (QQ9, QQ10) without
+                        \ first calculating which system is closest
+
+ JSR RES2_C               \ Reset a number of flight variables and workspaces
+
+ JSR SOLAR_C              \ Halve our legal status, update the missile indicators,
+                        \ and set up data blocks and slots for the planet and
+                        \ sun
+
+\JSR CATLOD             \ These instructions are commented out in the original
+\                       \ source
+\JSR LOMOD
+
+ LDA QQ11               \ If the current view in QQ11 is not a space view (0) or
+ AND #%00111111         \ one of the charts (64 or 128), return from the
+ BNE RTS111_C             \ subroutine (as RTS111 contains an RTS)
+
+ JSR x4_TTX66              \ Otherwise clear the screen and draw a border box
+
+ LDA QQ11               \ If the current view is one of the charts, jump to
+ BNE TT114_C              \ TT114 (from which we jump to the correct routine to
+                        \ display the chart)
+
+ INC QQ11               \ This is a space view, so increment QQ11 to 1
+
+                        \ Fall through into TT110 to show the front space view
+
+\ ******************************************************************************
+\
+\       Name: TT110
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Launch from a station or show the front space view
+\
+\ ------------------------------------------------------------------------------
+\
+\ Launch the ship (if we are docked), or show the front space view (if we are
+\ already in space).
+\
+\ Called when red key f0 is pressed while docked (launch), after we arrive in a
+\ new galaxy, or after a hyperspace if the current view is a space view.
+\
+\ ******************************************************************************
+
+.TT110_C
+
+ LDX QQ12               \ If we are not docked (QQ12 = 0) then jump to NLUNCH
+ BEQ NLUNCH_C             \ to skip the launch tunnel and setup process
+
+ JSR LAUN_C               \ Show the space station launch tunnel
+
+ JSR RES2_C               \ Reset a number of flight variables and workspaces
+
+ JSR TT111_C              \ Select the system closest to galactic coordinates
+                        \ (QQ9, QQ10)
+
+ INC INWK+8             \ Increment z_sign ready for the call to SOS, so the
+                        \ planet appears at a z_sign of 1 in front of us when
+                        \ we launch
+
+ JSR SOS1_C               \ Call SOS1 to set up the planet's data block and add it
+                        \ to FRIN, where it will get put in the first slot as
+                        \ it's the first one to be added to our local bubble of
+                        \ universe following the call to RES2 above
+
+ LDA #128               \ For the space station, set z_sign to &80, so it's
+ STA INWK+8             \ behind us (&80 is negative)
+
+ INC INWK+7             \ And increment z_hi, so it's only just behind us
+
+ JSR x4_NWSPS              \ Add a new space station to our local bubble of
+                        \ universe
+
+ LDA #12                \ Set our launch speed in DELTA to 12
+ STA DELTA
+
+ JSR x4_BAD                \ Call BAD to work out how much illegal contraband we
+                        \ are carrying in our hold (A is up to 40 for a
+                        \ standard hold crammed with contraband, up to 70 for
+                        \ an extended cargo hold full of narcotics and slaves)
+
+ ORA FIST               \ OR the value in A with our legal status in FIST to
+                        \ get a new value that is at least as high as both
+                        \ values, to reflect the fact that launching with a
+                        \ hold full of contraband can only make matters worse
+
+ STA FIST               \ Update our legal status with the new value
+
+ LDA #255               \ Set the view type in QQ11 to 255
+ STA QQ11
+
+ JSR HFS1_C               \ Call HFS1 to draw 8 concentric rings to remove the
+                        \ launch tunnel that we drew above
+
+.NLUNCH_C
+
+ LDX #0                 \ Set QQ12 to 0 to indicate we are not docked
+ STX QQ12
+
+ JMP x4_LOOK1              \ Jump to LOOK1 to switch to the front view (X = 0),
+                        \ returning from the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: TT114
+\       Type: Subroutine
+\   Category: Charts
+\    Summary: Display either the Long-range or Short-range Chart
+\
+\ ------------------------------------------------------------------------------
+\
+\ Display either the Long-range or Short-range Chart, depending on the current
+\ view setting. Called from TT18 once we know the current view is one of the
+\ charts.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The current view, loaded from QQ11
+\
+\ ******************************************************************************
+
+.TT114_C
+
+ BMI TT115_C              \ If bit 7 of the current view is set (i.e. the view is
+                        \ the Short-range Chart, 128), skip to TT115 below to
+                        \ jump to TT23 to display the chart
+
+ JMP TT22_C               \ Otherwise the current view is the Long-range Chart, so
+                        \ jump to TT22 to display it
+
+.TT115_C
+
+ JMP TT23_C               \ Jump to TT23 to display the Short-range Chart
+
+\ ******************************************************************************
+\
+\       Name: SOS1
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Update the missile indicators, set up the planet data block
+\
+\ ------------------------------------------------------------------------------
+\
+\ Update the missile indicators, and set up a data block for the planet, but
+\ only setting the pitch and roll counters to 127 (no damping).
+\
+\ ******************************************************************************
+
+.SOS1_C
+
+ JSR x4_msblob             \ Reset the dashboard's missile indicators so none of
+                        \ them are targeted
+
+ LDA #127               \ Set the pitch and roll counters to 127, so that's a
+ STA INWK+29            \ clockwise roll and a diving pitch with no damping, so
+ STA INWK+30            \ the planet's rotation doesn't slow down
+
+ LDA tek                \ Set A = 128 or 130 depending on bit 1 of the system's
+ AND #%00000010         \ tech level in tek
+ ORA #%10000000
+
+ JMP x4_NWSHP              \ Add a new planet to our local bubble of universe,
+                        \ with the planet type defined by A (128 is a planet
+                        \ with an equator and meridian, 130 is a planet with
+                        \ a crater)
+
+\ ******************************************************************************
+\
+\       Name: SOLAR
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Set up various aspects of arriving in a new system
+\  Deep dive: A sense of scale
+\
+\ ------------------------------------------------------------------------------
+\
+\ Halve our legal status, update the missile indicators, and set up data blocks
+\ and slots for the planet and sun.
+\
+\ ******************************************************************************
+
+.SOLAR_C
+
+ LDA TRIBBLE            \ If we have no Trumbles in the hold, skip to nobirths
+ BEQ nobirths_C
+
+                        \ If we get here then we have Trumbles in the hold, so
+                        \ this is where they breed (though we never get here in
+                        \ the Master version as the number of Trumbles is always
+                        \ zero)
+
+ LDA #0                 \ Trumbles eat food and narcotics during the hyperspace
+ STA QQ20               \ journey, so zero the amount of food and narcotics in
+ STA QQ20+6             \ the hold
+
+ JSR x4_DORND              \ Take the number of Trumbles from TRIBBLE(1 0), add a
+ AND #15                \ random number between 4 and 15, and double the result,
+ ADC TRIBBLE            \ storing the resulting number in TRIBBLE(1 0)
+ ORA #4                 \
+ ROL A                  \ We start with the low byte
+ STA TRIBBLE
+
+ ROL TRIBBLE+1          \ And then do the high byte
+
+ BPL P%+5               \ If bit 7 of the high byte is set, then rotate the high
+ ROR TRIBBLE+1          \ byte back to the right, so the number of Trumbles is
+                        \ always positive
+
+.nobirths_C
+
+ LSR FIST               \ Halve our legal status in FIST, making us less bad,
+                        \ and moving bit 0 into the C flag (so every time we
+                        \ arrive in a new system, our legal status improves a
+                        \ bit)
+
+ JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace, which
+                        \ doesn't affect the C flag
+
+ LDA QQ15+1             \ Fetch s0_hi
+
+ AND #%00000011         \ Extract bits 0-1 (which also help to determine the
+                        \ economy), which will be between 0 and 3
+
+ ADC #3                 \ Add 3 + C, to get a result between 3 and 7, clearing
+                        \ the C flag in the process
+
+ STA INWK+8             \ Store the result in z_sign in byte #6
+
+ ROR A                  \ Halve A, rotating in the C flag (which is clear) and
+ STA INWK+2             \ store in both x_sign and y_sign, moving the planet to
+ STA INWK+5             \ the upper right
+
+ JSR SOS1_C               \ Call SOS1 to set up the planet's data block and add it
+                        \ to FRIN, where it will get put in the first slot as
+                        \ it's the first one to be added to our local bubble of
+                        \ this new system's universe
+
+ LDA QQ15+3             \ Fetch s1_hi, extract bits 0-2, set bits 0 and 7 and
+ AND #%00000111         \ store in z_sign, so the sun is behind us at a distance
+ ORA #%10000001         \ of 1 to 7
+ STA INWK+8
+
+ LDA QQ15+5             \ Fetch s2_hi, extract bits 0-1 and store in x_sign and
+ AND #%00000011         \ y_sign, so the sun is either dead centre in our rear
+ STA INWK+2             \ laser crosshairs, or off to the top left by a distance
+ STA INWK+1             \ of 1 or 2 when we look out the back
+
+ LDA #0                 \ Set the pitch and roll counters to 0 (no rotation)
+ STA INWK+29
+ STA INWK+30
+
+ LDA #129               \ Set A = 129, the ship type for the sun
+
+ JSR x4_NWSHP              \ Call NWSHP to set up the sun's data block and add it
+                        \ to FRIN, where it will get put in the second slot as
+                        \ it's the second one to be added to our local bubble
+                        \ of this new system's universe
+
+ JMP x4_NWSTARS            \ Port: set up the stardust and return (the original
+                        \ fell through into NWSTARS)
+
+\ ******************************************************************************
+\
+\       Name: WARP
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Perform an in-system jump
+\  Deep dive: A sense of scale
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is called when we press "J" during flight. The following checks are
+\ performed:
+\
+\   * Make sure we don't have any ships or space stations in the vicinity
+\
+\   * Make sure we are not in witchspace
+\
+\   * If we are facing the planet, make sure we aren't too close
+\
+\   * If we are facing the sun, make sure we aren't too close
+\
+\ If the above checks are passed, then we perform an in-system jump by moving
+\ the sun and planet in the opposite direction to travel, so we appear to jump
+\ in space. This means that any asteroids, cargo canisters or escape pods get
+\ dragged along for the ride.
+\
+\ ******************************************************************************
+
+.WARP_C
+
+ LDX JUNK               \ Set X to the total number of junk items in the
+                        \ vicinity (e.g. asteroids, escape pods, cargo
+                        \ canisters, Shuttles, Transporters and so on)
+
+ LDA FRIN+2,X           \ If the slot at FRIN+2+X is non-zero, then we have
+                        \ something else in the vicinity besides asteroids,
+                        \ escape pods and cargo canisters, so to check whether
+                        \ we can jump, we first grab the slot contents into A
+
+ ORA SSPR               \ If there is a space station nearby, then SSPR will
+                        \ be non-zero, so OR'ing with SSPR will produce a
+                        \ non-zero result if either A or SSPR are non-zero
+
+ ORA MJ                 \ If we are in witchspace, then MJ will be non-zero, so
+                        \ OR'ing with MJ will produce a non-zero result if
+                        \ either A or SSPR or MJ are non-zero
+
+ BNE WA1_C                \ A is non-zero if we have either a ship or a space
+                        \ station in the vicinity, or we are in witchspace, in
+                        \ which case jump to WA1 to make a low beep to show that
+                        \ we can't do an in-system jump
+
+ LDY K%+8               \ Otherwise we can do an in-system jump, so now we fetch
+                        \ the byte at K%+8, which contains the z_sign for the
+                        \ first ship slot, i.e. the distance of the planet
+
+ BMI WA3_C                \ If the planet's z_sign is negative, then the planet
+                        \ is behind us, so jump to WA3 to skip the following
+
+ TAY                    \ Set A = Y = 0 (as we didn't BNE above) so the call
+                        \ to MAS2 measures the distance to the planet
+
+ JSR x4_MAS2               \ Call MAS2 to set A to the largest distance to the
+                        \ planet in any of the three axes (we could also call
+                        \ routine m to do the same thing, as A = 0)
+
+ CMP #2                 \ If A < 2 then jump to WA1 to abort the in-system jump
+ BCC WA1_C                \ with a low beep, as we are facing the planet and are
+                        \ too close to jump in that direction
+
+.WA3_C
+
+ LDY K%+NI%+8           \ Fetch the z_sign (byte #8) of the second ship in the
+                        \ ship data workspace at K%, which is reserved for the
+                        \ sun or the space station (in this case it's the
+                        \ former, as we already confirmed there isn't a space
+                        \ station in the vicinity)
+
+ BMI WA2_C                \ If the sun's z_sign is negative, then the sun is
+                        \ behind us, so jump to WA2 to skip the following
+
+ LDY #NI%               \ Set Y to point to the offset of the ship data block
+                        \ for the sun, which is NI% (as each block is NI% bytes
+                        \ long, and the sun is the second block)
+
+ JSR x4_m                  \ Call m to set A to the largest distance to the sun
+                        \ in any of the three axes
+
+ CMP #2                 \ If A < 2 then jump to WA1 to abort the in-system jump
+ BCC WA1_C                \ with a low beep, as we are facing the sun and are too
+                        \ close to jump in that direction
+
+.WA2_C
+
+                        \ If we get here, then we can do an in-system jump, as
+                        \ we don't have any ships or space stations in the
+                        \ vicinity, we are not in witchspace, and if we are
+                        \ facing the planet or the sun, we aren't too close to
+                        \ jump towards it
+                        \
+                        \ We do an in-system jump by moving the sun and planet,
+                        \ rather than moving our own local bubble (this is why
+                        \ in-system jumps drag asteroids, cargo canisters and
+                        \ escape pods along for the ride). Specifically, we move
+                        \ them in the z-axis by a fixed amount in the opposite
+                        \ direction to travel, thus performing a jump towards
+                        \ our destination
+
+ LDA #&81               \ Set R = R = P = &81
+ STA S
+ STA R
+ STA P
+
+ LDA K%+8               \ Set A = z_sign for the planet
+
+ JSR x4_ADD                \ Set (A X) = (A P) + (S R)
+                        \           = (z_sign &81) + &8181
+                        \           = (z_sign &81) - &0181
+                        \
+                        \ This moves the planet against the direction of travel
+                        \ by reducing z_sign by 1, as the above maths is:
+                        \
+                        \         z_sign 00000000
+                        \   +   00000000 10000001
+                        \   -   00000001 10000001
+                        \
+                        \ or:
+                        \
+                        \         z_sign 00000000
+                        \   +   00000000 00000000
+                        \   -   00000001 00000000
+                        \
+                        \ i.e. the high byte is z_sign - 1, making sure the sign
+                        \ is preserved
+
+ STA K%+8               \ Set the planet's z_sign to the high byte of the result
+
+ LDA K%+NI%+8           \ Set A = z_sign for the sun
+
+ JSR x4_ADD                \ Set (A X) = (A P) + (S R)
+                        \           = (z_sign &81) + &8181
+                        \           = (z_sign &81) - &0181
+                        \
+                        \ which moves the sun against the direction of travel
+                        \ by reducing z_sign by 1
+
+ STA K%+NI%+8           \ Set the planet's z_sign to the high byte of the result
+
+ LDA #1                 \ Temporarily set the view type to a non-zero value, so
+ STA QQ11               \ the call to LOOK1 below clears the screen before
+                        \ switching to the space view
+
+ STA MCNT               \ Set the main loop counter to 1, so the next iteration
+                        \ through the main loop will potentially spawn ships
+                        \ (see part 2 of the main game loop at me3)
+
+ LSR A                  \ Set EV, the extra vessels spawning counter, to 0
+ STA EV                 \ (the LSR produces a 0 as A was previously 1)
+
+ LDX VIEW               \ Set X to the current view (front, rear, left or right)
+ JMP x4_LOOK1              \ and jump to LOOK1 to initialise that view, returning
+                        \ from the subroutine using a tail call
+
+.WA1_C
+
+ JMP x4_BOOP               \ Call the BOOP routine to make a long, low beep, and
+                        \ return from the subroutine using a tail call
 
  RTS                    \ This instruction has no effect as we already returned
                         \ from the subroutine
