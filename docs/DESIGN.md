@@ -101,6 +101,17 @@ same phase conventions as Lander). A dithered colour is a PAIR of bytes:
 * &8000-&BFFF sideways RAM bank 4, permanently paged in: overflow Elite code,
   ship blueprints, renderer code and tables. (A second bank may be paged in for
   the duration of the render only, via a stub below &3000, if bank 4 overflows.)
+* Bank 7, after the rasteriser's cold code (raster7.asm): Elite's cold code
+  (src/cold7.asm: docked screens STATUS / market / equipment / charts / system
+  data, the title screen and new-game set-up, DEATH, the commander template
+  NA%), never run in the flight loop. Every entry keeps its name as a 5-byte stub
+  where the code was (`.TT22 JSR far7 : EQUW TT22_7`); bank 7 code reaches
+  everything outside bank 7 through `JSR far4 : EQUW target` stubs (src/far7.asm:
+  A, X, Y and flags pass unchanged both ways, the caller's bank comes back, &F4
+  follows ROMSEL). Bank 7 code reads no bank 4 data. Code used in flight, even
+  rarely (hyperspace, launch, kills, the chart crosshairs), stays in main RAM or
+  bank 4 (game-logic code can move between those two freely: bank 4 is always
+  paged in while it runs).
 
 ## Frame model (space view)
 
