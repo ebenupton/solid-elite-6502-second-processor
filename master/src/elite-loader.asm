@@ -389,109 +389,77 @@ ENDIF
  LDX #0                 \ flashing colours
  JSR OSB
 
- LDX #LO(MESS1)         \ Set (Y X) to point to MESS1 ("L.BDATA FFFF1300")
- LDY #HI(MESS1)
+ LDA #HOMEBANK          \ Port: check that the sideways RAM banks the game
+ JSR CHKRAM             \ uses are RAM (bank 4, Elite's home bank, and bank 7
+ LDA #7                 \ for the cold area)
+ JSR CHKRAM
 
- JSR OSCLI              \ Call OSCLI to run the OS command in MESS1, which
-                        \ loads the BDATA file to address &1300-&54FF, appending
-                        \ &FFFF to the address to make sure it loads in the main
-                        \ BBC Master rather than getting passed across the Tube
-                        \ to the Second Processor, if one is fitted
+                        \ Port: load the game's files other than BCODE, one at a
+                        \ time, to &1300 (below &3000, so it is visible when
+                        \ ACCCON X is set), then copy each one to where it
+                        \ belongs, as listed in FTAB: shadow RAM, or a sideways
+                        \ RAM bank (with ANDY when ROMSEL bit 7 is set)
 
- LDA #HOMEBANK          \ Set the RAM copy of the currently selected paged ROM
- STA LATCH              \ to HOMEBANK, so it matches the paged ROM selection latch at
-                        \ SHEILA &30 that we are about to set
+ LDX #0                 \ X = offset of the FTAB entry
 
- LDA VIA+&30            \ Set bits 0-3 of the ROM Select latch at SHEILA &30 to
- AND #%11110000         \ HOMEBANK, to switch sideways RAM bank HOMEBANK into &8000-&BFFF in
- ORA #HOMEBANK          \ main memory
+.LDF
+
+ STX YY                 \ Save the entry's offset
+
+ LDA FTAB+1,X           \ Fetch the high byte of the entry's OSCLI command,
+ BEQ LDEND              \ which is zero at the end of the table
+
+ TAY                    \ Run the command in (Y X), which loads the file at
+ LDA FTAB,X             \ &1300
+ TAX
+ JSR OSCLI
+
+ SEI                    \ No interrupts while ROMSEL and ACCCON are changed
+
+ LDX YY                 \ Page in the file's destination: ROMSEL (and its RAM
+ LDA FTAB+2,X           \ copy in &F4) and ACCCON
+ STA LATCH
  STA VIA+&30
+ LDA FTAB+3,X
+ STA VIA+&34
 
- LDA #%10101010         \ Set A and location &8000 to %10101010
- STA &8000
-
- LSR A                  \ Shift A and location &8000 right
- LSR &8000
-
- CMP &8000              \ If A matches location &8000 (i.e. both now contain
- BEQ OK                 \ %01010101) then jump to OK, as ROM bank HOMEBANK is writable
-                        \ and does indeed contain sideways RAM rather than a
-                        \ paged ROM, which is what we need for running the game
-
- BRK                    \ Otherwise we can't run the game, so terminate the
-                        \ loader with the following error message
-
- EQUB 0                 \ Error number
-
- EQUB 22, 7             \ Switch to mode 7 and clear the screen
-
- EQUS "ELITE needs RAM in slot #4"
-
- EQUB 0                 \ End of error message
-
-.OK
-
- LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
-
-                        \ We now want to copy &F pages of memory (&F00 bytes)
-                        \ from &1300-&21FF to &7000-&7EFF in screen memory
-
- LDX #&F                \ Set a page counter in X to copy &F pages
-
- LDA #&13               \ Set ZP(1 0) = &1300
+ STZ ZP                 \ ZP(1 0) = &1300, the source
+ LDA #&13
  STA ZP+1
- STZ ZP
 
- STZ P                  \ Set P(1 0) = &7000
- LDA #&70
+ LDA FTAB+4,X           \ P(1 0) = the destination
+ STA P
+ LDA FTAB+5,X
  STA P+1
 
- LDY #0                 \ Set Y = 0 to act as a byte counter within each page
+ LDY FTAB+6,X           \ (T Y) = the number of bytes, a non-zero multiple of
+ LDA FTAB+7,X           \ 256 (Y = 0)
+ STA T
 
-.MPL1
+.LDC
 
- LDA (ZP),Y             \ Copy the Y-th byte of the memory block at ZP(1 0) to
- STA (P),Y              \ the Y-th byte of the memory block at P(1 0)
+ LDA (ZP),Y             \ Copy a page
+ STA (P),Y
+ INY
+ BNE LDC
 
- DEY                    \ Decrement the byte counter
+ INC ZP+1               \ Next page
+ INC P+1
+ DEC T
+ BNE LDC
 
- BNE MPL1               \ Loop back to copy the next byte until we have copied a
-                        \ whole page of 256 bytes
+ LDA #%00001001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
+ STA VIA+&34            \ it)
 
- INC ZP+1               \ Increment the high bytes of both ZP(1 0) and P(1 0)
- INC P+1                \ so we copy the next page in memory
+ CLI
 
- DEX                    \ Decrement the page counter
+ LDA YY                 \ Next entry
+ CLC
+ ADC #8
+ TAX
+ BNE LDF
 
- BNE MPL1               \ Loop back to copy the next page until we have done all
-                        \ &F of them
-
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
-
-                        \ We now want to copy &33 pages of memory (&3300 bytes)
-                        \ from &2200-&54FF to &7F00-&B1FF in main memory
-
- LDX #&33               \ Set a page counter in X to copy &33 pages
-
-.MPL2
-
- LDA (ZP),Y             \ Copy the Y-th byte of the memory block at ZP(1 0) to
- STA (P),Y              \ the Y-th byte of the memory block at P(1 0)
-
- DEY                    \ Decrement the byte counter
-
- BNE MPL2               \ Loop back to copy the next byte until we have copied a
-                        \ whole page of 256 bytes
-
- INC ZP+1               \ Increment the high bytes of both ZP(1 0) and P(1 0)
- INC P+1                \ so we copy the next page in memory
-
- DEX                    \ Decrement the page counter
-
- BNE MPL2               \ Loop back to copy the next page until we have done all
-                        \ &33 of them
+.LDEND
 
  CLI                    \ Enable interrupts
 
@@ -500,7 +468,7 @@ ENDIF
                         \ Compact release)
 
  JSR OSCLI              \ Call OSCLI to run the OS command in MESS2, which loads
-                        \ the BCODE/ELITE file to address &1300-&7F48, appending
+                        \ the BCODE/ELITE file to address &1300, appending
                         \ &FFFF to the address to make sure it loads in the main
                         \ BBC Master rather than getting passed across the Tube
                         \ to the Second Processor, if one is fitted
@@ -512,16 +480,77 @@ ENDIF
                         \ changes the disc directory to E
 
  LDA #HOMEBANK          \ Set the RAM copy of the currently selected paged ROM
- STA LATCH              \ to HOMEBANK, so it matches the paged ROM selection latch at
-                        \ SHEILA &30 that we are about to set
+ STA LATCH              \ to HOMEBANK, and page Elite's home bank in
 
- LDA VIA+&30            \ Switch ROM bank HOMEBANK into memory by setting bits 0-3 of
- AND #%11110000         \ the ROM selection latch at SHEILA &30 to 6
- ORA #HOMEBANK
  STA VIA+&30
 
  JMP S%                 \ Jump to the start of the main game code at S%, which
                         \ we just loaded in the BCODE/ELITE file
+
+\ ******************************************************************************
+\
+\       Name: CHKRAM
+\       Type: Subroutine
+\   Category: Loader
+\    Summary: Port: check that sideways bank A is RAM, or stop with an error
+\
+\ ******************************************************************************
+
+.CHKRAM
+
+ STA LATCH              \ Page in bank A (and keep &F4 in step)
+ STA VIA+&30
+
+ LDA #%10101010         \ Set A and location &8000 to %10101010
+ STA &8000
+
+ LSR A                  \ Shift A and location &8000 right
+ LSR &8000
+
+ CMP &8000              \ If A matches location &8000 (i.e. both now contain
+ BNE CHKF               \ %01010101), the bank is RAM
+
+ RTS
+
+.CHKF
+
+ BRK                    \ Otherwise we can't run the game, so terminate the
+                        \ loader with the following error message
+
+ EQUB 0                 \ Error number
+
+ EQUB 22, 7             \ Switch to mode 7 and clear the screen
+
+ EQUS "ELITE needs RAM in slots 4 and 7"
+
+ EQUB 0                 \ End of error message
+
+\ ******************************************************************************
+\
+\       Name: FTAB
+\       Type: Variable
+\   Category: Loader
+\    Summary: Port: the files the loader copies into place
+\
+\ ------------------------------------------------------------------------------
+\
+\ Eight bytes per file: the OSCLI command that loads it to &1300, the ROMSEL
+\ and ACCCON values to copy it with, the destination, and the number of bytes
+\ (a multiple of 256). The table ends with a zero command address.
+\
+\ ******************************************************************************
+
+.FTAB
+
+ EQUW MESS1             \ BDATA: the dashboard image, to shadow RAM &7000-&7EFF
+ EQUB HOMEBANK, %00001111
+ EQUW &7000, &0F00
+
+ EQUW MESS4             \ BANK4: Elite's home bank
+ EQUB HOMEBANK, %00001001
+ EQUW &8000, &4000
+
+ EQUW 0
 
 \ ******************************************************************************
 \
@@ -1290,6 +1319,11 @@ ENDIF
 .MESS3
 
  EQUS "DIR E"
+ EQUB 13
+
+.MESS4
+
+ EQUS "L.BANK4 FFFF1300"    \ Port: *LOAD BANK4 FFFF1300
  EQUB 13
 
 \ ******************************************************************************

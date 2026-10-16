@@ -9720,5 +9720,12 @@ ENDIF
 \
 \ ******************************************************************************
 
- PRINT "S.BDATA ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BDATA.unprot.bin", CODE%, P%, LOAD%
+\ Port: the dashboard image (&7000-&7EFF) is BDATA, which the loader copies to
+\ shadow RAM; the game data from XX21 on is build/BANK4D.bin, which
+\ elite-source.asm puts at the start of Elite's home bank (bank 4)
+
+ PRINT "S.BDATA ", ~CODE%, " ", ~XX21-&100, " ", ~LOAD%, " ", ~LOAD%
+ SAVE "build/BDATA.unprot.bin", CODE%, XX21-&100, LOAD%
+
+ PRINT "Bank 4 data: &8000-", ~P%-1
+ SAVE "build/BANK4D.bin", XX21, P%, XX21

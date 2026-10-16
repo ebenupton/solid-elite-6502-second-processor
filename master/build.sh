@@ -3,8 +3,10 @@
 #   build/BCODE.unprot.bin, BDATA.unprot.bin (assembler output),
 #   build/BCODE.bin, BDATA.bin (with the commander checksum set),
 #   build/M128Elt.bin (loader), build/README.txt,
+#   build/BANK4.bin (Elite's home bank: the data and bank 4 code),
 #   build/symbols.txt (beebasm -d symbol dump of elite-source.asm; zero page,
-#   workspaces and main code), build/symbols-data.txt (elite-data.asm, bank 6),
+#   workspaces, main code and banked code), build/banks.txt (the banked
+#   labels' banks), build/symbols-data.txt (elite-data.asm),
 #   build/elite-master-sng47.ssd (bootable with SHIFT+BREAK on a BBC Master).
 #
 # The copy protection is gone (Stage B, docs/MASTER-PLAN.md): the game is
@@ -64,6 +66,15 @@ PY
 for f in loader readme; do
     $BEEBASM -i src/elite-$f.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 done
+# build/banks.txt: the labels of the code in sideways RAM and the ROMSEL value
+# of their bank (harness/mlib.mjs and tools/bankcheck.py read it)
+python3 - <<'PY'
+import re
+with open("build/banks.txt", "w") as f:
+    for src, bank in (("src/elite-bank4.asm", "4"),):
+        for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
+            f.write("%s %s\n" % (m.group(1), bank))
+PY
 
 F=$(sed -n 's/^F% = &\([0-9A-F]*\).*/\1/p' build/compile.txt)
 G=$(sed -n 's/^G% = &\([0-9A-F]*\).*/\1/p' build/compile.txt)

@@ -3097,6 +3097,8 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+ INCLUDE "src/elite-far.asm"   \ Port: far calls to and from the cold area
+
 \ ******************************************************************************
 \
 \       Name: setzp
@@ -48489,6 +48491,29 @@ ENDIF
 
  PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
  SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
+
+\ ******************************************************************************
+\
+\ Port: sideways RAM bank 4, Elite's home bank (docs/MASTER-MAP.md)
+\
+\ The game data that elite-data.asm assembles for bank 4 (build/BANK4D.bin:
+\ blueprints and their tables, the tokens, SNE, ACT), then the game code
+\ that lives in bank 4 (elite-bank4.asm). Saved as the whole bank, which the
+\ loader copies to sideways RAM bank HOMEBANK.
+\
+\ ******************************************************************************
+
+ CLEAR &8000, &C000
+ ORG &8000
+
+ INCBIN "build/BANK4D.bin"
+
+ INCLUDE "src/elite-bank4.asm"
+
+.BANK4_END%
+
+ PRINT "Bank 4: &8000-", ~BANK4_END%-1, " free ", &C000-BANK4_END%
+ SAVE "build/BANK4.bin", &8000, &C000, &8000
 
  PRINT "Addresses for the scramble routines in elite-checksum.py"
  PRINT "F% = ", ~F%

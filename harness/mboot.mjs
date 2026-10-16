@@ -7,10 +7,10 @@
 //
 // Boots with SHIFT+BREAK, runs until the first title screen ("Load New
 // Commander (Y/N)?") has drawn its rotating ship a few times (the 8th call of
-// RDKEY from TITLE's key loop), then reports ROMSEL / ACCCON, compares bank 4
-// &8000-&B1FF with master/build/BDATA.unprot.bin (the game decrypts BDATA in
-// place at start-up, so this is what bank 4 should hold) and writes
-// title.png. Exit status 0 if the title screen was reached and bank 4 matches.
+// RDKEY from TITLE's key loop), then reports ROMSEL / ACCCON, compares the
+// sideways RAM images the loader installs (BANK4.bin, and ANDY.bin and
+// COLD7.bin once they exist) with what the banks hold, and writes title.png.
+// Exit status 0 if the title screen was reached and the banks match.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 
@@ -53,13 +53,25 @@ console.log(`title screen key loop reached at emulated t=${secs.toFixed(2)} s`);
 console.log(`ROMSEL &${cpu.romsel.toString(16)} (bank ${cpu.romsel & 15}${cpu.romsel & 0x80 ? ", ANDY paged" : ""}), ACCCON &${cpu.acccon.toString(16)}`);
 console.log(`sideways RAM banks in this model: ${cpu.model.swram.map((v, i) => v ? i : -1).filter(i => i >= 0).join(" ")}`);
 
-// Bank 4 contents against the assembled BDATA (&7000-&B1FF; the bank holds &8000 on)
-const bdata = readFileSync(`${ROOT}master/build/BDATA.unprot.bin`);
-const off = (4 << 14) + cpu.romOffset - 0x8000;
+// The banked images against the build: [file, ROMSEL, start] (ROMSEL bit 7: ANDY
+// at &8000-&8FFF). The game writes XX21+2/3 (the station's blueprint) in bank 4.
+const images = [["BANK4.bin", 4, 0x8000], ["ANDY.bin", 0x87, 0x8000], ["COLD7.bin", 7, 0xac40]];
+const xx21 = syms.XX21;
 let diffs = [];
-for (let a = 0x8000; a < 0xb200; a++) if (cpu.ramRomOs[off + a] !== bdata[a - 0x7000]) diffs.push(a);
-console.log(`bank 4 &8000-&B1FF against BDATA.unprot.bin: ${diffs.length} differing bytes` +
-    (diffs.length ? ` (first &${diffs[0].toString(16)}, last &${diffs.at(-1).toString(16)})` : ""));
+for (const [f, rs, start] of images) {
+    let img;
+    try { img = readFileSync(`${ROOT}master/build/${f}`); } catch { continue; }
+    const d = [];
+    for (let i = 0; i < img.length; i++) {
+        const a = start + i;
+        const phys = rs & 0x80 && a < 0x9000 ? a : cpu.romOffset + (rs & 15) * 16384 + a - 0x8000;
+        if (rs === 4 && (a === xx21 + 2 || a === xx21 + 3)) continue;
+        if (cpu.ramRomOs[phys] !== img[i]) d.push(a);
+    }
+    console.log(`${f} (ROMSEL &${rs.toString(16)}, &${start.toString(16)}-&${(start + img.length - 1).toString(16)}): ${d.length} differing bytes` +
+        (d.length ? ` (first &${d[0].toString(16)}, last &${d.at(-1).toString(16)})` : ""));
+    diffs = diffs.concat(d);
+}
 writeFileSync(`${OUT}/title.png`, await s.screenshotActive({ scale: 1 }));
 console.log(`screenshot: ${OUT}/title.png`);
 process.exit(diffs.length ? 1 : 0);
