@@ -2311,8 +2311,8 @@ FOR n, 0, 15
  EQUB n * &11
 NEXT
 
-.F_FONT
- INCBIN "src/fonts/P.FONT.bin"
+F_FONT = FONT% * 256      \ Master port: Elite's own font in main RAM (the same
+ASSERT F_FONT + 768 <= &3000 \ 768 bytes), visible while ACCCON X is set
 
 
 \ ------------------------------------------------------------------------------
