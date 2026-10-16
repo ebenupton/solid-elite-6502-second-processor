@@ -2322,23 +2322,32 @@ SGOUT = 20
  LDX #SGX+SGOUT
  JSR f_wcov
  BCS fsg3
- LDY #SGY-SGOUT
- LDA #SGX               \ f_wcov with A = X = SGX, R_WR/R_WL part inlined
+ LDA fsw_d2+2           \ this buffer's R_DIRTYR (f_bufpatch), high byte
+ STA fsg_or+2           \ (the low bytes are equal)
+ ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
+ LDY #SGY-SGOUT         \ f_wcov with A = X = SGX: WR, DIRTYR >= SGX (= &80,
+.fsg2                   \ so <> 0) <=> bit 7 set; usually neither is
+ LDA R_WR,Y
+.fsg_or
+ ORA R_DIRTYR0,Y        \ patched (high byte, above)
+ BMI fsgs
+.fsg8
+ INY
+ CPY #SGY+SGOUT+1
+ BCC fsg2
+ RTS
+.fsgs
+ LDA #SGX
  STA fz_t
  STA fz_u
-.fsg2
- LDA R_WR,Y             \ WR >= SGX (= &80, so WR <> 0) <=> bit 7 set
+ LDX R_WR,Y
  BPL fsg7
- LDA #SGX
  CMP R_WL,Y
  BCS fsg3
 .fsg7
  JSR fwc2               \ this buffer's dirty extent (uses fz_t = fz_u = SGX)
  BCS fsg3
- INY
- CPY #SGY+SGOUT+1
- BCC fsg2
- RTS
+ BRA fsg8
 .fsg3
  LDX F_BACK
  LDA #&FF

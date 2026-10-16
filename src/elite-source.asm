@@ -6647,6 +6647,10 @@ ENDMACRO
 
  LDA ALPHA              \ Set Q = alpha (the roll angle to rotate through)
  STA Q
+ ASL A                  \ BBC Master port: if |alpha| = 0 then MAD would
+ BEQ MVS4a              \ return (S R) unchanged, so jump to MVS4a to skip the
+                        \ two multiplications (C is dead here: MAD sets it
+                        \ before reading it)
 
  LDX INWK+2,Y           \ Set (S R) = nosev_y
  STX R
@@ -6681,8 +6685,12 @@ ENDMACRO
                         \
                         \ nosev_x = nosev_x + alpha * nosev_y_hi
 
+.MVS4b
+
  LDA BETA               \ Set Q = beta (the pitch angle to rotate through)
  STA Q
+ ASL A                  \ BBC Master port: if |beta| = 0 then jump to MVS4c
+ BEQ MVS4c              \ to skip the multiplications
 
  LDX INWK+2,Y           \ Set (S R) = nosev_y
  STX R
@@ -6699,6 +6707,8 @@ ENDMACRO
                         \
                         \ nosev_y = nosev_y - beta * nosev_z_hi
 
+.MVS4z
+
  LDX INWK+4,Y           \ Set (S R) = nosev_z
  STX R
  LDX INWK+5,Y
@@ -6712,6 +6722,73 @@ ENDMACRO
                         \ and store (A X) in nosev_z, so this does:
                         \
                         \ nosev_z = nosev_z + beta * nosev_y_hi
+
+ RTS                    \ Return from the subroutine
+
+.MVS4a
+
+                        \ BBC Master port: |alpha| = 0, so MAD (MULT1 then
+                        \ ADD) would return (S R) unchanged, except that a
+                        \ negative zero (&80 &00) comes back as positive zero,
+                        \ so we just do that to nosev_y and nosev_x. Q, P, R,
+                        \ S, T, T1, A, X and the flags are all overwritten by
+                        \ the beta half, so they need not be set here
+
+ LDX INWK+3,Y           \ If nosev_y = (&80 &00), set nosev_y_hi = 0
+ CPX #%10000000
+ BNE MVS4d
+ LDX INWK+2,Y
+ BNE MVS4d
+ STX INWK+3,Y
+
+.MVS4d
+
+ LDX INWK+1,Y           \ If nosev_x = (&80 &00), set nosev_x_hi = 0
+ CPX #%10000000
+ BNE MVS4b
+ LDX INWK,Y
+ BNE MVS4b
+ STX INWK+1,Y
+
+ BRA MVS4b              \ Jump back to apply beta
+
+.MVS4c
+
+                        \ BBC Master port: |beta| = 0, so the first MAD would
+                        \ leave nosev_y unchanged apart from negative zero (as
+                        \ above), and the second would return (A X) = (S R)
+                        \ = nosev_z
+
+ LDX INWK+3,Y           \ If nosev_y = (&80 &00), set nosev_y_hi = 0
+ CPX #%10000000
+ BNE MVS4e
+ LDX INWK+2,Y
+ BNE MVS4e
+ STX INWK+3,Y
+
+.MVS4e
+
+ LDX INWK+4,Y           \ Set R = X = nosev_z_lo
+ STX R
+
+ LDA INWK+5,Y           \ Set A = nosev_z_hi
+ BPL MVS4f              \ If nosev_z is positive, jump to MVS4f
+
+ CMP #%10000000         \ If nosev_z = (&80 &00), i.e. negative zero, jump to
+ BNE MVS4f              \ MVS4z to do the full calculation (MAD with |Q| = 0),
+ CPX #0                 \ which returns it as positive zero
+ BEQ MVS4z
+
+.MVS4f
+
+ STA S                  \ Set S = nosev_z_hi, and leave the same state as MAD
+                        \ with |Q| = 0 does when (S R) is not negative zero:
+ STZ P                  \ P = T = T1 = 0, (A X) = (S R) (so nosev_z is
+ STZ T                  \ unchanged), C = 0, V = 0, and N and Z set from A
+ STZ T1
+ CLC
+ CLV
+ ORA #0
 
  RTS                    \ Return from the subroutine
 
@@ -7717,22 +7794,21 @@ ENDMACRO
  TAX                    \ First we do the low bytes, keeping the high byte of
  LDA P                  \ (A P) in X:
  ADC SYL,Y              \
- STA R                  \   R = P + y_lo
+ STA YY                 \   YY = P + y_lo
                         \
-                        \ (YY is not written here: both YY and YY+1 are
-                        \ overwritten by the STA YY+1/STX YY after the ADD
-                        \ below before anything reads them)
+                        \ BBC Master port: y is kept in YY(1 0) and x in
+                        \ (S R) (not XX), so the ADD below is done in place
+                        \ on YY and the second ADD finds x already in (S R)
+                        \ (no MLS2 copy). XX is no longer written: its only
+                        \ other readers (PLF) write it first
 
  TXA                    \ And then we do the high bytes with:
  ADC Y1                 \
- STA S                  \   S = y_hi + A
+ STA YY+1               \   YY+1 = y_hi + A
                         \ so we get our result:
                         \
-                        \   (S R) = YY(1 0) = (A P) + (y_hi y_lo)
-                        \                   = |y_hi| * Q + y
-                        \
-                        \ which is result 3 above, and (S R) is set to the new
-                        \ value of y
+                        \   YY(1 0) = (A P) + (y_hi y_lo)
+                        \           = |y_hi| * Q + y
 
  LDA SX,Y               \ Set X1 = A = x_hi
  STA X1                 \
@@ -7741,29 +7817,15 @@ ENDMACRO
 
  JSR MLU2               \ Set (A P) = |x_hi| * Q
 
-                        \ We now calculate:
-                        \
-                        \   XX(1 0) = (A P) + x
-
  TAX                    \ First we do the low bytes (high byte of (A P) in X):
  LDA P                  \
- ADC SXL,Y              \   XX(1 0) = (A P) + x_lo
- STA XX
+ ADC SXL,Y              \   R = P + x_lo
+ STA R
 
  TXA                    \ And then we do the high bytes:
  ADC X1                 \
- STA XX+1               \   XX(1 0) = XX(1 0) + (x_hi 0)
-                        \
-                        \ so we get our result:
-                        \
-                        \   XX(1 0) = (A P) + x
-                        \           = |x_hi| * Q + x
-                        \
-                        \ which is result 4 above, and we also have:
-                        \
-                        \   A = XX+1 = (|x_hi| * Q + x) / 256
-                        \
-                        \ i.e. A is the new value of x, divided by 256
+ STA S                  \   S = A + x_hi, so (S R) = |x_hi| * Q + x and
+                        \   A = S is the new value of x, divided by 256
 
  EOR ALP2+1             \ EOR with the flipped sign of the roll angle alpha, so
                         \ A has the opposite sign to the flipped roll angle
@@ -7774,30 +7836,54 @@ ENDMACRO
                         \   (A P) = A * ALP1
                         \         = (x / 256) * alpha
 
-                        \ Inline ADD to calculate:
+                        \ Inline ADD (and MU8) to calculate:
                         \
-                        \   YY(1 0) = (A P) + (S R)
-                        \           = (x / 256) * alpha + y
+                        \   YY(1 0) = (A P) + YY(1 0)
                         \           = y + alpha * x / 256
 
  STA T1                 \ As ADD: T1 = A, T = sign of A
  AND #%10000000
  STA T
- EOR S                  \ Signs differ: use MU8
+ EOR YY+1               \ Signs differ: inline MU8 at stl_a8
  BMI stl_a8
- LDA R                  \ Same sign: YY = P + R
+ LDA YY                 \ Same sign: YY = P + YY
  CLC
  ADC P
  STA YY
- LDA S                  \ YY+1 = (S + T1 + C) OR T
+ LDA YY+1               \ YY+1 = (YY+1 + T1 + C) OR T
  ADC T1
  ORA T
  STA YY+1
- JMP stl_a9
+ BRA stl_a9
+.stl_a8a
+ LDA P                  \ MU8a: |A P| > |YY|: X = P - YY_lo,
+ SEC                    \ A = (T1 EOR &80) - YY_hi - borrow
+ SBC YY
+ TAX
+ LDA T1
+ EOR #%10000000
+ SBC YY+1
+ BRA stl_a8e
+.stl_a8z
+ CPX #0                 \ MU8e: high byte 0; X <> 0 -> |YY| > |A P|,
+ BNE stl_a8s            \ else equal: A = 0, X = 0, result A = T
+ BRA stl_a8e
 .stl_a8
- JSR MU8                \ (A X) = (A P) + (S R)
- STA YY+1               \ Set YY(1 0) = (A X) to give:
- STX YY                 \
+ LDA YY                 \ MU8 inline: X = YY_lo - P
+ SEC
+ SBC P
+ TAX
+ LDA YY+1               \ A = |YY_hi| - |T1| - borrow
+ EOR #%10000000
+ SBC T1
+ BCC stl_a8a            \ |YY| < |A P|: redo the other way round
+ BEQ stl_a8z            \ High byte 0: check for equality
+.stl_a8s
+ ORA #%10000000         \ |YY| > |A P|: sign of YY (= T EOR &80)
+.stl_a8e
+ EOR T
+ STA YY+1               \ Set YY(1 0) = (A X)
+ STX YY
 .stl_a9
                         \   YY(1 0) = y + alpha * x / 256
                         \
@@ -7810,7 +7896,7 @@ ENDMACRO
  EOR ALP2               \ EOR A with the correct sign of the roll angle alpha,
                         \ so A has the opposite sign to the roll angle alpha
 
- JSR MLS2               \ Call MLS2 to calculate:
+ JSR MLS1               \ Call MLS1 ((S R) already holds x) to calculate:
                         \
                         \   (S R) = XX(1 0)
                         \         = x
@@ -28314,6 +28400,44 @@ ENDIF
  JSR PM_HOOK            \ Frame layer: a new curve of the planet's detail
                         \ (PM_HOOK: the meridians' constants, then H_PCURVE)
 
+                        \ BBC Master port: the four products in PLL4 are
+                        \ calculated inline with the quarter-square tables (see
+                        \ SQ1L), exactly as FMLTU does: |u_x|, |u_y|, |v_x| and
+                        \ |v_y| in K2(0 1 2 3) do not change while we draw the
+                        \ ellipse (BLINE does not touch K2), so we patch them
+                        \ into the table operands once here, as FMLTU patches
+                        \ its A argument, and each segment then only indexes
+                        \ the tables with X = |sin| or |cos|, as FMLTU indexes
+                        \ them with X = Q
+
+ LDA K2+2               \ Patch A = K2+2 = |v_x| into the R look-ups
+ STA pl4r1+1
+ STA pl4r3+1
+ EOR #&FF
+ STA pl4r2+1
+ STA pl4r4+1
+
+ LDA K2+3               \ Patch A = K2+3 = |v_y| into the K look-ups
+ STA pl4k1+1
+ STA pl4k3+1
+ EOR #&FF
+ STA pl4k2+1
+ STA pl4k4+1
+
+ LDA K2                 \ Patch A = K2 = |u_x| into the first P look-ups
+ STA pl4p1+1
+ STA pl4p3+1
+ EOR #&FF
+ STA pl4p2+1
+ STA pl4p4+1
+
+ LDA K2+1               \ Patch A = K2+1 = |u_y| into the second P look-ups
+ STA pl4q1+1
+ STA pl4q3+1
+ EOR #&FF
+ STA pl4q2+1
+ STA pl4q4+1
+
  LDX #0                 \ Set CNT = 0
  STX CNT
 
@@ -28328,79 +28452,69 @@ ENDIF
                         \ SNE is extended to 80 entries, with SNE+n holding
                         \ |sin(n mod 32)|, so SNE+X = sin(CNT2 mod 32) =
                         \ |sin(CNT2)| without reducing X mod 32 (and the
-                        \ cosine below is SNE+16+X, no EOR #16 needed)
-
- LDA SNE,X              \ Set Q = sin(X)
- STA Q                  \       = sin(CNT2 mod 32)
-                        \       = |sin(CNT2)|
-
- LDA K2+2               \ Set A = K2+2
-                        \       = |v_x|
-
- JSR FMLTU              \ Set R = A * Q / 256
- STA R                  \       = |v_x| * |sin(CNT2)|
-
- LDA K2+3               \ Set A = K2+3
-                        \       = |v_y|
-
- JSR FMLTU              \ Set K = A * Q / 256
- STA K                  \       = |v_y| * |sin(CNT2)|
-
- CPX #33                \ If CNT2 >= 33 then this sets the C flag (X = CNT2,
-                        \ preserved by FMLTU), otherwise it's clear, so:
-                        \
-                        \   * C is clear if the segment starts in the first half
-                        \     of the circle, 0 to 180 degrees
-                        \
-                        \   * C is set if the segment starts in the second half
-                        \     of the circle, 180 to 360 degrees
-                        \
-                        \ In other words, the C flag contains the sign bit for
-                        \ sin(CNT2), which is positive for 0 to 180 degrees
-                        \ and negative for 180 to 360 degrees
-
- LDA #0                 \ Shift the C flag into the sign bit of XX16+5, so
- ROR A                  \ XX16+5 has the correct sign for sin(CNT2)
- STA XX16+5             \
-                        \ Because we set the following above:
-                        \
-                        \   K = |v_y| * |sin(CNT2)|
-                        \   R = |v_x| * |sin(CNT2)|
-                        \
-                        \ we can add XX16+5 as the high byte to give us the
-                        \ following:
-                        \
-                        \   (XX16+5 K) = |v_y| * sin(CNT2)
-                        \   (XX16+5 R) = |v_x| * sin(CNT2)
+                        \ cosine is SNE+16+X, no EOR #16 needed)
 
  LDA SNE+16,X           \ Set Q = SNE+16+X
  STA Q                  \       = sin((CNT2 + 16) mod 32)
                         \       = |cos(CNT2)|
 
- LDA K2                 \ Set A = K2
-                        \       = |u_x|
+ LDA SNE,X              \ Set X = sin(CNT2 mod 32) = |sin(CNT2)|
+ TAX
 
- JSR FMLTU              \ Set P = A * Q / 256
- STA P                  \       = |u_x| * |cos(CNT2)|
-                        \
-                        \ The call to FMLTU also sets the C flag, so in the
-                        \ following, ADC #15 adds 16 rather than 15
+.pl4r1                  \ Set R = |v_x| * |sin(CNT2)| / 256 (K2+2 is patched
+ LDA SQ1L,X             \ into these operands in PLS22)
+.pl4r2
+ CMP SQ2L,X
+.pl4r3
+ LDA SQ1H,X
+.pl4r4
+ SBC SQ2H,X
+ STA R
 
- LDA XX16+5             \ Set S = the sign of XX16+2 * XX16+5
- EOR XX16+2             \       = the sign of v_x * XX16+5
- STA S                  \
-                        \ so (S R) = v_x * sin(CNT2) (this leaves the C flag
-                        \ set from FMLTU for the ADC #15 below)
+.pl4k1                  \ Set K = |v_y| * |sin(CNT2)| / 256 (K2+3 is patched
+ LDA SQ1L,X             \ into these operands in PLS22)
+.pl4k2
+ CMP SQ2L,X
+.pl4k3
+ LDA SQ1H,X
+.pl4k4
+ SBC SQ2H,X
+ STA K
 
- TXA                    \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
- ADC #207               \ then this sets the C flag, otherwise it's clear, so C
- CMP #225               \ is the sign bit of cos(CNT2): CNT2 + 208 is 225..255
-                        \ only for CNT2 = 17..47 (48..63 wrap to 0..15)
+ LDX Q                  \ Set X = |cos(CNT2)|
+
+.pl4p1                  \ Set P = |u_x| * |cos(CNT2)| / 256 (K2 is patched
+ LDA SQ1L,X             \ into these operands in PLS22)
+.pl4p2
+ CMP SQ2L,X
+.pl4p3
+ LDA SQ1H,X
+.pl4p4
+ SBC SQ2H,X
+ STA P
+
+ LDA CNT2               \ If CNT2 >= 33 then this sets the C flag, which is
+ CMP #33                \ the sign bit for sin(CNT2) (positive for 0 to 180
+                        \ degrees, negative for 180 to 360 degrees)
+
+ LDA #0                 \ Shift the C flag into the sign bit of XX16+5, so
+ ROR A                  \ XX16+5 has the correct sign for sin(CNT2), giving
+ STA XX16+5             \ (XX16+5 K) = |v_y| * sin(CNT2) and
+                        \ (XX16+5 R) = |v_x| * sin(CNT2) (this clears C)
+
+ EOR XX16+2             \ Set S = the sign of XX16+2 * XX16+5
+ STA S                  \       = the sign of v_x * XX16+5
+                        \ so (S R) = v_x * sin(CNT2)
+
+ LDA CNT2               \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
+ ADC #208               \ then this sets the C flag (C is clear from the ROR
+ CMP #225               \ above), otherwise it's clear, so C is the sign bit
+                        \ of cos(CNT2): CNT2 + 208 is 225..255 only for
+                        \ CNT2 = 17..47 (48..63 wrap to 0..15)
 
  LDA #0                 \ Shift the C flag into the sign bit of XX16+4, so:
  ROR A                  \ XX16+4 has the correct sign for cos(CNT2)
- STA XX16+4             \ (XX16+4 K+2) = |u_y| * cos(CNT2)
-                        \ (XX16+4 P)   = |u_x| * cos(CNT2)
+ STA XX16+4             \ (XX16+4 P) = |u_x| * cos(CNT2)
 
  EOR XX16               \ Set A = the sign of XX16 * XX16+4
                         \       = the sign of u_x * XX16+4
@@ -28463,9 +28577,16 @@ ENDIF
                         \
                         \   (S R) = v_y * sin(CNT2)
 
- LDA K2+1               \ Set P = |u_y| * |cos(CNT2)| (moved here from above:
- JSR FMLTU              \ Q still holds |cos(CNT2)|, K2+1 is unchanged and
- STA P                  \ FMLTU preserves Y, so no K+2 temporary is needed)
+ LDX Q                  \ Set P = |u_y| * |cos(CNT2)| / 256 (moved here from
+.pl4q1                  \ above: Q still holds |cos(CNT2)| and K2+1 is
+ LDA SQ1L,X             \ patched into these operands in PLS22, so no K+2
+.pl4q2                  \ temporary is needed)
+ CMP SQ2L,X
+.pl4q3
+ LDA SQ1H,X
+.pl4q4
+ SBC SQ2H,X
+ STA P
 
  LDA XX16+4             \ Set A = the sign of XX16+1 * XX16+4
  EOR XX16+1             \       = the sign of u_y * XX16+4
