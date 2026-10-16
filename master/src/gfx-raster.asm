@@ -31,6 +31,8 @@
 \ ---------------------------------------------------------------- variables
 \ (raster_vars.asm; empty span: L = 255, R = 0; for R_WL/R_WR, R = 0)
 \   R_PN               polygon vertex count (1..16; more are ignored)
+\   R_COL2, R_COL3     R_POLY's colour bytes for rows y AND 3 = 2, 3 (with
+\                      R_COLE, R_COLO for rows 0, 1)
 \   R_PXL/R_PXH/R_PYL/R_PYH  16-entry vertex arrays (signed 16-bit, y down)
 \   R_X0,R_Y0,R_X1,R_Y1      line end points, signed 16-bit words (lo, hi)
 \   R_SN               star count (0..24)
@@ -71,8 +73,11 @@
 \ R_SPAN       Y = row, fill pixels R_XL..R_XR (within the clip window, XL<=XR)
 \              with the colour pair.  Pure drawing: no state is updated.
 \              Pass R_COLE = R_COLO = 0 for black.
-\ R_POLY       filled convex polygon (R_PN, R_PXL..R_PYH, colour pair), either
-\              winding.  Pixel (x,y) (centre at integer x,y) is filled when it
+\ R_POLY       filled convex polygon (R_PN, R_PXL..R_PYH), either winding, in
+\              a 4-row colour: row y takes R_COLE, R_COLO, R_COL2, R_COL3 for
+\              y AND 3 = 0, 1, 2, 3 (a 4x4 dither tile; set R_COL2 = R_COLE and
+\              R_COL3 = R_COLO for a 2-row colour pair).  Pixel (x,y)
+\              (centre at integer x,y) is filled when it
 \              is inside, using a top-left rule: rows y0 <= y < y1 of each
 \              edge, pixels ceil(xleft) <= x < ceil(xright), exact integer
 \              edge stepping from the upper end point, so polygons sharing an
@@ -151,7 +156,11 @@ RZ_PP   = &14           \ RTS plant pointer / pixel pointer
 RZ_COL  = &16           \ this row's colour byte
 RZ_Y    = &17           \ current row
 RZ_SA   = &18           \ edge A: x (16)            } side 0 (offset 0)
+RZ_CE   = &18           \ (phase B: this row pair's colours, even and odd rows)
+RZ_CO   = &19
 RZ_TA   = &1A           \ edge A: error term (16)   }
+RZ_XE   = &1A           \ (phase B: COLE EOR COL2, COLO EOR COL3)
+RZ_XO   = &1B
 RZ_SB   = &1C           \ edge B: x (16)            } side 1 (offset 4)
 RZ_TB   = &1E           \ edge B: error term (16)   }
 RZ_T0   = &20
@@ -1555,13 +1564,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA r_dyb,X
 .d2
   \ phase B set-up
-  SEC
-  LDA r_yend
-  SBC r_ystart
-  STA RZ_SA               \ rows to do
-  LDA R_COLE
-  EOR R_COLO
-  STA RZ_SB
   LDY r_ystart
   JSR r_rowset
   LDA RZ_PP+1
@@ -1572,15 +1574,29 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA pb_ye_o+1
   LDA #190                \ nothing planted
   STA RZ_PP
+  LDA R_COLE              \ rows 4k, 4k+1 take COLE, COLO; rows 4k+2, 4k+3
+  EOR R_COL2              \ COL2, COL3: RZ_CE/RZ_CO = this row pair's, toggled
+  STA RZ_XE               \ by RZ_XE/RZ_XO at each pair
+  LDA R_COLO
+  EOR R_COL3
+  STA RZ_XO
+  TYA
+  AND #2
+  BEQ p01
+  LDA R_COL2
+  LDX R_COL3
+  BRA pc
+.p01
+  LDA R_COLE
+  LDX R_COLO
+.pc
+  STA RZ_CE
+  STX RZ_CO
   TYA
   LSR A
-  LDA R_COLE
   BCC ev
-  LDA R_COLO
-  STA RZ_COL
   JMP r_pbx_o             \ odd first row (Y = RZ_Y)
 .ev
-  STA RZ_COL
   JMP r_pbx_e             \ even first row
 .otab
   EQUW r_ta, r_tb, r_ta
@@ -1801,8 +1817,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 
 \ ----------------------------------------------------------------------------
 \ Phase B: rows RZ_Y.., RZ_SA of them; left table r_pbl1, right (exclusive)
-\ r_pbr1/r_pbr2.  Row pointers, run page (RZ_PP+1, r_jsr2+2), RZ_COL set;
-\ RZ_PP = the planted RTS (190: none).
+\ r_pbr1/r_pbr2.  Row pointers, run page (RZ_PP+1, r_jsr2+2), RZ_CE/RZ_CO
+\ (this row pair's colours) and RZ_XE/RZ_XO set; RZ_PP = the planted RTS
+\ (190: none).  Even rows take RZ_CE, odd rows RZ_CO; at each even row
+\ (a new pair) pb_tg toggles both to the other pair (a 4-row dither).
 \ ----------------------------------------------------------------------------
 
 .pb_one_e
@@ -1814,14 +1832,14 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPX #&80
   BCS pb_ob_e
   LDA (RZ_PA),Y
-  EOR R_COLE
+  EOR RZ_CE
   AND RZ_T7
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
   JMP pb_skip_e
 .pb_ob_e
   LDA (RZ_PB),Y
-  EOR R_COLE
+  EOR RZ_CE
   AND RZ_T7
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
@@ -1836,7 +1854,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JMP pb_go_e
 .pb_lb_e
   LDA (RZ_PB),Y
-  EOR R_COLE
+  EOR RZ_CE
   AND r_lm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
@@ -1844,13 +1862,11 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .pb_rb_e
   LDY r_xo,X
   LDA (RZ_PB),Y
-  EOR R_COLE
+  EOR RZ_CE
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   JMP pb_skip_e
-.r_pb_e
-  LDY RZ_Y
 .r_pbx_e
 .r_pbl1_e
   LDA &FFFF,Y
@@ -1878,7 +1894,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPX #&80
   BCS pb_lb_e
   LDA (RZ_PA),Y
-  EOR R_COLE
+  EOR RZ_CE
   AND r_lm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
@@ -1893,7 +1909,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BNE pb_plant_e
 .pb_go_e
   LDX RZ_PA
-  LDA R_COLE
+  LDA RZ_CE
 .r_jsr2_e
   JSR &FFFF
 .pb_norun_e
@@ -1901,7 +1917,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BMI pb_rb_e
   LDY r_xo,X
   LDA (RZ_PA),Y
-  EOR R_COLE
+  EOR RZ_CE
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
@@ -1942,7 +1958,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPX #&80
   BCS pb_lb_o
   LDA (RZ_PA),Y
-  EOR R_COLO
+  EOR RZ_CO
   AND r_lm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
@@ -1957,7 +1973,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BNE pb_plant_o
 .pb_go_o
   LDX RZ_PA
-  LDA R_COLO
+  LDA RZ_CO
 .r_jsr2_o
   JSR &FFFF
 .pb_norun_o
@@ -1965,7 +1981,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BMI pb_rb_o
   LDY r_xo,X
   LDA (RZ_PA),Y
-  EOR R_COLO
+  EOR RZ_CO
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
@@ -1983,13 +1999,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BEQ pb_cr               \ (pb_cr zeroes them itself)
   STA RZ_PA
   STA RZ_PB
-  JMP r_pbx_e
+  JMP pb_tg
 .pb_one_o
   LDY r_xo,X
   CPX #&80                \ XL, XR differ only in bits 0-1 (XL EOR XR < 4)
   BCS pb_ob_o
   LDA (RZ_PA),Y
-  EOR R_COLO
+  EOR RZ_CO
   AND r_lm,X
   LDX R_XR
   AND r_rm,X
@@ -1998,7 +2014,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BRA pb_skip_o
 .pb_ob_o
   LDA (RZ_PB),Y
-  EOR R_COLO
+  EOR RZ_CO
   AND r_lm,X
   LDX R_XR
   AND r_rm,X
@@ -2007,7 +2023,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BRA pb_skip_o
 .pb_lb_o
   LDA (RZ_PB),Y
-  EOR R_COLO
+  EOR RZ_CO
   AND r_lm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
@@ -2015,7 +2031,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .pb_rb_o
   LDY r_xo,X
   LDA (RZ_PB),Y
-  EOR R_COLO
+  EOR RZ_CO
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
@@ -2047,8 +2063,15 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA RZ_PB+1
   INC RZ_PP+1
   INC r_jsr2_e+2
-  INC r_jsr2_o+2
-  JMP r_pb_e
+  INC r_jsr2_o+2         \ (Y = RZ_Y still)
+.pb_tg                    \ (Y = RZ_Y) the next row pair's colours
+  LDA RZ_CE
+  EOR RZ_XE
+  STA RZ_CE
+  LDA RZ_CO
+  EOR RZ_XO
+  STA RZ_CO
+  JMP r_pbx_e
 
 \ ----------------------------------------------------------------------------
 \ r_pf16: R_POLY with some coordinate outside 0..255 (rows r_ystart..r_ylast

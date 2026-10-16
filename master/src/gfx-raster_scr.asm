@@ -7,6 +7,8 @@
 \ ============================================================================
 
 .R_PN       SKIP 1          \ polygon vertex count 1..16
+.R_COL2     SKIP 1          \ R_POLY colour bytes for rows y AND 3 = 2, 3
+.R_COL3     SKIP 1
 .R_PXL      SKIP 16         \ vertex x, low bytes  (signed 16-bit)
 .R_PXH      SKIP 16         \ vertex x, high bytes
 .R_PYL      SKIP 16         \ vertex y, low bytes

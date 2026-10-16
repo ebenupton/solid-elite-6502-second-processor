@@ -1650,7 +1650,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fsh_face
  LDY f_f
  CPY f_nf
- BCS fsh_done
+ BCC P%+5
+ JMP fsh_done
  LDA (fz_dl),Y          \ visibility
  BEQ fsh_skip
  STA fz_t
@@ -1663,9 +1664,11 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  INY
  LDA (fz_ft),Y          \ the face's colour
  STA R_COLE
+ STA R_COL2             \ (a 2-row pair: rows 2, 3 as 0, 1)
  INY
  LDA (fz_ft),Y
  STA R_COLO
+ STA R_COL3
  CLC                    \ the face's vertex offsets at fz_ft + 3
  LDA fz_ft
  ADC #3
@@ -1825,9 +1828,11 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDY #2
  LDA (fz_q),Y
  STA R_COLE
+ STA R_COL2
  INY
  LDA (fz_q),Y
  STA R_COLO
+ STA R_COL3
  INY
  LDA (fz_q),Y
  STA fz_n
