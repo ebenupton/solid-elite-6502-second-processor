@@ -257,3 +257,119 @@ the source:
   DETOK and DTW1-DTW8 (&32xx, &3B66-&3B6C), UP &2C40-&2C61 and NA% &3468-&352D.
   Stage B's relocation has to keep these (and the encryption range G%..F%,
   handled by build.sh) in mind. &7F49-&7FFF holds BDATA's unused page.
+
+## Stage B: done (relocation, no rendering change)
+
+The layout is docs/MASTER-MAP.md ("As built"). In short: main RAM &4000-&7DFF
+holds nothing of the game (asserted in the source, and checked at run time:
+no game write to main &3000-&7FFF, and no read of main &4000-&7DFF, in 3000
+piloted iterations); Elite's home bank is bank 4 (blueprints, SNE, ACT,
+Master's drawing, flight overflow); the cold code is in the cold area (ANDY
+plus bank 7 from &AC40, ROMSEL &87); QQ18 is in the cold area and the
+extended tokens in shadow RAM &3100-&3EFF; the stubs into the cold area are
+at main &7E00. Banks 5 and 6, bank 7 below &AC40 and HAZEL are untouched.
+
+### Tree and tools
+
+* `master/src/`: `elite-source.asm` (main code, then the bank 4, ANDY and
+  bank 7 sections), `elite-bank4.asm`, `elite-andy.asm`, `elite-cold7.asm`
+  (moved code; cold labels have the suffix `_C`), `elite-far.asm` (far calls:
+  far7/far4 and the jump forms, the demo's far7.asm for bank 4 and ROMSEL
+  &87), `elite-stubs7.asm` (stubs into the cold area, at &7E00),
+  `elite-coldstubs.asm` (x4_/j4_ stubs out of it). `elite-data.asm` saves
+  BDATA (dashboard), BANK4D (bank 4 data), QQ18D and TOKENS separately, and
+  `build.sh` takes the data's addresses (`build/data-addresses.asm`, with each
+  address's area) and the entry point S% and its bank
+  (`build/game-addresses.asm`) from the symbols, so code and data move
+  without edits elsewhere.
+* The copy protection is gone (`_REMOVE_CHECKSUMS`, no encryption); the
+  `ENCRYPT` and `VERIFY` options of build.sh went with it.
+* The loader (`M128Elt`) loads each file in its table FTAB to &1300 and copies
+  it into place with the given ROMSEL and ACCCON (BDATA and TOKENS to shadow
+  RAM, BANK4, ANDY, COLD7, STUBS), then BCODE, then pages S%'s bank in.
+* `master/tools/bankcheck.py`, run by build.sh, checks the banking rules
+  over the whole source (no branch between areas; cold code calls out only
+  through stubs and never reads bank 4 data; nothing outside the cold area
+  refers to cold labels except stubs; shadow data only through marked
+  readers). The moves themselves were made with a scratch tool that cut
+  header blocks from the source, renamed cold labels and wrote the stubs,
+  checking fall-through between blocks (including `EQUB &2C` skips) and
+  IF/ENDIF balance.
+* Harness: `mlib` reads `build/banks.txt` (bank-aware PC hooks; call sites
+  looked up per bank and through far-call frames, with the caller's
+  ROMSEL), seeds boot leftovers from the reference at TT170 (`--seed boot`:
+  every compared byte the game has not written since S%), excludes
+  relocation temporaries (P, V: pointers into the moved font and token
+  tables), and compares UP as UP..VOL. `mboot` checks every installed image.
+
+### Lessons for later moves
+
+* Fall-through is the main hazard: blocks that end in a non-transfer (RES2
+  into ZINF, BEGIN into TT170, SOLAR into NWSTARS, PLUT into LOOK1, KILLSHP
+  into THERE), and `EQUB &2C` skips (TT26 skips BELL's LDA #7 into its JMP
+  CHPR; FEED falls into MT16 and TT26). Branches into another routine's RTS
+  (DOEXP to TT48, YESNO to PL6) need their own RTS.
+* Code reached from MOS vectors or interrupts must be in main RAM below
+  &3000 (IRQ1 and the sound code; CHPR as WRCHV, which reaches TTX66 in bank 4
+  through a far call; NEWBRK as BRKV, which now pages the home bank itself
+  because getzp, now cold, no longer sets ROMSEL).
+* A far call adds three bytes to the stack, which shares page 1 with the
+  XX3 vertex heap; the deepest piloted iterations go a few dozen bytes deeper
+  than the reference.
+
+### Speed
+
+verify.sh at 10000 iterations gives the reference 13.97 flight it/s and the
+relocated builds 13.96 to 13.98 (ratio 0.999 to 1.000) at every commit. The
+final build over 20000 iterations (`master/verify.sh 20000`: 6 launches, 3
+dockings, 5 jumps including a galactic one, 15 kills, a death; game state
+identical throughout):
+
+| phase | flight iterations | reference it/s | relocated it/s | ratio |
+|---|---|---|---|---|
+| combat | 2994 | 10.00 | 10.01 | 1.001 |
+| hyperspace countdown | 381 | 10.01 | 10.01 | 1.000 |
+| approach | 16307 | 14.91 | 14.90 | 0.999 |
+| all | 19687 | 13.75 | 13.75 | 1.000 |
+
+The far calls are all on flight-rare or docked paths (messages, charts,
+hyperspace, launch and docking, screen changes), so the flight loop does not
+see them; the remaining differences are page-crossing branches in code that
+moved.
+
+### What Stage C has to deal with
+
+* Master's drawing primitives are Elite's DRAW group in bank 4
+  (&9DD5-&AC4D): LOIN/LOINQ (EOR lines with self-modified code), HLOIN (sun
+  and hangar rows), PIXEL/PIX1/PIXEL2/CPIXK/DOT (stardust, explosion
+  particles, dashboard dots), SCAN (scanner), DIALS/DILX/DIL2/PZW/ADDK, MSBAR,
+  ECBLB/SPBLB (bulbs), HANGER, TTX66 and CLYNS (screen clears), ylookup; in
+  main RAM CHPR with its font (also the WRCHV handler) and IRQ1 with the
+  palettes TVT1/TVT3 and the split position VSCAN.
+* Frame structure: Master Elite draws everything with EOR into the one
+  shadow screen and erases by redrawing: ships from the ship line heaps
+  (XX19, K% down from &0800; LL9's LSCLR/LSPUT), the planet from the ball
+  line heap LSX2/LSY2 (WPLS2), the sun from the LSO heap (WPLS), stardust by
+  replotting, messages by reprinting (MESS, DLY). The screen is cleared only
+  on a view change (TTX66, TTX66K) and CLYNS clears the bottom text rows.
+  There is no vsync wait in the flight loop: the IRQ sets DL every vsync and
+  WSCAN polls it only from DELAY (docked screens, the main loop's slow-down
+  while docked) and DK4 (pause). The demo's frame model (display list,
+  render into the back buffer at the end of the iteration, flip at vsync)
+  replaces all of that; the heaps stay as game state (the harness compares
+  the ship line heap unless --loose).
+* The IRQ: IRQ1 splits the screen with timer 1 (VSCAN) and sets the
+  dashboard palette (Master's dashboard is in shadow RAM, in its own mode);
+  the renderer's dashboard is MODE 1 in main RAM &7000 with the split
+  writing ACCCON D. DIALS's store to HAZEL &DDEB goes with DIALS.
+* ACCCON: Master's drawing writes fixed values (%00001111 / %00001001),
+  which would clobber D once it selects the displayed buffer; setzp and getzp
+  do too. The new shadow-token readers already use TSB/TRB on X only; the
+  renderer's IRQ must keep X when it writes D.
+* Bank 4 is full (140 bytes free): the renderer's bank 4 pieces go in as
+  DRAW leaves, and about 2.9K of flight code has to move back to main RAM
+  (MASTER-MAP.md); main RAM &0840-&0CFF is still unused.
+* Cold code reaches drawing through x4_ stubs (x4_LOIN, x4_HLOIN, x4_TT26,
+  x4_SCAN, ...). Docked screens drawing directly through the renderer's
+  direct routines in raster7 (bank 7 below &AC40) must unpage ANDY first if
+  those routines are at &8000-&8FFF.

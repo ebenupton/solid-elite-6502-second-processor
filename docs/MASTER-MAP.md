@@ -187,6 +187,40 @@ with DFS paged). The flight code that will move into main RAM once DRAW,
 LOWCHPR and the IRQ go (est. 1.5K) sits in bank 4 meanwhile. Stage C then frees
 the DRAW space group by group as the renderer's primitives replace them.
 
+### As built (end of Stage B, measured)
+
+| Region | Contents | Used | Free |
+|---|---|---|---|
+| main &0840-&0CFF | nothing yet | 0 | 1216 |
+| main &1300-&3FF7 | sound and IRQ, far-call code (incl. TTX66M), CHPR and its font (page-aligned), log tables, UP, the main loop, stardust, planet/sun/circles, explosions, spawning, keyboard, maths, TT26, NA%, NEWBRK and the rest of the flight code; asserted to end below &4000, and everything up to UP below &3000 | 11512 | 8 |
+| main &4000-&7DFF | nothing (asserted; no game write or read there in 3000 piloted iterations) | 0 | - |
+| main &7E00-&7EDB | the 44 stubs into the cold area (STUBS) | 220 | 292 |
+| shadow &3090-&30FF | zero-page save (getzp/setzp, as before) | 112 | - |
+| shadow &3100-&3EFF | TKN1, RUPLA, RUGAL, RUTOK (TOKENS), read by TKRD, RUPRD, RUGRD with ACCCON X set | 3584 | 400 (&3000-&308F, &3F00-&3FFF) |
+| shadow &4000-&7EFF | Master's screen and dashboard (unchanged in Stage B) | - | - |
+| bank 4 &8000-&9DD4 | XX21, E%, KWL%, KWH%, the 33 blueprints, SNE, ACT | 7637 | - |
+| bank 4 &9DD5-&AC4D | Elite's drawing (DRAW, incl. ADDK's 77 padding bytes): replaced in Stage C | 3705 | - |
+| bank 4 &AC4E-&BF73 | TACTICS, DOCKIT and the missiles, LL9 and its helpers, MVEIT to PLUT, LOOK1, SIGHT, DEATH | 4902 | 140 |
+| ANDY &8000-&8FBE | market, equipment, charts, system data, status, missions, pause, messages, number printing, TT66/TTX66K, ESCAPE | 4031 | 65 |
+| bank 7 &AC40-&AFFF | QQ18 | 960 | - |
+| bank 7 &B000-&BDF9 | the 53 stubs out of the cold area, the text code (TT27, DETOK, MT*), TKRD/RUPRD/RUGRD, title and start-up (S%, TT170, BR1, TITLE), save and load, hyperspace, launch and docking | 3578 | 518 |
+| banks 5, 6; bank 7 &8000-&AC3F; HAZEL | empty, kept for the renderer (HAZEL: only DIALS's store to &DDEB) | 0 | - |
+
+So the Elite side of the final map is in place, with three differences that
+Stage C settles: DRAW (3705) still occupies the renderer's bank 4 space;
+CHPR, its font and the IRQ (about 1.2K) are still in main RAM; and the flight
+overflow in bank 4 is 4902 bytes rather than the final map's estimate of
+1973. Measured, the final balance is therefore: bank 4 needs the renderer's
+6774 (est.) in the 3845 bytes that DRAW and the free space leave, so about
+2.9K of flight code must come back from bank 4 to main RAM, into the 1.2K
+that CHPR and the IRQ free, &0840-&0CFF (1216) and the 292 bytes left at
+&7E00: a shortfall of about 0.2K, plus the Elite-side hooks (est. 300) and
+the DFS stash (est. 116), so about 0.6K on the flight side. The cold area has
+583 bytes free. Step 2 above (dropping the SQ tables, +2048 in bank 4) closes
+it with about 1.4K to spare.
+
+The table below was the plan before the moves:
+
 | Region | Stage B contents |
 |---|---|
 | main &1300-&3FFF | LOWIRQ, LOWCHPR, HOT and HOTDATA (as much as fits), far glue, hot-side stubs |
