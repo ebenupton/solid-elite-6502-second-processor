@@ -1567,6 +1567,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA RZ_PP+1
   STA r_jsr2_e+2
   STA r_jsr2_o+2
+  LDA r_yend
+  STA pb_ye_e+1
+  STA pb_ye_o+1
   LDA #190                \ nothing planted
   STA RZ_PP
   TYA
@@ -1804,12 +1807,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ ----------------------------------------------------------------------------
 
 .r_pb                     \ even and odd rows: a copy each (colour R_COLE / R_COLO)
-  LDA RZ_Y
+  LDY RZ_Y
+  TYA
   LSR A
   BCC pbe
-  JMP r_pb_o
+  JMP r_pbx_o
 .pbe
-  JMP r_pb_e
+  JMP r_pbx_e
 .pb_one_e
   LDY r_xo,X
   LDA r_lm,X
@@ -1855,6 +1859,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JMP pb_skip_e
 .r_pb_e
   LDY RZ_Y
+.r_pbx_e
 .r_pbl1_e
   LDA &FFFF,Y
 .r_pbr1_e
@@ -1910,15 +1915,17 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
 .pb_skip_e
-  DEC RZ_SA
+  LDY RZ_Y
+  INY
+.pb_ye_e
+  CPY #0                  \ (patched: the end row)
   BNE pb_c_e
   JMP pb_end
 .pb_c_e
-  INC RZ_Y
+  STY RZ_Y
   INC RZ_PA
   INC RZ_PB
-.r_pb_o
-  LDY RZ_Y
+.r_pbx_o
 .r_pbl1_o
   LDA &FFFF,Y
 .r_pbr1_o
@@ -1974,17 +1981,20 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
 .pb_skip_o
-  DEC RZ_SA
+  LDY RZ_Y
+  INY
+.pb_ye_o
+  CPY #0                  \ (patched: the end row)
   BNE pb_c_o
   JMP pb_end
 .pb_c_o
-  INC RZ_Y
+  STY RZ_Y
   INC RZ_PA
   INC RZ_PB
   LDA RZ_PA
   CMP #8
   BEQ pb_cr
-  JMP r_pb_e
+  JMP r_pbx_e
 .pb_one_o
   LDY r_xo,X
   LDA r_lm,X
