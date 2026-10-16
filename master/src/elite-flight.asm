@@ -256,12 +256,3 @@
  JMP MV45               \ We have now finished rotating the planet or sun by
                         \ our pitch and roll, so jump back into the MVEIT
                         \ routine at MV45 to apply all the other movements
-
-\ ******************************************************************************
-\
-\ Port: the stubs that page the renderer's frame layer (bank 6) in around a
-\ call from game code (gfx-gstubs.asm)
-\
-\ ******************************************************************************
-
- INCLUDE "src/gfx-gstubs.asm"

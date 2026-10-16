@@ -3,16 +3,16 @@
 \ gfx-hooks.asm - the glue between Master Elite's drawing code and the frame
 \ layer (after the Demonstration Disc port's src/hooks.asm)
 \
-\ Lives in HAZEL (&C000-&DFFF, always visible once the loader has set ACCCON
-\ bit Y). Elite's drawing routines call these with a single JSR at their
-\ start. "Record mode" is QQ11 = 0 (a view that draws ships) and GFORCE = 0:
+\ Master port: these run in game context only, with ACCCON X clear, so they
+\ live in main RAM at &7200 (elite-hi.asm); the ones that run with X set are
+\ in HAZEL (gfx-hzhooks.asm). Elite's drawing routines call these with a
+\ single JSR at their start. "Record mode" is QQ11 = 0 (a view that draws ships) and GFORCE = 0:
 \ drawing is then recorded for FRAME instead of being done. A hook that takes
 \ over pulls its return address (PLA : PLA) so its RTS returns from the hooked
 \ routine itself.
 \
 \ ******************************************************************************
 
-.hA EQUB 0
 
 \ H_MFRAME: a main-loop iteration (M%), then the frame (TT100, and DEATH's
 \ two M% calls)
@@ -353,95 +353,6 @@
  BEQ P%+3
  RTS
  PLA
- PLA
- RTS
-
-\ The text map: CHPR (WRCHV, so any ROM may be paged: the cold area, or DFS
-\ printing a catalogue) and CLYNS keep the frame layer's text map up to date
-\ in every mode (so a screen that carries on in record mode without a TT66
-\ still has its text), and draw on the screen only outside record mode. These
-\ stubs page bank 6 in and the caller's bank (&F4, ANDY included) back, and
-\ live in HAZEL as CHPR runs with ACCCON X set. A, X, Y are not kept (F_CHAR
-\ and F_DELCHAR keep Y, F_CLRTEXT X and Y)
-
-.G_CHAR
- LDA &F4
- PHA
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JSR F_CHAR
- BRA gtxt
-
-.G_DELCHAR
- LDA &F4
- PHA
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JSR F_DELCHAR
- BRA gtxt
-
-.G_CLRTEXT
- LDA &F4
- PHA
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JSR F_CLRTEXT
-.gtxt
- PLA
- STA &F4
- STA &FE30
- RTS
-
-\ H_CHAR: CHPR (RR3) is about to draw the character in K3 at (XC-1, YC), with
-\ A = YC: record it in the text map, and in record mode return through RR4
-\ instead of drawing it (A = YC and C clear otherwise, as RR3 is entered)
-
-.H_CHAR
- STA hA
- JSR G_CHAR
- LDA QQ11
- ORA GFORCE
- BNE hcd
- PLA
- PLA
- LDA hA                 \ leave SC(1 0), P(3 2) and W as RR3, RREN and RRL1 do
- ASL A
- ASL SC
- ADC #&40
- STA SC+1
- LDA SC
- CLC
- ADC #8
- STA P+2
- LDA SC+1
- STA P+3
- LDY #0
- LDA (P),Y
- AND #%00001111
- STA W
- JMP RR4
-.hcd
- LDA hA
- CLC
- RTS
-
-\ H_DEL: CHPR is deleting the character at (XC, YC) (after its DEC XC): the
-\ text map too; in record mode return through RR4 instead of blanking it
-
-.H_DEL
- PHA
- JSR G_DELCHAR
- LDA QQ11
- ORA GFORCE
- BNE hdl9
- PLA
- PLA
- PLA
- JMP RR4
-.hdl9
  PLA
  RTS
 

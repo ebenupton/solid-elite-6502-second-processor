@@ -20262,6 +20262,16 @@ ENDIF
  ASSERT LOW_END% <= &0D00           \ page &0D is off limits (docs/MASTER-MEMORY.md)
  SAVE "build/LOWCODE.bin", &0840, LOW_END%, &0840
 
+ ORG &7200
+
+ INCLUDE "src/elite-hi.asm"         \ renderer stubs and hooks, &7200-&7DFF
+
+.HI_END%
+
+ PRINT "Hi code: &7200-", ~HI_END%-1, " free ", &7E00-HI_END%
+ ASSERT HI_END% <= &7E00
+ SAVE "build/HICODE.bin", &7200, HI_END%, &7200
+
  ORG &7E00
 
  INCLUDE "src/elite-stubs7.asm"     \ stubs into the cold area (far7, far7j)

@@ -23,7 +23,7 @@
 import re, sys
 
 SRC = "src/"
-FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-low.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main",
+FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-low.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main",
          "elite-bank4.asm": "bank4", "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold",
          "elite-cold7.asm": "cold"}
 MNEM = set(("ADC AND ASL BCC BCS BEQ BIT BMI BNE BPL BRA BRK BVC BVS CLC CLD CLI CLV CMP CPX CPY "

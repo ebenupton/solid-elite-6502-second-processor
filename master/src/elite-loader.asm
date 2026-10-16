@@ -791,6 +791,14 @@ ENDIF
  EQUW &4000, HZLEN      \ after the last disc access (see LDEND), as DFS uses
                         \ HAZEL
 
+ EQUW MESS14            \ HICODE: the renderer's stubs and hooks, main RAM &7200
+ EQUB HOMEBANK, %00001001
+ EQUW &7200, HILEN
+
+ EQUW MESS1             \ BDATA again: the dashboard's first character row in
+ EQUB HOMEBANK, %00001001 \ main RAM too (&7000-&71FF), for a late split
+ EQUW &7000, &0200
+
  EQUW MESS13            \ LOWCODE: game code for main RAM &0840-&0CFF, staged
  EQUB HOMEBANK, %00001001 \ at &4800 and copied into place with HAZEL (LDEND)
  EQUW &4800, LOWLEN
@@ -911,6 +919,11 @@ ENDIF
 .MESS13
 
  EQUS "L.LOWCODE FFFF1300"  \ Port: *LOAD LOWCODE FFFF1300
+ EQUB 13
+
+.MESS14
+
+ EQUS "L.HICODE FFFF1300"   \ Port: *LOAD HICODE FFFF1300
  EQUB 13
 
 .LOW_LOADER_END

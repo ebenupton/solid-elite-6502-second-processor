@@ -49,7 +49,7 @@ ORG &C300
 .HZ_START
 INCLUDE "src/gfx-gvars.asm"
 INCLUDE "src/gfx-tramp.asm"
-INCLUDE "src/gfx-hooks.asm"
+INCLUDE "src/gfx-hzhooks.asm"   \ (the other hooks are in main RAM, elite-hi.asm)
 INCLUDE "src/gfx-raster_hz.asm" \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
 .HZ_CODE_END
 

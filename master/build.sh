@@ -96,6 +96,7 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" B5LEN = &%04X\n B6LEN = &%04X\n R7LEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["R7_END"] - 0x8000))
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" LOWLEN = &%04X\n" % (sy["LOW_END%"] - 0x0840))
+    f.write(" HILEN = &%04X\n" % (sy["HI_END%"] - 0x7200))
 PY
 python3 tools/bankcheck.py || exit 1
 for f in loader readme; do
