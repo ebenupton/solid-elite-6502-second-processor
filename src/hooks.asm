@@ -61,14 +61,12 @@
 \ H_STAR: PIXEL2 has converted star Y's position to X = x, A = y
 
 .H_STAR
- STA hA
- LDA QQ11
+ STA R_SY,Y             \ record star Y straight into the rasteriser's arrays
+ LDA QQ11               \ (by star index; R_SS = 0: not on screen)
  ORA GFORCE
  BNE hsd
  PLA
  PLA
- LDA hA                 \ record star Y straight into the rasteriser's arrays
- STA R_SY,Y             \ (by star index; R_SS = 0: not on screen)
  TXA
  STA R_SX,Y
  LDX #1
@@ -87,6 +85,8 @@
  CMP #80
  RTS
 .hsd
+ LDA R_SY,Y
+ STA hA
  SEC                    \ outside record mode PIXEL draws it: note where
  JSR G_DSTAR            \ (F_DSTAR preserves X and Y)
 .hdd
