@@ -739,10 +739,10 @@ r_bdx3 = R_BDX30
   STA r_pt32+2
   STA r_pt36+2
   STA r_pt416+2
+  STA r_pt418+2
   LDA r_sbh_s0b,X          \ group r_s0b
   STA r_pt33+2
   STA r_pt37+2
-  STA r_pt417+2
   LDA r_sbh_s0x,X          \ group r_s0x
   STA r_pt31+2
   STA r_pt35+2
@@ -4271,9 +4271,10 @@ ENDMACRO
   CPX r_k
   BCS edone
 .el
-.^r_pt30 LDA r_s0y,X      \ byte address
+.^r_pt30 LDA r_s0y,X      \ byte address (bit 7 of the high byte: one byte)
   STA RZ_PP
 .^r_pt31 LDA r_s0x,X
+  BMI e1
   STA RZ_PP+1
   LDA (RZ_PP)
 .^r_pt32 AND r_s0a,X      \ inverse mask
@@ -4284,6 +4285,13 @@ ENDMACRO
   LDY #8
   AND (RZ_PP),Y
   STA (RZ_PP),Y
+  BRA en
+.e1
+  AND #&7F
+  STA RZ_PP+1
+  LDA (RZ_PP)
+.^r_pt418 AND r_s0a,X
+  STA (RZ_PP)
 .en
   INX
   CPX r_k
@@ -4376,11 +4384,7 @@ ENDMACRO
   AND #7
   ORA r_xo,X
   STA RZ_PP
-  TYA
-  LSR A
-  LSR A
-  AND #&FE
-  ORA #&40
+  LDA r_ypg,Y
   CPX #&80
   ADC #0
   STA RZ_PP+1
@@ -4397,12 +4401,11 @@ ENDMACRO
   LDA RZ_PP
 .^r_pt414 STA r_s0y,X
   LDA RZ_PP+1
+  ORA #&80                \ (bit 7: no second byte)
 .^r_pt415 STA r_s0x,X
   LDA RZ_SB
   EOR #&FF
 .^r_pt416 STA r_s0a,X
-  LDA #&FF
-.^r_pt417 STA r_s0b,X
   INC r_k
 .nx
   LDA RZ_TA               \ size 3: the next row
@@ -5119,5 +5122,9 @@ ENDMACRO
 
 
 
+.r_ypg                    \ high byte of row y's byte 0
+FOR y, 0, 191
+  EQUB &40 + 2 * (y DIV 8)
+NEXT
 .r_end
 PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end
