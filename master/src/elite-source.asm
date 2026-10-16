@@ -11076,16 +11076,14 @@ ENDMACRO
  LDX #0                 \ Set X = 0 so this unrolled version of DVID4 also
                         \ returns X = 0
 
- STA widget             \ This contains the code from the LL28+4 routine, so
- TAX                    \ this section is exactly equivalent to a JMP LL28+4
- BEQ LLfix22            \ call, but is slightly faster as it's been inlined
- LDA logL,X             \ (so it converts the remainder in A into an integer
- LDX Q                  \ representation of the fractional value A / Q, in R,
- SEC                    \ where 1.0 = 255, and it also clears the C flag
- SBC logL,X
- LDX widget
- LDA log,X
- LDX Q
+ TAX                    \ This contains the code from the LL28+4 routine, so
+ BEQ LLfix22            \ this section is exactly equivalent to a JMP LL28+4
+ LDA log,X              \ call, but is slightly faster as it's been inlined
+ STA widget             \ (so it converts the remainder in A into an integer
+ LDA logL,X             \ representation of the fractional value A / Q, in R,
+ LDX Q                  \ where 1.0 = 255, and it also clears the C flag)
+ CMP logL,X             \ C = borrow from low bytes of log(A) - log(Q)
+ LDA widget
  SBC log,X
  BCS LL222
  TAX
