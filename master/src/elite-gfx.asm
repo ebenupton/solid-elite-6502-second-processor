@@ -23,6 +23,12 @@
 \
 \ ******************************************************************************
 
+SINGLEBUF = 1           \ 1: the renderer draws into shadow RAM (buffer 1) only,
+                        \ which stays on show, so that Master's own drawing (EOR
+                        \ lines, pixels, text into the same screen, erased by
+                        \ drawing again) keeps working while the primitives
+                        \ move to the renderer one at a time; 0: double
+                        \ buffering (main RAM and shadow RAM, flipped at vsync)
 ACCY = 8                \ ACCCON bit Y: HAZEL at &C000-&DFFF
 MAXSH = 13              \ ships per frame
 MAXLN = 48              \ lines per frame
@@ -47,21 +53,31 @@ INCLUDE "src/gfx-hooks.asm"
 INCLUDE "src/gfx-raster_hz.asm" \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
 .HZ_CODE_END
 
+\ raster_vars at a fixed place, whatever the size of the code above: the
+\ rows of the laser sights' scan in R_DIRTYR0/1 must not cross a page
+\ (gfx-frame.asm's f_sight2 asserts it), and the code is free to grow up
+\ to here
+RVOFF = &182            \ R_DIRTYR0's offset in raster_vars (asserted below)
+RVBASE = &C8B5 - RVOFF
+ASSERT P% <= RVBASE
+SKIP RVBASE - P%
 INCLUDE "src/gfx-raster_vars.asm"
+ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .HZ_END
-PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " data to ", ~HZ_END-1, " free to &DC00 ", &DC00-HZ_END
+PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
 ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00
 
 ORG &DC40                       \ (after the longest OSCLI command the game
                                 \ issues, see SVE and friends)
 .R_WL    SKIP 192       \ this frame's written extents (empty: R=0)
 .R_WR    SKIP 192       \ (raster_vars.asm)
-.PM_OK   SKIP 1         \ bit 7: PM_BLK1/2 hold this frame's meridian constants
-.PM_R    SKIP 1         \ the planet's radius (F_PLANET)
-.PM_BLK1 SKIP MCB       \ roofv's circle (planet4.asm -> f_merid)
-.PM_BLK2 SKIP MCB       \ sidev's
-.PM_CX   SKIP 2         \ the planet's centre (f_merid -> PM_MERID)
-.PM_CY   SKIP 2
+.R_NDN    SKIP 192       \ (raster_vars.asm: boundaries per disc row, 0..4)
+\ (raster_vars.asm: the stars)
+.R_SN       SKIP 1          \ star count 0..24
+.R_SX       SKIP 24
+.R_SY       SKIP 24
+.R_SS       SKIP 24         \ star size 1..3
+.R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
 .HZ_END2
 PRINT "HAZEL: data &DC40-", ~HZ_END2-1, " free to &DF00 ", &DF00-HZ_END2
 ASSERT HZ_END2 <= &DF00         \ the MOS's filing system workspace

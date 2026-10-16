@@ -3572,6 +3572,9 @@ ENDIF
 
 .TTX66
 
+ JSR G_DIRECT           \ Port: the renderer stops recording until the first
+                        \ frame after the screen is cleared (gfx-frame.asm)
+
  LDX #%00001111         \ Set bits 1 and 2 of the Access Control Register at
  STX VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
 
@@ -10764,7 +10767,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA #0                 \ Set our speed in DELTA to 0, as we aren't going
  STA DELTA              \ anywhere any more
 
- JSR M%                 \ Call the M% routine to do the main flight loop once,
+ JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
+                        \ then the frame (Port: the renderer, gfx-hooks.asm),
                         \ which will display our exploding canister scene and
                         \ move everything about, as well as decrementing the
                         \ value in LASCT
@@ -10774,7 +10778,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
 .D2
 
- JSR M%                 \ Call the M% routine to do the main flight loop once,
+ JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
+                        \ then the frame (Port: the renderer, gfx-hooks.asm),
                         \ which will display our exploding canister scene and
                         \ move everything about, as well as decrementing the
                         \ value in LASCT
@@ -10791,3 +10796,19 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  JSR DET1               \ the dashboard
 
  JMP DEATH2             \ Jump to DEATH2 to reset and restart the game
+
+\ ******************************************************************************
+\
+\       Name: LL9F
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: draw a ship with LL9, then the frame (the title screen)
+\
+\ ******************************************************************************
+
+.LL9F
+
+ JSR LL9                \ Draw the ship (recorded for the renderer when QQ11 = 0)
+
+ JMP hframe             \ Render the frame (gfx-hooks.asm), returning from the
+                        \ subroutine using a tail call

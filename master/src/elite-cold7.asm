@@ -3077,7 +3077,8 @@ ENDIF
 
  STA INWK+3             \ Set y_lo = 0, so the ship remains in the screen centre
 
- JSR x4_LL9                \ Call LL9 to display the ship
+ JSR x4_LL9F               \ Call LL9 to display the ship, then render the frame
+                        \ (Port: LL9F)
 
  DEC MCNT               \ Decrement the main loop counter
 
@@ -4835,6 +4836,9 @@ ENDIF
 
 .HFS1_C
 
+ LDX #&FF               \ Port: the rings are drawn directly, even in record
+ STX GFORCE             \ mode (GFORCE, gfx-gstubs.asm)
+
  LDX #X                 \ Set K3 = #X (the x-coordinate of the centre of the
  STX K3                 \ screen)
 
@@ -4860,6 +4864,8 @@ ENDIF
 
  CPX #8                 \ If we haven't drawn 8 sets of rings yet, loop back to
  BNE HFL5_C               \ HFL5 to draw the next ring
+
+ STZ GFORCE             \ Port: back to recording (flags kept)
 
  RTS                    \ Return from the subroutine
 

@@ -228,6 +228,10 @@
  JSR far4
  EQUW TTX66
 
+.x4_LL9F
+ JSR far4
+ EQUW LL9F
+
 .x4_Ze
  JSR far4
  EQUW Ze

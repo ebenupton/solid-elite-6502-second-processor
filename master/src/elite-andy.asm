@@ -6337,7 +6337,8 @@
  ORA VIEW               \ not the front space view), skip the following
  BNE P%+5               \ instruction
 
- JSR x4_LL9                \ Call LL9 to draw the Cobra on-screen
+ JSR x4_LL9F               \ Call LL9 to draw the Cobra on-screen, then render
+                        \ the frame (Port: LL9F)
 
  DEC INWK+32            \ Decrement the counter in byte #32
 

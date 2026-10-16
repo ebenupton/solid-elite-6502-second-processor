@@ -638,6 +638,9 @@ ENDIF
 
  CLI
 
+ JSR GINIT              \ Port: initialise the renderer (G_INIT: the rasteriser's
+                        \ state, and shadow RAM's screen cleared)
+
  LDA #SBANK             \ Set the RAM copy of the currently selected paged ROM
  STA LATCH              \ to SBANK, the bank of the game's entry point S% (the
                         \ cold area, ROMSEL &87, from build/game-addresses.asm),

@@ -15,6 +15,8 @@
 .R_Y0       SKIP 2
 .R_X1       SKIP 2
 .R_Y1       SKIP 2
+.R_NDISCL   SKIP 192        \ new disc spans, left ends (rows NDT..NDB only, written
+                            \ for each frame before R_DISCROWS reads them)
 \ private to raster.asm: polygon edge tables
 .R_PTA      SKIP 192
 .R_PTB      SKIP 192

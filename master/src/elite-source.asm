@@ -6671,6 +6671,9 @@ ENDIF
  ADC T                  \ point on the circle but as a screen coordinate, to go
  STA K6+3               \ along with the screen x-coordinate in K6(1 0)
 
+ JSR H_BPT              \ Port: in record mode, record the point K6 for the
+                        \ renderer (gfx-hooks.asm; X, Y and C preserved)
+
  LDA FLAG               \ If FLAG = 0, jump down to BL1
  BEQ BL1
 
@@ -6785,7 +6788,8 @@ ENDIF
 
  STY LSP                \ Update LSP to point to the same as Y
 
- JSR LOIN               \ Draw a line from (X1, Y1) to (X2, Y2)
+ JSR H_BLOIN            \ Draw a line from (X1, Y1) to (X2, Y2) (Port: not in
+                        \ record mode, gfx-hooks.asm)
 
  LDA XX13               \ If XX13 is non-zero, jump up to BL5 to add a &FF
  BNE BL5                \ marker to the end of the line heap. XX13 is non-zero
@@ -14224,6 +14228,9 @@ ENDIF
 
 .PLS22
 
+ JSR H_PCURVE           \ Port: a new curve of the planet's detail, for the
+                        \ renderer (gfx-hooks.asm)
+
  LDX #0                 \ Set CNT = 0
  STX CNT
 
@@ -15100,6 +15107,9 @@ ENDIF
 
 .CIRCLE
 
+ JSR H_CIRC             \ Port: in record mode, record the planet's disc for the
+                        \ renderer and return (gfx-hooks.asm)
+
  JSR CHKON              \ Call CHKON to check whether the circle fits on-screen
 
  BCS RTS2               \ If CHKON set the C flag then the circle does not fit
@@ -15289,6 +15299,9 @@ ENDIF
 \ ******************************************************************************
 
 .WPLS2
+
+ JSR H_WPLS2            \ Port: in record mode there are no lines to erase
+                        \ (gfx-hooks.asm)
 
  LDY LSX2               \ If LSX2 is non-zero (which indicates the ball line
  BNE WP1                \ heap is empty), jump to WP1 to reset the line heap
@@ -17271,7 +17284,9 @@ ENDIF
 
 .TT100
 
- JSR M%                 \ Call M% to iterate through the main flight loop
+ JSR H_MFRAME           \ Call M% to iterate through the main flight loop,
+                        \ then render the frame (Port: the renderer,
+                        \ gfx-hooks.asm)
 
  DEC DLY                \ Decrement the delay counter in DLY, so any in-flight
                         \ messages get removed once the counter reaches zero

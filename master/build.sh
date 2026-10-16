@@ -71,7 +71,10 @@ import re
 with open("build/banks.txt", "w") as f:
     for src, bank in (("src/elite-bank4.asm", "4"),
                       ("src/elite-andy.asm", "87"), ("src/elite-coldstubs.asm", "87"),
-                      ("src/elite-cold7.asm", "87")):
+                      ("src/elite-cold7.asm", "87"),
+                      ("src/gfx-raster.asm", "5"), ("src/gfx-frame.asm", "6"),
+                      ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
+                      ("src/gfx-raster7.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
 PY

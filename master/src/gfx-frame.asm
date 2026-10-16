@@ -113,6 +113,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  DEX
  BPL fin4
  LDA #ACCY+4            \ clear shadow RAM's screen (buffer 1)
+ ORA GFRONT             \ (Master port: D as the front buffer)
  STA &FE34
  LDA #&40
  STA fin3+2
@@ -127,6 +128,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  CPY #&70
  BNE fin3
  LDA #ACCY
+ ORA GFRONT
  STA &FE34
  LDA #0
  STA F_NSHIP
@@ -336,6 +338,12 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ ------------------------------------------------------------------------------
 
 .f_direct0
+IF SINGLEBUF
+ LDA #0                 \ Master port, single buffer (see elite-gfx.asm): the
+ STA GMODE              \ shadow screen stays on show and Master's own drawing
+ STA GSIGHT             \ owns ACCCON
+ STA GLASV
+ELSE
  SEI
  LDA #0
  STA GMODE
@@ -347,6 +355,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDA #ACCY
  STA &FE34              \ ACCCON: HAZEL in, X = 0, D = 0
  CLI
+ENDIF
  STY f_ysav
  JSR f_tmclear
  LDX #23                \ the stars will be re-recorded too
@@ -675,12 +684,14 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDA GFRONT
  ORA #ACCY
  STA &FE34
- LDA F_BACK
+IF SINGLEBUF = 0        \ (single buffer: buffer 1 stays the back buffer and
+ LDA F_BACK             \ on show)
  STA GPEND
  EOR #1
  STA F_BACK
  LDA #&FF
  STA GFLIP
+ENDIF
  CLI
 
 .f_reset
@@ -711,6 +722,35 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ incrementally by its next frame. Only the border is copied across.
 
 .f_enter
+IF SINGLEBUF
+                        \ Master port, single buffer: TTX66 has just cleared
+ LDA #1                 \ buffer 1 (shadow RAM, on show) and drawn the border,
+ STA F_BACK             \ so forget buffer 1's state
+ STZ F_SGS+1
+ JSR T_SETBUF
+ JSR T_RESETBUF
+ LDA #&FF
+ STA F_DCOL+1
+ LDA #0
+ TAX
+.fes1
+ STA F_SH1,X
+ STA F_SH1+256,X
+ STA F_SH1+512,X
+ INX
+ BNE fes1
+ LDX #23
+.fes2
+ STA F_SHR1,X
+ DEX
+ BPL fes2
+ JSR f_tchall
+ LDA #1
+ STA GFRONT
+ LDA #&80
+ STA GMODE
+ RTS
+ELSE
  LDA #HI(&4000)         \ copy byte columns 0 and 63 of every line, and the
  STA fen1+2             \ whole of line 0, from main RAM to shadow RAM
  STA fen2+2
@@ -805,6 +845,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDA #&80
  STA GMODE
  RTS
+ENDIF
 
 .f_page SKIP 512
 
@@ -2523,9 +2564,9 @@ MAXPT = 140             \ points per frame
  STA F_PXL,Y
  LDA K6+1
  STA F_PXH,Y
- LDA K5+2               \ (BLINE leaves the new point's y in K5(3 2))
+ LDA K6+2               \ (Master port: BLINE has the new point's y in K6(3 2))
  STA F_PYL,Y
- LDA K5+3
+ LDA K6+3
  STA F_PYH,Y
  INY
  STY F_NPT
