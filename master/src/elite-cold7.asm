@@ -960,14 +960,14 @@
  EQUW MT19_C              \ Token 19: Capitalise first letter of next word only
  EQUW x4_DASC              \ Token 20: Unused
  EQUW x4_CLYNS             \ Token 21: Clear the bottom few lines of the space view
- EQUW x4_PAUSE             \ Token 22: Display ship and wait for key press
- EQUW x4_MT23              \ Token 23: Move to row 10, white text, set lower case
- EQUW x4_PAUSE2            \ Token 24: Wait for a key press
- EQUW x4_BRIS              \ Token 25: Show incoming message screen, wait 2 seconds
+ EQUW PAUSE_C             \ Token 22: Display ship and wait for key press
+ EQUW MT23_C              \ Token 23: Move to row 10, white text, set lower case
+ EQUW PAUSE2_C            \ Token 24: Wait for a key press
+ EQUW BRIS_C              \ Token 25: Show incoming message screen, wait 2 seconds
  EQUW MT26_C              \ Token 26: Fetch line input from keyboard (filename)
  EQUW MT27_C              \ Token 27: Print mission captain's name (217-219)
  EQUW MT28_C              \ Token 28: Print mission 1 location hint (220-221)
- EQUW x4_MT29              \ Token 29: Column 6, white text, lower case in words
+ EQUW MT29_C              \ Token 29: Column 6, white text, lower case in words
  EQUW FILEPR_C            \ Token 30: Display currently selected media (disk/tape)
  EQUW OTHERFILEPR_C       \ Token 31: Display the non-selected media (disk/tape)
  EQUW x4_DASC              \ Token 32: Unused

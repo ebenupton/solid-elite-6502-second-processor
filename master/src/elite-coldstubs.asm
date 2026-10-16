@@ -96,32 +96,17 @@
  JSR far4
  EQUW BPRNT
 
-.x4_BRIS
- JSR far4
- EQUW BRIS
 
 
 .x4_MT16
  JSR far4
  EQUW MT16
 
-.x4_MT23
- JSR far4
- EQUW MT23
 
 
-.x4_MT29
- JSR far4
- EQUW MT29
 
 
-.x4_PAUSE
- JSR far4
- EQUW PAUSE
 
-.x4_PAUSE2
- JSR far4
- EQUW PAUSE2
 
 .x4_BOOP
  JSR far4
@@ -247,3 +232,7 @@
 
 \ (x4_RDFIRE and x4_SHIFT, used only by the Master Compact's code, would be
 \ here: RDFIRE and SHIFT are not assembled for the SNG47 version)
+
+.x4_BELL
+ JSR far4
+ EQUW BELL

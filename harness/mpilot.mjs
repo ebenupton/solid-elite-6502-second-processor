@@ -264,7 +264,7 @@ export function makePilot(opts = {}) {
             if (n === 50) { P.titlePolls = 0; return [K.SPACE]; }
             return [];
         }
-        if (site === "t" || site === "PAUSE2" && c.callSite === sy.PAUSE2) return []; // first loop: keys released
+        if (site === "t" || site === "PAUSE2" && c.callSite === (sy.PAUSE2_C ?? sy.PAUSE2)) return []; // first loop: keys released (PAUSE2_C: PAUSE2 in the cold area)
         const qq11 = c.rb(sy.QQ11);
         if (c.waitFor === "TT223" || c.waitFor === "gnum") {
             const r = c.rb(sy.R);
