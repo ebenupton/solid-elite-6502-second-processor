@@ -78,7 +78,36 @@ async function run(label, disc, sy, seed, seedBoot) {
     return r;
 }
 
-const ref = await run("ref", REF, rsy, null);
+// The reference run depends only on the reference disc and symbols, the
+// harness (mlib, mpilot) and the options that shape the run, so it is cached
+// (scratch/master/refcache, keyed by a hash of all of those; --norefcache to
+// rerun it).
+async function cachedRef() {
+    const { createHash } = await import("crypto");
+    const { readFileSync, existsSync } = await import("fs");
+    const { gzipSync, gunzipSync } = await import("zlib");
+    const h = createHash("sha1");
+    for (const f of [REF, RSYMS, `${ROOT}harness/mlib.mjs`, `${ROOT}harness/mpilot.mjs`]) h.update(readFileSync(f));
+    h.update(JSON.stringify([ITERS, args.maxsecs || 0, !!args.nopatch]));
+    const dir = `${ROOT}scratch/master/refcache`, file = `${dir}/${h.digest("hex")}.json.gz`;
+    if (!args.norefcache && existsSync(file)) {
+        const o = JSON.parse(gunzipSync(readFileSync(file)).toString());
+        o.snaps = o.snaps.map(b => Uint8Array.from(Buffer.from(b, "base64")));
+        o.init = Uint8Array.from(Buffer.from(o.init, "base64"));
+        o.stats.systems = new Set(o.stats.systems);
+        console.log(`ref: ${o.iters} iterations (${o.tt100} in flight), emulated ${o.emuSecs.toFixed(1)} s (cached)`);
+        return o;
+    }
+    const r = await run("ref", REF, rsy, null);
+    const o = { snaps: r.snaps.map(b => Buffer.from(b).toString("base64")), init: Buffer.from(r.init).toString("base64"),
+        initRand: [...r.initRand], iterTimes: r.iterTimes, tt100Times: r.tt100Times, regions: r.regions, keyLog: r.keyLog,
+        iters: r.iters, tt100: r.tt100, emuSecs: r.emuSecs, error: r.error, phases: r.phases,
+        stats: { ...r.stats, systems: [...r.stats.systems] } };
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(file, gzipSync(JSON.stringify(o)));
+    return r;
+}
+const ref = await cachedRef();
 const seeds = SEED === "rand" ? [[csy.RAND, [...ref.initRand]]] : null;
 const seedBoot = SEED !== "boot" ? null : (cregions, written, rb) => {
     // region by region (the regions match by name and length; their addresses
