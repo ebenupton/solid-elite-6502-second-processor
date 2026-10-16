@@ -2839,14 +2839,20 @@ MAXPT = 140             \ points per frame
  STA R_NDX0,Y           \ n = 0
  LDA #1
  STA R_NDN,Y
- BRA fsg_n
+ INY                    \ (fsg_n inlined)
+ CPY sg_y1
+ BNE fsg_m
+ RTS
 .fsg_k1
  CPX #2
  BCS fsg_k2
  STA R_NDX1,Y           \ n = 1
  LDA #2
  STA R_NDN,Y
- BRA fsg_n
+ INY                    \ (fsg_n inlined)
+ CPY sg_y1
+ BNE fsg_m
+ RTS
 .fsg_k2
  BNE fsg_k3
  STA R_NDX2,Y           \ n = 2

@@ -4060,21 +4060,17 @@ ENDMACRO
 
  STA TYPE               \ Store the ship type in TYPE
 
- JSR GINF               \ Call GINF to fetch the address of the ship data block
-                        \ for the ship in slot X and store it in INF. The data
-                        \ block is in the K% workspace, which is where all the
-                        \ ship data blocks are stored
-
-                        \ Next we want to copy the ship data block from INF to
-                        \ the zero-page workspace at INWK, so we can process it
-                        \ more efficiently
+                        \ BBC Master port: GINF is not called here, as CPYIN
+                        \ now fetches the address of the ship data block for
+                        \ the ship in slot X into INF itself
 
 .MAL2
 
- JSR CPYIN              \ BBC Master port: call CPYIN to copy the NI% bytes of
-                        \ the ship data block from INF to INWK (the original
+ JSR CPYIN              \ BBC Master port: call CPYIN to set INF to the
+                        \ address of the ship data block for slot X (as GINF)
+                        \ and copy the NI% bytes from INF to INWK (the original
                         \ does this with a loop, which CPYIN unrolls, leaving
-                        \ the registers and flags exactly as the loop does)
+                        \ the registers and flags as GINF and the loop do)
 
  LDA TYPE               \ If the ship type is negative then this indicates a
  BMI MA21               \ planet or sun, so jump down to MA21, as the next bit
@@ -7000,23 +6996,22 @@ ENDMACRO
 
                         \ BBC Master port: ADD's two common paths are inlined
                         \ here, computing (A P) + (S R) exactly as ADD does
-                        \ (same T1, T, C and V), but storing the low byte
-                        \ straight into nosev_x_lo so X is never clobbered
-                        \ and needs no restoring
+                        \ (same T1 and C; T is dead, as in the first half),
+                        \ but storing the low byte straight into nosev_x_lo
+                        \ so X is never clobbered and needs no restoring
 
- STA T1                 \ ADD's prologue: T1 = A, T = sign of A, and jump to
- AND #%10000000         \ mvs5d if A and S have different signs
- STA T
- EOR S
- BMI mvs5d
+ STA T1                 \ ADD's prologue: T1 = A, and jump to mvs5d if A and
+ EOR S                  \ S have different signs (T is not needed: both paths
+ BMI mvs5d              \ get the sign from T1 or the carry instead)
 
  LDA R                  \ Same signs (ADD's first path):
  CLC                    \
  ADC P                  \   nosev_x_lo = R + P
  STA INWK,Y             \
- LDA S                  \   nosev_x_hi = (S + T1 + C) OR T
- ADC T1
- ORA T
+ LDA S                  \   nosev_x_hi = (S + T1 + C) OR sign, where the
+ ADC T1                 \   sign is the carry out (both negative: S, T1 >= &80
+ BCC P%+4               \   so C = 1; both positive: S + T1 + C <= &7F+7+1, so
+ ORA #%10000000         \   C = 0)
  STA INWK+1,Y           \ Set nosev_x = (1-1/512) * nosev_x -/+ roofv_x / 16
 
 .mvs5j
@@ -7039,9 +7034,10 @@ ENDMACRO
  SBC T1
  BCC mvs5s              \ |S R| < |A P|, or high byte 0: rare, so let ADD
  BEQ mvs5s              \ redo the whole sum from scratch (exact results)
- ORA #%10000000         \ |S R| > |A P|: nosev_x_hi = A with the sign of S
- EOR T                  \ (ADD's MU8s also clears C, but no caller of MVS5
- STA INWK+1,Y           \ reads C, so that is left out)
+ BIT T1                 \ |S R| > |A P|: nosev_x_hi = A (1..127) with the sign
+ BMI P%+4               \ of S, i.e. the opposite of the sign of T1 (ADD's MU8s
+ ORA #%10000000         \ also clears C, but no caller of MVS5 reads C or V)
+ STA INWK+1,Y
 
 .mvs5k
 
@@ -32756,7 +32752,10 @@ INCLUDE "build/dashtab.asm"
 
  BMI MSN                \ If A is negative, jump to MSN for the negative case
 
- BEQ MSZ                \ If A = 0, jump to MSZ to set P(1 0) = 0 and return
+                        \ A = 0 needs no special case: X = 0 gives SQ1(k) -
+                        \ SQ2(255 - k) = f(k) - f(k) = 0 in both bytes, so
+                        \ P = 0, A = 0, X = 0, C = 1, Z = 1, N = 0 as at MSZ
+                        \ (P+1 is not zeroed: it is dead after MLS1)
 
                         \ Calculate the low byte of |A| * (ALP1 AND 31) and
 .MSU1                   \ store it in P (operands patched by MLSPT)
@@ -33216,6 +33215,11 @@ INCLUDE "build/dashtab.asm"
                         \ FMLTUX does the same with the multiplier passed in X
                         \ instead of Q (Q is not read)
 
+ STZ P                  \ Set P = 0, as in the original (FMLTUX skips this:
+                        \ its only callers, in the LL9 face loop, run after
+                        \ LL51 has already set P = 0 and nothing there
+                        \ writes P)
+
  LDX Q                  \ Set X = Q
 
 .FMLTUX
@@ -33236,8 +33240,6 @@ INCLUDE "build/dashtab.asm"
 .FMU4
  SBC SQ2H,X             \ A * Q >= 0 fits in 16 bits, so this never borrows
                         \ and leaves the C flag set, as in the original
-
- STZ P                  \ Set P = 0, as in the original
 
  RTS                    \ Return from the subroutine (Z/N/V are not live in
                         \ any caller)
@@ -33376,6 +33378,9 @@ INCLUDE "build/dashtab.asm"
 
 .CPYI2
 
+ CLC                    \ Slots 8 and up arrive here with C set by CPX #8, but
+                        \ GINF's ASL leaves C clear, so clear it again
+
  LDY #NI%-1             \ INF(1 0) >= &0A00 (slots 8 and up): the original
                         \ loop at MAL2
 .CPYI3
@@ -33389,10 +33394,28 @@ INCLUDE "build/dashtab.asm"
 
 .CPYIN
 
- LDY INF                \ INF(1 0) = UNIV(X) is K% + NI% * slot (K% = &0900),
- LDA INF+1              \ so if INF+1 = &09 (odd) then INF(1 0) = K% + INF and
- AND #1                 \ we can use LDA K%+I%,Y with Y = INF, with no page
- BEQ CPYI2              \ crossing for slots 0-6 (AND leaves C and V alone)
+                        \ BBC Master port: CPYIN now also does the work of
+                        \ GINF (the caller no longer calls GINF first), i.e.
+                        \ it sets INF(1 0) = UNIV(X) for slot X and then
+                        \ copies the block, leaving A = INWK, Y = &FF, N set,
+                        \ Z clear, C clear (as GINF's ASL left it), X and V
+                        \ unchanged
+
+ TXA                    \ Set Y = X * 2 (C is cleared as X <= NOSH)
+ ASL A
+ TAY
+
+ LDA UNIV+1,Y           \ Set INF(1 0) = UNIV(X), the address of the ship
+ STA INF+1              \ data block for slot X
+ LDA UNIV,Y
+ STA INF
+
+ TAY                    \ INF(1 0) = K% + NI% * slot (K% = &0900), so for
+ CPX #8                 \ slots 0-7 INF+1 = &09 and we can use LDA K%+I%,Y with
+ BCS CPYI2              \ Y = INF (no page crossing for slots 0-6), leaving C
+                        \ clear from the CPX; slots 8+ use the loop at CPYI2
+
+ ASSERT (K% + 7 * NI%) DIV 256 = &09 AND (K% + 8 * NI%) DIV 256 = &0A
 
  FOR I%, NI%-1, 0, -1
   LDA K%+I%,Y
@@ -33842,27 +33865,29 @@ INCLUDE "build/dashtab.asm"
  SBC P
  TAX
 
- LDA S                  \ A = |S| - |A| - borrow (S EOR &80 has the same sign
- EOR #%10000000         \ bit as T1), so C = 1 iff |S R| >= |A P|, and V = 0
- SBC T1
+ LDA S                  \ S and T1 have opposite signs, so S - T1 - borrow =
+ SBC T1                 \ &80 + (|S| - |T1| - borrow) mod 256: N = 1 iff
+                        \ |S R| >= |A P|, and then A = &80 OR magnitude (V is
+                        \ left differently from before, but nothing reads V
+                        \ after ADD/MAD: every BVC/BVS follows its own BIT/ADC)
 
- BCC MU8a               \ |S R| < |A P|: redo it the original way round
+ BPL MU8a               \ |S R| < |A P|: redo it the original way round
 
- BEQ MU8e               \ High byte 0: check for |S R| = |A P|
+ CMP #%10000000         \ High magnitude 0: check for |S R| = |A P|
+ BEQ MU8e
 
 .MU8s
 
- ORA #%10000000         \ |S R| > |A P|: (A X) = |S R| - |A P| with the sign
- EOR T                  \ of S (= T EOR &80), and C = 0, V = 0, exactly as the
- CLC                    \ original negation path left them (U is no longer
- RTS                    \ written: no reader of U can see ADD's value)
+ EOR T                  \ |S R| > |A P|: (A X) = |S R| - |A P| with the sign
+ CLC                    \ of S (= T EOR &80, A has bit 7 set), and C = 0,
+ RTS                    \ as the original negation path left them
 
 .MU8e
 
- CPX #0                 \ A = 0 here. If X <> 0 then |S R| > |A P|, so set
+ CPX #0                 \ A = &80 here. If X <> 0 then |S R| > |A P|, so
  BNE MU8s               \ A = &80 EOR T, C = 0 via MU8s; otherwise the values
- BEQ MU9                \ are equal: A = 0, X = 0, C = 1, V = 0, as the
-                        \ original BCS MU9 path gives, so return A = T
+ LDA T                  \ are equal: A = T (N, Z from T), X = 0, C = 1 (CPX),
+ RTS                    \ as the original BEQ MU9 path gives
 
 .MU8a
 

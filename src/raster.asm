@@ -2497,6 +2497,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA r_sbh_bdn,X          \ group r_bdn
   STA r_pt86+2
   STA r_pt92+2
+  STA r_pt420+2
   STA r_pt98+2
   STA r_pt110+2
   STA r_pt130+2
@@ -2614,29 +2615,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA R_NDP,X             \ (R_NDP and r_bdp only ever hold 0 or 1)
 .^r_pt91 CMP r_bdp,X
   BNE ch
-  LDA R_NDN,X
-.^r_pt92 CMP r_bdn,X
+  LDA R_NDN,X             \ (no boundaries, the usual case: no TAY/BEQ)
+  BNE nz
+.^r_pt420 CMP r_bdn,X     \ (A = 0; patched with r_pt92)
   BNE ch
-  TAY
-  BEQ sm
-  LDA R_NDX0,X
-.^r_pt93 CMP r_bdx0,X
-  BNE chb
-  DEY
-  BEQ sm
-  LDA R_NDX1,X
-.^r_pt94 CMP r_bdx1,X
-  BNE chb
-  DEY
-  BEQ sm
-  LDA R_NDX2,X
-.^r_pt95 CMP r_bdx2,X
-  BNE chb
-  DEY
-  BEQ sm
-  LDA R_NDX3,X
-.^r_pt96 CMP r_bdx3,X
-  BNE chb
 .sm
 .^r_pt88 LDA r_dl,X       \ unchanged: dirty? then repaint only the dirty part
   INC A
@@ -2661,6 +2643,28 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .smd
   INC r_dsub
   BRA gd
+.nz                       \ 1..4 boundaries
+.^r_pt92 CMP r_bdn,X
+  BNE ch
+  TAY
+  LDA R_NDX0,X
+.^r_pt93 CMP r_bdx0,X
+  BNE chb
+  DEY
+  BEQ sm
+  LDA R_NDX1,X
+.^r_pt94 CMP r_bdx1,X
+  BNE chb
+  DEY
+  BEQ sm
+  LDA R_NDX2,X
+.^r_pt95 CMP r_bdx2,X
+  BNE chb
+  DEY
+  BEQ sm
+  LDA R_NDX3,X
+.^r_pt96 CMP r_bdx3,X
+  BEQ sm
 .chb
 .^r_pt408 LDA r_dl,X
   INC A
@@ -2690,7 +2694,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .gg
   JSR r_drg
   LDX RZ_Y
-  BRA nx
+  JMP nx                  \ (out of BRA range; JMP is 3 cycles too)
 }
 
 
