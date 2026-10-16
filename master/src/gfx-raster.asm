@@ -2978,31 +2978,38 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA RZ_COL
   STY RZ_SA
   TXA
+  BMI hx                  \ X >= &80, so Y >= &80 too (X <= Y)
   EOR RZ_SA
+  BMI cross               \ X in columns 0..31, Y in 32..63
   CMP #4
-  BCS multi
-  LDA r_lm,X              \ one byte
-  AND r_rm,Y
-  STA RZ_T7
-  LDY r_xo,X
-  CPX #&80
-  BCS h1
+  BCS ma
+  LDY r_xo,X              \ one byte, columns 0..31
   LDA RZ_COL
   EOR (RZ_PA),Y
-  AND RZ_T7
+  AND r_lm,X
+  LDX RZ_SA
+  AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
   RTS
-.h1
+.cross
+  STX RZ_SB
+  STY RZ_TA+1
+  JMP r_lput2
+.hx
+  EOR RZ_SA
+  CMP #4
+  BCS mb
+  LDY r_xo,X              \ one byte, columns 32..63
   LDA RZ_COL
   EOR (RZ_PB),Y
-  AND RZ_T7
+  AND r_lm,X
+  LDX RZ_SA
+  AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
-.multi
-  CPY #&80
-  BCS mb
+.ma
   LDA r_xo,Y              \ both in columns 0..31
   STA RZ_SA+1
   LDY r_xo,X
@@ -3011,16 +3018,19 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   AND r_lm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
-  CPY RZ_SA+1             \ (C = 0)
-.la
   TYA
-  ADC #8
+  ADC #7                  \ (C = 1 from the CMP: + 8)
   TAY
   CPY RZ_SA+1
   BCS lsa
+.la
   LDA RZ_COL
   STA (RZ_PA),Y
-  BRA la
+  TYA
+  ADC #8                  \ (C = 0 from the CPY)
+  TAY
+  CPY RZ_SA+1
+  BCC la
 .lsa
   LDX RZ_SA
   LDA RZ_COL
@@ -3030,8 +3040,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA (RZ_PA),Y
   RTS
 .mb
-  CPX #&80
-  BCC cross
   LDA r_xo,Y              \ both in columns 32..63
   STA RZ_SA+1
   LDY r_xo,X
@@ -3040,16 +3048,19 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   AND r_lm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-  CPY RZ_SA+1             \ (C = 0)
-.lb
   TYA
-  ADC #8
+  ADC #7                  \ (C = 1 from the CMP: + 8)
   TAY
   CPY RZ_SA+1
   BCS lsb
+.lb
   LDA RZ_COL
   STA (RZ_PB),Y
-  BRA lb
+  TYA
+  ADC #8                  \ (C = 0 from the CPY)
+  TAY
+  CPY RZ_SA+1
+  BCC lb
 .lsb
   LDX RZ_SA
   LDA RZ_COL
@@ -3058,10 +3069,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
-.cross
-  STX RZ_SB
-  STY RZ_TA+1
-  JMP r_lput2
 }
 
 
