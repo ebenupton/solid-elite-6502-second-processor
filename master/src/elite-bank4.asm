@@ -2860,6 +2860,9 @@
 
 .PIXEL
 
+ JSR H_DOT              \ Port: in record mode, record the dot (an explosion
+                        \ particle) for the renderer and return (gfx-hooks.asm)
+
  STY T1                 \ Store Y in T1 so we can restore it at the end of the
                         \ subroutine
 

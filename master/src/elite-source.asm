@@ -11932,7 +11932,9 @@ ENDIF
  BEQ P%+5               \ explosion cloud to remove, so skip the following
                         \ instruction
 
- JSR PTCLS              \ Call PTCLS to remove the existing cloud by drawing it
+ JSR H_PTCLSE           \ Call PTCLS to remove the existing cloud by drawing it
+                        \ (Port: with the renderer's recording off,
+                        \ gfx-hooks.asm)
                         \ again
 
  LDA INWK+6             \ Set T = z_lo

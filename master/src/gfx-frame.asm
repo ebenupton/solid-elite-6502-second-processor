@@ -525,11 +525,8 @@ ENDIF
  STA F_DX,Y
  LDA GDCOL
  STA F_DC,Y
- LDX #1
- LDA ZZ
- CMP #144
- BCS fdo1
- INX
+ LDX #2                 \ (Master port: a dash for ZZ >= 80, a double-
+ LDA ZZ                 \ height dash below, as Master's PIXEL)
  CMP #80
  BCS fdo1
  INX
