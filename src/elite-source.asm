@@ -7838,7 +7838,7 @@ ENDMACRO
  STA stq_n2+1
  STA stq_n4+1
 
- JSR MLSPT              \ BBC Master port: patch ALP1 AND 31 into MLS1's table
+ JSR MLSPB              \ BBC Master port: patch BET2+1 into stl_be, then ALP1 AND 31 into MLS1's table
                         \ look-ups (ALP1 is constant during STARS1, and MLS1 is
                         \ only called from STL1)
 
@@ -8233,7 +8233,9 @@ ENDMACRO
                         \   x = x - alpha * y / 256
 
  LDA YY+1               \ Set A to y_hi and set it to the flipped sign of beta
- EOR BET2+1
+.stl_be
+ EOR #0                 \ patched: BET2+1 (flipped pitch sign), set by MLSPB
+                        \ (BET2+1 is constant during STARS1)
 
                         \ BBC Master port: inline MULTS-2 (X = BET1) to set
                         \   A = -beta * y_hi / 256 (high byte of (A P) = X * A)
@@ -33923,12 +33925,11 @@ INCLUDE "build/dashtab.asm"
  LDA S                  \ If S is negative the signs differ (A's sign is 0),
  BMI MADZn              \ so do what MU8 would do with P = T1 = T = 0 at MADZn
  CLC                    \ Otherwise ADDS gives A = S + 0 + 0 OR 0 = S, X = R,
- CLV                    \ N Z from S, C = 0, V = 0 (S + 0 cannot overflow)
- RTS
+ RTS                    \ N Z from S, C = 0 (V is not read after MAD, see MU8)
 
 .MADZn
 
- CLV                    \ MU8 with P = T1 = T = 0 gives X = R, V = 0 and: if
+                        \ MU8 with P = T1 = T = 0 gives X = R and: if
  CMP #%10000000         \ S <> &80 or R <> 0, A = S, C = 0 (MU8s with A = S,
  BNE MU8s               \ whose ORA/EOR T leave A = S, N = 1, Z = 0); if
  CPX #0                 \ S = &80 and R = 0, A = 0, X = 0, C = 1, Z = 1, N = 0
@@ -36371,6 +36372,12 @@ ENDIF
  FOR I%, 0, NOSH
   EQUB LO(K% + I% * NI%)
  NEXT
+
+.MLSPB
+
+ LDA BET2+1             \ Patch the flipped pitch sign into STL1's EOR at
+ STA stl_be+1           \ stl_be (constant during STARS1), then fall into
+ JMP MLSPT              \ MLSPT (changes A, N and Z only, as MLSPT)
 
  BANK_END% = P%
 

@@ -2833,8 +2833,8 @@ MAXPT = 140             \ points per frame
  BCC fsg_l
  BEQ fsg_l
  CMP R_NDISCR,Y         \ x > NDISCR: right of the span
- BEQ P%+4
- BCS fsg_n
+ BCC P%+4              \ x < NDISCR: inside (x = NDISCR falls through BNE)
+ BNE fsg_n
  LDX R_NDN,Y            \ inside: append (up to four)
  BNE fsg_k1
  STA R_NDX0,Y           \ n = 0
