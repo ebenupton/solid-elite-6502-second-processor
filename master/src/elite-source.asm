@@ -9923,8 +9923,39 @@ ENDMACRO
  STA P                  \ Copy A into P and X
  TAX
 
- BNE MU11               \ If X = 0 fall through into MU1 to return a 0,
-                        \ otherwise jump to MU11 to return P * X
+ BEQ MU1                \ If X = 0 jump to MU1 to return a 0
+
+                        \ Port: P * P by quarter squares directly, with MU11's
+                        \ exact results: |P - P| = 0 and QS(0) = 0, so
+                        \ (A P) = QS(2P); T = P - 1, X = 0, Y kept, C and V
+                        \ clear, Z set, N clear (as MU11's SBC QSH / LDX #0)
+
+ DEX                    \ Set T = X - 1
+ STX T
+
+ ASL A                  \ X = 2P mod 256, C = bit 8 of 2P
+ TAX
+
+ BCS sq5
+
+ LDA QSL,X              \ (A P) = QS(2P) = P * P
+ STA P
+ LDA QSH,X
+
+.sq6
+
+ LDX #0                 \ X = 0, V and C clear, as MU11 leaves them
+ CLV
+ CLC
+
+ RTS                    \ Return from the subroutine
+
+.sq5
+
+ LDA QSL+256,X          \ As above, with 2P - 256 in X
+ STA P
+ LDA QSH+256,X
+ BRA sq6
 
 \ ******************************************************************************
 \
