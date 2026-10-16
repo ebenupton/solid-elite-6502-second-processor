@@ -787,6 +787,131 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: OSB
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: A convenience routine for calling OSBYTE with Y = 0
+\
+\ ******************************************************************************
+
+.OSB
+
+ LDY #0                 \ Call OSBYTE with Y = 0, returning from the subroutine
+ JMP OSBYTE             \ using a tail call (so we can call OSB to call OSBYTE
+                        \ for when we know we want Y set to 0)
+
+\ ******************************************************************************
+\
+\       Name: MESS1
+\       Type: Variable
+\   Category: Loader
+\    Summary: The OS command string for loading the BDATA binary
+\
+\ ******************************************************************************
+
+.MESS1
+
+ EQUS "L.BDATA FFFF1300"    \ This is short for "*LOAD BDATA FFFF1300"
+ EQUB 13
+
+\ ******************************************************************************
+\
+\       Name: MESS2
+\       Type: Variable
+\   Category: Loader
+\    Summary: The OS command string for loading the main game code binary
+\
+\ ******************************************************************************
+
+.MESS2
+
+IF _SNG47
+
+ EQUS "L.BCODE FFFF1300"    \ This is short for "*LOAD BCODE FFFF1300"
+ EQUB 13
+
+ELIF _COMPACT
+
+ EQUS "L.ELITE FFFF1300"    \ This is short for "*LOAD ELITE FFFF1300"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: MESS3
+\       Type: Variable
+\   Category: Loader
+\    Summary: The OS command string for changing the disc directory to E
+\
+\ ******************************************************************************
+
+.MESS3
+
+ EQUS "DIR E"
+ EQUB 13
+
+.MESS4
+
+ EQUS "L.BANK4 FFFF1300"    \ Port: *LOAD BANK4 FFFF1300
+ EQUB 13
+
+.MESS5
+
+ EQUS "L.ANDY FFFF1300"     \ Port: *LOAD ANDY FFFF1300
+ EQUB 13
+
+.MESS6
+
+ EQUS "L.COLD7 FFFF1300"    \ Port: *LOAD COLD7 FFFF1300
+ EQUB 13
+
+.MESS7
+
+ EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
+ EQUB 13
+
+.MESS8
+
+ EQUS "L.STUBS FFFF1300"    \ Port: *LOAD STUBS FFFF1300
+ EQUB 13
+
+.MESS9
+
+ EQUS "L.BANK5 FFFF1300"    \ Port: *LOAD BANK5 FFFF1300
+ EQUB 13
+
+.MESS10
+
+ EQUS "L.BANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
+ EQUB 13
+
+.MESS11
+
+ EQUS "L.RAST7 FFFF1300"    \ Port: *LOAD RAST7 FFFF1300
+ EQUB 13
+
+.MESS12
+
+ EQUS "L.HAZEL FFFF1300"    \ Port: *LOAD HAZEL FFFF1300
+ EQUB 13
+
+.MESS13
+
+ EQUS "L.LOWCODE FFFF1300"  \ Port: *LOAD LOWCODE FFFF1300
+ EQUB 13
+
+.LOW_LOADER_END
+
+\ Port: Saturn's drawing code and tables come last, above &1300 if need be:
+\ they are used only before the first file is loaded to &1300, and everything
+\ the loader runs after that (FTAB, the OS command strings, the copies, the
+\ NMI handler and the vectors) is below &1300, asserted here
+
+ ASSERT LOW_LOADER_END <= &1300
+
+\ ******************************************************************************
+\
 \       Name: PLL1 (Part 1 of 3)
 \       Type: Subroutine
 \   Category: Drawing planets
@@ -1487,122 +1612,6 @@ ENDIF
  BNE LL6                \ Loop back to LL6 until we have done 8 loops
 
  RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: OSB
-\       Type: Subroutine
-\   Category: Utility routines
-\    Summary: A convenience routine for calling OSBYTE with Y = 0
-\
-\ ******************************************************************************
-
-.OSB
-
- LDY #0                 \ Call OSBYTE with Y = 0, returning from the subroutine
- JMP OSBYTE             \ using a tail call (so we can call OSB to call OSBYTE
-                        \ for when we know we want Y set to 0)
-
-\ ******************************************************************************
-\
-\       Name: MESS1
-\       Type: Variable
-\   Category: Loader
-\    Summary: The OS command string for loading the BDATA binary
-\
-\ ******************************************************************************
-
-.MESS1
-
- EQUS "L.BDATA FFFF1300"    \ This is short for "*LOAD BDATA FFFF1300"
- EQUB 13
-
-\ ******************************************************************************
-\
-\       Name: MESS2
-\       Type: Variable
-\   Category: Loader
-\    Summary: The OS command string for loading the main game code binary
-\
-\ ******************************************************************************
-
-.MESS2
-
-IF _SNG47
-
- EQUS "L.BCODE FFFF1300"    \ This is short for "*LOAD BCODE FFFF1300"
- EQUB 13
-
-ELIF _COMPACT
-
- EQUS "L.ELITE FFFF1300"    \ This is short for "*LOAD ELITE FFFF1300"
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: MESS3
-\       Type: Variable
-\   Category: Loader
-\    Summary: The OS command string for changing the disc directory to E
-\
-\ ******************************************************************************
-
-.MESS3
-
- EQUS "DIR E"
- EQUB 13
-
-.MESS4
-
- EQUS "L.BANK4 FFFF1300"    \ Port: *LOAD BANK4 FFFF1300
- EQUB 13
-
-.MESS5
-
- EQUS "L.ANDY FFFF1300"     \ Port: *LOAD ANDY FFFF1300
- EQUB 13
-
-.MESS6
-
- EQUS "L.COLD7 FFFF1300"    \ Port: *LOAD COLD7 FFFF1300
- EQUB 13
-
-.MESS7
-
- EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
- EQUB 13
-
-.MESS8
-
- EQUS "L.STUBS FFFF1300"    \ Port: *LOAD STUBS FFFF1300
- EQUB 13
-
-.MESS9
-
- EQUS "L.BANK5 FFFF1300"    \ Port: *LOAD BANK5 FFFF1300
- EQUB 13
-
-.MESS10
-
- EQUS "L.BANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
- EQUB 13
-
-.MESS11
-
- EQUS "L.RAST7 FFFF1300"    \ Port: *LOAD RAST7 FFFF1300
- EQUB 13
-
-.MESS12
-
- EQUS "L.HAZEL FFFF1300"    \ Port: *LOAD HAZEL FFFF1300
- EQUB 13
-
-.MESS13
-
- EQUS "L.LOWCODE FFFF1300"  \ Port: *LOAD LOWCODE FFFF1300
- EQUB 13
 
 \ ******************************************************************************
 \
