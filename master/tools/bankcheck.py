@@ -71,7 +71,7 @@ def statements(path):
 
 
 def idents(op):
-    s = re.sub(r'"[^"]*"', "", op)
+    s = re.sub(r"'.'", "", re.sub(r'"[^"]*"', "", op))   # (strings and character literals)
     s = re.sub(r"&[0-9A-Fa-f]+", "", s)
     return IDENT.findall(s)
 

@@ -623,7 +623,7 @@
  LDA #1                 \ Move the text cursor to column 1
  STA XC
 
- JMP x4_TT66               \ Jump to TT66 to clear the screen and set the current
+ JMP TT66_C               \ Jump to TT66 to clear the screen and set the current
                         \ view type to 1, returning from the subroutine using a
                         \ tail call
 
@@ -949,7 +949,7 @@
  EQUW MT8_C               \ Token  8: Tab to column 6
  EQUW MT9_C               \ Token  9: Clear screen, tab to column 1, view type = 1
  EQUW x4_DASC              \ Token 10: Line feed
- EQUW x4_NLIN4             \ Token 11: Draw box around title (line at pixel row 19)
+ EQUW NLIN4_C             \ Token 11: Draw box around title (line at pixel row 19)
  EQUW x4_DASC              \ Token 12: Carriage return
  EQUW MT13_C              \ Token 13: Switch to lower case
  EQUW MT14_C              \ Token 14: Switch to justified text
@@ -1478,7 +1478,7 @@
                         \ are 0-7 internally, but we want to display them as
                         \ galaxy 1 through 8
 
- JMP x4_pr2                \ Jump to pr2, which prints the number in X to a width
+ JMP pr2_C                \ Jump to pr2, which prints the number in X to a width
                         \ of 3 figures, left-padding with spaces to a width of
                         \ 3, and return from the subroutine using a tail call
 
@@ -1506,7 +1506,7 @@
  SEC                    \ We want to print the fuel level with a decimal point,
                         \ so set the C flag for pr2 to take as an argument
 
- JSR x4_pr2                \ Call pr2, which prints the number in X to a width of
+ JSR pr2_C                \ Call pr2, which prints the number in X to a width of
                         \ 3 figures (i.e. in the format x.x, which will always
                         \ be exactly 3 characters as the maximum fuel is 7.0)
 
@@ -1557,7 +1557,7 @@
  SEC                    \ We want to print the cash amount with a decimal point,
                         \ so set the C flag for BRPNT to take as an argument
 
- JSR x4_BPRNT              \ Print the amount of cash to 9 digits with a decimal
+ JSR BPRNT_C              \ Print the amount of cash to 9 digits with a decimal
                         \ point
 
  LDA #226               \ Print recursive token 66 (" CR") followed by a
@@ -2446,7 +2446,7 @@ ENDIF
 
 .YESNO_C
 
- JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+ JSR t_C                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  CMP #'Y'               \ If "Y" was pressed, return from the subroutine with
@@ -2973,7 +2973,7 @@ ENDIF
  JSR x4_DOVDU19            \ (colour 2) and cyan (colour 3)
 
  LDA #13                \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 13 (rotating
+ JSR TT66_C               \ and set the current view type in QQ11 to 13 (rotating
                         \ ship view)
 
  LDA #RED               \ Switch to colour 2, which is white in the title screen
@@ -3404,13 +3404,13 @@ ENDIF
  LDY #8                 \ Wait for 8/50 of a second (0.16 seconds)
  JSR x4_DELAY
 
- JSR x4_FLKB               \ Call FLKB to flush the keyboard buffer
+ JSR FLKB_C               \ Call FLKB to flush the keyboard buffer
 
  LDY #0                 \ Set Y = 0 to hold the length of the text entered
 
 .OSW0L_C
 
- JSR x4_TT217              \ Scan the keyboard until a key is pressed, and return
+ JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A (and X)
 
  CMP #13                \ If RETURN was pressed, jump to OSW03
@@ -3920,7 +3920,7 @@ ENDIF
                         \   5. Default JAMESON
                         \   6. Exit
 
- JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+ JSR t_C                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  CMP #'1'               \ Option 1 was chosen, so jump to loading to load a new
@@ -3973,7 +3973,7 @@ ENDIF
                         \ name on the Master Compact) and catalogue that disc
                         \ or directory
 
- JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+ JSR t_C                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  JMP SVE_C                \ Jump to SVE to display the disc access menu and return
@@ -4148,7 +4148,7 @@ ENDIF
  LDA #2                 \ Print extended token 2 ("{cr}WHICH DRIVE?")
  JSR DETOK_C
 
- JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+ JSR t_C                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  ORA #%00010000         \ Set bit 4 of A, perhaps to avoid printing any control
@@ -4229,7 +4229,7 @@ ENDIF
  LDA #9                 \ Print extended token 9 ("{cr}{all caps}ILLEGAL ELITE
  JSR DETOK_C              \ II FILE{sentence case}")
 
- JSR x4_t                  \ Scan the keyboard until a key is pressed, returning
+ JSR t_C                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  JMP SVE_C                \ Jump to SVE to display the disc access menu and return
@@ -4827,7 +4827,7 @@ ENDIF
  PHA
 
  LDA #0                 \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 0 (the space
+ JSR TT66_C               \ and set the current view type in QQ11 to 0 (the space
                         \ view)
 
  PLA                    \ Restore the view type from the stack
@@ -5257,7 +5257,7 @@ ENDIF
  STX QQ8+1
 
  LDA #116               \ Print recursive token 116 (GALACTIC HYPERSPACE ")
- JSR x4_MESS               \ as an in-flight message
+ JSR MESS_C               \ as an in-flight message
 
                         \ Fall through into jmp to set the system to the
                         \ current system and return from the subroutine there
@@ -5329,7 +5329,7 @@ ENDIF
 
  CLC                    \ Call TT11 to print X to 3 digits with no decimal point
  LDA #3                 \ and return from the subroutine using a tail call
- JMP x4_TT11
+ JMP TT11_C
 
 \ ******************************************************************************
 \
@@ -5389,7 +5389,7 @@ ENDIF
 
  LDA #5                 \ Set the number of digits to print to 5
 
- JMP x4_TT11               \ Call TT11 to print (Y X) to 5 digits and return from
+ JMP TT11_C               \ Call TT11 to print (Y X) to 5 digits and return from
                         \ the subroutine using a tail call
 
 \ ******************************************************************************
@@ -5693,7 +5693,7 @@ ENDIF
                         \ source
 
  LDA #3                 \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 3
+ JSR TT66_C               \ and set the current view type in QQ11 to 3
 
  JSR LL164_C              \ Call LL164 to show the hyperspace tunnel and make the
                         \ hyperspace sound for a second time (as we already
@@ -5763,7 +5763,7 @@ ENDIF
  LDA QQ11               \ If the current view is not a space view, jump to ee5
  BNE ee5_C                \ to skip the following
 
- JSR x4_TT66               \ Clear the top part of the screen, draw a border box,
+ JSR TT66_C               \ Clear the top part of the screen, draw a border box,
                         \ and set the current view type in QQ11 to 0 (space
                         \ view)
 
@@ -5882,7 +5882,7 @@ ENDIF
  LDA #12                \ Set our launch speed in DELTA to 12
  STA DELTA
 
- JSR x4_BAD                \ Call BAD to work out how much illegal contraband we
+ JSR BAD_C                \ Call BAD to work out how much illegal contraband we
                         \ are carrying in our hold (A is up to 40 for a
                         \ standard hold crammed with contraband, up to 70 for
                         \ an extended cargo hold full of narcotics and slaves)

@@ -435,7 +435,7 @@
 
 .TT223_C
 
- JSR x4_TT217              \ Scan the keyboard until a key is pressed, and return
+ JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A (and X)
 
  LDX R                  \ If R is non-zero then skip to NWDAV2, as we are
@@ -605,7 +605,7 @@
  JSR TT27_C
 
  LDA #206               \ Print recursive token 46 (" CARGO{sentence case}")
- JSR x4_NLIN3              \ draw a horizontal line at pixel row 19 to box in the
+ JSR NLIN3_C              \ draw a horizontal line at pixel row 19 to box in the
                         \ title
 
  JSR TT67_C               \ Print a newline
@@ -691,7 +691,7 @@
  STA QQ25               \ Store the amount of this item in the hold in QQ25
 
  CLC                    \ Print the 8-bit number in X to 3 digits, without a
- JSR x4_pr2                \ decimal point
+ JSR pr2_C                \ decimal point
 
  JSR TT152_C              \ Print the unit ("t", "kg" or "g") for the market item
                         \ whose byte #1 from the market prices table is in
@@ -803,7 +803,7 @@
  LDX TRIBBLE            \ Fetch the number of Trumbles into (Y X)
  LDY TRIBBLE+1
 
- JSR x4_TT11               \ Call TT11 to print the number of Trumbles in (Y X),
+ JSR TT11_C               \ Call TT11 to print the number of Trumbles in (Y X),
                         \ with no decimal point
 
  JSR x4_DORND              \ Print out a random extended token from 111 to 114, all
@@ -849,7 +849,7 @@
  LDA #164               \ Print recursive token 4 ("INVENTORY{crlf}") followed
  JSR TT60_C               \ by a paragraph break and Sentence Case
 
- JSR x4_NLIN4              \ Draw a horizontal line at pixel row 19 to box in the
+ JSR NLIN4_C              \ Draw a horizontal line at pixel row 19 to box in the
                         \ title. The authors could have used a call to NLIN3
                         \ instead and saved the above call to TT60, but you
                         \ just can't optimise everything
@@ -903,7 +903,7 @@
  LDA #206               \ Print extended token 206 ("{all caps}(Y/N)?")
  JSR DETOK_C
 
- JSR x4_TT217              \ Scan the keyboard until a key is pressed, and return
+ JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A and X
 
  ORA #%00100000         \ Set bit 5 in the value of the key pressed, which
@@ -1057,7 +1057,7 @@
  BEQ TT172_C              \ If none are available, jump to TT172 to print a tab
                         \ and a "-"
 
- JSR x4_pr2_p2              \ Otherwise print the 8-bit number in X to 5 digits,
+ JSR pr2_C+2              \ Otherwise print the 8-bit number in X to 5 digits,
                         \ right-aligned with spaces. This works because we set
                         \ A to 5 above, and we jump into the pr2 routine just
                         \ after the first instruction, which would normally
@@ -1229,7 +1229,7 @@
  STA XC
 
  LDA #167               \ Print recursive token 7 ("{current system name} MARKET
- JSR x4_NLIN3              \ PRICES") and draw a horizontal line at pixel row 19
+ JSR NLIN3_C              \ PRICES") and draw a horizontal line at pixel row 19
                         \ to box in the title
 
  LDA #3                 \ Move the text cursor to row 3
@@ -1521,7 +1521,7 @@
  JSR spc_C
 
  LDA #185               \ Print recursive token 25 ("SHIP") and draw a
- JSR x4_NLIN3              \ horizontal line at pixel row 19 to box in the title
+ JSR NLIN3_C              \ horizontal line at pixel row 19 to box in the title
 
  LDA #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case, with the
  STA QQ17               \ next letter in capitals
@@ -1570,7 +1570,7 @@
 
  LDX XX13               \ Print the current item number + 1 to 3 digits, left-
  CLC                    \ padding with spaces, and with no decimal point, so the
- JSR x4_pr2                \ items are numbered from 1
+ JSR pr2_C                \ items are numbered from 1
 
  JSR TT162_C              \ Print a space
 
@@ -1589,7 +1589,7 @@
  STA XC
 
  LDA #6                 \ Print the number in (Y X) to 6 digits, left-padding
- JSR x4_TT11               \ with spaces and including a decimal point, which will
+ JSR TT11_C               \ with spaces and including a decimal point, which will
                         \ be the correct price for this item as (Y X) contains
                         \ the price * 10, so the trailing zero will go after the
                         \ decimal point (i.e. 5250 will be printed as 525.0)
@@ -2067,7 +2067,7 @@
                         \ longer equipment menu available in higher tech systems
 
  LDA #32                \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 32 (Equip
+ JSR TT66_C               \ and set the current view type in QQ11 to 32 (Equip
                         \ Ship screen)
 
  LDA #16                \ Move the text cursor to row 16, and at the same time
@@ -2106,7 +2106,7 @@
  LDA #175               \ Print recursive text token 15 ("VIEW ") followed by
  JSR prq_C                \ a question mark
 
- JSR x4_TT217              \ Scan the keyboard until a key is pressed, and return
+ JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A (and X)
 
  SEC                    \ Subtract ASCII "0" from the key pressed, to leave the
@@ -2368,7 +2368,7 @@
  STA XC
 
  LDA #126               \ Print recursive token 126, which prints the top
- JSR x4_NLIN3              \ four lines of the Status Mode screen:
+ JSR NLIN3_C              \ four lines of the Status Mode screen:
                         \
                         \         COMMANDER {commander name}
                         \
@@ -3002,10 +3002,10 @@
 
 .TRADEMODE_C
 
- JSR x4_TT66               \ Clear the top part of the screen, draw a border box,
+ JSR TT66_C               \ Clear the top part of the screen, draw a border box,
                         \ and set the current view type in QQ11 to A
 
- JSR x4_FLKB               \ Call FLKB to flush the keyboard buffer
+ JSR FLKB_C               \ Call FLKB to flush the keyboard buffer
 
 .TRADEMODE2_C
 
@@ -3319,7 +3319,7 @@
  STA XC
 
  LDA #163               \ Print recursive token 3 ("DATA ON {selected system
- JSR x4_NLIN3              \ name}" and draw a horizontal line at pixel row 19
+ JSR NLIN3_C              \ name}" and draw a horizontal line at pixel row 19
                         \ to box in the title
 
  JSR TTX69_C              \ Print a paragraph break and set Sentence Case
@@ -3408,7 +3408,7 @@
                         \ should be 1-15
 
  CLC                    \ Call pr2 to print the technology level as a
- JSR x4_pr2                \ three-digit number without a decimal point (by
+ JSR pr2_C                \ three-digit number without a decimal point (by
                         \ clearing the C flag)
 
  JSR TTX69_C              \ Print a paragraph break and set Sentence Case
@@ -3418,7 +3418,7 @@
 
  SEC                    \ Call pr2 to print the population as a three-digit
  LDX QQ6                \ number with a decimal point (by setting the C flag),
- JSR x4_pr2                \ so the number printed will be population / 10
+ JSR pr2_C                \ so the number printed will be population / 10
 
  LDA #198               \ Print recursive token 38 (" BILLION"), followed by a
  JSR TT60_C               \ paragraph break and Sentence Case
@@ -3727,7 +3727,7 @@
 .TT22_C
 
  LDA #64                \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 32 (Long-
+ JSR TT66_C               \ and set the current view type in QQ11 to 32 (Long-
                         \ range Chart)
 
  LDA #16                \ Switch to the mode 1 palette for the trade view, which
@@ -3746,12 +3746,12 @@
  LDA #199               \ Print recursive token 39 ("GALACTIC CHART{galaxy
  JSR TT27_C               \ number right-aligned to width 3}")
 
- JSR x4_NLIN               \ Draw a horizontal line at pixel row 23 to box in the
+ JSR NLIN_C               \ Draw a horizontal line at pixel row 23 to box in the
                         \ title and act as the top frame of the chart, and move
                         \ the text cursor down one line
 
  LDA #GCYB+1            \ Move the text cursor down one line and draw a
- JSR x4_NLIN5              \ screen-wide horizontal line at pixel row GCYB+1 (153)
+ JSR NLIN5_C              \ screen-wide horizontal line at pixel row GCYB+1 (153)
                         \ for the bottom edge of the chart, so the chart itself
                         \ is 128 pixels high, starting on row 24 and ending on
                         \ row 153
@@ -4448,7 +4448,7 @@
 .TT23_C
 
  LDA #128               \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 128 (Short-
+ JSR TT66_C               \ and set the current view type in QQ11 to 128 (Short-
                         \ range Chart)
 
  LDA #16                \ Switch to the mode 1 palette for the trade view, which
@@ -4462,7 +4462,7 @@
  STA XC
 
  LDA #190               \ Print recursive token 30 ("SHORT RANGE CHART") and
- JSR x4_NLIN3              \ draw a horizontal line at pixel row 19 to box in the
+ JSR NLIN3_C              \ draw a horizontal line at pixel row 19 to box in the
                         \ title
 
  JSR TT14_C               \ Call TT14 to draw a circle with crosshairs at the
@@ -5318,7 +5318,7 @@
                         \ rotating ship
 
  LDA #13                \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 13 (rotating
+ JSR TT66_C               \ and set the current view type in QQ11 to 13 (rotating
                         \ ship view)
 
  LDA #64                \ Set the main loop counter to 64, so the ship rotates
@@ -5453,7 +5453,7 @@
  STA INWK+31            \ any ideas of its own
 
  LDA #1                 \ Clear the top part of the screen, draw a border box,
- JSR x4_TT66               \ and set the current view type in QQ11 to 1
+ JSR TT66_C               \ and set the current view type in QQ11 to 1
 
  JSR x4_LL9                \ Draw the ship on screen to redisplay it
 
@@ -5656,5 +5656,1268 @@
  TAY
 
 .Dk3_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: FLKB
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Flush the keyboard buffer
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine does nothing in the BBC Master version of Elite. It does have a
+\ function in the disc and 6502SP versions, so the authors presumably just
+\ cleared out the FLKB routine for the Master version, rather than unplumbing it
+\ from the code.
+\
+\ ******************************************************************************
+
+.FLKB_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: NLIN3
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Print a title and draw a horizontal line at row 19 to box it in
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine print a text token at the cursor position and draws a horizontal
+\ line at pixel row 19. It is used for the Status Mode screen, the Short-range
+\ Chart, the Market Price screen and the Equip Ship screen.
+\
+\ ******************************************************************************
+
+.NLIN3_C
+
+ JSR TT27_C               \ Print the text token in A
+
+                        \ Fall through into NLIN4 to draw a horizontal line at
+                        \ pixel row 19
+
+\ ******************************************************************************
+\
+\       Name: NLIN4
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Draw a horizontal line at pixel row 19 to box in a title
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine is used on the Inventory screen to draw a horizontal line at
+\ pixel row 19 to box in the title.
+\
+\ ******************************************************************************
+
+.NLIN4_C
+
+ LDA #19                \ Jump to NLIN2 to draw a horizontal line at pixel row
+ BNE NLIN2_C              \ 19, returning from the subroutine with using a tail
+                        \ call (this BNE is effectively a JMP as A will never
+                        \ be zero)
+
+\ ******************************************************************************
+\
+\       Name: NLIN
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Draw a horizontal line at pixel row 23 to box in a title
+\
+\ ------------------------------------------------------------------------------
+\
+\ Draw a horizontal line at pixel row 23 and move the text cursor down one
+\ line.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   NLIN5               Move the text cursor down one line before drawing the
+\                       line
+\
+\ ******************************************************************************
+
+.NLIN_C
+
+ LDA #23                \ Set A = 23 so NLIN2 below draws a horizontal line at
+                        \ pixel row 23
+
+.NLIN5_C
+
+ INC YC                 \ Move the text cursor down one line
+
+                        \ Fall through into NLIN2 to draw the horizontal line
+                        \ at row 23
+
+\ ******************************************************************************
+\
+\       Name: NLIN2
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Draw a screen-wide horizontal line at the pixel row in A
+\
+\ ------------------------------------------------------------------------------
+\
+\ This draws a line from (2, A) to (254, A), which is almost screen-wide and
+\ fits in nicely between the border boxes without clashing with it.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The pixel row on which to draw the horizontal line
+\
+\ ******************************************************************************
+
+.NLIN2_C
+
+ STA Y1                 \ Set Y1 = A
+
+ LDA #YELLOW            \ Switch to colour 1, which is yellow
+ STA COL
+
+ LDX #2                 \ Set X1 = 2, so (X1, Y1) = (2, A)
+ STX X1
+
+ LDX #254               \ Set X2 = 254, so (X2, Y2) = (254, A)
+ STX X2
+
+ JSR x4_HLOIN3             \ Call HLOIN3 to draw a line from (2, A) to (254, A)
+
+ LDA #CYAN              \ Switch to colour 3, which is cyan or white
+ STA COL
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: HLOIN2
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Remove a line from the sun line heap and draw it on-screen
+\
+\ ------------------------------------------------------------------------------
+\
+\ Specifically, this does the following:
+\
+\   * Set X1 and X2 to the x-coordinates of the ends of the horizontal line with
+\     centre YY(1 0) and length A to the left and right
+\
+\   * Set the Y-th byte of the LSO block to 0 (i.e. remove this line from the
+\     sun line heap)
+\
+\   * Draw a horizontal line from (X1, Y) to (X2, Y)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   YY(1 0)             The x-coordinate of the centre point of the line
+\
+\   A                   The half-width of the line, i.e. the contents of the
+\                       Y-th byte of the sun line heap
+\
+\   Y                   The number of the entry in the sun line heap (which is
+\                       also the y-coordinate of the line)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   Y                   Y is preserved
+\
+\ ******************************************************************************
+
+.HLOIN2_C
+
+ JSR x4_EDGES              \ Call EDGES to calculate X1 and X2 for the horizontal
+                        \ line centred on YY(1 0) and with half-width A
+
+ STY Y1                 \ Set Y1 = Y
+
+ LDA #0                 \ Set the Y-th byte of the LSO block to 0
+ STA LSO,Y
+
+ JMP x4_HLOIN              \ Call HLOIN to draw a horizontal line from (X1, Y) to
+                        \ (X2, Y), returning from the subroutine using a tail
+                        \ call
+
+\ ******************************************************************************
+\
+\       Name: TENS
+\       Type: Variable
+\   Category: Text
+\    Summary: A constant used when printing large numbers in BPRNT
+\  Deep dive: Printing decimal numbers
+\
+\ ------------------------------------------------------------------------------
+\
+\ Contains the four low bytes of the value 100,000,000,000 (100 billion).
+\
+\ The maximum number of digits that we can print with the BPRNT routine is 11,
+\ so the biggest number we can print is 99,999,999,999. This maximum number
+\ plus 1 is 100,000,000,000, which in hexadecimal is:
+\
+\   17 48 76 E8 00
+\
+\ The TENS variable contains the lowest four bytes in this number, with the
+\ most significant byte first, i.e. 48 76 E8 00. This value is used in the
+\ BPRNT routine when working out which decimal digits to print when printing a
+\ number.
+\
+\ ******************************************************************************
+
+.TENS_C
+
+ EQUD &00E87648
+
+\ ******************************************************************************
+\
+\       Name: pr2
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Print an 8-bit number, left-padded to 3 digits, and optional point
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print the 8-bit number in X to 3 digits, left-padding with spaces for numbers
+\ with fewer than 3 digits (so numbers < 100 are right-aligned). Optionally
+\ include a decimal point.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   X                   The number to print
+\
+\   C flag              If set, include a decimal point
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   pr2+2               Print the 8-bit number in X to the number of digits in A
+\
+\ ******************************************************************************
+
+.pr2_C
+
+ LDA #3                 \ Set A to the number of digits (3)
+
+ LDY #0                 \ Zero the Y register, so we can fall through into TT11
+                        \ to print the 16-bit number (Y X) to 3 digits, which
+                        \ effectively prints X to 3 digits as the high byte is
+                        \ zero
+
+\ ******************************************************************************
+\
+\       Name: TT11
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Print a 16-bit number, left-padded to n digits, and optional point
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print the 16-bit number in (Y X) to a specific number of digits, left-padding
+\ with spaces for numbers with fewer digits (so lower numbers will be right-
+\ aligned). Optionally include a decimal point.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   X                   The low byte of the number to print
+\
+\   Y                   The high byte of the number to print
+\
+\   A                   The number of digits
+\
+\   C flag              If set, include a decimal point
+\
+\ ******************************************************************************
+
+.TT11_C
+
+ STA U                  \ We are going to use the BPRNT routine (below) to
+                        \ print this number, so we store the number of digits
+                        \ in U, as that's what BPRNT takes as an argument
+
+ LDA #0                 \ BPRNT takes a 32-bit number in K to K+3, with the
+ STA K                  \ most significant byte first (big-endian), so we set
+ STA K+1                \ the two most significant bytes to zero (K and K+1)
+ STY K+2                \ and store (Y X) in the least two significant bytes
+ STX K+3                \ (K+2 and K+3), so we are going to print the 32-bit
+                        \ number (0 0 Y X)
+
+                        \ Finally we fall through into BPRNT to print out the
+                        \ number in K to K+3, which now contains (Y X), to A
+                        \ digits (as U = A), using the same C flag as when pr2
+                        \ was called to control the decimal point
+
+\ ******************************************************************************
+\
+\       Name: BPRNT
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Print a 32-bit number, left-padded to a specific number of digits,
+\             with an optional decimal point
+\  Deep dive: Printing decimal numbers
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print the 32-bit number stored in K(0 1 2 3) to a specific number of digits,
+\ left-padding with spaces for numbers with fewer digits (so lower numbers are
+\ right-aligned). Optionally include a decimal point.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   K(0 1 2 3)          The number to print, stored with the most significant
+\                       byte in K and the least significant in K+3 (i.e. as a
+\                       big-endian number, which is the opposite way to how the
+\                       6502 assembler stores addresses, for example)
+\
+\   U                   The maximum number of digits to print, including the
+\                       decimal point (spaces will be used on the left to pad
+\                       out the result to this width, so the number is right-
+\                       aligned to this width). U must be 11 or less
+\
+\   C flag              If set, include a decimal point followed by one
+\                       fractional digit (i.e. show the number to 1 decimal
+\                       place). In this case, the number in K(0 1 2 3) contains
+\                       10 * the number we end up printing, so to print 123.4,
+\                       we would pass 1234 in K(0 1 2 3) and would set the C
+\                       flag to include the decimal point
+\
+\ ******************************************************************************
+
+.BPRNT_C
+
+ LDX #11                \ Set T to the maximum number of digits allowed (11
+ STX T                  \ characters, which is the number of digits in 10
+                        \ billion). We will use this as a flag when printing
+                        \ characters in TT37 below
+
+ PHP                    \ Make a copy of the status register (in particular
+                        \ the C flag) so we can retrieve it later
+
+ BCC TT30_C               \ If the C flag is clear, we do not want to print a
+                        \ decimal point, so skip the next two instructions
+
+ DEC T                  \ As we are going to show a decimal point, decrement
+ DEC U                  \ both the number of characters and the number of
+                        \ digits (as one of them is now a decimal point)
+
+.TT30_C
+
+ LDA #11                \ Set A to 11, the maximum number of digits allowed
+
+ SEC                    \ Set the C flag so we can do subtraction without the
+                        \ C flag affecting the result
+
+ STA XX17               \ Store the maximum number of digits allowed (11) in
+                        \ XX17
+
+ SBC U                  \ Set U = 11 - U + 1, so U now contains the maximum
+ STA U                  \ number of digits minus the number of digits we want
+ INC U                  \ to display, plus 1 (so this is the number of digits
+                        \ we should skip before starting to print the number
+                        \ itself, and the plus 1 is there to ensure we print at
+                        \ least one digit)
+
+ LDY #0                 \ In the main loop below, we use Y to count the number
+                        \ of times we subtract 10 billion to get the leftmost
+                        \ digit, so set this to zero
+
+ STY S                  \ In the main loop below, we use location S as an
+                        \ 8-bit overflow for the 32-bit calculations, so
+                        \ we need to set this to 0 before joining the loop
+
+ JMP TT36_C               \ Jump to TT36 to start the process of printing this
+                        \ number's digits
+
+.TT35_C
+
+                        \ This subroutine multiplies K(S 0 1 2 3) by 10 and
+                        \ stores the result back in K(S 0 1 2 3), using the fact
+                        \ that K * 10 = (K * 2) + (K * 2 * 2 * 2)
+
+ ASL K+3                \ Set K(S 0 1 2 3) = K(S 0 1 2 3) * 2 by rotating left
+ ROL K+2
+ ROL K+1
+ ROL K
+ ROL S
+
+ LDX #3                 \ Now we want to make a copy of the newly doubled K in
+                        \ XX15, so we can use it for the first (K * 2) in the
+                        \ equation above, so set up a counter in X for copying
+                        \ four bytes, starting with the last byte in memory
+                        \ (i.e. the least significant)
+
+.tt35_C
+
+ LDA K,X                \ Copy the X-th byte of K(0 1 2 3) to the X-th byte of
+ STA XX15,X             \ XX15(0 1 2 3), so that XX15 will contain a copy of
+                        \ K(0 1 2 3) once we've copied all four bytes
+
+ DEX                    \ Decrement the loop counter
+
+ BPL tt35_C               \ Loop back to copy the next byte until we have copied
+                        \ all four
+
+ LDA S                  \ Store the value of location S, our overflow byte, in
+ STA XX15+4             \ XX15+4, so now XX15(4 0 1 2 3) contains a copy of
+                        \ K(S 0 1 2 3), which is the value of (K * 2) that we
+                        \ want to use in our calculation
+
+ ASL K+3                \ Now to calculate the (K * 2 * 2 * 2) part. We still
+ ROL K+2                \ have (K * 2) in K(S 0 1 2 3), so we just need to shift
+ ROL K+1                \ it twice. This is the first one, so we do this:
+ ROL K                  \
+ ROL S                  \   K(S 0 1 2 3) = K(S 0 1 2 3) * 2 = K * 4
+
+ ASL K+3                \ And then we do it again, so that means:
+ ROL K+2                \
+ ROL K+1                \   K(S 0 1 2 3) = K(S 0 1 2 3) * 2 = K * 8
+ ROL K
+ ROL S
+
+ CLC                    \ Clear the C flag so we can do addition without the
+                        \ C flag affecting the result
+
+ LDX #3                 \ By now we've got (K * 2) in XX15(4 0 1 2 3) and
+                        \ (K * 8) in K(S 0 1 2 3), so the final step is to add
+                        \ these two 32-bit numbers together to get K * 10.
+                        \ So we set a counter in X for four bytes, starting
+                        \ with the last byte in memory (i.e. the least
+                        \ significant)
+
+.tt36_C
+
+ LDA K,X                \ Fetch the X-th byte of K into A
+
+ ADC XX15,X             \ Add the X-th byte of XX15 to A, with carry
+
+ STA K,X                \ Store the result in the X-th byte of K
+
+ DEX                    \ Decrement the loop counter
+
+ BPL tt36_C               \ Loop back to add the next byte, moving from the least
+                        \ significant byte to the most significant, until we
+                        \ have added all four
+
+ LDA XX15+4             \ Finally, fetch the overflow byte from XX15(4 0 1 2 3)
+
+ ADC S                  \ And add it to the overflow byte from K(S 0 1 2 3),
+                        \ with carry
+
+ STA S                  \ And store the result in the overflow byte from
+                        \ K(S 0 1 2 3), so now we have our desired result, i.e.
+                        \
+                        \   K(S 0 1 2 3) = K(S 0 1 2 3) * 10
+
+ LDY #0                 \ In the main loop below, we use Y to count the number
+                        \ of times we subtract 10 billion to get the leftmost
+                        \ digit, so set this to zero so we can rejoin the main
+                        \ loop for another subtraction process
+
+.TT36_C
+
+                        \ This is the main loop of our digit-printing routine.
+                        \ In the following loop, we are going to count the
+                        \ number of times that we can subtract 10 million and
+                        \ store that count in Y, which we have already set to 0
+
+ LDX #3                 \ Our first calculation concerns 32-bit numbers, so
+                        \ set up a counter for a four-byte loop
+
+ SEC                    \ Set the C flag so we can do subtraction without the
+                        \ C flag affecting the result
+
+.tt37_C
+
+                        \ We now loop through each byte in turn to do this:
+                        \
+                        \   XX15(4 0 1 2 3) = K(S 0 1 2 3) - 100,000,000,000
+
+ LDA K,X                \ Subtract the X-th byte of TENS (i.e. 10 billion) from
+ SBC TENS_C,X             \ the X-th byte of K
+
+ STA XX15,X             \ Store the result in the X-th byte of XX15
+
+ DEX                    \ Decrement the loop counter
+
+ BPL tt37_C               \ Loop back to subtract the next byte, moving from the
+                        \ least significant byte to the most significant, until
+                        \ we have subtracted all four
+
+ LDA S                  \ Subtract the fifth byte of 10 billion (i.e. &17) from
+ SBC #&17               \ the fifth (overflow) byte of K, which is S
+
+ STA XX15+4             \ Store the result in the overflow byte of XX15
+
+ BCC TT37_C               \ If subtracting 10 billion took us below zero, jump to
+                        \ TT37 to print out this digit, which is now in Y
+
+ LDX #3                 \ We now want to copy XX15(4 0 1 2 3) back into
+                        \ K(S 0 1 2 3), so we can loop back up to do the next
+                        \ subtraction, so set up a counter for a four-byte loop
+
+.tt38_C
+
+ LDA XX15,X             \ Copy the X-th byte of XX15(0 1 2 3) to the X-th byte
+ STA K,X                \ of K(0 1 2 3), so that K(0 1 2 3) will contain a copy
+                        \ of XX15(0 1 2 3) once we've copied all four bytes
+
+ DEX                    \ Decrement the loop counter
+
+ BPL tt38_C               \ Loop back to copy the next byte, until we have copied
+                        \ all four
+
+ LDA XX15+4             \ Store the value of location XX15+4, our overflow
+ STA S                  \ byte in S, so now K(S 0 1 2 3) contains a copy of
+                        \ XX15(4 0 1 2 3)
+
+ INY                    \ We have now managed to subtract 10 billion from our
+                        \ number, so increment Y, which is where we are keeping
+                        \ a count of the number of subtractions so far
+
+ JMP TT36_C               \ Jump back to TT36 to subtract the next 10 billion
+
+.TT37_C
+
+ TYA                    \ If we get here then Y contains the digit that we want
+                        \ to print (as Y has now counted the total number of
+                        \ subtractions of 10 billion), so transfer Y into A
+
+ BNE TT32_C               \ If the digit is non-zero, jump to TT32 to print it
+
+ LDA T                  \ Otherwise the digit is zero. If we are already
+                        \ printing the number then we will want to print a 0,
+                        \ but if we haven't started printing the number yet,
+                        \ then we probably don't, as we don't want to print
+                        \ leading zeroes unless this is the only digit before
+                        \ the decimal point
+                        \
+                        \ To help with this, we are going to use T as a flag
+                        \ that tells us whether we have already started
+                        \ printing digits:
+                        \
+                        \   * If T <> 0 we haven't printed anything yet
+                        \
+                        \   * If T = 0 then we have started printing digits
+                        \
+                        \ We initially set T above to the maximum number of
+                        \ characters allowed, less 1 if we are printing a
+                        \ decimal point, so the first time we enter the digit
+                        \ printing routine at TT37, it is definitely non-zero
+
+ BEQ TT32_C               \ If T = 0, jump straight to the print routine at TT32,
+                        \ as we have already started printing the number, so we
+                        \ definitely want to print this digit too
+
+ DEC U                  \ We initially set U to the number of digits we want to
+ BPL TT34_C               \ skip before starting to print the number. If we get
+                        \ here then we haven't printed any digits yet, so
+                        \ decrement U to see if we have reached the point where
+                        \ we should start printing the number, and if not, jump
+                        \ to TT34 to set up things for the next digit
+
+ LDA #' '               \ We haven't started printing any digits yet, but we
+ BNE tt34_C               \ have reached the point where we should start printing
+                        \ our number, so call TT26 (via tt34) to print a space
+                        \ so that the number is left-padded with spaces (this
+                        \ BNE is effectively a JMP as A will never be zero)
+
+.TT32_C
+
+ LDY #0                 \ We are printing an actual digit, so first set T to 0,
+ STY T                  \ to denote that we have now started printing digits as
+                        \ opposed to spaces
+
+ CLC                    \ The digit value is in A, so add ASCII "0" to get the
+ ADC #'0'               \ ASCII character number to print
+
+.tt34_C
+
+ JSR x4_TT26               \ Call TT26 to print the character in A and fall through
+                        \ into TT34 to get things ready for the next digit
+
+.TT34_C
+
+ DEC T                  \ Decrement T but keep T >= 0 (by incrementing it
+ BPL P%+4               \ again if the above decrement made T negative)
+ INC T
+
+ DEC XX17               \ Decrement the total number of characters left to
+                        \ print, which we stored in XX17
+
+ BMI rT10_C               \ If the result is negative, we have printed all the
+                        \ characters, so jump down to rT10 to return from the
+                        \ subroutine
+
+ BNE P%+10              \ If the result is positive (> 0) then we still have
+                        \ characters left to print, so loop back to TT35 (via
+                        \ the JMP TT35 instruction below) to print the next
+                        \ digit
+
+ PLP                    \ If we get here then we have printed the exact number
+                        \ of digits that we wanted to, so restore the C flag
+                        \ that we stored at the start of the routine
+
+ BCC P%+7               \ If the C flag is clear, we don't want a decimal point,
+                        \ so loop back to TT35 (via the JMP TT35 instruction
+                        \ below) to print the next digit
+
+ LDA #'.'               \ Otherwise the C flag is set, so print the decimal
+ JSR x4_TT26               \ point
+
+ JMP TT35_C               \ Loop back to TT35 to print the next digit
+
+.rT10_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: ESCAPE
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Launch our escape pod
+\
+\ ------------------------------------------------------------------------------
+\
+\ This routine displays our doomed Cobra Mk III disappearing off into the ether
+\ before arranging our replacement ship. Called when we press ESCAPE during
+\ flight and have an escape pod fitted.
+\
+\ ******************************************************************************
+
+.ESCAPE_C
+
+ JSR RES2_C               \ Reset a number of flight variables and workspaces
+
+ LDX #CYL               \ Set the current ship type to a Cobra Mk III, so we
+ STX TYPE               \ can show our ship disappear into the distance when we
+                        \ eject in our pod
+
+ JSR x4_FRS1               \ Call FRS1 to launch the Cobra Mk III straight ahead,
+                        \ like a missile launch, but with our ship instead
+
+ BCS ES1_C                \ If the Cobra was successfully added to the local
+                        \ bubble, jump to ES1 to skip the following instructions
+
+ LDX #CYL2              \ The Cobra wasn't added to the local bubble for some
+ JSR x4_FRS1               \ reason, so try launching a pirate Cobra Mk III instead
+
+.ES1_C
+
+ LDA #8                 \ Set the Cobra's byte #27 (speed) to 8
+ STA INWK+27
+
+ LDA #194               \ Set the Cobra's byte #30 (pitch counter) to 194, so it
+ STA INWK+30            \ pitches up as we pull away
+
+ LSR A                  \ Set the Cobra's byte #32 (AI flag) to %01100001, so it
+ STA INWK+32            \ has no AI, and we can use this value as a counter to
+                        \ do the following loop 97 times
+
+.ESL1_C
+
+ JSR x4_MVEIT              \ Call MVEIT to move the Cobra in space
+
+ LDA QQ11               \ If either of QQ11 or VIEW is non-zero (i.e. this is
+ ORA VIEW               \ not the front space view), skip the following
+ BNE P%+5               \ instruction
+
+ JSR x4_LL9                \ Call LL9 to draw the Cobra on-screen
+
+ DEC INWK+32            \ Decrement the counter in byte #32
+
+ BNE ESL1_C               \ Loop back to keep moving the Cobra until the AI flag
+                        \ is 0, which gives it time to drift away from our pod
+
+ JSR x4_SCAN               \ Call SCAN to remove the Cobra from the scanner (by
+                        \ redrawing it)
+
+ LDA #0                 \ Set A = 0 so we can use it to zero the contents of
+                        \ the cargo hold
+
+ LDX #16                \ We lose all our cargo when using our escape pod, so
+                        \ up a counter in X so we can zero the 17 cargo slots
+                        \ in QQ20
+
+.ESL2_C
+
+ STA QQ20,X             \ Set the X-th byte of QQ20 to zero, so we no longer
+                        \ have any of item type X in the cargo hold
+
+ DEX                    \ Decrement the counter
+
+ BPL ESL2_C               \ Loop back to ESL2 until we have emptied the entire
+                        \ cargo hold
+
+ STA FIST               \ Launching an escape pod also clears our criminal
+                        \ record, so set our legal status in FIST to 0 ("clean")
+
+ STA ESCP               \ The escape pod is a one-use item, so set ESCP to 0 so
+                        \ we no longer have one fitted
+
+\LDA TRIBBLE            \ These instructions are commented out in the original
+\ORA TRIBBLE+1          \ source
+\BEQ nosurviv           \
+\                       \ They ensure that in games with the Trumble mission,
+\JSR DORND              \ at least one Trumble will hitch a ride in the escape
+\AND #7                 \ pod (so using an escape pod is not a solution to the
+\ORA #1                 \ trouble with Trumbles)
+\STA TRIBBLE            \
+\LDA #0                 \ This version of Elite does not contain the Trumble
+\STA TRIBBLE+1          \ mission, so the code is disabled
+\
+\.nosurviv
+
+ LDA #70                \ Our replacement ship is delivered with a full tank of
+ STA QQ14               \ fuel, so set the current fuel level in QQ14 to 70, or
+                        \ 7.0 light years
+
+ JMP j4_GOIN               \ Go to the docking bay (i.e. show the ship hangar
+                        \ screen) and return from the subroutine with a tail
+                        \ call
+
+\ ******************************************************************************
+\
+\       Name: SWAPPZERO
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: An unused routine that swaps bytes in and out of zero page
+\
+\ ******************************************************************************
+
+.SWAPPZERO_C
+
+ LDX #K3+1              \ This routine starts copying zero page from the byte
+                        \ after K3 and up, using X as an index
+
+.SWPZL_C
+
+ LDA ZP,X               \ These instructions have no effect, as they simply swap
+ LDY ZP,X               \ a byte with itself
+ STA ZP,X
+ STY ZP,X
+
+ INX                    \ Increment the loop counter
+
+ BNE SWPZL_C              \ Loop back for the next byte
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: BAD
+\       Type: Subroutine
+\   Category: Status
+\    Summary: Calculate how bad we have been
+\
+\ ------------------------------------------------------------------------------
+\
+\ Work out how bad we are from the amount of contraband in our hold. The
+\ formula is:
+\
+\   (slaves + narcotics) * 2 + firearms
+\
+\ so slaves and narcotics are twice as illegal as firearms. The value in FIST
+\ (our legal status) is set to at least this value whenever we launch from a
+\ space station, and a FIST of 50 or more gives us fugitive status, so leaving a
+\ station carrying 25 tonnes of slaves/narcotics, or 50 tonnes of firearms
+\ across multiple trips, is enough to make us a fugitive.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   A                   A value that determines how bad we are from the amount
+\                       of contraband in our hold
+\
+\ ******************************************************************************
+
+.BAD_C
+
+ LDA QQ20+3             \ Set A to the number of tonnes of slaves in the hold
+
+ CLC                    \ Clear the C flag so we can do addition without the
+                        \ C flag affecting the result
+
+ ADC QQ20+6             \ Add the number of tonnes of narcotics in the hold
+
+ ASL A                  \ Double the result and add the number of tonnes of
+ ADC QQ20+10            \ firearms in the hold
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: TT217
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Scan the keyboard until a key is pressed
+\
+\ ------------------------------------------------------------------------------
+\
+\ Scan the keyboard until a key is pressed, and return the key's ASCII code.
+\ If, on entry, a key is already being held down, then wait until that key is
+\ released first (so this routine detects the first key down event following
+\ the subroutine call).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   X                   The ASCII code of the key that was pressed
+\
+\   A                   Contains the same as X
+\
+\   Y                   Y is preserved
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   out                 Contains an RTS
+\
+\   t                   As TT217 but don't preserve Y, set it to YSAV instead
+\
+\ ******************************************************************************
+
+.TT217_C
+
+ STY YSAV               \ Store Y in temporary storage, so we can restore it
+                        \ later
+
+.t_C
+
+ LDY #2                 \ Wait for 2/50 of a second (0.04 seconds) to implement
+ JSR x4_DELAY              \ a simple keyboard debounce and prevent multiple key
+                        \ presses being recorded
+
+ JSR x4_RDKEY              \ Scan the keyboard for a key press and return the
+                        \ ASCII code of the key pressed in A and X (or 0 for no
+                        \ key press)
+
+ BNE t_C                  \ If a key was already being held down when we entered
+                        \ this routine, keep looping back up to t, until the
+                        \ key is released
+
+.t2_C
+
+ JSR x4_RDKEY              \ Any pre-existing key press is now gone, so we can
+                        \ start scanning the keyboard again, returning the
+                        \ ASCII code of the key pressed in X (or 0 for no key
+                        \ press)
+
+ BEQ t2_C                 \ Keep looping up to t2 until a key is pressed
+
+ LDY YSAV               \ Restore the original value of Y we stored above
+
+ TAX                    \ Copy A into X
+
+.out_C
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: me1
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Erase an old in-flight message and display a new one
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The text token to be printed
+\
+\   X                   Must be set to 0
+\
+\ ******************************************************************************
+
+.me1_C
+
+ STX DLY                \ Set the message delay in DLY to 0, so any new
+                        \ in-flight messages will be shown instantly
+
+ PHA                    \ Store the new message token we want to print
+
+ LDA #YELLOW            \ Switch to colour 1, which is yellow
+ STA COL
+
+ LDA MCH                \ Set A to the token number of the message that is
+ JSR mes9_C               \ currently on-screen, and call mes9 to print it (which
+                        \ will remove it from the screen, as printing is done
+                        \ using EOR logic)
+
+ PLA                    \ Restore the new message token
+
+\ ******************************************************************************
+\
+\       Name: MESS
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Display an in-flight message
+\
+\ ------------------------------------------------------------------------------
+\
+\ Display an in-flight message in capitals at the bottom of the space view,
+\ erasing any existing in-flight message first.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The text token to be printed
+\
+\ ******************************************************************************
+
+.MESS_C
+
+ PHA                    \ Store A on the stack so we can restore it after the
+                        \ following
+
+ LDX QQ11               \ If this is the space view, skip the following
+ BEQ infrontvw_C          \ instruction
+
+ JSR x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+                        \ and move the text cursor to the first cleared row
+
+.infrontvw_C
+
+ LDA #21                \ Move the text cursor to row 21
+ STA YC
+
+ LDA #YELLOW            \ Switch to colour 1, which is yellow
+ STA COL
+
+ LDX #0                 \ Set QQ17 = 0 to switch to ALL CAPS
+ STX QQ17
+
+ LDA messXC             \ Move the text cursor to column messXC, in case we
+ STA XC                 \ jump to me1 below to erase the current in-flight
+                        \ message (whose column we stored in messXC when we
+                        \ called MESS to put it there in the first place)
+
+ PLA                    \ Restore A from the stack
+
+ LDY #20                \ Set Y = 20 for setting the message delay below
+
+ CPX DLY                \ If the message delay in DLY is not zero, jump up to
+ BNE me1_C                \ me1 to erase the current message first (whose token
+                        \ number will be in MCH)
+
+ STY DLY                \ Set the message delay in DLY to 20
+
+ STA MCH                \ Set MCH to the token we are about to display
+
+                        \ Before we fall through into mes9 to print the token,
+                        \ we need to work out the starting column for the
+                        \ message we want to print, so it's centred on-screen,
+                        \ so the following doesn't print anything, it just uses
+                        \ the justified text mechanism to work out the number of
+                        \ characters in the message we are going to print
+
+ LDA #%11000000         \ Set the DTW4 flag to %11000000 (justify text, buffer
+ STA DTW4               \ entire token including carriage returns)
+
+ LDA de                 \ Set the C flag to bit 1 of the destruction flag in de
+ LSR A
+
+ LDA #0                 \ Set A = 0
+
+ BCC P%+4               \ If the destruction flag in de is not set, skip the
+                        \ following instruction
+
+ LDA #10                \ Set A = 10
+
+ STA DTW5               \ Store A in DTW5, so DTW5 (which holds the size of the
+                        \ justified text buffer at BUF) is set to 0 if the
+                        \ destruction flag is not set, or 10 if it is (10 being
+                        \ the number of characters in the " DESTROYED" token)
+
+ LDA MCH                \ Call TT27 to print the token in MCH into the buffer
+ JSR TT27_C               \ (this doesn't print it on-screen, it just puts it into
+                        \ the buffer and moves the DTW5 pointer along, so DTW5
+                        \ now contains the size of the message we want to print,
+                        \ including the " DESTROYED" part if that's going to be
+                        \ included)
+
+ LDA #32                \ Set A = (32 - DTW5) / 2
+ SEC                    \
+ SBC DTW5               \ so A now contains the column number we need to print
+ LSR A                  \ our message at for it to be centred on-screen (as
+                        \ there are 32 columns)
+
+ STA messXC             \ Store A in messXC, so when we erase the message via
+                        \ the branch to me1 above, messXC will tell us where to
+                        \ print it
+
+ STA XC                 \ Move the text cursor to column messXC
+
+ JSR MT15_C               \ Call MT15 to switch to left-aligned text when printing
+                        \ extended tokens, disabling the justify text setting we
+                        \ set above
+
+ LDA MCH                \ Set MCH to the token we are about to display
+
+                        \ Fall through into mes9 to print the token in A
+
+\ ******************************************************************************
+\
+\       Name: mes9
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Print a text token, possibly followed by " DESTROYED"
+\
+\ ------------------------------------------------------------------------------
+\
+\ Print a text token, followed by " DESTROYED" if the destruction flag is set
+\ (for when a piece of equipment is destroyed).
+\
+\ ******************************************************************************
+
+.mes9_C
+
+ JSR TT27_C               \ Call TT27 to print the text token in A
+
+ LSR de                 \ If bit 0 of variable de is clear, return from the
+ BCC out_C                \ subroutine (as out contains an RTS)
+
+ LDA #253               \ Print recursive token 93 (" DESTROYED") and return
+ JMP TT27_C               \ from the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: OUCH
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Potentially lose cargo or equipment following damage
+\
+\ ------------------------------------------------------------------------------
+\
+\ Our shields are dead and we are taking damage, so there is a small chance of
+\ losing cargo or equipment.
+\
+\ ******************************************************************************
+
+.OUCH_C
+
+ JSR x4_DORND              \ Set A and X to random numbers
+
+ BMI out_C                \ If A < 0 (50% chance), return from the subroutine
+                        \ (as out contains an RTS)
+
+ CPX #22                \ If X >= 22 (91% chance), return from the subroutine
+ BCS out_C                \ (as out contains an RTS)
+
+ LDA QQ20,X             \ If we do not have any of item QQ20+X, return from the
+ BEQ out_C                \ subroutine (as out contains an RTS). X is in the range
+                        \ 0-21, so this not only checks for cargo, but also for
+                        \ E.C.M., fuel scoops, energy bomb, energy unit and
+                        \ docking computer, all of which can be destroyed
+
+ LDA DLY                \ If there is already an in-flight message on-screen,
+ BNE out_C                \ return from the subroutine (as out contains an RTS)
+
+ LDY #3                 \ Set bit 1 of de, the equipment destruction flag, so
+ STY de                 \ that when we call MESS below, " DESTROYED" is appended
+                        \ to the in-flight message
+
+ STA QQ20,X             \ A is 0 (as we didn't branch with the BNE above), so
+                        \ this sets QQ20+X to 0, which destroys any cargo or
+                        \ equipment we have of that type
+
+ CPX #17                \ If X >= 17 then we just lost a piece of equipment, so
+ BCS ou1_C                \ jump to ou1 to print the relevant message
+
+ TXA                    \ Print recursive token 48 + A as an in-flight token,
+ ADC #208               \ which will be in the range 48 ("FOOD") to 64 ("ALIEN
+ JMP MESS_C               \ ITEMS") as the C flag is clear, so this prints the
+                        \ destroyed item's name, followed by " DESTROYED" (as we
+                        \ set bit 1 of the de flag above), and returns from the
+                        \ subroutine using a tail call
+
+.ou1_C
+
+ BEQ ou2_C                \ If X = 17, jump to ou2 to print "E.C.M.SYSTEM
+                        \ DESTROYED" and return from the subroutine using a tail
+                        \ call
+
+ CPX #18                \ If X = 18, jump to ou3 to print "FUEL SCOOPS
+ BEQ ou3_C                \ DESTROYED" and return from the subroutine using a tail
+                        \ call
+
+ TXA                    \ Otherwise X is in the range 19 to 21 and the C flag is
+ ADC #113-20            \ set (as we got here via a BCS to ou1), so we set A as
+                        \ follows:
+                        \
+                        \   A = 113 - 20 + X + C
+                        \     = 113 - 19 + X
+                        \     = 113 to 115
+
+ JMP MESS_C               \ Print recursive token A ("ENERGY BOMB", "ENERGY UNIT"
+                        \ or "DOCKING COMPUTERS") as an in-flight message,
+                        \ followed by " DESTROYED", and return from the
+                        \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: ou2
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Display "E.C.M.SYSTEM DESTROYED" as an in-flight message
+\
+\ ******************************************************************************
+
+.ou2_C
+
+ LDA #108               \ Set A to recursive token 108 ("E.C.M.SYSTEM")
+
+ JMP MESS_C               \ Print recursive token A as an in-flight message,
+                        \ followed by " DESTROYED", and return from the
+                        \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: ou3
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Display "FUEL SCOOPS DESTROYED" as an in-flight message
+\
+\ ******************************************************************************
+
+.ou3_C
+
+ LDA #111               \ Set A to recursive token 111 ("FUEL SCOOPS")
+
+ JMP MESS_C               \ Print recursive token A as an in-flight message,
+                        \ followed by " DESTROYED", and return from the
+                        \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: TT66
+\       Type: Subroutine
+\   Category: Drawing the screen
+\    Summary: Clear the screen and set the current view type
+\
+\ ------------------------------------------------------------------------------
+\
+\ Clear the top part of the screen, draw a border box, and set the current
+\ view type in QQ11 to A.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The type of the new current view (see QQ11 for a list of
+\                       view types)
+\
+\ ******************************************************************************
+
+.TT66_C
+
+ STA QQ11               \ Set the current view type in QQ11 to A
+
+                        \ Fall through into TTX66K to clear the screen and draw
+                        \ a border box
+
+\ ******************************************************************************
+\
+\       Name: TTX66K
+\       Type: Subroutine
+\   Category: Drawing the screen
+\    Summary: Clear the top part of the screen, draw a border box and configure
+\             the specified view
+\
+\ ------------------------------------------------------------------------------
+\
+\ Clear the top part of the screen (the space view) and draw a border box
+\ along the top and sides.
+\
+\ ******************************************************************************
+
+.TTX66K_C
+
+ JSR x4_TTX66              \ Call TTX66 to clear the top part of the screen and
+                        \ draw a border box
+
+ JSR MT2_C                \ Switch to Sentence Case when printing extended tokens
+
+ LDA #0                 \ Reset the ball line heap pointer at LSP
+ STA LSP
+
+ LDA #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case
+ STA QQ17
+
+ STA DTW2               \ Set bit 7 of DTW2 to indicate we are not currently
+                        \ printing a word
+
+ JSR x4_FLFLLS             \ Call FLFLLS to reset the LSO block
+
+ LDA #0                 \ Set LAS2 = 0 to stop any laser pulsing
+ STA LAS2
+
+ STA DLY                \ Set the delay in DLY to 0, to indicate that we are
+                        \ no longer showing an in-flight message, so any new
+                        \ in-flight messages will be shown instantly
+
+ STA de                 \ Clear de, the flag that appends " DESTROYED" to the
+                        \ end of the next text token, so that it doesn't
+
+ LDX QQ22+1             \ Fetch into X the number that's shown on-screen during
+                        \ the hyperspace countdown
+
+ BEQ P%+5               \ If the counter is zero then we are not counting down
+                        \ to hyperspace, so skip the next instruction
+
+ JSR ee3_C                \ Print the 8-bit number in X at text location (0, 1),
+                        \ i.e. print the hyperspace countdown in the top-left
+                        \ corner
+
+ LDA QQ11               \ If this is not a space view, jump to tt66 to skip
+ BNE tt66_C               \ displaying the view name
+
+ LDA #11                \ Move the text cursor to column 11
+ STA XC
+
+ LDA #CYAN              \ Switch to colour 3, which is cyan in the space view
+ STA COL
+
+ LDA VIEW               \ Load the current view into A:
+                        \
+                        \   0 = front
+                        \   1 = rear
+                        \   2 = left
+                        \   3 = right
+
+ ORA #&60               \ OR with &60 so we get a value of &60 to &63 (96 to 99)
+
+ JSR TT27_C               \ Print recursive token 96 to 99, which will be in the
+                        \ range "FRONT" to "RIGHT"
+
+ JSR TT162_C              \ Print a space
+
+ LDA #175               \ Print recursive token 15 ("VIEW ")
+ JSR TT27_C
+
+.tt66_C
+
+ LDX #0                 \ Set QQ17 = 0 to switch to ALL CAPS
+ STX QQ17
 
  RTS                    \ Return from the subroutine

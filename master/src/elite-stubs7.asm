@@ -234,3 +234,31 @@
 .hyp
  JSR far7
  EQUW hyp_C
+
+.BAD
+ JSR far7
+ EQUW BAD_C
+
+.ESCAPE
+ JSR far7
+ EQUW ESCAPE_C
+
+.HLOIN2
+ JSR far7
+ EQUW HLOIN2_C
+
+.MESS
+ JSR far7
+ EQUW MESS_C
+
+.OUCH
+ JSR far7
+ EQUW OUCH_C
+
+.TT66
+ JSR far7
+ EQUW TT66_C
+
+.t
+ JSR far7
+ EQUW t_C

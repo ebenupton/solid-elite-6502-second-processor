@@ -39,24 +39,12 @@
  JSR far4
  EQUW MULTU
 
-.x4_NLIN3
- JSR far4
- EQUW NLIN3
-
-.x4_NLIN4
- JSR far4
- EQUW NLIN4
 
 
 
-.x4_TT11
- JSR far4
- EQUW TT11
 
 
-.x4_TT217
- JSR far4
- EQUW TT217
+
 
 .x4_TT26
  JSR far4
@@ -64,9 +52,6 @@
 
 
 
-.x4_TT66
- JSR far4
- EQUW TT66
 
 
 
@@ -75,20 +60,11 @@
  JSR far4
  EQUW msblob
 
-.x4_pr2
- JSR far4
- EQUW pr2
-
-.x4_pr2_p2
- JSR far4
- EQUW pr2+2
 
 
 
 
-.x4_BPRNT
- JSR far4
- EQUW BPRNT
+
 
 
 
@@ -118,9 +94,6 @@
  JSR far4
  EQUW FLFLLS
 
-.x4_FLKB
- JSR far4
- EQUW FLKB
 
 .x4_HLOIN3
  JSR far4
@@ -134,13 +107,7 @@
  JSR far4
  EQUW LOIN
 
-.x4_NLIN
- JSR far4
- EQUW NLIN
 
-.x4_NLIN5
- JSR far4
- EQUW NLIN5
 
 .x4_PIXEL
  JSR far4
@@ -214,9 +181,6 @@
  EQUW ZINF
 
 
-.x4_t
- JSR far4
- EQUW t
 
 \ (x4_RDFIRE, x4_SHIFT and x4_CTRLmc, used only by the Master Compact's code,
 \ would be here: RDFIRE, SHIFT and CTRLmc are not assembled for SNG47)
@@ -229,9 +193,6 @@
  JSR far4
  EQUW ADD
 
-.x4_BAD
- JSR far4
- EQUW BAD
 
 .x4_CTRL
  JSR far4
@@ -250,9 +211,6 @@
  JSR far4
  EQUW MAS2
 
-.x4_MESS
- JSR far4
- EQUW MESS
 
 .x4_NOISE
  JSR far4
@@ -277,3 +235,23 @@
 .x4_m
  JSR far4
  EQUW m
+
+.j4_GOIN
+ JSR far4j
+ EQUW GOIN
+
+.x4_EDGES
+ JSR far4
+ EQUW EDGES
+
+.x4_FRS1
+ JSR far4
+ EQUW FRS1
+
+.x4_HLOIN
+ JSR far4
+ EQUW HLOIN
+
+.x4_SCAN
+ JSR far4
+ EQUW SCAN
