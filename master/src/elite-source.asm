@@ -10049,14 +10049,13 @@ ENDMACRO
 
                         \ Port: the product by quarter squares (the tables QSL
                         \ and QSH, elite-hi.asm), with exactly the original's
-                        \ results: (A P) = P * X (X = 0: P * 256), T = X - 1,
+                        \ results: (A P) = P * X (X = 1..255), T = X - 1,
                         \ X = 0, Y kept, C clear (callers use it)
 
- DEX                    \ Set T = X - 1
- STX T
-
- INX                    \ If X = 0, jump to mu0 (the original treats X = 0 as
- BEQ mu0                \ 256)
+ DEX                    \ Set T = X - 1 (X is never 0 here: both entries,
+ STX T                  \ SQUA2's BNE and MULTU's fall-through after BEQ MU1,
+                        \ guarantee X <> 0, and X is not read again before
+                        \ the TAX below)
 
  PHY                    \ Keep Y
 
