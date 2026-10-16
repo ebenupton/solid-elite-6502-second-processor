@@ -5764,9 +5764,10 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
 .LL51
 
- LDX #0                 \ Set X = 0, which will contain the offset of the vector
-                        \ to use in the calculation, increasing by 6 for each
-                        \ new vector
+ LDX #256-18            \ Set X = -18, which will contain the offset of the
+                        \ vector to use in the calculation (relative to
+                        \ XX16+18, wrapping within zero page), increasing by 6
+                        \ for each new vector until it wraps to 0
 
  LDY #0                 \ Set Y = 0, which will contain the offset of the
                         \ result bytes in XX12, increasing by 2 for each new
@@ -5777,45 +5778,40 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA XX15               \ Set Q = x_lo
  STA Q
 
- LDA XX16,X             \ Set A = |sidev_x|
+ LDA XX16+18,X          \ Set A = |sidev_x|
 
- JSR FMLTU              \ Set T = A * Q / 256
- STA T                  \       = |sidev_x| * x_lo / 256
+ JSR FMLTU              \ Set R = A * Q / 256
+ STA R                  \       = |sidev_x| * x_lo / 256
 
  LDA XX15+1             \ Set S to the sign of x_sign * sidev_x
- EOR XX16+1,X
+ EOR XX16+19,X
  STA S
 
  LDA XX15+2             \ Set Q = y_lo
  STA Q
 
- LDA XX16+2,X           \ Set A = |sidev_y|
+ LDA XX16+20,X          \ Set A = |sidev_y|
 
  JSR FMLTU              \ Set Q = A * Q / 256
  STA Q                  \       = |sidev_y| * y_lo / 256
 
- LDA T                  \ Set R = T
- STA R                  \       = |sidev_x| * x_lo / 256
-
  LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
- EOR XX16+3,X
+ EOR XX16+21,X
 
  JSR LL38               \ Set (S T) = (S R) + (A Q)
  STA T                  \           = |sidev_x| * x_lo + |sidev_y| * y_lo
+ STA R                  \ Set R = T
 
  LDA XX15+4             \ Set Q = z_lo
  STA Q
 
- LDA XX16+4,X           \ Set A = |sidev_z|
+ LDA XX16+22,X          \ Set A = |sidev_z|
 
  JSR FMLTU              \ Set Q = A * Q / 256
  STA Q                  \       = |sidev_z| * z_lo / 256
 
- LDA T                  \ Set R = T
- STA R                  \       = |sidev_x| * x_lo + |sidev_y| * y_lo
-
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
- EOR XX16+5,X
+ EOR XX16+23,X
 
  JSR LL38               \ Set (S A) = (S R) + (A Q)
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
@@ -5833,8 +5829,7 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  ADC #6
  TAX
 
- CMP #17                \ If X < 17, loop back to ll51 for the next vector
- BCC ll51
+ BCC ll51               \ Loop back to ll51 until X wraps from -6 to 0 (C set)
 
  RTS                    \ Return from the subroutine
 
