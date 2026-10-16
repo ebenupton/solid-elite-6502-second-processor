@@ -2007,14 +2007,13 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 \ whose pixels something overwrote this frame
 
 .f_text2
- LDX #0
+ LDX #23                \ rows 23..0 (order is immaterial: rows are independent)
 .ft21
  LDA F_TMR,X            \ skip empty rows in a tight loop
  BNE ft2r
 .ft29
- INX
- CPX #24
- BCC ft21
+ DEX
+ BPL ft21
  RTS
 .ft2r
  STX fz_i
@@ -2056,23 +2055,17 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  INY
  CPY fz_n
  BCC ft22
- LDA f_wl               \ as cell columns: wl DIV 8 .. wr DIV 8
+ LDA f_wr               \ as cell columns: wl DIV 8 .. wr DIV 8
+ BEQ ft26               \ nothing written in this row: f_wr = 0 and f_wl
+ LSR A                  \ is still 255 (every store to f_wl comes with a
+ LSR A                  \ nonzero store to f_wr), so leave them as they are
+ LSR A
+ STA f_wr
+ LDA f_wl
  LSR A
  LSR A
  LSR A
  STA f_wl
- LDA f_wr
- BEQ ft25
- LSR A
- LSR A
- LSR A
- STA f_wr
- JMP ft26
-.ft25
- LDA #255               \ nothing written in this row
- STA f_wl
- LDA #0
- STA f_wr
 .ft26
  LDY #31
 .ft27
@@ -2083,7 +2076,7 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  CPY f_wl
  BCC ft28
  CPY f_wr
- BEQ ft2d
+ BEQ ft2e               \ A = (fz_q),Y <> 0 here, so ft2d would branch to ft2e
  BCS ft28
 .ft2d
  LDA (fz_q),Y
@@ -2719,15 +2712,15 @@ MAXPT = 140             \ points per frame
  LDA R_NDISCR,Y
  CMP sg_x
  BCC fsg_n              \ right of the span
- LDX R_NDN,Y            \ inside: append (up to four)
- LDA sg_x
- CPX #1
- BCS fsg_k1
+ LDA sg_x               \ inside: append (up to four)
+ LDX R_NDN,Y
+ BNE fsg_k1
  STA R_NDX0,Y           \ n = 0
  LDA #1
  STA R_NDN,Y
  BRA fsg_n
 .fsg_k1
+ CPX #1
  BNE fsg_k2
  STA R_NDX1,Y           \ n = 1
  LDA #2

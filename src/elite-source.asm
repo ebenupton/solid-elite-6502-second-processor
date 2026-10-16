@@ -8148,30 +8148,26 @@ ENDMACRO
                         \ afterwards (PIX1's ADD writes them first; the IRQ
                         \ never reads them), except that MU8/MU9 read T = 0
 
- STA T1                 \ T1 = A (as ADD would)
+ TAX                    \ Keep the high byte of (A P) (0..127) in X
  LDA S                  \ If S is negative the signs differ: subtract via MU8
- BMI stl_mu8
- LDA R                  \ Same sign: X = P + R (C = 0 from the ROL above)
- ADC P
- TAX
- LDA S                  \ A = S + T1 (ORA T is a no-op as T would be 0)
- ADC T1
- BRA stl_add
-.stl_mu8
+ BPL stl_same
+ STX T1                 \ T1 = A (as ADD would), A = S here
  STZ T                  \ ADD would have set T = sign of A = 0, and A = S here
  JSR MU8                \ = (T1 AND &80) EOR S, exactly as at ADD's BMI MU8
-.stl_add
-                        \ Now (A X) = (A P) + (S R), as from JSR ADD:
-                        \
-                        \   (A X) = (A P) + (S R)
-                        \         = 2 * (beta * y / 256) ^ 2 + x
-
- STA SX,Y               \ BBC Master port: store the high byte A straight into
-                        \ x_hi (SX is not read by PIX1/PIXEL2, which use X1, and
-                        \ XX+1 is dead: rewritten at the top of STL1 before use)
-
- TXA                    \ Store the low byte X in x_lo
+                        \ giving (A X) = (A P) + (S R)
+ STA SX,Y               \ x_hi = A (SX is not read by PIX1/PIXEL2, which use
+ TXA                    \ X1, and XX+1 is dead: rewritten at the top of STL1)
+ STA SXL,Y              \ x_lo = X
+ JMP stl_done
+.stl_same
+ LDA R                  \ Same sign: x_lo = P + R (C = 0 from the ROL above)
+ ADC P
  STA SXL,Y
+ TXA                    \ x_hi = (A P)hi + S + C (ORA T is a no-op as T = 0;
+ ADC S                  \ T1 is dead here: PIX1's ADD writes it before any read)
+ STA SX,Y
+.stl_done
+                        \ So (x_hi x_lo) = x + 2 * (beta * y / 256) ^ 2
 
                         \ So (x_hi x_lo) now contains:
                         \
@@ -20344,55 +20340,58 @@ ENDMACRO
 
                         \ So now to calculate Q = SQRT(T S)
 
- LDX #0                 \ Set X = 0, to hold the remainder
+ STZ Q                  \ Set Q = 0, to hold the result
 
- STX Q                  \ Set Q = 0, to hold the result
+ LDA #0                 \ Set A = 0, to hold the remainder (BBC Master port:
+                        \ the remainder lives in A during the loop and is
+                        \ copied to X on exit, so X ends up as before)
 
  LDY #8                 \ Set Y = 8, to use as a loop counter
 
 .LL6
 
- CPX Q                  \ If X < Q, jump to LL7
+ CMP Q                  \ If A < Q, jump to LL7
  BCC LL7
 
- BNE LL8                \ If X > Q, jump to LL8
+ BNE LL8                \ If A > Q, jump to LL8
 
- LDA T                  \ If T < 64, jump to LL7 with the C flag clear,
- CMP #64                \ otherwise fall through into LL8 with the C flag set
+ LDX T                  \ If T < 64, jump to LL7 with the C flag clear,
+ CPX #64                \ otherwise fall through into LL8 with the C flag set
  BCC LL7
 
 .LL8
+
+ TAX                    \ Save the remainder in X
 
  LDA T                  \ Set T = T - 64 (C is set here)
  SBC #64
  STA T
 
- TXA                    \ Set X = X - Q
+ TXA                    \ Set A = A - Q
  SBC Q
- TAX
 
 .LL7
 
  ROL Q                  \ Shift the result in Q to the left, shifting the C flag
                         \ into bit 0 and bit 7 into the C flag
 
- TXA                    \ Shift (A T S) = (X T S) left twice, then X = A
- ASL S
+ ASL S                  \ Shift (A T S) left twice
  ROL T
  ROL A
  ASL S
  ROL T
  ROL A
- TAX
 
  DEY                    \ Decrement the loop counter
 
  BNE LL6                \ Loop back to LL6 until we have done 8 loops
 
+ TAX                    \ Return the remainder in X, as before
+
  RTS                    \ Return from the subroutine
 
  NOP                    \ BBC Master port: padding (never executed) to keep LL5
-                        \ the original size, so LL28 and everything after it in
+ NOP                    \ the original size, so LL28 and everything after it in
                         \ main RAM stay put (a 1-byte shift moves LL28's page
                         \ crossing from a rarely taken BCS to a often taken BCC)
 
@@ -39023,11 +39022,8 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
  LDA S                  \ Set A = |S|
  AND #%01111111
 
- BMI DV9                \ If bit 7 of A is set, jump down to DV9 to skip the
-                        \ left-shifting of the denominator (though this branch
-                        \ instruction has no effect as bit 7 of the above AND
-                        \ can never be set, which is why this instruction was
-                        \ removed from later versions)
+                        \ (The original's BMI DV9 here was removed: bit 7 of A
+                        \ is always clear after the AND, so it never branched)
 
 .DVL6
 
@@ -39045,6 +39041,13 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
  DEY                    \ Decrement the scale factor in Y
 
  ASL Q                  \ Shift (A R Q) to the left
+ ROL R
+ ROL A
+
+ BMI DV9                \ Loop unrolled twice: exit as soon as bit 7 of A is set
+
+ DEY                    \ Second copy of the shift
+ ASL Q
  ROL R
  ROL A
 
