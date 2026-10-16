@@ -3659,12 +3659,11 @@ NEXT
   AND #7
   STA RZ_PA
   STA RZ_PB
+  LSR A                   \ C = row parity (kept through to BCC ev)
   LDA r_ypg,X
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
-  TXA
-  LSR A
   LDA R_DCE
   BCC ev
   LDA R_DCO
@@ -4337,7 +4336,7 @@ ENDMACRO
   BNE msk                 \ (x AND 3 = 3: r_lm = &11, r_rm(x+1) = &88)
 .jslow
   JMP slow
-  SKIP 12                 \ (keeps r_strow onward, and r_ypg's page, in place)
+  SKIP 13                 \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
