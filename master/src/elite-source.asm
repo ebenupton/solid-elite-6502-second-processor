@@ -4750,10 +4750,19 @@ ENDIF
                         \ the INWK workspace, so we set a counter in Y so we can
                         \ loop through them
 
+ LDA (INF),Y            \ Copy the last byte (NI%-1) on its own, using a
+ STA INWK+NI%-1         \ zero-page store, so the remaining NI%-1 = 36 bytes
+ DEY                    \ can be copied two per loop pass
+
 .MAL2
 
  LDA (INF),Y            \ Load the Y-th byte of INF and store it in the Y-th
  STA INWK,Y             \ byte of INWK
+
+ DEY                    \ Decrement the loop counter
+
+ LDA (INF),Y            \ Second byte of this pass (loop unrolled twice)
+ STA INWK,Y
 
  DEY                    \ Decrement the loop counter
 
