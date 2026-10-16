@@ -300,6 +300,11 @@ ENDIF
  ASSERT ENTRY = &0E55   \ Port: the execution address that elite-disc.asm gives
                         \ M128Elt (the CMYK palette made B% 18 bytes longer)
 
+ JSR CHKRAM             \ Port: first of all, check that sideways RAM banks 4
+                        \ to 7, which the game and the renderer use, are all
+                        \ RAM (before the screen mode, palette or ACCCON are
+                        \ changed, so that the message can be seen)
+
  LDA #16                \ Call OSBYTE with A = 16 and X = 0 to set the ADC to
  LDX #0                 \ sample no channels from the joystick/Bitstik
  JSR OSBYTE
@@ -406,8 +411,6 @@ ENDIF
  LDX #0                 \ flashing colours
  JSR OSB
 
- JSR CHKRAM             \ Port: check that sideways RAM banks 4 to 7, which the
-                        \ game and the renderer use, are all RAM
 
                         \ Port: load the game's files other than BCODE, one at a
                         \ time, to &1300 (below &3000, so it is visible when
@@ -714,9 +717,17 @@ ENDIF
  ORA #'0'
  STA CHKB
 
- BRK                    \ Terminate the loader with the following error message
+ LDY #0                 \ Print the message in mode 7 with OSWRCH (not as a
+.CHK2                   \ BRK error: the boot may have no language to print
+ LDA CHKM,Y             \ it), then stop here for good
+ BEQ CHK3
+ JSR OSWRCH
+ INY
+ BNE CHK2
+.CHK3
+ JMP CHK3
 
- EQUB 0                 \ Error number
+.CHKM
 
  EQUB 22, 7             \ Switch to mode 7 and clear the screen
 
@@ -729,8 +740,9 @@ ENDIF
  EQUS "? is not RAM."
  EQUB 13, 10
  EQUS "Set links LK18 and LK19 to RAM."
+ EQUB 13, 10
 
- EQUB 0                 \ End of error message
+ EQUB 0                 \ End of message
 
 \ ******************************************************************************
 \
