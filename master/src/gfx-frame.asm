@@ -703,6 +703,7 @@ ENDIF
 
 .f_reset
  LDA #0                 \ empty the per-frame lists
+ STA GLASV              \ (Master port: the beams show for one frame per LASLI)
  STA PM_OK
  STA F_NSHIP
  STA F_NLINE

@@ -329,3 +329,29 @@
  PLA
  PLP
  RTS
+
+\ Our laser beams: LASLI (falling into LASLI2) shows them, LASLI2 called
+\ directly (main flight loop part 16, in the same iteration) removes them. In
+\ record mode H_LAS1 (at LASLI's end) sets GLASV and returns from LASLI, so the
+\ frame draws the beams from LASX/LASY (and clears GLASV), and H_LAS2 (at
+\ LASLI2) returns from LASLI2 at once: nothing to remove
+
+.H_LAS1
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+3
+ RTS
+ PLA
+ PLA
+ LDA #&FF
+ STA GLASV
+ RTS
+
+.H_LAS2
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+3
+ RTS
+ PLA
+ PLA
+ RTS

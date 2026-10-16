@@ -11762,7 +11762,13 @@ ENDIF
 
  JSR DENGY              \ Call DENGY to deplete our energy banks by 1
 
+ JSR H_LAS1             \ Port: in record mode, show the beams in the frame
+                        \ and return from LASLI (gfx-hooks.asm)
+
 .LASLI2
+
+ JSR H_LAS2             \ Port: in record mode there are no beams to draw or
+                        \ remove here (gfx-hooks.asm)
 
  LDA QQ11               \ If this is not a space view (i.e. QQ11 is non-zero)
  BNE ARSR1              \ then jump to MA9 to return from the main flight loop
