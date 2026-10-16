@@ -1164,55 +1164,61 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDX fz_t               \ |d|
  LDA fz_u
  BPL fpr4
- TXA
- EOR #&FF
+ EOR fz_t               \ (d < 0: fz_u = &FF as |d| <= r <= 255, so A = NOT d)
  TAX
  INX
 .fpr4
 .fpr_ld2
  LDA F_HW,X             \ patched: half-width
  STA fz_n
- LDA f_cx               \ right = cx + n, clamped as f_clamp does: < CL (or
- CLC                    \ negative): empty; > CR (or > 255): CR
- ADC fz_n
- TAX
- LDA f_cx+1
- ADC #0
- BMI fpr8
- BNE fpr5
- CPX R_CL
+ CLC                    \ right = cx + n, clamped as f_clamp does: < CL (or
+ ADC f_cx               \ negative): empty; > CR (or > 255): CR
+ LDX f_cx+1
+ BNE fpr10              \ (high byte of cx nonzero: out of line)
+ BCS fpr5               \ high byte of cx + n = 1
+.fpr11
+ CMP R_CL
  BCC fpr8
- CPX R_CR
+ CMP R_CR
  BCC fpr6
 .fpr5
- LDX R_CR
+ LDA R_CR
 .fpr6
- TXA
  STA R_NDISCR,Y
  LDA f_cx               \ left = cx - n: negative: CL; > 255 or > CR: empty;
  SEC                    \ < CL: CL
  SBC fz_n
- TAX
- LDA f_cx+1
- SBC #0
- BMI fpr3
- BNE fpr8
- CPX R_CR
+ LDX f_cx+1
+ BNE fpr13              \ (high byte of cx nonzero: out of line)
+ BCC fpr3               \ high byte of cx - n = -1
+.fpr14
+ CMP R_CR
  BEQ fpr7
  BCS fpr8
- CPX R_CL
+ CMP R_CL
  BCS fpr7
 .fpr3
- LDX R_CL
-.fpr7
- TXA
- STA R_NDISCL,Y
- BRA fpr9
+ LDA R_CL
+ BRA fpr7
+.fpr10                  \ right, X = high byte of cx (nonzero), C = carry:
+ BCC fpr12              \ high byte of cx + n = X + C
+ INX
+ BEQ fpr11
+.fpr12
+ BPL fpr5               \ (N: of X + C; minus: empty)
+ BMI fpr8
+.fpr13                  \ left, X = high byte of cx (nonzero), C = no borrow:
+ BCS fpr15              \ high byte of cx - n = X - 1 + C
+ DEX
+ BEQ fpr14
+.fpr15
+ BMI fpr3               \ (N: of X - 1 + C; plus: empty)
 .fpr8
- LDA #255
- STA R_NDISCL,Y
- LDA #0
+ LDA #0                 \ empty row: R = 0, L = 255
  STA R_NDISCR,Y
+ DEC A
+.fpr7
+ STA R_NDISCL,Y
 .fpr9
  INC fz_t
  BNE P%+4
