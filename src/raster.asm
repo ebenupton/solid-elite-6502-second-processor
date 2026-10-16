@@ -3289,7 +3289,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDY RZ_Y                \ not dirty: if the span did not shrink, repaint
 .^r_pt150 LDA r_sl,Y        \ the new one segment by segment (no black)
   CMP #&FF
-  BEQ full
+  BEQ none                \ (no old span: likewise, the row is black)
   STA r_oL
   LDA R_NDISCL,Y
   CMP R_CL
@@ -3308,6 +3308,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .r1
   STA r_nR
 .^r_pt151 CMP r_sr,Y
+  BCC full
+.paint
+  LDA r_nR
+  CMP r_nL
   BCC full
   JSR r_rowset
   JSR r_bcols
@@ -3330,6 +3334,20 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   RTS
 .full
   JMP r_drg
+.none
+  LDA R_NDISCL,Y
+  CMP R_CL
+  BCS l3
+  LDA R_CL
+.l3
+  STA r_nL
+  LDA R_NDISCR,Y
+  CMP R_CR
+  BCC r3
+  LDA R_CR
+.r3
+  STA r_nR
+  BRA paint
 }
 
 \ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
