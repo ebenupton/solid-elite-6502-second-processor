@@ -43,3 +43,5 @@ NEXT
 FOR n, 0, 511
  EQUB HI(n * n DIV 4)
 NEXT
+
+ INCLUDE "src/gfx-light.asm"        \ the ship lighting's game-context half

@@ -360,7 +360,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ ------------------------------------------------------------------------------
 
 \ F_SHIP: record the ship being drawn by LL9. Inputs: TYPE, GNF (faces),
-\ GNV (vertices), XX2 (face visibility), XX3 (projected vertices), INWK+6/7 (z).
+\ GNV (vertices), XX2 (face visibility), XX3 (projected vertices), INWK+6/7 (z),
+\ and the orientation vectors' high bytes (L_REC: the record's XX2 copy holds
+\ each face's lighting level, see gfx-light.asm).
 
 .F_SHIP
  STY f_ysav
@@ -417,6 +419,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 .fsh8
  STA &FFFF              \ patched: the XX2 copy's first byte
 .fsh3
+ JSR L_REC              \ the faces' levels into the XX2 copy (gfx-light.asm,
+                        \ main RAM: game context; Y is kept)
  TYA                    \ advance the destination past the XX2 copy
  CLC
  ADC fsh2+1             \ d = lo0 (C = carry into hi)
@@ -1576,8 +1580,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .f_cnt  EQUB 0          \ item counter (details, fins)
 .f_k    EQUB 0          \ fin pass: number of its two faces visible
 
-\ f_ship: draw one ship. Every face has a fixed colour (FC_FACETAB: n, even
-\ colour, odd colour, n XX3 offsets). Fins standing behind the body are drawn
+\ f_ship: draw one ship. Every face is flat-shaded (FC_FACETAB: n + 16 * hue
+\ ramp, unit normal, n XX3 offsets; the record's XX2 copy holds the face's
+\ level, gfx-light.asm, and f_col its ramp entry). Fins standing behind the body are drawn
 \ first, then the visible faces, the surface details over them and the other
 \ fins (see faces.asm for the order).
 
@@ -1645,6 +1650,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fsh_skip               \ hidden face: just step over its entry
  LDY #0
  LDA (fz_ft),Y
+ AND #15
  STA fz_n
  JMP fsh_next
 .fsh_face
@@ -1656,22 +1662,24 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BEQ fsh_skip
  STA fz_t
  LDY #0
- LDA (fz_ft),Y          \ n
+ LDA (fz_ft),Y          \ n + 16 * ramp
+ AND #15
  STA fz_n
  CMP #3
  BCC fsh_next
  STA R_PN
- INY
- LDA (fz_ft),Y          \ the face's colour
- STA R_COLE
- STA R_COL2             \ (a 2-row pair: rows 2, 3 as 0, 1)
- INY
- LDA (fz_ft),Y
- STA R_COLO
- STA R_COL3
- CLC                    \ the face's vertex offsets at fz_ft + 3
+ LDA fz_t               \ the face's level
+ AND #31
+ TAX
+ LDA (fz_ft),Y          \ its hue ramp
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ JSR f_col              \ lit: R_COLE, R_COLO, R_COL2, R_COL3
+ CLC                    \ the face's vertex offsets at fz_ft + 4
  LDA fz_ft
- ADC #3
+ ADC #4
  STA fsh_o+1
  LDA fz_ft+1
  ADC #0
@@ -1696,9 +1704,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  INX
  CPX fz_n
  BCC fsh_v
- LDA fz_t               \ far ships (XX2 = 255: Elite skipped the normal test)
- CMP #255               \ cull back faces by their winding on screen, except
- BNE fsh_draw           \ the station (mirrored until its first TIDY)
+ BIT fz_t               \ far ships (XX2 = 255, bit 6 of the copy: Elite skipped
+ BVC fsh_draw           \ the normal test) cull back faces by their winding on
+                        \ screen, except the station (mirrored until its first TIDY)
  LDX f_si
  LDA F_STYP,X
  CMP #SST
@@ -1710,9 +1718,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fsh_draw
  JSR T_POLY
 .fsh_next
- LDA fz_n               \ next face list entry: n + 3 bytes on
+ LDA fz_n               \ next face list entry: n + 4 bytes on
  CLC
- ADC #3
+ ADC #4
  ADC fz_ft
  STA fz_ft
  BCC P%+4
@@ -1720,13 +1728,15 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  INC f_f
  JMP fsh_face
 
-.fsh_done               \ details: skip the fins (8 bytes each) to the count
+.fsh_done               \ details: skip the fins (7 bytes each) to the count
  LDY #0
  LDA (fz_dt),Y
  STA f_cnt
  ASL A
  ASL A
  ASL A
+ SEC
+ SBC f_cnt              \ 7 * count (C = 1: no borrow)
  SEC
  ADC fz_dt
  STA fz_q
@@ -1785,9 +1795,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP #3
  BCC fit3
  STA R_PN
- LDA fz_t
- CMP #255
- BNE fit2
+ BIT fz_t               \ (XX2 = 255: cull by winding)
+ BVC fit2
  JSR f_winding
  BCC fit8
 .fit2
@@ -1812,28 +1821,44 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA R_Y1+1
  JSR T_LINE
 .fit8
- LDY #4                 \ next item: 5 + n bytes on
+ LDY #3                 \ next item: 4 + n bytes on
  LDA (fz_q),Y
  CLC
- ADC #5
+ ADC #4
  ADC fz_q
  STA fz_q
  BCC P%+4
  INC fz_q+1
  RTS
 
-\ f_itemv: the item at (fz_q): R_COLE/R_COLO, fz_n = n, R_PX/R_PY[0..n-1]
+\ f_itemv: the item at (fz_q): its colour (lit at the brighter of its two
+\ faces' levels, or unlit), fz_n = n, R_PX/R_PY[0..n-1]
 
 .f_itemv
+ LDY #1                 \ face1 + 16 * face2: the brighter level (a hidden
+ LDA (fz_q),Y           \ face's is 0)
+ AND #15
+ TAY
+ LDA (fz_dl),Y
+ AND #31
+ STA fz_u
+ LDY #1
+ LDA (fz_q),Y
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ TAY
+ LDA (fz_dl),Y
+ AND #31
+ CMP fz_u
+ BCS P%+4
+ LDA fz_u
+ TAX
  LDY #2
- LDA (fz_q),Y
- STA R_COLE
- STA R_COL2
- INY
- LDA (fz_q),Y
- STA R_COLO
- STA R_COL3
- INY
+ LDA (fz_q),Y           \ colour byte: a hue ramp, or &80 + an unlit colour
+ JSR f_col              \ R_COLE, R_COLO, R_COL2, R_COL3
+ LDY #3
  LDA (fz_q),Y
  STA fz_n
  INY
@@ -1908,15 +1933,87 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA R_PN
  JSR T_POLY
 .ffi8
- LDA fz_q               \ next fin: 8 bytes on
+ LDA fz_q               \ next fin: 7 bytes on
  CLC
- ADC #8
+ ADC #7
  STA fz_q
  BCC P%+4
  INC fz_q+1
  DEC f_cnt
  BNE ffi1
  RTS
+
+\ f_col: A = a face's or item's colour byte, X = the level (0..31): the
+\ colour R_COLE, R_COLO, R_COL2, R_COL3 (rows y AND 3 = 0..3). A = 0..8: entry
+\ X of that hue ramp (gfx-light6.asm), a 4x4 dither packed as w = a + 32 b +
+\ 1024 c, whose rows are H[a] EOR H[c] EOR HL[b] (H = HL AND &F0); A = &80 +
+\ k: the unlit colour k (black, cyan, magenta, yellow).
+
+.fc_fix
+ AND #3
+ TAY
+ LDA LT_FIX,Y
+ STA R_COLE
+ STA R_COLO
+ STA R_COL2
+ STA R_COL3
+ RTS
+.f_col
+ TAY
+ BMI fc_fix
+ LDA LT_RL,Y
+ STA fcl+1
+ CLC
+ ADC #32
+ STA fch+1
+ LDA LT_RH,Y
+ STA fcl+2
+ ADC #0
+ STA fch+2
+.fch
+ LDA &FFFF,X            \ (patched) w's high byte: c = hi >> 2
+ STA fc_hi
+ LSR A
+ LSR A
+ TAY
+.fcl
+ LDA &FFFF,X            \ (patched) w's low byte: a = lo AND 31
+ STA fc_lo
+ AND #31
+ TAX
+ FOR r, 0, 3            \ H[a] EOR H[c]
+  LDA LT_HL0+17*r,X
+  EOR LT_HL0+17*r,Y
+  AND #&F0
+  STA fc_row+r
+ NEXT
+ LDA fc_hi              \ b = (hi AND 3) * 8 + lo DIV 32
+ AND #3
+ ASL fc_lo
+ ROL A
+ ASL fc_lo
+ ROL A
+ ASL fc_lo
+ ROL A
+ TAY
+ LDA LT_HL0,Y           \ EOR HL[b]
+ EOR fc_row
+ STA R_COLE
+ LDA LT_HL0+17,Y
+ EOR fc_row+1
+ STA R_COLO
+ LDA LT_HL0+34,Y
+ EOR fc_row+2
+ STA R_COL2
+ LDA LT_HL0+51,Y
+ EOR fc_row+3
+ STA R_COL3
+ RTS
+ASSERT LT_HL1 = LT_HL0 + 17 AND LT_HL2 = LT_HL0 + 34 AND LT_HL3 = LT_HL0 + 51
+
+.fc_lo  EQUB 0
+.fc_hi  EQUB 0
+.fc_row SKIP 4
 
 .f_dots
  LDA #0

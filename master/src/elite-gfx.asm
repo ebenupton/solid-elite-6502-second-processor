@@ -45,6 +45,7 @@ INCLUDE "src/gfx-gvars.asm"
 INCLUDE "src/gfx-tramp.asm"
 INCLUDE "src/gfx-hzhooks.asm"   \ (the other hooks are in main RAM, elite-hi.asm)
 INCLUDE "src/gfx-raster_hz.asm" \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
+INCLUDE "src/gfx-lighthz.asm"   \ the lighting ramps that bank 6 has no room for
 .HZ_CODE_END
 
 \ raster_vars at a fixed place, whatever the size of the code above: the
@@ -119,7 +120,10 @@ SAVE "build/BANK5.bin", &8000, B5_END, &8000
 CLEAR &8000, &C000
 ORG &8000
 INCLUDE "src/gfx-frame.asm"
+PRINT "DBG before faces ", ~P%
 INCLUDE "src/gfx-faces.asm"
+INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
+PRINT "DBG after light6 ", ~P%
 .F_TM   SKIP 768        \ text map: desired characters, 24 rows of 32
 .F_SH0  SKIP 768        \ what buffer 0 shows
 .F_SH1  SKIP 768        \ what buffer 1 shows
