@@ -2326,6 +2326,9 @@
 
 .HLOIN
 
+ JSR H_HLOIN            \ Port: in record mode the renderer fills the sun, so
+                        \ return at once (gfx-hooks.asm)
+
  LDA Y1                 \ Set A = Y1, the pixel y-coordinate of the line
 
  AND #3                 \ Set A to the correct order of red/yellow pixels to

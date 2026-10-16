@@ -14601,6 +14601,8 @@ ENDIF
                         \ to the maximum y-coordinate of the new sun on-screen
 
  BCS PLF3M3             \ If CHKON set the C flag then the new sun's circle does
+ JSR H_SUN              \ Port: in record mode, record the sun for the renderer
+                        \ (gfx-hooks.asm)
                         \ not appear on-screen, so jump to WPLS (via the JMP at
                         \ the top of this routine) to remove the sun from the
                         \ screen, returning from the subroutine using a tail
