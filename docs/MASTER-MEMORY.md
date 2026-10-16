@@ -257,6 +257,48 @@ Fill test (jsbeeb; superseded for page &0D by the rule above): &0300-&03DF, &084
 filled with a pattern. SAVE, LOAD, CAT, the OSBYTE batch and an IRQ loop with keys all
 worked. Only &0D00-&0D5D changed (DFS's NMI code).
 
+### ROM private pages in HAZEL (test report F2, assessed)
+
+The MOS hands each sideways ROM that asks for one a private workspace page
+in HAZEL, listed at &0DF0+bank. On the emulated Master 128 (MOS 3.20, the
+standard ROM set) the table holds DFS (bank 9) = &DA and ADFS (bank 13) =
+&D9, before and after the game loads; no other ROM has a page.
+
+Both pages lie in the renderer's lasting HAZEL data: &D900-&DAFF is buffer
+1's boundary arrays R_BDX11 to R_BDX31. These only matter for rows with
+boundaries in the buffer's last frame, and they are dropped whenever the
+space view is re-entered after a screen change (f_enter forgets buffer 1's
+state, and r_dbm clears a buffer's counts when its last frame had none),
+so DFS or ADFS writing its own page during a docked disc command is
+harmless; the save, load, delete and catalogue tests pass.
+
+The failing case is a third-party ROM that hooks BYTEV (or WORDV) on a
+service call and writes its private page on every call. Its page is given
+out below the standard ones, i.e. somewhere in &C7-&D8, or it may be &DB
+(DASHV, the dashboard's scalars) and up. The loader already resets the
+non-filing-system vectors (3a4686e), so a ROM hooked at boot is unhooked;
+the risk is a ROM that hooks again during the game's own disc commands.
+
+Cheap mitigations considered:
+
+* Reset the vectors again in DOSCLI after OSCLI: no help, the damage is
+  done during the command.
+* Stash and restore, around OSCLI, each page listed in &0DF0-&0DFF that
+  lies in the lasting data (except &D9 and &DA, which are harmless and are
+  the ROMs' own): about 80 bytes of code in the cold area and 256 bytes a
+  page of buffer in main RAM (the hi region has 1K free, enough for four
+  pages). It covers disc commands only; the game makes no OSBYTE or OSWORD
+  calls in flight, but the docked screens make some (e.g. *FX through
+  OSBYTE), which it would not cover.
+* Rebuild the renderer's lasting data after each disc command: the
+  per-buffer state is rebuilt anyway on re-entering flight; DASHV and the
+  text map would need a full re-initialisation.
+* Move the lasting data out of &C7-&DE: a re-layout of HAZEL, ruled out.
+
+Outcome: no ROM in the standard Master set is affected, and the stash is the
+cheap mitigation if a real ROM is found that does this; it is not
+implemented.
+
 ## Caveats
 
 * The results are from jsbeeb's emulation of the Master, the 1770 and the drive motor.
