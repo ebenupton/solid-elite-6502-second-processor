@@ -46,7 +46,11 @@
 \ ******************************************************************************
 
  CODE% = &0E00          \ The address where the code will be run
- ASSERT CODE% >= &0E00  \ Port: page &0D is off limits (docs/MASTER-MEMORY.md)
+ ASSERT CODE% >= &0E00  \ Port: page &0D is off limits (docs/MASTER-MEMORY.md),
+                        \ except for the minimal NMI handler (see NMIH)
+
+ FDC = &FE28            \ Port: the BBC Master's 1770 disc controller: status
+                        \ (read) and command (write) register
 
  LOAD% = &0E00          \ The address where the code will be loaded
 
@@ -534,6 +538,51 @@ ENDIF
  LDA LWC+5
  CMP #HI(&0840+LOWLEN)
  BNE LWC
+
+                        \ Port: make the 1770 quiet and replace the DFS's NMI
+                        \ handler at &0D00 with a minimal one (from the demo
+                        \ port's loader, 3d25f90). The DFS's handler uses &A0-
+                        \ &A7, which are the game's zero page (INWK) while the
+                        \ game runs, so a stray NMI after loading (seen on a
+                        \ real Master) would corrupt them, and could write the
+                        \ game's value at &A7 to the 1770's command register,
+                        \ which starts a command and raises more NMIs. The last
+                        \ disc access has finished, so with interrupts off:
+                        \ terminate whatever the 1770 is doing without an
+                        \ interrupt (Force Interrupt with no conditions, &D0,
+                        \ to its command register at &FE28), read its status
+                        \ to clear INTRQ, and install PHA : LDA &FE28 : PLA :
+                        \ RTI at &0D00, writing the RTI at &0D00 first, then
+                        \ the body at &0D01, then the PHA, so the code at &0D00
+                        \ is a complete handler at every step. These are the
+                        \ only writes to page &0D before the game starts (page
+                        \ &0D is otherwise off limits, docs/MASTER-MEMORY.md);
+                        \ DFS copies its own handler back at the start of each
+                        \ disc operation the game makes when docked
+
+ LDA #&D0               \ 1770 Force Interrupt, no conditions: terminate any
+ STA FDC                \ command and raise no interrupt
+
+ LDX #8                 \ Give the 1770 time to take the command (it needs a
+.NMIW                   \ few microseconds before its status is valid)
+ DEX
+ BNE NMIW
+
+ LDA FDC                \ Read the status register, which clears INTRQ
+
+ LDA #&40               \ &0D00 = RTI: a complete NMI handler on its own
+ STA &0D00
+
+ LDX #NMIHEND-NMIH-1    \ The rest of the handler at &0D01 (LDA &FE28 : PLA :
+.NMIC                   \ RTI), behind the RTI
+ LDA NMIH,X
+ STA &0D01,X
+ DEX
+ BPL NMIC
+
+ LDA #&48               \ And finally &0D00 = PHA, which completes the handler
+ STA &0D00
+
  CLI
 
  LDA #SBANK             \ Set the RAM copy of the currently selected paged ROM
@@ -543,6 +592,14 @@ ENDIF
 
  JMP S%                 \ Jump to the start of the main game code at S%, which
                         \ we just loaded in the BCODE/ELITE file
+
+.NMIH                   \ Port: the minimal NMI handler's body at &0D01, after
+
+ LDA FDC                \ the PHA at &0D00: acknowledge the 1770 (reading its
+ PLA                    \ status clears INTRQ) and return
+ RTI
+
+.NMIHEND
 
 \ ******************************************************************************
 \
