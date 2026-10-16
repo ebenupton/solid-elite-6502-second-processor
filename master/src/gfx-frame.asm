@@ -2693,12 +2693,19 @@ MAXPT = 140             \ points per frame
 
 .f_zerobounds           \ rows R_NDT..R_NDB: no boundaries yet (only caller
                         \ fbd1, where f_bounds has checked R_NDT <= R_NDB)
- LDY R_NDB
- INY
- STY fnb_e+1
+ LDA R_NDB
+ INC A
+ STA fnb_e+1
+ EOR R_NDT              \ C = bit 0 of (R_NDB+1) EOR R_NDT: an odd row count
  LDY R_NDT
+ LSR A
  LDA #0
-.fnb1
+ BCS fnb2               \ odd: one row first, then pairs
+.fnb1                   \ two rows per pass
+ STA R_NDN,Y
+ STA R_NDP,Y
+ INY
+.fnb2
  STA R_NDN,Y
  STA R_NDP,Y
  INY
@@ -2786,7 +2793,7 @@ MAXPT = 140             \ points per frame
 
 .f_ci EQUB 0
 
- SKIP 18                \ (unused: keeps the rest of bank 6 where it was)
+ SKIP 5                 \ (unused: keeps the rest of bank 6 where it was)
 
 \ f_seg16: boundary crossings of the segment (sg_ax, sg_ay) - (sg_bx, sg_by)
 \ (16-bit) for rows y with min(y) <= y < max(y) within R_NDT..R_NDB. A crossing
