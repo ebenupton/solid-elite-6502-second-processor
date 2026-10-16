@@ -55,6 +55,9 @@
  S% = &2C6C             \ The address of the main entry point workspace in the
                         \ main game code
 
+ HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
+                        \ paged in while the game runs (bank 6 in the original)
+
  VIA = &FE00            \ Memory-mapped space for accessing internal hardware,
                         \ such as the video ULA, 6845 CRTC and 6522 VIAs (also
                         \ known as SHEILA)
@@ -394,13 +397,13 @@ ENDIF
                         \ BBC Master rather than getting passed across the Tube
                         \ to the Second Processor, if one is fitted
 
- LDA #6                 \ Set the RAM copy of the currently selected paged ROM
- STA LATCH              \ to 6, so it matches the paged ROM selection latch at
+ LDA #HOMEBANK          \ Set the RAM copy of the currently selected paged ROM
+ STA LATCH              \ to HOMEBANK, so it matches the paged ROM selection latch at
                         \ SHEILA &30 that we are about to set
 
  LDA VIA+&30            \ Set bits 0-3 of the ROM Select latch at SHEILA &30 to
- AND #%11110000         \ 6, to switch sideways RAM bank 6 into &8000-&BFFF in
- ORA #6                 \ main memory
+ AND #%11110000         \ HOMEBANK, to switch sideways RAM bank HOMEBANK into &8000-&BFFF in
+ ORA #HOMEBANK          \ main memory
  STA VIA+&30
 
  LDA #%10101010         \ Set A and location &8000 to %10101010
@@ -410,7 +413,7 @@ ENDIF
  LSR &8000
 
  CMP &8000              \ If A matches location &8000 (i.e. both now contain
- BEQ OK                 \ %01010101) then jump to OK, as ROM bank 6 is writable
+ BEQ OK                 \ %01010101) then jump to OK, as ROM bank HOMEBANK is writable
                         \ and does indeed contain sideways RAM rather than a
                         \ paged ROM, which is what we need for running the game
 
@@ -421,7 +424,7 @@ ENDIF
 
  EQUB 22, 7             \ Switch to mode 7 and clear the screen
 
- EQUS "ELITE needs RAM in slot #6"
+ EQUS "ELITE needs RAM in slot #4"
 
  EQUB 0                 \ End of error message
 
@@ -507,13 +510,13 @@ ENDIF
  JSR OSCLI              \ Call OSCLI to run the OS command in MESS3, which
                         \ changes the disc directory to E
 
- LDA #6                 \ Set the RAM copy of the currently selected paged ROM
- STA LATCH              \ to 6, so it matches the paged ROM selection latch at
+ LDA #HOMEBANK          \ Set the RAM copy of the currently selected paged ROM
+ STA LATCH              \ to HOMEBANK, so it matches the paged ROM selection latch at
                         \ SHEILA &30 that we are about to set
 
- LDA VIA+&30            \ Switch ROM bank 6 into memory by setting bits 0-3 of
+ LDA VIA+&30            \ Switch ROM bank HOMEBANK into memory by setting bits 0-3 of
  AND #%11110000         \ the ROM selection latch at SHEILA &30 to 6
- ORA #6
+ ORA #HOMEBANK
  STA VIA+&30
 
  JMP S%                 \ Jump to the start of the main game code at S%, which

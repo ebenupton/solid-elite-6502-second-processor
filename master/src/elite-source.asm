@@ -308,6 +308,9 @@ ELIF _COMPACT
 
 ENDIF
 
+ HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
+                        \ paged in while the game runs (bank 6 in the original)
+
  VIA = &FE00            \ Memory-mapped space for accessing internal hardware,
                         \ such as the video ULA, 6845 CRTC and 6522 VIAs (also
                         \ known as SHEILA)
@@ -3249,8 +3252,8 @@ ENDIF
  LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
  STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
 
- LDA #6                 \ Set bits 0-3 of the ROM Select latch at SHEILA &30 to
- STA VIA+&30            \ 6, to switch sideways ROM bank 6 into &8000-&BFFF in
+ LDA #HOMEBANK          \ Set bits 0-3 of the ROM Select latch at SHEILA &30 to
+ STA VIA+&30            \ HOMEBANK, to switch sideways ROM bank HOMEBANK into &8000-&BFFF in
                         \ main memory (we already confirmed that this bank
                         \ contains RAM rather than ROM in the loader)
 
