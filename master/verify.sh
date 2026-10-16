@@ -2,7 +2,7 @@
 # master/verify.sh [iterations] [mcompare options...]: the gate for a change to
 # BBC Master Elite (master/src), for Stages B onwards of docs/MASTER-PLAN.md.
 #
-#  1. build: master/build.sh (VERIFY=no: a changed source no longer matches the
+#  1. build: master/build.sh (a changed source no longer matches the
 #     released binaries); FAIL on a non-zero exit or an error/ASSERT message.
 #     Reports whether the five binaries still match master/reference/sng47.
 #  2. determinism: node harness/mcompare.mjs --iters N (default 10000) of the
@@ -28,7 +28,7 @@ mkdir -p "$LOG"
 fail() { echo "VERIFY FAIL $1"; exit 1; }
 
 # ---- 1. build
-if ! VERIFY=no sh master/build.sh > "$LOG/build.log" 2>&1; then
+if ! sh master/build.sh > "$LOG/build.log" 2>&1; then
     tail -20 "$LOG/build.log"; echo "build: FAIL (exit status)"; fail build
 fi
 if grep -iE "error|assertion failed" "$LOG/build.log" master/build/compile.txt > "$LOG/build.errors" && [ -s "$LOG/build.errors" ]; then
