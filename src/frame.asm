@@ -616,14 +616,11 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  NEXT
 
  BIT GMODE
- BMI ff2
+ BMI ff5
  JSR f_enter2           \ first space-mode frame since the screen was cleared
                         \ (f_enter, with frame_cold.asm's direct-mode fix-ups)
 
-.ff2
- LDA GFLIP              \ wait for the previous flip, so the back buffer is
- BNE ff2                \ no longer on screen
-
+.ff5                    \ (what touches no screen memory goes before the wait)
  JSR f_bufpatch
  LDA #2                 \ the clip window inside the border (the zero page
  STA R_CL               \ copy is Elite's between frames)
@@ -633,6 +630,14 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA R_CT
  LDA #191
  STA R_CB
+ LDA F_BACK
+ JSR T_SETBUF
+ JSR f_text1            \ text cells to be erased: background them (old dirty)
+ JSR f_sight1           \ and the sights, if they have gone
+
+.ff2
+ LDA GFLIP              \ wait for the previous flip, so the back buffer is
+ BNE ff2                \ no longer on screen
 
  LDA F_BACK             \ let the CPU see the back buffer at &4000-&6FFF
  ASL A
@@ -644,11 +649,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA &FE34
  CLI
 
- LDA F_BACK
- JSR T_SETBUF
-
- JSR f_text1            \ text cells to be erased: background them (old dirty)
- JSR f_sight1           \ and the sights, if they have gone
  JSR T_STARERASE        \ undo last time's stars in this buffer
  JSR f_discs            \ the disc layer (sun or planet), incremental
  JSR f_disc2            \ the other disc, if both are on screen (full spans)
