@@ -395,10 +395,8 @@ ENDIF
  LDX #0                 \ flashing colours
  JSR OSB
 
- LDA #HOMEBANK          \ Port: check that the sideways RAM banks the game
- JSR CHKRAM             \ uses are RAM (bank 4, Elite's home bank, and bank 7
- LDA #7                 \ for the cold area)
- JSR CHKRAM
+ JSR CHKRAM             \ Port: check that sideways RAM banks 4 to 7, which the
+                        \ game and the renderer use, are all RAM
 
                         \ Port: load the game's files other than BCODE, one at a
                         \ time, to &1300 (below &3000, so it is visible when
@@ -532,36 +530,72 @@ ENDIF
 \       Name: CHKRAM
 \       Type: Subroutine
 \   Category: Loader
-\    Summary: Port: check that sideways bank A is RAM, or stop with an error
+\    Summary: Port: check that sideways banks 4 to 7 are RAM, or stop with an
+\             error
 \
 \ ******************************************************************************
 
 .CHKRAM
 
- STA LATCH              \ Page in bank A (and keep &F4 in step)
- STA VIA+&30
+                        \ On a Master whose links LK18/LK19 select the ROM
+                        \ sockets for banks 4/5 or 6/7 (to fit extra ROMs),
+                        \ loading into those banks writes into ROM without an
+                        \ error, so the game would start with banks missing.
+                        \ For each bank, invert the byte at &8000, check that
+                        \ it reads back inverted, then restore it and check it
+                        \ again (two patterns, so a floating bus or an empty
+                        \ socket can't pass). Interrupts are off, so the MOS
+                        \ doesn't page another ROM in while we look (and &F4
+                        \ is left alone)
 
- LDA #%10101010         \ Set A and location &8000 to %10101010
+ SEI
+ LDX #7
+
+.CHK1
+
+ STX VIA+&30            \ Page in bank X
+ LDA &8000
+ EOR #&FF
  STA &8000
+ CMP &8000
+ BNE CHKF               \ Not RAM: report it
+ EOR #&FF
+ STA &8000
+ CMP &8000
+ BNE CHKF
+ DEX
+ CPX #3
+ BNE CHK1
 
- LSR A                  \ Shift A and location &8000 right
- LSR &8000
-
- CMP &8000              \ If A matches location &8000 (i.e. both now contain
- BNE CHKF               \ %01010101), the bank is RAM
-
+ LDA LATCH              \ All four banks are RAM: page the MOS's choice back in
+ STA VIA+&30
+ CLI
  RTS
 
 .CHKF
 
- BRK                    \ Otherwise we can't run the game, so terminate the
-                        \ loader with the following error message
+ LDA LATCH              \ Bank X isn't RAM: page the MOS's choice back in, put
+ STA VIA+&30            \ the bank's number into the message and stop with it
+ CLI
+ TXA
+ ORA #'0'
+ STA CHKB
+
+ BRK                    \ Terminate the loader with the following error message
 
  EQUB 0                 \ Error number
 
  EQUB 22, 7             \ Switch to mode 7 and clear the screen
 
- EQUS "ELITE needs RAM in slots 4 and 7"
+ EQUS "ELITE needs sideways RAM in banks 4-7,"
+ EQUB 13, 10
+ EQUS "but bank "
+
+.CHKB
+
+ EQUS "? is not RAM."
+ EQUB 13, 10
+ EQUS "Set links LK18 and LK19 to RAM."
 
  EQUB 0                 \ End of error message
 
