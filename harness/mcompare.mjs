@@ -4,7 +4,7 @@
 // injection.
 //
 // node harness/mcompare.mjs [--iters 5000] [--ref disc] [--rsyms file]
-//                           [--cand disc] [--csyms file] [--seed rand|none]
+//                           [--cand disc] [--csyms file] [--seed rand,loader|rand|none]
 //                           [--loose] [--window 200] [--out dir] [--shots N]
 //                           [--maxsecs S] [--nopatch]
 //
@@ -27,7 +27,12 @@
 //
 // --seed rand (default) copies the reference's RAND (&02-&05) at TT170 into the
 // candidate at its TT170, as the loader leaves it (it is identical for the same
-// loader, so this matters only when the loader changes).
+// loader, so this matters only when the loader changes). --seed rand,loader (the
+// default) also copies the reference's bytes at &0E00-&12FF that lie in the WP
+// workspace: the loader runs at &0E00 and leaves its own code there, in WP bytes
+// that the game has not written by TT170 (heaps and buffers it fills before use,
+// and unused bytes), so a changed loader shows up as differing bytes in WP that
+// are not game state. Bytes the game has written by TT170 are equal anyway.
 //
 // Speed: flight-loop iterations (TT100 to TT100, only those with no docked
 // iteration in between) per emulated second, per window of --window
@@ -36,7 +41,7 @@
 // Exit status 0 if the game state is identical at every compared iteration
 // (and both runs completed); prints "MCOMPARE PASS <ref it/s> <cand it/s>" or
 // "MCOMPARE FAIL <reason>".
-import { runElite, loadSyms, regionsFor, excludeSet, TIMING_EXCLUDE, DRAW_EXCLUDE, ROOT } from "./mlib.mjs";
+import { runElite, loadSyms, regionsFor, excludeSet, valAt, TIMING_EXCLUDE, DRAW_EXCLUDE, ROOT } from "./mlib.mjs";
 import { makePilot, patchCommander } from "./mpilot.mjs";
 import { writeFileSync, mkdirSync } from "fs";
 
@@ -49,7 +54,7 @@ const REF = args.ref || `${ROOT}master/reference/elite-master-sng47.ssd`;
 const RSYMS = args.rsyms || `${ROOT}master/reference/symbols.txt`;
 const CAND = args.cand || `${ROOT}master/build/elite-master-sng47.ssd`;
 const CSYMS = args.csyms || `${ROOT}master/build/symbols.txt`;
-const SEED = args.seed || "rand";
+const SEED = args.seed || "rand,loader";
 const WINDOW = +(args.window || 200);
 const OUT = args.out || `${ROOT}scratch/master/compare`;
 const SHOTS = +(args.shots || 0);
@@ -73,7 +78,17 @@ async function run(label, disc, sy, seed) {
 }
 
 const ref = await run("ref", REF, rsy, null);
-const cand = await run("cand", CAND, csy, SEED === "rand" ? [[csy.RAND, [...ref.initRand]]] : null);
+const seeds = [];
+if (SEED.split(",").includes("rand")) seeds.push([csy.RAND, [...ref.initRand]]);
+let loaderSeed = 0;
+if (SEED.split(",").includes("loader")) {
+    // the reference's WP bytes in the loader's footprint, from its TT170 snapshot
+    const lo = Math.max(rsy.WP, 0x0e00), hi = Math.min(rsy.JOPOS + 3, 0x1300);
+    const bytes = [];
+    for (let a = lo; a < hi; a++) bytes.push(valAt(ref.regions, ref.init, a));
+    if (rsy.WP === csy.WP) { seeds.push([lo, bytes]); loaderSeed = bytes.length; }
+}
+const cand = await run("cand", CAND, csy, seeds.length ? seeds : null);
 
 const report = [];
 const log = (...x) => { const l = x.join(" "); console.log(l); report.push(l); };
@@ -84,7 +99,7 @@ function statLine(st) {
         `engagements ${st.engagements}, ships destroyed ${st.kills} ${JSON.stringify(st.killTypes)}, missiles fired ${st.missiles}, ECM ${st.ecm}, deaths ${st.deaths}, ` +
         `trades: buy ${st.buys} sell ${st.sells} equip ${st.equips}, key waits ${st.waits}`;
 }
-log(`Iterations: ref ${ref.iters} (flight ${ref.tt100}), cand ${cand.iters} (flight ${cand.tt100}); seed=${SEED}${args.loose ? " loose" : ""}`);
+log(`Iterations: ref ${ref.iters} (flight ${ref.tt100}), cand ${cand.iters} (flight ${cand.tt100}); seed=${SEED} (${loaderSeed} loader bytes)${args.loose ? " loose" : ""}`);
 log(`Pilot (ref):  ${statLine(ref.stats)}`);
 log(`Pilot (cand): ${statLine(cand.stats)}`);
 
