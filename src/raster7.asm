@@ -385,15 +385,13 @@ ALIGN &100
 .fpg
   LDA #&60
   STA (RZ_PP)
-  STY RZ_Y
   TYA
   AND #7
   TAX
   LDA #0
-  JSR rj
+  JSR rj                  \ (the run keeps Y)
   LDA #&9D
   STA (RZ_PP)
-  LDY RZ_Y
 .fnx
   INY
   CPY c_YE
