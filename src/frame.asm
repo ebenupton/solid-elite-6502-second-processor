@@ -507,26 +507,25 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ size from ZZ.
 
 .F_STAR
- BCS fst1
- LDA #0
- STA F_STV,Y
- RTS
-.fst1
+ BCC fst0               \ valid stars (the common case) fall through
+.fst1                   \ (hooks.asm's H_STAR enters here)
  STA F_STY,Y
  TXA
  STA F_STX,Y
- LDX #1
- LDA ZZ
- CMP #144
+ LDX ZZ                 \ size 1 (ZZ >= 144), 2 (80..143), 3 (< 80)
+ CPX #144
+ LDA #1
  BCS fst2
- INX
- CMP #80
+ CPX #80
+ LDA #2
  BCS fst2
- INX
+ INC A
 .fst2
- TXA
  STA F_STS,Y
- LDA #&FF
+ STA F_STV,Y            \ valid flag = size (1..3, non-zero; only tested by BEQ)
+ RTS
+.fst0
+ LDA #0
  STA F_STV,Y
  RTS
 
@@ -672,18 +671,20 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_text2            \ text on top
  JSR f_sight2           \ and the sights
 
- LDX #&21               \ restore the zero page
+ LDA f_zsave+&20        \ restore the zero page: &26-&27, then &06-&15,
+ STA &26                \ &16-&25 and FZ in one loop of 16 (as ff3)
+ LDA f_zsave+&21
+ STA &27
+ LDX #15
 .ff4
  LDA f_zsave,X
  STA &06,X
- DEX
- BPL ff4
- LDX #15
-.ff4a
+ LDA f_zsave+&10,X
+ STA &16,X
  LDA f_zsave+&22,X
  STA FZ,X
  DEX
- BPL ff4a
+ BPL ff4
 
  SEI                    \ CPU back to main RAM, and flip at the next vsync
  LDA #0
@@ -1919,12 +1920,16 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 \ background by marking them dirty before R_DISCROWS repaints
 
 .f_text1
- LDX #0
+ LDX #23                \ rows 23..0 (order is immaterial: rows are independent)
 .ft11
- STX fz_i
 .ft_sr1
  LDA F_SHR0,X           \ patched
- BEQ ft18
+ BNE ft1r               \ skip empty rows in a tight loop
+ DEX
+ BPL ft11
+ RTS
+.ft1r
+ STX fz_i
  JSR f_rowptr
  LDY #31
 .ft12
@@ -1979,9 +1984,8 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  BPL ft12
 .ft18
  LDX fz_i
- INX
- CPX #24
- BCC ft11
+ DEX
+ BPL ft11
  RTS
 
 .f_clipx                \ clamp R_XL..R_XR to the clip window; C set if empty
@@ -2381,31 +2385,31 @@ MAXPT = 140             \ points per frame
 .F_PYL SKIP MAXPT
 .F_PYH SKIP MAXPT
 
-.F_PCURVE
- STX f_xs
- STY f_ys
+.F_PCURVE               \ (Y untouched; X saved on the stack)
+ PHX
  LDX F_NCV
  CPX #MAXCV
  BCS fpc9
  LDA F_NPT
  STA F_CVS,X
- STA F_CVE,X
+ STA F_CVE-1,X          \ the previous curve ends where this one starts
+                        \ (X = 0 writes F_CVS+MAXCV-1, which is only read
+                        \ once curve MAXCV-1 has rewritten it)
  LDA TGT
  STA F_CVT,X
  INC F_NCV
 .fpc9
- LDX f_xs
- LDY f_ys
+ PLX
+.fpp9
  RTS
 
-.F_PPOINT
- STX f_xs
- STY f_ys
- LDX F_NCV
- BEQ fpc9
+.F_PPOINT               \ (X untouched; Y saved on the stack; the last
+ LDA F_NCV              \ curve's end, F_NPT, is filled in by f_bounds)
+ BEQ fpp9
+ PHY
  LDY F_NPT
  CPY #MAXPT
- BCS fpc9
+ BCS fpp8
  LDA K6
  STA F_PXL,Y
  LDA K6+1
@@ -2416,12 +2420,9 @@ MAXPT = 140             \ points per frame
  STA F_PYH,Y
  INY
  STY F_NPT
- TYA
- STA F_CVE-1,X
- JMP fpc9
-
-.f_xs EQUB 0
-.f_ys EQUB 0
+.fpp8
+ PLY
+ RTS
 
 \ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
 
@@ -2472,6 +2473,9 @@ MAXPT = 140             \ points per frame
  STA R_DBE
  LDA #&A0
  STA R_DBO
+ LDX F_NCV              \ the last curve ends at F_NPT (F_NCV >= 1 here)
+ LDA F_NPT
+ STA F_CVE-1,X
 .fbd2
  LDA #0
  STA f_ci
@@ -2489,9 +2493,23 @@ MAXPT = 140             \ points per frame
  CMP F_CVE,X
  BCS fbd6
  LDX f_pi               \ segment f_pi -> f_pi + 1
- JSR f_ptA              \ (preserves X)
+ LDA F_PXL,X            \ segment start = point X
+ STA sg_ax
+ LDA F_PXH,X
+ STA sg_ax+1
+ LDA F_PYL,X
+ STA sg_ay
+ LDA F_PYH,X
+ STA sg_ay+1
  INX
- JSR f_ptB              \ (preserves X)
+ LDA F_PXL,X            \ segment end = point X + 1
+ STA sg_bx
+ LDA F_PXH,X
+ STA sg_bx+1
+ LDA F_PYL,X
+ STA sg_by
+ LDA F_PYH,X
+ STA sg_by+1
  STX f_pi               \ f_pi + 1 (f_seg16 does not use f_pi)
  JSR f_seg16
  JMP fbd5
@@ -2504,28 +2522,6 @@ MAXPT = 140             \ points per frame
 
 .f_ci EQUB 0
 .f_pi EQUB 0
-
-.f_ptA                  \ segment start = point X
- LDA F_PXL,X
- STA sg_ax
- LDA F_PXH,X
- STA sg_ax+1
- LDA F_PYL,X
- STA sg_ay
- LDA F_PYH,X
- STA sg_ay+1
- RTS
-
-.f_ptB                  \ segment end = point X
- LDA F_PXL,X
- STA sg_bx
- LDA F_PXH,X
- STA sg_bx+1
- LDA F_PYL,X
- STA sg_by
- LDA F_PYH,X
- STA sg_by+1
- RTS
 
 \ f_seg16: boundary crossings of the segment (sg_ax, sg_ay) - (sg_bx, sg_by)
 \ (16-bit) for rows y with min(y) <= y < max(y) within R_NDT..R_NDB. A crossing
@@ -2540,7 +2536,7 @@ MAXPT = 140             \ points per frame
  LDA sg_bx+1
  SBC sg_ax+1
  BEQ fs16a
- CMP #&FF
+ INC A                  \ high byte &FF?
  BNE fs16s
  LDA sg_bx
  CMP sg_ax
@@ -2552,7 +2548,7 @@ MAXPT = 140             \ points per frame
  LDA sg_by+1
  SBC sg_ay+1
  BEQ fs16b
- CMP #&FF
+ INC A                  \ high byte &FF?
  BNE fs16s
  LDA sg_by
  CMP sg_ay

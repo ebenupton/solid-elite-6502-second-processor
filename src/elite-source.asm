@@ -8108,14 +8108,21 @@ ENDMACRO
                         \
                         \   Q = -beta * y_hi / 256
 
- JSR MULT1              \ Call MULT1 to calculate ((S R) = x was set above):
+ ASL A                  \ Set X = 2 * |Q| (0..254; the ASL drops the sign bit)
+ TAX                    \ and square Q directly from the quarter-square table,
+                        \ as SQ1(2q) = (2q)^2 / 4 = q^2 exactly (this is what
+                        \ MULT1 computed: f(q + q) - f(0)), doubling as we go:
                         \
-                        \   (A P) = Q * A
-                        \         = (-beta * y_hi / 256) * (-beta * y_hi / 256)
-                        \         = (beta * y / 256) ^ 2
+                        \   (A P) = 2 * Q * Q = 2 * (beta * y / 256) ^ 2
+                        \
+                        \ ((S R) = x was set above)
 
- ASL P                  \ Double (A P). MULT1 was called with A = Q, so the
- ROL A                  \ result is positive (sign = A EOR Q = 0) and its high
+ LDA SQ1L,X             \ P = low byte of 2 * q^2, C = bit 7 of low byte of q^2
+ ASL A
+ STA P
+
+ LDA SQ1H,X             \ A = high byte of 2 * q^2. The result is positive and
+ ROL A                  \ its high
                         \ byte is at most 127*127/256 = 63, so after the
                         \ doubling A < 128 and C = 0:
                         \   (A P) = (A P) * 2
