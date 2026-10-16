@@ -1844,6 +1844,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA (RZ_PB),Y
   JMP pb_l2_e
 .pb_rb_e
+  LDY r_xo,X
   LDA (RZ_PB),Y
   EOR R_COLE
   AND r_rm,X
@@ -1898,10 +1899,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .r_jsr2_e
   JSR &FFFF
 .pb_norun_e
-  LDX R_XR
+  LDX R_XR                \ N = (XR >= &80)
+  BMI pb_rb_e
   LDY r_xo,X
-  CPX #&80
-  BCS pb_rb_e
   LDA (RZ_PA),Y
   EOR R_COLE
   AND r_rm,X

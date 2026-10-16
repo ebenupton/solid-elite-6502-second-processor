@@ -7042,7 +7042,15 @@ ENDMACRO
  ORA #%10000000         \ |S R| > |A P|: nosev_x_hi = A with the sign of S
  EOR T                  \ (ADD's MU8s also clears C, but no caller of MVS5
  STA INWK+1,Y           \ reads C, so that is left out)
- BRA mvs5j
+
+.mvs5k
+
+ LDA K                  \ Set roofv_x = K(1 0), a copy of mvs5j's tail so
+ STA INWK,X             \ this path doesn't take a BRA back to mvs5j (that
+ LDA K+1                \ BRA crosses a page: 4 cycles)
+ STA INWK+1,X
+
+ RTS                    \ Return from the subroutine
 
 .mvs5s
 
@@ -7052,7 +7060,7 @@ ENDMACRO
  STA INWK+1,Y
  STX INWK,Y
  PLX
- BRA mvs5j
+ BRA mvs5k
 
 \ ******************************************************************************
 \
@@ -18795,7 +18803,12 @@ ENDMACRO
  EOR XX16+1,X
  STA S
 
- LDY XX16+2,X           \ Set Q = |sidev_y| * y_lo / 256
+ EOR XX15+3             \ Set Q = S EOR y_sign EOR sign(sidev_y), so bit 7 of
+ EOR XX16+3,X           \ Q is set if the y term's sign differs from S (Q is
+ STA Q                  \ only a temporary here, and LL51 clobbered Q in the
+                        \ original too; the IRQ never reads Q)
+
+ LDY XX16+2,X           \ Set A = |sidev_y| * y_lo / 256
 .l51y1
  LDA SQ1L,Y
 .l51y2
@@ -18804,43 +18817,39 @@ ENDMACRO
  LDA SQ1H,Y
 .l51y4
  SBC SQ2H,Y
- TAY                    \ Keep the product in Y (Y is free until the LDY
-                        \ XX16+4,X below)
 
- LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
- EOR XX16+3,X
-
-                        \ Set (S R) = (S R) + (A Y), with LL38 inlined
+                        \ Set (S R) = (S R) + (sign A), with LL38 inlined
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
 
- EOR S                  \ If A and S have the same sign, jump to l51a to add
- BPL l51a
+ BIT Q                  \ If the signs are the same, jump to l51a to add (BIT
+ BPL l51a               \ leaves C and A alone)
 
- TYA                    \ Set A = R - Y as ~Y + R + C (the C flag is already
- EOR #%11111111         \ set, as the SBC SQ2H,Y above never borrows), which
- ADC R                  \ gives exactly the same A and C as SEC:SBC
+ EOR #%11111111         \ Set A = R - A as ~A + R + C (the C flag is already
+ ADC R                  \ set, as the SBC SQ2H,Y above never borrows), which
+                        \ gives exactly the same A and C as SEC:SBC
 
  BCS l51b               \ If there was no underflow, A and S are correct
 
- LDA S                  \ Otherwise flip the sign of S
+ EOR #%11111111         \ Otherwise A = R - product + 256 and C = 0, so set
+ ADC #1                 \ R = -A = product - R
+ STA R
+
+ LDA S                  \ And flip the sign of S
  EOR #%10000000
  STA S
 
- TYA                    \ And set A = Y - R
- SEC
- SBC R
-
- BRA l51b
+ BRA l51e               \ Skip the STA R (A is dead: LDY/LDA reload below)
 
 .l51a
 
- TYA                    \ Set A = R + Y
- CLC
+ CLC                    \ Set A = R + A
  ADC R
 
 .l51b
 
  STA R                  \ Set R = result
+
+.l51e
 
  LDY XX16+4,X           \ Set Q = |sidev_z| * z_lo / 256
 .l51z1
