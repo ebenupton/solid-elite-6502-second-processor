@@ -1806,14 +1806,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ RZ_PP = the planted RTS (190: none).
 \ ----------------------------------------------------------------------------
 
-.r_pb                     \ even and odd rows: a copy each (colour R_COLE / R_COLO)
-  LDY RZ_Y
-  TYA
-  LSR A
-  BCC pbe
-  JMP r_pbx_o
-.pbe
-  JMP r_pbx_e
 .pb_one_e
   LDY r_xo,X
   LDA r_lm,X
