@@ -6843,22 +6843,21 @@ ENDMACRO
 
  LDX Q                  \ Restore the value of X from before the call to ADD
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi, clear the sign bit, divide by 2 and
- AND #%01111111         \ store in T, so:
+ LDA INWK+1,Y           \ Fetch nosev_x_hi, store it in S (the high byte of the
+ STA S                  \ subtraction below, fixed up for the borrow later),
+ AND #%01111111         \ then clear the sign bit and divide by 2, so:
  LSR A                  \
- STA T                  \ T = |nosev_x_hi| / 2
-                        \   = |nosev_x| / 512
+                        \ A = |nosev_x_hi| / 2 = |nosev_x| / 512
 
- LDA INWK,Y             \ Now we do the following subtraction:
+ EOR #&FF               \ Now we do the following subtraction:
  SEC                    \
- SBC T                  \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
+ ADC INWK,Y             \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
  STA R                  \       = (1 - 1/512) * nosev_x
                         \
-                        \ by doing the low bytes first
+                        \ low byte as lo + ~A + 1 = lo - A (same result and C)
 
- LDA INWK+1,Y           \ And then the high bytes (the high byte of the right
- SBC #0                 \ side of the subtraction being 0)
- STA S
+ BCS P%+4               \ And then the high byte: decrement S if the low byte
+ DEC S                  \ borrowed (same as nosev_x_hi - 0 - borrow)
 
  LDA INWK,X             \ Set P = roofv_x_lo
  STA P
@@ -8055,14 +8054,31 @@ ENDMACRO
                         \   (A P) = A * ALP1
                         \         = (x / 256) * alpha
 
- JSR ADD                \ Call ADD to calculate:
+                        \ Inline ADD to calculate:
                         \
-                        \   (A X) = (A P) + (S R)
-                        \         = (x / 256) * alpha + y
-                        \         = y + alpha * x / 256
+                        \   YY(1 0) = (A P) + (S R)
+                        \           = (x / 256) * alpha + y
+                        \           = y + alpha * x / 256
 
+ STA T1                 \ As ADD: T1 = A, T = sign of A
+ AND #%10000000
+ STA T
+ EOR S                  \ Signs differ: use MU8
+ BMI stl_a8
+ LDA R                  \ Same sign: YY = P + R
+ CLC
+ ADC P
+ STA YY
+ LDA S                  \ YY+1 = (S + T1 + C) OR T
+ ADC T1
+ ORA T
+ STA YY+1
+ JMP stl_a9
+.stl_a8
+ JSR MU8                \ (A X) = (A P) + (S R)
  STA YY+1               \ Set YY(1 0) = (A X) to give:
  STX YY                 \
+.stl_a9
                         \   YY(1 0) = y + alpha * x / 256
                         \
                         \ which is result 5 above, and we also have:
@@ -8108,14 +8124,21 @@ ENDMACRO
                         \
                         \   Q = -beta * y_hi / 256
 
- JSR MULT1              \ Call MULT1 to calculate ((S R) = x was set above):
+ ASL A                  \ Set X = 2 * |Q| (0..254; the ASL drops the sign bit)
+ TAX                    \ and square Q directly from the quarter-square table,
+                        \ as SQ1(2q) = (2q)^2 / 4 = q^2 exactly (this is what
+                        \ MULT1 computed: f(q + q) - f(0)), doubling as we go:
                         \
-                        \   (A P) = Q * A
-                        \         = (-beta * y_hi / 256) * (-beta * y_hi / 256)
-                        \         = (beta * y / 256) ^ 2
+                        \   (A P) = 2 * Q * Q = 2 * (beta * y / 256) ^ 2
+                        \
+                        \ ((S R) = x was set above)
 
- ASL P                  \ Double (A P). MULT1 was called with A = Q, so the
- ROL A                  \ result is positive (sign = A EOR Q = 0) and its high
+ LDA SQ1L,X             \ P = low byte of 2 * q^2, C = bit 7 of low byte of q^2
+ ASL A
+ STA P
+
+ LDA SQ1H,X             \ A = high byte of 2 * q^2. The result is positive and
+ ROL A                  \ its high
                         \ byte is at most 127*127/256 = 63, so after the
                         \ doubling A < 128 and C = 0:
                         \   (A P) = (A P) * 2
@@ -8125,30 +8148,26 @@ ENDMACRO
                         \ afterwards (PIX1's ADD writes them first; the IRQ
                         \ never reads them), except that MU8/MU9 read T = 0
 
- STA T1                 \ T1 = A (as ADD would)
+ TAX                    \ Keep the high byte of (A P) (0..127) in X
  LDA S                  \ If S is negative the signs differ: subtract via MU8
- BMI stl_mu8
- LDA R                  \ Same sign: X = P + R (C = 0 from the ROL above)
- ADC P
- TAX
- LDA S                  \ A = S + T1 (ORA T is a no-op as T would be 0)
- ADC T1
- BRA stl_add
-.stl_mu8
+ BPL stl_same
+ STX T1                 \ T1 = A (as ADD would), A = S here
  STZ T                  \ ADD would have set T = sign of A = 0, and A = S here
  JSR MU8                \ = (T1 AND &80) EOR S, exactly as at ADD's BMI MU8
-.stl_add
-                        \ Now (A X) = (A P) + (S R), as from JSR ADD:
-                        \
-                        \   (A X) = (A P) + (S R)
-                        \         = 2 * (beta * y / 256) ^ 2 + x
-
- STA SX,Y               \ BBC Master port: store the high byte A straight into
-                        \ x_hi (SX is not read by PIX1/PIXEL2, which use X1, and
-                        \ XX+1 is dead: rewritten at the top of STL1 before use)
-
- TXA                    \ Store the low byte X in x_lo
+                        \ giving (A X) = (A P) + (S R)
+ STA SX,Y               \ x_hi = A (SX is not read by PIX1/PIXEL2, which use
+ TXA                    \ X1, and XX+1 is dead: rewritten at the top of STL1)
+ STA SXL,Y              \ x_lo = X
+ JMP stl_done
+.stl_same
+ LDA R                  \ Same sign: x_lo = P + R (C = 0 from the ROL above)
+ ADC P
  STA SXL,Y
+ TXA                    \ x_hi = (A P)hi + S + C (ORA T is a no-op as T = 0;
+ ADC S                  \ T1 is dead here: PIX1's ADD writes it before any read)
+ STA SX,Y
+.stl_done
+                        \ So (x_hi x_lo) = x + 2 * (beta * y / 256) ^ 2
 
                         \ So (x_hi x_lo) now contains:
                         \
@@ -13186,189 +13205,68 @@ ENDIF
 \       Type: Subroutine
 \   Category: Maths (Geometry)
 \    Summary: Calculate A = arctan(P / Q)
-\  Deep dive: The sine, cosine and arctan tables
 \
 \ ------------------------------------------------------------------------------
 \
-\ Calculate the following:
-\
-\   A = arctan(P / Q)
-\
-\ In other words, this finds the angle in the right-angled triangle where the
-\ opposite side to angle A is length P and the adjacent side to angle A has
-\ length Q, so:
-\
-\   tan(A) = P / Q
-\
-\ The result in A is an integer representing the angle in radians. The routine
-\ returns values in the range 0 to 128, which covers 0 to 180 degrees (or 0 to
-\ PI radians).
+\ BBC Master port: ARCTAN (ARCTAN7, with ARS1 and the ACT table) has moved to
+\ sideways RAM bank 7 (see elite7.asm) to make room in main RAM, as it is cold
+\ (its only caller is PLS4). This stub pages bank 7 in around the call. The
+\ result is returned in A, as before; X is corrupted (ARCTAN corrupts it
+\ anyway, and PLS4 reloads it), and the flags are set from A.
 \
 \ ******************************************************************************
 
 .ARCTAN
 
- LDA P                  \ Set T1 = P EOR Q, which will have the sign of P * Q
- EOR Q                  \
-\AND #%10000000         \ The AND is commented out in the original source
- STA T1
+ LDA #7                 \ Page bank 7 in
+ STA &F4
+ STA &FE30
 
- LDA Q                  \ If Q = 0, jump to AR2 to return a right angle
- BEQ AR2
+ JSR ARCTAN7            \ Set A = arctan(P / Q)
 
- ASL A                  \ Set Q = |Q| * 2 (this is a quick way of clearing the
- STA Q                  \ sign bit, and we don't need to shift right again as we
-                        \ only ever use this value in the division with |P| * 2,
-                        \ which we set next)
-
- LDA P                  \ Set A = |P| * 2
- ASL A
-
- CMP Q                  \ If A >= Q, i.e. |P| > |Q|, jump to AR1 to swap P
- BCS AR1                \ and Q around, so we can still use the lookup table
-
- JSR ARS1               \ Call ARS1 to set the following from the lookup table:
-                        \
-                        \   A = arctan(A / Q)
-                        \     = arctan(|P / Q|)
-
- SEC                    \ Set the C flag so the SBC instruction in AR3 will be
-                        \ correct, should we jump there
-
-.AR4
-
- LDX T1                 \ If T1 is negative, i.e. P and Q have different signs,
- BMI AR3                \ jump down to AR3 to return arctan(-|P / Q|)
-
- RTS                    \ Otherwise P and Q have the same sign, so our result is
-                        \ correct and we can return from the subroutine
-
-.AR1
-
-                        \ We want to calculate arctan(t) where |t| > 1, so we
-                        \ can use the calculation described in the documentation
-                        \ for the ACT table, i.e. 64 - arctan(1 / t)
-
- LDX Q                  \ Swap the values in Q and P, using the fact that we
- STA Q                  \ called AR1 with A = P
- STX P                  \
- TXA                    \ This also sets A = P (which now contains the original
-                        \ argument |Q|)
-
- JSR ARS1               \ Call ARS1 to set the following from the lookup table:
-                        \
-                        \   A = arctan(A / Q)
-                        \     = arctan(|Q / P|)
-                        \     = arctan(1 / |P / Q|)
-
- STA T                  \ Set T = 64 - T
- LDA #64
- SBC T
-
- BCS AR4                \ Jump to AR4 to continue the calculation (this BCS is
-                        \ effectively a JMP as the subtraction will never
-                        \ underflow, as ARS1 returns values in the range 0-31)
-
-.AR2
-
-                        \ If we get here then Q = 0, so tan(A) = infinity and
-                        \ A is a right angle, or 0.25 of a circle. We allocate
-                        \ 255 to a full circle, so we should return 63 for a
-                        \ right angle
-
- LDA #63                \ Set A to 63, to represent a right angle
-
- RTS                    \ Return from the subroutine
-
-.AR3
-
-                        \ A contains arctan(|P / Q|) but P and Q have different
-                        \ signs, so we need to return arctan(-|P / Q|), using
-                        \ the calculation described in the documentation for the
-                        \ ACT table, i.e. 128 - A
-
- STA T                  \ Set A = 128 - A
- LDA #128               \
-\SEC                    \ The SEC instruction is commented out in the original
- SBC T                  \ source, and isn't required as we did a SEC before
-                        \ calling AR3
-
- RTS                    \ Return from the subroutine
-
-.ARS1
-
-                        \ This routine fetches arctan(A / Q) from the ACT table,
-                        \ so A will be set to an integer in the range 0 to 31
-                        \ that represents an angle from 0 to 45 degrees (or 0 to
-                        \ PI / 4 radians)
-
- JSR LL28               \ Call LL28 to calculate:
-                        \
-                        \   R = 256 * A / Q
-
- LDA R                  \ Set X = R / 8
- LSR A                  \       = 32 * A / Q
- LSR A                  \
- LSR A                  \ so X has the value t * 32 where t = A / Q, which is
- TAX                    \ what we need to look up values in the ACT table
-
- LDA ACT,X              \ Fetch ACT+X from the ACT table into A, so now:
-                        \
-                        \   A = value in ACT + X
-                        \     = value in ACT + (32 * A / Q)
-                        \     = arctan(A / Q)
+ TAX                    \ Page Elite's bank back in, preserving A
+ LDA #ELITEBANK
+ STA &F4
+ STA &FE30
+ TXA
 
  RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
-\       Name: ACT
-\       Type: Variable
-\   Category: Maths (Geometry)
-\    Summary: Arctan table
-\  Deep dive: The sine, cosine and arctan tables
+\       Name: GTHG
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Spawn a Thargoid ship and a Thargon companion
+\  Deep dive: Fixing ship positions
+\             Aggression and hostility in ship tactics
 \
 \ ------------------------------------------------------------------------------
 \
-\ This table contains lookup values for arctangent calculations involving angles
-\ in the range 0 to 45 degrees (or 0 to PI / 4 radians).
-\
-\ To calculate the value of theta in the following:
-\
-\   theta = arctan(t)
-\
-\ where 0 <= t < 1, we look up the value in:
-\
-\   ACT + (t * 32)
-\
-\ The result will be an integer representing the angle in radians, where 256
-\ represents a full circle of 360 degrees (2 * PI radians). The result of the
-\ lookup will therefore be an integer in the range 0 to 31, as this represents
-\ 0 to 45 degrees (0 to PI / 4 radians).
-\
-\ The table does not support values of t >= 1 or t < 0 directly, so if we need
-\ to calculate the arctangent for an angle greater than 45 degrees, we can apply
-\ the following calculation to the result from the table:
-\
-\   * For t > 1, arctan(t) = 64 - arctan(1 / t)
-\
-\ For negative values of t where -1 < t < 0, we can apply the following
-\ calculation to the result from the table:
-\
-\   * For t < 0, arctan(-t) = 128 - arctan(t)
-\
-\ Finally, if t < -1, we can do the first calculation to get arctan(|t|), and
-\ the second to get arctan(-|t|).
+\ BBC Master port: moved from sideways RAM bank 4 to main RAM to make room there
+\ (it is cold, and its only caller is in main RAM)
 \
 \ ******************************************************************************
 
-.ACT
+.GTHG
 
- FOR I%, 0, 31
+ JSR Ze                 \ Call Ze to initialise INWK to a fairly aggressive
+                        \ ship (though we increase this below)
+                        \
+                        \ Note that because Ze uses the value of X returned by
+                        \ DORND, and X contains the value of A returned by the
+                        \ previous call to DORND, this does not set the new ship
+                        \ to a totally random location
 
-  EQUB INT((128 / PI) * ATN(I% / 32) + 0.5)
+ LDA #%11111111         \ Set the AI flag in byte #32 so that the ship has AI,
+ STA INWK+32            \ an aggression level of 63 out of 63, and E.C.M.
 
- NEXT
+ LDA #THG               \ Call NWSHP to add a new Thargoid ship to our local
+ JSR NWSHP              \ bubble of universe
+
+ LDA #TGL               \ Call NWSHP to add a new Thargon ship to our local
+ JMP NWSHP              \ bubble of universe, and return from the subroutine
+                        \ using a tail call
 
 \ ******************************************************************************
 \
@@ -20442,55 +20340,58 @@ ENDMACRO
 
                         \ So now to calculate Q = SQRT(T S)
 
- LDX #0                 \ Set X = 0, to hold the remainder
+ STZ Q                  \ Set Q = 0, to hold the result
 
- STX Q                  \ Set Q = 0, to hold the result
+ LDA #0                 \ Set A = 0, to hold the remainder (BBC Master port:
+                        \ the remainder lives in A during the loop and is
+                        \ copied to X on exit, so X ends up as before)
 
  LDY #8                 \ Set Y = 8, to use as a loop counter
 
 .LL6
 
- CPX Q                  \ If X < Q, jump to LL7
+ CMP Q                  \ If A < Q, jump to LL7
  BCC LL7
 
- BNE LL8                \ If X > Q, jump to LL8
+ BNE LL8                \ If A > Q, jump to LL8
 
- LDA T                  \ If T < 64, jump to LL7 with the C flag clear,
- CMP #64                \ otherwise fall through into LL8 with the C flag set
+ LDX T                  \ If T < 64, jump to LL7 with the C flag clear,
+ CPX #64                \ otherwise fall through into LL8 with the C flag set
  BCC LL7
 
 .LL8
+
+ TAX                    \ Save the remainder in X
 
  LDA T                  \ Set T = T - 64 (C is set here)
  SBC #64
  STA T
 
- TXA                    \ Set X = X - Q
+ TXA                    \ Set A = A - Q
  SBC Q
- TAX
 
 .LL7
 
  ROL Q                  \ Shift the result in Q to the left, shifting the C flag
                         \ into bit 0 and bit 7 into the C flag
 
- TXA                    \ Shift (A T S) = (X T S) left twice, then X = A
- ASL S
+ ASL S                  \ Shift (A T S) left twice
  ROL T
  ROL A
  ASL S
  ROL T
  ROL A
- TAX
 
  DEY                    \ Decrement the loop counter
 
  BNE LL6                \ Loop back to LL6 until we have done 8 loops
 
+ TAX                    \ Return the remainder in X, as before
+
  RTS                    \ Return from the subroutine
 
  NOP                    \ BBC Master port: padding (never executed) to keep LL5
-                        \ the original size, so LL28 and everything after it in
+ NOP                    \ the original size, so LL28 and everything after it in
                         \ main RAM stay put (a 1-byte shift moves LL28's page
                         \ crossing from a rarely taken BCS to a often taken BCC)
 
@@ -20732,6 +20633,42 @@ ENDMACRO
 
 .LL51
 
+                        \ BBC Master port: the nine 8-bit x 8-bit products are
+                        \ calculated inline with the quarter-square tables (see
+                        \ SQ1L), exactly as FMLTU does, but with the roles of
+                        \ the two arguments swapped (u * v is symmetric): the
+                        \ coordinate magnitudes x_lo, y_lo and z_lo (which are
+                        \ the same for all three vectors) are patched into the
+                        \ table operands once here, and the vector element is
+                        \ used as the index, so each product is
+                        \
+                        \   A = HI(f(u + v) - f(|u - v|)) = u * v / 256
+                        \
+                        \ with the C flag set afterwards, as with FMLTU
+
+ LDA XX15               \ Patch u = x_lo into the x-coordinate look-ups
+ STA l51x1+1
+ STA l51x3+1
+ EOR #&FF
+ STA l51x2+1
+ STA l51x4+1
+
+ LDA XX15+2             \ Patch u = y_lo into the y-coordinate look-ups
+ STA l51y1+1
+ STA l51y3+1
+ EOR #&FF
+ STA l51y2+1
+ STA l51y4+1
+
+ LDA XX15+4             \ Patch u = z_lo into the z-coordinate look-ups
+ STA l51z1+1
+ STA l51z3+1
+ EOR #&FF
+ STA l51z2+1
+ STA l51z4+1
+
+ STZ P                  \ Set P = 0, as FMLTU would have done
+
  LDX #0                 \ Set X = 0, which will contain the offset of the vector
                         \ to use in the calculation, increasing by 6 for each
                         \ new vector
@@ -20742,45 +20679,56 @@ ENDMACRO
 
 .ll51
 
- LDA XX15               \ Set Q = x_lo
- STA Q
+ PHY                    \ Store the result offset on the stack, as we use Y as
+                        \ the table index
 
- LDA XX16,X             \ Set A = |sidev_x|
-
- JSR FMLTU              \ Set R = A * Q / 256
- STA R                  \       = |sidev_x| * x_lo / 256
-                        \ (stored straight into R: FMLTU does not touch R)
+ LDY XX16,X             \ Set R = |sidev_x| * x_lo / 256
+.l51x1
+ LDA SQ1L,Y
+.l51x2
+ CMP SQ2L,Y
+.l51x3
+ LDA SQ1H,Y
+.l51x4
+ SBC SQ2H,Y
+ STA R
 
  LDA XX15+1             \ Set S to the sign of x_sign * sidev_x
  EOR XX16+1,X
  STA S
 
- LDA XX15+2             \ Set Q = y_lo
+ LDY XX16+2,X           \ Set Q = |sidev_y| * y_lo / 256
+.l51y1
+ LDA SQ1L,Y
+.l51y2
+ CMP SQ2L,Y
+.l51y3
+ LDA SQ1H,Y
+.l51y4
+ SBC SQ2H,Y
  STA Q
-
- LDA XX16+2,X           \ Set A = |sidev_y|
-
- JSR FMLTU              \ Set Q = A * Q / 256
- STA Q                  \       = |sidev_y| * y_lo / 256
 
  LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
  EOR XX16+3,X
 
  JSR LL38               \ Set (S T) = (S R) + (A Q)
  STA T                  \           = |sidev_x| * x_lo + |sidev_y| * y_lo
- STA R                  \ Set R = T (FMLTU does not touch R)
+ STA R                  \ Set R = T
 
- LDA XX15+4             \ Set Q = z_lo
+ LDY XX16+4,X           \ Set Q = |sidev_z| * z_lo / 256
+.l51z1
+ LDA SQ1L,Y
+.l51z2
+ CMP SQ2L,Y
+.l51z3
+ LDA SQ1H,Y
+.l51z4
+ SBC SQ2H,Y             \ This never borrows, so the C flag is set
  STA Q
 
- LDA XX16+4,X           \ Set A = |sidev_z|
-
- JSR FMLTU              \ Set Q = A * Q / 256
- STA Q                  \       = |sidev_z| * z_lo / 256
-
- TXA                    \ Set X = X + 6, using the C flag that FMLTU always
- ADC #5                 \ returns set (so no CLC is needed); X is not used by
- TAX                    \ LL38, and the EOR below is offset by -6 to match
+ TXA                    \ Set X = X + 6, using the C flag that the SBC above
+ ADC #5                 \ always leaves set (so no CLC is needed); X is not
+ TAX                    \ used by LL38, and the EOR below is offset by -6
 
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
  EOR XX16+5-6,X
@@ -20788,6 +20736,8 @@ ENDMACRO
  JSR LL38               \ Set (S A) = (S R) + (A Q)
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
                         \             + |sidev_z| * z_lo
+
+ PLY                    \ Restore the result offset
 
  STA XX12,Y             \ Store the result in XX12+Y(1 0)
  LDA S
@@ -24870,107 +24820,112 @@ ENDMACRO
 \       Name: TRTBL
 \       Type: Variable
 \   Category: Keyboard
-\    Summary: Translation table from internal key number to ASCII (copied from
-\             BBC Master Elite)
+\    Summary: Placeholder for the keyboard translation table (moved to bank 7)
 \
 \ ------------------------------------------------------------------------------
 \
-\ BBC Master port: the cassette loader sets TRTB%(1 0) to point to the MOS 1.20
-\ keyboard translation table (via OSBYTE 172). The Master's MOS 3.20 doesn't
-\ have this table at the same place, so this is a copy of the MOS 3.20 table
-\ (and the MOS code that is interleaved with it), as included in BBC Master
-\ Elite. The Master loader points TRTB%(1 0) at this table (TRTBL), though the demo
-\ never actually uses it.
+\ BBC Master port: the copy of the MOS 3.20 keyboard translation table that
+\ BBC Master Elite includes is never read by the demo, so it has moved to
+\ sideways RAM bank 7 (TRTBL7 in elite7.asm) to make room in main RAM. The
+\ loader still points TRTB%(1 0) here, but nothing reads TRTB% as a pointer
+\ (CPYIN/CPYOUT reuse TRTB%(1 0) as INF2).
 \
 \ ******************************************************************************
+
 .TRTBL
 
+\ ******************************************************************************
+\
+\       Name: ECBLB2
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Start up the E.C.M. (light up the indicator, start the countdown
+\             and make the E.C.M. sound)
+\
+\ ******************************************************************************
 
- EQUB &00, &40, &FE     \ MOS code
- EQUB &A0, &5F, &8C
- EQUB &43, &FE, &8E
- EQUB &4F, &FE, &EA
- EQUB &AE, &4F, &FE
- EQUB &60
+.ECBLB2
 
-                        \ Internal key numbers &10 to &19:
-                        \
- EQUB &51, &33          \ Q             3
- EQUB &34, &35          \ 4             5
- EQUB &84, &38          \ f4            8
- EQUB &87, &2D          \ f7            -
- EQUB &5E, &8C          \ ^             Left arrow
+ LDA #32                \ Set the E.C.M. countdown timer in ECMA to 32
+ STA ECMA
 
- EQUB &36, &37, &BC     \ MOS code
- EQUB &00, &FC, &60
+ ASL A                  \ Call the NOISE routine with A = 64 to make the sound
+ JSR NOISE              \ of the E.C.M. being switched on
 
-                        \ Internal key numbers &20 to &29:
-                        \
- EQUB &80, &57          \ f0            W
- EQUB &45, &54          \ E             T
- EQUB &37, &49          \ 7             I
- EQUB &39, &30          \ 9             0
- EQUB &5F, &8E          \ _             Down arrow
+                        \ And fall into ECBLB to light up the E.C.M. bulb
 
- EQUB &38, &39, &BC     \ MOS code
- EQUB &00, &FD, &60
+\ ******************************************************************************
+\
+\       Name: ECBLB
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Light up the E.C.M. indicator bulb ("E") on the dashboard
+\
+\ ******************************************************************************
 
-                        \ Internal key numbers &30 to &39:
-                        \
- EQUB &31, &32          \ 1             2
- EQUB &44, &52          \ D             R
- EQUB &36, &55          \ 6             U
- EQUB &4F, &50          \ O             P
- EQUB &5B, &8F          \ [             Up arrow
+.ECBLB
 
- EQUB &81, &82, &0D     \ MOS code
- EQUB &4C, &20, &02
+ LDA #LO(ECBT)          \ The E.C.M. bulb's bitmap, at &7A70 (row 5, bytes
+ LDX #HI(ECBT)          \ 14-15)
+ LDY #&70
+ CLC
+ BCC BULB
 
-                        \ Internal key numbers &40 to &49:
-                        \
- EQUB &01, &41          \ CAPS LOCK     A
- EQUB &58, &46          \ X             F
- EQUB &59, &4A          \ Y             J
- EQUB &4B, &40          \ K             @
- EQUB &3A, &0D          \ :             RETURN
+\ ******************************************************************************
+\
+\       Name: SPBLB
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Light up the space station indicator ("S") on the dashboard
+\
+\ ******************************************************************************
 
- EQUB &83, &7F, &AE     \ MOS code
- EQUB &4C, &FE, &FD
+.SPBLB
 
-                        \ Internal key numbers &50 to &59:
-                        \
- EQUB &02, &53          \ SHIFT LOCK    S
- EQUB &43, &47          \ C             G
- EQUB &48, &4E          \ H             N
- EQUB &4C, &3B          \ L             ;
- EQUB &5D, &7F          \ ]             DELETE
+ LDA #LO(SPBT)          \ The space station bulb's bitmap, at &7B80 (row 5,
+ LDX #HI(SPBT)          \ bytes 48-49)
+ LDY #&80
+ SEC
 
- EQUB &85, &84, &86     \ MOS code
- EQUB &4C, &FA, &00
+\ ******************************************************************************
+\
+\       Name: BULB
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Draw an indicator bulb on the dashboard
+\
+\ ------------------------------------------------------------------------------
+\
+\ EOR the 16-byte bitmap at (X A) (two byte columns of 8 lines, in the MODE 1
+\ dashboard's colours, from tools/dashboard.py) onto the dashboard at &7A00 + Y
+\ (C clear) or &7B00 + Y (C set). Returns as the original (via RR4).
+\
+\ ******************************************************************************
 
-                        \ Internal key numbers &60 to &69:
-                        \
- EQUB &00, &5A          \ TAB           Z
- EQUB &20, &56          \ Space         V
- EQUB &42, &4D          \ B             M
- EQUB &2C, &2E          \ ,             .
- EQUB &2F, &8B          \ /             COPY
+.BULB
 
- EQUB &30, &31, &33     \ MOS code
- EQUB &00, &00, &00
+ STA P+1
+ STX P+2
+ STY SC
+ LDA #&7A
+ ADC #0
+ STA SC+1
 
-                        \ Internal key numbers &70 to &79:
-                        \
- EQUB &1B, &81          \ ESCAPE        f1
- EQUB &82, &83          \ f2            f3
- EQUB &85, &86          \ f5            f6
- EQUB &88, &89          \ f8            f9
- EQUB &5C, &8D          \ \             Right arrow
+ LDY #15
 
- EQUB &34, &35, &32     \ MOS code
- EQUB &2C, &4E, &E3
+.BULL1
 
+ LDA (P+1),Y
+ EOR (SC),Y
+ DPUT
+ DEY
+ BPL BULL1
 
+ LDY YSAV2              \ Return with the registers as the original's jump to
+ LDX XSAV2              \ RR4 left them
+ LDA K3
+ CLC
+ RTS
 
 \ ******************************************************************************
 \
@@ -29779,37 +29734,6 @@ ENDIF
 
 \ ******************************************************************************
 \
-\       Name: GTHG
-\       Type: Subroutine
-\   Category: Universe
-\    Summary: Spawn a Thargoid ship and a Thargon companion
-\  Deep dive: Fixing ship positions
-\             Aggression and hostility in ship tactics
-\
-\ ******************************************************************************
-
-.GTHG
-
- JSR Ze                 \ Call Ze to initialise INWK to a fairly aggressive
-                        \ ship (though we increase this below)
-                        \
-                        \ Note that because Ze uses the value of X returned by
-                        \ DORND, and X contains the value of A returned by the
-                        \ previous call to DORND, this does not set the new ship
-                        \ to a totally random location
-
- LDA #%11111111         \ Set the AI flag in byte #32 so that the ship has AI,
- STA INWK+32            \ an aggression level of 63 out of 63, and E.C.M.
-
- LDA #THG               \ Call NWSHP to add a new Thargoid ship to our local
- JSR NWSHP              \ bubble of universe
-
- LDA #TGL               \ Call NWSHP to add a new Thargon ship to our local
- JMP NWSHP              \ bubble of universe, and return from the subroutine
-                        \ using a tail call
-
-\ ******************************************************************************
-\
 \       Name: MJP, Removed
 \       Type: Subroutine
 \   Category: Flight
@@ -32950,99 +32874,6 @@ ENDIF
 
 \ ******************************************************************************
 \
-\       Name: ECBLB2
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Start up the E.C.M. (light up the indicator, start the countdown
-\             and make the E.C.M. sound)
-\
-\ ******************************************************************************
-
-.ECBLB2
-
- LDA #32                \ Set the E.C.M. countdown timer in ECMA to 32
- STA ECMA
-
- ASL A                  \ Call the NOISE routine with A = 64 to make the sound
- JSR NOISE              \ of the E.C.M. being switched on
-
-                        \ And fall into ECBLB to light up the E.C.M. bulb
-
-\ ******************************************************************************
-\
-\       Name: ECBLB
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Light up the E.C.M. indicator bulb ("E") on the dashboard
-\
-\ ******************************************************************************
-
-.ECBLB
-
- LDA #LO(ECBT)          \ The E.C.M. bulb's bitmap, at &7A70 (row 5, bytes
- LDX #HI(ECBT)          \ 14-15)
- LDY #&70
- CLC
- BCC BULB
-
-\ ******************************************************************************
-\
-\       Name: SPBLB
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Light up the space station indicator ("S") on the dashboard
-\
-\ ******************************************************************************
-
-.SPBLB
-
- LDA #LO(SPBT)          \ The space station bulb's bitmap, at &7B80 (row 5,
- LDX #HI(SPBT)          \ bytes 48-49)
- LDY #&80
- SEC
-
-\ ******************************************************************************
-\
-\       Name: BULB
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Draw an indicator bulb on the dashboard
-\
-\ ------------------------------------------------------------------------------
-\
-\ EOR the 16-byte bitmap at (X A) (two byte columns of 8 lines, in the MODE 1
-\ dashboard's colours, from tools/dashboard.py) onto the dashboard at &7A00 + Y
-\ (C clear) or &7B00 + Y (C set). Returns as the original (via RR4).
-\
-\ ******************************************************************************
-
-.BULB
-
- STA P+1
- STX P+2
- STY SC
- LDA #&7A
- ADC #0
- STA SC+1
-
- LDY #15
-
-.BULL1
-
- LDA (P+1),Y
- EOR (SC),Y
- DPUT
- DEY
- BPL BULL1
-
- LDY YSAV2              \ Return with the registers as the original's jump to
- LDX XSAV2              \ RR4 left them
- LDA K3
- CLC
- RTS
-
-\ ******************************************************************************
-\
 \       Name: MSBAR
 \       Type: Subroutine
 \   Category: Dashboard
@@ -33835,19 +33666,12 @@ ENDIF
 
 .PLL4
 
- LDA CNT2               \ Set X = CNT2 mod 32
- AND #31                \
- TAX                    \ So X is the starting segment, reduced to the range 0
-                        \ to 32, so as there are 64 segments in the circle, this
-                        \ reduces the starting angle to 0 to 180 degrees, so we
-                        \ can use X as an index into the sine table (which only
-                        \ contains values for segments 0 to 31)
+ LDX CNT2               \ Set X = CNT2, the starting segment (0 to 63)
                         \
-                        \ Also, because CNT2 mod 32 is in the range 0 to 180
-                        \ degrees, we know that sin(CNT2 mod 32) is always
-                        \ positive, or to put it another way:
-                        \
-                        \   sin(CNT2 mod 32) = |sin(CNT2)|
+                        \ SNE is extended to 80 entries, with SNE+n holding
+                        \ |sin(n mod 32)|, so SNE+X = sin(CNT2 mod 32) =
+                        \ |sin(CNT2)| without reducing X mod 32 (and the
+                        \ cosine below is SNE+16+X, no EOR #16 needed)
 
  LDA SNE,X              \ Set Q = sin(X)
  STA Q                  \       = sin(CNT2 mod 32)
@@ -33865,8 +33689,8 @@ ENDIF
  JSR FMLTU              \ Set K = A * Q / 256
  STA K                  \       = |v_y| * |sin(CNT2)|
 
- LDA CNT2               \ If CNT2 >= 33 then this sets the C flag, otherwise
- CMP #33                \ it's clear, so this means that:
+ CPX #33                \ If CNT2 >= 33 then this sets the C flag (X = CNT2,
+                        \ preserved by FMLTU), otherwise it's clear, so:
                         \
                         \   * C is clear if the segment starts in the first half
                         \     of the circle, 0 to 180 degrees
@@ -33892,21 +33716,7 @@ ENDIF
                         \   (XX16+5 K) = |v_y| * sin(CNT2)
                         \   (XX16+5 R) = |v_x| * sin(CNT2)
 
- TXA                    \ X still contains CNT2 mod 32 from above (FMLTU
- EOR #16                \ preserves X), so this sets X = (CNT2 + 16) mod 32
- TAX                    \ = (CNT2 mod 32) EOR 16
-                        \
-                        \ So we can use X as a lookup index into the SNE table
-                        \ to get the cosine (as there are 16 segments in a
-                        \ quarter-circle)
-                        \
-                        \ Also, because the sine table only contains positive
-                        \ values, we know that sin((CNT2 + 16) mod 32) will
-                        \ always be positive, or to put it another way:
-                        \
-                        \   sin((CNT2 + 16) mod 32) = |cos(CNT2)|
-
- LDA SNE,X              \ Set Q = sin(X)
+ LDA SNE+16,X           \ Set Q = SNE+16+X
  STA Q                  \       = sin((CNT2 + 16) mod 32)
                         \       = |cos(CNT2)|
 
@@ -33925,7 +33735,7 @@ ENDIF
                         \ so (S R) = v_x * sin(CNT2) (this leaves the C flag
                         \ set from FMLTU for the ADC #15 below)
 
- LDA CNT2               \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
+ TXA                    \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
  ADC #207               \ then this sets the C flag, otherwise it's clear, so C
  CMP #225               \ is the sign bit of cos(CNT2): CNT2 + 208 is 225..255
                         \ only for CNT2 = 17..47 (48..63 wrap to 0..15)
@@ -37526,9 +37336,10 @@ INCLUDE "build/dashtab.asm"
 
 .SNE
 
- FOR I%, 0, 31
+ FOR I%, 0, 79          \ Entries 32-79 repeat 0-31 (SNE+n = |sin(n mod 32)|),
+                        \ so PLL4 can index SNE,X and SNE+16,X with X = 0-63
 
-  N = ABS(SIN((I% / 64) * 2 * PI))
+  N = ABS(SIN(((I% MOD 32) / 64) * 2 * PI))
 
   IF N >= 1
    EQUB 255
@@ -37767,26 +37578,27 @@ INCLUDE "build/dashtab.asm"
                         \ is often the roll angle), so we patch it into the
                         \ table look-ups and only re-patch when it changes
 
- STA T                  \ Store the whole of A in T for now (the TRB below
-                        \ reduces it to just the sign bit)
+ TAX                    \ Set X = A, and set the N and Z flags from A
 
- AND #%01111111         \ Set A = |A|
+ BMI MSN                \ If A is negative, jump to MSN for the negative case
 
  BEQ MSZ                \ If A = 0, jump to MSZ to set P(1 0) = 0 and return
-                        \ (T = A = the sign bit already in this case)
 
- TAX                    \ Set X = |A| (T1 = |A| - 1 is set at the end)
-
- TRB T                  \ Clear bits 0-6 of T, so T = the sign bit of A
+                        \ A is positive, so X = |A|. The T, T1, X and C values
+                        \ that the original left are dead at all three callers
+                        \ (ADD and MULT1 overwrite them before reading them, and
+                        \ the IRQ handler never reads T or T1), so they are no
+                        \ longer reproduced
 
  LDA P                  \ Set A = P AND 31
  AND #31
 
- CMP MSLAST             \ If this is the same value as last time, the table
- BEQ MSU0               \ look-ups are already patched, so skip the following
+ CMP MSU1+1             \ If this is the value already patched into this copy's
+ BEQ MSU0               \ table look-ups, skip the following (each copy keeps
+                        \ its own four operands consistent, and all start out
+                        \ patched for 0 as the tables are page-aligned)
 
- STA MSLAST             \ Patch P AND 31 into the operands of the table look-ups
- STA MSU1+1
+ STA MSU1+1             \ Patch P AND 31 into this copy's table look-ups
  STA MSU3+1
  EOR #&FF
  STA MSU2+1
@@ -37801,31 +37613,56 @@ INCLUDE "build/dashtab.asm"
  SBC SQ2L+&FF,X
  STA P
 
-.MSU3                   \ Calculate the high byte in A
- LDA SQ1H,X
+.MSU3                   \ Calculate the high byte in A (A was positive, so the
+ LDA SQ1H,X             \ sign bit is already clear)
 .MSU4
  SBC SQ2H+&FF,X
 
- DEX                    \ Set T1 = X = |A| - 1, as in the original (X is
- STX T1                 \ still |A| as the look-ups above don't change it)
+ RTS                    \ Return from the subroutine
 
- CLC                    \ Clear the C flag, as in the original
+.MSN
 
- ORA T                  \ Give A the sign bit of the original argument A that
-                        \ we put into T above
+ AND #%01111111         \ Set A = |A|
+
+ BEQ MSZ                \ If A = 0, jump to MSZ to set P(1 0) = 0 and return
+
+ TAX                    \ Set X = |A|
+
+ LDA P                  \ Set A = P AND 31
+ AND #31
+
+ CMP MSV1+1             \ If this is the value already patched into this copy's
+ BEQ MSV0               \ table look-ups, skip the following
+
+ STA MSV1+1             \ Patch P AND 31 into this copy's table look-ups
+ STA MSV3+1
+ EOR #&FF
+ STA MSV2+1
+ STA MSV4+1
+
+.MSV0
+
+ SEC                    \ Calculate the low byte of |A| * (P AND 31) and store
+.MSV1                   \ it in P
+ LDA SQ1L,X
+.MSV2
+ SBC SQ2L+&FF,X
+ STA P
+
+.MSV3                   \ Calculate the high byte in A
+ LDA SQ1H,X
+.MSV4
+ SBC SQ2H+&FF,X
+
+ ORA #%10000000         \ Set the sign bit, as the argument A was negative
 
  RTS                    \ Return from the subroutine
 
 .MSZ
 
  STA P+1                \ A = 0, so set P(1 0) = 0 and return from the
- STA P                  \ subroutine, as in MU6 (Z is set and N clear from the
- RTS                    \ AND above, C and V unchanged, as before)
-
-.MSLAST
-
- EQUB 0                 \ The value of P AND 31 currently patched into the
-                        \ table look-ups above
+ STA P                  \ subroutine, as in MU6
+ RTS
 
 \ ******************************************************************************
 \
@@ -37950,68 +37787,10 @@ INCLUDE "build/dashtab.asm"
                         \ via BNE and from MULTU after BEQ MU1), so the
                         \ original loop for X = 0 is not needed
 
- LDA P                  \ Set A = P and join the table look-ups at MU11A below
- BRA MU11A              \ (MLU1 and MLU2 fall through to MU11A with A = P
-                        \ already, saving a LDA P there)
+ LDA P                  \ Set A = P and fall through into the table look-ups
+                        \ at MU11A below
 
-\ ******************************************************************************
-\
-\       Name: MLU1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following assignment, and multiply the Y-th stardust particle's
-\ y-coordinate with an unsigned number Q:
-\
-\   Y1 = y_hi
-\
-\   (A P) = |y_hi| * Q
-\
-\ ******************************************************************************
-
-.MLU1
-
- LDA SY,Y               \ Set Y1 the Y-th byte of SY
- STA Y1
-
-                        \ Fall through into MLU2 to calculate:
-                        \
-                        \   (A P) = |A| * Q
-
-\ ******************************************************************************
-\
-\       Name: MLU2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = |A| * Q
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of a sign-magnitude 8-bit number P with an
-\ unsigned number Q:
-\
-\   (A P) = |A| * Q
-\
-\ ******************************************************************************
-
-.MLU2
-
- AND #%01111111         \ Clear the sign bit in P, so P = |A|
- STA P
-
- LDX Q                  \ Set X = Q (A = P is unchanged)
-
- BEQ MU1                \ If X = Q = 0, jump to MU1 to copy X into P and A,
-                        \ clear the C flag and return from the subroutine using
-                        \ a tail call
-
-                        \ Otherwise fall through into MU11A with A = P to set
-                        \ (A P) = P * X = |A| * Q
-
-.MU11A                  \ (SQUA2, MU11 and MLU2 enter here with A = P already)
+.MU11A                  \ (SQUA2 and MU11 enter here with A = P already)
  STA MUU1+1
  STA MUU3+1
  EOR #&FF
@@ -38034,6 +37813,91 @@ INCLUDE "build/dashtab.asm"
  STX T
 
  LDX #0                 \ Set X = 0 and the Z and N flags, as in the original
+
+ CLC                    \ Clear the C flag, as in the original
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: MLU1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following assignment, and multiply the Y-th stardust particle's
+\ y-coordinate with an unsigned number Q:
+\
+\   Y1 = y_hi
+\
+\   (A P) = |y_hi| * Q
+\
+\ BBC Master port: MLU1 and MLU2 are only called from STL1, once each per
+\ particle and in that order, with the same Q (always odd, so never 0). MLU1
+\ patches Q (rather than |A|, as MU11A does) into the table look-ups in MLU2,
+\ so both multiplications share one patch. The product is the same (the
+\ quarter-square identity is symmetric in u and v, and the tables cover every
+\ index 0 to 510 that this can produce), and so are A, P, C (clear) and V
+\ (the same SBC operands). Unlike the original, X is left as |A| rather than
+\ 0, the Z and N flags reflect A rather than X = 0, and T is not set to Q - 1:
+\ STL1 overwrites X, Z and N with a TAX straight after each call, and T is
+\ rewritten by MLS1 before anything reads it
+\
+\ ******************************************************************************
+
+.MLU1
+
+ LDA Q                  \ Patch Q into the table look-ups in MLU2, and ~Q into
+ STA MLQ1+1             \ the SQ2 look-ups
+ STA MLQ3+1
+ EOR #&FF
+ STA MLQ2+1
+ STA MLQ4+1
+
+ LDA SY,Y               \ Set Y1 the Y-th byte of SY
+ STA Y1
+
+                        \ Fall through into MLU2 to calculate:
+                        \
+                        \   (A P) = |A| * Q
+
+\ ******************************************************************************
+\
+\       Name: MLU2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = |A| * Q
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of a sign-magnitude 8-bit number P with an
+\ unsigned number Q:
+\
+\   (A P) = |A| * Q
+\
+\ BBC Master port: Q must already have been patched into the look-ups below by
+\ MLU1 (see above), and is never 0
+\
+\ ******************************************************************************
+
+.MLU2
+
+ AND #%01111111         \ Set X = |A|
+ TAX
+
+ SEC                    \ Calculate the low byte of |A| * Q and store it in P
+.MLQ1
+ LDA SQ1L,X
+.MLQ2
+ SBC SQ2L,X
+ STA P
+
+.MLQ3                   \ Calculate the high byte of |A| * Q in A
+ LDA SQ1H,X
+.MLQ4
+ SBC SQ2H,X
 
  CLC                    \ Clear the C flag, as in the original
 
@@ -38151,7 +38015,9 @@ INCLUDE "build/dashtab.asm"
  STA FMU2+1
  STA FMU4+1
 
- PHX                    \ Store X on the stack, as we use it as the index
+ STX P                  \ Store X in P, as we use it as the index (P is set
+                        \ to 0 below anyway, and STX/LDX zp is 1 cycle
+                        \ quicker than PHX/PLX)
 
  LDX Q                  \ Set X = Q
 
@@ -38166,7 +38032,9 @@ INCLUDE "build/dashtab.asm"
  SBC SQ2H,X             \ A * Q >= 0 fits in 16 bits, so this never borrows
                         \ and leaves the C flag set, as in the original
 
- PLX                    \ Restore X
+ LDX P                  \ Restore X (LDX sets Z/N, but they are overwritten
+                        \ by nothing below and are not live in any caller,
+                        \ as before with PLX)
 
  STZ P                  \ Set P = 0, as in the original
 
@@ -38305,10 +38173,21 @@ INCLUDE "build/dashtab.asm"
 \
 \ ******************************************************************************
 
+INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
+                        \ so one LDY serves two bytes. TRTB%(1 0) is only set by
+                        \ the loader and never read by the game, so it is free
+
 .CPYIN
 
- FOR I%, NI%-1, 0, -1
+ LDA CPYTL,X            \ X is still the slot number (MAL1 -> GINF preserves X),
+ STA INF2               \ so INF(1 0) = UNIV(X) and INF2(1 0) = UNIV(X) + NI%/2
+ LDA CPYTH,X            \ (abs,X loads leave C and V untouched)
+ STA INF2+1
+
+ FOR I%, NI%/2-1, 0, -1
   LDY #I%
+  LDA (INF2),Y
+  STA INWK+NI%/2+I%
   LDA (INF),Y
   STA INWK+I%
  NEXT
@@ -38337,8 +38216,20 @@ INCLUDE "build/dashtab.asm"
 
 .CPYOUT
 
- FOR I%, NI%-1, 0, -1
+ PHP                    \ INF2(1 0) = INF(1 0) + NI%/2, keeping C and V
+ LDA INF
+ CLC
+ ADC #NI%/2
+ STA INF2
+ LDA INF+1
+ ADC #0
+ STA INF2+1
+ PLP
+
+ FOR I%, NI%/2-1, 0, -1
   LDY #I%
+  LDA INWK+NI%/2+I%
+  STA (INF2),Y
   LDA INWK+I%
   STA (INF),Y
  NEXT
@@ -38346,6 +38237,21 @@ INCLUDE "build/dashtab.asm"
  LDY #&FF
 
  RTS
+
+.CPYTL                  \ Low and high bytes of UNIV(X) + NI%/2, for CPYIN
+
+ FOR I%, 0, NOSH
+  EQUB LO(K% + I% * NI% + NI%/2)
+ NEXT
+
+.CPYTH
+
+ FOR I%, 0, NOSH
+  EQUB HI(K% + I% * NI% + NI%/2)
+ NEXT
+
+ ASSERT HI(CPYTL) = HI(CPYTL + NOSH)   \ no page-crossing penalty on CPYTL,X
+ ASSERT HI(CPYTH) = HI(CPYTH + NOSH)   \ or on CPYTH,X
 
 \ ******************************************************************************
 \
@@ -38458,30 +38364,37 @@ INCLUDE "build/dashtab.asm"
 
  TAX                    \ Store A in X
 
- EOR Q                  \ Set T to the sign bit of Q * A
- AND #%10000000
- STA T
-
  LDA Q                  \ Set A = |Q|
  AND #%01111111
 
- BEQ mu10               \ If |Q| = 0 jump to mu10 (with A set to 0)
+ BNE MTUQ               \ If |Q| <> 0 jump to MTUQ to do the multiplication
 
- DEC A                  \ Set T1 = |Q| - 1, as in the original
- STA T1
+                        \ If we get here, the result is 0 and A = 0 (T and T1
+                        \ are not written: every caller writes them before
+                        \ reading them, via ADD, DVID96 or the STARS inline ADD)
 
- CMP M1LAST             \ If |Q| - 1 is the same value as last time, the table
+ STA P                  \ Set A = P = 0
+
+ RTS                    \ Return from the subroutine
+
+.MTUQ
+
+ CMP M1LAST             \ If |Q| is the same value as last time, the table
  BEQ MTU0               \ look-ups are already patched, so skip the following
 
- STA M1LAST             \ Record |Q| - 1 and patch |Q| into the operands of
- INC A                  \ the table look-ups
- STA MTU1+1
+ STA M1LAST             \ Record |Q| and patch |Q| into the operands of
+ STA MTU1+1             \ the table look-ups
  STA MTU3+1
  EOR #&FF
  STA MTU2+1
  STA MTU4+1
 
 .MTU0
+
+ TXA                    \ Set T to the sign bit of Q * A
+ EOR Q
+ AND #%10000000
+ STA T
 
  TXA                    \ Set X = |A|
  AND #%01111111
@@ -38502,16 +38415,6 @@ INCLUDE "build/dashtab.asm"
  ORA T                  \ Set the sign bit of the result that we stored in T
                         \ (X and the C flag are dead at every caller, so the
                         \ original's X = 0 and C = 0 are not reproduced)
-
- RTS                    \ Return from the subroutine
-
-.mu10
-
-                        \ If we get here, the result is 0 and A = 0 (the C, Z
-                        \ and N flags and X are dead at every caller, so the
-                        \ original's flag state is not reproduced)
-
- STA P                  \ Set A = P = 0
 
  RTS                    \ Return from the subroutine
 
@@ -38694,52 +38597,51 @@ INCLUDE "build/dashtab.asm"
 
 .MU8
 
-                        \ If we reach here, then A and S have different signs,
-                        \ so we can subtract their absolute values and set the
-                        \ sign to get the result
+                        \ If we reach here, then A and S have different signs.
+                        \ BBC Master port: |S R| > |A P| in ~90% of calls, so
+                        \ subtract the other way round first (|S R| - |A P|),
+                        \ which needs no negation in that common case
 
- LDA P                  \ Subtract the least significant bytes into X:
- SEC                    \
- SBC R                  \   X = P - R
+ LDA R                  \ X = R - P
+ SEC
+ SBC P
  TAX
 
- LDA T1                 \ Set A = |A| - |S| - borrow. A and S have opposite
- EOR #%10000000         \ signs, so (T1 EOR &80) - S is either
- SBC S                  \ (|A|+&80) - (|S|+&80) or |A| - |S|, giving the same
-                        \ result byte, C and V (V=0) as |A| - |S|
+ LDA S                  \ A = |S| - |A| - borrow (S EOR &80 has the same sign
+ EOR #%10000000         \ bit as T1), so C = 1 iff |S R| >= |A P|, and V = 0
+ SBC T1
 
-                        \ At this point we have |A P| - |S R| in (A X), so we
-                        \ need to check whether the subtraction above was the
-                        \ right way round (i.e. that we subtracted the smaller
-                        \ absolute value from the larger absolute value)
+ BCC MU8a               \ |S R| < |A P|: redo it the original way round
 
- BCS MU9                \ If |A| >= |S|, our subtraction was the right way
-                        \ round, so jump to MU9 to set the sign
+ BEQ MU8e               \ High byte 0: check for |S R| = |A P|
 
-                        \ If we get here, then |A| < |S|, so our subtraction
-                        \ above was the wrong way round, so negate (A X)
+.MU8s
 
- STA U                  \ Store A in U
+ ORA #%10000000         \ |S R| > |A P|: (A X) = |S R| - |A P| with the sign
+ EOR T                  \ of S (= T EOR &80), and C = 0, V = 0, exactly as the
+ CLC                    \ original negation path left them (U is no longer
+ RTS                    \ written: no reader of U can see ADD's value)
 
- TXA                    \ Set X = 0 - X using two's complement (to negate a
- EOR #&FF               \ number in two's complement, you can invert the bits
- ADC #1                 \ and add one - and we know the C flag is clear as we
- TAX                    \ didn't take the BCS branch above, so the ADC will do
-                        \ the correct addition)
+.MU8e
 
- LDA #%10000000         \ Set A = (0 - U - borrow) OR &80. The negated high
- SBC U                  \ byte is always 0..127 (|S R| - |A P| <= &7FFF), so
-                        \ &80 - U - borrow gives the same A, with C=0 and
-                        \ V=0 exactly as before. The sign bit makes the EOR
-                        \ below give the result the sign of S
+ CPX #0                 \ A = 0 here. If X <> 0 then |S R| > |A P|, so set
+ BNE MU8s               \ A = &80 EOR T, C = 0 via MU8s; otherwise the values
+ BEQ MU9                \ are equal: A = 0, X = 0, C = 1, V = 0, as the
+                        \ original BCS MU9 path gives, so return A = T
+
+.MU8a
+
+ LDA P                  \ |A P| > |S R|: the original computation, unchanged:
+ SEC                    \   X = P - R
+ SBC R                  \   A = |A| - |S| - borrow, C = 1, V = 0
+ TAX
+ LDA T1
+ EOR #%10000000
+ SBC S
 
 .MU9
 
- EOR T                  \ If we get here from the BCS above, then |A| >= |S|,
-                        \ so we want to give the result the same sign as
-                        \ argument A, so if argument A was negative, we flip
-                        \ the sign of the result with an EOR (to make it
-                        \ negative)
+ EOR T                  \ Give the result the sign of argument A
 
  RTS                    \ Return from the subroutine
 
@@ -39120,11 +39022,8 @@ INCLUDE "build/dashtab.asm"
  LDA S                  \ Set A = |S|
  AND #%01111111
 
- BMI DV9                \ If bit 7 of A is set, jump down to DV9 to skip the
-                        \ left-shifting of the denominator (though this branch
-                        \ instruction has no effect as bit 7 of the above AND
-                        \ can never be set, which is why this instruction was
-                        \ removed from later versions)
+                        \ (The original's BMI DV9 here was removed: bit 7 of A
+                        \ is always clear after the AND, so it never branched)
 
 .DVL6
 
@@ -39142,6 +39041,13 @@ INCLUDE "build/dashtab.asm"
  DEY                    \ Decrement the scale factor in Y
 
  ASL Q                  \ Shift (A R Q) to the left
+ ROL R
+ ROL A
+
+ BMI DV9                \ Loop unrolled twice: exit as soon as bit 7 of A is set
+
+ DEY                    \ Second copy of the shift
+ ASL Q
  ROL R
  ROL A
 

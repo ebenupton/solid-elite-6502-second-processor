@@ -82,6 +82,7 @@ SAVE "build/BANK6.bin", &8000, HZIMG + HZ_CODE_END - HZ_START, &8000
 CLEAR &8000, &C000
 ORG &8000
 INCLUDE "src/raster7.asm"       \ the rasteriser's second bank (cold code)
+INCLUDE "src/elite7.asm"        \ cold Elite code (behind main-RAM stubs)
 .B7_END
 PRINT "Bank 7: rasteriser (2) &8000-", ~B7_END-1, " free ", &C000-B7_END
 ASSERT B7_END <= &C000
