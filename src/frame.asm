@@ -834,21 +834,39 @@ MACRO FPATCH lab, a0, a1
  STA lab+2
 ENDMACRO
 
-.f_bufpatch
- FPATCH fdc_dl1, R_DIRTYL0, R_DIRTYL1
- FPATCH fdc_dl2, R_DIRTYL0, R_DIRTYL1
- FPATCH fdc_dr1, R_DIRTYR0, R_DIRTYR1
- FPATCH fdc_dr2, R_DIRTYR0, R_DIRTYR1
- FPATCH fdc_ol, R_DISCL0, R_DISCL1
- FPATCH fdc_or, R_DISCR0, R_DISCR1
- FPATCH ft_sr1, F_SHR0, F_SHR1
- FPATCH ft_sr2, F_SHR0, F_SHR1
- FPATCH ft_sr3, F_SHR0, F_SHR1
- FPATCH ft_wd1, R_DIRTYL0, R_DIRTYL1
- FPATCH ft_wd2, R_DIRTYR0, R_DIRTYR1
- FPATCH fsw_d1, R_DIRTYL0, R_DIRTYL1
- FPATCH fsw_d2, R_DIRTYR0, R_DIRTYR1
+.f_bufpatch             \ (each array's two copies differ only in the high byte)
+ LDX F_BACK
+ LDA fbp_dl,X
+ STA fdc_dl1+2
+ STA fdc_dl2+2
+ STA ft_wd1+2
+ STA fsw_d1+2
+ LDA fbp_dr,X
+ STA fdc_dr1+2
+ STA fdc_dr2+2
+ STA ft_wd2+2
+ STA fsw_d2+2
+ LDA fbp_ol,X
+ STA fdc_ol+2
+ LDA fbp_or,X
+ STA fdc_or+2
+ LDA fbp_sr,X
+ STA ft_sr1+2
+ STA ft_sr2+2
+ STA ft_sr3+2
+ LDA fbp_srl,X
+ STA ft_sr1+1
+ STA ft_sr2+1
+ STA ft_sr3+1
  RTS
+.fbp_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
+.fbp_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
+.fbp_ol EQUB HI(R_DISCL0), HI(R_DISCL1)
+.fbp_or EQUB HI(R_DISCR0), HI(R_DISCR1)
+.fbp_sr EQUB HI(F_SHR0), HI(F_SHR1)
+.fbp_srl EQUB LO(F_SHR0), LO(F_SHR1)
+ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1) AND LO(R_DIRTYR0) = LO(R_DIRTYR1)
+ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 
 \ ------------------------------------------------------------------------------
 \ The disc layer
