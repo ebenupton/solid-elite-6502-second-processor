@@ -3723,8 +3723,9 @@ NEXT
 .ovl
   LDA RZ_T2               \ overlapping: the left end (R_WL/R_WR noted here,
   CMP RZ_T0               \ the left end's strip before the right end's)
-  BEQ right
+  BEQ requal
   BCS lshr
+  TAX
   AND #&FC                \ grown: nL .. oL-1 in the disc colour
   STA r_wmin
   LDY RZ_T0
@@ -3732,7 +3733,6 @@ NEXT
   TYA
   ORA #3
   STA r_wmax
-  LDX RZ_T2
   LDA RZ_T5
   JSR r_sw
   BRA right
@@ -3747,22 +3747,16 @@ NEXT
   STA r_wmin
   LDA #0
   JSR r_sw
-.right
+.right                    \ (r_wmin already set by the left end's strip)
   LDA RZ_T3
   CMP RZ_T1
   BEQ fin
   BCC rshr
+.rgr
   ORA #3                  \ grown: oR+1 .. nR in the disc colour
   STA r_wmax
   LDX RZ_T1
   INX
-  LDA r_wmin
-  CMP #&FF
-  BNE rg1
-  TXA
-  AND #&FC
-  STA r_wmin
-.rg1
   LDY RZ_T3
   LDA RZ_T5
   JSR r_sw
@@ -3770,13 +3764,6 @@ NEXT
 .rshr
   INC A                   \ shrunk: nR+1 .. oR black
   TAX
-  LDA r_wmin
-  CMP #&FF
-  BNE rs1
-  TXA
-  AND #&FC
-  STA r_wmin
-.rs1
   LDA RZ_T1
   TAY
   ORA #3
@@ -3784,6 +3771,20 @@ NEXT
   LDA #0
   JSR r_sw
   BRA fin
+.requal                   \ left ends equal: r_wmin from the right end's strip
+  LDA RZ_T3
+  CMP RZ_T1
+  BEQ fin
+  BCC rq1                 \ r_wmin = (MIN(oR, nR) + 1) AND &FC
+  LDA RZ_T1
+.rq1
+  INC A
+  AND #&FC
+  STA r_wmin
+  LDA RZ_T3               \ (C kept: set = grown, clear = shrunk)
+  BCS rgr
+  BRA rshr
+  SKIP 5                  \ (spare: keeps .both onward in place)
 .both
   JSR oblk
 .onew
