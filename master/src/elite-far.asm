@@ -140,3 +140,11 @@ COLDBANK = &87          \ ROMSEL for the cold area: bank 7 with ANDY over
  LDX fX
  PLP
  JMP (ft)
+
+\ TTX66 (bank 4) for CHPR and cls in main RAM: CHPR is also the WRCHV
+\ handler, so the MOS can call it with a filing system ROM paged in
+
+.TTX66M
+
+ JSR far4
+ EQUW TTX66
