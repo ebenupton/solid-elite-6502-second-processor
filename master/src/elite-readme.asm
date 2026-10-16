@@ -29,7 +29,7 @@
 \
 \ ******************************************************************************
 
- INCLUDE "1-source-files/main-sources/elite-build-options.asm"
+ INCLUDE "build/elite-build-options.asm"
 
  _SNG47                 = (_VARIANT = 1)
  _COMPACT               = (_VARIANT = 2)
@@ -67,5 +67,5 @@ ENDIF
  EQUS "---------------------------------------"
  EQUB 10, 13
 
- SAVE "3-assembled-output/README.txt", readme, P%
+ SAVE "build/README.txt", readme, P%
 

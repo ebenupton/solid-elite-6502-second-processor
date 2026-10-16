@@ -29,7 +29,7 @@
 \
 \ ******************************************************************************
 
- INCLUDE "1-source-files/main-sources/elite-build-options.asm"
+ INCLUDE "build/elite-build-options.asm"
 
  CPU 1                  \ Switch to 65SC12 assembly, as this code runs on a
                         \ BBC Master
@@ -9717,7 +9717,7 @@ ENDIF
 
  FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
 
- INCBIN "1-source-files/fonts/P.FONT.bin"
+ INCBIN "src/fonts/P.FONT.bin"
 
 \ ******************************************************************************
 \
@@ -14108,7 +14108,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_A%
 
  PRINT "S.ELTA ", ~(NA%-5), " ", ~P%, " ", ~LOAD%, " ", ~LOAD_A%
-\SAVE "3-assembled-output/ELTA.bin", (NA%-5), P%, LOAD%
+\SAVE "build/ELTA.bin", (NA%-5), P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -17557,7 +17557,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_B%
 
  PRINT "S.ELTB ", ~CODE_B%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_B%
-\SAVE "3-assembled-output/ELTB.bin", CODE_B%, P%, LOAD%
+\SAVE "build/ELTB.bin", CODE_B%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -24027,7 +24027,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_C%
 
  PRINT "S.ELTC ", ~CODE_C%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_C%
-\SAVE "3-assembled-output/ELTC.bin", CODE_C%, P%, LOAD%
+\SAVE "build/ELTC.bin", CODE_C%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -29661,7 +29661,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_D%
 
  PRINT "S.ELTD ", ~CODE_D%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_D%
-\SAVE "3-assembled-output/ELTD.bin", CODE_D%, P%, LOAD%
+\SAVE "build/ELTD.bin", CODE_D%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -35152,7 +35152,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_E%
 
  PRINT "S.ELTE ", ~CODE_E%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_E%
-\SAVE "3-assembled-output/ELTE.bin", CODE_E%, P%, LOAD%
+\SAVE "build/ELTE.bin", CODE_E%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -41669,7 +41669,7 @@ ENDMACRO
  PRINT "Reload at ", ~LOAD_F%
 
  PRINT "S.ELTF ", ~CODE_F%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_F%
-\SAVE "3-assembled-output/ELTF.bin", CODE_F%, P%, LOAD%
+\SAVE "build/ELTF.bin", CODE_F%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -45635,7 +45635,7 @@ ENDMACRO
  PRINT "Reload at ", ~LOAD_G%
 
  PRINT "S.ELTG ", ~CODE_G%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_G%
-\SAVE "3-assembled-output/ELTG.bin", CODE_G%, P%, LOAD%
+\SAVE "build/ELTG.bin", CODE_G%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -48599,7 +48599,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_H%
 
  PRINT "S.ELTH ", ~CODE_H%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_H%
-\SAVE "3-assembled-output/ELTH.bin", CODE_G%, P%, LOAD%
+\SAVE "build/ELTH.bin", CODE_G%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -48608,7 +48608,7 @@ ENDIF
 \ ******************************************************************************
 
  PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "3-assembled-output/BCODE.unprot.bin", CODE%, P%, LOAD%
+ SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
 
  PRINT "Addresses for the scramble routines in elite-checksum.py"
  PRINT "F% = ", ~F%

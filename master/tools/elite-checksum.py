@@ -21,13 +21,29 @@ argv = sys.argv
 encrypt = True
 release = 1
 
-for arg in argv[1:]:
+# In-tree additions: -d <dir> is the directory holding the assembled binaries
+# (default "build"), and -f/-g/-n <hex> override F%, G% and NA2% (master/build.sh
+# passes the values printed by the assembler, so a modified source still gets
+# the right commander checksum and encryption range)
+outdir = "build"
+override = {}
+args = argv[1:]
+i = 0
+while i < len(args):
+    arg = args[i]
     if arg == "-u":
         encrypt = False
     if arg == "-rel1":
         release = 1
     if arg == "-rel2":
         release = 2
+    if arg in ("-d", "-f", "-g", "-n"):
+        i += 1
+        if arg == "-d":
+            outdir = args[i]
+        else:
+            override[arg] = int(args[i], 16)
+    i += 1
 
 print("Master Elite Checksum")
 print("Encryption = ", encrypt)
@@ -55,6 +71,10 @@ elif release == 2:
     scramble_from = 0x2CC1      # G%
     na2_per_cent = 0x34CD       # NA2%
 
+f = override.get("-f", f)
+scramble_from = override.get("-g", scramble_from)
+na2_per_cent = override.get("-n", na2_per_cent)
+
 # Configuration variables for BCODE
 
 load_address = 0x1300
@@ -71,7 +91,7 @@ elif release == 2:
 
 data_block = bytearray()
 
-elite_file = open("3-assembled-output/BCODE.unprot.bin", "rb")
+elite_file = open(outdir + "/BCODE.unprot.bin", "rb")
 data_block.extend(elite_file.read())
 elite_file.close()
 
@@ -102,11 +122,11 @@ if encrypt:
 
 # Write output file for BCODE
 
-output_file = open("3-assembled-output/BCODE.bin", "wb")
+output_file = open(outdir + "/BCODE.bin", "wb")
 output_file.write(data_block)
 output_file.close()
 
-print("3-assembled-output/BCODE.bin file saved")
+print(outdir + "/BCODE.bin file saved")
 
 # Configuration variables for BDATA
 
@@ -119,7 +139,7 @@ data_block = bytearray()
 
 # Load assembled code file for BDATA
 
-elite_file = open("3-assembled-output/BDATA.unprot.bin", "rb")
+elite_file = open(outdir + "/BDATA.unprot.bin", "rb")
 data_block.extend(elite_file.read())
 elite_file.close()
 
@@ -131,8 +151,8 @@ if encrypt:
 
 # Write output file for BDATA
 
-output_file = open("3-assembled-output/BDATA.bin", "wb")
+output_file = open(outdir + "/BDATA.bin", "wb")
 output_file.write(data_block)
 output_file.close()
 
-print("3-assembled-output/BDATA.bin file saved")
+print(outdir + "/BDATA.bin file saved")

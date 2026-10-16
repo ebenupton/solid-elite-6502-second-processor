@@ -29,7 +29,7 @@
 \
 \ ******************************************************************************
 
- INCLUDE "1-source-files/main-sources/elite-build-options.asm"
+ INCLUDE "build/elite-build-options.asm"
 
  CPU 1                  \ Switch to 65SC12 assembly, as this code runs on the
                         \ BBC Master
@@ -1295,5 +1295,5 @@ ENDIF
 \ ******************************************************************************
 
  PRINT "S.M128Elt ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "3-assembled-output/M128Elt.bin", CODE%, P%, LOAD%
+ SAVE "build/M128Elt.bin", CODE%, P%, LOAD%
 

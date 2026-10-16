@@ -34,7 +34,7 @@
 \
 \ ******************************************************************************
 
- INCLUDE "1-source-files/main-sources/elite-build-options.asm"
+ INCLUDE "build/elite-build-options.asm"
 
  CPU 1                  \ Switch to 65SC12 assembly, as this code runs on a
                         \ BBC Master
@@ -88,7 +88,7 @@
 
 .DIALS
 
- INCBIN "1-source-files/images/P.DIALS2P.bin"
+ INCBIN "src/images/P.DIALS2P.bin"
 
  SKIP 256               \ These bytes appear to be unused, but they get moved to
                         \ &7E00-&7EFF along with the dashboard
@@ -9721,4 +9721,4 @@ ENDIF
 \ ******************************************************************************
 
  PRINT "S.BDATA ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "3-assembled-output/BDATA.unprot.bin", CODE%, P%, LOAD%
+ SAVE "build/BDATA.unprot.bin", CODE%, P%, LOAD%
