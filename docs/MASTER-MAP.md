@@ -244,17 +244,18 @@ are recorded in docs/MASTER-PLAN.md (Stage B results).
 | main &4000-&6FFF | buffer 0 (main RAM) | - |
 | main &7000-&71FF | the dashboard's first character row (copy, for a late split) | - |
 | main &7200-&75FF | hi code: the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks) | (in &7A00-&7DFF) |
-| main &7600-&79FF | QSL/QSH quarter-square tables (1K) | 1024 (&7A00-&7DFF) |
+| main &7600-&79FF | QSL/QSH quarter-square tables (1K) | - |
+| main &7A00-&7DE9 | the ship lighting's game-context half (gfx-light.asm: L_SUN, L_REC and their variables, 1002) | 22 |
 | main &7E00-&7EE0 | far-call stubs (STUBS) | 287 |
 | shadow &4000-&6FFF | buffer 1 (Master's direct-mode screen) | - |
 | shadow &7000-&7FFF | the CMYK dashboard | - |
 | ANDY &8000-&8FBE | cold code | 65 |
 | bank 4 &8000-&BFE6 | blueprints, flight code, Master drawing, the CMYK dashboard code (elite-dash) | 25 |
-| bank 5 &8000-&BF37 | rasteriser | 200 |
-| bank 6 &8000-&BD73 | frame layer, faces (gfx-faces, 33 ships), frame_cold | 652 |
+| bank 5 &8000-&BF4D | rasteriser (polygons in a 4-row colour) | 178 |
+| bank 6 &8000-&BF73 | frame layer (incl. f_col), faces (gfx-faces, 33 ships, with hue ramps and unit normals), lighting tables and ramp 0 (gfx-light6), frame_cold | 140 (57 of them before the page-aligned F_HW: more moves F_HW..frame_cold up a page) |
 | bank 7 &8000-&AC3C | rasteriser cold code, row runs | 3 |
 | bank 7 &AC40-&BE55 | Elite cold code (incl. DOSCLI/DOSNMI disc glue) | 426 |
-| HAZEL &C000-&C2BF | rasteriser scratch (shared with DFS's catalogue cache: invalidated before each disc command) | - |
-| HAZEL &C300-&C500 | renderer code: gvars, trampolines, text hooks, cross-bank stubs | 562 (to &C733) |
+| HAZEL &C000-&C2BF | rasteriser scratch, incl. R_COL2/R_COL3 (shared with DFS's catalogue cache: invalidated before each disc command) | - |
+| HAZEL &C300-&C704 | renderer code: gvars, trampolines, text hooks, cross-bank stubs; lighting ramps 1-8 and the unlit colours (gfx-lighthz, 516) | 46 (to &C733) |
 | HAZEL &C733-&DB5C | renderer state (raster_vars, dashboard scalars) | 163 (to &DC00) |
 | HAZEL &DC40-&DEC9 | renderer state (R_WR, R_NDN, stars) | 54 (to &DF00) |

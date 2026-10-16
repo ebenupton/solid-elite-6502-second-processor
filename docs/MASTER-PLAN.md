@@ -417,3 +417,34 @@ py65 in master/tools/multest), PIX1 not drawing in record mode. By phase:
 combat 1.59, hyperspace 1.52, approach 0.87 (big planets and the station
 close-up are the slow windows: 0.6 at worst). Speed recovery is a later
 stage (by the user's direction); candidates are listed in the final report.
+
+## Ship lighting (after Stage C)
+
+Ported from the demo port's lighting (branch `lighting`, 97c7a12..5be3f06;
+docs/DESIGN.md there has the model), with the work split by context rather
+than by bank:
+* The rasteriser fills polygons in a 4-row colour (R_COLE, R_COLO, R_COL2,
+  R_COL3 for y AND 3), so a face can take a 4x4 dither tile.
+* Faces have hues: each takes its ship's hue A or B, one of nine 32-entry
+  ramps shared by all ships (50% to 100% of the hue's own brightness),
+  chosen by master/tools/lightramps.py and written by faces.py into
+  gfx-light6.asm (bank 6: pointers, row masks, ramp 0) and gfx-lighthz.asm
+  (HAZEL: ramps 1-8, the unlit colours). A face entry is n + 16 * ramp, its
+  unit normal (magnitude 61) and its vertices.
+* Game context (gfx-light.asm, main RAM &7A00): L_SUN, once per space-view
+  iteration from F_FRAME, keeps the light towards the sun (fixed (1, 1, -1) /
+  sqrt 3 on the title screen; reseeded from the sun every 32 iterations and
+  rotated by roll and pitch in between; kept rotating while the station is in
+  slot 1). L_REC, from F_SHIP, writes each visible face's level, round(31
+  max(0, n.L)), into the record's XX2 copy (&80 + level; &C0 + level where
+  XX2 was 255). Products are exact, with QSL/QSH.
+* Frame time (bank 6): f_ship, f_item and f_fins read the levels; f_col
+  expands the ramp entry (two packed bytes) into the four row bytes. Details
+  take their face's level in the other hue, fins the brighter of their two
+  faces' levels; lines, the stations' slots and distant dots are unlit.
+* Checks: harness/mlight.mjs records every level L_REC writes and every
+  colour f_col makes; master/tools/lightcheck.py compares them with the
+  model (no mismatch over 5250 piloted iterations) and measures the light
+  against the sun (median 3 degrees; up to 33 degrees for the iterations
+  after an in-system jump, until the next reseed).
+* Cost: verify.sh 10000 goes from 0.985 to 0.970 of the reference's speed.
