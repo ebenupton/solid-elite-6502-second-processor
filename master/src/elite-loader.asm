@@ -54,7 +54,8 @@
 
  INCLUDE "build/game-addresses.asm"     \ Port: S%, the main entry point in
                                         \ the game code (was S% = &2C6C),
-                                        \ from the game's symbols
+                                        \ and SBANK, the ROMSEL value to run
+                                        \ it with, from the game's symbols
 
  HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
                         \ paged in while the game runs (bank 6 in the original)
@@ -493,10 +494,10 @@ ENDIF
  JSR OSCLI              \ Call OSCLI to run the OS command in MESS3, which
                         \ changes the disc directory to E
 
- LDA #HOMEBANK          \ Set the RAM copy of the currently selected paged ROM
- STA LATCH              \ to HOMEBANK, and page Elite's home bank in
-
- STA VIA+&30
+ LDA #SBANK             \ Set the RAM copy of the currently selected paged ROM
+ STA LATCH              \ to SBANK, the bank of the game's entry point S% (the
+                        \ cold area, ROMSEL &87, from build/game-addresses.asm),
+ STA VIA+&30            \ and page it in
 
  JMP S%                 \ Jump to the start of the main game code at S%, which
                         \ we just loaded in the BCODE/ELITE file

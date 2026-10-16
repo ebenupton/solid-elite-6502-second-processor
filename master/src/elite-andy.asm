@@ -5627,7 +5627,7 @@
  TXA                    \ Copy the ASCII code of the key that has been pressed
                         \ into A
 
- CMP TGINT,Y            \ If the pressed key doesn't match the configuration key
+ CMP TGINT_C,Y          \ If the pressed key doesn't match the configuration key
  BNE Dk3_C                \ for option Y (as listed in the TGINT table), then jump
                         \ to Dk3 to return from the subroutine
 
