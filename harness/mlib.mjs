@@ -115,6 +115,7 @@ export const TIMING_EXCLUDE = {
 // and the game writes them before it reads them. Excluded by default.
 export const RELOC_EXCLUDE = {
     P: [2, "temporary; CHPR leaves P(1 0) pointing at the font's glyph"],
+    V: [2, "temporary; the token printers leave V(1 0) pointing into the token tables"],
 };
 // Drawing temporaries and heaps: excluded with --loose (for builds whose drawing
 // differs; the pilot and the game logic never read them across iterations)
