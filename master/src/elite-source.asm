@@ -21340,3 +21340,5 @@ ENDIF
  PRINT "F% = ", ~F%
  PRINT "G% = ", ~G%
  PRINT "NA2% = ", ~NA2%
+
+ INCLUDE "src/elite-gfx.asm"      \ Port: the filled renderer (HAZEL, banks 5 and 6, bank 7 below &AC40)

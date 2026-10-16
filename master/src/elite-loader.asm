@@ -495,6 +495,30 @@ ENDIF
  JSR OSCLI              \ Call OSCLI to run the OS command in MESS3, which
                         \ changes the disc directory to E
 
+                        \ Port: that was the last disc access, so DFS is done
+                        \ with HAZEL's &C000-&C2FF and &DC00 onwards: copy the
+                        \ renderer's HAZEL code from its staging copy at &4000
+                        \ to HZ_START (&C300 on, clear of DFS's workspace;
+                        \ ACCCON Y = 1 maps HAZEL at &C000-&DFFF)
+
+ SEI
+ LDA #%00001001
+ STA VIA+&34
+ LDX #0
+ LDY #HI(HZLEN+255)     \ (whole pages: the bytes after the code are not in use)
+
+.HZC
+
+ LDA &4000,X
+ STA HZ_START,X
+ INX
+ BNE HZC
+ INC HZC+2
+ INC HZC+5
+ DEY
+ BNE HZC
+ CLI
+
  LDA #SBANK             \ Set the RAM copy of the currently selected paged ROM
  STA LATCH              \ to SBANK, the bank of the game's entry point S% (the
                         \ cold area, ROMSEL &87, from build/game-addresses.asm),
@@ -581,6 +605,23 @@ ENDIF
  EQUW MESS6             \ COLD7: the cold area's second part, bank 7 &AC40-&BFFF
  EQUB 7, %00001001      \ (above the space for the renderer's code there)
  EQUW &AC40, &C000-&AC40
+
+ EQUW MESS9             \ BANK5: the renderer's rasteriser, bank 5
+ EQUB 5, %00001001
+ EQUW &8000, B5LEN
+
+ EQUW MESS10            \ BANK6: the renderer's frame layer, bank 6
+ EQUB 6, %00001001
+ EQUW &8000, B6LEN
+
+ EQUW MESS11            \ RAST7: the rasteriser's cold code, bank 7 &8000-&AC3F
+ EQUB 7, %00001001      \ (below the cold area)
+ EQUW &8000, R7LEN
+
+ EQUW MESS12            \ HAZEL: the renderer's code in HAZEL, staged in main
+ EQUB HOMEBANK, %00001001 \ RAM at &4000 (screen buffer A) and copied to HAZEL
+ EQUW &4000, HZLEN      \ after the last disc access (see LDEND), as DFS uses
+                        \ HAZEL
 
  EQUW 0
 
@@ -1376,6 +1417,26 @@ ENDIF
 .MESS8
 
  EQUS "L.STUBS FFFF1300"    \ Port: *LOAD STUBS FFFF1300
+ EQUB 13
+
+.MESS9
+
+ EQUS "L.BANK5 FFFF1300"    \ Port: *LOAD BANK5 FFFF1300
+ EQUB 13
+
+.MESS10
+
+ EQUS "L.BANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
+ EQUB 13
+
+.MESS11
+
+ EQUS "L.RAST7 FFFF1300"    \ Port: *LOAD RAST7 FFFF1300
+ EQUB 13
+
+.MESS12
+
+ EQUS "L.HAZEL FFFF1300"    \ Port: *LOAD HAZEL FFFF1300
  EQUB 13
 
 \ ******************************************************************************

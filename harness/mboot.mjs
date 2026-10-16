@@ -9,7 +9,8 @@
 // Commander (Y/N)?") has drawn its rotating ship a few times (the 8th call of
 // RDKEY after TITLE starts), then reports ROMSEL / ACCCON, compares the
 // sideways, shadow and main RAM images the loader installs (BANK4.bin,
-// ANDY.bin, COLD7.bin, TOKENS.bin, STUBS.bin) with what memory holds, and
+// ANDY.bin, COLD7.bin, TOKENS.bin, STUBS.bin; the renderer's BANK5.bin,
+// BANK6.bin, RAST7.bin and HAZEL.bin) with what memory holds, and
 // writes title.png.
 // Exit status 0 if the title screen was reached and the banks match.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
@@ -57,7 +58,8 @@ console.log(`sideways RAM banks in this model: ${cpu.model.swram.map((v, i) => v
 // The banked images against the build: [file, ROMSEL or "shadow", start]
 // (ROMSEL bit 7: ANDY at &8000-&8FFF). The game writes XX21+2/3 (the station's
 // blueprint) in bank 4 and patches DETOK's JSR at DTM (DTM_C in the cold area).
-const images = [["BANK4.bin", 4, 0x8000], ["ANDY.bin", 0x87, 0x8000], ["COLD7.bin", 7, 0xac40], ["TOKENS.bin", "shadow", 0x3100], ["STUBS.bin", "main", 0x7e00]];
+const images = [["BANK4.bin", 4, 0x8000], ["ANDY.bin", 0x87, 0x8000], ["COLD7.bin", 7, 0xac40], ["TOKENS.bin", "shadow", 0x3100], ["STUBS.bin", "main", 0x7e00],
+    ["BANK5.bin", 5, 0x8000], ["BANK6.bin", 6, 0x8000], ["RAST7.bin", 7, 0x8000], ["HAZEL.bin", "hazel", syms.HZ_START]];
 const xx21 = syms.XX21;
 let diffs = [];
 for (const [f, rs, start] of images) {
@@ -66,12 +68,12 @@ for (const [f, rs, start] of images) {
     const d = [];
     for (let i = 0; i < img.length; i++) {
         const a = start + i;
-        const phys = rs === "main" ? a : rs === "shadow" ? a + 0x8000 : rs & 0x80 && a < 0x9000 ? a : cpu.romOffset + (rs & 15) * 16384 + a - 0x8000;
+        const phys = rs === "main" ? a : rs === "shadow" ? a + 0x8000 : rs === "hazel" ? a - 0xc000 + 0x9000 : rs & 0x80 && a < 0x9000 ? a : cpu.romOffset + (rs & 15) * 16384 + a - 0x8000;
         if (rs === 4 && (a === xx21 + 2 || a === xx21 + 3)) continue;
         if (syms.DTM_C !== undefined && (rs & 15) === 7 && (a === syms.DTM_C + 1 || a === syms.DTM_C + 2)) continue;
         if (cpu.ramRomOs[phys] !== img[i]) d.push(a);
     }
-    console.log(`${f} (${rs === "shadow" ? "shadow RAM" : rs === "main" ? "main RAM" : "ROMSEL &" + rs.toString(16)}, &${start.toString(16)}-&${(start + img.length - 1).toString(16)}): ${d.length} differing bytes` +
+    console.log(`${f} (${rs === "shadow" ? "shadow RAM" : rs === "main" ? "main RAM" : rs === "hazel" ? "HAZEL" : "ROMSEL &" + rs.toString(16)}, &${start.toString(16)}-&${(start + img.length - 1).toString(16)}): ${d.length} differing bytes` +
         (d.length ? ` (first &${d[0].toString(16)}, last &${d.at(-1).toString(16)})` : ""));
     diffs = diffs.concat(d);
 }
