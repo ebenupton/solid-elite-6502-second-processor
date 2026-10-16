@@ -209,3 +209,32 @@ NDSTAR = 19             \ stars 1..NOSTM (NOSTM <= NOST = 18)
 .F_DSS SKIP NDSTAR      \ size (0 = none)
 .F_DSX SKIP NDSTAR
 .F_DSY SKIP NDSTAR
+
+\ f_sgs: f_sight2's rare case, out of line (frame.asm's fsg2 loop found bit 7
+\ set in rows SGY-SGOUT+Y or SGY-SGOUT-1+Y, Y = 1-41 odd): f_wcov with A = X =
+\ SGX for each of the two rows (ignoring row SGY+SGOUT+1, outside the sight);
+\ either covered -> fsg3 (redraw), else carry on at fsg8
+
+.f_sgs
+ PHY
+ TYA
+ CLC
+ ADC #SGY-SGOUT         \ Y = the upper row of the pair, SGY-SGOUT+Y
+ TAY
+ CPY #SGY+SGOUT+1
+ BCS fsgs1              \ row SGY+SGOUT+1: not part of the sight
+ LDA #SGX
+ TAX
+ JSR f_wcov             \ A = X = SGX (fz_t = fz_u = SGX, as before)
+ BCS fsgs3
+.fsgs1
+ DEY                    \ the lower row, SGY-SGOUT-1+Y
+ LDA #SGX
+ TAX
+ JSR f_wcov
+ BCS fsgs3
+ PLY
+ JMP fsg8
+.fsgs3
+ PLY
+ JMP fsg3

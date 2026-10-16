@@ -2396,33 +2396,29 @@ SGOUT = 20
  JSR f_wcov
  BCS fsg3
  LDA fsw_d2+2           \ this buffer's R_DIRTYR (f_bufpatch), high byte, +1
- INC A                  \ for the +SGY-SGOUT base below
+ INC A                  \ for the +SGY-SGOUT(-1) bases below
  STA fsg_or+2           \ (the low bytes are equal)
+ STA fsg_or2+2
  ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
- ASSERT HI(R_DIRTYR0+SGY-SGOUT) = HI(R_DIRTYR0)+1 AND HI(R_DIRTYR1+SGY-SGOUT) = HI(R_DIRTYR1)+1
- ASSERT HI(R_DIRTYR0+SGY-SGOUT) = HI(R_DIRTYR0+SGY+SGOUT)   \ no page crossings in the loop
- ASSERT HI(R_WR+SGY-SGOUT) = HI(R_WR+SGY+SGOUT)
- LDY #2*SGOUT           \ Y = row - (SGY-SGOUT), rows SGY+SGOUT down to SGY-SGOUT
-.fsg2                   \ f_wcov with A = X = SGX: WR, DIRTYR >= SGX (= &80,
- LDA R_WR+SGY-SGOUT,Y   \ so <> 0) <=> bit 7 set; usually neither is
-.fsg_or
+ ASSERT HI(R_DIRTYR0+SGY-SGOUT-1) = HI(R_DIRTYR0)+1 AND HI(R_DIRTYR1+SGY-SGOUT-1) = HI(R_DIRTYR1)+1
+ ASSERT HI(R_DIRTYR0+SGY-SGOUT-1) = HI(R_DIRTYR0+SGY+SGOUT+1)   \ no page crossings in the loop
+ ASSERT HI(R_WR+SGY-SGOUT-1) = HI(R_WR+SGY+SGOUT+1)
+ LDY #2*SGOUT+1         \ two rows a pass: SGY-SGOUT+Y and SGY-SGOUT-1+Y, Y = 41,
+.fsg2                   \ 39 .. 1 (row SGY+SGOUT+1 is read too; f_sgs ignores it).
+ LDA R_WR+SGY-SGOUT,Y   \ f_wcov with A = X = SGX: WR, DIRTYR >= SGX (= &80,
+.fsg_or                 \ so <> 0) <=> bit 7 set; usually neither is
  ORA R_DIRTYR0+SGY-SGOUT,Y \ patched (high byte, above)
+ ORA R_WR+SGY-SGOUT-1,Y
+.fsg_or2
+ ORA R_DIRTYR0+SGY-SGOUT-1,Y \ patched (high byte, above)
  BMI fsgs
 .fsg8
  DEY
+ DEY
  BPL fsg2
  RTS
-.fsgs                   \ C = 0 here (BCS fsg3 above / below not taken)
- LDX #SGX
- PHY
- TYA
- ADC #SGY-SGOUT         \ Y = the row
- TAY
- TXA
- JSR f_wcov             \ A = X = SGX (fz_t = fz_u = SGX, as before)
- PLY                    \ (keeps C)
- BCS fsg3
- BRA fsg8
+.fsgs
+ JMP f_sgs              \ (frame_cold.asm: rare, and nothing after here moves)
 .fsg3
  LDX F_BACK
  LDA #&FF

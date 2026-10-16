@@ -7782,6 +7782,19 @@ ENDMACRO
 
                         \ --- End of removed code ----------------------------->
 
+                        \ BBC Master port: STL1's rare DELTA >= z_hi case
+                        \ (out of line here, in branch range of STL1)
+
+.stl_dvs
+
+ JSR DV4L               \ DELTA >= z_hi: (P R) = 256 * DELTA / z_hi as DVID4
+ LDA R                  \ A = (P A) >> 2 OR 1, C = bit 1 of R (see STLQT)
+ LSR A
+ LSR A
+ LDX P
+ ORA STLQT,X
+ BRA stl_dvj
+
 \ ******************************************************************************
 \
 \       Name: STARS1
@@ -7840,7 +7853,7 @@ ENDMACRO
  STA stl_a1+1
  STA stl_s1+1
  AND #%10000000
- STA stl_t+1
+ STA stx_t+1
  STA stl_o1+1
  STA stl_e1+1
  LSR A                  \ stl_b = BMI (&30) if -beta >= 0, BPL (&10) if not
@@ -7864,28 +7877,19 @@ ENDMACRO
 
 .STL1
 
- LDA SZ,Y               \ Fetch z_hi and call DV41 (what DV42 does after its
- JSR DV41               \ LDA SZ,Y):
-                        \
-                        \   (P R) = 256 * DELTA / z_hi
-                        \         = 256 * speed / z_hi
-                        \
-                        \ The maximum value returned is P = 2 and R = 128 (see
-                        \ DV42 for an explanation)
-                        \
-                        \ BBC Master port: the original saved z_hi in ZZ here,
-                        \ but ZZ is only read back below (and is rewritten at
-                        \ STC1/KILL1 before PIXEL2 reads it), so we re-read
-                        \ SZ,Y below instead (it is unchanged until then)
+ LDA SZ,Y               \ BBC Master port: DV41/DVID4's entry inlined (DV41 is
+ STA Q                  \ only called from here): Q = z_hi, A = DELTA, and if
+ LDA DELTA              \ DELTA >= z_hi (rare) do the full division out of line
+ CMP Q                  \ at stl_dvs. Otherwise P = 0 (left unwritten, as P is
+ BCS stl_dvs            \ rewritten below before any read) and R = 256 * DELTA
+ JSR LL28+4             \ / z_hi, so (P R) = 256 * DELTA / z_hi as before
 
- LDA R                  \ Set A = R, so now:
-                        \
-                        \   (P A) = 256 * speed / z_hi
+ LDA R                  \ A = (P A) >> 2 OR 1 with P = 0 (STLQT+0 = 1), and
+ LSR A                  \ C = bit 1 of R, exactly as the original left them
+ LSR A
+ ORA #1
 
- LSR A                  \ BBC Master port: A = (P A) >> 2 OR 1, C = bit 1 of R,
- LSR A                  \ exactly as LSR P/ROR A x2 + ORA #1 left them: R >> 2
- LDX P                  \ here, and STLQT holds ((P AND 3) << 6) OR 1 for P =
- ORA STLQT,X            \ 0-7 (P <= 40/8 = 5: DELTA <= 40, z_hi >= 8 at STL1).
+.stl_dvj
                         \ P itself is left unshifted (MLU2 rewrites it first)
 
                         \ A = 64 * speed / z_hi (result 1 above). BBC Master
@@ -8015,25 +8019,25 @@ ENDMACRO
  LDA SQ1H,X             \ patched by MLSPT: ALP1 AND 31
 .STU4
  SBC SQ2H+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
-.stl_m9
-
+.stl_mp
                         \ Inline ADD (and MU8) to calculate:
                         \
                         \   YY(1 0) = (A P) + YY(1 0)
                         \           = y + alpha * x / 256
+                        \
+                        \ (A P) >= 0 here (A = 0..15, C = 1). T and T1 are
+                        \ dead after stl_a9 (both paths there rewrite them),
+                        \ so they are only set on the MU8 path (stl_a8p)
 
- STA T1                 \ As ADD: T1 = A, T = sign of A
- AND #%10000000
- STA T
- EOR YY+1               \ Signs differ: inline MU8 at stl_a8
- BMI stl_a8
- LDA YY                 \ Same sign: YY = P + YY
+ BIT YY+1               \ Signs differ (YY negative): inline MU8 via stl_a8p
+ BMI stl_a8p
+ TAX                    \ Same sign: YY = P + YY
+ LDA YY
  CLC
  ADC P
  STA YY
- LDA YY+1               \ YY+1 = (YY+1 + T1 + C) OR T
- ADC T1
- ORA T
+ TXA                    \ YY+1 = YY+1 + A + C (ADD's ORA T is a no-op, T = 0)
+ ADC YY+1
  STA YY+1
  BRA stl_a9
 .stl_mn
@@ -8049,12 +8053,22 @@ ENDMACRO
  LDA SQ1H,X             \ patched by MLSPT: ALP1 AND 31
 .STV4
  SBC SQ2H+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
+ BIT YY+1               \ (A P) < 0 (|A| in A): signs differ if YY positive,
+ BPL stl_a8n            \ inline MU8 via stl_a8n (which sets the sign bit)
+ TAX                    \ Same sign: YY = P + YY
+ LDA YY
+ CLC
+ ADC P
+ STA YY
+ TXA                    \ YY+1 = (YY+1 + (A OR &80) + C) OR &80
+ ADC YY+1               \       = (YY+1 + A + C) OR &80
  ORA #%10000000
- BRA stl_m9
+ STA YY+1
+ BRA stl_a9
 .stl_mz
  STA P+1                \ Inlined MLS1, zero case (as MSZ): A = 0
  STA P
- BRA stl_m9
+ BRA stl_mp
 .stl_a8a
  LDA P                  \ MU8a: |A P| > |YY|: X = P - YY_lo,
  SEC                    \ A = (T1 EOR &80) - YY_hi - borrow
@@ -8068,6 +8082,15 @@ ENDMACRO
  CPX #0                 \ MU8e: high byte 0; X <> 0 -> |YY| > |A P|,
  BNE stl_a8s            \ else equal: A = 0, X = 0, result A = T
  BRA stl_a8e
+.stl_a8n
+ ORA #%10000000         \ (A P) < 0: as ADD, T1 = A OR &80, T = &80
+ STA T1
+ AND #%10000000
+ STA T
+ BRA stl_a8
+.stl_a8p
+ STA T1                 \ (A P) >= 0: as ADD, T1 = A, T = 0
+ STZ T
 .stl_a8
  LDA YY                 \ MU8 inline: X = YY_lo - P (C = 1 from MLS1, which
  SBC P                  \ now always returns with C set)
@@ -8125,10 +8148,27 @@ ENDMACRO
  ORA T
  STA S
  BRA stl_b9
+.stl_m2z
+ STA P+1                \ Inlined MSZ: A = 0, so P(1 0) = 0 (C = 1 kept)
+ STA P
+ BRA stl_m2j
 .stl_m2n
- JSR MSN                \ A negative or zero: (A P) = A * ALP1 via MLS1's
- STA T1                 \ negative path (C = 1 on entry and on exit), then
- AND #%10000000         \ as ADD: T1 = A, T = sign of A
+ AND #%01111111         \ A negative or zero: MSN inlined, (A P) = A * ALP1
+ BEQ stl_m2z            \ (C = 1 on entry and on exit, as MSN)
+ TAX
+.stl_m2e
+ LDA SQ1L,X             \ patched by MLSPT: ALP1 AND 31
+.stl_m2f
+ SBC SQ2L+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
+ STA P
+.stl_m2g
+ LDA SQ1H,X             \ patched by MLSPT: ALP1 AND 31
+.stl_m2h
+ SBC SQ2H+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
+ ORA #%10000000
+.stl_m2j
+ STA T1                 \ As ADD: T1 = A, T = sign of A
+ AND #%10000000
  STA T
  EOR S                  \ Signs differ: use MU8
  BMI stl_b8
@@ -8141,6 +8181,8 @@ ENDMACRO
                         \ same page as the BMI stq_n)
 .stq_z
  STA P+1                \ A = 0: as MSZ, set P+1 = 0 (P is dead), A = 0
+ SEC                    \ C = 1 at stq_q on every path (stq_p4/stq_n4 leave
+                        \ C = 1 as their 16-bit f(a+b) - f(|a-b|) = a*b >= 0)
  BRA stq_q
 .stq_n
  AND #%01111111         \ Inline MULTS-2, negative case: A = |A|
@@ -8222,25 +8264,19 @@ ENDMACRO
                         \
                         \   Q = -beta * y_hi / 256
 
- ASL A                  \ Set X = 2 * |Q| (0..254; the ASL drops the sign bit)
- TAX                    \ and square Q directly from the quarter-square table,
-                        \ as SQ1(2q) = (2q)^2 / 4 = q^2 exactly (this is what
-                        \ MULT1 computed: f(q + q) - f(0)), doubling as we go:
+ AND #%01111111         \ Set X = |Q|, which is 0..15 as |A| <= 127 and BET1
+ TAX                    \ AND 31 <= 31 (C = 1 is kept: AND, TAX, LDA, STA and
+                        \ BIT leave it), and look up 2 * q^2 directly in
+                        \ STQ2L/STQ2H (bank 4):
                         \
                         \   (A P) = 2 * Q * Q = 2 * (beta * y / 256) ^ 2
                         \
                         \ ((S R) = x was set above)
 
- LDA SQ1L,X             \ P = low byte of 2 * q^2, C = bit 7 of low byte of q^2
- ASL A
+ LDA STQ2L,X            \ P = low byte of 2 * q^2
  STA P
 
- LDA SQ1H,X             \ A = high byte of 2 * q^2. The result is positive and
- ROL A                  \ its high
-                        \ byte is at most 127*127/256 = 63, so after the
-                        \ doubling A < 128 and C = 0:
-                        \   (A P) = (A P) * 2
-                        \         = 2 * (beta * y / 256) ^ 2
+ LDA STQ2H,X            \ A = high byte of 2 * q^2 (0 or 1), C = 1
                         \
                         \ Inline ADD for a positive (A P): T and T1 are dead
                         \ afterwards (PIX1's ADD writes them first; the IRQ
@@ -8250,8 +8286,7 @@ ENDMACRO
  BPL stl_same
  STA T1                 \ T1 = A (as ADD would)
  LDA R                  \ Inline MU8 common case |S R| > |A P|:
- SEC                    \   x_lo = R - P
- SBC P
+ SBC P                  \   x_lo = R - P (C = 1 from above)
  STA SXL,Y
  LDA S                  \ A = S - T1 - borrow = &80 + (|S| - T1 - borrow), no
  SBC T1                 \ wrap as |S|, T1 are 0..127; MU8 gives exactly this
@@ -8260,8 +8295,9 @@ ENDMACRO
  STA SX,Y               \ x_hi = A
  BRA stl_done
 .stl_same
- TAX                    \ Keep the high byte of (A P) (0..127) in X
- LDA R                  \ Same sign: x_lo = P + R (C = 0 from the ROL above)
+ TAX                    \ Keep the high byte of (A P) (0..1) in X
+ LDA R                  \ Same sign: x_lo = P + R
+ CLC
  ADC P
  STA SXL,Y
  TXA                    \ x_hi = (A P)hi + S + C (ORA T is a no-op as T = 0;
@@ -8288,9 +8324,9 @@ ENDMACRO
 .stl_t1
  LDA #0                 \ patched: T1 = -beta = BETA EOR &80 (set in STARS1)
  STA T1
-.stl_t
- LDA #0                 \ patched: T = sign of -beta
- STA T
+                        \ (T = sign of -beta is no longer stored here: every
+                        \ path through STL1 writes T before reading it, so it
+                        \ is set once at the loop exit, at stx_t, instead)
 
  LDA YY+1               \ The call to MAD and the two store instructions are
 \JSR MAD                \ commented out in the original source
@@ -8384,6 +8420,9 @@ ENDMACRO
  STZ P                  \ BBC Master port: leave P = 0 and R = YY as the last
  LDY YY                 \ particle's STL1 pass did (deferred from above); Y = 0
  STY R                  \ and Z = 1, N = 0 as DEY left them (A, X, C, V kept)
+.stx_t
+ LDY #0                 \ patched: T = sign of -beta (set in STARS1), as the
+ STY T                  \ last particle's STL1 pass left it
  LDY #0
 
  RTS                    \ Return from the subroutine
@@ -28876,6 +28915,20 @@ ENDIF
  STY Q                  \       = sin((CNT2 + 16) mod 32)
                         \       = |cos(CNT2)| (Y keeps it for both P look-ups: ADD does not touch Y, and BLINE reloads Y)
 
+ LDA PL4SG,X            \ Set XX16+5 = the sign of sin(CNT2) = &80 if CNT2 >= 33
+ STA XX16+5             \ (180 to 360 degrees), else 0 (PL4SG holds &80 at
+                        \ offsets 33-63 and 0 elsewhere), so (XX16+5 K) =
+                        \ |v_y| * sin(CNT2) and (XX16+5 R) = |v_x| * sin(CNT2)
+
+ EOR XX16+2             \ Set S = the sign of XX16+2 * XX16+5
+ STA S                  \       = the sign of v_x * XX16+5
+                        \ so (S R) = v_x * sin(CNT2) (nothing below touches S
+                        \ before the first ADD)
+
+ LDA PL4SG+16,X         \ Set XX16+4 = the sign of cos(CNT2) = &80 if
+ STA XX16+4             \ 17 <= CNT2 <= 47, else 0 (PL4SG+16+X for X = 0-63),
+                        \ so (XX16+4 P) = |u_x| * cos(CNT2)
+
  LDA SNE,X              \ Set X = sin(CNT2 mod 32) = |sin(CNT2)|
  TAX
 
@@ -28911,30 +28964,8 @@ ENDIF
  SBC SQ2H,Y
  STA P
 
- LDA CNT2               \ If CNT2 >= 33 then this sets the C flag, which is
- CMP #33                \ the sign bit for sin(CNT2) (positive for 0 to 180
-                        \ degrees, negative for 180 to 360 degrees)
-
- LDA #0                 \ Shift the C flag into the sign bit of XX16+5, so
- ROR A                  \ XX16+5 has the correct sign for sin(CNT2), giving
- STA XX16+5             \ (XX16+5 K) = |v_y| * sin(CNT2) and
-                        \ (XX16+5 R) = |v_x| * sin(CNT2) (this clears C)
-
- EOR XX16+2             \ Set S = the sign of XX16+2 * XX16+5
- STA S                  \       = the sign of v_x * XX16+5
-                        \ so (S R) = v_x * sin(CNT2)
-
- LDA CNT2               \ If 17 <= CNT2 <= 47 (i.e. (CNT2 + 16) mod 64 >= 33)
- ADC #208               \ then this sets the C flag (C is clear from the ROR
- CMP #225               \ above), otherwise it's clear, so C is the sign bit
-                        \ of cos(CNT2): CNT2 + 208 is 225..255 only for
-                        \ CNT2 = 17..47 (48..63 wrap to 0..15)
-
- LDA #0                 \ Shift the C flag into the sign bit of XX16+4, so:
- ROR A                  \ XX16+4 has the correct sign for cos(CNT2)
- STA XX16+4             \ (XX16+4 P) = |u_x| * cos(CNT2)
-
- EOR XX16               \ Set A = the sign of XX16 * XX16+4
+ LDA XX16+4             \ Set A = the sign of XX16 * XX16+4
+ EOR XX16               \       = the sign of u_x * XX16+4 (ADD reads no flags)
                         \       = the sign of u_x * XX16+4
                         \ (A still holds XX16+4), so (A P) = u_x * cos(CNT2)
                         \
@@ -32400,8 +32431,28 @@ INCLUDE "build/dashtab.asm"
 \
 \ ******************************************************************************
 
- JMP H_STAR             \ Frame layer hook: record star Y in record mode
-                        \ (H_STAR returns from PIXEL2 then, else JMPs to PIXEL)
+.PXH                    \ H_STAR's record path, inlined (saves the JMP to
+                        \ HAZEL on every star): record star Y at (X, A)
+ STA R_SY,Y             \ straight into the rasteriser's arrays
+ LDA QQ11
+ ORA GFORCE
+ BNE pxhd               \ outside record mode: H_STAR's hsd draws via PIXEL
+ TXA                    \ record mode: the RTS below returns from PIXEL2
+ STA R_SX,Y
+ LDX ZZ                 \ size 1 (ZZ >= 144), 2 (80..143), 3 (< 80)
+ LDA #1
+ CPX #144
+ BCS pxh2
+ INC A
+ CPX #80
+ BCS pxh2
+ INC A
+.pxh2
+ STA R_SS,Y
+ TXA                    \ A = X = ZZ, C = (ZZ >= 80), as H_STAR left them
+ RTS
+.pxhd
+ JMP hsd                \ (hooks.asm: A = y, JSR G_DSTAR, JMP PIXEL)
 
 .PIXEL
 
@@ -32549,6 +32600,18 @@ INCLUDE "build/dashtab.asm"
    EQUB INT(256 * N + 0.5)
   ENDIF
 
+ NEXT
+
+.PL4SG                  \ PLL4's sign table: &80 at offsets 33-63, else 0
+                        \ (PL4SG+X = sign of sin(X), PL4SG+16+X = sign of
+                        \ cos(X), for X = CNT2 = 0-63)
+
+ FOR I%, 0, 79
+  IF I% >= 33 AND I% <= 63
+   EQUB &80
+  ELSE
+   EQUB 0
+  ENDIF
  NEXT
 
 \ ******************************************************************************
@@ -32842,6 +32905,8 @@ INCLUDE "build/dashtab.asm"
  STA STV3+1
  STA stl_m2a+1
  STA stl_m2c+1
+ STA stl_m2e+1
+ STA stl_m2g+1
  EOR #&FF
  STA MSU2+1
  STA MSU4+1
@@ -32853,6 +32918,8 @@ INCLUDE "build/dashtab.asm"
  STA STV4+1
  STA stl_m2b+1
  STA stl_m2d+1
+ STA stl_m2f+1
+ STA stl_m2h+1
 
  RTS
 
@@ -33128,6 +33195,18 @@ INCLUDE "build/dashtab.asm"
 
  FOR I%, 0, 7
   EQUB ((I% AND 3) << 6) OR 1
+ NEXT
+
+.STQ2L                  \ 2 * q^2 for q = 0-15, for STL1 (low bytes)
+
+ FOR I%, 0, 15
+  EQUB LO(2 * I% * I%)
+ NEXT
+
+.STQ2H                  \ 2 * q^2 for q = 0-15, for STL1 (high bytes)
+
+ FOR I%, 0, 15
+  EQUB HI(2 * I% * I%)
  NEXT
 
 \ ******************************************************************************
