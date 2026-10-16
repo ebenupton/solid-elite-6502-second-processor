@@ -11071,9 +11071,6 @@ ENDMACRO
  SBC Q
  ROL P
 
- LDX #0                 \ Set X = 0 so this unrolled version of DVID4 also
-                        \ returns X = 0
-
  TAX                    \ This contains the code from the LL28+4 routine, so
  BEQ LLfix22            \ this section is exactly equivalent to a JMP LL28+4
  LDA log,X              \ call, but is slightly faster as it's been inlined
