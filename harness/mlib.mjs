@@ -110,6 +110,12 @@ export const TIMING_EXCLUDE = {
     JOPOS: [3, "ADC values written by the IRQ (conversions disabled; only read with the joystick configured)"],
     SOFLG: [sy => sy.SFXPR - sy.SOFLG, "sound buffers SOFLG..SOFRQ, counted down by SOINT in the IRQ"],
 };
+// Temporaries that hold addresses of code or data that a relocated build moves
+// (Stage B): they differ between builds without any difference in game state,
+// and the game writes them before it reads them. Excluded by default.
+export const RELOC_EXCLUDE = {
+    P: [2, "temporary; CHPR leaves P(1 0) pointing at the font's glyph"],
+};
 // Drawing temporaries and heaps: excluded with --loose (for builds whose drawing
 // differs; the pilot and the game logic never read them across iterations)
 export const DRAW_EXCLUDE = {
@@ -152,7 +158,9 @@ export async function bootMaster(disc) {
 // Run one build under the pilot.
 //   opts.disc, opts.syms (symbol table), opts.pilot (object with keys(ctx), dks(ctx)),
 //   opts.iters (MLOOP iterations to record), opts.maxSecs (emulated), opts.seed (array of
-//   [addr, bytes] to write at TT170), opts.patch({ wr, rb, sy }) (called at BAY after QU5,
+//   [addr, bytes] to write at TT170), opts.seedBoot(regions, written, rb) (at TT170:
+//   returns more [addr, bytes] to write, given the set of addresses written since
+//   the game's entry S%), opts.patch({ wr, rb, sy }) (called at BAY after QU5,
 //   i.e. after the title screens' DFAULT: the commander patch), opts.onIter(i, s, res),
 //   opts.trace (log injected keys), opts.shots / opts.onShot(s, i) (screenshot every N)
 // Returns { snaps (per iteration, regions concatenated), iterTimes, tt100Times
@@ -167,7 +175,8 @@ export async function runElite(opts) {
     const rb = a => cpu.ramRomOs[a & 0xffff];
     const wr = (a, bytes) => { for (let i = 0; i < bytes.length; i++) cpu.ramRomOs[a + i] = bytes[i] & 255; };
     // label lookup for call sites, per mapping ("m" for main RAM, then ANDY and
-    // the sideways banks, from build/banks.txt)
+    // the sideways banks, from build/banks.txt). A cold copy's label (name_C) is
+// reported as name.
     const labs = {};
     for (const [k, v] of Object.entries(sy)) {
         if (v < 0x0800 || /^(CODE|LOAD)/.test(k)) continue;   // (section addresses, not routines)
@@ -180,7 +189,7 @@ export async function runElite(opts) {
         const lab = labs[mapAt(romsel, a)] || [];
         let lo = 0, hi = lab.length - 1, r = null;
         while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }
-        return r;
+        return r && r.endsWith("_C") ? r.slice(0, -2) : r;      // (cold copies keep their names, plus _C)
     };
     const stackWord = k => rb(0x100 + ((cpu.s + k) & 0xff)) | (rb(0x100 + ((cpu.s + k + 1) & 0xff)) << 8);
     // The JSR whose return address is at S+k: its address and the ROMSEL it ran
@@ -197,7 +206,9 @@ export async function runElite(opts) {
         return { site: w + 1 - 3, romsel, k };
     };
     // hook points: address and mapping
-    const hook = (name, off = 0) => ({ a: sy[name] + off, m: mapOfLabel(sy, name) });
+    // (a routine moved to the cold area is hooked at its cold copy, name_C: code
+    // outside reaches it through a stub of the old name, cold code directly)
+    const hook = (name, off = 0) => { const n = sy[name + "_C"] !== undefined ? name + "_C" : name; return { a: sy[n] + off, m: mapOfLabel(sy, n) }; };
     const at = (h, pc) => pc === h.a && (h.m === "m" || h.m === mapAt(cpu.romsel, pc));
     const H_RDK = hook("RDKEY", 5), H_DKS5 = hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"),
         H_TT100 = hook("TT100"), H_QU5 = hook("QU5"), H_BAY = hook("BAY"), H_MT26 = hook("MT26"), H_TT170 = hook("TT170");
@@ -276,6 +287,8 @@ export async function runElite(opts) {
                 if (op(H_DKS5) !== 0xa9 || op(H_DKS5, 1) !== 0x0b) throw new Error("DKS5+17 is not LDA #&0B");
             }
             if (opts.seed) for (const [a, bytes] of opts.seed) wr(a, bytes);
+            if (opts.seedBoot) { res.seeded = opts.seedBoot(regions, written, rb); for (const [a, bytes] of res.seeded) wr(a, bytes); }
+            bootWrites.remove();
             res.init = snapshot();
             res.initRand = rd(sy.RAND, 4);
         }
@@ -287,6 +300,14 @@ export async function runElite(opts) {
         return Uint8Array.from(out);
     }
     function emuSecs() { return cpu.cycleSeconds + cpu.currentCycles / 2e6; }
+    // the addresses written between the game's entry (S%) and TT170, by the game
+    // or by the MOS on its behalf: anything else in the compared state at TT170
+    // was left by the boot and the loader (opts.seedBoot)
+    const H_S = hook("S%");
+    const written = new Set();
+    let inGame = false;
+    const bootWrites = cpu.debugWrite.add(a => { if (inGame && a < 0x8000) written.add(a); return false; });
+    const entry = cpu.debugInstruction.add(pc => { if (at(H_S, pc)) { inGame = true; entry.remove(); } return false; });
     cpu.debugInstruction.add(handler);
     const maxSecs = opts.maxSecs || 7200;
     let shotAt = 0;

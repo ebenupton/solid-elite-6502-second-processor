@@ -4,7 +4,7 @@
 // injection.
 //
 // node harness/mcompare.mjs [--iters 5000] [--ref disc] [--rsyms file]
-//                           [--cand disc] [--csyms file] [--seed rand,loader|rand|none]
+//                           [--cand disc] [--csyms file] [--seed boot|rand|none]
 //                           [--loose] [--window 200] [--out dir] [--shots N]
 //                           [--maxsecs S] [--nopatch]
 //
@@ -21,18 +21,19 @@
 // buffers) is recorded and the two runs are compared iteration by iteration.
 // Addresses that depend on real time are excluded (mlib.TIMING_EXCLUDE: DL, the
 // IRQ's vsync flag; JOPOS, the IRQ's ADC values; the sound buffers, counted down
-// by the IRQ). --loose also excludes drawing temporaries and line heaps
+// by the IRQ), and so are temporaries that hold addresses of relocated code or
+// data (mlib.RELOC_EXCLUDE). --loose also excludes drawing temporaries and line heaps
 // (mlib.DRAW_EXCLUDE), for candidates whose drawing differs. The first
 // divergence is reported with symbol names, then per-address counts.
 //
-// --seed rand (default) copies the reference's RAND (&02-&05) at TT170 into the
-// candidate at its TT170, as the loader leaves it (it is identical for the same
-// loader, so this matters only when the loader changes). --seed rand,loader (the
-// default) also copies the reference's bytes at &0E00-&12FF that lie in the WP
-// workspace: the loader runs at &0E00 and leaves its own code there, in WP bytes
-// that the game has not written by TT170 (heaps and buffers it fills before use,
-// and unused bytes), so a changed loader shows up as differing bytes in WP that
-// are not game state. Bytes the game has written by TT170 are equal anyway.
+// --seed boot (the default): at TT170, every byte of the compared state that the
+// candidate has not written since its entry point S% (by its own code or by
+// the MOS on its behalf) and that differs from the reference's is set to the
+// reference's value. Such bytes were left by the boot and the loader (the
+// loader's code in WP, MOS and DFS workspace bytes in zero page such as JSTX
+// that depend on the files loaded, RAND as the loader's Saturn leaves it), not
+// by the game, and a changed loader or disc changes them. The bytes seeded are
+// reported. --seed rand copies only RAND; --seed none nothing.
 //
 // Speed: flight-loop iterations (TT100 to TT100, only those with no docked
 // iteration in between) per emulated second, per window of --window
@@ -41,7 +42,7 @@
 // Exit status 0 if the game state is identical at every compared iteration
 // (and both runs completed); prints "MCOMPARE PASS <ref it/s> <cand it/s>" or
 // "MCOMPARE FAIL <reason>".
-import { runElite, loadSyms, regionsFor, excludeSet, valAt, TIMING_EXCLUDE, DRAW_EXCLUDE, ROOT } from "./mlib.mjs";
+import { runElite, loadSyms, regionsFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, ROOT } from "./mlib.mjs";
 import { makePilot, patchCommander } from "./mpilot.mjs";
 import { writeFileSync, mkdirSync } from "fs";
 
@@ -54,7 +55,7 @@ const REF = args.ref || `${ROOT}master/reference/elite-master-sng47.ssd`;
 const RSYMS = args.rsyms || `${ROOT}master/reference/symbols.txt`;
 const CAND = args.cand || `${ROOT}master/build/elite-master-sng47.ssd`;
 const CSYMS = args.csyms || `${ROOT}master/build/symbols.txt`;
-const SEED = args.seed || "rand,loader";
+const SEED = args.seed || "boot";
 const WINDOW = +(args.window || 200);
 const OUT = args.out || `${ROOT}scratch/master/compare`;
 const SHOTS = +(args.shots || 0);
@@ -62,13 +63,13 @@ mkdirSync(OUT, { recursive: true });
 
 const rsy = loadSyms(RSYMS), csy = loadSyms(CSYMS);
 
-async function run(label, disc, sy, seed) {
+async function run(label, disc, sy, seed, seedBoot) {
     const pilot = makePilot();
     const phases = [];
     const t0 = Date.now();
     const r = await runElite({
         disc, syms: sy, pilot, iters: ITERS, maxSecs: +(args.maxsecs || 4 * ITERS),
-        patch: args.nopatch ? null : patchCommander, seed,
+        patch: args.nopatch ? null : patchCommander, seed, seedBoot,
         onIter: () => phases.push(pilot.P.phase),
         shots: SHOTS, onShot: async (s, i) => writeFileSync(`${OUT}/${label}-${String(i).padStart(6, "0")}.png`, await s.screenshotActive({ scale: 1 })),
     });
@@ -78,17 +79,20 @@ async function run(label, disc, sy, seed) {
 }
 
 const ref = await run("ref", REF, rsy, null);
-const seeds = [];
-if (SEED.split(",").includes("rand")) seeds.push([csy.RAND, [...ref.initRand]]);
-let loaderSeed = 0;
-if (SEED.split(",").includes("loader")) {
-    // the reference's WP bytes in the loader's footprint, from its TT170 snapshot
-    const lo = Math.max(rsy.WP, 0x0e00), hi = Math.min(rsy.JOPOS + 3, 0x1300);
-    const bytes = [];
-    for (let a = lo; a < hi; a++) bytes.push(valAt(ref.regions, ref.init, a));
-    if (rsy.WP === csy.WP) { seeds.push([lo, bytes]); loaderSeed = bytes.length; }
-}
-const cand = await run("cand", CAND, csy, seeds.length ? seeds : null);
+const seeds = SEED === "rand" ? [[csy.RAND, [...ref.initRand]]] : null;
+const seedBoot = SEED !== "boot" ? null : (cregions, written, rb) => {
+    // region by region (the regions match by name and length; their addresses
+    // may differ between builds)
+    const out = [];
+    let o = 0;
+    for (const [ra, n, name] of ref.regions) {
+        const c = cregions.find(r => r[2] === name);
+        if (c && c[1] === n) for (let i = 0; i < n; i++) if (!written.has(c[0] + i) && rb(c[0] + i) !== ref.init[o + i]) out.push([c[0] + i, [ref.init[o + i]]]);
+        o += n;
+    }
+    return out;
+};
+const cand = await run("cand", CAND, csy, seeds, seedBoot);
 
 const report = [];
 const log = (...x) => { const l = x.join(" "); console.log(l); report.push(l); };
@@ -99,7 +103,7 @@ function statLine(st) {
         `engagements ${st.engagements}, ships destroyed ${st.kills} ${JSON.stringify(st.killTypes)}, missiles fired ${st.missiles}, ECM ${st.ecm}, deaths ${st.deaths}, ` +
         `trades: buy ${st.buys} sell ${st.sells} equip ${st.equips}, key waits ${st.waits}`;
 }
-log(`Iterations: ref ${ref.iters} (flight ${ref.tt100}), cand ${cand.iters} (flight ${cand.tt100}); seed=${SEED} (${loaderSeed} loader bytes)${args.loose ? " loose" : ""}`);
+log(`Iterations: ref ${ref.iters} (flight ${ref.tt100}), cand ${cand.iters} (flight ${cand.tt100}); seed=${SEED}${args.loose ? " loose" : ""}`);
 log(`Pilot (ref):  ${statLine(ref.stats)}`);
 log(`Pilot (cand): ${statLine(cand.stats)}`);
 
@@ -107,7 +111,7 @@ log(`Pilot (cand): ${statLine(cand.stats)}`);
 const rreg = ref.regions, creg = cand.regions;
 let ok = true;
 for (let k = 0; k < rreg.length; k++) if (rreg[k][1] !== creg[k][1] || rreg[k][2] !== creg[k][2]) { log(`region ${rreg[k][2]} differs in size: ref ${rreg[k][1]}, cand ${creg[k][1]}`); ok = false; }
-const ex = excludeSet(rsy, args.loose ? [TIMING_EXCLUDE, DRAW_EXCLUDE] : [TIMING_EXCLUDE]);
+const ex = excludeSet(rsy, args.loose ? [TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE] : [TIMING_EXCLUDE, RELOC_EXCLUDE]);
 // offset -> ref address
 const offAddr = [];
 for (const [a, n] of rreg) for (let i = 0; i < n; i++) offAddr.push(a + i);
@@ -124,6 +128,7 @@ if (ok) {
     const ri = ref.init, ci = cand.init;
     const d0 = [];
     for (let o = 0; o < ri.length; o++) if (ri[o] !== ci[o] && !ex.has(offAddr[o])) d0.push(symName(offAddr[o]));
+    if (cand.seeded) log(`Seeded at TT170 (boot leftovers): ${cand.seeded.length} bytes${cand.seeded.length ? ": " + cand.seeded.slice(0, 40).map(([a]) => symName(a)).join(" ") : ""}`);
     log(`State at TT170 (after seeding): ${d0.length} differing bytes${d0.length ? ": " + d0.slice(0, 40).join(" ") : ""}`);
     for (let i = 0; i < n; i++) {
         const a = ref.snaps[i], b = cand.snaps[i];
