@@ -2,8 +2,8 @@
 # bankcheck.py: check the banking rules of the relocated Master Elite
 # (docs/MASTER-MAP.md, master/src/elite-far.asm). Run by build.sh from master/.
 #
-# Areas: "main" (elite-source.asm and the files it INCLUDEs in main RAM),
-# "bank4" (elite-stubs7.asm, elite-bank4.asm, and the game data that
+# Areas: "main" (elite-source.asm and the files it INCLUDEs in main RAM:
+# elite-far.asm, elite-stubs7.asm), "bank4" (elite-bank4.asm, and the game data that
 # build/data-addresses.asm marks bank4), "cold" (elite-andy.asm,
 # elite-coldstubs.asm, elite-cold7.asm: ROMSEL &87, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
@@ -20,7 +20,7 @@
 import re, sys
 
 SRC = "src/"
-FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "bank4",
+FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main",
          "elite-bank4.asm": "bank4", "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold",
          "elite-cold7.asm": "cold"}
 MNEM = set(("ADC AND ASL BCC BCS BEQ BIT BMI BNE BPL BRA BRK BVC BVS CLC CLD CLI CLV CMP CPX CPY "
@@ -98,8 +98,8 @@ for f, a in FILES.items():
             continue                       # the EQUW of a far-call stub
         for x in idents(op):
             b = area.get(x)
-            if b is None or b == a:
-                continue
+            if b is None or b == a or x in ("far4", "far4j", "far7", "far7j"):
+                continue                   # (the far-call code is callable from anywhere)
             where = "%s:%d" % (f, n)
             if mn in BRANCH:
                 errors.append("%s: branch from %s to %s %s" % (where, a, b, x))

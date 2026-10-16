@@ -75,7 +75,7 @@ done
 python3 - <<'PY'
 import re
 with open("build/banks.txt", "w") as f:
-    for src, bank in (("src/elite-stubs7.asm", "4"), ("src/elite-bank4.asm", "4"),
+    for src, bank in (("src/elite-bank4.asm", "4"),
                       ("src/elite-andy.asm", "87"), ("src/elite-coldstubs.asm", "87"),
                       ("src/elite-cold7.asm", "87")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
