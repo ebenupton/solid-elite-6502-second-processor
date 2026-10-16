@@ -50,14 +50,44 @@
 // not otherwise depend on the sound buffers (only the sound routines and the
 // IRQ read them), so they are excluded from the comparison.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 
 export const ROOT = decodeURIComponent(new URL("..", import.meta.url).pathname);
 
 export function loadSyms(path) {
     const syms = {};
     for (const m of readFileSync(path, "utf8").matchAll(/'([^']+)':(\d+)L?/g)) if (!(m[1] in syms)) syms[m[1]] = +m[2];
+    // Labels in sideways RAM: build/banks.txt next to the symbols, "label bank" per
+    // line with the ROMSEL value of the code's bank in hex (4: Elite's home bank,
+    // 87: the cold area, ANDY at &8000-&8FFF plus bank 7). Kept non-enumerable so
+    // that code iterating over the symbols sees only addresses.
+    const bank = {};
+    const bp = path.replace(/symbols\.txt$/, "banks.txt");
+    if (bp !== path && existsSync(bp)) for (const l of readFileSync(bp, "utf8").split("\n")) {
+        const [n, b] = l.trim().split(/\s+/);
+        if (n && b) bank[n] = parseInt(b, 16);
+    }
+    Object.defineProperty(syms, "__bank", { value: bank, enumerable: false });
     return syms;
+}
+
+// What is mapped at addr for a given ROMSEL value: "m" (not sideways: main RAM,
+// HAZEL, MOS), "A" (ANDY), or the sideways bank number
+export function mapAt(romsel, addr) {
+    if (addr < 0x8000 || addr >= 0xc000) return "m";
+    if (addr < 0x9000 && romsel & 0x80) return "A";
+    return romsel & 15;
+}
+// The mapping a label lives in ("m" for labels outside sideways RAM)
+export function mapOfLabel(sy, name) {
+    const a = sy[name], b = sy.__bank[name];
+    return b === undefined ? "m" : mapAt(b, a);
+}
+// Read a byte of a given mapping regardless of what is paged
+export function physRead(cpu, map, addr) {
+    if (map === "m") return cpu.ramRomOs[addr & 0xffff];
+    if (map === "A") return cpu.ramRomOs[addr];
+    return cpu.ramRomOs[cpu.romOffset + map * 16384 + addr - 0x8000];
 }
 
 // Game state compared per iteration: [start, length, name]. All of these are at
@@ -136,12 +166,42 @@ export async function runElite(opts) {
     const rd = (a, n = 1) => { const r = new Array(n); for (let i = 0; i < n; i++) r[i] = cpu.ramRomOs[(a + i) & 0xffff]; return r; };
     const rb = a => cpu.ramRomOs[a & 0xffff];
     const wr = (a, bytes) => { for (let i = 0; i < bytes.length; i++) cpu.ramRomOs[a + i] = bytes[i] & 255; };
-    // label lookup for call sites (main RAM code only)
-    const lab = Object.entries(sy).filter(([k, v]) => v >= 0x1300 && v < 0x8000).sort((a, b) => a[1] - b[1]);
-    const labelOf = a => { let lo = 0, hi = lab.length - 1, r = null; while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; } return r; };
+    // label lookup for call sites, per mapping ("m" for main RAM, then ANDY and
+    // the sideways banks, from build/banks.txt)
+    const labs = {};
+    for (const [k, v] of Object.entries(sy)) {
+        if (v < 0x0800 || /^(CODE|LOAD)/.test(k)) continue;   // (section addresses, not routines)
+        const m = mapOfLabel(sy, k);
+        if (m === "m" && v >= 0x8000) continue;
+        (labs[m] ||= []).push([k, v]);
+    }
+    for (const l of Object.values(labs)) l.sort((a, b) => a[1] - b[1]);
+    const labelOf = (a, romsel = cpu.romsel) => {
+        const lab = labs[mapAt(romsel, a)] || [];
+        let lo = 0, hi = lab.length - 1, r = null;
+        while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }
+        return r;
+    };
     const stackWord = k => rb(0x100 + ((cpu.s + k) & 0xff)) | (rb(0x100 + ((cpu.s + k + 1) & 0xff)) << 8);
+    // The JSR whose return address is at S+k: its address and the ROMSEL it ran
+    // with, seeing through far-call frames. A far call (master/src/elite-far.asm)
+    // runs its target with the stack holding the return into the far-call code
+    // (farret), then the caller's ROMSEL, then the caller's own return address.
+    const callerAt = k => {
+        let w = stackWord(k), romsel = cpu.romsel;
+        while (sy.farret !== undefined && w + 1 === sy.farret) {
+            romsel = rb(0x100 + ((cpu.s + k + 2) & 0xff));
+            k += 3;
+            w = stackWord(k);
+        }
+        return { site: w + 1 - 3, romsel, k };
+    };
+    // hook points: address and mapping
+    const hook = (name, off = 0) => ({ a: sy[name] + off, m: mapOfLabel(sy, name) });
+    const at = (h, pc) => pc === h.a && (h.m === "m" || h.m === mapAt(cpu.romsel, pc));
+    const H_RDK = hook("RDKEY", 5), H_DKS5 = hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"),
+        H_TT100 = hook("TT100"), H_QU5 = hook("QU5"), H_BAY = hook("BAY"), H_MT26 = hook("MT26"), H_TT170 = hook("TT170");
 
-    const RDK_POST = sy.RDKEY + 5, DKS5_POST = sy.DKS5 + 17;
     const res = { snaps: [], iterTimes: [], tt100Times: [], tt100AtIter: [], init: null, keyLog: [], events: [], s, cpu, sy, regions };
     let started = false, done = false, armPatch = false, iter = 0, tt100 = 0, checked = false;
     const ctxBase = { rb, rd, sy, iterOf: () => iter, tt100Of: () => tt100 };
@@ -165,26 +225,28 @@ export async function runElite(opts) {
     }
 
     const handler = pc => {
-        if (pc === RDK_POST && started) {
-            const callSite = stackWord(2) + 1 - 3;
-            const site = labelOf(callSite);
+        if (at(H_RDK, pc) && started) {
+            const c = callerAt(2);
+            const callSite = c.site;
+            const site = labelOf(callSite, c.romsel);
             // for waits (t, t2 in TT217), the routine that called the wait
             let waitFor = null;
-            if (site === "t" || site === "t2") waitFor = labelOf(stackWord(4) + 1 - 3);
+            if (site === "t" || site === "t2") { const w = callerAt(c.k + 2); waitFor = labelOf(w.site, w.romsel); }
             const ctx = { ...ctxBase, kind: "rdkey", site, callSite, waitFor };
             const keys = opts.pilot.keys(ctx) || [];
             fillkl(keys);
             if (keys.length) res.keyLog.push([iter, site + (waitFor ? "<" + waitFor : ""), keys.map(k => k.toString(16)).join("+")]);
             if (opts.trace && keys.length) console.log(`iter ${iter} ${site}${waitFor ? "<" + waitFor : ""}: ${keys.map(k => "&" + k.toString(16)).join(" ")}`);
-        } else if (pc === DKS5_POST && started) {
+        } else if (at(H_DKS5, pc) && started) {
             const key = cpu.a;
-            const site = labelOf(stackWord(1) + 1 - 3);
+            const c = callerAt(1);
+            const site = labelOf(c.site, c.romsel);
             const down = opts.pilot.dks ? opts.pilot.dks({ ...ctxBase, kind: "dks5", key, site }) : false;
             cpu.x = down ? key | 0x80 : key;
             if (down) res.keyLog.push([iter, "DKS5:" + site, key.toString(16)]);
-        } else if (pc === sy.NOISE) {
+        } else if (at(H_NOISE, pc)) {
             for (let i = 0; i < 3; i++) cpu.ramRomOs[sy.SOPR + i] = 0;
-        } else if (pc === sy.MLOOP && started) {
+        } else if (at(H_MLOOP, pc) && started) {
             res.snaps.push(snapshot());
             res.iterTimes.push(emuSecs());
             res.tt100AtIter.push(tt100);
@@ -192,25 +254,26 @@ export async function runElite(opts) {
             if (opts.onIter) opts.onIter(iter, s, res);
             iter++;
             if (iter >= opts.iters) { done = true; return true; }
-        } else if (pc === sy.TT100 && started) {
+        } else if (at(H_TT100, pc) && started) {
             res.tt100Times.push([emuSecs(), iter]);
             tt100++;
-        } else if (pc === sy.QU5) {
+        } else if (at(H_QU5, pc)) {
             armPatch = true;
-        } else if (pc === sy.BAY && armPatch) {
+        } else if (at(H_BAY, pc) && armPatch) {
             armPatch = false;
             if (opts.patch) opts.patch({ wr, rb, sy });
             res.events.push([iter, "commander patched at BAY"]);
-        } else if (pc === sy.MT26 && started) {
+        } else if (at(H_MT26, pc) && started) {
             res.events.push([iter, "MT26 (OSWORD line input) reached: not supported"]);
             res.error = "MT26";
             done = true; return true;
-        } else if (pc === sy.TT170 && !started) {
+        } else if (at(H_TT170, pc) && !started) {
             started = true;
             if (!checked) {
                 checked = true;
-                if (rb(RDK_POST) !== 0x68) throw new Error(`RDKEY+5 is not PLA (&${rb(RDK_POST).toString(16)})`);
-                if (rb(DKS5_POST) !== 0xa9 || rb(DKS5_POST + 1) !== 0x0b) throw new Error("DKS5+17 is not LDA #&0B");
+                const op = (h, i = 0) => physRead(cpu, h.m, h.a + i);
+                if (op(H_RDK) !== 0x68) throw new Error(`RDKEY+5 is not PLA (&${op(H_RDK).toString(16)})`);
+                if (op(H_DKS5) !== 0xa9 || op(H_DKS5, 1) !== 0x0b) throw new Error("DKS5+17 is not LDA #&0B");
             }
             if (opts.seed) for (const [a, bytes] of opts.seed) wr(a, bytes);
             res.init = snapshot();
