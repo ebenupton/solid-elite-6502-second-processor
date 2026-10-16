@@ -1000,35 +1000,21 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ ============================================================================
 .r_div8
 {
-  STA r_m1                \ remainder-to-be
-  STZ r_m0
-  LDA r_v0                \ divisor shifted up to just above the dividend
-  STA r_m2
-  STZ r_m3
-  LDX #0
-.up
-  INX
-  ASL r_m2
-  ROL r_m3
-  BNE dn
-  LDA r_m2
-  CMP r_m1
-  BCC up
-  BEQ up
-.dn
-  LSR r_m3                \ X quotient bits
-  ROR r_m2
-  ASL r_m0
-  LDA r_m1
-  CMP r_m2
-  BCC ns
-  SBC r_m2
-  STA r_m1
-  INC r_m0
-.ns
-  DEX
-  BNE dn
-  LDA r_m1
+  STA RZ_T6               \ dividend, becoming the quotient
+  LDA r_v0
+  STA RZ_T7
+  LDA #0
+  FOR i, 1, 8
+    ASL RZ_T6
+    ROL A
+    BCS P%+6
+    CMP RZ_T7
+    BCC P%+6
+    SBC RZ_T7
+    INC RZ_T6
+  NEXT
+  LDX RZ_T6
+  STX r_m0
   RTS
 }
 
