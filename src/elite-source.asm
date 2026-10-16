@@ -6861,6 +6861,11 @@ ENDMACRO
 \
 \ ******************************************************************************
 
+.mvs5x
+
+ JMP mvs5r              \ BBC Master port: MVS5's rare first-half ADD path, at
+                        \ the end of bank 4 (mvs5a's branches land here)
+
 .mvs5n
 
                         \ BBC Master port: MVS5's roofv_x_hi is negative, so
@@ -6875,7 +6880,7 @@ ENDMACRO
  STA R
  BCS P%+4
  DEC S                  \ (S stays negative: no borrow when |hi| = 0)
- BIT T1                 \ S is negative, so same signs if T1 is negative:
+ BIT K+1                \ S is negative, so same signs if K+1 is negative:
  BMI mvs5q              \ back to ADD's first path, else fall into mvs5a
                         \ (either way with A = R)
 
@@ -6883,43 +6888,41 @@ ENDMACRO
 
                         \ BBC Master port: the out-of-line paths of the first
                         \ inlined ADD in MVS5 below (placed here so all of
-                        \ MVS5's branches stay short), entered with A = R
+                        \ MVS5's branches stay short), entered with A = R and
+                        \ the argument (A P) of ADD in K(1 0)
 
  SEC                    \ Different signs (ADD's MU8 common path):
- SBC P                  \   K = R - P
+ SBC K                  \   K = R - P, also stored in roofv_x_lo
  STA K                  \
- LDA S                  \   A = |S| - |T1| - borrow
+ STA INWK,X             \
+ LDA S                  \   A = |S| - |K+1| - borrow
  EOR #%10000000
- SBC T1
- BCC mvs5r              \ |S R| < |A P|, or high byte 0: rare, so let ADD
- BEQ mvs5r              \ redo the whole sum from scratch (exact results)
- BIT T1                 \ |S R| > |A P|: K+1 = A (0..127) with the sign of S,
- BMI P%+4               \ i.e. the opposite of the sign of T1, as ADD's MU8s
- ORA #%10000000         \ (C, V = 0 dead: the second half recomputes them)
- STA K+1
- BRA mvs5h
-
-.mvs5r
-
- PHX                    \ Rare: call ADD with the original argument (T1, and
- LDA T1                 \ P, R, S are unchanged), storing its result in K(1 0)
- JSR ADD                \ over the low byte stored above, and restore X
- STA K+1
- STX K
- PLX
- BRA mvs5h
+ SBC K+1
+ BCC mvs5x              \ |S R| < |A P|, or high byte 0: rare, so let ADD
+ BEQ mvs5x              \ redo the whole sum from scratch (exact results)
+ BIT K+1                \ |S R| > |A P|: K+1 = A (0..127) with the sign of S,
+ BMI mvs5w              \ i.e. the opposite of the sign of K+1, as ADD's MU8s
+ ORA #%10000000         \ (C, V = 0 dead: the second half recomputes them),
+ BRA mvs5w              \ stored in K+1 and roofv_x_hi by mvs5w
 
 .MVS5
 
- LDA INWK,Y             \ Set P = nosev_x_lo
+                        \ BBC Master port: roofv_x is only read before it is
+                        \ overwritten, so the second half's argument
+                        \ (A P) = -/+ roofv_x / 16 is computed first, into
+                        \ P and T1, and the first half's (A P) = +/- nosev_x
+                        \ / 16 goes in K(1 0) (overwritten by its result), so
+                        \ the first half can store roofv_x directly
+
+ LDA INWK,X             \ Set P = roofv_x_lo
  STA P
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi and give it the sign as if we
- EOR RAT2               \ multiplied by the pitch or roll direction (RAT2 is
-                        \ 0 or &80, so bits 0-6 are unchanged)
+ LDA INWK+1,X           \ Fetch roofv_x_hi and give it the sign of -roofv_x
+ EOR RAT2               \ as if multiplied by the pitch or roll direction
+ EOR #%10000000         \ (RAT2 is 0 or &80, so bits 0-6 are unchanged)
 
  LSR A                  \ Set (A P) = (A P) / 16, which leaves P as
- ROR P                  \ |nosev_x| / 16 low byte (the sign bit never reaches
+ ROR P                  \ |roofv_x| / 16 low byte (the sign bit never reaches
  LSR A                  \ P) and A = %0000sxxx, where s is the sign
  ROR P
  LSR A
@@ -6927,12 +6930,32 @@ ENDMACRO
  CMP #16                \ A = %000sxxxx here: C = s, then drop s from bit 4
  AND #%00001111         \ and rotate it into bit 7 as the last shift, so
  ROR A                  \ A = %s0000xxx and C = the bit that goes into P,
- ROR P                  \ giving (A P) = +/- nosev_x / 16
+ ROR P                  \ giving (A P) = -/+ roofv_x / 16
 
- STA T1                 \ BBC Master port: ADD's prologue, T1 = A (T is not
-                        \ needed: both paths get the sign from T1 or the
+ STA T1                 \ T1 = A, as ADD's prologue in the second half
+
+ LDA INWK,Y             \ Set K = nosev_x_lo
+ STA K
+
+ LDA INWK+1,Y           \ Fetch nosev_x_hi and give it the sign as if we
+ EOR RAT2               \ multiplied by the pitch or roll direction (RAT2 is
+                        \ 0 or &80, so bits 0-6 are unchanged)
+
+ LSR A                  \ Set (A K) = (A K) / 16, as above
+ ROR K
+ LSR A
+ ROR K
+ LSR A
+ ROR K
+ CMP #16
+ AND #%00001111
+ ROR A
+ ROR K                  \ giving (A K) = +/- nosev_x / 16
+
+ STA K+1                \ ADD's prologue, K+1 = A (in place of T1; T is not
+                        \ needed: both paths get the sign from K+1 or the
                         \ carry instead); the sign test against S is done
-                        \ below with a branch on the sign of S and BIT T1
+                        \ below with a branch on the sign of S and BIT K+1
 
  LDA INWK+1,X           \ Fetch roofv_x_hi, store it in S (the high byte of the
  STA S                  \ subtraction below, fixed up for the borrow later),
@@ -6959,20 +6982,25 @@ ENDMACRO
  BCS P%+4               \ And then the high byte: decrement S if the low byte
  DEC S                  \ borrowed (same as roofv_x_hi - 0 - borrow)
 
- BIT T1                 \ S is positive, so jump to mvs5a (with A = R) if T1
+ BIT K+1                \ S is positive, so jump to mvs5a (with A = R) if K+1
  BMI mvs5a              \ is negative (different signs)
 
 .mvs5q
 
                         \ Same signs (ADD's first path), A = R:
  CLC                    \
- ADC P                  \   K = R + P
+ ADC K                  \   K = R + P, also stored in roofv_x_lo
  STA K                  \
- LDA S                  \   K+1 = (S + T1 + C) OR sign, where the sign is
- ADC T1                 \   the carry out (both negative: S, T1 >= &80 so
- BCC P%+4               \   C = 1; both positive: S + T1 + C <= &7F+7+1, so
+ STA INWK,X             \
+ LDA S                  \   K+1 = (S + K+1 + C) OR sign, where the sign is
+ ADC K+1                \   the carry out (both negative: S, K+1 >= &80 so
+ BCC mvs5w              \   C = 1; both positive: S + K+1 + C <= &7F+7+1, so
  ORA #%10000000         \   C = 0)
- STA K+1               \ Set K(1 0) = (1 - 1/512) * roofv_x +/- nosev_x / 16
+
+.mvs5w
+
+ STA K+1                \ Set K(1 0) = roofv_x
+ STA INWK+1,X           \            = (1 - 1/512) * roofv_x +/- nosev_x / 16
 
 .mvs5h
 
@@ -6993,33 +7021,15 @@ ENDMACRO
  BCS P%+4               \ And then the high byte: decrement S if the low byte
  DEC S                  \ borrowed (same as nosev_x_hi - 0 - borrow)
 
- LDA INWK,X             \ Set P = roofv_x_lo
- STA P
-
- LDA INWK+1,X           \ Fetch roofv_x_hi and give it the sign of -roofv_x
- EOR RAT2               \ as if multiplied by the pitch or roll direction
- EOR #%10000000         \ (RAT2 is 0 or &80, so bits 0-6 are unchanged)
-
- LSR A                  \ Set (A P) = (A P) / 16, which leaves P as
- ROR P                  \ |roofv_x| / 16 low byte (the sign bit never reaches
- LSR A                  \ P) and A = %0000sxxx, where s is the sign
- ROR P
- LSR A
- ROR P
- CMP #16                \ A = %000sxxxx here: C = s, then drop s from bit 4
- AND #%00001111         \ and rotate it into bit 7 as the last shift, so
- ROR A                  \ A = %s0000xxx and C = the bit that goes into P,
- ROR P                  \ giving (A P) = -/+ roofv_x / 16
-
                         \ BBC Master port: ADD's two common paths are inlined
-                        \ here, computing (A P) + (S R) exactly as ADD does
-                        \ (same T1 and C; T is dead, as in the first half),
-                        \ but storing the low byte straight into nosev_x_lo
-                        \ so X is never clobbered and needs no restoring
+                        \ here, computing (A P) + (S R) exactly as ADD does,
+                        \ with (A P) = (T1 P) = -/+ roofv_x / 16 from the top
+                        \ of MVS5 (same T1 and C; T is dead, as in the first
+                        \ half), but storing the result straight into nosev_x
 
- STA T1                 \ ADD's prologue: T1 = A, and jump to mvs5d if A and
- EOR S                  \ S have different signs (T is not needed: both paths
- BMI mvs5d              \ get the sign from T1 or the carry instead)
+ LDA T1                 \ Jump to mvs5d if A and S have different signs (T is
+ EOR S                  \ not needed: both paths get the sign from T1 or the
+ BMI mvs5d              \ carry instead)
 
  LDA R                  \ Same signs (ADD's first path):
  CLC                    \
@@ -7031,14 +7041,8 @@ ENDMACRO
  ORA #%10000000         \   C = 0)
  STA INWK+1,Y           \ Set nosev_x = (1-1/512) * nosev_x -/+ roofv_x / 16
 
-.mvs5j
-
- LDA K                  \ Set roofv_x = K(1 0)
- STA INWK,X             \             = (1-1/512) * roofv_x +/- nosev_x / 16
- LDA K+1
- STA INWK+1,X
-
- RTS                    \ Return from the subroutine
+ RTS                    \ Return from the subroutine (roofv_x and K(1 0) were
+                        \ set in the first half)
 
 .mvs5d
 
@@ -7056,13 +7060,6 @@ ENDMACRO
  ORA #%10000000         \ also clears C, but no caller of MVS5 reads C or V)
  STA INWK+1,Y
 
-.mvs5k
-
- LDA K                  \ Set roofv_x = K(1 0), a copy of mvs5j's tail so
- STA INWK,X             \ this path doesn't take a BRA back to mvs5j (that
- LDA K+1                \ BRA crosses a page: 4 cycles)
- STA INWK+1,X
-
  RTS                    \ Return from the subroutine
 
 .mvs5s
@@ -7073,7 +7070,7 @@ ENDMACRO
  STA INWK+1,Y
  STX INWK,Y
  PLX
- BRA mvs5k
+ RTS
 
 \ ******************************************************************************
 \
@@ -7853,10 +7850,11 @@ ENDMACRO
  AND #%10000000
  STA stx_t+1
  STA stl_o1+1
+ EOR #%10000000         \ stl_e1 gets T EOR &80 (MU8s's ORA #&80 folded in)
  STA stl_e1+1
  LSR A                  \ stl_b = BMI (&30) if -beta >= 0, BPL (&10) if not
- LSR A
- EOR #&30
+ LSR A                  \ (A = T EOR &80 here, so EOR #&10)
+ EOR #&10
  STA stl_b
 
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
@@ -8355,9 +8353,10 @@ ENDMACRO
  SBC #0                 \ patched: T1
  BCC stl_cf             \ |S R| < |A P|: let PIX1/ADD do it
  BEQ stl_cf             \ High byte 0: let PIX1/ADD do it
- ORA #%10000000         \ MU8s (its CLC dropped: C is dead at PIXEL2)
 .stl_e1
- EOR #0                 \ patched: T
+ EOR #0                 \ patched: T EOR &80 (MU8s's ORA #&80 then EOR T,
+                        \ folded: A = 1..127 here, so (A OR &80) EOR T =
+                        \ A EOR (T EOR &80))
 .stl_cj
  STA SY,Y               \ As PIX1: y_hi = A (y_lo stored above)
  JSR PIXEL2             \ Erase the old particle, as PIX1 fell through to do
@@ -18668,6 +18667,18 @@ ENDMACRO
 \
 \ ******************************************************************************
 
+.LL2
+
+ LDA #255               \ The division is very close to 1, so return the closest
+ STA R                  \ possible answer to 256, i.e. R = 255
+
+ RTS                    \ Return from the subroutine
+
+ EQUB &EA, &EA          \ Padding (never executed). BBC Master port: LL2 sits
+                        \ before LL28 and this padding shifts LL31 so that no
+                        \ taken branch in the unrolled loop crosses a page
+                        \ boundary (iteration 2's BCC used to cross &2D00)
+
 .LL28
 
  CMP Q                  \ If A >= Q, then the answer will not fit in one byte,
@@ -18723,15 +18734,8 @@ ENDMACRO
 
  RTS                    \ Return from the subroutine
 
- EQUB &EA, &EA, &EA     \ Padding (never executed) so LL2, LL38 and everything
- EQUB &EA, &EA          \ after them in main RAM stay at the same addresses
-
-.LL2
-
- LDA #255               \ The division is very close to 1, so return the closest
- STA R                  \ possible answer to 256, i.e. R = 255
-
- RTS                    \ Return from the subroutine
+ EQUB &EA, &EA, &EA     \ Padding (never executed) so LL38 and everything after
+                        \ it in main RAM stay at the same addresses
 
 \ ******************************************************************************
 \
@@ -33483,6 +33487,9 @@ INCLUDE "build/dashtab.asm"
 
 .CPYI2
 
+ LDA #HI(K% + 8 * NI%)  \ Slots 8 and up: INF+1 = &0A (UNIV(X) high byte)
+ STA INF+1
+
  CLC                    \ Slots 8 and up arrive here with C set by CPX #8, but
                         \ GINF's ASL leaves C clear, so clear it again
 
@@ -33506,19 +33513,17 @@ INCLUDE "build/dashtab.asm"
                         \ Z clear, C clear (as GINF's ASL left it), X and V
                         \ unchanged
 
- TXA                    \ Set Y = X * 2 (C is cleared as X <= NOSH)
- ASL A
- TAY
+ LDY CPYLO,X            \ INF = LO(UNIV(X)) = LO(K% + NI% * X), from the
+ STY INF                \ table CPYLO at the end of bank 4, with Y = INF
 
- LDA UNIV+1,Y           \ Set INF(1 0) = UNIV(X), the address of the ship
- STA INF+1              \ data block for slot X
- LDA UNIV,Y
- STA INF
-
- TAY                    \ INF(1 0) = K% + NI% * slot (K% = &0900), so for
- CPX #8                 \ slots 0-7 INF+1 = &09 and we can use LDA K%+I%,Y with
+ CPX #8                 \ Slots 0-7 have INF+1 = &09 and use LDA K%+I%,Y with
  BCS CPYI2              \ Y = INF (no page crossing for slots 0-6), leaving C
                         \ clear from the CPX; slots 8+ use the loop at CPYI2
+
+ LDA #HI(K%)            \ INF+1 = &09 for slots 0-7
+ STA INF+1
+
+ ASSERT (K% + NOSH * NI%) DIV 256 = &0A
 
  ASSERT (K% + 7 * NI%) DIV 256 = &09 AND (K% + 8 * NI%) DIV 256 = &0A
 
@@ -33978,8 +33983,8 @@ INCLUDE "build/dashtab.asm"
 
  BPL MU8a               \ |S R| < |A P|: redo it the original way round
 
- CMP #%10000000         \ High magnitude 0: check for |S R| = |A P|
- BEQ MU8e
+ CPX #0                 \ Low byte 0: check for |S R| = |A P| (test X first,
+ BEQ MU8e               \ as X = 0 is much rarer than a zero high magnitude)
 
 .MU8s
 
@@ -33989,10 +33994,10 @@ INCLUDE "build/dashtab.asm"
 
 .MU8e
 
- CPX #0                 \ A = &80 here. If X <> 0 then |S R| > |A P|, so
- BNE MU8s               \ A = &80 EOR T, C = 0 via MU8s; otherwise the values
- LDA T                  \ are equal: A = T (N, Z from T), X = 0, C = 1 (CPX),
- RTS                    \ as the original BEQ MU9 path gives
+ CMP #%10000000         \ X = 0 here. If A <> &80 then |S R| > |A P|, so
+ BNE MU8s               \ A EOR T, C = 0 via MU8s; otherwise the values are
+ LDA T                  \ equal: A = T (N, Z from T), X = 0, C = 1 (CMP with
+ RTS                    \ A = &80), as the original BEQ MU9 path gives
 
 .MU8a
 
@@ -34366,8 +34371,15 @@ INCLUDE "build/dashtab.asm"
 
 .DVL9
 
- ASL P                  \ Shift (A P+1 P) to the left
- ROL P+1
+                        \ BBC Master port: shift just (A P+1) to the left. The
+                        \ bits of P can never reach A: from DVC9 with A <> 0 at
+                        \ most six shifts happen, from the BRA above (A = 0,
+                        \ P+1 >= 128) at most seven, and from DVB8 P = 0 and C
+                        \ is clear on every entry here (CMP #64/BCC), so the
+                        \ ROL P+1 shifts in the same zeroes ASL P would. P and
+                        \ P+1 are dead afterwards (only P+2 is used below)
+
+ ROL P+1                \ Shift (A P+1) to the left
  ROL A
 
  INY                    \ Increment the scale factor in Y
@@ -36317,6 +36329,48 @@ ENDIF
 .MU8vn
 
  JMP MU8a
+
+.mvs5r
+
+                        \ BBC Master port: MVS5's rare first-half ADD path
+                        \ (from mvs5x), entered with the argument's high byte
+                        \ in K+1, K = R - P (so the argument's low byte P is
+                        \ R - K), R and S unchanged, and the second half's
+                        \ argument in P and T1 (saved and restored here)
+
+ LDA P                  \ Save the second half's argument (P, T1)
+ PHA
+ LDA T1
+ PHA
+
+ LDA R                  \ P = R - K, the first half's argument low byte
+ SEC
+ SBC K
+ STA P
+
+ PHX                    \ Call ADD with A = K+1 (P, R, S as above) and store
+ LDA K+1                \ its result (A X) in K(1 0)
+ JSR ADD
+ STA K+1
+ STX K
+ PLX
+
+ STA INWK+1,X           \ roofv_x = K(1 0)
+ LDA K
+ STA INWK,X
+
+ PLA                    \ Restore the second half's argument
+ STA T1
+ PLA
+ STA P
+
+ JMP mvs5h              \ Back to the second half of MVS5
+
+.CPYLO                  \ LO(UNIV(X)) = LO(K% + NI% * X) for X = 0-NOSH, for
+                        \ CPYIN
+ FOR I%, 0, NOSH
+  EQUB LO(K% + I% * NI%)
+ NEXT
 
  BANK_END% = P%
 

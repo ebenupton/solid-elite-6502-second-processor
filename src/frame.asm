@@ -2823,8 +2823,8 @@ MAXPT = 140             \ points per frame
  CPY R_NDT              \ <= 191 at fsg_n, so Y never wraps in this loop
  BCC fsg_n
  CPY R_NDB
- BEQ P%+4
- BCS fsg_x
+ BCC P%+4              \ Y < NDB: in range (Y = NDB falls through BNE)
+ BNE fsg_x
  LDA sg_x+1             \ left of the span? (x <= NDISCL, x 16-bit)
  BMI fsg_l
  BNE fsg_n              \ x > 255: right of it
