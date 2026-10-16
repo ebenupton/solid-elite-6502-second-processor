@@ -3664,7 +3664,8 @@ IF _COMPACT
  LDX #LO(DIRI)          \ Set (Y X) to point to DIRI ("DIR <name entered>")
  LDY #HI(DIRI)
 
- JSR OSCLI              \ Call OSCLI to run the OS command in DIRI, which
+ JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+                        \ Call OSCLI to run the OS command in DIRI, which
                         \ changes the disc directory to the name entered
 
  JMP getzp_C              \ Call getzp to restore the top part of zero page from
@@ -3753,7 +3754,8 @@ ENDIF
                         \ DFS command for cataloguing that drive (*. being short
                         \ for *CAT)
 
- JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+ JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+                        \ Call OSCLI to execute the OS command at (Y X), which
                         \ catalogues the disc
 
  JSR getzp_C              \ Call getzp to restore the top part of zero page from
@@ -3883,7 +3885,8 @@ ENDIF
  LDX #LO(DELI)          \ Set (Y X) to point to the OS command at DELI, which
  LDY #HI(DELI)          \ contains the DFS command for deleting this file
 
- JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+ JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+                        \ Call OSCLI to execute the OS command at (Y X), which
                         \ deletes the file
 
  JSR getzp_C              \ Call getzp to restore the top part of zero page from
@@ -4408,7 +4411,8 @@ ENDIF
  LDX #LO(savosc)        \ Set (Y X) to point to the OS command at savosc, which
  LDY #HI(savosc)        \ contains the DFS command for saving the commander file
 
- JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+ JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+                        \ Call OSCLI to execute the OS command at (Y X), which
                         \ saves the commander file
 
  JMP getzp_C              \ Call getzp to restore the top part of zero page from
@@ -4523,7 +4527,8 @@ ENDIF
  LDY #HI(lodosc)        \ contains the DFS command for loading the commander
                         \ file
 
- JSR OSCLI              \ Call OSCLI to execute the OS command at (Y X), which
+ JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+                        \ Call OSCLI to execute the OS command at (Y X), which
                         \ loads the commander file
 
  JSR getzp_C              \ Call getzp to restore the top part of zero page from
@@ -6477,3 +6482,84 @@ ENDIF
 
  JMP x4_SOFLUSH            \ Call SOFLUSH to reset the sound buffers and return
                         \ from the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: DOSCLI
+\       Type: Subroutine
+\   Category: Save and load
+\    Summary: Port: OSCLI for the disc commands, with the renderer's HAZEL and
+\             NMI glue (docs/MASTER-MEMORY.md)
+\
+\ ------------------------------------------------------------------------------
+\
+\ The renderer keeps its code and lasting state in HAZEL clear of what DFS uses
+\ (&C000-&C2FF, &DC00 up to the command's end, &DF00 up), and DFS's own
+\ lasting state (&C2C0-&C2FF and the MOS's &DFDA-&DFDB) is never written, so
+\ nothing needs saving or rebuilding. But &C000-&C2BF holds the rasteriser's
+\ scratch, which DFS's catalogue cache and drive state share: if anything has
+\ written there since the last disc access, DFS would trust a stale cache
+\ (with the drive motor still on it skips re-reading the catalogue, and could
+\ write a catalogue built from garbage). So before the command the cache is
+\ invalidated (&FF to &C282, &C287 and &C28B-&C28E: re-read the catalogue,
+\ restore the head). DFS copies its own NMI routine to &0D00 for the
+\ command; afterwards the 1770 is quietened (Force Interrupt) and the
+\ minimal handler the loader installed goes back (a stray NMI would
+\ otherwise run DFS's handler with the game's zero page at &A0-&A7). The
+\ error path (BRKV, NEWBRK) does the same through DOSNMI.
+\
+\ ******************************************************************************
+
+.DOSCLI_C
+
+ PHA                    \ Invalidate DFS's catalogue cache and drive state
+ LDA #&FF               \ (A is kept for OSCLI)
+ STA &C282
+ STA &C287
+ STA &C28B
+ STA &C28C
+ STA &C28D
+ STA &C28E
+ PLA
+
+ JSR OSCLI              \ The command
+
+                        \ Fall through into DOSNMI to put the minimal NMI
+                        \ handler back
+
+.DOSNMI_C
+
+ PHP                    \ Keep the flags and A (X and Y are not changed)
+ PHA
+ SEI
+
+ LDA #&D0               \ 1770 Force Interrupt, no conditions: terminate any
+ STA &FE28              \ command and raise no interrupt
+
+ LDA #8                 \ Give the 1770 time to take the command
+.dosn1
+ DEC A
+ BNE dosn1
+
+ LDA &FE28              \ Read the status register, which clears INTRQ
+
+ LDA #&40               \ &0D00 = RTI, then the body at &0D01 (LDA &FE28 :
+ STA &0D00              \ PLA : RTI), then &0D00 = PHA, so &0D00 holds a
+ LDA #&AD               \ complete handler at every step (page &0D is otherwise
+ STA &0D01              \ off limits, docs/MASTER-MEMORY.md)
+ LDA #&28
+ STA &0D02
+ LDA #&FE
+ STA &0D03
+ LDA #&68
+ STA &0D04
+ LDA #&40
+ STA &0D05
+ LDA #&48
+ STA &0D00
+
+.DOSNMI_END_C
+
+ PLA
+ PLP
+ RTS

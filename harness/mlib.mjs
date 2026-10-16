@@ -333,6 +333,9 @@ export async function runElite(opts) {
         const pc = cpu.pc;
         const inRam = pc < 0x8000 || (pc < 0xc000 && (cpu.romsel & 15) >= 4 && (cpu.romsel & 15) <= 7) || (pc < 0x9000 && pc >= 0x8000 && (cpu.romsel & 0x80)) ||
             (pc >= 0xc000 && pc < 0xe000 && (cpu.acccon & 8));
+        // the one exception: DOSNMI (cold area) puts the loader's minimal NMI
+        // handler back at &0D00 after a disc command
+        if (sy.DOSNMI_C !== undefined && pc >= sy.DOSNMI_C && pc < sy.DOSNMI_END_C && (cpu.romsel & 15) === 7) return false;
         if (inRam && res.page0d.length < 20) res.page0d.push([iter, pc, a]);
         return false;
     });

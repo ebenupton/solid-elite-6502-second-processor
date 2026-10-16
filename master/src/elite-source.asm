@@ -18381,6 +18381,9 @@ ENDIF
                         \ the buffer before performing the disc access that gave
                         \ the error we're processsing
 
+ JSR DOSNMI             \ Port: the minimal NMI handler back (DFS installed its
+                        \ own for the command that failed; elite-cold7.asm)
+
  STZ CATF               \ Set the CATF flag to 0, so the TT26 routine reverts to
                         \ standard formatting
 

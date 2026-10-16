@@ -182,3 +182,7 @@
 .t
  JSR far7
  EQUW t_C
+
+.DOSNMI                 \ Port: the minimal NMI handler back after a disc error
+ JSR far7               \ (NEWBRK; elite-cold7.asm)
+ EQUW DOSNMI_C
