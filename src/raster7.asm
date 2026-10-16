@@ -350,7 +350,6 @@ ALIGN &100
   STA sd2+2
   STA fl2+2
   STA fs2+2
-  STZ rj+2                \ (no run page yet)
 .frow                     \ fast path: extent inside columns 1..62
 .fl2
   LDA R_DIRTYR0,Y
@@ -374,23 +373,16 @@ ALIGN &100
   LDA #&FF
 .fs1
   STA R_DIRTYL0,Y
+  LDA r7_rp,Y
+  STA rj+2
+  STA RZ_PP+1
+  LDA #&60
+  STA (RZ_PP)
   LDA #0
 .fs2
   STA R_DIRTYR0,Y
-  LDA r7_rp,Y
-  CMP rj+2
-  BEQ fpg
-  STA rj+2
-  STA RZ_PP+1
-.fpg
-  LDA #&60
-  STA (RZ_PP)
-  TYA
-  AND #7
-  TAX
-  LDA #0
   JSR rj                  \ (the run keeps Y)
-  LDA #&9D
+  LDA #&99
   STA (RZ_PP)
 .fnx
   INY
@@ -444,12 +436,9 @@ ALIGN &100
   LDA #&60
   STA (RZ_PP)
   STY RZ_Y
-  TYA
-  AND #7
-  TAX
   LDA #0
   JSR rj
-  LDA #&9D
+  LDA #&99
   STA (RZ_PP)
   LDY RZ_Y
 .nx
@@ -537,13 +526,13 @@ NEXT
 FOR y, 0, 191
   EQUB HI(r7_rrun) + (y DIV 8)
 NEXT
-\ the row runs: one page per character row r: STA &4000+&200r+8k,X for byte
+\ the row runs: one page per character row r: STA &4000+&200r+8k-8r,Y (Y = row) for byte
 \ columns k = 1..63, then RTS
 ALIGN &100
 .r7_rrun
 FOR r, 0, 23
   FOR k, 1, 63
-    STA &4000 + r * &200 + k * 8, X
+    STA &4000 + r * &200 + k * 8 - r * 8, Y
   NEXT
   RTS
   ALIGN &100

@@ -1577,9 +1577,11 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA R_COLE
   BCC ev
   LDA R_COLO
+  STA RZ_COL
+  JMP r_pbx_o             \ odd first row (Y = RZ_Y)
 .ev
   STA RZ_COL
-  JMP r_pb
+  JMP r_pbx_e             \ even first row
 .otab
   EQUW r_ta, r_tb, r_ta
 }
@@ -1588,7 +1590,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .r_e8
 {
   LDY r_i0
-  LDX r_i1
+                          \ X = r_i1 already: both callers (1416/1445) STX r_i1 : JSR r_e8
   LDA R_PYL,X
   CMP R_PYL,Y
   BCC out
@@ -1610,16 +1612,14 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .out
   RTS
 .e2
-  STA RZ_T3               \ start row
-  SEC
-  LDA R_PYL,X
-  SBC R_PYL,Y
+  STA RZ_T3               \ start row (A = y0 = R_PYL,Y, C = 1 from BCS e2)
+  EOR #&FF
+  ADC R_PYL,X             \ dy = y1 - y0; C stays 1 (y1 > y0)
   STA RZ_T1               \ dy
   LDA R_PXL,Y
   STA RZ_T0               \ S = x0
-  SEC
-  LDA R_PXL,X
-  SBC R_PXL,Y
+  EOR #&FF
+  ADC R_PXL,X             \ dx = x1 - x0, C = (x1 >= x0)
   BCC neg
   CMP RZ_T1
   BCS pdiv
@@ -1891,12 +1891,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
 .pb_l2_e
-  LDA r_j,X
-  STA r_jsr2_e+1
-  LDX R_XR
-  LDA r_j-4,X
-  CMP r_jsr2_e+1
+  LDY R_XR
+  LDA r_j-4,Y
+  CMP r_j,X
   BEQ pb_norun_e
+  LDY r_j,X
+  STY r_jsr2_e+1
   CMP RZ_PP
   BNE pb_plant_e
 .pb_go_e
@@ -1904,8 +1904,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA R_COLE
 .r_jsr2_e
   JSR &FFFF
-  LDX R_XR
 .pb_norun_e
+  LDX R_XR
   LDY r_xo,X
   CPX #&80
   BCS pb_rb_e
@@ -4373,19 +4373,16 @@ ENDMACRO
   CMP #3
   BNE f1
   STX RZ_SA               \ (x for the second row at nx)
-  INY                     \ size 3: the second row inside too?
-.cb2
-  CPY cb1+1
-  DEY
+  CPY R_CB                \ size 3: the second row inside too? (y + 1 <= CB)
   BCS slow
 .f1
   CMP #2                  \ size 1: one pixel; 2, 3: two
   LDA r_lm,X
-  BCS two
-  AND r_rm,X
-  BRA msk
-.two
+  BCC one
   AND r_rm+1,X
+  BRA msk
+.one
+  AND r_rm,X
 .msk
   STA RZ_SB               \ the mask
 .row

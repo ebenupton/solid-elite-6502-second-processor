@@ -7963,9 +7963,8 @@ ENDMACRO
  BNE stl_a8s            \ else equal: A = 0, X = 0, result A = T
  BRA stl_a8e
 .stl_a8
- LDA YY                 \ MU8 inline: X = YY_lo - P
- SEC
- SBC P
+ LDA YY                 \ MU8 inline: X = YY_lo - P (C = 1 from MLS1, which
+ SBC P                  \ now always returns with C set)
  TAX
  LDA YY+1               \ A = |YY_hi| - |T1| - borrow
  EOR #%10000000
@@ -18746,19 +18745,21 @@ ENDMACRO
  LDA SQ1H,Y
 .l51y4
  SBC SQ2H,Y
- STA Q
+ TAY                    \ Keep the product in Y (Y is free until the LDY
+                        \ XX16+4,X below)
 
  LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
  EOR XX16+3,X
 
-                        \ Set (S T) = (S R) + (A Q), with LL38 inlined
+                        \ Set (S R) = (S R) + (A Y), with LL38 inlined
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
 
  EOR S                  \ If A and S have the same sign, jump to l51a to add
  BPL l51a
 
- LDA R                  \ Set A = R - Q (the C flag is already set, as the
- SBC Q                  \ SBC SQ2H,Y above never borrows)
+ TYA                    \ Set A = R - Y as ~Y + R + C (the C flag is already
+ EOR #%11111111         \ set, as the SBC SQ2H,Y above never borrows), which
+ ADC R                  \ gives exactly the same A and C as SEC:SBC
 
  BCS l51b               \ If there was no underflow, A and S are correct
 
@@ -18766,22 +18767,21 @@ ENDMACRO
  EOR #%10000000
  STA S
 
- LDA R                  \ C is clear, so A = ~(R - Q - 1) = Q - R
- SBC Q
- EOR #%11111111
+ TYA                    \ And set A = Y - R
+ SEC
+ SBC R
 
  BRA l51b
 
 .l51a
 
- LDA Q                  \ Set A = R + Q
+ TYA                    \ Set A = R + Y
  CLC
  ADC R
 
 .l51b
 
- STA T                  \ Set T = result
- STA R                  \ Set R = T
+ STA R                  \ Set R = result
 
  LDY XX16+4,X           \ Set Q = |sidev_z| * z_lo / 256
 .l51z1
@@ -32713,7 +32713,8 @@ INCLUDE "build/dashtab.asm"
 
  STA P+1                \ A = 0, so set P(1 0) = 0 and return from the
  STA P                  \ subroutine, as in MU6
- RTS
+ SEC                    \ Return with C set, as the other paths do (STL1's
+ RTS                    \ inline MU8 after JSR MLS1 relies on it)
 
 \ ******************************************************************************
 \
