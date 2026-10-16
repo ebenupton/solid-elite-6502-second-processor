@@ -90,3 +90,59 @@
 .plf
  JSR far7
  EQUW plf_C
+
+.DOXC
+ JSR far7
+ EQUW DOXC_C
+
+.HME2
+ JSR far7
+ EQUW HME2_C
+
+.STATUS
+ JSR far7
+ EQUW STATUS_C
+
+.TRADEMODE2
+ JSR far7
+ EQUW TRADEMODE2_C
+
+.TT103
+ JSR far7
+ EQUW TT103_C
+
+.TT111
+ JSR far7
+ EQUW TT111_C
+
+.TT146
+ JSR far7
+ EQUW TT146_C
+
+.TT15
+ JSR far7
+ EQUW TT15_C
+
+.TT16
+ JSR far7
+ EQUW TT16_C
+
+.TT22
+ JSR far7
+ EQUW TT22_C
+
+.TT23
+ JSR far7
+ EQUW TT23_C
+
+.TT25
+ JSR far7
+ EQUW TT25_C
+
+.TT67
+ JSR far7
+ EQUW TT67_C
+
+.ping
+ JSR far7
+ EQUW ping_C

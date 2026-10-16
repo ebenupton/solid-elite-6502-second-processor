@@ -593,7 +593,7 @@
 .MT8_C
 
  LDA #6                 \ Move the text cursor to column 6
- JSR x4_DOXC
+ JSR DOXC_C
 
  LDA #%11111111         \ Set all the bits in DTW2
  STA DTW2
@@ -1330,7 +1330,7 @@
 
  JSR TT27_C               \ Print the two-letter token in A
 
- JSR x4_TT54               \ Step 3: twist the seeds in QQ15
+ JSR TT54_C               \ Step 3: twist the seeds in QQ15
 
  DEC T                  \ Decrement the loop counter
 
@@ -1582,7 +1582,7 @@
 
  JSR TT27_C               \ Print the text token in A
 
- JMP x4_TT67               \ Jump to TT67 to print a newline and return from the
+ JMP TT67_C               \ Jump to TT67 to print a newline and return from the
                         \ subroutine using a tail call
 
 \ ******************************************************************************
@@ -1905,7 +1905,7 @@
 .crlf_C
 
  LDA #21                \ Set the X-column in XC to 21
- JSR x4_DOXC
+ JSR DOXC_C
 
  JMP TT73_C               \ Jump to TT73, which prints a colon (this BNE is
                         \ effectively a JMP as A will never be zero)

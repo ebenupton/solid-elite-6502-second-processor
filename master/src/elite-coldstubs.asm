@@ -36,13 +36,7 @@
  JSR far4
  EQUW DORND
 
-.x4_DOXC
- JSR far4
- EQUW DOXC
 
-.x4_DOYC
- JSR far4
- EQUW DOYC
 
 .x4_MULTU
  JSR far4
@@ -56,21 +50,12 @@
  JSR far4
  EQUW NLIN4
 
-.x4_TRADEMODE
- JSR far4
- EQUW TRADEMODE
 
-.x4_TT103
- JSR far4
- EQUW TT103
 
 .x4_TT11
  JSR far4
  EQUW TT11
 
-.x4_TT111
- JSR far4
- EQUW TT111
 
 .x4_TT217
  JSR far4
@@ -81,21 +66,12 @@
  EQUW TT26
 
 
-.x4_TT60
- JSR far4
- EQUW TT60
 
 .x4_TT66
  JSR far4
  EQUW TT66
 
-.x4_TT67
- JSR far4
- EQUW TT67
 
-.x4_TT69
- JSR far4
- EQUW TT69
 
 
 .x4_msblob
@@ -118,9 +94,6 @@
  JSR far4
  EQUW prq
 
-.x4_spc
- JSR far4
- EQUW spc
 
 .x4_BPRNT
  JSR far4
@@ -162,6 +135,70 @@
  JSR far4
  EQUW PAUSE2
 
-.x4_TT54
+.x4_BOOP
  JSR far4
- EQUW TT54
+ EQUW BOOP
+
+.x4_CIRCLE2
+ JSR far4
+ EQUW CIRCLE2
+
+.x4_DOVDU19
+ JSR far4
+ EQUW DOVDU19
+
+.x4_FLFLLS
+ JSR far4
+ EQUW FLFLLS
+
+.x4_FLKB
+ JSR far4
+ EQUW FLKB
+
+.x4_HLOIN3
+ JSR far4
+ EQUW HLOIN3
+
+.x4_LL5
+ JSR far4
+ EQUW LL5
+
+.x4_LOIN
+ JSR far4
+ EQUW LOIN
+
+.x4_NLIN
+ JSR far4
+ EQUW NLIN
+
+.x4_NLIN5
+ JSR far4
+ EQUW NLIN5
+
+.x4_PIXEL
+ JSR far4
+ EQUW PIXEL
+
+.x4_SQUA2
+ JSR far4
+ EQUW SQUA2
+
+.x4_SUN
+ JSR far4
+ EQUW SUN
+
+.x4_T95
+ JSR far4
+ EQUW T95
+
+.x4_TT67K
+ JSR far4
+ EQUW TT67K
+
+.x4_WSCAN
+ JSR far4
+ EQUW WSCAN
+
+.x4_pr6
+ JSR far4
+ EQUW pr6
