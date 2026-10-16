@@ -14287,90 +14287,43 @@ ENDIF
 
 .PLL4
 
- LDA CNT2               \ Set X = CNT2 mod 32
+ LDA CNT2               \ Set the C flag if CNT2 >= 33, i.e. C = the sign of
+ CMP #33                \ sin(CNT2) (set for 180 to 360 degrees)
  AND #31                \
- TAX                    \ So X is the starting segment, reduced to the range 0
-                        \ to 32, so as there are 64 segments in the circle, this
-                        \ reduces the starting angle to 0 to 180 degrees, so we
-                        \ can use X as an index into the sine table (which only
-                        \ contains values for segments 0 to 31)
-                        \
-                        \ Also, because CNT2 mod 32 is in the range 0 to 180
-                        \ degrees, we know that sin(CNT2 mod 32) is always
-                        \ positive, or to put it another way:
-                        \
-                        \   sin(CNT2 mod 32) = |sin(CNT2)|
-
- LDA SNE,X              \ Set Q = sin(X)
- STA Q                  \       = sin(CNT2 mod 32)
-                        \       = |sin(CNT2)|
-
- LDA K2+2               \ Set A = K2+2
-                        \       = |v_x|
-
- JSR FMLTU              \ Set R = A * Q / 256
- STA R                  \       = |v_x| * |sin(CNT2)|
-
- LDA K2+3               \ Set A = K2+3
-                        \       = |v_y|
-
- JSR FMLTU              \ Set K = A * Q / 256
- STA K                  \       = |v_y| * |sin(CNT2)|
-
- LDX CNT2               \ If CNT2 >= 33 then this sets the C flag, otherwise
- CPX #33                \ it's clear, so this means that:
-                        \
-                        \   * C is clear if the segment starts in the first half
-                        \     of the circle, 0 to 180 degrees
-                        \
-                        \   * C is set if the segment starts in the second half
-                        \     of the circle, 180 to 360 degrees
-                        \
-                        \ In other words, the C flag contains the sign bit for
-                        \ sin(CNT2), which is positive for 0 to 180 degrees
-                        \ and negative for 180 to 360 degrees
+ TAX                    \ Set X = CNT2 mod 32, so sin(X) = |sin(CNT2)|
 
  LDA #0                 \ Shift the C flag into the sign bit of XX16+5, so
  ROR A                  \ XX16+5 has the correct sign for sin(CNT2)
- STA XX16+5             \
-                        \ Because we set the following above:
-                        \
-                        \   K = |v_y| * |sin(CNT2)|
-                        \   R = |v_x| * |sin(CNT2)|
-                        \
-                        \ we can add XX16+5 as the high byte to give us the
-                        \ following:
-                        \
-                        \   (XX16+5 K) = |v_y| * sin(CNT2)
-                        \   (XX16+5 R) = |v_x| * sin(CNT2)
-
- LDA CNT2               \ Set X = (CNT2 + 16) mod 32
- CLC                    \
- ADC #16                \ So we can use X as a lookup index into the SNE table
- AND #31                \ to get the cosine (as there are 16 segments in a
- TAX                    \ quarter-circle)
-                        \
-                        \ Also, because the sine table only contains positive
-                        \ values, we know that sin((CNT2 + 16) mod 32) will
-                        \ always be positive, or to put it another way:
-                        \
-                        \   sin((CNT2 + 16) mod 32) = |cos(CNT2)|
+ STA XX16+5             \ (this also clears the C flag)
 
  LDA SNE,X              \ Set Q = sin(X)
- STA Q                  \       = sin((CNT2 + 16) mod 32)
-                        \       = |cos(CNT2)|
+ STA Q                  \       = |sin(CNT2)|
 
- LDA K2+1               \ Set A = K2+1
-                        \       = |u_y|
+ LDA K2+2               \ Set R = K2+2 * Q / 256
+ JSR FMLTU              \       = |v_x| * |sin(CNT2)|
+ STA R                  \ so (XX16+5 R) = |v_x| * sin(CNT2)
 
- JSR FMLTU              \ Set K+2 = A * Q / 256
- STA K+2                \         = |u_y| * |cos(CNT2)|
+ LDA K2+3               \ Set K = K2+3 * Q / 256
+ JSR FMLTU              \       = |v_y| * |sin(CNT2)|
+ STA K                  \ so (XX16+5 K) = |v_y| * sin(CNT2)
 
- LDA K2                 \ Set A = K2
-                        \       = |u_x|
+ TXA                    \ FMLTU preserves X = CNT2 mod 32, so set
+ EOR #16                \ X = (CNT2 + 16) mod 32, so sin(X) = |cos(CNT2)|
+ TAX
 
- JSR FMLTU              \ Set P = A * Q / 256
- STA P                  \       = |u_x| * |cos(CNT2)|
+ CLC                    \ Clear the C flag, as the original ADC #16 did, as it
+                        \ can pass through FMLTU into the ADC #15 below
+
+ LDA SNE,X              \ Set Q = sin(X)
+ STA Q                  \       = |cos(CNT2)|
+
+ LDA K2+1               \ Set K+2 = K2+1 * Q / 256
+ JSR FMLTU              \         = |u_y| * |cos(CNT2)|
+ STA K+2
+
+ LDA K2                 \ Set P = K2 * Q / 256
+ JSR FMLTU              \       = |u_x| * |cos(CNT2)|
+ STA P
                         \
                         \ The call to FMLTU also sets the C flag, so in the
                         \ following, ADC #15 adds 16 rather than 15
