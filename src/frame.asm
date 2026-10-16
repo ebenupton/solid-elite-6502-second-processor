@@ -2250,33 +2250,11 @@ SGOUT = 20
 .fsg9
  RTS
 
-\ f_wcov: does anything written this frame in row Y cover x = A .. X?
-\ (R_WL/R_WR, or this buffer's new dirty extent). C set if so. Keeps Y.
-
-.f_wcov
- STA fz_t
- STX fz_u
- LDA R_WR,Y             \ written: WL..WR (WR = 0: none)
- BEQ fwc2
- CMP fz_t
- BCC fwc2
- LDA fz_u
- CMP R_WL,Y
- BCS fwc9
-.fwc2
-.fsw_d2
- LDA R_DIRTYR0,Y        \ patched
- BEQ fwc8
- CMP fz_t
- BCC fwc8
- LDA fz_u
-.fsw_d1
- CMP R_DIRTYL0,Y        \ patched
- BCS fwc9
-.fwc8
- CLC
-.fwc9
- RTS
+\ f_sight2: redraw the sights if anything written this frame covers them:
+\ row SGY over x = SGX-SGOUT .. SGX+SGOUT, or rows SGY-SGOUT .. SGY+SGOUT at
+\ x = SGX, in R_WL/R_WR (WR = 0: none) or this buffer's new dirty extent.
+\ (WR or dirty R >= SGX-SGOUT > 0 implies R <> 0; SGX = &80, so R >= SGX <=>
+\ bit 7 set.)
 
 .f_sight2
  LDA GSIGHT
@@ -2284,24 +2262,44 @@ SGOUT = 20
  LDX F_BACK
  LDA F_SGS,X
  BEQ fsg3               \ not drawn yet
- LDY #SGY               \ overwritten anywhere?
- LDA #SGX-SGOUT
- LDX #SGX+SGOUT
- JSR f_wcov
+ LDA R_WR+SGY           \ overwritten anywhere in row SGY?
+ CMP #SGX-SGOUT
+ BCC fsg1a
+ LDA #SGX+SGOUT
+ CMP R_WL+SGY
  BCS fsg3
+.fsg1a
+ LDY #SGY
+.fsw_d2
+ LDA R_DIRTYR0,Y        \ patched
+ CMP #SGX-SGOUT
+ BCC fsg1b
+ LDA #SGX+SGOUT
+.fsw_d1
+ CMP R_DIRTYL0,Y        \ patched
+ BCS fsg3
+.fsg1b
+ ASSERT R_DIRTYR1 = R_DIRTYR0 + &300 AND R_DIRTYL1 = R_DIRTYL0 + &300
+ LDA fsw_d2+2           \ the loop's copies of those operands (only the high
+ STA fsg_d2+2           \ byte depends on the buffer)
+ LDA fsw_d1+2
+ STA fsg_d1+2
  LDY #SGY-SGOUT
- LDA #SGX               \ f_wcov with A = X = SGX, R_WR/R_WL part inlined
- STA fz_t
- STA fz_u
 .fsg2
- LDA R_WR,Y             \ WR >= SGX (= &80, so WR <> 0) <=> bit 7 set
+ LDA R_WR,Y             \ WR >= SGX <=> bit 7 set
  BPL fsg7
  LDA #SGX
  CMP R_WL,Y
  BCS fsg3
 .fsg7
- JSR fwc2               \ this buffer's dirty extent (uses fz_t = fz_u = SGX)
+.fsg_d2
+ LDA R_DIRTYR0,Y        \ patched (copied from fsw_d2)
+ BPL fsg8
+ LDA #SGX
+.fsg_d1
+ CMP R_DIRTYL0,Y        \ patched (copied from fsw_d1)
  BCS fsg3
+.fsg8
  INY
  CPY #SGY+SGOUT+1
  BCC fsg2

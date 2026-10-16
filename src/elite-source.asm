@@ -13186,189 +13186,68 @@ ENDIF
 \       Type: Subroutine
 \   Category: Maths (Geometry)
 \    Summary: Calculate A = arctan(P / Q)
-\  Deep dive: The sine, cosine and arctan tables
 \
 \ ------------------------------------------------------------------------------
 \
-\ Calculate the following:
-\
-\   A = arctan(P / Q)
-\
-\ In other words, this finds the angle in the right-angled triangle where the
-\ opposite side to angle A is length P and the adjacent side to angle A has
-\ length Q, so:
-\
-\   tan(A) = P / Q
-\
-\ The result in A is an integer representing the angle in radians. The routine
-\ returns values in the range 0 to 128, which covers 0 to 180 degrees (or 0 to
-\ PI radians).
+\ BBC Master port: ARCTAN (ARCTAN7, with ARS1 and the ACT table) has moved to
+\ sideways RAM bank 7 (see elite7.asm) to make room in main RAM, as it is cold
+\ (its only caller is PLS4). This stub pages bank 7 in around the call. The
+\ result is returned in A, as before; X is corrupted (ARCTAN corrupts it
+\ anyway, and PLS4 reloads it), and the flags are set from A.
 \
 \ ******************************************************************************
 
 .ARCTAN
 
- LDA P                  \ Set T1 = P EOR Q, which will have the sign of P * Q
- EOR Q                  \
-\AND #%10000000         \ The AND is commented out in the original source
- STA T1
+ LDA #7                 \ Page bank 7 in
+ STA &F4
+ STA &FE30
 
- LDA Q                  \ If Q = 0, jump to AR2 to return a right angle
- BEQ AR2
+ JSR ARCTAN7            \ Set A = arctan(P / Q)
 
- ASL A                  \ Set Q = |Q| * 2 (this is a quick way of clearing the
- STA Q                  \ sign bit, and we don't need to shift right again as we
-                        \ only ever use this value in the division with |P| * 2,
-                        \ which we set next)
-
- LDA P                  \ Set A = |P| * 2
- ASL A
-
- CMP Q                  \ If A >= Q, i.e. |P| > |Q|, jump to AR1 to swap P
- BCS AR1                \ and Q around, so we can still use the lookup table
-
- JSR ARS1               \ Call ARS1 to set the following from the lookup table:
-                        \
-                        \   A = arctan(A / Q)
-                        \     = arctan(|P / Q|)
-
- SEC                    \ Set the C flag so the SBC instruction in AR3 will be
-                        \ correct, should we jump there
-
-.AR4
-
- LDX T1                 \ If T1 is negative, i.e. P and Q have different signs,
- BMI AR3                \ jump down to AR3 to return arctan(-|P / Q|)
-
- RTS                    \ Otherwise P and Q have the same sign, so our result is
-                        \ correct and we can return from the subroutine
-
-.AR1
-
-                        \ We want to calculate arctan(t) where |t| > 1, so we
-                        \ can use the calculation described in the documentation
-                        \ for the ACT table, i.e. 64 - arctan(1 / t)
-
- LDX Q                  \ Swap the values in Q and P, using the fact that we
- STA Q                  \ called AR1 with A = P
- STX P                  \
- TXA                    \ This also sets A = P (which now contains the original
-                        \ argument |Q|)
-
- JSR ARS1               \ Call ARS1 to set the following from the lookup table:
-                        \
-                        \   A = arctan(A / Q)
-                        \     = arctan(|Q / P|)
-                        \     = arctan(1 / |P / Q|)
-
- STA T                  \ Set T = 64 - T
- LDA #64
- SBC T
-
- BCS AR4                \ Jump to AR4 to continue the calculation (this BCS is
-                        \ effectively a JMP as the subtraction will never
-                        \ underflow, as ARS1 returns values in the range 0-31)
-
-.AR2
-
-                        \ If we get here then Q = 0, so tan(A) = infinity and
-                        \ A is a right angle, or 0.25 of a circle. We allocate
-                        \ 255 to a full circle, so we should return 63 for a
-                        \ right angle
-
- LDA #63                \ Set A to 63, to represent a right angle
-
- RTS                    \ Return from the subroutine
-
-.AR3
-
-                        \ A contains arctan(|P / Q|) but P and Q have different
-                        \ signs, so we need to return arctan(-|P / Q|), using
-                        \ the calculation described in the documentation for the
-                        \ ACT table, i.e. 128 - A
-
- STA T                  \ Set A = 128 - A
- LDA #128               \
-\SEC                    \ The SEC instruction is commented out in the original
- SBC T                  \ source, and isn't required as we did a SEC before
-                        \ calling AR3
-
- RTS                    \ Return from the subroutine
-
-.ARS1
-
-                        \ This routine fetches arctan(A / Q) from the ACT table,
-                        \ so A will be set to an integer in the range 0 to 31
-                        \ that represents an angle from 0 to 45 degrees (or 0 to
-                        \ PI / 4 radians)
-
- JSR LL28               \ Call LL28 to calculate:
-                        \
-                        \   R = 256 * A / Q
-
- LDA R                  \ Set X = R / 8
- LSR A                  \       = 32 * A / Q
- LSR A                  \
- LSR A                  \ so X has the value t * 32 where t = A / Q, which is
- TAX                    \ what we need to look up values in the ACT table
-
- LDA ACT,X              \ Fetch ACT+X from the ACT table into A, so now:
-                        \
-                        \   A = value in ACT + X
-                        \     = value in ACT + (32 * A / Q)
-                        \     = arctan(A / Q)
+ TAX                    \ Page Elite's bank back in, preserving A
+ LDA #ELITEBANK
+ STA &F4
+ STA &FE30
+ TXA
 
  RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
-\       Name: ACT
-\       Type: Variable
-\   Category: Maths (Geometry)
-\    Summary: Arctan table
-\  Deep dive: The sine, cosine and arctan tables
+\       Name: GTHG
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Spawn a Thargoid ship and a Thargon companion
+\  Deep dive: Fixing ship positions
+\             Aggression and hostility in ship tactics
 \
 \ ------------------------------------------------------------------------------
 \
-\ This table contains lookup values for arctangent calculations involving angles
-\ in the range 0 to 45 degrees (or 0 to PI / 4 radians).
-\
-\ To calculate the value of theta in the following:
-\
-\   theta = arctan(t)
-\
-\ where 0 <= t < 1, we look up the value in:
-\
-\   ACT + (t * 32)
-\
-\ The result will be an integer representing the angle in radians, where 256
-\ represents a full circle of 360 degrees (2 * PI radians). The result of the
-\ lookup will therefore be an integer in the range 0 to 31, as this represents
-\ 0 to 45 degrees (0 to PI / 4 radians).
-\
-\ The table does not support values of t >= 1 or t < 0 directly, so if we need
-\ to calculate the arctangent for an angle greater than 45 degrees, we can apply
-\ the following calculation to the result from the table:
-\
-\   * For t > 1, arctan(t) = 64 - arctan(1 / t)
-\
-\ For negative values of t where -1 < t < 0, we can apply the following
-\ calculation to the result from the table:
-\
-\   * For t < 0, arctan(-t) = 128 - arctan(t)
-\
-\ Finally, if t < -1, we can do the first calculation to get arctan(|t|), and
-\ the second to get arctan(-|t|).
+\ BBC Master port: moved from sideways RAM bank 4 to main RAM to make room there
+\ (it is cold, and its only caller is in main RAM)
 \
 \ ******************************************************************************
 
-.ACT
+.GTHG
 
- FOR I%, 0, 31
+ JSR Ze                 \ Call Ze to initialise INWK to a fairly aggressive
+                        \ ship (though we increase this below)
+                        \
+                        \ Note that because Ze uses the value of X returned by
+                        \ DORND, and X contains the value of A returned by the
+                        \ previous call to DORND, this does not set the new ship
+                        \ to a totally random location
 
-  EQUB INT((128 / PI) * ATN(I% / 32) + 0.5)
+ LDA #%11111111         \ Set the AI flag in byte #32 so that the ship has AI,
+ STA INWK+32            \ an aggression level of 63 out of 63, and E.C.M.
 
- NEXT
+ LDA #THG               \ Call NWSHP to add a new Thargoid ship to our local
+ JSR NWSHP              \ bubble of universe
+
+ LDA #TGL               \ Call NWSHP to add a new Thargon ship to our local
+ JMP NWSHP              \ bubble of universe, and return from the subroutine
+                        \ using a tail call
 
 \ ******************************************************************************
 \
@@ -20732,6 +20611,42 @@ ENDMACRO
 
 .LL51
 
+                        \ BBC Master port: the nine 8-bit x 8-bit products are
+                        \ calculated inline with the quarter-square tables (see
+                        \ SQ1L), exactly as FMLTU does, but with the roles of
+                        \ the two arguments swapped (u * v is symmetric): the
+                        \ coordinate magnitudes x_lo, y_lo and z_lo (which are
+                        \ the same for all three vectors) are patched into the
+                        \ table operands once here, and the vector element is
+                        \ used as the index, so each product is
+                        \
+                        \   A = HI(f(u + v) - f(|u - v|)) = u * v / 256
+                        \
+                        \ with the C flag set afterwards, as with FMLTU
+
+ LDA XX15               \ Patch u = x_lo into the x-coordinate look-ups
+ STA l51x1+1
+ STA l51x3+1
+ EOR #&FF
+ STA l51x2+1
+ STA l51x4+1
+
+ LDA XX15+2             \ Patch u = y_lo into the y-coordinate look-ups
+ STA l51y1+1
+ STA l51y3+1
+ EOR #&FF
+ STA l51y2+1
+ STA l51y4+1
+
+ LDA XX15+4             \ Patch u = z_lo into the z-coordinate look-ups
+ STA l51z1+1
+ STA l51z3+1
+ EOR #&FF
+ STA l51z2+1
+ STA l51z4+1
+
+ STZ P                  \ Set P = 0, as FMLTU would have done
+
  LDX #0                 \ Set X = 0, which will contain the offset of the vector
                         \ to use in the calculation, increasing by 6 for each
                         \ new vector
@@ -20742,45 +20657,56 @@ ENDMACRO
 
 .ll51
 
- LDA XX15               \ Set Q = x_lo
- STA Q
+ PHY                    \ Store the result offset on the stack, as we use Y as
+                        \ the table index
 
- LDA XX16,X             \ Set A = |sidev_x|
-
- JSR FMLTU              \ Set R = A * Q / 256
- STA R                  \       = |sidev_x| * x_lo / 256
-                        \ (stored straight into R: FMLTU does not touch R)
+ LDY XX16,X             \ Set R = |sidev_x| * x_lo / 256
+.l51x1
+ LDA SQ1L,Y
+.l51x2
+ CMP SQ2L,Y
+.l51x3
+ LDA SQ1H,Y
+.l51x4
+ SBC SQ2H,Y
+ STA R
 
  LDA XX15+1             \ Set S to the sign of x_sign * sidev_x
  EOR XX16+1,X
  STA S
 
- LDA XX15+2             \ Set Q = y_lo
+ LDY XX16+2,X           \ Set Q = |sidev_y| * y_lo / 256
+.l51y1
+ LDA SQ1L,Y
+.l51y2
+ CMP SQ2L,Y
+.l51y3
+ LDA SQ1H,Y
+.l51y4
+ SBC SQ2H,Y
  STA Q
-
- LDA XX16+2,X           \ Set A = |sidev_y|
-
- JSR FMLTU              \ Set Q = A * Q / 256
- STA Q                  \       = |sidev_y| * y_lo / 256
 
  LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
  EOR XX16+3,X
 
  JSR LL38               \ Set (S T) = (S R) + (A Q)
  STA T                  \           = |sidev_x| * x_lo + |sidev_y| * y_lo
- STA R                  \ Set R = T (FMLTU does not touch R)
+ STA R                  \ Set R = T
 
- LDA XX15+4             \ Set Q = z_lo
+ LDY XX16+4,X           \ Set Q = |sidev_z| * z_lo / 256
+.l51z1
+ LDA SQ1L,Y
+.l51z2
+ CMP SQ2L,Y
+.l51z3
+ LDA SQ1H,Y
+.l51z4
+ SBC SQ2H,Y             \ This never borrows, so the C flag is set
  STA Q
 
- LDA XX16+4,X           \ Set A = |sidev_z|
-
- JSR FMLTU              \ Set Q = A * Q / 256
- STA Q                  \       = |sidev_z| * z_lo / 256
-
- TXA                    \ Set X = X + 6, using the C flag that FMLTU always
- ADC #5                 \ returns set (so no CLC is needed); X is not used by
- TAX                    \ LL38, and the EOR below is offset by -6 to match
+ TXA                    \ Set X = X + 6, using the C flag that the SBC above
+ ADC #5                 \ always leaves set (so no CLC is needed); X is not
+ TAX                    \ used by LL38, and the EOR below is offset by -6
 
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
  EOR XX16+5-6,X
@@ -20788,6 +20714,8 @@ ENDMACRO
  JSR LL38               \ Set (S A) = (S R) + (A Q)
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
                         \             + |sidev_z| * z_lo
+
+ PLY                    \ Restore the result offset
 
  STA XX12,Y             \ Store the result in XX12+Y(1 0)
  LDA S
@@ -29779,37 +29707,6 @@ ENDIF
 
 \ ******************************************************************************
 \
-\       Name: GTHG
-\       Type: Subroutine
-\   Category: Universe
-\    Summary: Spawn a Thargoid ship and a Thargon companion
-\  Deep dive: Fixing ship positions
-\             Aggression and hostility in ship tactics
-\
-\ ******************************************************************************
-
-.GTHG
-
- JSR Ze                 \ Call Ze to initialise INWK to a fairly aggressive
-                        \ ship (though we increase this below)
-                        \
-                        \ Note that because Ze uses the value of X returned by
-                        \ DORND, and X contains the value of A returned by the
-                        \ previous call to DORND, this does not set the new ship
-                        \ to a totally random location
-
- LDA #%11111111         \ Set the AI flag in byte #32 so that the ship has AI,
- STA INWK+32            \ an aggression level of 63 out of 63, and E.C.M.
-
- LDA #THG               \ Call NWSHP to add a new Thargoid ship to our local
- JSR NWSHP              \ bubble of universe
-
- LDA #TGL               \ Call NWSHP to add a new Thargon ship to our local
- JMP NWSHP              \ bubble of universe, and return from the subroutine
-                        \ using a tail call
-
-\ ******************************************************************************
-\
 \       Name: MJP, Removed
 \       Type: Subroutine
 \   Category: Flight
@@ -37767,26 +37664,27 @@ INCLUDE "build/dashtab.asm"
                         \ is often the roll angle), so we patch it into the
                         \ table look-ups and only re-patch when it changes
 
- STA T                  \ Store the whole of A in T for now (the TRB below
-                        \ reduces it to just the sign bit)
+ TAX                    \ Set X = A, and set the N and Z flags from A
 
- AND #%01111111         \ Set A = |A|
+ BMI MSN                \ If A is negative, jump to MSN for the negative case
 
  BEQ MSZ                \ If A = 0, jump to MSZ to set P(1 0) = 0 and return
-                        \ (T = A = the sign bit already in this case)
 
- TAX                    \ Set X = |A| (T1 = |A| - 1 is set at the end)
-
- TRB T                  \ Clear bits 0-6 of T, so T = the sign bit of A
+                        \ A is positive, so X = |A|. The T, T1, X and C values
+                        \ that the original left are dead at all three callers
+                        \ (ADD and MULT1 overwrite them before reading them, and
+                        \ the IRQ handler never reads T or T1), so they are no
+                        \ longer reproduced
 
  LDA P                  \ Set A = P AND 31
  AND #31
 
- CMP MSLAST             \ If this is the same value as last time, the table
- BEQ MSU0               \ look-ups are already patched, so skip the following
+ CMP MSU1+1             \ If this is the value already patched into this copy's
+ BEQ MSU0               \ table look-ups, skip the following (each copy keeps
+                        \ its own four operands consistent, and all start out
+                        \ patched for 0 as the tables are page-aligned)
 
- STA MSLAST             \ Patch P AND 31 into the operands of the table look-ups
- STA MSU1+1
+ STA MSU1+1             \ Patch P AND 31 into this copy's table look-ups
  STA MSU3+1
  EOR #&FF
  STA MSU2+1
@@ -37801,31 +37699,56 @@ INCLUDE "build/dashtab.asm"
  SBC SQ2L+&FF,X
  STA P
 
-.MSU3                   \ Calculate the high byte in A
- LDA SQ1H,X
+.MSU3                   \ Calculate the high byte in A (A was positive, so the
+ LDA SQ1H,X             \ sign bit is already clear)
 .MSU4
  SBC SQ2H+&FF,X
 
- DEX                    \ Set T1 = X = |A| - 1, as in the original (X is
- STX T1                 \ still |A| as the look-ups above don't change it)
+ RTS                    \ Return from the subroutine
 
- CLC                    \ Clear the C flag, as in the original
+.MSN
 
- ORA T                  \ Give A the sign bit of the original argument A that
-                        \ we put into T above
+ AND #%01111111         \ Set A = |A|
+
+ BEQ MSZ                \ If A = 0, jump to MSZ to set P(1 0) = 0 and return
+
+ TAX                    \ Set X = |A|
+
+ LDA P                  \ Set A = P AND 31
+ AND #31
+
+ CMP MSV1+1             \ If this is the value already patched into this copy's
+ BEQ MSV0               \ table look-ups, skip the following
+
+ STA MSV1+1             \ Patch P AND 31 into this copy's table look-ups
+ STA MSV3+1
+ EOR #&FF
+ STA MSV2+1
+ STA MSV4+1
+
+.MSV0
+
+ SEC                    \ Calculate the low byte of |A| * (P AND 31) and store
+.MSV1                   \ it in P
+ LDA SQ1L,X
+.MSV2
+ SBC SQ2L+&FF,X
+ STA P
+
+.MSV3                   \ Calculate the high byte in A
+ LDA SQ1H,X
+.MSV4
+ SBC SQ2H+&FF,X
+
+ ORA #%10000000         \ Set the sign bit, as the argument A was negative
 
  RTS                    \ Return from the subroutine
 
 .MSZ
 
  STA P+1                \ A = 0, so set P(1 0) = 0 and return from the
- STA P                  \ subroutine, as in MU6 (Z is set and N clear from the
- RTS                    \ AND above, C and V unchanged, as before)
-
-.MSLAST
-
- EQUB 0                 \ The value of P AND 31 currently patched into the
-                        \ table look-ups above
+ STA P                  \ subroutine, as in MU6
+ RTS
 
 \ ******************************************************************************
 \
@@ -37950,68 +37873,10 @@ INCLUDE "build/dashtab.asm"
                         \ via BNE and from MULTU after BEQ MU1), so the
                         \ original loop for X = 0 is not needed
 
- LDA P                  \ Set A = P and join the table look-ups at MU11A below
- BRA MU11A              \ (MLU1 and MLU2 fall through to MU11A with A = P
-                        \ already, saving a LDA P there)
+ LDA P                  \ Set A = P and fall through into the table look-ups
+                        \ at MU11A below
 
-\ ******************************************************************************
-\
-\       Name: MLU1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following assignment, and multiply the Y-th stardust particle's
-\ y-coordinate with an unsigned number Q:
-\
-\   Y1 = y_hi
-\
-\   (A P) = |y_hi| * Q
-\
-\ ******************************************************************************
-
-.MLU1
-
- LDA SY,Y               \ Set Y1 the Y-th byte of SY
- STA Y1
-
-                        \ Fall through into MLU2 to calculate:
-                        \
-                        \   (A P) = |A| * Q
-
-\ ******************************************************************************
-\
-\       Name: MLU2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = |A| * Q
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of a sign-magnitude 8-bit number P with an
-\ unsigned number Q:
-\
-\   (A P) = |A| * Q
-\
-\ ******************************************************************************
-
-.MLU2
-
- AND #%01111111         \ Clear the sign bit in P, so P = |A|
- STA P
-
- LDX Q                  \ Set X = Q (A = P is unchanged)
-
- BEQ MU1                \ If X = Q = 0, jump to MU1 to copy X into P and A,
-                        \ clear the C flag and return from the subroutine using
-                        \ a tail call
-
-                        \ Otherwise fall through into MU11A with A = P to set
-                        \ (A P) = P * X = |A| * Q
-
-.MU11A                  \ (SQUA2, MU11 and MLU2 enter here with A = P already)
+.MU11A                  \ (SQUA2 and MU11 enter here with A = P already)
  STA MUU1+1
  STA MUU3+1
  EOR #&FF
@@ -38034,6 +37899,91 @@ INCLUDE "build/dashtab.asm"
  STX T
 
  LDX #0                 \ Set X = 0 and the Z and N flags, as in the original
+
+ CLC                    \ Clear the C flag, as in the original
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: MLU1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following assignment, and multiply the Y-th stardust particle's
+\ y-coordinate with an unsigned number Q:
+\
+\   Y1 = y_hi
+\
+\   (A P) = |y_hi| * Q
+\
+\ BBC Master port: MLU1 and MLU2 are only called from STL1, once each per
+\ particle and in that order, with the same Q (always odd, so never 0). MLU1
+\ patches Q (rather than |A|, as MU11A does) into the table look-ups in MLU2,
+\ so both multiplications share one patch. The product is the same (the
+\ quarter-square identity is symmetric in u and v, and the tables cover every
+\ index 0 to 510 that this can produce), and so are A, P, C (clear) and V
+\ (the same SBC operands). Unlike the original, X is left as |A| rather than
+\ 0, the Z and N flags reflect A rather than X = 0, and T is not set to Q - 1:
+\ STL1 overwrites X, Z and N with a TAX straight after each call, and T is
+\ rewritten by MLS1 before anything reads it
+\
+\ ******************************************************************************
+
+.MLU1
+
+ LDA Q                  \ Patch Q into the table look-ups in MLU2, and ~Q into
+ STA MLQ1+1             \ the SQ2 look-ups
+ STA MLQ3+1
+ EOR #&FF
+ STA MLQ2+1
+ STA MLQ4+1
+
+ LDA SY,Y               \ Set Y1 the Y-th byte of SY
+ STA Y1
+
+                        \ Fall through into MLU2 to calculate:
+                        \
+                        \   (A P) = |A| * Q
+
+\ ******************************************************************************
+\
+\       Name: MLU2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = |A| * Q
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of a sign-magnitude 8-bit number P with an
+\ unsigned number Q:
+\
+\   (A P) = |A| * Q
+\
+\ BBC Master port: Q must already have been patched into the look-ups below by
+\ MLU1 (see above), and is never 0
+\
+\ ******************************************************************************
+
+.MLU2
+
+ AND #%01111111         \ Set X = |A|
+ TAX
+
+ SEC                    \ Calculate the low byte of |A| * Q and store it in P
+.MLQ1
+ LDA SQ1L,X
+.MLQ2
+ SBC SQ2L,X
+ STA P
+
+.MLQ3                   \ Calculate the high byte of |A| * Q in A
+ LDA SQ1H,X
+.MLQ4
+ SBC SQ2H,X
 
  CLC                    \ Clear the C flag, as in the original
 
@@ -38458,30 +38408,37 @@ INCLUDE "build/dashtab.asm"
 
  TAX                    \ Store A in X
 
- EOR Q                  \ Set T to the sign bit of Q * A
- AND #%10000000
- STA T
-
  LDA Q                  \ Set A = |Q|
  AND #%01111111
 
- BEQ mu10               \ If |Q| = 0 jump to mu10 (with A set to 0)
+ BNE MTUQ               \ If |Q| <> 0 jump to MTUQ to do the multiplication
 
- DEC A                  \ Set T1 = |Q| - 1, as in the original
- STA T1
+                        \ If we get here, the result is 0 and A = 0 (T and T1
+                        \ are not written: every caller writes them before
+                        \ reading them, via ADD, DVID96 or the STARS inline ADD)
 
- CMP M1LAST             \ If |Q| - 1 is the same value as last time, the table
+ STA P                  \ Set A = P = 0
+
+ RTS                    \ Return from the subroutine
+
+.MTUQ
+
+ CMP M1LAST             \ If |Q| is the same value as last time, the table
  BEQ MTU0               \ look-ups are already patched, so skip the following
 
- STA M1LAST             \ Record |Q| - 1 and patch |Q| into the operands of
- INC A                  \ the table look-ups
- STA MTU1+1
+ STA M1LAST             \ Record |Q| and patch |Q| into the operands of
+ STA MTU1+1             \ the table look-ups
  STA MTU3+1
  EOR #&FF
  STA MTU2+1
  STA MTU4+1
 
 .MTU0
+
+ TXA                    \ Set T to the sign bit of Q * A
+ EOR Q
+ AND #%10000000
+ STA T
 
  TXA                    \ Set X = |A|
  AND #%01111111
@@ -38502,16 +38459,6 @@ INCLUDE "build/dashtab.asm"
  ORA T                  \ Set the sign bit of the result that we stored in T
                         \ (X and the C flag are dead at every caller, so the
                         \ original's X = 0 and C = 0 are not reproduced)
-
- RTS                    \ Return from the subroutine
-
-.mu10
-
-                        \ If we get here, the result is 0 and A = 0 (the C, Z
-                        \ and N flags and X are dead at every caller, so the
-                        \ original's flag state is not reproduced)
-
- STA P                  \ Set A = P = 0
 
  RTS                    \ Return from the subroutine
 
@@ -38694,52 +38641,51 @@ INCLUDE "build/dashtab.asm"
 
 .MU8
 
-                        \ If we reach here, then A and S have different signs,
-                        \ so we can subtract their absolute values and set the
-                        \ sign to get the result
+                        \ If we reach here, then A and S have different signs.
+                        \ BBC Master port: |S R| > |A P| in ~90% of calls, so
+                        \ subtract the other way round first (|S R| - |A P|),
+                        \ which needs no negation in that common case
 
- LDA P                  \ Subtract the least significant bytes into X:
- SEC                    \
- SBC R                  \   X = P - R
+ LDA R                  \ X = R - P
+ SEC
+ SBC P
  TAX
 
- LDA T1                 \ Set A = |A| - |S| - borrow. A and S have opposite
- EOR #%10000000         \ signs, so (T1 EOR &80) - S is either
- SBC S                  \ (|A|+&80) - (|S|+&80) or |A| - |S|, giving the same
-                        \ result byte, C and V (V=0) as |A| - |S|
+ LDA S                  \ A = |S| - |A| - borrow (S EOR &80 has the same sign
+ EOR #%10000000         \ bit as T1), so C = 1 iff |S R| >= |A P|, and V = 0
+ SBC T1
 
-                        \ At this point we have |A P| - |S R| in (A X), so we
-                        \ need to check whether the subtraction above was the
-                        \ right way round (i.e. that we subtracted the smaller
-                        \ absolute value from the larger absolute value)
+ BCC MU8a               \ |S R| < |A P|: redo it the original way round
 
- BCS MU9                \ If |A| >= |S|, our subtraction was the right way
-                        \ round, so jump to MU9 to set the sign
+ BEQ MU8e               \ High byte 0: check for |S R| = |A P|
 
-                        \ If we get here, then |A| < |S|, so our subtraction
-                        \ above was the wrong way round, so negate (A X)
+.MU8s
 
- STA U                  \ Store A in U
+ ORA #%10000000         \ |S R| > |A P|: (A X) = |S R| - |A P| with the sign
+ EOR T                  \ of S (= T EOR &80), and C = 0, V = 0, exactly as the
+ CLC                    \ original negation path left them (U is no longer
+ RTS                    \ written: no reader of U can see ADD's value)
 
- TXA                    \ Set X = 0 - X using two's complement (to negate a
- EOR #&FF               \ number in two's complement, you can invert the bits
- ADC #1                 \ and add one - and we know the C flag is clear as we
- TAX                    \ didn't take the BCS branch above, so the ADC will do
-                        \ the correct addition)
+.MU8e
 
- LDA #%10000000         \ Set A = (0 - U - borrow) OR &80. The negated high
- SBC U                  \ byte is always 0..127 (|S R| - |A P| <= &7FFF), so
-                        \ &80 - U - borrow gives the same A, with C=0 and
-                        \ V=0 exactly as before. The sign bit makes the EOR
-                        \ below give the result the sign of S
+ CPX #0                 \ A = 0 here. If X <> 0 then |S R| > |A P|, so set
+ BNE MU8s               \ A = &80 EOR T, C = 0 via MU8s; otherwise the values
+ BEQ MU9                \ are equal: A = 0, X = 0, C = 1, V = 0, as the
+                        \ original BCS MU9 path gives, so return A = T
+
+.MU8a
+
+ LDA P                  \ |A P| > |S R|: the original computation, unchanged:
+ SEC                    \   X = P - R
+ SBC R                  \   A = |A| - |S| - borrow, C = 1, V = 0
+ TAX
+ LDA T1
+ EOR #%10000000
+ SBC S
 
 .MU9
 
- EOR T                  \ If we get here from the BCS above, then |A| >= |S|,
-                        \ so we want to give the result the same sign as
-                        \ argument A, so if argument A was negative, we flip
-                        \ the sign of the result with an EOR (to make it
-                        \ negative)
+ EOR T                  \ Give the result the sign of argument A
 
  RTS                    \ Return from the subroutine
 

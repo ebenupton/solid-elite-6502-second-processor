@@ -67,8 +67,14 @@
  BNE hsd
  PLA
  PLA
- SEC
- JSR G_STAR
+ LDA #GFXBANK           \ (G_STAR inlined)
+ STA &F4
+ STA &FE30
+ LDA hA
+ JSR fst1               \ F_STAR's C-set path (on screen at X = x, A = y)
+ LDA #ELITEBANK
+ STA &F4
+ STA &FE30
 .hpxc
  LDA ZZ                 \ leave C = (ZZ >= 80) and A = ZZ as PIXEL would
  CMP #80
@@ -90,8 +96,14 @@
  BEQ P%+6
  CLC                    \ (outside record mode: see H_STAR; F_DSTAR returns
  JMP G_DSTAR            \ C set)
+ LDA #GFXBANK           \ (G_STAR inlined; C clear: F_STAR ignores A)
+ STA &F4
+ STA &FE30
  CLC
- JSR G_STAR
+ JSR F_STAR
+ LDA #ELITEBANK
+ STA &F4
+ STA &FE30
  SEC                    \ as PIXEL2's BCS PX4 leaves it
  RTS
 
