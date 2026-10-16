@@ -6257,6 +6257,8 @@ ENDMACRO
  LDY #13
  JSR MVS5
 
+ STX Q                  \ BBC Master port: Q = X, as MVS5 used to leave it
+
 .MV8
 
  LDA INWK+29            \ Fetch the ship's roll counter and extract the sign
@@ -6292,6 +6294,8 @@ ENDMACRO
  LDX #19                \ Rotate (roofv_z, sidev_z) by a small angle (roll)
  LDY #25
  JSR MVS5
+
+ STX Q                  \ BBC Master port: Q = X, as MVS5 used to leave it
 
 \ ******************************************************************************
 \
@@ -6861,6 +6865,36 @@ ENDMACRO
 \
 \ ******************************************************************************
 
+.mvs5a
+
+                        \ BBC Master port: the out-of-line paths of the first
+                        \ inlined ADD in MVS5 below (placed here so all of
+                        \ MVS5's branches stay short)
+
+ LDA R                  \ Different signs (ADD's MU8 common path):
+ SEC                    \
+ SBC P                  \   K = R - P
+ STA K                  \
+ LDA S                  \   A = |S| - |T1| - borrow
+ EOR #%10000000
+ SBC T1
+ BCC mvs5r              \ |S R| < |A P|, or high byte 0: rare, so let ADD
+ BEQ mvs5r              \ redo the whole sum from scratch (exact results)
+ ORA #%10000000         \ |S R| > |A P|: K+1 = A with the sign of S, as
+ EOR T                  \ ADD's MU8s (its C = 0 is dead: the second half
+ STA K+1                \ recomputes every flag)
+ BRA mvs5h
+
+.mvs5r
+
+ PHX                    \ Rare: call ADD with the original argument (T1, and
+ LDA T1                 \ P, R, S are unchanged), storing its result in K(1 0)
+ JSR ADD                \ over the low byte stored above, and restore X
+ STA K+1
+ STX K
+ PLX
+ BRA mvs5h
+
 .MVS5
 
  LDA INWK+1,X           \ Fetch roofv_x_hi, store it in S (the high byte of the
@@ -6907,16 +6941,28 @@ ENDMACRO
  ROR A                  \ A = %s0000xxx and C = the bit that goes into P,
  ROR P                  \ giving (A P) = +/- nosev_x / 16
 
- STX Q                  \ Store the value of X so it can be restored after the
-                        \ call to ADD
+                        \ BBC Master port: ADD inlined as in the second half,
+                        \ computing (A P) + (S R) exactly as ADD does (same T1,
+                        \ T), but storing straight into K(1 0) so X is never
+                        \ clobbered (Q is no longer written here: the callers
+                        \ do STX Q after their last call, giving the same Q)
 
- JSR ADD                \ (A X) = (A P) + (S R)
-                        \       = +/-nosev_x / 16 + (1 - 1/512) * roofv_x
+ STA T1                 \ ADD's prologue: T1 = A, T = sign of A, and jump to
+ AND #%10000000         \ mvs5a if A and S have different signs
+ STA T
+ EOR S
+ BMI mvs5a
 
+ LDA R                  \ Same signs (ADD's first path):
+ CLC                    \
+ ADC P                  \   K = R + P
+ STA K                  \
+ LDA S                  \   K+1 = (S + T1 + C) OR T
+ ADC T1
+ ORA T
  STA K+1                \ Set K(1 0) = (1 - 1/512) * roofv_x +/- nosev_x / 16
- STX K
 
- LDX Q                  \ Restore the value of X from before the call to ADD
+.mvs5h
 
  LDA INWK+1,Y           \ Fetch nosev_x_hi, store it in S (the high byte of the
  STA S                  \ subtraction below, fixed up for the borrow later),
@@ -7752,6 +7798,18 @@ ENDMACRO
 
 .STARS1
 
+ LDA BET1               \ BBC Master port: patch BET1 AND 31 into the inlined
+ AND #31                \ MULTS-2 look-ups in STL1 (stq_p1-4, stq_n1-4), as
+ STA stq_p1+1           \ MULTS does for P AND 31 (the tables are page-aligned)
+ STA stq_p3+1
+ STA stq_n1+1
+ STA stq_n3+1
+ EOR #&FF
+ STA stq_p2+1
+ STA stq_p4+1
+ STA stq_n2+1
+ STA stq_n4+1
+
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
                         \ we can use it as a counter through all the stardust
 
@@ -7786,13 +7844,16 @@ ENDMACRO
                         \
                         \   (P A) = 256 * speed / z_hi
 
- LSR P                  \ Rotate (P A) right by 2 places, which sets P = 0 (as P
- ROR A                  \ has a maximum value of 2) and leaves:
- LSR P                  \
- ROR A                  \   A = 64 * speed / z_hi
+ LSR A                  \ BBC Master port: A = (P A) >> 2 OR 1, C = bit 1 of R,
+ LSR A                  \ exactly as LSR P/ROR A x2 + ORA #1 left them: R >> 2
+ LDX P                  \ here, and STLQT holds ((P AND 3) << 6) OR 1 for P =
+ ORA STLQT,X            \ 0-7 (P <= 40/8 = 5: DELTA <= 40, z_hi >= 8 at STL1).
+                        \ P itself is left unshifted (MLU2 rewrites it first)
 
- ORA #1                 \ Make sure A is at least 1, and store it in Q, so we
- STA Q                  \ now have result 1 above:
+ TAX                    \ Pass Q = 64 * speed / z_hi to MLU1 in X (Q is not
+                        \ written: nothing reads it before STL1's STA Q below
+                        \ the MULTS-2 call rewrites it), so we
+                        \ now have result 1 above:
                         \
                         \   Q = 64 * speed / z_hi
 
@@ -7951,8 +8012,27 @@ ENDMACRO
  ORA T
  STA S
  BRA stl_b9
+.stl_b8z
+ CPX #0                 \ High magnitude 0: X <> 0 -> |S R| > |A P|, so
+ BNE stl_b8s            \ A = &80 EOR T via stl_b8s; else equal: A = T,
+ LDA T                  \ X = 0 (as MU8's BEQ MU9 path)
+ BRA stl_b8w
+.stl_b8a
+ JSR MU8a               \ |S R| < |A P|: MU8's original way round
+ BRA stl_b8w
 .stl_b8
- JSR MU8                \ (A X) = (A P) + (S R)
+ LDA R                  \ Inline MU8 (signs differ): X = R - P
+ SEC
+ SBC P
+ TAX
+ LDA S                  \ S, T1 have opposite signs, so A = &80 + (|S| - |T1|
+ SBC T1                 \ - borrow) mod 256: N = 1 iff |S R| >= |A P|
+ BPL stl_b8a
+ CMP #%10000000         \ High magnitude 0: check for |S R| = |A P|
+ BEQ stl_b8z
+.stl_b8s
+ EOR T                  \ Sign of S (= T EOR &80), magnitude in bits 0-6
+.stl_b8w
  STA S                  \ BBC Master port: set (S R) = XX(1 0) = (A X) directly
  STX R                  \ (this is what MUT2 used to do from XX); neither XX
 .stl_b9                 \ nor XX+1 is read again before being rewritten, so
@@ -7960,16 +8040,30 @@ ENDMACRO
                         \
                         \   x = x - alpha * y / 256
 
- LDX BET1               \ Fetch the pitch magnitude into X
-
  LDA YY+1               \ Set A to y_hi and set it to the flipped sign of beta
  EOR BET2+1
 
- JSR MULTS-2            \ Call MULTS-2 to calculate:
-                        \
-                        \   (A P) = X * A
-                        \         = -beta * y_hi
+                        \ BBC Master port: inline MULTS-2 (X = BET1) to set
+                        \   A = -beta * y_hi / 256 (high byte of (A P) = X * A)
+                        \ with the quarter-square operands patched to BET1 AND
+                        \ 31 at STARS1 (BET1 is constant during STARS1). P (the
+                        \ low byte, and BET1 from STX P) is dead: it is
+                        \ rewritten below before any read, and the IRQ never
+                        \ reads it. MSZ's P+1 = 0 is kept (stq_z). The CMP
+                        \ gives the same borrow as SEC/SBC of the low bytes
 
+ BMI stq_n              \ Negative: out of line at stq_n
+ BEQ stq_z              \ A = 0: (A P) = 0 via stq_z
+ TAX                    \ X = |A| (1..127)
+.stq_p1
+ LDA SQ1L,X             \ patched: SQ1L + (BET1 AND 31)
+.stq_p2
+ CMP SQ2L+&FF,X         \ patched: low byte (BET1 AND 31) EOR &FF
+.stq_p3
+ LDA SQ1H,X             \ patched: SQ1H + (BET1 AND 31)
+.stq_p4
+ SBC SQ2H+&FF,X         \ patched: low byte (BET1 AND 31) EOR &FF
+.stq_q
  STA Q                  \ Store the high byte of the result in Q, so:
                         \
                         \   Q = -beta * y_hi / 256
@@ -8018,6 +8112,23 @@ ENDMACRO
  TXA                    \ X1, and XX+1 is dead: rewritten at the top of STL1)
  STA SXL,Y              \ x_lo = X (overwrites the provisional value)
  BRA stl_done
+.stq_n
+ AND #%01111111         \ Inline MULTS-2, negative case: A = |A|
+ BEQ stq_z              \ |A| = 0: (A P) = 0 via stq_z
+ TAX                    \ X = |A| (1..127)
+.stq_n1
+ LDA SQ1L,X             \ patched as stq_p1..stq_p4
+.stq_n2
+ CMP SQ2L+&FF,X
+.stq_n3
+ LDA SQ1H,X
+.stq_n4
+ SBC SQ2H+&FF,X
+ ORA #%10000000         \ Set the sign bit, as the argument was negative
+ BRA stq_q
+.stq_z
+ STA P+1                \ A = 0: as MSZ, set P+1 = 0 (P is dead), A = 0
+ BRA stq_q
 .stl_same
  TAX                    \ Keep the high byte of (A P) (0..127) in X
  LDA R                  \ Same sign: x_lo = P + R (C = 0 from the ROL above)
@@ -8037,6 +8148,7 @@ ENDMACRO
 
  LDA YY                 \ Set (S R) = YY(1 0) = y
  STA R                  \
+ STA SYL,Y              \ y_lo result = R on every inlined path (P = 0)
  LDA YY+1               \ The call to MAD and the two store instructions are
 \JSR MAD                \ commented out in the original source
 \STA S
@@ -8050,7 +8162,35 @@ ENDMACRO
                         \   (A P) = (-beta 0)
                         \         = -beta * 256
 
- JSR PIX1               \ Call PIX1 to calculate the following:
+                        \ Inline PIX1's ADD for P = 0 (same memory writes T1,
+                        \ T as ADD; same V; C/N/Z/A/X are dead at PIXEL2)
+ STA T1
+ AND #%10000000
+ STA T
+ EOR S
+ BMI stl_cd
+ LDA S                  \ Same sign (ADDS): A = (S + T1 + 0) OR T, X = R
+ CLC
+ ADC T1
+ ORA T
+ BRA stl_cj
+.stl_cf
+ LDA T1                 \ Rare MU8a/MU8e cases: redo it all via PIX1 with
+ JSR PIX1               \ identical inputs (A = T1, P, R, S as set above)
+ BRA stl_cx
+.stl_cd
+ SEC                    \ Signs differ (MU8 with P = 0): X = R, C = 1, so
+ LDA S                  \ A = |S| - |T1| (same V as MU8's SBC T1)
+ EOR #%10000000
+ SBC T1
+ BCC stl_cf             \ |S R| < |A P|: let PIX1/ADD do it
+ BEQ stl_cf             \ High byte 0: let PIX1/ADD do it
+ ORA #%10000000         \ MU8s (its CLC dropped: C is dead at PIXEL2)
+ EOR T
+.stl_cj
+ STA SY,Y               \ As PIX1: y_hi = A (y_lo stored above)
+ JSR PIXEL2             \ Erase the old particle, as PIX1 fell through to do
+.stl_cx
                         \
                         \   (YY+1 y_lo) = (A P) + (S R)
                         \               = -beta * 256 + y
@@ -22059,7 +22199,7 @@ ENDMACRO
 \ BBC Master Elite includes is never read by the demo, so it has moved to
 \ sideways RAM bank 7 (TRTBL7 in elite7.asm) to make room in main RAM. The
 \ loader still points TRTB%(1 0) here, but nothing reads TRTB% as a pointer
-\ (CPYIN/CPYOUT reuse TRTB%(1 0) as INF2).
+\ (it is free for reuse as a two-byte zero-page pointer).
 \
 \ ******************************************************************************
 
@@ -32790,7 +32930,7 @@ INCLUDE "build/dashtab.asm"
 
 .MLU1
 
- LDA Q                  \ Patch Q into the table look-ups in MLU2, and ~Q into
+ TXA                    \ Patch Q (passed in X) into MLU2's look-ups, ~Q into
  STA MLQ1+1             \ the SQ2 look-ups
  STA MLQ3+1
  EOR #&FF
@@ -32843,6 +32983,12 @@ INCLUDE "build/dashtab.asm"
  CLC                    \ Clear the C flag, as in the original
 
  RTS                    \ Return from the subroutine
+
+.STLQT                  \ ((P AND 3) << 6) OR 1 for P = 0-7, for STL1
+
+ FOR I%, 0, 7
+  EQUB ((I% AND 3) << 6) OR 1
+ NEXT
 
 \ ******************************************************************************
 \
@@ -33114,22 +33260,28 @@ INCLUDE "build/dashtab.asm"
 \
 \ ******************************************************************************
 
-INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
-                        \ so one LDY serves two bytes. TRTB%(1 0) is only set by
-                        \ the loader and never read by the game, so it is free
+.CPYI2
+
+ LDY #NI%-1             \ INF(1 0) >= &0A00 (slots 8 and up): the original
+                        \ loop at MAL2
+.CPYI3
+
+ LDA (INF),Y
+ STA INWK,Y
+ DEY
+ BPL CPYI3
+
+ RTS
 
 .CPYIN
 
- LDA CPYTL,X            \ X is still the slot number (MAL1 -> GINF preserves X),
- STA INF2               \ so INF(1 0) = UNIV(X) and INF2(1 0) = UNIV(X) + NI%/2
- LDA CPYTH,X            \ (abs,X loads leave C and V untouched)
- STA INF2+1
+ LDY INF                \ INF(1 0) = UNIV(X) is K% + NI% * slot (K% = &0900),
+ LDA INF+1              \ so if INF+1 = &09 (odd) then INF(1 0) = K% + INF and
+ AND #1                 \ we can use LDA K%+I%,Y with Y = INF, with no page
+ BEQ CPYI2              \ crossing for slots 0-6 (AND leaves C and V alone)
 
- FOR I%, NI%/2-1, 0, -1
-  LDY #I%
-  LDA (INF2),Y
-  STA INWK+NI%/2+I%
-  LDA (INF),Y
+ FOR I%, NI%-1, 0, -1
+  LDA K%+I%,Y
   STA INWK+I%
  NEXT
 
@@ -33155,40 +33307,38 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
 \
 \ ******************************************************************************
 
+.CPYO2
+
+ LDY #NI%-1             \ INF(1 0) >= &0A00 (slots 8 and up): the original
+                        \ loop at MAL3
+.CPYO3
+
+ LDA INWK,Y
+ STA (INF),Y
+ DEY
+ BPL CPYO3
+
+ RTS
+
 .CPYOUT
 
-                        \ INF2(1 0) still holds INF(1 0) + NI%/2 from CPYIN:
-                        \ CPYOUT is only called at MAL3, which is only reached
-                        \ from MAL1 -> GINF -> CPYIN (MAL2) -> MA21 -> MVEIT,
-                        \ nothing in between writes TRTB%(1 0), and INF is
-                        \ only changed in between by SFS1, which restores it
+ LDY INF                \ As in CPYIN, if INF+1 = &09 (odd) then INF(1 0) =
+ LDA INF+1              \ K% + INF, so we can use STA K%+I%,Y with Y = INF
+ AND #1                 \ (abs,Y stores take 5 cycles whether or not they
+ BEQ CPYO2              \ cross a page)
 
- FOR I%, NI%/2-1, 0, -1
-  LDY #I%
-  LDA INWK+NI%/2+I%
-  STA (INF2),Y
+ FOR I%, NI%-1, 0, -1
   LDA INWK+I%
-  STA (INF),Y
+  STA K%+I%,Y
  NEXT
 
  LDY #&FF
 
  RTS
 
-.CPYTL                  \ Low and high bytes of UNIV(X) + NI%/2, for CPYIN
-
- FOR I%, 0, NOSH
-  EQUB LO(K% + I% * NI% + NI%/2)
- NEXT
-
-.CPYTH
-
- FOR I%, 0, NOSH
-  EQUB HI(K% + I% * NI% + NI%/2)
- NEXT
-
- ASSERT HI(CPYTL) = HI(CPYTL + NOSH)   \ no page-crossing penalty on CPYTL,X
- ASSERT HI(CPYTH) = HI(CPYTH + NOSH)   \ or on CPYTH,X
+ ASSERT K% = &0900      \ CPYIN/CPYOUT: K% + NI% * slot has high byte &09 for
+                        \ slots 0-7 and &0A for slots 8-11
+ ASSERT NOSH * NI% <= &200
 
 \ ******************************************************************************
 \

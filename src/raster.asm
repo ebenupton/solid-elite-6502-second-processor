@@ -4313,23 +4313,7 @@ ENDMACRO
 \ Stars
 \ ============================================================================
 
-.R_STARPLOT
 {
-  STZ r_k
-  LDA R_CB
-  INC A
-  STA cb1+1
-  LDX #0
-.sl
-  CPX R_SN
-  BCS sdone
-  CPX #24
-  BCS sdone
-  LDA R_SS,X
-  BNE some
-.snext
-  INX
-  BRA sl
 .sdone
   LDX r_buf
   LDA r_k
@@ -4346,6 +4330,21 @@ ENDMACRO
 .sd1
   LDX RZ_TA+1
   BRA snext
+.^R_STARPLOT
+  STZ r_k
+  LDA R_CB
+  INC A
+  STA cb1+1
+  LDA R_SN                \ star count (only ever 0 or 19, so <= 24)
+  STA sl+1                \ (patched: the loop limit)
+  LDX #&FF
+.snext
+  INX
+.sl
+  CPX #0                  \ (R_SN)
+  BCS sdone
+  LDA R_SS,X
+  BEQ snext
 .some
   STX RZ_TA+1
   STA RZ_TA
