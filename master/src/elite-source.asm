@@ -3388,6 +3388,9 @@ ENDIF
                         \ we're just updating the cursor so it's in the right
                         \ position following the deletion
 
+ JSR H_DEL              \ Port: keep the renderer's text map, and in record mode
+                        \ return through RR4 instead of blanking (gfx-hooks.asm)
+
  ASL A                  \ A contains YC (from above), so this sets A = YC * 2
 
  ASL SC                 \ Double the low byte of SC(1 0), catching bit 7 in the
@@ -3493,6 +3496,9 @@ ELIF _COMPACT
 ENDIF
 
 .RR3
+
+ JSR H_CHAR             \ Port: keep the renderer's text map, and in record mode
+                        \ return through RR4 instead of drawing (gfx-hooks.asm)
 
                         \ A contains the value of YC - the screen row where we
                         \ want to print this character - so now we need to

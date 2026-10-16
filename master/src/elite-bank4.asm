@@ -3729,6 +3729,10 @@ ENDIF
 
  JSR TT67K              \ Print a newline
 
+ JSR H_CLYNS            \ Port: clear the renderer's text map rows 21-23, and in
+                        \ record mode return instead of clearing the screen
+                        \ (gfx-hooks.asm)
+
  LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
  STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
 

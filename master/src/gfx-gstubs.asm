@@ -56,19 +56,7 @@
  JSR F_DOT
  JMP gback
 
-.G_CHAR
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JSR F_CHAR
- JMP gback
 
-.G_CLRTEXT
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JSR F_CLRTEXT
- JMP gback
 
 .G_DIRECT
  STA gA
@@ -125,12 +113,6 @@
                         \ raster_hz and the unaligned HAZEL tables) at the
                         \ same addresses
 
-.G_DELCHAR
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JSR F_DELCHAR
- JMP gback
 
 .G_DSTAR                \ (C preserved both ways)
  LDA #GFXBANK

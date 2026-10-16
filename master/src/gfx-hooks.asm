@@ -355,3 +355,109 @@
  PLA
  PLA
  RTS
+
+\ The text map: CHPR (WRCHV, so any ROM may be paged: the cold area, or DFS
+\ printing a catalogue) and CLYNS keep the frame layer's text map up to date
+\ in every mode (so a screen that carries on in record mode without a TT66
+\ still has its text), and draw on the screen only outside record mode. These
+\ stubs page bank 6 in and the caller's bank (&F4, ANDY included) back, and
+\ live in HAZEL as CHPR runs with ACCCON X set. A, X, Y are not kept (F_CHAR
+\ and F_DELCHAR keep Y, F_CLRTEXT X and Y)
+
+.G_CHAR
+ LDA &F4
+ PHA
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JSR F_CHAR
+ BRA gtxt
+
+.G_DELCHAR
+ LDA &F4
+ PHA
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JSR F_DELCHAR
+ BRA gtxt
+
+.G_CLRTEXT
+ LDA &F4
+ PHA
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JSR F_CLRTEXT
+.gtxt
+ PLA
+ STA &F4
+ STA &FE30
+ RTS
+
+\ H_CHAR: CHPR (RR3) is about to draw the character in K3 at (XC-1, YC), with
+\ A = YC: record it in the text map, and in record mode return through RR4
+\ instead of drawing it (A = YC and C clear otherwise, as RR3 is entered)
+
+.H_CHAR
+ STA hA
+ JSR G_CHAR
+ LDA QQ11
+ ORA GFORCE
+ BNE hcd
+ PLA
+ PLA
+ LDA hA                 \ leave SC(1 0), P(3 2) and W as RR3, RREN and RRL1 do
+ ASL A
+ ASL SC
+ ADC #&40
+ STA SC+1
+ LDA SC
+ CLC
+ ADC #8
+ STA P+2
+ LDA SC+1
+ STA P+3
+ LDY #0
+ LDA (P),Y
+ AND #%00001111
+ STA W
+ JMP RR4
+.hcd
+ LDA hA
+ CLC
+ RTS
+
+\ H_DEL: CHPR is deleting the character at (XC, YC) (after its DEC XC): the
+\ text map too; in record mode return through RR4 instead of blanking it
+
+.H_DEL
+ PHA
+ JSR G_DELCHAR
+ LDA QQ11
+ ORA GFORCE
+ BNE hdl9
+ PLA
+ PLA
+ PLA
+ JMP RR4
+.hdl9
+ PLA
+ RTS
+
+\ H_CLYNS: CLYNS, after its newline, is about to clear text rows 21-23: the
+\ text map's too; in record mode return from CLYNS instead of clearing the
+\ screen, with A = X = Y = 0 as it does
+
+.H_CLYNS
+ JSR G_CLRTEXT
+ LDA QQ11
+ ORA GFORCE
+ BEQ P%+3
+ RTS
+ PLA
+ PLA
+ LDA #0
+ TAX
+ TAY
+ RTS
