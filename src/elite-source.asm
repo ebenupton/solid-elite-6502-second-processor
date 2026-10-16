@@ -8336,11 +8336,11 @@ ENDMACRO
  STA SZ,Y               \ z_hi so the new particle starts in the far distance
  STA ZZ
 
- LDA Y1                 \ Set A to the new value of y_hi. This has no effect as
-                        \ STC1 starts with a jump to PIXEL2, which starts with a
-                        \ LDA instruction
+                        \ BBC Master port: the original's LDA Y1 here is dropped
+                        \ as it had no effect (PIXEL2 starts with LDA X1, and
+                        \ LDA does not touch V or C)
 
- JMP STC1               \ Jump up to STC1 to draw this new particle
+ BRA STC1               \ Jump up to STC1 to draw this new particle
 
 \ ******************************************************************************
 \
