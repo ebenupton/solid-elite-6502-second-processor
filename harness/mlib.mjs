@@ -311,6 +311,20 @@ export async function runElite(opts) {
     const written = new Set();
     let inGame = false;
     const bootWrites = cpu.debugWrite.add(a => { if (inGame && a < 0x8000) written.add(a); return false; });
+    // Page &0D is off limits (docs/MASTER-MEMORY.md): once the game has
+    // started, only the MOS and the filing system ROM may write it (DFS
+    // rewrites its NMI routine at &0D00 for every disc operation). Writes by
+    // code in RAM (main RAM, sideways RAM banks 4-7, HAZEL) are recorded in
+    // res.page0d, and mcompare fails the candidate on any.
+    res.page0d = [];
+    cpu.debugWrite.add(a => {
+        if (!inGame || a < 0x0d00 || a > 0x0dff) return false;
+        const pc = cpu.pc;
+        const inRam = pc < 0x8000 || (pc < 0xc000 && (cpu.romsel & 15) >= 4 && (cpu.romsel & 15) <= 7) || (pc < 0x9000 && pc >= 0x8000 && (cpu.romsel & 0x80)) ||
+            (pc >= 0xc000 && pc < 0xe000 && (cpu.acccon & 8));
+        if (inRam && res.page0d.length < 20) res.page0d.push([iter, pc, a]);
+        return false;
+    });
     const entry = cpu.debugInstruction.add(pc => { if (at(H_S, pc)) { inGame = true; entry.remove(); } return false; });
     cpu.debugInstruction.add(handler);
     const maxSecs = opts.maxSecs || 7200;

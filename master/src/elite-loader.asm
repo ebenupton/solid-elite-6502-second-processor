@@ -46,6 +46,7 @@
 \ ******************************************************************************
 
  CODE% = &0E00          \ The address where the code will be run
+ ASSERT CODE% >= &0E00  \ Port: page &0D is off limits (docs/MASTER-MEMORY.md)
 
  LOAD% = &0E00          \ The address where the code will be loaded
 

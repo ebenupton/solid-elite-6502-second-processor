@@ -178,6 +178,10 @@ if (ok) {
         }
     }
 }
+if (cand.page0d && cand.page0d.length) {
+    log(`PAGE &0D WRITTEN by the game (off limits, docs/MASTER-MEMORY.md): ${cand.page0d.map(([i, pc, a]) => `iteration ${i} PC &${pc.toString(16)} -> &${a.toString(16)}`).join(", ")}`);
+    ok = false;
+}
 const complete = ref.iters === ITERS && cand.iters === ITERS && !ref.error && !cand.error;
 if (ok && firstDiv < 0) log(`Game state identical at all ${n} iterations${complete ? "" : " (INCOMPLETE run)"}`);
 log(`First iteration with any difference (including excluded addresses): ${firstAny}`);
@@ -231,5 +235,5 @@ writeFileSync(`${OUT}/report.txt`, report.join("\n") + "\n");
 writeFileSync(`${OUT}/keys-ref.txt`, ref.keyLog.map(k => k.join(" ")).join("\n") + "\n");
 writeFileSync(`${OUT}/keys-cand.txt`, cand.keyLog.map(k => k.join(" ")).join("\n") + "\n");
 if (ok && firstDiv < 0 && complete) { log(`MCOMPARE PASS ${rs.all.toFixed(2)} ${cs.all.toFixed(2)}`); process.exit(0); }
-log(`MCOMPARE FAIL ${!ok ? "regions" : firstDiv >= 0 ? "divergence at " + firstDiv : "incomplete"}`);
+log(`MCOMPARE FAIL ${cand.page0d?.length ? "page &0D written" : !ok ? "regions" : firstDiv >= 0 ? "divergence at " + firstDiv : "incomplete"}`);
 process.exit(1);

@@ -1225,6 +1225,11 @@ ENDIF
 
  PRINT "K% workspace from ", ~K%, "to ", ~P%-1, "inclusive"
 
+ ASSERT P% <= &0D00     \ Port: nothing may be assembled into page &0D, which
+                        \ holds the DFS's NMI routine, the extended vectors and
+                        \ the ROM workspace table on a Master (see "Page &0D is
+                        \ off limits" in docs/MASTER-MEMORY.md)
+
 \ ******************************************************************************
 \
 \       Name: WP
@@ -1234,6 +1239,8 @@ ENDIF
 \    Summary: Ship slots, variables
 \
 \ ******************************************************************************
+
+ ASSERT &0E41 >= &0E00  \ Port: WP starts above page &0D (see K%)
 
  ORG &0E41              \ Set the assembly address to &0E41
 
