@@ -197,8 +197,10 @@ export async function runElite(opts) {
     // with, seeing through far-call frames. A far call (master/src/elite-far.asm)
     // runs its target with the stack holding the return into the far-call code
     // (farret), then the caller's ROMSEL, then the caller's own return address.
-    const callerAt = k => {
-        let w = stackWord(k), romsel = cpu.romsel;
+    // (romsel: what the code that owns S+k ran with, if not the current ROMSEL:
+    // the ROMSEL of the frame below, when walking further up a chain)
+    const callerAt = (k, romsel = cpu.romsel) => {
+        let w = stackWord(k);
         while (sy.farret !== undefined && w + 1 === sy.farret) {
             romsel = rb(0x100 + ((cpu.s + k + 2) & 0xff));
             k += 3;
@@ -243,7 +245,7 @@ export async function runElite(opts) {
             const site = labelOf(callSite, c.romsel);
             // for waits (t, t2 in TT217), the routine that called the wait
             let waitFor = null;
-            if (site === "t" || site === "t2") { const w = callerAt(c.k + 2); waitFor = labelOf(w.site, w.romsel); }
+            if (site === "t" || site === "t2") { const w = callerAt(c.k + 2, c.romsel); waitFor = labelOf(w.site, w.romsel); }
             const ctx = { ...ctxBase, kind: "rdkey", site, callSite, waitFor };
             const keys = opts.pilot.keys(ctx) || [];
             fillkl(keys);
