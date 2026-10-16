@@ -20341,6 +20341,8 @@ ENDIF
 \
 \ ******************************************************************************
 
+ INCLUDE "src/elite-flight.asm" \ Port: flight code moved back from bank 4
+
 .F%
 
  SKIP 0
