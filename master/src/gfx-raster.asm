@@ -3631,11 +3631,7 @@ NEXT
   AND #7
   STA RZ_PA
   STA RZ_PB
-  TXA
-  LSR A
-  LSR A
-  AND #&FE
-  ORA #&40
+  LDA r_ypg,X
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -3677,51 +3673,85 @@ NEXT
 .^r_pt52 STA r_sr,X
   LDA RZ_T1               \ old empty: the new span
   CMP RZ_T0
-  BCC onew
+  BCC jonew
   LDA RZ_T3               \ new empty: the old span black
   CMP RZ_T2
-  BCC oold
+  BCC joold
   LDA RZ_T3               \ apart (nR < oL or nL > oR): both
   CMP RZ_T0
-  BCC both
+  BCC jboth
   LDA RZ_T1
   CMP RZ_T2
-  BCC both
-  LDA RZ_T2               \ overlapping: the left end
-  CMP RZ_T0
+  BCS ovl
+.jboth
+  JMP both
+.jonew
+  JMP onew
+.joold
+  JMP oold
+.ovl
+  LDA RZ_T2               \ overlapping: the left end (R_WL/R_WR noted here,
+  CMP RZ_T0               \ the left end's strip before the right end's)
   BEQ right
   BCS lshr
-  LDX RZ_T0               \ grown: nL .. oL-1 in the disc colour
-  DEX
-  TXA
-  TAY
+  AND #&FC                \ grown: nL .. oL-1 in the disc colour
+  STA r_wmin
+  LDY RZ_T0
+  DEY
+  TYA
+  ORA #3
+  STA r_wmax
   LDX RZ_T2
   LDA RZ_T5
-  BRA lput
+  JSR r_sw
+  BRA right
 .lshr
   DEC A                   \ shrunk: oL .. nL-1 black
   TAY
-  LDX RZ_T0
+  ORA #3
+  STA r_wmax
+  LDA RZ_T0
+  TAX
+  AND #&FC
+  STA r_wmin
   LDA #0
-.lput
-  JSR put
+  JSR r_sw
 .right
   LDA RZ_T3
   CMP RZ_T1
   BEQ fin
   BCC rshr
-  LDX RZ_T1               \ grown: oR+1 .. nR in the disc colour
+  ORA #3                  \ grown: oR+1 .. nR in the disc colour
+  STA r_wmax
+  LDX RZ_T1
   INX
+  LDA r_wmin
+  CMP #&FF
+  BNE rg1
+  TXA
+  AND #&FC
+  STA r_wmin
+.rg1
   LDY RZ_T3
   LDA RZ_T5
-  BRA rput
+  JSR r_sw
+  BRA fin
 .rshr
   INC A                   \ shrunk: nR+1 .. oR black
   TAX
-  LDY RZ_T1
+  LDA r_wmin
+  CMP #&FF
+  BNE rs1
+  TXA
+  AND #&FC
+  STA r_wmin
+.rs1
+  LDA RZ_T1
+  TAY
+  ORA #3
+  STA r_wmax
   LDA #0
-.rput
-  JSR put
+  JSR r_sw
   BRA fin
 .both
   JSR oblk
