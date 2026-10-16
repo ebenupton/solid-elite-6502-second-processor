@@ -7954,18 +7954,28 @@ ENDMACRO
                         \ afterwards (PIX1's ADD writes them first; the IRQ
                         \ never reads them), except that MU8/MU9 read T = 0
 
- TAX                    \ Keep the high byte of (A P) (0..127) in X
- LDA S                  \ If S is negative the signs differ: subtract via MU8
+ BIT S                  \ If S is negative the signs differ (A, C kept)
  BPL stl_same
- STX T1                 \ T1 = A (as ADD would), A = S here
- STZ T                  \ ADD would have set T = sign of A = 0, and A = S here
- JSR MU8                \ = (T1 AND &80) EOR S, exactly as at ADD's BMI MU8
-                        \ giving (A X) = (A P) + (S R)
+ STA T1                 \ T1 = A (as ADD would)
+ LDA R                  \ Inline MU8 common case |S R| > |A P|:
+ SEC                    \   x_lo = R - P
+ SBC P
+ STA SXL,Y
+ LDA S                  \ A = S - T1 - borrow = &80 + (|S| - T1 - borrow), no
+ SBC T1                 \ wrap as |S|, T1 are 0..127; MU8 gives exactly this
+ CMP #&81               \ (|S|-T1-b) OR &80 when |S|-T1-b >= 1, else (< 0 or
+ BCC stl_slow           \ = 0, incl. equality) let MU8 do it from scratch
+ STA SX,Y               \ x_hi = A
+ BRA stl_done
+.stl_slow
+ STZ T                  \ ADD would have set T = sign of A = 0; T1, P, R, S
+ JSR MU8                \ intact, so (A X) = (A P) + (S R) as at ADD's BMI MU8
  STA SX,Y               \ x_hi = A (SX is not read by PIX1/PIXEL2, which use
  TXA                    \ X1, and XX+1 is dead: rewritten at the top of STL1)
- STA SXL,Y              \ x_lo = X
- JMP stl_done
+ STA SXL,Y              \ x_lo = X (overwrites the provisional value)
+ BRA stl_done
 .stl_same
+ TAX                    \ Keep the high byte of (A P) (0..127) in X
  LDA R                  \ Same sign: x_lo = P + R (C = 0 from the ROL above)
  ADC P
  STA SXL,Y
@@ -33315,12 +33325,53 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
 
 .MAD
 
- JSR MULT1              \ Call MULT1 to set (A P) = Q * A
+                        \ BBC Master port: MULT1 inlined up to its |Q| = 0
+                        \ test, so the common |Q| = 0 case goes straight into
+                        \ ADD with A = 0 and P = 0 (exactly MULT1's mu10
+                        \ result), and otherwise MTUQ leaves T = the sign bit
+                        \ of (A P) (the product's high byte is at most 63), so
+                        \ ADD's AND #%10000000 and STA T can be skipped
 
-                        \ Fall through into ADD to do:
+ TAX                    \ Store A in X, as MULT1 does
+
+ LDA Q                  \ Set A = |Q|
+ AND #%01111111
+
+ BEQ MADZ               \ If |Q| = 0 then Q * A = 0, so jump to MADZ
+
+ JSR MTUQ               \ Set (A P) = Q * A and T = sign bit of A
+
+ STA T1                 \ Store argument A in T1, as ADD does (T is already
+                        \ A AND %10000000)
+
+ EOR S                  \ If A and S have different signs, jump to MU8
+ BMI MU8
+
+.ADDS
+
+ LDA R                  \ Add the least significant bytes together into X:
+ CLC                    \
+ ADC P                  \   X = P + R
+ TAX
+
+ LDA S                  \ Add the most significant bytes together into A. We
+ ADC T1                 \ stored the original argument A in T1 earlier, so we
+                        \ can do this with:
                         \
-                        \   (A X) = (A P) + (S R)
-                        \         = Q * A + (S R)
+                        \   A = A  + S + C
+                        \     = T1 + S + C
+
+ ORA T                  \ If argument A was negative (and therefore S was also
+                        \ negative) then make sure result A is negative by
+                        \ OR'ing the result with the sign bit from argument A
+                        \ (which we stored in T)
+
+ RTS                    \ Return from the subroutine
+
+.MADZ
+
+ STA P                  \ Set P = 0 (A = 0 already), as MULT1 does, and fall
+                        \ through into ADD to do (A X) = (0 0) + (S R)
 
 \ ******************************************************************************
 \
@@ -33345,33 +33396,9 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
  AND #%10000000         \ Extract the sign (bit 7) of A and store it in T
  STA T
 
- EOR S                  \ EOR bit 7 of A with S. If they have different bit 7s
- BMI MU8                \ (i.e. they have different signs) then bit 7 in the
-                        \ EOR result will be 1, which means the EOR result is
-                        \ negative. So the AND, EOR and BMI together mean "jump
-                        \ to MU8 if A and S have different signs"
-
-                        \ If we reach here, then A and S have the same sign, so
-                        \ we can add them and set the sign to get the result
-
- LDA R                  \ Add the least significant bytes together into X:
- CLC                    \
- ADC P                  \   X = P + R
- TAX
-
- LDA S                  \ Add the most significant bytes together into A. We
- ADC T1                 \ stored the original argument A in T1 earlier, so we
-                        \ can do this with:
-                        \
-                        \   A = A  + S + C
-                        \     = T1 + S + C
-
- ORA T                  \ If argument A was negative (and therefore S was also
-                        \ negative) then make sure result A is negative by
-                        \ OR'ing the result with the sign bit from argument A
-                        \ (which we stored in T)
-
- RTS                    \ Return from the subroutine
+ EOR S                  \ EOR bit 7 of A with S. If they have the same bit 7
+ BPL ADDS               \ (i.e. the same sign), jump to ADDS to add them,
+                        \ otherwise fall through into MU8 to subtract
 
 .MU8
 

@@ -1133,14 +1133,11 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BEQ fds_fast
  BCS fds_slow
 .fds_fast               \ here r <= 127 and |d| <= r, so d fits a signed byte
- LDX f_cx
- STX fdf_cr+1           \ patch cx and cx + 1 into the loop
- INX
- STX fdf_cl+1
- LDA fpr_ld+1           \ and the half-width table into the second load
- STA fdf_hw+1
- LDA fpr_ld+2
- STA fdf_hw+2
+ LDA f_cx
+ STA fdf_cr+1           \ patch cx and 2cx + 1 (mod 256) into the loop
+ SEC
+ ROL A
+ STA fdf_cl+1
  LDY R_NDT
  LDX fz_t               \ X = |d|, stepped by INX (d >= 0) or DEX (d < 0)
  LDA #&E8               \ INX
@@ -1156,17 +1153,14 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CLC
 .fdf1                   \ C = 0 here
 .fpr_ld
- LDA F_HW,X             \ patched: half-width
+ LDA F_HW,X             \ patched: half-width n
+.fdf_cr
+ ADC #0                 \ patched: cx (A = cx + n <= cx + r <= 255, so C = 0)
+ STA R_NDISCR,Y
  EOR #&FF
 .fdf_cl
- ADC #0                 \ patched: cx + 1 (so A = cx - n)
+ ADC #0                 \ patched: 2cx + 1 (A = 2cx + 1 + ~(cx + n) = cx - n)
  STA R_NDISCL,Y
-.fdf_cr
- LDA #0                 \ patched: cx
- CLC
-.fdf_hw
- ADC F_HW,X             \ patched: half-width (A = cx + n, V as before)
- STA R_NDISCR,Y
  CPY R_NDB
  INY
  BCS fdf9
@@ -2524,21 +2518,35 @@ MAXPT = 140             \ points per frame
  CPX F_NCV
  BCC P%+5
  JMP f_parity
- LDA F_CVS,X            \ its segments
- STA f_pi
+ LDA F_CVE,X            \ its segments: points F_CVS .. F_CVE-1
+ STA fbd_e+1
+ LDA F_CVS,X
+ TAX
 .fbd5
- LDX f_ci
- LDA f_pi
- INC A
- CMP F_CVE,X
+ INX                    \ segment X-1 -> X
+.fbd_e
+ CPX #0                 \ patched: F_CVE of this curve
  BCS fbd6
- LDX f_pi               \ segment f_pi -> f_pi + 1
- JSR f_ptA              \ (preserves X)
- INX
- JSR f_ptB              \ (preserves X)
- STX f_pi               \ f_pi + 1 (f_seg16 does not use f_pi)
+ LDA F_PXL-1,X          \ segment start = point X-1
+ STA sg_ax
+ LDA F_PXH-1,X
+ STA sg_ax+1
+ LDA F_PYL-1,X
+ STA sg_ay
+ LDA F_PYH-1,X
+ STA sg_ay+1
+ LDA F_PXL,X            \ segment end = point X
+ STA sg_bx
+ LDA F_PXH,X
+ STA sg_bx+1
+ LDA F_PYL,X
+ STA sg_by
+ LDA F_PYH,X
+ STA sg_by+1
+ PHX
  JSR f_seg16
- JMP fbd5
+ PLX
+ BRA fbd5
 .fbd6
                         \ (a crater's full ellipse is closed; the meridians'
                         \ half ellipses go to f_merid instead)
@@ -2547,29 +2555,8 @@ MAXPT = 140             \ points per frame
  JMP fbd3
 
 .f_ci EQUB 0
-.f_pi EQUB 0
 
-.f_ptA                  \ segment start = point X
- LDA F_PXL,X
- STA sg_ax
- LDA F_PXH,X
- STA sg_ax+1
- LDA F_PYL,X
- STA sg_ay
- LDA F_PYH,X
- STA sg_ay+1
- RTS
-
-.f_ptB                  \ segment end = point X
- LDA F_PXL,X
- STA sg_bx
- LDA F_PXH,X
- STA sg_bx+1
- LDA F_PYL,X
- STA sg_by
- LDA F_PYH,X
- STA sg_by+1
- RTS
+ SKIP 18                \ (unused: keeps the rest of bank 6 where it was)
 
 \ f_seg16: boundary crossings of the segment (sg_ax, sg_ay) - (sg_bx, sg_by)
 \ (16-bit) for rows y with min(y) <= y < max(y) within R_NDT..R_NDB. A crossing
