@@ -3074,6 +3074,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .^r_pt155 EOR r_bdp,X
   LSR A
   BCS r_dpeg
+  LDA R_NDN,X             \ no boundaries, old or new, and colour A (R_DCE /
+  BNE e9                  \ R_DCO) both times: a one-colour row, which r_dp2
+  LDA R_NDP,X             \ does in less time (the stored boundaries, count 0,
+  LSR A                   \ are never read)
+  BCS e9
+  JMP r_dp2
 .e9
 .^r_pt131 LDA r_sl,X
   STA r_ev+7              \ old left end
@@ -3104,7 +3110,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA r_np                \ (the colour at the left end, both sides)
   LDA R_NDN,X
   CMP #5
-  BCS r_dpeg
+  BCS gen0
   STA r_cn
 .^r_pt130 CMP r_bdn,X
   BEQ same
