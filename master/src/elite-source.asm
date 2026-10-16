@@ -11157,6 +11157,24 @@ ENDMACRO
  TYA                    \ Set A = Y = 0 and run the bitwise loop
  BRA DVL9
 
+.DV14z
+
+                        \ Port: if we get here then |S| = 0 and R >= 128, so the
+                        \ loop below would shift (A R Q) left exactly 8 times,
+                        \ leaving A = R (which it already is), so we just need
+                        \ to decrement the scale factor in Y by 8
+
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+
+ BRA DV9
+
 .DV14
 
                         \ If we get here, A >= 64 and contains the highest byte
@@ -11169,7 +11187,15 @@ ENDMACRO
  LDA S                  \ Set A = |S|
  AND #%01111111
 
-\BMI DV9                \ This label is commented out in the original source
+ BNE DVL6a              \ Port: if |S| <> 0 then at most 7 shifts are needed,
+                        \ and in that many shifts no bit of Q can reach A (and
+                        \ R and Q are overwritten at DV9), so jump to DVL6a to
+                        \ shift just (A R)
+
+ ORA R                  \ |S| = 0, so set A = R, and if R >= 128 jump to DV14z
+ BMI DV14z              \ to do the 8 shifts in one go
+
+ LDA #0                 \ Otherwise restore A = |S| = 0 for the full shift
 
 .DVL6
 
@@ -11190,7 +11216,22 @@ ENDMACRO
  ROL R
  ROL A
 
- BPL DVL6               \ Loop up to DVL6 to do another shift, until bit 7 of A
+ BEQ DVL6               \ Port: loop while A is still zero
+
+ BMI DV9                \ If bit 7 of A is set we are done
+
+                        \ Otherwise A is now 1-127, so at most 7 more shifts are
+                        \ needed and the bits of R already hold everything that
+                        \ can reach A, so fall into DVL6a to shift just (A R)
+
+.DVL6a
+
+ DEY                    \ Decrement the scale factor in Y
+
+ ASL R                  \ Shift (A R) to the left
+ ROL A
+
+ BPL DVL6a              \ Loop up to DVL6a to do another shift, until bit 7 of A
                         \ is set and we can't shift left any further
 
 .DV9
