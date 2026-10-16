@@ -361,20 +361,6 @@ r_lcnt = r_ov + 27
 .r_s0k SKIP 48          \ buffer 0: star's first pixel
 R_ENDPAGE 13
 .r_run14 R_RUN 14
-.r_addr
-  TYA
-  AND #7
-  ORA r_xo,X
-  STA RZ_PP
-  TYA
-  LSR A
-  LSR A
-  AND #&FE
-  ORA #&40
-  CPX #&80
-  ADC #0
-  STA RZ_PP+1
-  RTS
 .r_pclip
 {
   CPX R_CL
@@ -398,7 +384,18 @@ R_ENDPAGE 14
 .r_run15 R_RUN 15
 .r_pset
 {
-  JSR r_addr
+  TYA                     \ RZ_PP = screen address of (X, Y)
+  AND #7
+  ORA r_xo,X
+  STA RZ_PP
+  TYA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  CPX #&80
+  ADC #0
+  STA RZ_PP+1
   LDA r_lm,X
   AND r_rm,X
   STA RZ_T6
