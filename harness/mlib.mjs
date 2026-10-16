@@ -214,7 +214,7 @@ export async function runElite(opts) {
     // outside reaches it through a stub of the old name, cold code directly)
     const hook = (name, off = 0) => { const n = sy[name + "_C"] !== undefined ? name + "_C" : name; return { a: sy[n] + off, m: mapOfLabel(sy, n) }; };
     const at = (h, pc) => pc === h.a && (h.m === "m" || h.m === mapAt(cpu.romsel, pc));
-    const H_RDK = hook("RDKEY", 5), H_DKS5 = hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"),
+    const H_RDK = hook("RDKEY", 5), H_DKS5 = hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"), H_LL5 = hook("LL5"),
         H_TT100 = hook("TT100"), H_QU5 = hook("QU5"), H_BAY = hook("BAY"), H_MT26 = hook("MT26"), H_TT170 = hook("TT170");
 
     const res = { snaps: [], iterTimes: [], tt100Times: [], tt100AtIter: [], init: null, keyLog: [], events: [], s, cpu, sy, regions };
@@ -261,6 +261,17 @@ export async function runElite(opts) {
             if (down) res.keyLog.push([iter, "DKS5:" + site, key.toString(16)]);
         } else if (at(H_NOISE, pc)) {
             for (let i = 0; i < 3; i++) cpu.ramRomOs[sy.SOPR + i] = 0;
+        } else if (at(H_LL5, pc)) {
+            // The altitude (main flight loop part 15) is SQRT(R Q) with R =
+            // x_hi^2 + y_hi^2 + z_hi^2 - 37 and Q whatever the last routine to
+            // use Q left there: game logic (MVS4, MVS5) or, when a line was
+            // drawn last, LOINQ's slope arithmetic (LIlog6). A build whose
+            // drawing differs leaves a different Q, so the altitude can differ
+            // by one (and with R = 0, Q = 0 decides a crash). At that call
+            // (LL5 returning to LDA Q : STA ALTIT) Q is set to 0 in both runs.
+            const ret = (rb(0x101 + cpu.s) | rb(0x102 + cpu.s) << 8) + 1;
+            if (rb(ret) === 0xa5 && rb(ret + 1) === sy.Q && rb(ret + 2) === 0x8d && (rb(ret + 3) | rb(ret + 4) << 8) === sy.ALTIT)
+                cpu.ramRomOs[sy.Q] = 0;
         } else if (at(H_MLOOP, pc) && started) {
             res.snaps.push(snapshot());
             res.iterTimes.push(emuSecs());

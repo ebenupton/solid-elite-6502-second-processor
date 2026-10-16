@@ -13,6 +13,11 @@
 #     reference and candidate, and their ratio (reported, not gated; the
 #     per-window table is in the log).
 #
+# From Stage C on (the renderer replaces Master's drawing) mcompare runs with
+# --loose: drawing temporaries, the planet's and sun's line heaps and the
+# ship line heap stop being game state (see harness/mlib.mjs DRAW_EXCLUDE;
+# the renderer records what it draws instead of keeping EOR lines on the
+# heaps). STRICT=1 runs without it.
 # Extra arguments go to mcompare.mjs (for example --loose once the drawing
 # changes, to exclude drawing temporaries). Prints PASS/FAIL per step, then
 # "VERIFY PASS <ref it/s> <cand it/s> <ratio>" or "VERIFY FAIL <step>"; exit
@@ -40,7 +45,8 @@ SAME=$(grep -c " Yes " "$LOG/crc32.txt")
 echo "build: PASS ($SAME of 5 binaries identical to the SNG47 reference)"
 
 # ---- 2 and 3. determinism and speed
-node harness/mcompare.mjs --iters "$ITERS" \
+LOOSE=--loose; [ "${STRICT:-0}" = 1 ] && LOOSE=
+node harness/mcompare.mjs --iters "$ITERS" $LOOSE \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/compare" "$@" > "$LOG/compare.log" 2>&1
 CST=$?

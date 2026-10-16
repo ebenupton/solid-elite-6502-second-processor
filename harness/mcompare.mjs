@@ -167,19 +167,27 @@ if (ok) {
     for (let o = 0; o < ri.length; o++) if (ri[o] !== ci[o] && !ex.has(offAddr[o])) d0.push(symName(offAddr[o]));
     if (cand.seeded) log(`Seeded at TT170 (boot leftovers): ${cand.seeded.length} bytes${cand.seeded.length ? ": " + cand.seeded.slice(0, 40).map(([a]) => symName(a)).join(" ") : ""}`);
     log(`State at TT170 (after seeding): ${d0.length} differing bytes${d0.length ? ": " + d0.slice(0, 40).join(" ") : ""}`);
+    // --loose: the ship line heap grows down from &0800 and can reach into
+    // the K% slots that are empty; an empty slot (FRIN = 0, compared) is
+    // never read before NWSHP fills all of it, so its bytes are excluded
+    const NI = 37, kOff = offAddr.indexOf(rsy["K%"]), fOff = offAddr.indexOf(rsy.FRIN);
+    const emptySlot = (snap, o) => {
+        if (!args.loose || o < kOff || o >= kOff + 12 * NI) return false;
+        return snap[fOff + Math.floor((o - kOff) / NI)] === 0;
+    };
     for (let i = 0; i < n; i++) {
         const a = ref.snaps[i], b = cand.snaps[i];
         for (let o = 0; o < a.length; o++) if (a[o] !== b[o]) {
             const ad = offAddr[o];
             perAddr[ad] = (perAddr[ad] || 0) + 1;
             if (firstAny < 0) firstAny = i;
-            if (!ex.has(ad) && firstDiv !== i && firstDiv < 0) firstDiv = i;
+            if (!ex.has(ad) && !emptySlot(a, o) && firstDiv !== i && firstDiv < 0) firstDiv = i;
         }
         if (firstDiv === i && !printed) {
             printed = true;
             log(`FIRST DIVERGENCE of game state at iteration ${i} (phase ${ref.phases[i]}, ref t=${ref.iterTimes[i].toFixed(2)} s, cand t=${cand.iterTimes[i].toFixed(2)} s):`);
             let shown = 0;
-            for (let o = 0; o < a.length && shown < 100; o++) if (a[o] !== b[o] && !ex.has(offAddr[o])) { log(`  ${symName(offAddr[o])} (&${offAddr[o].toString(16)}): ref &${a[o].toString(16)} cand &${b[o].toString(16)}`); shown++; }
+            for (let o = 0; o < a.length && shown < 100; o++) if (a[o] !== b[o] && !ex.has(offAddr[o]) && !emptySlot(a, o)) { log(`  ${symName(offAddr[o])} (&${offAddr[o].toString(16)}): ref &${a[o].toString(16)} cand &${b[o].toString(16)}`); shown++; }
             const kr = ref.keyLog.filter(k => k[0] >= i - 3 && k[0] <= i), kc = cand.keyLog.filter(k => k[0] >= i - 3 && k[0] <= i);
             log(`  keys (ref) ${JSON.stringify(kr)}`);
             log(`  keys (cand) ${JSON.stringify(kc)}`);
