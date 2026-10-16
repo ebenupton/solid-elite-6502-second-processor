@@ -2395,30 +2395,32 @@ SGOUT = 20
  LDX #SGX+SGOUT
  JSR f_wcov
  BCS fsg3
- LDA fsw_d2+2           \ this buffer's R_DIRTYR (f_bufpatch), high byte
+ LDA fsw_d2+2           \ this buffer's R_DIRTYR (f_bufpatch), high byte, +1
+ INC A                  \ for the +SGY-SGOUT base below
  STA fsg_or+2           \ (the low bytes are equal)
  ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
- LDY #SGY-SGOUT         \ f_wcov with A = X = SGX: WR, DIRTYR >= SGX (= &80,
-.fsg2                   \ so <> 0) <=> bit 7 set; usually neither is
- LDA R_WR,Y
+ ASSERT HI(R_DIRTYR0+SGY-SGOUT) = HI(R_DIRTYR0)+1 AND HI(R_DIRTYR1+SGY-SGOUT) = HI(R_DIRTYR1)+1
+ ASSERT HI(R_DIRTYR0+SGY-SGOUT) = HI(R_DIRTYR0+SGY+SGOUT)   \ no page crossings in the loop
+ ASSERT HI(R_WR+SGY-SGOUT) = HI(R_WR+SGY+SGOUT)
+ LDY #2*SGOUT           \ Y = row - (SGY-SGOUT), rows SGY+SGOUT down to SGY-SGOUT
+.fsg2                   \ f_wcov with A = X = SGX: WR, DIRTYR >= SGX (= &80,
+ LDA R_WR+SGY-SGOUT,Y   \ so <> 0) <=> bit 7 set; usually neither is
 .fsg_or
- ORA R_DIRTYR0,Y        \ patched (high byte, above)
+ ORA R_DIRTYR0+SGY-SGOUT,Y \ patched (high byte, above)
  BMI fsgs
 .fsg8
- INY
- CPY #SGY+SGOUT+1
- BCC fsg2
+ DEY
+ BPL fsg2
  RTS
-.fsgs
- LDA #SGX
- STA fz_t
- STA fz_u
- LDX R_WR,Y
- BPL fsg7
- CMP R_WL,Y
- BCS fsg3
-.fsg7
- JSR fwc2               \ this buffer's dirty extent (uses fz_t = fz_u = SGX)
+.fsgs                   \ C = 0 here (BCS fsg3 above / below not taken)
+ LDX #SGX
+ PHY
+ TYA
+ ADC #SGY-SGOUT         \ Y = the row
+ TAY
+ TXA
+ JSR f_wcov             \ A = X = SGX (fz_t = fz_u = SGX, as before)
+ PLY                    \ (keeps C)
  BCS fsg3
  BRA fsg8
 .fsg3
@@ -2499,30 +2501,27 @@ MAXPT = 140             \ points per frame
 .F_PYH SKIP MAXPT
 
 .F_PCURVE
- STX f_xs
- STY f_ys
+ PHX
  LDX F_NCV
  CPX #MAXCV
  BCS fpc9
  LDA F_NPT
  STA F_CVS,X
- STA F_CVE,X
+ STA F_CVE-1,X          \ ends the previous curve (X = 0: writes F_CVS+2, unused or overwritten later)
  LDA TGT
  STA F_CVT,X
  INC F_NCV
 .fpc9
- LDX f_xs
- LDY f_ys
+ PLX
  RTS
 
-.F_PPOINT
- STX f_xs
- STY f_ys
- LDX F_NCV
- BEQ fpc9
+.F_PPOINT               \ (the current curve's F_CVE is set from F_NPT at fbd2)
+ LDA F_NCV
+ BEQ fpp9
+ PHY
  LDY F_NPT
  CPY #MAXPT
- BCS fpc9
+ BCS fpp8
  LDA K6
  STA F_PXL,Y
  LDA K6+1
@@ -2533,12 +2532,10 @@ MAXPT = 140             \ points per frame
  STA F_PYH,Y
  INY
  STY F_NPT
- TYA
- STA F_CVE-1,X
- JMP fpc9
-
-.f_xs EQUB 0
-.f_ys EQUB 0
+.fpp8
+ PLY
+.fpp9
+ RTS
 
 \ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
 
@@ -2590,6 +2587,9 @@ MAXPT = 140             \ points per frame
  LDA #&A0
  STA R_DBO
 .fbd2
+ LDX F_NCV              \ the last curve ends at F_NPT (F_NCV >= 1 here)
+ LDA F_NPT
+ STA F_CVE-1,X
  LDA #0
  STA f_ci
 .fbd3                   \ for each curve

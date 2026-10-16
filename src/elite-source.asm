@@ -7875,32 +7875,12 @@ ENDMACRO
  ORA STLQT,X            \ 0-7 (P <= 40/8 = 5: DELTA <= 40, z_hi >= 8 at STL1).
                         \ P itself is left unshifted (MLU2 rewrites it first)
 
- TAX                    \ Pass Q = 64 * speed / z_hi to MLU1 in X (Q is not
-                        \ written: nothing reads it before STL1's STA Q below
-                        \ the MULTS-2 call rewrites it), so we
-                        \ now have result 1 above:
-                        \
-                        \   Q = 64 * speed / z_hi
-
- LDA SZL,Y              \ We now calculate the following:
- SBC DELT4              \
- STA SZL,Y              \  (z_hi z_lo) = (z_hi z_lo) - DELT4(1 0)
-                        \
-                        \ starting with the low bytes
-
- LDA SZ,Y               \ And then we do the high bytes (SZ,Y = original z_hi)
- SBC DELT4+1            \
- STA SZ,Y               \
-                        \
-                        \ So now we have result 2 above:
-                        \
-                        \   z = z - DELT4(1 0)
-                        \     = z - speed * 64
-
-                        \ BBC Master port: MLU1 and MLU2 inlined (they were
-                        \ only called from here). Patch Q (in X) into both
-                        \ inlined |A| * Q look-ups, ~Q into the SQ2 ones
- TXA
+                        \ A = 64 * speed / z_hi (result 1 above). BBC Master
+                        \ port: MLU1 and MLU2 inlined (they were only called
+                        \ from here). Patch this value into both inlined
+                        \ |A| * Q look-ups, and its complement into the SQ2
+                        \ ones, straight away (none of this touches the C
+                        \ flag, which is the borrow for the SBC DELT4 below)
  STA stm_y1+1
  STA stm_y3+1
  STA stm_x1+1
@@ -7911,7 +7891,22 @@ ENDMACRO
  STA stm_x2+1
  STA stm_x4+1
 
- LDA SY,Y               \ Set Y1 = y_hi
+ LDA SZL,Y              \ We now calculate the following:
+ SBC DELT4              \
+ STA SZL,Y              \  (z_hi z_lo) = (z_hi z_lo) - DELT4(1 0)
+                        \
+                        \ starting with the low bytes
+
+ LDA Q                  \ And then we do the high bytes (DV41 stored the
+ SBC DELT4+1            \ original z_hi in Q, and nothing has changed it since)
+ STA SZ,Y               \
+                        \
+                        \ So now we have result 2 above:
+                        \
+                        \   z = z - DELT4(1 0)
+                        \     = z - speed * 64
+
+ LDA SY,Y              \ Set Y1 = y_hi
  STA Y1
 
  AND #%01111111         \ Set (A P) = |y_hi| * Q (as MLU2)
@@ -7984,10 +7979,30 @@ ENDMACRO
                         \ A has the opposite sign to the flipped roll angle
                         \ alpha, i.e. it gets the same sign as alpha
 
- JSR MLS1               \ Call MLS1 to calculate:
+                        \ BBC Master port: MLS1 inlined here (the second call
+                        \ below still uses MLS1) to calculate:
                         \
                         \   (A P) = A * ALP1
                         \         = (x / 256) * alpha
+                        \
+                        \ The negative and zero cases are out of line after
+                        \ the BRA stl_a9 below. MLSPT patches STU1-4/STV1-4
+                        \ exactly as MSU1-4/MSV1-4
+
+ SEC                    \ As MLS1: C set on every path (MU8 relies on it)
+ TAX
+ BMI stl_mn
+ BEQ stl_mz
+.STU1
+ LDA SQ1L,X             \ patched by MLSPT: ALP1 AND 31
+.STU2
+ SBC SQ2L+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
+ STA P
+.STU3
+ LDA SQ1H,X             \ patched by MLSPT: ALP1 AND 31
+.STU4
+ SBC SQ2H+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
+.stl_m9
 
                         \ Inline ADD (and MU8) to calculate:
                         \
@@ -8008,6 +8023,25 @@ ENDMACRO
  ORA T
  STA YY+1
  BRA stl_a9
+.stl_mn
+ AND #%01111111         \ Inlined MLS1, negative case (as MSN)
+ BEQ stl_mz
+ TAX
+.STV1
+ LDA SQ1L,X             \ patched by MLSPT: ALP1 AND 31
+.STV2
+ SBC SQ2L+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
+ STA P
+.STV3
+ LDA SQ1H,X             \ patched by MLSPT: ALP1 AND 31
+.STV4
+ SBC SQ2H+&FF,X         \ patched by MLSPT: (ALP1 AND 31) EOR &FF
+ ORA #%10000000
+ BRA stl_m9
+.stl_mz
+ STA P+1                \ Inlined MLS1, zero case (as MSZ): A = 0
+ STA P
+ BRA stl_m9
 .stl_a8a
  LDA P                  \ MU8a: |A P| > |YY|: X = P - YY_lo,
  SEC                    \ A = (T1 EOR &80) - YY_hi - borrow
@@ -8048,19 +8082,27 @@ ENDMACRO
  EOR ALP2               \ EOR A with the correct sign of the roll angle alpha,
                         \ so A has the opposite sign to the roll angle alpha
 
- JSR MLS1               \ Call MLS1 ((S R) already holds x) to calculate:
-                        \
-                        \   (S R) = XX(1 0)
-                        \         = x
-                        \
-                        \   (A P) = A * ALP1
+ SEC                    \ BBC Master port: MLS1 inlined ((S R) already holds
+ TAX                    \ x) to calculate:
+ BMI stl_m2n            \
+ BEQ stl_m2n            \   (A P) = A * ALP1
                         \         = -y / 256 * alpha
+.stl_m2a                \
+ LDA SQ1L,X             \ with C = 1 on exit, as MLS1 did. A positive is done
+.stl_m2b                \ here (operands patched by MLSPT); A negative or zero
+ SBC SQ2L+&FF,X         \ goes out of line to stl_m2n, which calls MSN
+ STA P
+.stl_m2c
+ LDA SQ1H,X
+.stl_m2d
+ SBC SQ2H+&FF,X
 
  STA T1                 \ Inline ADD to calculate (S R) = (A P) + (S R)
- AND #%10000000         \   = -y / 256 * alpha + x
- STA T                  \ (as ADD: T1 = A, T = sign of A)
- EOR S                  \ Signs differ: use MU8
- BMI stl_b8
+ STZ T                  \   = -y / 256 * alpha + x
+                        \ (as ADD: T1 = A, T = sign of A = 0, A = 0..15 here)
+ LDA S                  \ Signs differ (T EOR S = S negative): use MU8 (A is
+ BMI stl_b8             \ reloaded on both paths)
+.stl_b7
  LDA R                  \ Same sign: R = P + R (ADD's X)
  CLC
  ADC P
@@ -8070,6 +8112,14 @@ ENDMACRO
  ORA T
  STA S
  BRA stl_b9
+.stl_m2n
+ JSR MSN                \ A negative or zero: (A P) = A * ALP1 via MLS1's
+ STA T1                 \ negative path (C = 1 on entry and on exit), then
+ AND #%10000000         \ as ADD: T1 = A, T = sign of A
+ STA T
+ EOR S                  \ Signs differ: use MU8
+ BMI stl_b8
+ BRA stl_b7             \ Same sign
                         \ BBC Master port: stq_n, stq_z and stl_slow are placed
                         \ here (after an unconditional BRA) so that the hot
                         \ branches BMI stq_n, BRA stq_q, BPL stl_same and BRA
@@ -8207,11 +8257,10 @@ ENDMACRO
                         \
                         \ which is result 7 above
 
- LDA YY                 \ Set (S R) = YY(1 0) = y
- STA R                  \
- STA SYL,Y              \ y_lo result = R on every inlined path (P = 0)
-
- STZ P                  \ Set P = 0
+ LDA YY                 \ y = YY(1 0): y_lo result = YY on every inlined path
+ STA SYL,Y              \ (P = 0). BBC Master port: (S R) = y and P = 0 are only
+                        \ read by PIX1 at stl_cf, so they are set there (and at
+                        \ the loop exit, so STARS1 still returns R = YY, P = 0)
 
                         \ (A P) = (-beta 0) = -beta * 256
 
@@ -8240,6 +8289,9 @@ ENDMACRO
  ORA #0                 \ patched: T
  BRA stl_cj
 .stl_cf
+ LDA YY                 \ Set R = YY (y_lo) and P = 0 for PIX1's ADD (deferred
+ STA R                  \ from above)
+ STZ P
  LDA T1                 \ Rare MU8a/MU8e cases: redo it all via PIX1 with
  JSR PIX1               \ identical inputs (A = T1, P, R, S as set above)
  BRA stl_cx
@@ -8309,6 +8361,11 @@ ENDMACRO
 
  JMP STL1               \ We have more stardust to process, so jump back up to
                         \ STL1 for the next particle
+
+ STZ P                  \ BBC Master port: leave P = 0 and R = YY as the last
+ LDY YY                 \ particle's STL1 pass did (deferred from above); Y = 0
+ STY R                  \ and Z = 1, N = 0 as DEY left them (A, X, C, V kept)
+ LDY #0
 
  RTS                    \ Return from the subroutine
 
@@ -18575,7 +18632,7 @@ ENDMACRO
                         \ (R, A and the flags), only faster. The entry value
                         \ of R no longer matters
 
- FOR I%, 1, 8
+ FOR I%, 1, 7
 
   ASL A                 \ Shift A to the left
 
@@ -18593,10 +18650,25 @@ ENDMACRO
 
  NEXT
 
+                        \ Final (eighth) bit: no caller reads the remainder in
+                        \ A or the V flag, so we only need the quotient bit,
+                        \ which is 1 if bit 7 of A was set or if A >= Q
+
+ ASL A                  \ Shift A to the left
+
+ BCS P%+4               \ If bit 7 of A was set, rotate in the set C flag
+
+ CMP Q                  \ Otherwise C = (A >= Q)
+
+ ROL R                  \ Rotate the result bit into R
+
  CLC                    \ The original's final C was bit 0 of R = %11111110,
                         \ i.e. always clear
 
- RTS                    \ R left with remainder of division
+ RTS                    \ Return from the subroutine
+
+ EQUB &EA, &EA, &EA     \ Padding (never executed) so LL2, LL38 and everything
+ EQUB &EA, &EA          \ after them in main RAM stay at the same addresses
 
 .LL2
 
@@ -32742,11 +32814,23 @@ INCLUDE "build/dashtab.asm"
  STA MSU3+1
  STA MSV1+1
  STA MSV3+1
+ STA STU1+1             \ and into STL1's inlined copies
+ STA STU3+1
+ STA STV1+1
+ STA STV3+1
+ STA stl_m2a+1
+ STA stl_m2c+1
  EOR #&FF
  STA MSU2+1
  STA MSU4+1
  STA MSV2+1
  STA MSV4+1
+ STA STU2+1
+ STA STU4+1
+ STA STV2+1
+ STA STV4+1
+ STA stl_m2b+1
+ STA stl_m2d+1
 
  RTS
 
