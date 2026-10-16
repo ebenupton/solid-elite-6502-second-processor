@@ -1510,6 +1510,19 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA fz_dl+1
  ADC #0
  STA fz_v3+1
+ LDA fz_v3              \ the vertex gather's operands: XX3 copy + 0..3
+ STA fsh_x0+1
+ LDA fz_v3+1
+ STA fsh_x0+2
+ FOR k, 1, 3
+  CLC
+  LDA fz_v3
+  ADC #k
+  STA fsh_x0+1+6*k
+  LDA fz_v3+1
+  ADC #0
+  STA fsh_x0+2+6*k
+ NEXT
 
  JSR f_behind           \ hidden behind the planet?
  BCC P%+3
@@ -1549,25 +1562,30 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  INY
  LDA (fz_ft),Y
  STA R_COLO
- INY
+ CLC                    \ the face's vertex offsets at fz_ft + 3
+ LDA fz_ft
+ ADC #3
+ STA fsh_o+1
+ LDA fz_ft+1
+ ADC #0
+ STA fsh_o+2
  LDX #0                 \ gather the vertices
 .fsh_v
- STY fz_u
- LDA (fz_ft),Y          \ XX3 offset
- TAY
- LDA (fz_v3),Y
+.fsh_o
+ LDY &FFFF,X            \ XX3 offset (patched)
+.fsh_x0
+ LDA &FFFF,Y            \ (patched: the XX3 copy + 0..3)
  STA R_PXL,X
- INY
- LDA (fz_v3),Y
+.fsh_x1
+ LDA &FFFF,Y
  STA R_PXH,X
- INY
- LDA (fz_v3),Y
+.fsh_x2
+ LDA &FFFF,Y
  STA R_PYL,X
- INY
- LDA (fz_v3),Y
+.fsh_x3
+ LDA &FFFF,Y
  STA R_PYH,X
- LDY fz_u
- INY
+ ASSERT fsh_x1 = fsh_x0 + 6 AND fsh_x2 = fsh_x0 + 12 AND fsh_x3 = fsh_x0 + 18
  INX
  CPX fz_n
  BCC fsh_v
