@@ -4646,6 +4646,13 @@ ENDMACRO
   BCS yno
   STA r_dyt,X
 .yno
+  LDA #LO(r7_lc16)        \ short lines: clipped exactly, drawn by bank 7
+  LDX #HI(r7_lc16)
+  JSR r_c7x
+  CMP #0
+  BNE yn1
+  RTS
+.yn1
   LDX #2                  \ d = P1 - P0 -> T0,T1 (x) T2,T3 (y); |d| -> T4..T7
 .dl
   SEC
@@ -5092,6 +5099,7 @@ ENDMACRO
   LDX R_XL
   JMP r_spc
 }
+
 
 
 .r_end

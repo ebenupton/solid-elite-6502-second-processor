@@ -61,7 +61,14 @@
 .R_PRHI     SKIP 1
 .R_PRDYA    SKIP 1
 .R_PRDYZ    SKIP 1
-.R_PRCWB    SKIP 1          \ last row whose R_WL/R_WR the repair wrote (0: none)
+.R_PRCWB    SKIP 1
+.r7_lpx     SKIP 1          \ r_lc16 -> r7_lines: start pixel, error, a, b, count, kind
+.r7_lpy     SKIP 1
+.r7_lpe     SKIP 1
+.r7_lpa     SKIP 1
+.r7_lpb     SKIP 1
+.r7_lpn     SKIP 1
+.r7_lpk     SKIP 1          \ last row whose R_WL/R_WR the repair wrote (0: none)
 \ private to raster.asm: polygon edge tables
 .R_PTA      SKIP 192
 .R_PTB      SKIP 192

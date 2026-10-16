@@ -86,6 +86,9 @@ l_c  = &23              \ 0: inside, 8: clipped
 .r7_cr1 EQUB 0          \ CR + 1
 .r7_cb1 EQUB 0          \ CB + 1
 
+.r7_lines                 \ prepared by bank 5's r_lc16 (r7_lp*)
+  LDA #&10
+  BRA r7_lgo
 .r7_linec
   LDA #8
   BRA r7_lgo
@@ -110,6 +113,34 @@ l_c  = &23              \ 0: inside, 8: clipped
   DEY
   DEY
   BPL ct
+  LDA l_c
+  CMP #&10
+  BNE nprep
+  LDA #8                  \ prepared: clipped loops from the given pixel
+  STA l_c
+  LDA R_CR
+  INC A
+  STA r7_cr1
+  LDA R_CB
+  INC A
+  STA r7_cb1
+  LDA r7_lpx
+  STA l_x
+  LDA r7_lpy
+  STA l_y0
+  LDA r7_lpe
+  STA l_e
+  LDA r7_lpa
+  STA l_a
+  LDA r7_lpb
+  STA l_b
+  LDA r7_lpn
+  STA l_n
+  LDA r7_lpk
+  STA l_k
+  LDX l_y0
+  JMP in
+.nprep
   LDA R_X0
   STA l_x0
   LDA R_Y0
