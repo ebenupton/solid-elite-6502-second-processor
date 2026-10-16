@@ -6956,16 +6956,28 @@ ENDMACRO
  BCC P%+4               \ A is 8-15 and C = 1, so add &78 to get &80-&87,
  ADC #&77               \ giving (A P) = -/+ roofv_x / 16
 
-                        \ Q still holds X from the STX Q before the first ADD
-                        \ (ADD does not write Q), so no need to store it again
+                        \ BBC Master port: ADD's two common paths are inlined
+                        \ here, computing (A P) + (S R) exactly as ADD does
+                        \ (same T1, T, C and V), but storing the low byte
+                        \ straight into nosev_x_lo so X is never clobbered
+                        \ and needs no restoring
 
- JSR ADD                \ (A X) = (A P) + (S R)
-                        \       = -/+roofv_x / 16 + (1 - 1/512) * nosev_x
+ STA T1                 \ ADD's prologue: T1 = A, T = sign of A, and jump to
+ AND #%10000000         \ mvs5d if A and S have different signs
+ STA T
+ EOR S
+ BMI mvs5d
 
+ LDA R                  \ Same signs (ADD's first path):
+ CLC                    \
+ ADC P                  \   nosev_x_lo = R + P
+ STA INWK,Y             \
+ LDA S                  \   nosev_x_hi = (S + T1 + C) OR T
+ ADC T1
+ ORA T
  STA INWK+1,Y           \ Set nosev_x = (1-1/512) * nosev_x -/+ roofv_x / 16
- STX INWK,Y
 
- LDX Q                  \ Restore the value of X from before the call to ADD
+.mvs5j
 
  LDA K                  \ Set roofv_x = K(1 0)
  STA INWK,X             \             = (1-1/512) * roofv_x +/- nosev_x / 16
@@ -6973,6 +6985,33 @@ ENDMACRO
  STA INWK+1,X
 
  RTS                    \ Return from the subroutine
+
+.mvs5d
+
+ LDA R                  \ Different signs (ADD's MU8 common path):
+ SEC                    \
+ SBC P                  \   nosev_x_lo = R - P
+ STA INWK,Y             \
+ LDA S                  \   A = |S| - |T1| - borrow
+ EOR #%10000000
+ SBC T1
+ BCC mvs5s              \ |S R| < |A P|, or high byte 0: rare, so let ADD
+ BEQ mvs5s              \ redo the whole sum from scratch (exact results)
+ ORA #%10000000         \ |S R| > |A P|: nosev_x_hi = A with the sign of S,
+ EOR T                  \ and C = 0, exactly as ADD's MU8s
+ CLC
+ STA INWK+1,Y
+ BRA mvs5j
+
+.mvs5s
+
+ PHX                    \ Rare: call ADD with the original argument (T1, and
+ LDA T1                 \ P, R, S are unchanged), storing its result over the
+ JSR ADD                \ low byte we stored above, and restore X
+ STA INWK+1,Y
+ STX INWK,Y
+ PLX
+ BRA mvs5j
 
 \ ******************************************************************************
 \
@@ -7420,19 +7459,39 @@ ENDMACRO
 
 .BLINE
 
+ LDA K5+2               \ Set XX15(3 2) = K5(3 2) = y of previous point, for
+ STA XX15+2             \ LL147 in BL1 (done first, as K5(3 2) is overwritten
+ LDA K5+3               \ with the new point's y below; harmless on the
+ STA XX15+3             \ first-call path, which never reads it)
+
  TXA                    \ Set K6(3 2) = (T X) + K4(1 0)
  ADC K4                 \             = y-coord of centre + y-coord of new point
  STA K6+2               \
- STA XX12               \ Also set XX12(1 0) = K6(3 2) for LL145 in BL1
+ STA XX12               \ Also set XX12(1 0) = K6(3 2) for LL145 in BL1, and
+ STA K5+2               \ K5(3 2) = K6(3 2) for the next call (as BL7 did)
  LDA K4+1               \ so K6(3 2) now contains the y-coordinate of the new
  ADC T                  \ point on the circle but as a screen coordinate, to go
  STA K6+3               \ along with the screen x-coordinate in K6(1 0)
  STA XX12+1
+ STA K5+3
 
  JSR H_BPT              \ Frame layer: record the point for the filled detail
+                        \ (reads K6 only; preserves X, Y, C)
 
- LDA FLAG               \ If FLAG = 0, jump down to BL1
- BEQ BL1
+ LDA K5                 \ Set XX15(1 0) = K5(1 0) = x of previous point
+ STA XX15
+ LDA K5+1
+ STA XX15+1
+
+ LDA K6                 \ Set XX15(5 4) = K5(1 0) = K6(1 0) = x of new point
+ STA K5                 \ (K5 now holds this point for the next call, as BL7
+ STA XX15+4             \ used to do), leaving x_hi in A as LL147 expects
+ LDA K6+1
+ STA K5+1
+ STA XX15+5
+
+ BIT FLAG               \ If FLAG = 0, jump down to BL1 (FLAG is only ever 0 or
+ BPL BL1                \ &FF; BIT keeps A = x_hi for LL147)
 
  INC FLAG               \ Flag is &FF so this is the first call to BLINE, so
                         \ increment FLAG to set it to 0, as then the next time
@@ -7470,29 +7529,12 @@ ENDMACRO
 
 .BL1
 
- LDA K5                 \ Set XX15 = K5 = x_lo of previous point
- STA XX15
-
- LDA K5+1               \ Set XX15+1 = K5+1 = x_hi of previous point
- STA XX15+1
-
- LDA K5+2               \ Set XX15+2 = K5+2 = y_lo of previous point
- STA XX15+2
-
- LDA K5+3               \ Set XX15+3 = K5+3 = y_hi of previous point
- STA XX15+3
-
- LDA K6                 \ Set XX15+4 = x_lo of new point
- STA XX15+4
+                        \ XX15(5 0) and XX12(1 0) were set up at the start of
+                        \ BLINE (H_BPT does not touch them), and A = x_hi of
+                        \ the new point
 
  STZ SWAP               \ Set SWAP = 0 (LL145's own prologue, done here so we
                         \ can enter at LL147)
-
- LDA K6+1               \ Set XX15+5 = x_hi of new point, leaving it in A as
- STA XX15+5             \ LL147 expects
-
-                        \ XX12(1 0) = y of new point was set at the start of
-                        \ BLINE (H_BPT does not touch it)
 
  JSR LL147              \ Call LL145 to see if the new line segment needs to be
                         \ clipped to fit on-screen, returning the clipped line's
@@ -7559,14 +7601,9 @@ ENDMACRO
 
 .BL7
 
- LDA K6                 \ Copy the data for this step point from K6(3 2 1 0)
- STA K5                 \ into K5(3 2 1 0), for use in the next call to BLINE:
- LDA K6+1               \
- STA K5+1               \   * K5(1 0) = screen x-coordinate of this point
- LDA K6+2               \
- STA K5+2               \   * K5(3 2) = screen y-coordinate of this point
- LDA K6+3               \
- STA K5+3               \ They now become the "previous point" in the next call
+                        \ K5(3 2 1 0) = K6(3 2 1 0) was set at the start of
+                        \ BLINE: it becomes the "previous point" in the next
+                        \ call (C = 0 here on every path, as before)
 
  LDA CNT                \ Set CNT = CNT + STP
  ADC STP
@@ -7904,14 +7941,25 @@ ENDMACRO
                         \   (A P) = A * ALP1
                         \         = -y / 256 * alpha
 
- JSR ADD                \ Call ADD to calculate:
-                        \
-                        \   (A X) = (A P) + (S R)
-                        \         = -y / 256 * alpha + x
-
+ STA T1                 \ Inline ADD to calculate (S R) = (A P) + (S R)
+ AND #%10000000         \   = -y / 256 * alpha + x
+ STA T                  \ (as ADD: T1 = A, T = sign of A)
+ EOR S                  \ Signs differ: use MU8
+ BMI stl_b8
+ LDA R                  \ Same sign: R = P + R (ADD's X)
+ CLC
+ ADC P
+ STA R
+ LDA S                  \ S = (S + T1 + C) OR T (ADD's A)
+ ADC T1
+ ORA T
+ STA S
+ BRA stl_b9
+.stl_b8
+ JSR MU8                \ (A X) = (A P) + (S R)
  STA S                  \ BBC Master port: set (S R) = XX(1 0) = (A X) directly
  STX R                  \ (this is what MUT2 used to do from XX); neither XX
-                        \ nor XX+1 is read again before being rewritten, so
+.stl_b9                 \ nor XX+1 is read again before being rewritten, so
                         \ neither is stored here
                         \
                         \   x = x - alpha * y / 256
@@ -18171,27 +18219,46 @@ ENDMACRO
 .LL5
 
                         \ BBC Master port: the original keeps the high byte of
-                        \ the dividend in Y and uses T as the loop counter; we
-                        \ swap them (dividend high byte in T, counter in Y) so
-                        \ the shifts can use ROL T directly. On exit T = 0 and
-                        \ Y = 0 exactly as before (all of T's bits are shifted
-                        \ out by the 16 shifts; SBC #64 only touches bits 6-7),
-                        \ and A, X, C, V, N, Z, Q and S are unchanged
+                        \ the dividend in Y and uses T as the loop counter. We
+                        \ use Y as the counter and do the 8 iterations as two
+                        \ passes of 4, each shifting a single byte (T) into the
+                        \ remainder in A rather than the 16-bit (T S). In the
+                        \ original, the top two bits of T are the only ones
+                        \ that the loop reads or changes (CPX #64, SBC #64)
+                        \ before they are shifted into A, and after 4
+                        \ iterations T = the original S and S = 0, so running
+                        \ pass 1 on T = R (with zeroes shifted in), then
+                        \ setting T = original Q and S = 0 for pass 2, gives
+                        \ exactly the same A, Q, T, S, X, Y and flags. On exit
+                        \ T = 0, S = 0 and Y = 0 exactly as before
+                        \
+                        \ All callers enter with X = 0, which the TXA uses
 
- LDA R                  \ Set (T S) = (R Q)
+ LDA R                  \ Set T = R, the high byte of the dividend
  STA T
- LDA Q
- STA S
 
-                        \ So now to calculate Q = SQRT(T S)
+ LDA Q                  \ Push the low byte of the dividend for pass 2
+ PHA
 
  STZ Q                  \ Set Q = 0, to hold the result
 
- LDA #0                 \ Set A = 0, to hold the remainder (BBC Master port:
-                        \ the remainder lives in A during the loop and is
-                        \ copied to X on exit, so X ends up as before)
+ TXA                    \ Set A = 0 (X = 0 on entry), to hold the remainder
+                        \ (BBC Master port: the remainder lives in A during
+                        \ the loop and is copied to X on exit, so X ends up as
+                        \ before)
 
- LDY #8                 \ Set Y = 8, to use as a loop counter
+ JSR LL5h               \ Do pass 1 (iterations 1-4) on the bits of R
+
+ PLX                    \ Set T = the original Q for pass 2, and S = 0 as in
+ STX T                  \ the original
+ STZ S
+
+                        \ Fall through into LL5h to do pass 2 (iterations 5-8)
+                        \ and return from the subroutine
+
+.LL5h
+
+ LDY #4                 \ Set Y = 4, to use as a loop counter
 
 .LL6
 
@@ -18220,25 +18287,24 @@ ENDMACRO
  ROL Q                  \ Shift the result in Q to the left, shifting the C flag
                         \ into bit 0 and bit 7 into the C flag
 
- ASL S                  \ Shift (A T S) left twice
- ROL T
+ ASL T                  \ Shift (A T) left twice
  ROL A
- ASL S
- ROL T
+ ASL T
  ROL A
 
  DEY                    \ Decrement the loop counter
 
- BNE LL6                \ Loop back to LL6 until we have done 8 loops
+ BNE LL6                \ Loop back to LL6 until we have done 4 loops
 
  TAX                    \ Return the remainder in X, as before
 
- RTS                    \ Return from the subroutine
+ RTS                    \ Return from the subroutine (to the PLX above after
+                        \ pass 1, or to the caller after pass 2)
 
- NOP                    \ BBC Master port: padding (never executed) to keep LL5
- NOP                    \ the original size, so LL28 and everything after it in
-                        \ main RAM stay put (a 1-byte shift moves LL28's page
-                        \ crossing from a rarely taken BCS to a often taken BCC)
+                        \ BBC Master port: LL5 is exactly its original size, so
+                        \ LL28 and everything after it in main RAM stay put (a
+                        \ 1-byte shift moves LL28's page crossing from a rarely
+                        \ taken BCS to a often taken BCC)
 
 \ ******************************************************************************
 \
@@ -32432,15 +32498,16 @@ INCLUDE "build/dashtab.asm"
                         \ the IRQ handler never reads T or T1), so they are no
                         \ longer reproduced
 
- LDA P                  \ Set A = P AND 31
- AND #31
+ LDA P                  \ If P is the same raw value as on the last miss in
+.MSUP                   \ this copy (patched into the CMP operand; starts at 0,
+ CMP #0                 \ and the table operands start patched for 0 AND 31 as
+ BEQ MSU0               \ the tables are page-aligned), then P AND 31 is the
+                        \ value already patched in, so skip the following
 
- CMP MSU1+1             \ If this is the value already patched into this copy's
- BEQ MSU0               \ table look-ups, skip the following (each copy keeps
-                        \ its own four operands consistent, and all start out
-                        \ patched for 0 as the tables are page-aligned)
+ STA MSUP+1             \ Remember raw P for the next call
 
- STA MSU1+1             \ Patch P AND 31 into this copy's table look-ups
+ AND #31                \ Patch P AND 31 into this copy's table look-ups
+ STA MSU1+1
  STA MSU3+1
  EOR #&FF
  STA MSU2+1
@@ -32470,13 +32537,15 @@ INCLUDE "build/dashtab.asm"
 
  TAX                    \ Set X = |A|
 
- LDA P                  \ Set A = P AND 31
- AND #31
+ LDA P                  \ If P is the same raw value as on the last miss in
+.MSVP                   \ this copy, then P AND 31 is the value already patched
+ CMP #0                 \ into this copy's table look-ups, so skip the following
+ BEQ MSV0
 
- CMP MSV1+1             \ If this is the value already patched into this copy's
- BEQ MSV0               \ table look-ups, skip the following
+ STA MSVP+1             \ Remember raw P for the next call
 
- STA MSV1+1             \ Patch P AND 31 into this copy's table look-ups
+ AND #31                \ Patch P AND 31 into this copy's table look-ups
+ STA MSV1+1
  STA MSV3+1
  EOR #&FF
  STA MSV2+1
@@ -33087,15 +33156,11 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
 
 .CPYOUT
 
- PHP                    \ INF2(1 0) = INF(1 0) + NI%/2, keeping C and V
- LDA INF
- CLC
- ADC #NI%/2
- STA INF2
- LDA INF+1
- ADC #0
- STA INF2+1
- PLP
+                        \ INF2(1 0) still holds INF(1 0) + NI%/2 from CPYIN:
+                        \ CPYOUT is only called at MAL3, which is only reached
+                        \ from MAL1 -> GINF -> CPYIN (MAL2) -> MA21 -> MVEIT,
+                        \ nothing in between writes TRTB%(1 0), and INF is
+                        \ only changed in between by SFS1, which restores it
 
  FOR I%, NI%/2-1, 0, -1
   LDY #I%
