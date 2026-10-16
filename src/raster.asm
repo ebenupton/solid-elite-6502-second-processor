@@ -255,6 +255,7 @@ R_ENDPAGE 9
 .r_cb1 EQUB 0           \ CB + 1
 .r_n EQUB 0
 .r_slow EQUB 0
+.r_sbbdb EQUB &FF       \ buffer r_dbm's operands are patched for
 .r_dsub EQUB 0          \ r_dmb -> r_drg: repaint only the dirty part
 .r_side EQUB 0
 .r_side4 EQUB 0
@@ -704,48 +705,6 @@ r_bdx3 = R_BDX30
 .go
   STA r_buf
   TAX
-  LDA r_sbh_bdn,X          \ group r_bdn
-  STA r_pt86+2
-  STA r_pt92+2
-  STA r_pt98+2
-  STA r_pt110+2
-  STA r_pt130+2
-  STA r_pt139+2
-  STA r_pt142+2
-  STA r_pt154+2
-  LDA r_sbh_bdp,X          \ group r_bdp
-  STA r_pt87+2
-  STA r_pt91+2
-  STA r_pt99+2
-  STA r_pt111+2
-  STA r_pt138+2
-  STA r_pt141+2
-  STA r_pt143+2
-  STA r_pt155+2
-  LDA r_sbh_bdx0,X          \ group r_bdx0
-  STA r_pt93+2
-  STA r_pt100+2
-  STA r_pt134+2
-  STA r_pt400+2
-  STA r_pt401+2
-  LDA r_sbh_bdx1,X          \ group r_bdx1
-  STA r_pt94+2
-  STA r_pt101+2
-  STA r_pt135+2
-  STA r_pt402+2
-  STA r_pt403+2
-  LDA r_sbh_bdx2,X          \ group r_bdx2
-  STA r_pt95+2
-  STA r_pt102+2
-  STA r_pt136+2
-  STA r_pt404+2
-  STA r_pt405+2
-  LDA r_sbh_bdx3,X          \ group r_bdx3
-  STA r_pt96+2
-  STA r_pt103+2
-  STA r_pt137+2
-  STA r_pt406+2
-  STA r_pt407+2
   LDA r_sbh_dl,X          \ group r_dl
   STA r_pt408+2
   STA r_pt409+2
@@ -2528,6 +2487,55 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ ============================================================================
 .r_dbm
 {
+  LDX r_buf               \ the boundary arrays' operands: patched only here
+  CPX r_sbbdb             \ (two-colour discs only)
+  BNE pp
+  JMP pt
+.pp
+  STX r_sbbdb
+  LDA r_sbh_bdn,X          \ group r_bdn
+  STA r_pt86+2
+  STA r_pt92+2
+  STA r_pt98+2
+  STA r_pt110+2
+  STA r_pt130+2
+  STA r_pt139+2
+  STA r_pt142+2
+  STA r_pt154+2
+  LDA r_sbh_bdp,X          \ group r_bdp
+  STA r_pt87+2
+  STA r_pt91+2
+  STA r_pt99+2
+  STA r_pt111+2
+  STA r_pt138+2
+  STA r_pt141+2
+  STA r_pt143+2
+  STA r_pt155+2
+  LDA r_sbh_bdx0,X          \ group r_bdx0
+  STA r_pt93+2
+  STA r_pt100+2
+  STA r_pt134+2
+  STA r_pt400+2
+  STA r_pt401+2
+  LDA r_sbh_bdx1,X          \ group r_bdx1
+  STA r_pt94+2
+  STA r_pt101+2
+  STA r_pt135+2
+  STA r_pt402+2
+  STA r_pt403+2
+  LDA r_sbh_bdx2,X          \ group r_bdx2
+  STA r_pt95+2
+  STA r_pt102+2
+  STA r_pt136+2
+  STA r_pt404+2
+  STA r_pt405+2
+  LDA r_sbh_bdx3,X          \ group r_bdx3
+  STA r_pt96+2
+  STA r_pt103+2
+  STA r_pt137+2
+  STA r_pt406+2
+  STA r_pt407+2
+.pt
   LDX r_buf
   LDA r_bmode,X           \ plain last time: its rows had no boundaries
   BNE m1
