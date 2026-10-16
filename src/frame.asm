@@ -1923,15 +1923,15 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  LDA F_BACK             \ this buffer's bit in F_TCH
  INC A
  STA f_tbit
- LDX #0
+ LDX #23                \ rows 23..0 (each row is independent)
 .ft11
- STX fz_i
 .ft_sr1
  LDA F_SHR0,X           \ patched
- BEQ ft18
+ BEQ ft18x              \ X = row still
  LDA F_TCH,X            \ shown row = text map row: nothing to remove
  AND f_tbit
- BEQ ft18
+ BEQ ft18x
+ STX fz_i
  JSR f_rowptr
  LDY #31
 .ft12
@@ -1986,9 +1986,9 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  BPL ft12
 .ft18
  LDX fz_i
- INX
- CPX #24
- BCC ft11
+.ft18x
+ DEX
+ BPL ft11
  RTS
 
 .f_clipx                \ clamp R_XL..R_XR to the clip window; C set if empty
@@ -2736,10 +2736,11 @@ MAXPT = 140             \ points per frame
  STX sg_q
  STZ sg_err
 .fsg_row                \ row sg_y: record the crossing if it's in range
+ LDY sg_y               \ Y = sg_y (low byte) for the whole loop: sg_y itself
+.fsg_ry                 \ is not updated after this (only read before here)
  LDA sg_y+1
  BMI fsg_n              \ above the screen
  BNE fsg_x              \ below it
- LDY sg_y
  CPY R_NDT
  BCC fsg_n
  CPY R_NDB
@@ -2754,29 +2755,29 @@ MAXPT = 140             \ points per frame
  LDA R_NDISCR,Y
  CMP sg_x
  BCC fsg_n              \ right of the span
- LDX R_NDN,Y            \ inside: append (up to four)
  LDA sg_x
- CPX #1
- BCS fsg_k1
+ LDX R_NDN,Y            \ inside: append (up to four)
+ BNE fsg_k1
  STA R_NDX0,Y           \ n = 0
  LDA #1
  STA R_NDN,Y
  BRA fsg_n
 .fsg_k1
- BNE fsg_k2
+ CPX #2
+ BCS fsg_k2
  STA R_NDX1,Y           \ n = 1
  LDA #2
  STA R_NDN,Y
  BRA fsg_n
 .fsg_k2
- CPX #3
- BCS fsg_k3
+ BNE fsg_k3
  STA R_NDX2,Y           \ n = 2
  LDA #3
  STA R_NDN,Y
  BRA fsg_n
 .fsg_k3
- BNE fsg_n              \ n >= 4: full
+ CPX #4
+ BCS fsg_n              \ n >= 4: full
  STA R_NDX3,Y           \ n = 3
  LDA #4
  STA R_NDN,Y
@@ -2786,11 +2787,10 @@ MAXPT = 140             \ points per frame
  EOR #1
  STA R_NDP,Y
 .fsg_n
- INC sg_y               \ next row: y++, x += sx * (q + carry of the error)
+ INY                    \ next row: y++, x += sx * (q + carry of the error)
  BNE P%+5
  INC sg_y+1
- LDA sg_y               \ done at y1
- CMP sg_y1
+ CPY sg_y1              \ done at y1
  BNE fsg_m
  RTS
 .fsg_m
@@ -2815,7 +2815,7 @@ MAXPT = 140             \ points per frame
  STA sg_x
  BCC P%+5
  INC sg_x+1
- JMP fsg_row
+ JMP fsg_ry
 .fsg_m3
  TXA                    \ x - step = x + ~step + 1 (same A, C, V as SBC)
  EOR #&FF
@@ -2824,7 +2824,7 @@ MAXPT = 140             \ points per frame
  STA sg_x
  BCS P%+5
  DEC sg_x+1
- JMP fsg_row
+ JMP fsg_ry
 
 .sg_ax  EQUW 0          \ segment end points: ax, ay, bx, by would be
 .sg_ay  EQUW 0          \ contiguous with this order for the swap: ax, ay

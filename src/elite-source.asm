@@ -18556,8 +18556,36 @@ ENDMACRO
  LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
  EOR XX16+3,X
 
- JSR LL38               \ Set (S T) = (S R) + (A Q)
- STA T                  \           = |sidev_x| * x_lo + |sidev_y| * y_lo
+                        \ Set (S T) = (S R) + (A Q), with LL38 inlined
+                        \           = |sidev_x| * x_lo + |sidev_y| * y_lo
+
+ EOR S                  \ If A and S have the same sign, jump to l51a to add
+ BPL l51a
+
+ LDA R                  \ Set A = R - Q (the C flag is already set, as the
+ SBC Q                  \ SBC SQ2H,Y above never borrows)
+
+ BCS l51b               \ If there was no underflow, A and S are correct
+
+ LDA S                  \ Otherwise flip the sign of S
+ EOR #%10000000
+ STA S
+
+ LDA R                  \ C is clear, so A = ~(R - Q - 1) = Q - R
+ SBC Q
+ EOR #%11111111
+
+ BRA l51b
+
+.l51a
+
+ LDA Q                  \ Set A = R + Q
+ CLC
+ ADC R
+
+.l51b
+
+ STA T                  \ Set T = result
  STA R                  \ Set R = T
 
  LDY XX16+4,X           \ Set Q = |sidev_z| * z_lo / 256
@@ -18578,9 +18606,17 @@ ENDMACRO
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
  EOR XX16+5-6,X
 
- JSR LL38               \ Set (S A) = (S R) + (A Q)
+                        \ Set (S A) = (S R) + (A Q), with LL38 inlined
                         \           = |sidev_x| * x_lo + |sidev_y| * y_lo
                         \             + |sidev_z| * z_lo
+
+ EOR S                  \ If A and S have different signs, jump to l51d to
+ BMI l51d               \ subtract
+
+ LDA Q                  \ Set A = R + Q (the C flag is clear, as the ADC #5
+ ADC R                  \ above gives X <= 18 without a carry)
+
+.l51c
 
  PLY                    \ Restore the result offset
 
@@ -18595,6 +18631,24 @@ ENDMACRO
  BCC ll51
 
  RTS                    \ Return from the subroutine
+
+.l51d
+
+ LDA R                  \ Set A = R - Q
+ SEC
+ SBC Q
+
+ BCS l51c               \ If there was no underflow, A and S are correct
+
+ LDA S                  \ Otherwise flip the sign of S
+ EOR #%10000000
+ STA S
+
+ LDA R                  \ C is clear, so A = ~(R - Q - 1) = Q - R
+ SBC Q
+ EOR #%11111111
+
+ BRA l51c
 
 \ ******************************************************************************
 \
@@ -32490,10 +32544,39 @@ INCLUDE "build/dashtab.asm"
 
 .SQUA2
 
- STA P                  \ Copy A into P and X
- TAX
+ TAX                    \ If A = 0, jump to MU1 to return a 0 (X = 0), as
+ BEQ MU1                \ before
 
- BNE MU11A              \ If X = 0 fall through into MU1 to return a 0,
+ DEX                    \ Set T = A - 1, as MU11 did
+ STX T
+
+ ASL A                  \ A * A = f(2A) - f(0) = f(2A) = SQ1(2A), where 2A is
+ TAX                    \ 2 to 510, so set X = LO(2A) and C = HI(2A)
+
+ BCS SQH                \ If 2A >= 256, jump to SQH to use the upper pages
+
+ LDA SQ1L,X             \ Set (A P) = SQ1(2A) = A * A
+ STA P
+ LDA SQ1H,X
+
+ LDX #0                 \ Set X = 0 and the Z and N flags, and clear C, as in
+ CLC                    \ MU11
+
+ RTS                    \ Return from the subroutine
+
+.SQH
+
+ LDA SQ1L+256,X         \ Set (A P) = SQ1(2A) = A * A for 2A >= 256
+ STA P
+ LDA SQ1H+256,X
+
+ LDX #0                 \ Set X = 0 and the Z and N flags, and clear C, as in
+ CLC                    \ MU11
+
+ RTS                    \ Return from the subroutine
+
+                        \ (the old BNE MU11A fall-through comment follows; MU1
+                        \ is now reached only by BEQ, from here and MULTU)
                         \ otherwise jump to MU11 to return P * X
 
 \ ******************************************************************************
@@ -33827,6 +33910,9 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
  LDA S                  \ Set A = |S|
  AND #%01111111
 
+ BEQ DVZ                \ If |S| = 0, jump to DVZ to do the first eight shifts
+                        \ as a byte move
+
                         \ (The original's BMI DV9 here was removed: bit 7 of A
                         \ is always clear after the AND, so it never branched)
 
@@ -33845,15 +33931,19 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
 
  DEY                    \ Decrement the scale factor in Y
 
- ASL Q                  \ Shift (A R Q) to the left
- ROL R
+                        \ BBC Master port: A = |S| is non-zero here, so at most
+                        \ seven shifts happen and only the top bits of R ever
+                        \ reach A. Q and R are dead afterwards (Q is set from A
+                        \ below and LL31 overwrites all of R), so we shift just
+                        \ (A R), dropping the original's ASL Q
+
+ ASL R                  \ Shift (A R) to the left
  ROL A
 
  BMI DV9                \ Loop unrolled twice: exit as soon as bit 7 of A is set
 
  DEY                    \ Second copy of the shift
- ASL Q
- ROL R
+ ASL R
  ROL A
 
  BPL DVL6               \ Loop up to DVL6 to do another shift, until bit 7 of A
@@ -33958,6 +34048,38 @@ INF2 = TRTB%            \ CPYIN/CPYOUT: second pointer INF2(1 0) = INF + NI%/2,
  STA K+3                \ correct sign for the result
 
  RTS                    \ Return from the subroutine
+
+.DVZ
+
+                        \ |S| = 0, so the first eight shifts of (A R Q) just
+                        \ give (R Q 0), with A only gaining bit 7 on the eighth
+
+ DEY                    \ Y = Y - 8 (with DEYs rather than SBC, so the V flag
+ DEY                    \ is left alone, as callers may still see it)
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+
+ LDA R                  \ A = R, the top byte after eight shifts, and if bit 7
+ BMI DV9                \ is now set, we are done
+
+.DVLQ
+
+                        \ Otherwise keep shifting: the bits that reach A now
+                        \ come from the original Q (then zeroes), so shift
+                        \ (A Q), as R and Q are dead afterwards
+
+ DEY                    \ Decrement the scale factor in Y
+
+ ASL Q                  \ Shift (A Q) to the left
+ ROL A
+
+ BPL DVLQ               \ Loop until bit 7 of A is set
+
+ BRA DV9                \ Rejoin the main path
 
 \ ******************************************************************************
 \
