@@ -5933,7 +5933,7 @@ ENDMACRO
 
  LDA INWK+1             \ Set A = x_hi
 
- JSR MLTU2-2            \ Set (A P+1 P) = (A ~P) * X
+ JSR MLTU2X             \ Set (A P+1 P) = (A ~P) * X
                         \               = (x_hi x_lo) * alpha
 
  STA P+2                \ Store the high byte of the result in P+2, so we now
@@ -5973,7 +5973,7 @@ ENDMACRO
  LDX BET1               \ Fetch the magnitude of the current pitch into X, so
                         \ if the pitch angle is beta, X contains |beta|
 
- JSR MLTU2-2            \ Set (A P+1 P) = (A ~P) * X
+ JSR MLTU2X             \ Set (A P+1 P) = (A ~P) * X
                         \               = K2(2 1) * beta
 
  STA P+2                \ Store the high byte of the result in P+2, so we now
@@ -6081,7 +6081,7 @@ ENDMACRO
 
  LDA INWK+4             \ Set A = y_hi
 
- JSR MLTU2-2            \ Set (A P+1 P) = (A ~P) * X
+ JSR MLTU2X             \ Set (A P+1 P) = (A ~P) * X
                         \               = (y_hi y_lo) * alpha
 
  STA P+2                \ Store the high byte of the result in P+2, so we now
@@ -6861,14 +6861,31 @@ ENDMACRO
 \
 \ ******************************************************************************
 
+.mvs5n
+
+                        \ BBC Master port: MVS5's roofv_x_hi is negative, so
+                        \ |roofv_x_hi| / 2 = 0 1 b6..b1 after the LSR, and EOR
+                        \ #&BF gives ~(|roofv_x_hi| / 2) as AND #&7F, LSR, EOR
+                        \ #&FF did (S is roofv_x_hi, stored by MVS5)
+
+ LSR A                  \ A = ~(|roofv_x_hi| / 2)
+ EOR #&BF
+ SEC                    \ (S R) = (roofv_x_hi roofv_x_lo) - |roofv_x| / 512
+ ADC INWK,X
+ STA R
+ BCS P%+4
+ DEC S                  \ (S stays negative: no borrow when |hi| = 0)
+ BIT T1                 \ S is negative, so same signs if T1 is negative:
+ BMI mvs5q              \ back to ADD's first path, else fall into mvs5a
+                        \ (either way with A = R)
+
 .mvs5a
 
                         \ BBC Master port: the out-of-line paths of the first
                         \ inlined ADD in MVS5 below (placed here so all of
-                        \ MVS5's branches stay short)
+                        \ MVS5's branches stay short), entered with A = R
 
- LDA R                  \ Different signs (ADD's MU8 common path):
- SEC                    \
+ SEC                    \ Different signs (ADD's MU8 common path):
  SBC P                  \   K = R - P
  STA K                  \
  LDA S                  \   A = |S| - |T1| - borrow
@@ -6894,11 +6911,33 @@ ENDMACRO
 
 .MVS5
 
+ LDA INWK,Y             \ Set P = nosev_x_lo
+ STA P
+
+ LDA INWK+1,Y           \ Fetch nosev_x_hi and give it the sign as if we
+ EOR RAT2               \ multiplied by the pitch or roll direction (RAT2 is
+                        \ 0 or &80, so bits 0-6 are unchanged)
+
+ LSR A                  \ Set (A P) = (A P) / 16, which leaves P as
+ ROR P                  \ |nosev_x| / 16 low byte (the sign bit never reaches
+ LSR A                  \ P) and A = %0000sxxx, where s is the sign
+ ROR P
+ LSR A
+ ROR P
+ CMP #16                \ A = %000sxxxx here: C = s, then drop s from bit 4
+ AND #%00001111         \ and rotate it into bit 7 as the last shift, so
+ ROR A                  \ A = %s0000xxx and C = the bit that goes into P,
+ ROR P                  \ giving (A P) = +/- nosev_x / 16
+
+ STA T1                 \ BBC Master port: ADD's prologue, T1 = A (T is not
+                        \ needed: both paths get the sign from T1 or the
+                        \ carry instead); the sign test against S is done
+                        \ below with a branch on the sign of S and BIT T1
+
  LDA INWK+1,X           \ Fetch roofv_x_hi, store it in S (the high byte of the
  STA S                  \ subtraction below, fixed up for the borrow later),
- AND #%01111111         \ then clear the sign bit and divide by 2, so:
- LSR A                  \
-                        \ A = |roofv_x_hi| / 2 = |roofv_x| / 512
+ BMI mvs5n              \ and if it is negative do the same in mvs5n
+ LSR A                  \ Positive: A = |roofv_x_hi| / 2 = |roofv_x| / 512
                         \
                         \ The above is true because:
                         \
@@ -6920,35 +6959,12 @@ ENDMACRO
  BCS P%+4               \ And then the high byte: decrement S if the low byte
  DEC S                  \ borrowed (same as roofv_x_hi - 0 - borrow)
 
- LDA INWK,Y             \ Set P = nosev_x_lo
- STA P
+ BIT T1                 \ S is positive, so jump to mvs5a (with A = R) if T1
+ BMI mvs5a              \ is negative (different signs)
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi and give it the sign as if we
- EOR RAT2               \ multiplied by the pitch or roll direction (RAT2 is
-                        \ 0 or &80, so bits 0-6 are unchanged)
+.mvs5q
 
- LSR A                  \ Set (A P) = (A P) / 16, which leaves P as
- ROR P                  \ |nosev_x| / 16 low byte (the sign bit never reaches
- LSR A                  \ P) and A = %0000sxxx, where s is the sign
- ROR P
- LSR A
- ROR P
- CMP #16                \ A = %000sxxxx here: C = s, then drop s from bit 4
- AND #%00001111         \ and rotate it into bit 7 as the last shift, so
- ROR A                  \ A = %s0000xxx and C = the bit that goes into P,
- ROR P                  \ giving (A P) = +/- nosev_x / 16
-
-                        \ BBC Master port: ADD inlined as in the second half,
-                        \ computing (A P) + (S R) exactly as ADD does (same T1;
-                        \ T is dead), but storing straight into K(1 0) so X is never
-                        \ clobbered (Q is no longer written here: the callers
-                        \ do STX Q after their last call, giving the same Q)
-
- STA T1                 \ ADD's prologue: T1 = A, and jump to mvs5a if A and
- EOR S                  \ S have different signs (T is not needed: both paths
- BMI mvs5a              \ get the sign from T1 or the carry instead)
-
- LDA R                  \ Same signs (ADD's first path):
+                        \ Same signs (ADD's first path), A = R:
  CLC                    \
  ADC P                  \   K = R + P
  STA K                  \
@@ -6962,12 +6978,13 @@ ENDMACRO
 
  LDA INWK+1,Y           \ Fetch nosev_x_hi, store it in S (the high byte of the
  STA S                  \ subtraction below, fixed up for the borrow later),
- AND #%01111111         \ then clear the sign bit and divide by 2, so:
- LSR A                  \
-                        \ A = |nosev_x_hi| / 2 = |nosev_x| / 512
+ ORA #%10000001         \ then form ~(|nosev_x_hi| / 2) with C = 1 (hi OR &81,
+ LSR A                  \ LSR gives %01mmmmmm and C = 1, EOR &BF gives
+ EOR #%10111111         \ %11 + ~mmmmmm), where
+                        \ |nosev_x_hi| / 2 = |nosev_x| / 512
 
- EOR #&FF               \ Now we do the following subtraction:
- SEC                    \
+                        \ Now we do the following subtraction:
+                        \
  ADC INWK,Y             \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
  STA R                  \       = (1 - 1/512) * nosev_x
                         \
@@ -8116,10 +8133,15 @@ ENDMACRO
  EOR S                  \ Signs differ: use MU8
  BMI stl_b8
  BRA stl_b7             \ Same sign
-                        \ BBC Master port: stq_n, stq_z and stl_slow are placed
+                        \ BBC Master port: stq_z, stq_n and stl_slow are placed
                         \ here (after an unconditional BRA) so that the hot
                         \ branches BMI stq_n, BRA stq_q, BPL stl_same and BRA
-                        \ stl_done stay within their page
+                        \ stl_done stay within their page (stq_z, which is
+                        \ rarely taken, goes first so that stq_n starts in the
+                        \ same page as the BMI stq_n)
+.stq_z
+ STA P+1                \ A = 0: as MSZ, set P+1 = 0 (P is dead), A = 0
+ BRA stq_q
 .stq_n
  AND #%01111111         \ Inline MULTS-2, negative case: A = |A|
  BEQ stq_z              \ |A| = 0: (A P) = 0 via stq_z
@@ -8134,9 +8156,6 @@ ENDMACRO
  SBC SQ2H+&FF,X
  ORA #%10000000         \ Set the sign bit, as the argument was negative
  BRA stq_q
-.stq_z
- STA P+1                \ A = 0: as MSZ, set P+1 = 0 (P is dead), A = 0
- BRA stq_q
 .stl_slow
  STZ T                  \ ADD would have set T = sign of A = 0; T1, P, R, S
  JSR MU8                \ intact, so (A X) = (A P) + (S R) as at ADD's BMI MU8
@@ -8145,17 +8164,22 @@ ENDMACRO
  STA SXL,Y              \ x_lo = X (overwrites the provisional value)
  BRA stl_done
 .stl_b8z
- CPX #0                 \ High magnitude 0: X <> 0 -> |S R| > |A P|, so
- BNE stl_b8s            \ A = &80 EOR T via stl_b8s; else equal: A = T,
- LDA T                  \ X = 0 (as MU8's BEQ MU9 path)
- BRA stl_b8w
+ LDX R                  \ High magnitude 0: R = low byte of |S R| - |A P|; if
+ BNE stl_b8s            \ <> 0, |S R| > |A P|: A = &80 EOR T via stl_b8s; else
+                        \ equal: fall into stl_b8a, where MU8a gives X = 0,
+                        \ A = 0 EOR T = T (as MU8's BEQ MU9 path)
 .stl_b8a
- JSR MU8a               \ |S R| < |A P|: MU8's original way round
+ LDA R                  \ |S R| <= |A P|: restore R (R - P + P, the SBC P
+ CLC                    \ having had C = 1), then MU8's original way round
+ ADC P
+ STA R
+ JSR MU8a
+ STX R
  BRA stl_b8w
 .stl_b8
- LDA R                  \ Inline MU8 (signs differ): X = R - P (C = 1 from
- SBC P                  \ MLS1, which always returns with C set)
- TAX
+ LDA R                  \ Inline MU8 (signs differ): R = R - P (C = 1 from
+ SBC P                  \ MLS1, which always returns with C set), kept in R
+ STA R                  \ as the result's low byte (stl_b8a restores it)
  LDA S                  \ S, T1 have opposite signs, so A = &80 + (|S| - |T1|
  SBC T1                 \ - borrow) mod 256: N = 1 iff |S R| >= |A P|
  BPL stl_b8a
@@ -8164,10 +8188,9 @@ ENDMACRO
 .stl_b8s
  EOR T                  \ Sign of S (= T EOR &80), magnitude in bits 0-6
 .stl_b8w
- STA S                  \ BBC Master port: set (S R) = XX(1 0) = (A X) directly
- STX R                  \ (this is what MUT2 used to do from XX); neither XX
-.stl_b9                 \ nor XX+1 is read again before being rewritten, so
-                        \ neither is stored here
+ STA S                  \ BBC Master port: (S R) = XX(1 0) = (A R) directly
+.stl_b9                 \ (XX and XX+1 are not read again before being
+                        \ rewritten, so neither is stored here)
                         \
                         \   x = x - alpha * y / 256
 
@@ -33285,11 +33308,9 @@ INCLUDE "build/dashtab.asm"
 \
 \ Other entry points:
 \
-\   MLTU2-2             Set Q to X, so this calculates (A P+1 P) = (A ~P) * X
+\   MLTU2X              Set Q to X, so this calculates (A P+1 P) = (A ~P) * X
 \
 \ ******************************************************************************
-
- STX Q                  \ Store X in Q
 
 .MLTU2
 
@@ -33303,14 +33324,21 @@ INCLUDE "build/dashtab.asm"
                         \ same register, flag and memory state (Q unchanged,
                         \ X = 0, C clear, Z set and N clear as for X = 0). The V
                         \ flag is not preserved, but no caller relies on it
+                        \
+                        \ MLTU2X (formerly MLTU2-2) does the same with the
+                        \ multiplier in X, storing it in Q
+
+ LDX Q                  \ Set X = Q, which we use as the table index
+
+.MLTU2X
+
+ STX Q                  \ Store X in Q (a no-op when entered at MLTU2)
 
  STA MLU25+1            \ Patch the high byte of the multiplier (A) into the
  STA MLU27+1            \ A * Q look-ups below, and ~A into the SQ2 look-ups
  EOR #&FF
  STA MLU26+1
  STA MLU28+1
-
- LDX Q                  \ Set X = Q, which we use as the table index
 
  SEC                    \ Calculate A * Q, patching the low byte into the
 .MLU25                  \ operand at MLT2L+1 and the high byte into the

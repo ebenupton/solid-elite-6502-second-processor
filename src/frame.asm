@@ -2601,11 +2601,8 @@ MAXPT = 140             \ points per frame
  STA fbd_e+1
  LDA F_CVS,X
  TAX
-.fbd5
- INX                    \ segment X-1 -> X
-.fbd_e
- CPX #0                 \ patched: F_CVE of this curve
- BCS fbd6
+ BRA fbd5               \ loop test at the bottom
+.fbd4
  LDA F_PXL-1,X          \ segment start = point X-1
  STA sg_ax
  LDA F_PXH-1,X
@@ -2625,7 +2622,11 @@ MAXPT = 140             \ points per frame
  PHX
  JSR f_seg16
  PLX
- BRA fbd5
+.fbd5
+ INX                    \ segment X-1 -> X
+.fbd_e
+ CPX #0                 \ patched: F_CVE of this curve
+ BCC fbd4
 .fbd6
                         \ (a crater's full ellipse is closed; the meridians'
                         \ half ellipses go to f_merid instead)

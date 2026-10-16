@@ -1684,7 +1684,28 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .c1
   LDA r_ea
   JMP shallow1
-\ shallow: X = b, A = a
+\ b = 0: A = a  (falls into r_lz)
+.zloop
+.zloop1
+.^r_pzl1
+  STA r_lz_a+1
+  LDA RZ_T2
+  STA r_lz_e+1
+  LDY RZ_T3
+  LDA RZ_T0
+  CLC
+\ The DDA loops (Y = row, run to the patched end row)
+.^r_lz                    \ b = 0: A = x
+.^r_lz_t
+  STA &FFFF,Y
+  INY
+.^r_lz_a
+  ADC #0                  \ a (C = 0)
+.^r_lz_e
+  CPY #0
+  BCC r_lz
+  RTS
+\ shallow: X = b, A = a  (falls into r_lsh)
 .shallow
   STZ RZ_TA
 .shallow1
@@ -1700,18 +1721,27 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDY RZ_T3
   LDA RZ_T0
   CLC
-  JMP r_lsh
-\ b = 0: A = a
-.zloop
-.zloop1
-.^r_pzl1
-  STA r_lz_a+1
-  LDA RZ_T2
-  STA r_lz_e+1
-  LDY RZ_T3
-  LDA RZ_T0
-  CLC
-  JMP r_lz
+.^r_lsh                   \ |dx| >= dy: A = x, RZ_TA = error
+.^r_lsh_t
+  STA &FFFF,Y
+  INY
+  TAX
+  LDA RZ_TA
+.^r_lsh_b
+  SBC #0                  \ b - 1 (C = 0)
+  BCS lsh1
+.^r_lsh_d
+  ADC #0                  \ dy
+  INX
+.lsh1
+  STA RZ_TA
+  TXA
+.^r_lsh_a
+  ADC #0                  \ a - 1 (C = 1)
+.^r_lsh_e
+  CPY #0
+  BCC r_lsh
+  RTS
 }
 
 
@@ -1767,39 +1797,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STX r_v0
   JMP r_div8
 }
-
-\ The DDA loops (Y = row, run to the patched end row)
-.r_lsh                    \ |dx| >= dy: A = x, RZ_TA = error
-.r_lsh_t
-  STA &FFFF,Y
-  INY
-  TAX
-  LDA RZ_TA
-.r_lsh_b
-  SBC #0                  \ b - 1 (C = 0)
-  BCS lsh1
-.r_lsh_d
-  ADC #0                  \ dy
-  INX
-.lsh1
-  STA RZ_TA
-  TXA
-.r_lsh_a
-  ADC #0                  \ a - 1 (C = 1)
-.r_lsh_e
-  CPY #0
-  BCC r_lsh
-  RTS
-.r_lz                     \ b = 0: A = x
-.r_lz_t
-  STA &FFFF,Y
-  INY
-.r_lz_a
-  ADC #0                  \ a (C = 0)
-.r_lz_e
-  CPY #0
-  BCC r_lz
-  RTS
+  SKIP 6                  \ the two JMPs removed above: keeps later bank-5 addresses unchanged
 
 \ ----------------------------------------------------------------------------
 \ Phase B: rows RZ_Y.., RZ_SA of them; left table r_pbl1, right (exclusive)
