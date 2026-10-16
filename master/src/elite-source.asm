@@ -7160,19 +7160,13 @@ ENDIF
                         \         = (-beta * y_hi / 256) * (-beta * y_hi / 256)
                         \         = (beta * y / 256) ^ 2
 
- ASL P                  \ Double (A P), store the top byte in A and set the C
- ROL A                  \ flag to bit 7 of the original A, so this does:
- STA T                  \
-                        \   (T P) = (A P) << 1
-                        \         = 2 * (beta * y / 256) ^ 2
-
- LDA #0                 \ Set bit 7 in A to the sign bit from the A in the
- ROR A                  \ calculation above and apply it to T, so we now have:
- ORA T                  \
-                        \   (A P) = (A P) * 2
-                        \         = 2 * (beta * y / 256) ^ 2
-                        \
-                        \ with the doubling retaining the sign of (A P)
+ ASL P                  \ Double (A P), so (A P) = 2 * (beta * y / 256) ^ 2
+ ROL A                  \
+                        \ Port: MUT2 always returns A = 0 here (A = Q on entry
+                        \ so the sign is Q EOR Q = 0, and |Q| <= 15 as MULTS
+                        \ uses P AND 31, so Q^2 < 256), so the original's
+                        \ sign-preserving STA T : LDA #0 : ROR A : ORA T is a
+                        \ no-op (C = 0 and A, N, Z are the same; ADD rewrites T)
 
  JSR ADD                \ Call ADD to calculate:
                         \
