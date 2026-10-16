@@ -10684,19 +10684,16 @@ ENDMACRO
                         \ so we can subtract their absolute values and set the
                         \ sign to get the result
 
- LDA S                  \ Clear the sign (bit 7) in S and store the result in
- AND #%01111111         \ U, so U now contains |S|
- STA U
-
  LDA P                  \ Subtract the least significant bytes into X:
  SEC                    \
  SBC R                  \   X = P - R
  TAX
 
- LDA T1                 \ Restore the A of the argument (A P) from T1 and
- AND #%01111111         \ clear the sign (bit 7), so A now contains |A|
-
- SBC U                  \ Set A = |A| - |S|
+ LDA T1                 \ Port: A and S have opposite signs, so flipping the
+ EOR #%10000000         \ sign of T1 gives A the same bit 7 as S, and then
+                        \ (T1 EOR &80) - S - borrow = |A| - |S| - borrow
+ SBC S                  \ exactly, with the same C and V (V = 0) as before,
+                        \ without having to build |S| in U
 
                         \ At this point we have |A P| - |S R| in (A X), so we
                         \ need to check whether the subtraction above was the
