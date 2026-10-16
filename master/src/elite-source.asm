@@ -19289,25 +19289,24 @@ ENDMACRO
                         \
                         \   * Bit 7 of IRA will be read from the keyboard
 
+ LDY #%00001011         \ Set Y ready to restart the keyboard auto scan below
+
  STA VIA+&4F            \ Set 6522 System VIA output register ORA (SHEILA &4F)
                         \ to A, the key we want to scan for; bits 0-6 will be
                         \ sent to the keyboard, of which bits 0-3 determine the
                         \ keyboard column, and bits 4-6 the keyboard row
 
- LDY VIA+&4F            \ Read 6522 System VIA output register IRA (SHEILA &4F)
-                        \ into Y; bit 7 is the only bit that will have changed.
-                        \ If the key is pressed, then bit 7 will be set,
-                        \ otherwise it will be clear
+ BIT VIA+&4F            \ Read 6522 System VIA input register IRA (SHEILA &4F)
+                        \ so N is bit 7, which is set if the key is pressed;
+                        \ A still holds the key number with bit 7 clear
 
- LDA #%00001011         \ Set 6522 System VIA output register ORB (SHEILA &40)
- STA VIA+&40            \ to %00001011 to restart auto scan of keyboard
+ STY VIA+&40            \ Set 6522 System VIA output register ORB (SHEILA &40)
+                        \ to %00001011 to restart auto scan of keyboard (this
+                        \ doesn't affect the N flag)
 
  CLI                    \ Allow interrupts again
 
- TYA                    \ Transfer Y into A
-
- BMI Rd2                \ If the key was pressed then Y is negative, so jump to
-                        \ Rd2
+ BMI Rd2                \ If the key was pressed then N is set, so jump to Rd2
 
 .Rd3
 
@@ -19342,9 +19341,8 @@ ENDMACRO
                         \ into the table (X was initialised to 0 by the call to
                         \ ZEKTRAN above, and it keeps track of our progress
                         \ through the table between calls to Rd2)
-
- EOR #%10000000         \ The key in A is being pressed and the number of the
-                        \ key is in A with bit 7 set, so flip bit 7 back to 0
+                        \
+                        \ A already holds the key number with bit 7 clear
 
  STA KL                 \ Store the number of the key pressed in KL
 
