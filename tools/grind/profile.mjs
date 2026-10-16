@@ -31,7 +31,11 @@ const MAXSECS = +(args.maxsecs || 900);
 
 const syms = {};
 for (const m of readFileSync(SYMS, "latin1").matchAll(/'([^']+)':(\d+)L?/g)) syms[m[1]] = +m[2];
+// TITLE and its loop may have moved to bank 7 (cold7.asm: TITLE_7, titl1_7)
+const IN7 = syms.TITLE === undefined && syms.TITLE_7 !== undefined;
+if (IN7) { syms.TITLE = syms.TITLE_7; syms.titl1 = syms.titl1_7; }
 const TLOOP = syms.titl1 !== undefined ? "titl1" : "TLL2";
+const bankOK = () => !IN7 || (s._machine.processor.romsel & 15) === 7;
 for (const k of ["TT100", "TITLE", TLOOP]) if (syms[k] === undefined) throw new Error(`symbol ${k} not found in ${SYMS}`);
 
 const s = new MachineSession("Master");
@@ -62,8 +66,8 @@ const handler = pc => {
         for (const sc of active) { sc.pcs.set(lastKey, (sc.pcs.get(lastKey) || 0) + d); sc.total_cycles += d; }
     }
     lastCyc = now;
-    if (pc === syms.TITLE && TITLE && !titleSeen) { titleSeen = titleOn = true; active.push(mk("title")); }
-    if (pc === syms[TLOOP] && titleOn) scen.title.iterations++;
+    if (pc === syms.TITLE && TITLE && !titleSeen && bankOK()) { titleSeen = titleOn = true; active.push(mk("title")); }
+    if (pc === syms[TLOOP] && titleOn && bankOK()) scen.title.iterations++;
     if (pc === syms.TT100) {
         if (titleOn) { titleOn = false; active.splice(active.indexOf(scen.title), 1); }
         it++;
