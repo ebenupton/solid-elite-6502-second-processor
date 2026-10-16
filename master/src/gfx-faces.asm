@@ -139,7 +139,7 @@ FC_PLANE = &05 : FC_PLANO = &5A
 .FC_S2_D
  EQUB 0                       \ fins
  EQUB 1                       \ details
- EQUB 30, &00, &FF, &FF, 4, 60, 56, 52, 48    \ poly [15, 14, 13, 12], colour 10
+ EQUB 30, &00, &00, &00, 4, 60, 56, 52, 48    \ poly [15, 14, 13, 12], colour 34
 
 \ Escape pod (type 3): hues grey + red
 .FC_S3_F
@@ -700,7 +700,7 @@ FC_PLANE = &05 : FC_PLANO = &5A
 .FC_S33_D
  EQUB 0                       \ fins
  EQUB 1                       \ details
- EQUB 20, &00, &50, &0A, 4, 88, 92, 84, 80    \ poly [22, 23, 21, 20], colour 27
+ EQUB 20, &00, &00, &00, 4, 88, 92, 84, 80    \ poly [22, 23, 21, 20], colour 34
 
 .FC_MINVIS                     \ by type: least visibility distance of any polygon vertex;
                               \ if XX4 > this, some polygon vertex may be unprojected (stale)

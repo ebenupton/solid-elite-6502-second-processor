@@ -836,7 +836,7 @@ def colour_ship(t, s, seed=1, iters=40000):
     s['soft_adj'] = [(orb[a], orb[b]) for a, b in (tuple(p) for p in soft_adj)]
     # details: polygons in the colour (of the ship's two ramps or black) that
     # contrasts most with their face
-    cands = sorted(set(RAMPS[hA] + RAMPS[hB] + ([BLACK] if t == 8 else [])))   # black: the docking slot
+    cands = sorted(set(RAMPS[hA] + RAMPS[hB] + ([BLACK] if t in (2, 33) else [])))   # black: the docking slot
     for d in s['dets']:
         f = d['faces'][0]
         if d['kind'] == 'poly':
