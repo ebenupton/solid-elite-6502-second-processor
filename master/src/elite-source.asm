@@ -8967,6 +8967,9 @@ ENDIF
  JSR TT66               \ and set the current view type in QQ11 to 0 (space
                         \ view)
 
+ LDA #&FF               \ Port: the hangar's ships are drawn directly, not
+ STA GFORCE             \ recorded for the renderer (GFORCE, gfx-gstubs.asm)
+
  JSR DORND              \ Set A and X to random numbers
 
  BPL HA7                \ Jump to HA7 if A is positive (50% chance)
@@ -9085,6 +9088,8 @@ ENDIF
 
  STY HANGFLAG           \ Store Y in HANGFLAG to specify whether there are
                         \ multiple ships in the hangar
+
+ STZ GFORCE             \ Port: back to recording (the ships are drawn)
 
  JMP HANGER             \ Call HANGER to draw the hangar background and return
                         \ from the subroutine using a tail call
