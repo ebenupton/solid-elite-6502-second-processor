@@ -98,7 +98,8 @@ export function regionsFor(sy) {
         [0x0000, sy.NOSTM + 1 - 0x0000, "ZP"],                  // zero page game variables (&00-&E3)
         [sy["K%"], 0x0800 - sy["K%"], "K%"],                    // ship data blocks + ship line heap (down from &0800)
         [sy.WP, sy.JOPOS + 3 - sy.WP, "WP"],                    // FRIN, flight variables, sun/planet heaps, stardust, commander (NAME..SVC), JOPOS
-        [sy.UP, sy["S%"] - sy.UP, "UP"],                        // configuration (COMC..VOL, TGINT)
+        [sy.UP, sy.VOL + 1 - sy.UP, "UP"],                      // configuration (COMC..VOL; up to Stage B also the
+                                                                // constant TGINT, which then moved away from S%)
         [sy["NA%"], sy["NAEND%"] - sy["NA%"], "NA%"],           // last saved commander (template) and checksums
         [sy.SOFLG, sy.SFXPR - sy.SOFLG, "SOUND"],               // sound buffers (written by the IRQ)
     ];
