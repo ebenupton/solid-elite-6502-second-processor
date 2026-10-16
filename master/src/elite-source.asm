@@ -10615,7 +10615,15 @@ ENDMACRO
 
 .MAD
 
- JSR MULT1              \ Call MULT1 to set (A P) = Q * A
+ LDX Q                  \ If |Q| = 0, i.e. Q = 0 or &80, then Q * A = 0, so
+ BEQ mad2               \ skip MULT1 (whose other effects, X, T and the flags,
+ CPX #%10000000         \ ADD overwrites) and fall into ADD with (A P) = 0,
+ BNE mad1               \ otherwise jump to mad1 to call MULT1
+
+.mad2
+
+ STZ P                  \ Set (A P) = 0
+ LDA #0
 
                         \ Fall through into ADD to do:
                         \
@@ -10672,6 +10680,12 @@ ENDMACRO
                         \ (which we stored in T)
 
  RTS                    \ Return from the subroutine
+
+.mad1
+
+ JSR MULT1              \ |Q| <> 0: set (A P) = Q * A
+
+ BRA ADD                \ Jump to ADD to set (A X) = (A P) + (S R)
 
 .MU8
 
