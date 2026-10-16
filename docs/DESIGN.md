@@ -135,8 +135,11 @@ Back-buffer render order (buffer b, two frames old):
     intact and black where something old is no longer covered;
  4. ships far-to-near (filled convex faces), lines, particles -> extend the new
     dirty extents (per row [min x, max x] in pixels);
- 5. stars (only on black pixels; positions remembered per buffer);
- 6. text overlay (cells whose content changed or whose pixels were overwritten);
+ 5. text overlay (cells whose content changed or whose pixels were overwritten),
+    laser sights;
+ 6. stars, last (only on black pixels; positions remembered per buffer; as
+    nothing is drawn after them, erasing them next time just restores black
+    and needs no text redraw);
  7. flip request.
 Clip window for fills: x 1..254, y 1..191 (the border box at x=0, x=255, y=0 is
 never touched).

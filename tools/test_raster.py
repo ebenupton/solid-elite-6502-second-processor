@@ -726,6 +726,7 @@ class Tester:
         curves = [newcurve() for _ in range(rnd.randrange(0, 5))]
         eq = rnd.uniform(-rad, rad)
         drawn_cols = [None, None]
+        oldstars = [set(), set()]
         m.wr('R_NDF', 0)
         for f in range(nframes):
             b = f & 1
@@ -900,10 +901,11 @@ class Tester:
                         mm = 0x88 >> p
                         if (got[a] ^ old[a]) & mm:
                             ok = (wl2[y][1] and wl2[y][0] <= x <= wl2[y][1]) or (dirt[y][0] <= x <= dirt[y][1]) \
-                                or (x, y) in starpix or (x, y) in lxpix
+                                or (x, y) in starpix or (x, y) in lxpix or (x, y) in oldstars[b]
                             if not ok:
                                 raise AssertionError('frame %d: pixel %d,%d changed outside WL/DIRTY' % (f, x, y))
             bufs[b] = got
+            oldstars[b] = starpix       # erased next time on this buffer (no WL/WR needed)
             self.stat('starerase', cyc_e)
             self.stat('starplot', (len(stars), cyc_p))
             # move the disc

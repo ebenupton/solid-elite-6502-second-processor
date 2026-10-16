@@ -656,9 +656,10 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_ships            \ filled ships, far to near
  JSR f_dots             \ particles, distant ships
  JSR f_lasers           \ our laser beams and the sights
- JSR f_stars            \ stardust, on black only
  JSR f_text2            \ text on top
  JSR f_sight2           \ and the sights
+ JSR f_stars            \ stardust, on black only (last: erasing it next
+                        \ time restores black, so it needs no WL/WR)
 
  FOR z, &06, &27         \ restore the zero page
   LDA f_zsave + z - &06

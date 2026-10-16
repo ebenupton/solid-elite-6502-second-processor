@@ -90,8 +90,9 @@
 \ R_STARPLOT   plot stars R_SX/SY/SS (R_SN of them) in R_SCOL.  A star row's
 \              pixels within one screen byte are set only if all of them are
 \              black there (else that byte is left alone); remembered for
-\              R_STARERASE.  Plotted stars are not added to R_WL/R_WR (they
-\              only ever replace black and precede the text overlay).
+\              R_STARERASE.  It must be the frame's last drawing (after the
+\              text overlay): stars then only ever replace black that stays
+\              black, so neither plotting nor erasing them touches R_WL/R_WR.
 \ R_DISCROWS   the incremental disc layer for the current buffer (see below).
 \ R_MARKDIRTY  Y = row, extend this buffer's DIRTY[y] by R_XL..R_XR (use it
 \              for anything else drawn into the buffer, e.g. text, so the next
@@ -99,7 +100,7 @@
 \ R_WMERGE     fold DIRTY of the current buffer into R_WL/R_WR (optional).
 \
 \ Frame order for buffer b:  R_SETBUF b; R_STARERASE; (fill R_NDISC*, R_NDT,
-\ R_NDB, R_DCE/R_DCO) R_DISCROWS; R_POLY/R_LINE/R_DOT ...; R_STARPLOT; text.
+\ R_NDB, R_DCE/R_DCO) R_DISCROWS; R_POLY/R_LINE/R_DOT ...; text; R_STARPLOT.
 \
 \ R_DISCROWS first hands the dirty rows that are neither old nor new disc rows
 \ to bank 7 (r7_crep): those rows hold only shapes over black there (text
@@ -113,8 +114,8 @@
 \ bytes between the old and new end are rewritten whole (black / disc / disc
 \ from the new end on): pixels outside the disc there are black anyway.  It
 \ also starts the frame's R_WL/R_WR (clearing last frame's rows): afterwards
-\ they hold, per row, the extent of the disc-layer writes and of the star
-\ bytes erased.  Shapes are NOT added to R_WL/R_WR: what was written this
+\ they hold, per row, the extent of the disc-layer writes (and of the
+\ dirty repair).  Shapes are NOT added to R_WL/R_WR: what was written this
 \ frame is R_WL/R_WR[y] union DIRTY[b][y] (or call R_WMERGE at the end).
 \ Rows of R_NDISCL/R in NDT..NDB with NDISCL = 255 (or L > R) are empty;
 \ spans are clamped to the clip window.
@@ -781,12 +782,6 @@ r_bdx3 = R_BDX30
   LDA r_sbh_s0b,X          \ group r_s0b
   STA r_pt33+2
   STA r_pt37+2
-  LDA r_sbh_s0k,X          \ group r_s0k
-  STA r_pt29+2
-  STA r_pt77+2
-  LDA r_sbh_s0r,X          \ group r_s0r
-  STA r_pt28+2
-  STA r_pt76+2
   LDA r_sbh_s0x,X          \ group r_s0x
   STA r_pt31+2
   STA r_pt35+2
@@ -2509,27 +2504,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JSR r_dla
 .stars
 .^r_dstars
-  JSR r_cwb5
-  \ erased star bytes -> WL/WR (row and columns from the byte address)
-  LDX r_buf
-  LDA r_ecnt,X
-  STA r_k
-  STZ r_ecnt,X
-  LDX #0
-.ml
-  CPX r_k
-  BCS mdone
-  STX r_si
-.^r_pt28 LDY r_s0r,X      \ row
-.^r_pt29 LDA r_s0k,X      \ first pixel: pixels it .. it + 1
-  TAX
-  INX
-  JSR r_wlu
-  LDX r_si
-  INX
-  BRA ml
-.mdone
-  RTS
+  JMP r_cwb5              \ (erased stars need no WL/WR: R_STARPLOT comes last)
 }
 
 
@@ -4251,7 +4226,6 @@ ENDMACRO
 {
   LDX r_buf
   LDA r_scnt,X
-  STA r_ecnt,X
   STA r_k
   STZ r_scnt,X
   LDX #0
@@ -4461,10 +4435,6 @@ ENDMACRO
 .^r_pt35 STA r_s0x,X
   LDA RZ_T0
 .^r_pt36 STA r_s0a,X
-  LDA RZ_SA+1
-.^r_pt76 STA r_s0r,X      \ row
-  LDA RZ_SA               \ first pixel (the star's pixels: it and the next)
-.^r_pt77 STA r_s0k,X
   INC r_k
 .o2
   RTS
