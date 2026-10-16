@@ -15,10 +15,6 @@
  JSR far7
  EQUW MCASH_C
 
-.TT162
- JSR far7
- EQUW TT162_C
-
 .TT167
  JSR far7
  EQUW TT167_C
@@ -43,42 +39,6 @@
  JSR far7
  EQUW tnpr1_C
 
-.var
- JSR far7
- EQUW var_C
-
-.DETOK
- JSR far7
- EQUW DETOK_C
-
-.MT13
- JSR far7
- EQUW MT13_C
-
-.MT14
- JSR far7
- EQUW MT14_C
-
-.MT15
- JSR far7
- EQUW MT15_C
-
-.MT2
- JSR far7
- EQUW MT2_C
-
-.PDESC
- JSR far7
- EQUW PDESC_C
-
-.TT27
- JSR far7
- EQUW TT27_C
-
-.TT68
- JSR far7
- EQUW TT68_C
-
 .cpl
  JSR far7
  EQUW cpl_C
@@ -87,14 +47,6 @@
  JSR far7
  EQUW ex_C
 
-.plf
- JSR far7
- EQUW plf_C
-
-.DOXC
- JSR far7
- EQUW DOXC_C
-
 .HME2
  JSR far7
  EQUW HME2_C
@@ -102,10 +54,6 @@
 .STATUS
  JSR far7
  EQUW STATUS_C
-
-.TRADEMODE2
- JSR far7
- EQUW TRADEMODE2_C
 
 .TT103
  JSR far7
@@ -139,10 +87,6 @@
  JSR far7
  EQUW TT25_C
 
-.TT67
- JSR far7
- EQUW TT67_C
-
 .ping
  JSR far7
  EQUW ping_C
@@ -175,33 +119,9 @@
  JSR far7
  EQUW getzp_C
 
-.setzp
- JSR far7
- EQUW setzp_C
-
 .TT170
  JSR far7j
  EQUW TT170_C
-
-.BRIEF
- JSR far7
- EQUW BRIEF_C
-
-.BRIEF2
- JSR far7
- EQUW BRIEF2_C
-
-.BRIEF3
- JSR far7
- EQUW BRIEF3_C
-
-.DEBRIEF
- JSR far7
- EQUW DEBRIEF_C
-
-.DEBRIEF2
- JSR far7
- EQUW DEBRIEF2_C
 
 .DKS3
  JSR far7
