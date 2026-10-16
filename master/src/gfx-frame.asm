@@ -626,6 +626,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JMP f_reset            \ not a space view: just forget what was recorded
 
 .ff1
+ JSR L_SUN              \ the light for the next iteration's ships (gfx-light.asm,
+                        \ main RAM: game context, before ACCCON X is set below)
 
  \ save the zero page the rasteriser uses (&06-&27) and the frame layer's
  \ (&D2-&E1), unrolled

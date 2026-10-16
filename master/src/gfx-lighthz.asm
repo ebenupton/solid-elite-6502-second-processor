@@ -10,7 +10,8 @@
 \   thresholds t < a yellow, < b cyan, < c magenta, the rest black.
 \ LT_HL0..3[n] (n = 0..16): row r's mask m of pixels with threshold < n as
 \   m << 4 OR m: row byte = H[a] EOR H[c] EOR HL[b], H = HL AND &F0.
-\ LT_FIX[k]: the unlit colours (black, cyan, magenta, yellow) as MODE 1 bytes.
+\ LT_FIX[k] (in HAZEL): the unlit colours (black, cyan, magenta, yellow) as
+\   MODE 1 bytes.
 \ (The unit face normals, magnitude 61, are in gfx-faces.asm's face lists.)
 
 .LT_P1                         \ gold
@@ -53,3 +54,5 @@
  EQUB &42, &24, &42, &43, &62, &44, &62, &63, &64, &64, &83, &65, &83, &84, &A3, &A4
  EQUB &1C, &1C, &20, &20, &24, &24, &25, &28, &29, &29, &2D, &2D, &2D, &31, &31, &31
  EQUB &31, &35, &35, &35, &35, &39, &39, &39, &39, &3D, &3D, &41, &41, &41, &41, &41
+.LT_FIX
+ EQUB &00, &0F, &F0, &FF

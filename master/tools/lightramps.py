@@ -314,7 +314,8 @@ def emit_light(path6, pathhz):
             '\\   thresholds t < a yellow, < b cyan, < c magenta, the rest black.',
             '\\ LT_HL0..3[n] (n = 0..16): row r\'s mask m of pixels with threshold < n as',
             '\\   m << 4 OR m: row byte = H[a] EOR H[c] EOR HL[b], H = HL AND &F0.',
-            '\\ LT_FIX[k]: the unlit colours (black, cyan, magenta, yellow) as MODE 1 bytes.',
+            '\\ LT_FIX[k] (in HAZEL): the unlit colours (black, cyan, magenta, yellow) as',
+            '\\   MODE 1 bytes.',
             '\\ (The unit face normals, magnitude %d, are in gfx-faces.asm\'s face lists.)' % NSC,
             '']
 
@@ -335,13 +336,13 @@ def emit_light(path6, pathhz):
     for r in range(4):
         L6.append('.LT_HL%d' % r)
         eb(L6, [rowmask(r, n) << 4 | rowmask(r, n) for n in range(17)], 17)
-    L6.append('.LT_FIX')
-    eb(L6, FIXED_BYTE)
     for i in range(NRAMP6):
         ramp(L6, i)
     LH = [h % 'gfx-lighthz.asm' if '%s' in h else h for h in head]
     for i in range(NRAMP6, NRAMP):
         ramp(LH, i)
+    LH.append('.LT_FIX')
+    eb(LH, FIXED_BYTE)
     open(path6, 'w').write('\n'.join(L6) + '\n')
     open(pathhz, 'w').write('\n'.join(LH) + '\n')
 
