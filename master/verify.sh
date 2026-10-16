@@ -59,6 +59,14 @@ if [ $CST -ne 0 ] || ! grep -q "^MCOMPARE PASS" "$LOG/compare.log"; then
 fi
 grep "Game state identical" "$LOG/compare.log"
 echo "compare: PASS"
+# ---- 4. regressions with real key presses: dock, launch, dock again (the
+# hangar's ships once wrote over the low code); save, load, a load error,
+# catalogue (the disc glue)
+node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
+grep -E "^docking|^REDOCK" "$LOG/redock.log"
+grep -q "^REDOCK PASS" "$LOG/redock.log" || { echo "redock: FAIL"; fail redock; }
+node harness/msavetest.mjs --out "$LOG/save" > "$LOG/save.log" 2>&1 || { tail -5 "$LOG/save.log"; echo "savetest: FAIL"; fail savetest; }
+echo "regressions: PASS (redock, savetest)"
 ALL=$(grep -E "^ +all " "$LOG/compare.log")
 echo "speed (flight it/s, ref cand cand/ref): $ALL"
 set -- $ALL

@@ -9159,7 +9159,7 @@ ENDIF
                         \ are negative
 
  LDA #&0B               \ Set the ship line heap pointer in INWK(34 33) to point
- STA INWK+34            \ to &0B00
+ STA INWK+34            \ to &0B00 (Port: HANGHEAP during LL9, below)
 
  JSR DORND              \ We now perform a random number of small angle (3.6
  STA XSAV               \ degree) rotations to spin the ship on the deck while
@@ -9231,8 +9231,26 @@ ENDIF
                         \ shape due to the imprecise nature of trigonometry
                         \ in assembly language
 
- JMP LL9                \ Jump to LL9 to display the ship and return from the
-                        \ subroutine using a tail call
+ LDA #HI(HANGHEAP)      \ Port: the line heap at HANGHEAP while LL9 draws
+ STA INWK+34
+
+ JSR LL9                \ Display the ship (Port: JSR, not a tail call, so that
+                        \ the heap pointer can be put back below)
+
+ LDA #&0B               \ Port: leave INWK(34 33) = &0B00, as the original does
+ STA INWK+34
+
+ RTS                    \ Return from the subroutine
+
+                        \ Port: the hangar's ships are drawn directly (GFORCE,
+                        \ HALL), so LL9 writes their line heaps. The original's
+                        \ &0B00 holds the port's low code (DOCKIT and the
+                        \ tactics helpers, elite-low.asm), which those writes
+                        \ wrecked, so the heap goes in the rasteriser's HAZEL
+                        \ scratch instead, unused while docked (and not DFS's
+                        \ lasting state, docs/MASTER-MEMORY.md)
+
+HANGHEAP = &C000
 
 .HA1
 
