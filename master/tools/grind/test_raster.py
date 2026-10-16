@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""Soak test for the full Master port's rasteriser (master/src/gfx-raster*.asm).
+
+A thin adapter over the demo port's tools/test_raster.py (its pixel-exact Python
+reference, py65 65C02, the write guard and every test), pointed at the Master files:
+
+  * the wrapper assembles gfx-raster_scr.asm at &C000 (the per-call scratch: vertices,
+    line ends, R_COL2/R_COL3, the edge tables), gfx-raster_vars.asm at its real base
+    (RVBASE, &C8B5 - &182: the laser-sight rows must not cross a page), the HAZEL
+    &DC40 block that elite-gfx.asm defines (R_WL, R_WR, R_NDN, the stars), the
+    cross-bank stubs gfx-raster_hz.asm at &DF00, gfx-raster.asm at --org (bank 5) and
+    gfx-raster7.asm at &8000 (bank 7);
+  * the write guard allows exactly those areas (plus the renderer's zero page, the
+    stack and the screen, as before);
+  * R_POLY's 4-row colour: every polygon is drawn with R_COL2 = R_COLE and
+    R_COL3 = R_COLO, the 2-row colour pair the reference models (gfx-raster.asm's
+    header: "set R_COL2 = R_COLE and R_COL3 = R_COLO for a 2-row colour pair").  The
+    4-row dither itself is not checked here.
+
+    python3 master/tools/grind/test_raster.py [--seed N] [--quick] [--org HEX] [--only x,y]
+
+Run from anywhere; needs py65 and <repo>/tools/beebasm.  Exit status 0 only if every
+test passes.
+"""
+import os, re, subprocess, sys, tempfile, shutil
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+sys.path.insert(0, os.path.join(REPO, 'tools'))
+sys.dont_write_bytecode = True
+import test_raster as tr                         # noqa: E402  (the demo's test)
+
+TREE = os.path.abspath(os.environ.get('GRIND_TREE', REPO))     # the tree whose rasteriser is tested
+MS = os.path.join(TREE, 'master', 'src')
+tr.SRC = os.path.join(MS, 'gfx-raster.asm')
+tr.SRCV = os.path.join(MS, 'gfx-raster_vars.asm')
+tr.SRCH = os.path.join(MS, 'gfx-raster_hz.asm')
+tr.SRC7 = os.path.join(MS, 'gfx-raster7.asm')
+SRCS = os.path.join(MS, 'gfx-raster_scr.asm')
+GFX = os.path.join(MS, 'elite-gfx.asm')
+SCR = 0xC000
+tr.VARS = 0xC8B5 - 0x182
+tr.HZ = 0xDF00
+
+
+def gfx_constants():
+    """elite-gfx.asm's constants (MCB, banks, sizes), defined before its first CLEAR"""
+    out = ['HOMEBANK = 4']
+    for l in open(GFX).read().split('\n'):
+        if re.match(r'\s*CLEAR\b', l):
+            break
+        if re.match(r'^[A-Z_][A-Z0-9_]*\s*=', l):
+            out.append(l)
+    return '\n'.join(out)
+
+
+def dc40_block():
+    """elite-gfx.asm's `ORG &DC40` block (the rasteriser's HAZEL state there), as text"""
+    t = open(GFX).read().split('\n')
+    i = next(n for n, l in enumerate(t) if re.match(r'\s*ORG\s+&DC40', l))
+    out = []
+    for l in t[i:]:
+        if l.startswith('.HZ_END2'):
+            break
+        out.append(l)
+    return '\n'.join(out)
+
+
+def assemble(org):
+    base = os.path.join(REPO, 'scratch', 'raster')
+    os.makedirs(base, exist_ok=True)
+    d = tempfile.mkdtemp(prefix='mraster_', dir=base)
+    w = os.path.join(d, 'w.asm')
+    with open(w, 'w') as f:
+        f.write(gfx_constants() + '\n')
+        f.write('ORG &%X\nINCLUDE "%s"\n.r_scr_end\n' % (SCR, SRCS))
+        f.write('ORG &%X\nINCLUDE "%s"\n.r_vars_end\n' % (tr.VARS, tr.SRCV))
+        f.write(dc40_block() + '\n.r_dc_end\n')
+        f.write('ORG &%X\nINCLUDE "%s"\n.r_hz_end\n' % (tr.HZ, tr.SRCH))
+        f.write('ORG &%X\nINCLUDE "%s"\n' % (org, tr.SRC))
+        f.write('SAVE "r.bin", &%X, P%%\n' % org)
+        f.write('CLEAR &8000, &C000\nORG &8000\nINCLUDE "%s"\nSAVE "r7.bin", &8000, P%%\n' % tr.SRC7)
+        f.write('SAVE "h.bin", &%X, r_hz_end\n' % tr.HZ)
+    r = subprocess.run([tr.BEEBASM, '-i', w, '-d', '-labels', os.path.join(d, 'w.lab')],
+                       cwd=d, capture_output=True, text=True)
+    if r.returncode != 0 or 'error' in r.stdout.lower():
+        print(r.stdout, r.stderr)
+        raise SystemExit('assembly failed')
+    txt = open(os.path.join(d, 'w.lab')).read()
+    syms = {k: int(v) for k, v in re.findall(r"'([^']+)':(-?\d+)L?", txt)}
+    data = open(os.path.join(d, 'r.bin'), 'rb').read()
+    data7 = open(os.path.join(d, 'r7.bin'), 'rb').read()
+    datah = open(os.path.join(d, 'h.bin'), 'rb').read()
+    msg = [l for l in r.stdout.splitlines() if l.startswith('raster')]
+    shutil.rmtree(d, ignore_errors=True)
+    return syms, (data, data7, datah), ('; '.join(msg))
+
+
+class Machine(tr.Machine):
+    def check_writes(self, snap, name):
+        mem, s = self.mem, self.syms
+        allowed = sorted([(0x06, 0x28), (tr.ROMSELCOPY, tr.ROMSELCOPY + 1), (0x100, 0x200),
+                          (tr.SCR0, tr.SCR1), (self.lo, self.hi),
+                          (SCR, s['r_scr_end']), (tr.VARS, s['r_vars_end']),
+                          (0xDC40, s['r_dc_end']), (tr.HZ, s['r_hz_end']),
+                          (tr.ROMSEL, tr.ROMSEL + 1)])
+        a0 = 0
+        for lo, hi in allowed + [(0x10000, 0x10000)]:
+            if a0 < lo and mem[a0:lo] != snap[a0:lo]:
+                for a in range(a0, lo):
+                    if mem[a] != snap[a]:
+                        raise AssertionError('%s wrote &%04X' % (name, a))
+            a0 = max(a0, hi)
+        w0 = s.get('r_wcrun')
+        if w0 is not None and mem[w0:w0 + 3 * 193 + 1] != snap[w0:w0 + 3 * 193 + 1]:
+            raise AssertionError('%s left r_wcrun modified' % name)
+        r0 = s['r_run0']
+        for r in range(24):
+            b = r0 + 256 * r
+            if mem[b:b + 190] != snap[b:b + 190]:
+                raise AssertionError('%s left run %d modified' % (name, r))
+
+
+def set_col(self, ce, co):
+    self.m.wzp('R_COLE', ce)
+    self.m.wzp('R_COLO', co)
+    self.m.wr('R_COL2', ce)          # a 2-row colour pair in R_POLY's 4-row colour
+    self.m.wr('R_COL3', co)
+
+
+tr.assemble = assemble
+tr.Machine = Machine
+tr.Tester.set_col = set_col
+
+if __name__ == '__main__':
+    tr.main()
