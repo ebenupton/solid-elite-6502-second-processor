@@ -3616,80 +3616,17 @@ NEXT
   BRA nx
 }
 
-\ r_dp2: X = row, dirty empty, disc changed.  The old disc is intact, so
-\ when the bytes between each old and new end lie inside the window and the
-\ two ends' bytes are apart, those bytes are simply rewritten (black, disc,
-\ or the disc masked at the new end) without reading the screen.  Otherwise
-\ r_drg.
-.r_dp2g
-  TXA
-  TAY
-  JMP r_drg
+\ r_dp2: X = row, dirty empty, disc changed (one colour, R_DCE / R_DCO by
+\ row parity).  The old span is intact, so only the difference between it
+\ and the new one is written: pixels in the new span but not the old take
+\ the disc colour, pixels in the old but not the new go black, each piece by
+\ r_sw (masked at its end bytes, so the pieces can share bytes, and the
+\ window's border columns keep their pixels).  At most two pieces: the two
+\ ends' strips when the spans overlap, else the old span and the new one.
+\ R_WL/R_WR = the bytes written (none: left as they are).
 .r_dp2
 {
   STX RZ_Y
-.^r_pt50 LDA r_sl,X
-  STA RZ_T0               \ oL
-  LDA R_NDISCL,X          \ (clamped to the window)
-  CMP R_CL
-  BCS c0
-  LDA R_CL
-.c0
-  STA RZ_T2               \ nL
-  CMP RZ_T0
-  BCC l1
-  LDY RZ_T0               \ Y = min L, A = max L
-  BRA l2
-.l1
-  TAY
-  LDA RZ_T0
-.l2
-  STY RZ_T6
-  ORA #3
-  STA RZ_T4               \ last pixel of the left ends' bytes
-.^r_pt51 LDA r_sr,X
-  STA RZ_T1               \ oR
-  LDA R_NDISCR,X
-  CMP R_CR
-  BCC c1
-  LDA R_CR
-.c1
-  STA RZ_T3               \ nR
-  CMP RZ_T1
-  BCC r1
-  TAY                     \ Y = max R, A = min R
-  LDA RZ_T1
-  BRA r2
-.r1
-  LDY RZ_T1
-.r2
-  STY RZ_T7
-  CMP RZ_T4
-  BEQ r_dp2g
-  BCC r_dp2g                 \ ends' bytes meet (or a span is empty)
-  AND #&FC
-  STA RZ_COL              \ first pixel of the right ends' bytes
-  LDA RZ_T2               \ a moving end's bytes must lie in the window
-  CMP RZ_T0
-  BEQ ok1
-  LDA RZ_T6
-  AND #&FC
-  CMP R_CL
-  BCC r_dp2g
-.ok1
-  LDA RZ_T3
-  CMP RZ_T1
-  BEQ ok
-  LDA RZ_T7
-  ORA #3
-  CMP R_CR
-  BEQ ok
-  BCS r_dp2g
-.ok
-  LDA RZ_T2
-.^r_pt53 STA r_sl,X
-  LDA RZ_T3
-.^r_pt52 STA r_sr,X
   TXA                     \ row pointers
   AND #7
   STA RZ_PA
@@ -3708,208 +3645,131 @@ NEXT
   BCC ev
   LDA R_DCO
 .ev
-  STA RZ_T5               \ disc colour of this row (both ends)
-  STA r_dcr
-  \ left end
-  LDA RZ_T6
-  AND #&FC
+  STA RZ_T5               \ the row's disc colour
+  LDA #&FF
   STA r_wmin
+  STZ r_wmax
+.^r_pt50 LDA r_sl,X
+  STA RZ_T0               \ oL
+.^r_pt51 LDA r_sr,X
+  STA RZ_T1               \ oR
+  LDA R_NDISCL,X          \ nL, nR: clamped to the window (empty: 255, 0)
+  CMP R_CL
+  BCS c0
+  LDA R_CL
+.c0
+  STA RZ_T2
+  LDA R_NDISCR,X
+  CMP R_CR
+  BCC c1
+  LDA R_CR
+.c1
+  STA RZ_T3
+  CMP RZ_T2
+  BCS c2
+  LDA #&FF
+  STA RZ_T2
+  STZ RZ_T3
+.c2
   LDA RZ_T2
-  CMP RZ_T0
-  BEQ lsame
-  LDX RZ_T2               \ the new end's byte: disc from nL on
-  LDA r_lm,X
-  AND RZ_T5
-  LDY r_xo,X
-  CPX #&80
-  BCS lb1
-  STA (RZ_PA),Y
-  BRA lb2
-.lb1
-  STA (RZ_PB),Y
-.lb2
-  LDA RZ_T2
-  EOR RZ_T0
-  CMP #4
-  BCC right
-  LDA RZ_T6               \ adjacent bytes?
-  AND #&FC
-  ADC #6                  \ (C = 1)
-  CMP RZ_T4
-  BNE lfar
-  LDA RZ_T2               \ the old end's byte is next to it
-  CMP RZ_T0
-  LDX RZ_T0
-  LDA #0                  \ shrinking: that byte black
-  BCS lnb
-  LDA RZ_T5               \ growing: all disc
-.lnb
-  JSR r_bput
-  BRA right
-.lfar
-  LDA RZ_T2               \ and the bytes up to the old end
-  CMP RZ_T0
-  BCC lgrow
-  SBC #4                  \ shrinking: black oL .. nL-4
-  STA r_fe
-  LDX RZ_T0
-  LDA #0
-  BRA lfill
-.lgrow
-  ADC #4                  \ growing: disc nL+4 .. oL
-  TAX
-  LDA RZ_T0
-  STA r_fe
-  LDA RZ_T5
-.lfill
-  JSR r_fill
-  BRA right
-.lsame
-  LDA RZ_COL
-  STA r_wmin
-.right
-  LDA RZ_T7
-  ORA #3
-  STA r_wmax
+.^r_pt53 STA r_sl,X
   LDA RZ_T3
-  CMP RZ_T1
-  BEQ rsame
-  LDX RZ_T3               \ the new end's byte: disc up to nR
-  LDA r_rm,X
-  AND r_dcr
-  LDY r_xo,X
-  CPX #&80
-  BCS rb1
-  STA (RZ_PA),Y
-  BRA rb2
-.rb1
-  STA (RZ_PB),Y
-.rb2
-  LDA RZ_T3
-  EOR RZ_T1
-  CMP #4
-  BCC fin
-  LDA RZ_T7               \ adjacent bytes?
-  ORA #3
-  SBC #7                  \ (C = 1)
-  CMP RZ_COL
-  BNE rfar
-  LDA RZ_T3               \ the old end's byte is next to it
-  CMP RZ_T1
-  LDX RZ_T1
-  LDA #0                  \ shrinking: that byte black
-  BCC rnb
-  LDA r_dcr               \ growing: all disc
-.rnb
-  JSR r_bput
-  BRA fin
-.rfar
-  LDA RZ_T3
-  CMP RZ_T1
-  BCS rgrow
-  ADC #4                  \ shrinking: black nR+4 .. oR
-  TAX
+.^r_pt52 STA r_sr,X
+  LDA RZ_T1               \ old empty: the new span
+  CMP RZ_T0
+  BCC onew
+  LDA RZ_T3               \ new empty: the old span black
+  CMP RZ_T2
+  BCC oold
+  LDA RZ_T3               \ apart (nR < oL or nL > oR): both
+  CMP RZ_T0
+  BCC both
   LDA RZ_T1
-  STA r_fe
+  CMP RZ_T2
+  BCC both
+  LDA RZ_T2               \ overlapping: the left end
+  CMP RZ_T0
+  BEQ right
+  BCS lshr
+  LDX RZ_T0               \ grown: nL .. oL-1 in the disc colour
+  DEX
+  TXA
+  TAY
+  LDX RZ_T2
+  LDA RZ_T5
+  BRA lput
+.lshr
+  DEC A                   \ shrunk: oL .. nL-1 black
+  TAY
+  LDX RZ_T0
   LDA #0
-  BRA rfill
-.rgrow
-  LDX RZ_T1               \ growing: disc oR .. nR-4
-  SBC #4
-  STA r_fe
-  LDA r_dcr
-.rfill
-  JSR r_fill
+.lput
+  JSR put
+.right
+  LDA RZ_T3
+  CMP RZ_T1
+  BEQ fin
+  BCC rshr
+  LDX RZ_T1               \ grown: oR+1 .. nR in the disc colour
+  INX
+  LDY RZ_T3
+  LDA RZ_T5
+  BRA rput
+.rshr
+  INC A                   \ shrunk: nR+1 .. oR black
+  TAX
+  LDY RZ_T1
+  LDA #0
+.rput
+  JSR put
   BRA fin
-.rsame
-  LDA RZ_T4
-  STA r_wmax
+.both
+  JSR oblk
+.onew
+  LDA RZ_T3
+  CMP RZ_T2
+  BCC fin
+  LDX RZ_T2
+  TAY
+  LDA RZ_T5
+  JSR put
+  BRA fin
+.oold
+  JSR oblk
 .fin
+  LDA r_wmax              \ R_WL/R_WR: the bytes written
+  BEQ none
   LDY RZ_Y
+  STA R_WR,Y
   LDA r_wmin
   STA R_WL,Y
-  LDA r_wmax
-  STA R_WR,Y
   CPY r_wt
   BCS w1
   STY r_wt
 .w1
   STY r_wb                \ rows go upwards
+.none
   RTS
-}
-
-\ r_bput: A -> the byte holding pixel X of the row at RZ_PA/RZ_PB (keeps X)
-.r_bput
-  LDY r_xo,X
-  CPX #&80
-  BCS bp1
-  STA (RZ_PA),Y
-  RTS
-.bp1
-  STA (RZ_PB),Y
-  RTS
-
-\ r_fill: A -> the bytes of the row from the one holding pixel X to the one
-\ holding pixel r_fe (X <= r_fe)
-.r_fill
-{
+.oblk                     \ the old span black
+  LDX RZ_T0
+  LDY RZ_T1
+  LDA #0
+.put                      \ pixels X .. Y in colour A (X <= Y), noted
   PHA
   TXA
-  EOR r_fe
-  BMI cross               \ crosses column 32: byte by byte
-  LDY r_fe
-  LDA r_xo,Y
-  STA r_fo
-  LDY r_xo,X
-  PLA
-  CPX #&80
-  BCS hi
-.lo
-  STA (RZ_PA),Y
-  CPY r_fo
-  BEQ done
-  INY
-  INY
-  INY
-  INY
-  INY
-  INY
-  INY
-  INY
-  BRA lo
-.hi
-  STA (RZ_PB),Y
-  CPY r_fo
-  BEQ done
-  INY
-  INY
-  INY
-  INY
-  INY
-  INY
-  INY
-  INY
-  BRA hi
-.done
-  RTS
-.cross
-  PLA
-.cl
-  PHA
-  JSR r_bput
-  TXA
+  AND #&FC
+  CMP r_wmin
+  BCS p1
+  STA r_wmin
+.p1
+  TYA
   ORA #3
-  CMP r_fe
-  BCS cdone
-  TXA
-  CLC
-  ADC #4
-  TAX
+  CMP r_wmax
+  BCC p2
+  STA r_wmax
+.p2
   PLA
-  BRA cl
-.cdone
-  PLA
-  RTS
+  JMP r_sw
 }
 
 \ r_drg: general disc row, Y = row
