@@ -10286,16 +10286,16 @@ ENDMACRO
  LDA P                  \ Set Y = |P - X| (C is clear here as BCS mu5 was
  SBC T                  \ not taken, so this is P - T - 1 = P - X)
  BCS mu4
- EOR #&FF
- ADC #1
+ EOR #&FF               \ Negate A (C is clear here, as BCS mu4 was not
+ INC A                  \ taken)
+ SEC                    \ Set C for the SBC below (BCS mu4 arrives with C set)
 
 .mu4
 
  TAY
 
  LDA QSL,X              \ Set (A P) = (P + X)^2 / 4 - (P - X)^2 / 4
- SEC                    \           = P * X
- SBC QSL,Y
+ SBC QSL,Y              \           = P * X (C is set on both paths)
  STA P
  LDA QSH,X
  SBC QSH,Y
