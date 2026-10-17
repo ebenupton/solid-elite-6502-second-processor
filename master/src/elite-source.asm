@@ -4779,7 +4779,9 @@ ENDIF
 
  STA TYPE               \ Store the ship type in TYPE
 
- JSR GINF               \ Call GINF to fetch the address of the ship data block
+ JMP MALC               \ Port: MALC does GINF and, for slots 0-5, the copy below
+                        \ unrolled, rejoining at MAL2e (slots 6+ rejoin at
+                        \ MAL1g for the loop); originally: Call GINF
                         \ for the ship in slot X and store it in INF. The data
                         \ block is in the K% workspace, which is where all the
                         \ ship data blocks are stored
@@ -4787,6 +4789,8 @@ ENDIF
                         \ Next we want to copy the ship data block from INF to
                         \ the zero-page workspace at INWK, so we can process it
                         \ more efficiently
+
+.MAL1g
 
  LDY #NI%-1             \ There are NI% bytes in each ship data block (and in
                         \ the INWK workspace, so we set a counter in Y so we can
@@ -4837,6 +4841,8 @@ ENDIF
 
  BPL MAL2               \ Loop back for the next byte until we have copied the
                         \ last byte from INF to INWK
+
+.MAL2e
 
  LDX XSAV               \ Restore X = slot number (GINF preserved it, the loop
                         \ above used X as the store index)
@@ -19399,6 +19405,58 @@ ENDIF
 \    Summary: Denotes the end of the main game code, from ELITE A to ELITE H
 \
 \ ******************************************************************************
+
+
+\ ******************************************************************************
+\
+\       Name: MALC
+\       Type: Subroutine
+\   Category: Main loop
+\    Summary: GINF and the copy of a ship's data block into INWK, unrolled for
+\             slots 0-5 (Port: the demo port's CPYIN, 8a7e690, 9bb50a9 w_0367)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Entered by JMP from MAL1 with X = the slot. Sets INF as GINF does, and for
+\ slots 0-5 (whose blocks start at most 185 bytes into K%, so K% + i + Y
+\ never crosses a page) copies the 37 bytes with LDA K%+i,Y / STA INWK+i and
+\ rejoins MAL1 at MAL2e with Y = &FF, as the loop leaves it; other slots
+\ rejoin at MAL1g to run the loop.
+\
+\ ******************************************************************************
+
+.MALC
+
+ TXA                    \ Set INF to the address of the slot's data block, as
+ ASL A                  \ GINF does
+ TAY
+ LDA UNIV,Y
+ STA INF
+ LDA UNIV+1,Y
+ STA INF+1
+
+ CPX #6                 \ Slots 6 and up use the loop in MAL1
+ BCC P%+5
+ JMP MAL1g
+
+ LDY malct,X            \ Set Y = NI% * X, the block's offset in K%
+
+ FOR i, 0, NI% - 1
+  LDA K%+i,Y            \ Copy byte i of the block into INWK
+  STA INWK+i
+ NEXT
+
+ LDY #&FF               \ Y = &FF, as MAL2's loop leaves it
+
+ JMP MAL2e              \ Rejoin MAL1
+
+.malct
+
+ FOR i, 0, 5
+  EQUB i * NI%          \ NI% * slot for slots 0-5
+ NEXT
+
+ ASSERT 5 * NI% + NI% - 1 < 256 AND LO(K%) = 0
 
  INCLUDE "src/elite-flight.asm" \ Port: flight code moved back from bank 4
 
