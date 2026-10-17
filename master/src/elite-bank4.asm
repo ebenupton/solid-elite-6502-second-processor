@@ -2814,9 +2814,11 @@
 
 .PX22
 
- STA T                  \ Set A = #Y + 1 - Y1
- LDA #Y+1               \
- SBC T                  \ So if Y1 is positive we display the point up from the
+ STA T                  \ Set A = #Y + 1 - Y1 (Port: as ~T + #Y + 1 + C, which
+ EOR #%11111111         \ is exactly what SBC T computes, with the same C, N,
+ ADC #Y+1               \ Z and V; T is still stored)
+                        \
+                        \ So if Y1 is positive we display the point up from the
                         \ centre at y-coordinate 97, while a negative Y1 means
                         \ down from the centre
 
