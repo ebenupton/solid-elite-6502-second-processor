@@ -3754,6 +3754,7 @@ NEXT
   BEQ fin
   BCC rshr
 .rgr
+  TAY                     \ (Y = nR for r_sw)
   ORA #3                  \ grown: oR+1 .. nR in the disc colour
   STA r_wmax
   LDA RZ_Y                \ the row's disc colour
@@ -3762,7 +3763,6 @@ NEXT
   LDA R_DCE,X
   LDX RZ_T1
   INX
-  LDY RZ_T3
   JSR r_sw
   BRA fin
 .rshr
