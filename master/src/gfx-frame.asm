@@ -2390,17 +2390,17 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  ADC #&40
  ADC fz_nm+1
  STA fz_nm+1
- LDA #&FF               \ masks for the border columns
- STA f_lmk
- STA f_rmk
+ LDA #&FF               \ masks for the border columns (patched into the loop)
+ STA fglm+1
+ STA fgrm+1
  CPY #0
  BNE P%+7
  LDA #&33               \ pixels 0-1 of column 0 are the border
- STA f_lmk
+ STA fglm+1
  CPY #31
  BNE P%+7
  LDA #&CC               \ pixels 254-255 are the border
- STA f_rmk
+ STA fgrm+1
  ASSERT F_TCOL = &FF    \ ink is all-ones: (m AND ink) OR (NOT m AND s) = m OR s
  LDA fz_nm              \ fz_v3 = fz_nm + 8, the right byte of the cell
  ORA #8                 \ (fz_nm = 16*col: low nibble 0, so no carry; fz_v3 is free here)
@@ -2439,14 +2439,16 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  LSR A
  TAX
  LDA f_nib,X
- AND f_lmk
+.fglm
+ AND #&FF               \ patched (left border mask)
  ORA (fz_nm),Y
  STA (fz_nm),Y
  PLA
  AND #15
  TAX
  LDA f_nib,X
- AND f_rmk
+.fgrm
+ AND #&FF               \ patched (right border mask)
  ORA (fz_v3),Y
  STA (fz_v3),Y
 .fgl3
@@ -2458,8 +2460,6 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  RTS
 
 .f_gy EQUB 0
-.f_lmk EQUB 0
-.f_rmk EQUB 0
 
 .f_nib                  \ 4 font bits (bit 3 = leftmost) -> MODE 1 pixel mask
 FOR n, 0, 15
