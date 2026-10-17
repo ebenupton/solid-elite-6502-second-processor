@@ -14536,10 +14536,9 @@ ENDIF
  ADC #1
  TAX
 
- LDA T                  \ And then the high byte in T, making sure to leave the
- EOR #%01111111         \ sign bit alone
- ADC #0
- STA T
+ LDA #%10000000         \ And then the high byte in T, keeping the sign bit:
+ SBC T                  \ &80 - T - borrow = (T EOR &7F) + C, with the same
+ STA T                  \ C (set only for T = &80, X = 0) as EOR/ADC #0
 
 .PL43
 
