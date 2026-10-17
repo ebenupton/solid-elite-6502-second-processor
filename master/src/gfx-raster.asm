@@ -2986,12 +2986,23 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 
 \ r_sw: pixels X .. Y (X <= Y) of the row (RZ_PA/RZ_PB set) in colour A.
 \ Clobbers A, X, Y, RZ_COL, RZ_SA, RZ_SA+1, RZ_T7.
-\ (.cross sits before the entry so that BMI hx lies in the same page as hx.)
+\ (.cross and .oa sit before the entry so that BMI hx lies in the same page
+\ as hx and BCC oa stays in range of the unrolled .la.)
 {
 .cross
   STX RZ_SB
   STY RZ_TA+1
   JMP r_lput2
+.oa
+  LDY r_xo,X              \ one byte, columns 0..31
+  LDA RZ_COL
+  EOR (RZ_PA),Y
+  AND r_lm,X
+  LDX RZ_SA
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  RTS
 .^r_sw
   STA RZ_COL
   STY RZ_SA
@@ -3018,7 +3029,14 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   TXA                     \ A = colour (C kept)
   CPY RZ_SA+1
   BCS lsa
-.la
+.la                       \ (unrolled twice, as .lb)
+  STA (RZ_PA),Y
+  TYA
+  ADC #8                  \ (C = 0 from the CPY)
+  TAY
+  TXA
+  CPY RZ_SA+1
+  BCS lsa
   STA (RZ_PA),Y
   TYA
   ADC #8                  \ (C = 0 from the CPY)
@@ -3052,8 +3070,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   TAY
   CPY RZ_SA+1
   BCS lsb
-.lb                       \ (unrolled twice: saves a taken branch per pair; .la
-                          \ is not unrolled, as BCC oa would go out of range)
+.lb                       \ (unrolled twice: saves a taken branch per pair)
   TXA
   STA (RZ_PB),Y
   TYA
@@ -3075,16 +3092,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-  RTS
-.oa
-  LDY r_xo,X              \ one byte, columns 0..31
-  LDA RZ_COL
-  EOR (RZ_PA),Y
-  AND r_lm,X
-  LDX RZ_SA
-  AND r_rm,X
-  EOR (RZ_PA),Y
-  STA (RZ_PA),Y
   RTS
 .ob
   LDY r_xo,X              \ one byte, columns 32..63
