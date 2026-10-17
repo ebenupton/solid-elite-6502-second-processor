@@ -7086,6 +7086,20 @@ ENDIF
 \
 \ ******************************************************************************
 
+.stl_dvs
+
+ JSR DVID4              \ DELTA >= z_hi (rare): (P R) = 256 * DELTA / z_hi with
+                        \ A = R, as DV42 returns (Q = z_hi and A = DELTA are
+                        \ already set)
+
+ LSR P                  \ Rotate (P A) right by 2 places, which sets P = 0 (as P
+ ROR A                  \ has a maximum value of 2) and leaves:
+ LSR P                  \
+ ROR A                  \   A = 64 * speed / z_hi
+
+ JMP stl_dvr            \ Rejoin the loop (Port: here, before STARS1, for the
+                        \ BCS that comes here)
+
 .STARS1
 
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
@@ -7104,23 +7118,29 @@ ENDIF
 
 .STL1
 
- JSR DV42               \ Call DV42 to set the following:
-                        \
-                        \   (P R) = 256 * DELTA / z_hi
-                        \         = 256 * speed / z_hi
-                        \
-                        \ The maximum value returned is P = 2 and R = 128 (see
-                        \ DV42 for an explanation)
+                        \ Port: DV42 inline (the demo port's a4317ef, w_0051):
+                        \ Q = z_hi and, when DELTA < z_hi (the common case),
+                        \ the quotient P is 0, so only DVID4's remainder
+                        \ conversion is needed (DVID4z, which does not read
+                        \ or write P), and the two LSR P / ROR A below are
+                        \ LSR A (with the same C). No reader of P runs before
+                        \ MLU3 sets it. DELTA >= z_hi goes the old way at
+                        \ stl_dvs (after the loop)
 
-                        \ DV42 returns with A = R (both exits of its inlined
-                        \ LL28+4 tail do STA R just before RTS), so now:
-                        \
-                        \   (P A) = 256 * speed / z_hi
+ LDA SZ,Y               \ Set Q = z_hi, as DV42 does
+ STA Q
 
- LSR P                  \ Rotate (P A) right by 2 places, which sets P = 0 (as P
- ROR A                  \ has a maximum value of 2) and leaves:
- LSR P                  \
- ROR A                  \   A = 64 * speed / z_hi
+ LDA DELTA              \ If DELTA >= z_hi, do the full DVID4 at stl_dvs
+ CMP Q
+ BCS stl_dvs
+
+ JSR DVID4z             \ Set A = R = 256 * speed / z_hi (P = 0), as DV42
+
+ LSR A                  \ Shift (0 A) right by 2 places, so:
+ LSR A                  \
+                        \   A = 64 * speed / z_hi
+
+.stl_dvr
 
  ORA #1                 \ Make sure A is at least 1, and store it in Q, so we
  STA Q                  \ now have result 1 above:
@@ -7448,6 +7468,13 @@ ENDIF
                         \ LDA instruction
 
  JMP STC1               \ Jump up to STC1 to draw this new particle
+
+                        \ Port: STARS1 has a fixed budget of 510 bytes, 256
+                        \ more than the original routine's 254, so that the
+                        \ code after it is exactly one page further on and
+                        \ keeps its page offsets whatever the size of STARS1
+ ASSERT P% <= stl_dvs + 510
+ SKIP stl_dvs + 510 - P%
 
 \ Port: STARS6 moved to HAZEL (elite-hazel.asm)
 
