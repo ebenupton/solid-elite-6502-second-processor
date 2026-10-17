@@ -3575,6 +3575,7 @@ NEXT
 .r_dla
 {
   STA end+1
+  STA end2+1              \ the changed-row tail's own copy of the end test
   CPX end+1
   BCS done
 .lp
@@ -3584,7 +3585,6 @@ NEXT
   LDA R_NDISCR,X
 .^r_pt27 CMP r_sr,X
   BNE ch
-.nx
   INX
 .end
   CPX #0
@@ -3593,7 +3593,11 @@ NEXT
   RTS
 .ch
   JSR r_dp2               \ (returns X = RZ_Y)
-  BRA nx
+  INX
+.end2
+  CPX #0
+  BNE lp
+  RTS
 }
 
 .r_dlb
