@@ -720,10 +720,11 @@ ENDIF
                         \ multiplying the full quotient by 3/8, as 256 * 3/8 =
                         \ 96
 
- LDA T                  \ Set T = T + T / 2 (+ the bit shifted out)
+ LDA T                  \ Set A = T + T / 2 (+ the bit shifted out)
  LSR A                  \       = 3/8 of the full 8-bit quotient, as before
- ADC T
- STA T
+ ADC T                  \ (grind: T is dead after TIS2 -- every path out of
+                        \ NORM writes T in MULT1 or SPS2 before reading it --
+                        \ so the result is not stored back in T)
 
  CPY #%10000000         \ If the original argument A (in Y) was positive, we
  BCC P%+4               \ are done as A = T, otherwise set bit 7 of A to apply
