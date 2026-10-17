@@ -8207,7 +8207,8 @@ ENDIF
 .MVS5
 
  LDA INWK+1,X           \ Fetch roofv_x_hi, clear the sign bit, divide by 2, so
- AND #%01111111         \ A = |roofv_x_hi| / 2 = |roofv_x| / 512
+ STA S                  \ A = |roofv_x_hi| / 2 = |roofv_x| / 512 (port: also
+ AND #%01111111         \ store roofv_x_hi in S as the high byte to borrow from)
  LSR A                  \
                         \ The above is true because:
                         \
@@ -8228,9 +8229,8 @@ ENDIF
                         \
                         \ by doing the low bytes first
 
- LDA INWK+1,X           \ And then the high bytes (the high byte of the right
- SBC #0                 \ side of the subtraction being 0)
- STA S
+ BCS P%+4               \ And then the high byte: S = roofv_x_hi - borrow,
+ DEC S                  \ i.e. only decrement S if the low bytes borrowed
 
  LDA INWK,Y             \ Set P = nosev_x_lo
  STA P
