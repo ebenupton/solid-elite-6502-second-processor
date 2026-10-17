@@ -56,10 +56,6 @@
 
 
 
-.x4_msblob
- JSR far4
- EQUW msblob
-
 
 
 
@@ -232,10 +228,6 @@
  JSR far4
  EQUW LL9F
 
-.x4_Ze
- JSR far4
- EQUW Ze
-
 .x4_m
  JSR far4
  EQUW m
@@ -267,3 +259,7 @@
 .x4_SOFLUSH
  JSR far4
  EQUW SOFLUSH
+
+.x4_MSBAR
+ JSR far4
+ EQUW MSBAR

@@ -228,3 +228,7 @@
  JSR far6
  EQUW MAS3_C
 
+.Ze
+ JSR far7
+ EQUW Ze_C
+

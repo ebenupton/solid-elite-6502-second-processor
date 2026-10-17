@@ -1664,7 +1664,7 @@
 
  STX NOMSL              \ Otherwise update the number of missiles in NOMSL
 
- JSR x4_msblob             \ Reset the dashboard's missile indicators so none of
+ JSR msblob_C             \ Reset the dashboard's missile indicators so none of
                         \ them are targeted
 
  LDA #1                 \ Set A to 1 as the call to msblob will have overwritten
