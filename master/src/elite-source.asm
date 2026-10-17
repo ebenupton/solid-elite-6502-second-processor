@@ -9747,6 +9747,12 @@ ENDMACRO
 \
 \ ******************************************************************************
 
+.mlt3z
+
+ STA K+2                \ |A| = 0 (A is 0 here), so set (K+3 K+2) = 0 and
+ STA K+3                \ join the second product
+ BRA mlt3s
+
 .MULT3
 
                         \ Port: by quarter squares (QSL and QSH, elite-hi.asm):
@@ -9759,9 +9765,6 @@ ENDMACRO
 
  STA R                  \ Store the high byte of (A P+1 P) in R
 
- AND #%01111111         \ Set K+2 to |A|, the high byte of K(2 1 0)
- STA K+2
-
  LDA Q                  \ Set A to bits 0-6 of Q, so A = |Q|
  AND #%01111111
 
@@ -9770,32 +9773,94 @@ ENDMACRO
 
  STA T                  \ Set T = |Q| for the products
 
- PHY                    \ Keep Y
+ ASL A                  \ Set K = 2 * |Q| - 1, so that with C clear, SBC K
+ DEC A                  \ turns a sum src + |Q| into the difference src - |Q|
+ STA K                  \ (K is free until the third product stores K)
 
- QMUL K+2, K+2, T       \ Set (K+3 K+2) = |A| * |Q|
+ STY mlt3y+1            \ Keep Y in the operand of the LDY at mlt3y
+
+ LDA R                  \ Set A = |A|, the high byte of the argument, and if
+ AND #%01111111         \ it is zero, jump to mlt3z to set (K+3 K+2) to 0
+ BEQ mlt3z
+
+                        \ Set (K+3 K+2) = |A| * |Q|; both are below 128, so
+                        \ the sum never reaches 256 and C is clear after the
+                        \ ADC
+
+ CLC                    \ X = |A| + |Q|
+ ADC T
+ TAX
+ SBC K                  \ Y = ||A| - |Q||, leaving C set
+ BCS mlt3p
+ EOR #&FF
+ ADC #1
+ SEC
+.mlt3p
+ TAY
+ LDA QSL,X              \ (K+3 K+2) = QS(X) - QS(Y)
+ SBC QSL,Y
+ STA K+2
+ LDA QSH,X
+ SBC QSH,Y
  STA K+3
 
- QMUL P+1, K+1, T       \ Set (A K+1) = P+1 * |Q| and add A to (K+3 K+2)
+.mlt3s
+
+ LDA P+1                \ Set (A K+1) = P+1 * |Q| and add A to (K+3 K+2),
+ CLC                    \ with a sum of 256 or more handled out of line at
+ ADC T                  \ mlt3h1 (X = P+1 + |Q|, Y = |P+1 - |Q||, C set)
+ TAX
+ BCS mlt3h1
+ SBC K
+ BCS mlt3d1
+ EOR #&FF
+ ADC #1
+ SEC
+.mlt3d1
+ TAY
+ LDA QSL,X
+ SBC QSL,Y
+ STA K+1
+ LDA QSH,X
+ SBC QSH,Y
+.mlt3e1
  CLC
  ADC K+2
  STA K+2
- BCC mlt3
- INC K+3
+ BCS mlt3c1             \ The carry into K+3 is handled out of line at mlt3c1
 
 .mlt3
 
- QMUL P, K, T           \ Set (A K) = P * |Q| and add A to (K+3 K+2 K+1)
+ LDA P                  \ Set (A K) = P * |Q| and add A to (K+3 K+2 K+1),
+ CLC                    \ with a sum of 256 or more handled out of line at
+ ADC T                  \ mlt3h2
+ TAX
+ BCS mlt3h2
+ SBC K
+ BCS mlt3d2
+ EOR #&FF
+ ADC #1
+ SEC
+.mlt3d2
+ TAY
+ LDA QSL,X
+ SBC QSL,Y
+ STA K
+ LDA QSH,X
+ SBC QSH,Y
+.mlt3e2
  CLC
  ADC K+1
  STA K+1
- BCC mlt3b              \ Propagate the carry into (K+3 K+2); K+3 stays below
- INC K+2                \ 64 as the product is under 2^30
- BNE mlt3b
- INC K+3
+ BCS mlt3c2             \ The carry into (K+3 K+2) is handled out of line at
+                        \ mlt3c2; K+3 stays below 64 as the product is under
+                        \ 2^30
 
 .mlt3b
 
- PLY                    \ Restore Y
+.mlt3y
+
+ LDY #0                 \ Restore Y (the operand is set at the start)
 
  LDA R                  \ Fetch the sign byte from the original (A P+1 P)
                         \ argument that we stored in R
@@ -9810,6 +9875,44 @@ ENDMACRO
  STA K+3                \ Store A in K+3, so K(3 2 1 0) now contains the result
 
  RTS                    \ Return from the subroutine
+
+.mlt3c1
+
+ INC K+3                \ Propagate the second product's carry into K+3
+ BRA mlt3
+
+.mlt3c2
+
+ INC K+2                \ Propagate the third product's carry into (K+3 K+2)
+ BNE mlt3b
+ INC K+3
+ BRA mlt3b
+
+.mlt3h1
+
+ CLC                    \ The second product's sum is 256 or more (rare): with
+ SBC K                  \ C set by the ADC, Y = P+1 - |Q| (positive)
+ TAY
+ LDA QSL+256,X
+ SEC
+ SBC QSL,Y
+ STA K+1
+ LDA QSH+256,X
+ SBC QSH,Y
+ BRA mlt3e1
+
+.mlt3h2
+
+ CLC                    \ The third product's sum is 256 or more (rare)
+ SBC K
+ TAY
+ LDA QSL+256,X
+ SEC
+ SBC QSL,Y
+ STA K
+ LDA QSH+256,X
+ SBC QSH,Y
+ BRA mlt3e2
 
 
 \ ******************************************************************************
