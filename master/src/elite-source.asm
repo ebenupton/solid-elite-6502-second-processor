@@ -13874,12 +13874,13 @@ ENDIF
  JSR BLINE              \ Call BLINE to draw this segment, which also returns
                         \ the updated value of CNT in A
 
- CMP TGT                \ If CNT > TGT then jump to PL40 to stop drawing the
- BEQ P%+4               \ ellipse (which is how we draw half-ellipses)
- BCS PL40
+ DEC A                  \ If CNT > TGT then jump to PL40 to stop drawing the
+ CMP TGT                \ ellipse (which is how we draw half-ellipses) (Port:
+ BCS PL40               \ CNT > TGT is CNT - 1 >= TGT, as CNT >= STP >= 2 here,
+                        \ and this leaves C clear for the ADC below; A and Z
+                        \ at PL40 are dead in every caller of PLANET)
 
- LDA CNT2               \ Set CNT2 = (CNT2 + STP) mod 64
- CLC
+ LDA CNT2               \ Set CNT2 = (CNT2 + STP) mod 64 (C is clear)
  ADC STP
  AND #63
  STA CNT2
@@ -13895,6 +13896,8 @@ ENDIF
 .PL40
 
  RTS                    \ Return from the subroutine
+
+ SKIP 2                 \ Port: keep the code that follows where it was
 
 \ ******************************************************************************
 \
