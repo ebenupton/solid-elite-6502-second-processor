@@ -11585,18 +11585,21 @@ ENDMACRO
 
  LDA P+2                \ Set A to the highest byte of the numerator
 
-.LL31new
+ ASL A                  \ Grind: P+2 is 64-127, so the first shift never
+                        \ sets C and we can go straight to the compare
 
- ASL A                  \ This contains the code from the LL31 routine, so
- BCS LL29new            \ this section is exactly equivalent to a JSR LL31
- CMP Q                  \ call, but is slightly faster as it's been inlined,
- BCC P%+4               \ so it calculates:
- SBC Q                  \
- ROL R                  \   R = 256 * A / Q
- BCS LL31new            \     = 256 * numerator / denominator
- BCC LL312new           \ Port: C is clear here, so this is a JMP
+.LL31b
 
-.LL29new
+ CMP Q                  \ This contains the code from the LL31 routine, so
+ BCC P%+4               \ this section is exactly equivalent to a JSR LL31
+ SBC Q                  \ call, but is faster as it's been inlined, so it
+ ROL R                  \ calculates:
+ BCC LL312new           \
+                        \   R = 256 * A / Q
+.LL31new                \     = 256 * numerator / denominator
+
+ ASL A                  \ Shift the next bit and loop back to the compare if
+ BCC LL31b              \ no bit fell out of A
 
  SBC Q                  \ This is also part of the inline LL31 routine
  SEC
