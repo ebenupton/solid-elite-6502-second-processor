@@ -3061,6 +3061,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA RZ_COL
   EOR (RZ_PB),Y
   AND r_lm,X
+  LDX RZ_COL              \ X = colour from here to .lsb (C kept)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   TYA
@@ -3069,7 +3070,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPY RZ_SA+1
   BCS lsb
 .lb
-  LDA RZ_COL
+  TXA
   STA (RZ_PB),Y
   TYA
   ADC #8                  \ (C = 0 from the CPY)
@@ -3077,8 +3078,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPY RZ_SA+1
   BCC lb
 .lsb
+  TXA
   LDX RZ_SA
-  LDA RZ_COL
   EOR (RZ_PB),Y
   AND r_rm,X
   EOR (RZ_PB),Y
