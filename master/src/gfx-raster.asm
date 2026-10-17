@@ -3121,7 +3121,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA R_NDN,X             \ no boundaries, old or new, and colour A (R_DCE /
   ORA R_NDP,X             \ R_DCO) both times: a one-colour row, which r_dp2
   BNE e9                  \ does in less time (the stored boundaries, count 0,
-  JMP r_dp2               \ are never read)
+  JMP r_dp2+2             \ are never read; RZ_Y = X already: skip STX)
 .ne
   INC A                   \ A = difference + 1: 0 or 2 (counts differing by
   CMP #3                  \ 1 either way) go on, the rest to r_dpgl
