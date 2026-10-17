@@ -2700,8 +2700,10 @@ MAXPT = 140             \ points per frame
  LDA R_NDB
  INC A
  STA fnb_e+1
+ STA fsg_cb+1           \ (and f_segment's row range: rows NDT..NDB)
  EOR R_NDT              \ C = bit 0 of (R_NDB+1) EOR R_NDT: an odd row count
  LDY R_NDT
+ STY fsg_ct+1
  LSR A
  LDA #0
  BCS fnb2               \ odd: one row first, then pairs
@@ -2718,7 +2720,6 @@ MAXPT = 140             \ points per frame
  BNE fnb1
 .fnb9
  RTS
- EQUB 0                 \ pad: keeps what follows (F_TM onward) in place
 
 \ f_bounds: the planet's curves -> R_NDN/R_NDX0-3/R_NDP for rows
 \ R_NDT..R_NDB (which f_plrows has just set), and colour B
@@ -2796,8 +2797,6 @@ MAXPT = 140             \ points per frame
  JMP fbd3
 
 .f_ci EQUB 0
-
- SKIP 5                 \ (unused: keeps the rest of bank 6 where it was)
 
 \ f_seg16: boundary crossings of the segment (sg_ax, sg_ay) - (sg_bx, sg_by)
 \ (16-bit) for rows y with min(y) <= y < max(y) within R_NDT..R_NDB. A crossing
@@ -2981,11 +2980,12 @@ MAXPT = 140             \ points per frame
  LDA sg_y+1             \ is not updated after this (only read before here)
  BMI fsg_hi             \ y < 0 (0 or negative here: fsg_p): rows above
 .fsg_ry                 \ the screen. From here on sg_y+1 = 0, and Y <= NDB
- CPY R_NDT              \ <= 191 at fsg_n, so Y never wraps in this loop
+.fsg_ct                 \ <= 191 at fsg_n, so Y never wraps in this loop
+ CPY #0                 \ patched: R_NDT (f_zerobounds)
  BCC fsg_n
- CPY R_NDB
- BCC P%+4              \ Y < NDB: in range (Y = NDB falls through BNE)
- BNE fsg_x
+.fsg_cb
+ CPY #0                 \ patched: R_NDB+1 <= 192 (f_zerobounds)
+ BCS fsg_x              \ Y > NDB: past the span
  LDA sg_x+1             \ left of the span? (x <= NDISCL, x 16-bit)
  BMI fsg_l
  BNE fsg_n              \ x > 255: right of it
@@ -3090,6 +3090,8 @@ MAXPT = 140             \ points per frame
  BCS fsg_jj
  DEC sg_x+1
  BRA fsg_jj
+
+ SKIP 4                 \ (unused: keeps sg_ax onward where it was)
 
 .sg_ax  EQUW 0          \ segment end points: ax, ay, bx, by would be
 .sg_ay  EQUW 0          \ contiguous with this order for the swap: ax, ay
