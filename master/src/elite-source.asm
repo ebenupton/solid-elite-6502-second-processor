@@ -14502,7 +14502,7 @@ ENDIF
  TAX
 
  CLC                    \ Clear the C flag, as the original ADC #16 did, as it
-                        \ can pass through FMLTU into the ADC #15 below
+                        \ can pass through FMLTU into the ADC #207 below
 
  LDA SNE,X              \ Set Q = sin(X)
  STA Q                  \       = |cos(CNT2)|
@@ -14517,12 +14517,12 @@ ENDIF
                         \ left P = X, and X is unchanged since)
  STA P                  \
                         \ The call to FMLTU also sets the C flag, so in the
-                        \ following, ADC #15 adds 16 rather than 15
+                        \ following, ADC #207 adds 208 rather than 207
 
- LDA CNT2               \ If (CNT2 + 16) mod 64 >= 33 then this sets the C flag,
- ADC #15                \ otherwise it's clear, so this means that:
- AND #63                \
- CMP #33                \   * C is clear if the segment starts in the first or
+ LDA CNT2               \ Port: (CNT2 + 15 + C) mod 64 >= 33 exactly when
+ ADC #207               \ 18 <= CNT2 + C <= 48 (CNT2 + C is 0 to 64), i.e. when
+ CMP #225               \ CNT2 + C + 207 is 225 to 255, so this means that:
+                        \   * C is clear if the segment starts in the first or
                         \     last quarter of the circle, 0 to 90 degrees or 270
                         \     to 360 degrees
                         \
