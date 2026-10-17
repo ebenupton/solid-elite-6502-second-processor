@@ -2366,6 +2366,7 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  ASL A
  ASSERT LO(F_FONT) = 0
  STA fgl1+1
+ STA fglr+1             \ (the second load of the same row, for the low nibble)
  PLA
  LSR A
  LSR A
@@ -2375,19 +2376,16 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  CLC
  ADC #HI(F_FONT)
  STA fgl1+2
+ STA fglr+2
  TYA                    \ screen: &4000 + row*&200 + 16*col
  ASL A
  ASL A
  ASL A
  ASL A
  STA fz_nm               \ low byte (16*col, may carry)
- LDA #0
- ROL A
- STA fz_nm+1
- LDA fz_i
- ASL A
+ LDA fz_i                \ high byte = 2*row + carry + &40 (row <= 23, so
+ ROL A                   \ ROL leaves C = 0 and the ADC cannot carry)
  ADC #&40
- ADC fz_nm+1
  STA fz_nm+1
  LDA #&FF               \ masks for the border columns (patched into the loop)
  STA fglm+1
@@ -2419,7 +2417,7 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  LDA R_CB               \ to min(7, R_CB - 8*row), none if R_CB < 8*row
  SEC
  SBC f_gy
- CLV                    \ V = 0 on exit, as before (ADC fz_nm+1 above)
+ CLV                    \ V = 0 on exit, as before
  BCC fgl9
  CMP #7
  BCC P%+4
@@ -2431,7 +2429,6 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 .fgl1
  LDA F_FONT,Y           \ patched
  BEQ fgl3
- PHA
  LSR A
  LSR A
  LSR A
@@ -2442,7 +2439,8 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  AND #&FF               \ patched (left border mask)
  ORA (fz_nm),Y
  STA (fz_nm),Y
- PLA
+.fglr
+ LDA F_FONT,Y           \ patched (the same address as fgl1)
  AND #15
  TAX
  LDA f_nib,X
