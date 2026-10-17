@@ -14661,11 +14661,21 @@ ENDIF
 
  BPL PL42               \ If the result is positive, jump down to PL42
 
- TXA                    \ The result is negative, so we need to negate the
- EOR #%11111111         \ magnitude using two's complement, first doing the low
- CLC                    \ byte in X
- ADC #1
- TAX
+ TXA                    \ The result is negative. Port: if X <> 0 then the
+ BEQ pl42z              \ negated (T X) is (T EOR &7F, (X EOR &FF) + 1) with no
+ EOR #%11111111         \ carry out of either byte, so add it to K3(1 0) direct:
+ SEC                    \ K6 = K3 + (X EOR &FF) + 1 + 256 * (T EOR &7F), which
+ ADC K3                 \ is bit for bit what the negation below and PL42 give
+ STA K6                 \ (X and T are dead after PL42, so they need not hold
+ LDA T                  \ the negated value)
+ EOR #%01111111
+ ADC K3+1
+ BRA pl42e
+
+.pl42z
+
+                        \ X = 0, so negating the low byte gives 0 with C set
+ SEC                    \ (A = X = 0 already)
 
  LDA #%10000000         \ And then the high byte in T, keeping the sign bit:
  SBC T                  \ &80 - T - borrow = (T EOR &7F) + C, with the same
@@ -14679,6 +14689,9 @@ ENDIF
 
  LDA T                  \ And then doing the high bytes, so we now get:
  ADC K3+1               \
+
+.pl42e
+
  STA K6+1               \   K6(1 0) = K3(1 0) + (T X)
                         \           = K3(1 0) + u_x * cos(CNT2)
                         \                     + v_x * sin(CNT2)
