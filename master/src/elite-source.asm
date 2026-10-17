@@ -7670,6 +7670,24 @@ ENDIF
                         \ more than the original routine's 254, so that the
                         \ code after it is exactly one page further on and
                         \ keeps its page offsets whatever the size of STARS1
+                        \ Port: FILLKL's variables (fkdet is in MVS5_HOLE)
+
+.fkn
+
+ EQUB 0                 \ The number of columns in fkl
+
+.fki
+
+ EQUB 0                 \ FILLKL: the index into fkl
+
+.fkrb
+
+ EQUB 0                 \ FILLKL: the row's first key number (16, 32, ... 112)
+
+.fkl
+
+ SKIP 13                \ The columns with a key pressed, in increasing order
+
  ASSERT P% <= stl_dvs + 510
  SKIP stl_dvs + 510 - P%
 
@@ -8059,6 +8077,54 @@ ENDIF
  STX INWK,Y
  PLX
  RTS
+
+
+.fkdet
+
+                        \ Port: for FILLKL, set fkl(0..fkn-1) to the keyboard
+                        \ columns 0-12 (the Master's) that have a key pressed
+                        \ in rows 1-7, in increasing order. With the auto scan
+                        \ stopped, selecting a column drives the keyboard's
+                        \ CA2 line high if a key in rows 1-7 of that column
+                        \ is pressed; selecting column 15 (no keys) first
+                        \ drives it low, so CA2's flag in IFR (cleared just
+                        \ before) shows the rising edge. Also clears D
+
+ CLD
+ STZ fkn
+ LDY #%00000011         \ Stop the auto scan (interrupts off throughout)
+ SEI
+ STY VIA+&40
+ LDA #%01111111         \ DDRA: bits 0-6 out to the keyboard
+ STA VIA+&43
+ LDX #0                 \ Column X = 0 to 12
+
+.fkc
+
+ LDA #15                \ Select column 15 (CA2 low)
+ STA VIA+&4F
+ LDA #1                 \ Clear CA2's flag in IFR
+ STA VIA+&4D
+ STX VIA+&4F            \ Select column X (row 0)
+ LDA VIA+&4D            \ C = CA2's flag: a key pressed in rows 1-7 of column X
+ LSR A
+ BCC fkc1
+ LDY fkn                \ Add X to the list
+ TXA
+ STA fkl,Y
+ INC fkn
+
+.fkc1
+
+ INX
+ CPX #13
+ BNE fkc
+
+ LDY #%00001011         \ Restart the auto scan
+ STY VIA+&40
+ CLI
+ RTS
+
 
  ASSERT P% <= MVS5_HOLE + 117
  SKIP MVS5_HOLE + 117 - P%
@@ -18988,12 +19054,34 @@ ENDMACRO
  STX RdX+1              \ Store X = 0 as the operand of the LDX at RdX, which
                         \ holds the index into the flight keys for Rd2 below
 
- LDX #%01111111         \ Keep the DDRA value %01111111 in X for the loop (Rd2
-                        \ restores it whenever it uses X)
+                        \ Port: rather than test all 112 keys from 16 ("Q") to
+                        \ 127 one by one, find the keyboard columns with a key
+                        \ pressed in rows 1-7 first (fkdet, through the
+                        \ keyboard's column line on CA2, as the MOS does), and
+                        \ then test, row by row in increasing key number, only
+                        \ the keys in those columns: the same keys in the same
+                        \ order as before, as no other key can be pressed
 
- LDA #16                \ Start the scan with internal key number 16 ("Q")
+ JSR fkdet              \ Set fkl(0..fkn-1) = the columns with a key pressed,
+                        \ in increasing order (and clear D)
 
- CLC                    \ Clear the C flag so we can do the additions below
+ LDA fkn                \ If no column has a key pressed, no key is being
+ BEQ Rd7                \ pressed, so finish at Rd7
+
+ LDA #16                \ Start with row 1 (keys 16 to 31)
+ STA fkrb
+
+.fkr
+
+ STZ fki                \ Start with the first column in the list
+
+.fkk
+
+ LDX fki                \ Set A = the key in this row and column
+ LDA fkl,X
+ ORA fkrb
+
+ LDX #%01111111         \ Keep the DDRA value %01111111 in X for the scan
 
 .Rd1
 
@@ -19007,19 +19095,13 @@ ENDMACRO
                         \ to %00000011 to stop auto scan of keyboard
 
  STX VIA+&43            \ Set 6522 System VIA data direction register DDRA
-                        \ (SHEILA &43) to X = %01111111. This sets the A registers
-                        \ (IRA and ORA) so that:
-                        \
-                        \   * Bits 0-6 of ORA will be sent to the keyboard
-                        \
-                        \   * Bit 7 of IRA will be read from the keyboard
+                        \ (SHEILA &43) to X = %01111111, so bits 0-6 of ORA
+                        \ are sent to the keyboard and bit 7 of IRA is read
 
  LDY #%00001011         \ Set Y ready to restart the keyboard auto scan below
 
  STA VIA+&4F            \ Set 6522 System VIA output register ORA (SHEILA &4F)
-                        \ to A, the key we want to scan for; bits 0-6 will be
-                        \ sent to the keyboard, of which bits 0-3 determine the
-                        \ keyboard column, and bits 4-6 the keyboard row
+                        \ to A, the key we want to scan for
 
  BIT VIA+&4F            \ Read 6522 System VIA input register IRA (SHEILA &4F)
                         \ so N is bit 7, which is set if the key is pressed;
@@ -19035,12 +19117,20 @@ ENDMACRO
 
 .Rd3
 
- ADC #1                 \ Increment A to point to the next key to scan for
+ INC fki                \ Move on to the next column in the list, looping back
+ LDX fki                \ to fkk until we have done them all
+ CPX fkn
+ BCC fkk
 
- BPL Rd1                \ If A is positive, we still have keys to check, so loop
-                        \ back to scan for the next one
+ LDA fkrb               \ Move on to the next row, looping back to fkr until
+ CLC                    \ we have done row 7 (keys 112 to 127)
+ ADC #16
+ STA fkrb
+ BPL fkr
 
-                        \ If we get here then no keys are being pressed
+.Rd7
+
+                        \ If we get here then we have scanned every key
 
  CLD                    \ Clear the D flag to return to binary mode (for cases
                         \ where this routine is called in BCD mode)
@@ -19050,9 +19140,9 @@ ENDMACRO
                         \ from being registered as being pressed if "S" is being
                         \ pressed (grind: A and N/Z are dead here, as LDX KL
                         \ sets N/Z and RDKEY reloads A). This code isn't
-                        \ necessary on a BBC Master, as
-                        \ it's from other versions of Elite where there were
-                        \ issues with "ghost keys", which the Master didn't have
+                        \ necessary on a BBC Master, as it's from other
+                        \ versions of Elite where there were issues with
+                        \ "ghost keys", which the Master didn't have
 
  LDX KL                 \ Fetch the last key pressed from KL into X
 
