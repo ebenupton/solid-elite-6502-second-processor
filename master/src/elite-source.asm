@@ -3730,6 +3730,48 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: ZEKTRAN
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Clear the key logger
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   X                   X is set to 0
+\
+\ ******************************************************************************
+
+                        \ Port: moved back here from the low code (elite-low.asm),
+                        \ to make room there, into the slack in front of the
+                        \ font; far4 reaches it in main RAM
+
+.ZEKTRAN
+
+ LDA #0                 \ We want to zero the key logger buffer, so set A % 0
+
+ LDX #17                \ We want to clear the 17 key logger locations from
+                        \ KL to KY20, so set a counter in X
+
+.ZEKLOOP
+
+ STA JSTY,X             \ Store 0 in the X-th byte of the key logger
+
+ DEX                    \ Decrement the counter
+
+ BNE ZEKLOOP            \ And loop back for the next key, until we have just
+                        \ KL+1. We don't want to clear the first key logger
+                        \ location at KL, as the keyboard table at KYTB starts
+                        \ with offset 1, not 0, so KL is not technically part of
+                        \ the key logger (it's actually used for logging keys
+                        \ that don't appear in the keyboard table, and which
+                        \ therefore don't use the key logger)
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
 \       Name: FONT%
 \       Type: Variable
 \   Category: Text

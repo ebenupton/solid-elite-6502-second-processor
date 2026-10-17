@@ -683,12 +683,12 @@ ENDIF
  CMP Q                  \ If A >= Q then jump to TI4 to return a 1 with the
  BCS TI4                \ correct sign
 
- LDX #%11111000         \ Port: set T to have bits 3-7 set, so we rotate
- STX T                  \ through only 6 loop iterations (getting a 0 on the
-                        \ 6th): the original 8-bit quotient was divided by 4
-                        \ afterwards, so its two low bits were never used, and
-                        \ T catches the top 6 quotient bits (X ends &F8, but
-                        \ no caller reads it)
+ LDX #%01010000         \ Port: the loop below is unrolled twice, so set T to
+ STX T                  \ have bits 6 and 4 set: the carry out of the 2nd and
+                        \ 4th ROL is 1 and of the 6th is 0, giving exactly 6
+                        \ quotient steps, and bits 1-0 being clear leaves the
+                        \ top two bits of T clear at the end (as with &F8)
+                        \ (X ends &50, but no caller reads it)
 
 .TIL2
 
@@ -697,19 +697,23 @@ ENDIF
  CMP Q                  \ If A < Q skip the following subtraction
  BCC P%+4
 
+ SBC Q                  \ A >= Q, so set A = A - Q (C stays set)
+
+ ROL T                  \ Catch the result bit into bit 0 of T (the bit shifted
+                        \ out is always 0 here, and is ignored)
+
+ ASL A                  \ Second copy of the step
+
+ CMP Q                  \ If A < Q skip the following subtraction
+ BCC P%+4
+
  SBC Q                  \ A >= Q, so set A = A - Q
-                        \
-                        \ Going into this subtraction we know the C flag is
-                        \ set as we passed through the BCC above, and we also
-                        \ know that A >= Q, so the C flag will still be set once
-                        \ we are done
 
  ROL T                  \ Rotate the counter in T to the left, and catch the
-                        \ result bit into bit 0 (which will be a 0 if we didn't
-                        \ do the subtraction, or 1 if we did)
+                        \ result bit into bit 0
 
  BCS TIL2               \ If we still have set bits in T, loop back to TIL2 to
-                        \ do the next iteration of 6
+                        \ do the next pair of the 6 iterations
 
                         \ T now holds the 8-bit quotient / 4 (0-63), which we
                         \ need to reduce to the range 0-96. We can do that by
@@ -1987,44 +1991,9 @@ ENDIF
  JMP MESS               \ in-flight message and return from the subroutine using
                         \ a tail call
 
-\ ******************************************************************************
-\
-\       Name: ZEKTRAN
-\       Type: Subroutine
-\   Category: Keyboard
-\    Summary: Clear the key logger
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   X                   X is set to 0
-\
-\ ******************************************************************************
-
-                        \ Port: moved here from the main code (elite-source.asm)
-                        \ to make room there; far4 reaches it in main RAM
-
-.ZEKTRAN
-
- LDA #0                 \ We want to zero the key logger buffer, so set A % 0
-
- LDX #17                \ We want to clear the 17 key logger locations from
-                        \ KL to KY20, so set a counter in X
-
-.ZEKLOOP
-
- STA JSTY,X             \ Store 0 in the X-th byte of the key logger
-
- DEX                    \ Decrement the counter
-
- BNE ZEKLOOP            \ And loop back for the next key, until we have just
-                        \ KL+1. We don't want to clear the first key logger
-                        \ location at KL, as the keyboard table at KYTB starts
-                        \ with offset 1, not 0, so KL is not technically part of
-                        \ the key logger (it's actually used for logging keys
-                        \ that don't appear in the keyboard table, and which
-                        \ therefore don't use the key logger)
+                        \ Port: ZEKTRAN has moved to the main code, in front of
+                        \ the font (elite-source.asm), to make room here; this
+                        \ RTS is still SFRMIS's return
 
 .ZEKRTS
 
