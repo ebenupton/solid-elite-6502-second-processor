@@ -7177,10 +7177,13 @@ ENDIF
                         \   (A X) = (A P) + (S R)
                         \         = -y / 256 * alpha + x
 
- STA XX+1               \ Set XX(1 0) = (A X), which gives us result 6 above:
- STA S                  \
- STX XX                 \   x = x - alpha * y / 256
- STX R                  \
+ STA S                  \ Set XX(1 0) = (A X), which gives us result 6 above:
+ STX XX                 \
+ STX R                  \   x = x - alpha * y / 256
+                        \
+                        \ (XX+1 is not written here, as it is overwritten by
+                        \ STA XX+1 after the ADD below before it is ever read)
+                        \
                         \ Port: and (S R) = XX(1 0) now, as MUT2 did (MULTS-2
                         \ below leaves S and R alone)
 
