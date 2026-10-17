@@ -14386,7 +14386,9 @@ ENDIF
  STA K+2
 
  LDA K2                 \ Set P = K2 * Q / 256
- JSR FMLTU              \       = |u_x| * |cos(CNT2)|
+ JSR FMLTU+2            \       = |u_x| * |cos(CNT2)|
+                        \ (skip FMLTU's STX P: the previous FMLTU call already
+                        \ left P = X, and X is unchanged since)
  STA P
 
  LDA XX16+5             \ Set S = the sign of XX16+2 * XX16+5
