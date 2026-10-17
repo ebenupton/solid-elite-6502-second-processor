@@ -3276,32 +3276,28 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STX RZ_TA+1
   CPY r_ns
   BNE col
-  LDY #&FF
+.blk
+  LDA #0                  \ the end strip: black
+  BRA c2
 .col
-  LDA #0                  \ colour index Y: -1 black, else P EOR (Y AND 1)
-  CPY #&FF
-  BEQ c2
-  TYA
+  TYA                     \ colour index Y: -1 black, else P EOR (Y AND 1)
+  BMI blk                 \ (Y <= 6 otherwise: at most 7 edges)
   EOR r_np
   LSR A
   LDA r_cA
   BCC c2
   LDA r_cB
 .c2
-  STA RZ_COL
-  LDA RZ_SB
-  CMP r_wmin
-  BCS c3
-  STA r_wmin
-.c3
-  LDA RZ_TA+1
-  CMP r_wmax
-  BCC c4
-  STA r_wmax
-.c4
-  LDX RZ_SB
+  LDX RZ_SB               \ (r_sw sets RZ_COL from A)
   LDY RZ_TA+1
-  LDA RZ_COL
+  CPX r_wmin
+  BCS c3
+  STX r_wmin
+.c3
+  CPY r_wmax
+  BCC c4
+  STY r_wmax
+.c4
   JSR r_sw
 .nx
   LDY r_cl
