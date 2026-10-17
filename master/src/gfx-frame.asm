@@ -1144,7 +1144,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  SBC f_cy+1
  STA fz_u
  LDA f_cx+1             \ fast path if the whole disc is inside the window
- BNE fds_slow           \ horizontally: cx - r >= CL and cx + r <= CR
+ BNE fds_nz             \ horizontally: cx - r >= CL and cx + r <= CR
  LDA f_cx
  SEC
  SBC f_r
@@ -1159,6 +1159,10 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BCC fds_fast           \ (the fast path follows the slow one)
  BEQ fds_fast
 .fds_slow               \ (the disc crosses the window's side, or the screen's)
+ LDA #&A2               \ high byte of cx zero: fpr_b1 and fpr_b2 become
+.fds_pat                \ LDX #imm (no-ops)
+ STA fpr_b1
+ STA fpr_b2
  LDY R_NDT
 .fpr2
  LDX fz_t               \ |d|
@@ -1173,8 +1177,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA fz_n
  CLC                    \ right = cx + n, clamped as f_clamp does: < CL (or
  ADC f_cx               \ negative): empty; > CR (or > 255): CR
- LDX f_cx+1
- BNE fpr10              \ (high byte of cx nonzero: out of line)
+.fpr_b1
+ BRA fpr10              \ patched: BRA if the high byte of cx is nonzero (out
+                        \ of line), else LDX #imm (a no-op)
  BCS fpr5               \ high byte of cx + n = 1
 .fpr11
  CMP R_CL
@@ -1188,8 +1193,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA f_cx               \ left = cx - n: negative: CL; > 255 or > CR: empty;
  SEC                    \ < CL: CL
  SBC fz_n
- LDX f_cx+1
- BNE fpr13              \ (high byte of cx nonzero: out of line)
+.fpr_b2
+ BRA fpr13              \ patched as fpr_b1
  BCC fpr3               \ high byte of cx - n = -1
 .fpr14
  CMP R_CR
@@ -1200,7 +1205,11 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fpr3
  LDA R_CL
  BRA fpr7
+.fds_nz                 \ (out of line) high byte of cx nonzero: fpr_b1 and
+ LDA #&80               \ fpr_b2 become BRA
+ BRA fds_pat
 .fpr10                  \ right, X = high byte of cx (nonzero), C = carry:
+ LDX f_cx+1
  BCC fpr12              \ high byte of cx + n = X + C
  INX
  BEQ fpr11
@@ -1208,6 +1217,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BPL fpr5               \ (N: of X + C; minus: empty)
  BMI fpr8
 .fpr13                  \ left, X = high byte of cx (nonzero), C = no borrow:
+ LDX f_cx+1
  BCS fpr15              \ high byte of cx - n = X - 1 + C
  DEX
  BEQ fpr14
@@ -1317,7 +1327,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA #&60               \ RTS
 .fds_c
  STA fsx_x              \ what follows the symmetric loop
- LDA fpr_ld+1           \ the symmetric loop reads n(k) at (table - cy) + (cy + k)
+ ASSERT LO(F_HW) = 0 AND LO(F_HW2) = 0   \ (so fpr_ld's low byte is always 0)
+ LDA #0                 \ the symmetric loop reads n(k) at (table - cy) + (cy + k)
  SEC
  SBC f_cy
  STA fsy_ld+1
@@ -1381,18 +1392,12 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  ROL A
  STA fz_u
  LDA fz_p
- SEC
+ CLC                    \ (C = 0: SBC takes the + 1 too)
  SBC fz_t
  STA fz_p
  LDA fz_p+1
  SBC fz_u
  STA fz_p+1
- LDA fz_p
- SEC
- SBC #1
- STA fz_p
- BCS P%+4
- DEC fz_p+1
  INY
 .fhw2
  LDA fz_p+1             \ while e < 0: e += 2x - 1 ; x--
