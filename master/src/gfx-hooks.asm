@@ -120,9 +120,9 @@
 \ fall into PIXEL (it JMPs here); in record mode it is recorded straight into the
 \ rasteriser's arrays, by star index (R_SS: 2 = a dash, ZZ >= 80, 3 = a
 \ double-height dash, as PIXEL draws them; 0 = none), and PIXEL2 returns as
-\ PIXEL would: T1 = Y, C = (ZZ >= 80) (not N and Z from Y: every caller
-\ reaches a DEY or LDA first). Outside record mode A is restored and it
-\ jumps to PIXEL to draw it
+\ PIXEL would, C = (ZZ >= 80) (not N and Z from Y: every caller reaches a
+\ DEY or LDA first; nor T1 = Y: every reader of T1 writes it first). Outside
+\ record mode A is restored and it jumps to PIXEL to draw it
 
 .H_STAR                 \ (entered by JMP from PIXEL2, so RTS returns from it)
  STA R_SY,Y
@@ -137,7 +137,6 @@
  BCS P%+4
  LDA #3
  STA R_SS,Y
- STY T1
  RTS
 .hst9
  LDA R_SY,Y             \ outside record mode PIXEL draws it: note where (in
