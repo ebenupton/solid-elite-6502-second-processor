@@ -468,21 +468,28 @@ it like any other shape. It never touches game state.
 
 Layout (master/src/gfx-flare6.asm, gfx-flare.asm):
 * F_FRAME's `JSR f_text2` is `JSR f_flt` (bank 6, at its end): without the
-  sun a test of GSUNON (10 cycles); with it ACCCON X = 1 around FL_MAIN,
-  in shadow RAM, and X put back for this buffer after. FL_MAIN does the
-  tests, the level, the ghosts' centres and rows; fl_or (bank 6) ORs each
-  span, clearing X around the writes when the back buffer is main RAM
-  (buffer 0). Bank 6: 64 bytes.
-* Shadow RAM, filled by the loader from FLARE7, FLARE3, FLARE0: &7E00-&7FEC
-  (frame step, centres, discs), &3F00-&3FF1 (tables, span set-up),
-  &3000-&308A (dotted rings). Zero page: the rasteriser's &10-&27, which
-  F_FRAME saves.
-* Differences from the demo's code (not its pixels): the centres are
-  k D added up |k| times, not running sums; the rows' range is kept per
-  disc and per dot; ring points on the axes are plotted once, not twice;
-  the demo's FL4 (one ghost at a time, called from bank 6) becomes a loop
-  in shadow RAM calling the bank 6 writer instead, as the back buffer may be
-  main RAM.
+  sun a test of GSUNON (10 cycles); with it fl_xb (4 for buffer 0) and
+  ACCCON X = 1 around FL_MAIN, in shadow RAM, and X put back for this buffer
+  after. FL_MAIN does the tests, the level and the ghosts' centres (running
+  sums S = 32 k D per coordinate, stepped by 32 D: the centre's offset is S's
+  high byte), a disc's masks and rows; fl_row does a row's dirty extent and
+  address, and fl_or (bank 6) ORs its bytes, clearing X around the writes
+  when the back buffer is main RAM (buffer 0; buffer 1 enters past the
+  switch). Discs go by row pairs gy - d, gy + d (d = r..0) sharing one span
+  set-up, a pair skipped when both rows' Bayer masks are zero.
+* Shadow RAM, filled by the loader from FLARE7, FLARE3, FLARE0: &7E00-&7FF8
+  (frame step, centres, a disc's set-up, rings), &3F00-&3FFC (tables, the
+  row-pair loop), &3000-&307F (a ring's columns and rows, fl_row). Bank 6:
+  f_flt and fl_or at its end, fl_dk, fl_lmt, fl_rmt, fl_pxm and fl_ring in
+  the COLD6 spare bytes. HAZEL data: fl_ml/fl_mh (32 D), fl_sl/fl_sh (S),
+  fl_lev, fl_xb. Zero page: the rasteriser's &10-&27 and R_COLE, R_COLO,
+  R_DCE (&06, &07, &0E), which F_FRAME saves and nothing after the flare
+  reads before setting.
+* Differences from the demo's code (not its pixels): the centres as running
+  sums of 32 D; the rows' range is kept per disc and per dot; ring points on
+  the axes are plotted once, not twice; discs by row pairs; the demo's FL4
+  (one ghost at a time, called from bank 6) becomes a loop in shadow RAM
+  calling the bank 6 writer instead, as the back buffer may be main RAM.
 
 Space, paid by cycle-neutral moves (each gated at 1.236, 17.27 it/s):
 F_DSS/F_DSX/F_DSY (63 bytes of bank 6 state) to HAZEL, with F_DIRECT's
@@ -503,11 +510,42 @@ byte the other build's (no residue); game state identical. Screenshots:
 port | model | differences, display-*.png: jsbeeb's display).
 
 Cost: nothing on the gate (the pilot never has the sun in front: verify.sh
-1.236, 17.27 it/s before and after). With the sun on screen f_flt takes
-about 20000 cycles a frame at level 1, 27000-34000 at level 2 and
-37000-47000 at level 3 (mean 30000 over the sweep), and the next frame on
-that buffer spends about 26000 more repairing the rows (mostly R_DISCROWS
-and the span fills): a sweep with the sun always in view runs at 9.2 it/s
-against 12.5 without the flare (-26%). The demo measured about 25000 +
-10000 and -2 to -14% in windows where the sun was on screen part of the
-time.
+1.236, 17.27 it/s before and after). As first ported, with the sun on
+screen f_flt took about 20000 cycles a frame at level 1, 31000 at level 2
+and 44000 at level 3 (mean 30000 over the sweep), and the next frame on that
+buffer spent about 26000 more repairing the rows (mostly r_drg, R_DISCROWS'
+general disc row): 57000 a frame in all, and a sweep with the sun always in
+view ran at 9.24 it/s against 12.51 without the flare (-26%). The demo
+measured about 25000 + 10000 and -2 to -14% in windows where the sun was on
+screen part of the time.
+
+Speed-ups (profile by PC over the sun scene's 61 frames, the build without
+the flare as reference: +54300 cycles a frame before, of which the flare's
+own code 30500 (fl_span's set-up and dirty extents 9400, fl_or 6600, the
+disc row loop 6500, fl_kd's centres 3500, rings 2300) and the repair 23800
+(r_drg +11700, r_spc +5600, r7_rowrep, r_bmn, r_dw ...)):
+* r_dmb sends an unchanged row whose dirty extent lies clear of its disc
+  span to r_dp1 (black the extent) rather than r_drg (~900 cycles a row):
+  -7300 a frame (the ghosts beside the planet). The ring round the sun was
+  not the main repair cost in these scenes (the planet is the disc layer and
+  the sun a full-span secondary disc, dirty anyway): leaving the rings
+  unmarked would have saved only ~4000.
+* the centres as running sums of 32 D: -2400.
+* discs by row pairs with one set-up, pairs of empty rows skipped, fl_row
+  and a zero-page fl_or interface: -3900.
+* fl_or ANDs the end bytes' masks itself: -1000; buffer 1 skips the ACCCON
+  switch: -300.
+
+After: +39300 a frame in that profile (the flare's code 22700, the repair
+16500). Over the 300-frame sweep: f_flt 22600 a frame on average (level 2
+23400, level 3 32800; on the square path level 1 15100), and the frame
+43900 cycles above the no-flare build's (from 56700); 9.82 it/s against
+12.51 (-21%, from -26%). Sun-only scenes (the planet hidden: the sun is the
+disc layer, 60 frames) cost the same order: +39200 a frame, f_flt 25800
+(13.41 it/s against 18.15). The rest of
+the repair is r_drg rows where the flare's extent overlaps the disc or the
+disc moved (r_dp2/r_dq would need to merge R_WL/R_WR to take them) and the
+blacking of the flare's own spans (r7_rowrep, r_spc). Checks after every
+step: check.py 0 errors on four paths (sweep 300, square 160, planet line
+160, leaving 80: 552 flared frames), frames without the flare byte for byte
+the no-flare build's, game state unchanged; test_raster --quick passes.

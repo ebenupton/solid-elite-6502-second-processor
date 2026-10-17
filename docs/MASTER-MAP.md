@@ -247,13 +247,13 @@ are recorded in docs/MASTER-PLAN.md (Stage B results).
 | main &7600-&79FF | QSL/QSH quarter-square tables (1K) | - |
 | main &7A00-&7DE9 | the ship lighting's game-context half (gfx-light.asm: L_SUN, L_REC and their variables, 1002) | 22 |
 | main &7E00-&7EE0 | far-call stubs (STUBS) | 287 |
-| shadow &3000-&308A | the lens flare: dotted rings (gfx-flare.asm, FLARE0) | 5 (to setzp's &3090) |
+| shadow &3000-&307F | the lens flare: a ring's columns and rows, a row's span (gfx-flare.asm, FLARE0) | 16 (to setzp's &3090) |
 | shadow &3090-&30FF | zero-page save (setzp/getzp) | - |
 | shadow &3100-&3EFF | extended tokens (TOKENS) | - |
-| shadow &3F00-&3FF1 | the lens flare: tables, span set-up (FLARE3) | 14 |
+| shadow &3F00-&3FFC | the lens flare: tables, a disc's row pairs (FLARE3) | 3 |
 | shadow &4000-&6FFF | buffer 1 (Master's direct-mode screen) | - |
 | shadow &7000-&7DFF | the CMYK dashboard | - |
-| shadow &7E00-&7FEC | the lens flare: frame step, centres, discs (FLARE7; not displayed, the screen ends at &7DFF) | 19 |
+| shadow &7E00-&7FF8 | the lens flare: frame step, centres, a disc's set-up, dotted rings (FLARE7; not displayed, the screen ends at &7DFF) | 7 |
 | ANDY &8000-&8FBE | cold code | 65 |
 | bank 4 &8000-&BFE6 | blueprints, flight code, Master drawing, the CMYK dashboard code (elite-dash) | 25 |
 | bank 5 &8000-&BF4D | rasteriser (polygons in a 4-row colour) | 178 |
@@ -265,9 +265,13 @@ are recorded in docs/MASTER-PLAN.md (Stage B results).
 | HAZEL &C733-&DB86 | renderer state (raster_vars, dashboard scalars, F_DSX/F_DSY) | 121 (to &DC00) |
 | HAZEL &DC40-&DEEC | renderer state (R_WR, R_NDN, stars, F_DSS after R_SS) | 19 (to &DF00) |
 
-After the lens flare (docs/MASTER-PLAN.md, "Lens flare"), measured from
-build/compile.txt: low code 14 free, hi code 22, stubs 13, BCODE 6, bank 4
-4, ANDY 5, bank 5 30, bank 6 23 at its end plus 43 in the COLD6 area
-(&88C1-&88EB), bank 7 rasteriser 3, bank 7 cold 12, HAZEL code 12; the
+After the lens flare and its speed-ups (docs/MASTER-PLAN.md, "Lens
+flare"), measured from build/compile.txt: low code 14 free, hi code 22,
+stubs 13, BCODE 6, bank 4 4, ANDY 5, bank 5 30 at its end (page &8E's
+spare bytes after the run code now hold r_smx: 3 left there; the other run
+pages keep their 5-17 spare bytes each), bank 6 8 at its end plus 5 in the
+COLD6 area (the flare's tables fl_dk, fl_lmt, fl_rmt, fl_pxm and fl_ring
+take &88C1-&88E6), bank 7 rasteriser 3, bank 7 cold 12, HAZEL code 12, HAZEL
+data 111 to &DC00 (the flare's variables after F_DSY) and 19 to &DF00; the
 shadow rows above. The bank 6 row above predates this (bank 6 now ends at
-&BFE8, with the flare's f_flt and fl_or last).
+&BFF7, with the flare's f_flt and fl_or last).
