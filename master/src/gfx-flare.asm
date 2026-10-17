@@ -27,15 +27,16 @@
 \ layer's f_flt (gfx-flare6.asm, bank 6) sets ACCCON X around FL_MAIN, and
 \ fl_or (bank 6 too) does the writing, as the back buffer may be main RAM
 \ (buffer 0: ACCCON X = 0 while it writes). Everything this code reads is in
-\ bank 6 (paged throughout the frame), HAZEL, the zero page or main RAM below
-\ &3000.
+\ bank 6 (paged throughout the frame), HAZEL, the zero page, shadow RAM or
+\ main RAM below &3000.
 \
 \ ******************************************************************************
 
 \ (Its zero page is defined in gfx-flare6.asm, assembled first.)
 
 \ ------------------------------------------------------------------------------
-\ Shadow &7E00-&7FFF: the flare's frame step, the ghosts' centres, a disc
+\ Shadow &7E00-&7FFF: the flare's frame step, the ghosts' centres, a disc's
+\ set-up, a dotted ring
 \ ------------------------------------------------------------------------------
 
 ORG &7E00
@@ -66,14 +67,9 @@ ORG &7E00
  RTS
 
 \ FL_MAIN: the flare over this frame, if any (from f_flt, with ACCCON X = 1
-\ and the sun drawn this frame). Leaves fl_xb for f_flt.
+\ and the sun drawn this frame; fl_xb set).
 
 .FL_MAIN
- LDA F_BACK             \ fl_xb: 4 when the back buffer is main RAM (0)
- EOR #1
- ASL A
- ASL A
- STA fl_xb
  LDA VIEW               \ the front view, and the sun's centre on the
  ORA F_SUX+1            \ screen: x 1..255, y 0..191
  ORA F_SUY+1
@@ -223,101 +219,6 @@ ORG &7E00
  JSR fl_disc            \ a disc
  BRA flm3
 
-\ fl_disc: ghost X, a disc (centre fl_gx, fl_gy; ink fl_u; density index
-\ fl_m): its radius, half-widths and four row masks, then rows max(gy - r,
-\ 1)..min(gy + r, 191) whose mask is not zero, each the span gx - h..gx + h
-\ (h = the half-width at |y - gy|) clipped to x = 2..253
-
-.fl_disc
- LDA fl_rad,X           \ radius, half-widths
- STA fl_r
- LDA fl_hl,X
- STA fl_hw
- LDA #HI(fl_htab)
- STA fl_hw+1
- STX fl_yb              \ masks[index][(j + number) AND 3] AND ink, j = 0..3
- LDA fl_m
- ASL A
- ASL A
- STA fl_t
- LDY #3
-.flm6
- TYA
- CLC
- ADC fl_yb
- AND #3
- ORA fl_t
- TAX
- LDA fl_mt,X
- AND fl_u
- STA fl_pat,Y
- DEY
- BPL flm6
- LDA fl_gy
- SEC
- SBC fl_r
- BCC P%+4
- BNE P%+4
- LDA #1
- STA fl_y
- LDA fl_gy
- CLC
- ADC fl_r
- CMP #192
- BCC P%+4
- LDA #191
- STA fl_yb
- CMP fl_y
- BCC fsd9
- CMP fl_ymax            \ the rows' range
- BCC P%+4
- STA fl_ymax
- LDA fl_y
- CMP fl_ymin
- BCS P%+4
- STA fl_ymin
-.fsd1
- LDA fl_y
- AND #3
- TAX
- LDA fl_pat,X
- BEQ fsd8
- STA fl_m
- LDA fl_y
- SEC
- SBC fl_gy
- JSR fl_abs
- TAY
- LDA (fl_hw),Y
- TAX
- EOR #&FF               \ XL = max(gx - h, 2)
- SEC
- ADC fl_gx
- BCS P%+4
- LDA #0
- CMP #2
- BCS P%+4
- LDA #2
- STA R_XL
- TXA                    \ XR = min(gx + h, 253)
- CLC
- ADC fl_gx
- BCS P%+6
- CMP #254
- BCC P%+4
- LDA #253
- STA R_XR
- CMP R_XL
- BCC fsd8
- JSR fl_span
-.fsd8
- LDA fl_y
- INC fl_y
- CMP fl_yb
- BCC fsd1
-.fsd9
- RTS
-
 \ fl_abs: A = |A| (A from a load: N its sign; A > -128)
 
 .fl_abs
@@ -326,125 +227,58 @@ ORG &7E00
  INC A
  RTS
 
-.SH7_END
-ASSERT SH7_END <= &8000
+\ fl_disc: ghost X, a disc (centre fl_gx, fl_gy; ink fl_u; density index
+\ fl_m): its radius, half-widths and four row masks, then rows max(gy - r,
+\ 1)..min(gy + r, 191) whose mask is not zero, each the span gx - h..gx + h
+\ (h = the half-width at |y - gy|) clipped to x = 2..253: by d = |y - gy|
+\ from r down to 0, rows gy - d and gy + d sharing the span
 
-\ ------------------------------------------------------------------------------
-\ Shadow &3F00-&3FFF: the tables (tools/flare.py: GHOSTS, LADDER, BAYER,
-\ RING, hw_table) and the drawing of a span
-\ ------------------------------------------------------------------------------
-
-ORG &3F00
-
-.fl_htab                \ half-widths: the widest x with x^2 + d^2 <= r^2 + r,
-MACRO FLHW r            \ d = 0..r (one page: fl_hw's high byte is fixed)
- FOR d, 0, r
-  EQUB INT(SQR(r * r + r - d * d))
- NEXT
-ENDMACRO
-.fl_h3  FLHW 3
-.fl_h4  FLHW 4
-.fl_h5  FLHW 5
-.fl_h7  FLHW 7
-.fl_h10 FLHW 10
-.fl_h18 FLHW 18
-ASSERT HI(fl_htab) = HI(P% - 1)
-
-                        \ the ghosts, by number (k = 8, 5, 3, -1, -3, -4, -6,
-                        \ -8: centre C + k D / 8; 8: the ring round the sun): radius (a ring: its scale, 1
-                        \ for 30, 0 for 15), ink, density index (+ &80: a
-                        \ dotted ring), half-widths
-.fl_rad EQUB 1, 4, 7, 3, 10, 5, 0, 18
-.fl_ink EQUB &FF, &FF, &F0, &0F, &0F, &FF, &F0, &0F
-.fl_ni  EQUB &83, 4, 3, 5, 3, 3, &83, 2
-.fl_hl  EQUB 0, LO(fl_h4), LO(fl_h7), LO(fl_h3), LO(fl_h10), LO(fl_h5), 0, LO(fl_h18)
-
-fl_mt = P% - 4          \ row masks of densities 1, 2, 4, 6, 8 / 16 (4x4
-                        \ Bayer), by density index (1..5) and row
- EQUB &88, &00, &00, &00
- EQUB &88, &00, &22, &00
- EQUB &AA, &00, &AA, &00
- EQUB &AA, &44, &AA, &11
- EQUB &AA, &55, &AA, &55
-
-.fl_lm  EQUB &FF, &77, &33, &11      \ pixels x AND 3..3 of a byte
-.fl_rm  EQUB &88, &CC, &EE, &FF      \ pixels 0..x AND 3
-
-.fl_ring                \ (dx, dy) of 9 points of a quarter circle of radius 15
- EQUB 15, 0, 15, 3, 14, 6, 12, 8, 11, 11, 8, 12, 6, 14, 3, 15, 0, 15
-
-\ fl_span: OR fl_m into row fl_y, pixels R_XL..R_XR (inside the clip
-\ window), after extending this buffer's dirty extent for the row (the rows'
-\ range, fl_ymin..fl_ymax, is the callers'). Clobbers A, X, Y, fl_t.
-
-.fl_span
- LDY fl_y
- LDA R_XL
-.fl_dl1
- CMP R_DIRTYL0,Y        \ patched (this buffer's)
- BCS P%+5
-.fl_dl2
- STA R_DIRTYL0,Y
- LDA R_XR
-.fl_dr1
- CMP R_DIRTYR0,Y
- BCC P%+5
-.fl_dr2
- STA R_DIRTYR0,Y
- TYA                    \ &4000 + (y DIV 8) * &200 + (y MOD 8) + 8 * (XL DIV 4)
- LSR A
- LSR A
- AND #&FE
- ORA #&40
- STA fl_sp+1
- TYA
- AND #7
- STA fl_sp
- LDA R_XL
- AND #&FC
- STA fl_t
- ASL A
- BCC P%+4
- INC fl_sp+1
- ORA fl_sp
- STA fl_sp
- LDA R_XL               \ the first byte's mask
- AND #3
- TAX
- LDA fl_lm,X
- AND fl_m
- STA flo_f+1
- LDA R_XR               \ the last's
- AND #3
- TAX
- LDA fl_rm,X
- AND fl_m
- TAX
- LDA R_XR               \ 8 * (XR DIV 4 - XL DIV 4)
- AND #&FC
- SEC
- SBC fl_t
- ASL A
- STA fl_n
- BNE fls1
- TXA                    \ one byte: both masks
- AND flo_f+1
- TAX
-.fls1
- STX flo_l+1
+.fl_disc
+ LDA fl_rad,X           \ radius, half-widths
+ STA fl_r
+ LDA fl_hl,X
+ STA fl_hw
+ LDA #HI(fl_htab)
+ STA fl_hw+1
+ STX fl_d               \ masks[index][(j + number) AND 3] AND ink, j = 0..3
  LDA fl_m
- STA flo_m+1
- JMP fl_or              \ (bank 6)
-
-.SH3_END
-ASSERT SH3_END <= &4000
-
-\ ------------------------------------------------------------------------------
-\ Shadow &3000-&308F (below the zero page's save area at &3090, setzp):
-\ a dotted ring
-\ ------------------------------------------------------------------------------
-
-ORG &3000
+ ASL A
+ ASL A
+ STA fl_t
+ LDY #3
+.flm6
+ TYA
+ CLC
+ ADC fl_d
+ AND #3
+ ORA fl_t
+ TAX
+ LDA fl_mt,X
+ AND fl_u
+ STA fl_pat,Y
+ DEY
+ BPL flm6
+ LDA fl_gy              \ the rows' range
+ CLC
+ ADC fl_r
+ CMP #192
+ BCC P%+4
+ LDA #191
+ CMP fl_ymax
+ BCC P%+4
+ STA fl_ymax
+ LDA fl_gy
+ SEC
+ SBC fl_r
+ BCC P%+4
+ BNE P%+4
+ LDA #1
+ CMP fl_ymin
+ BCS P%+4
+ STA fl_ymin
+ LDA fl_r
+ STA fl_d
+ JMP fsd0
 
 \ fl_dots: ghost X, a dotted ring (centre fl_gx, fl_gy; ink fl_u; density
 \ index fl_m): fl_ring's points (times 2 ^ its scale), every one at density
@@ -460,15 +294,15 @@ ORG &3000
  LDY #4
  STY fl_r
  LDA fl_rad,X           \ (its scale)
- STA fl_pat+1
- LDA fl_u               \ (its ink)
- STA fl_m
+ STA fl_t
+ LDA #&FF               \ every row's mask: all (fl_lq has the pixel's), one
+ STA fl_m               \ byte
+ STZ fl_n
  LDX #0
 .fsr1
- STX fl_pat+2
- LDY fl_pat+1
+ STX fl_d
  LDA fl_ring,X          \ dx, dy
- CPY #0
+ LDY fl_t
  BEQ P%+3
  ASL A
  STA fl_hw
@@ -490,13 +324,152 @@ ORG &3000
  BCC P%+5
  JSR fl_dcol
 .fsr2
- LDA fl_pat+2
+ LDA fl_d
  CLC
  ADC fl_r
  TAX
  CPX #18
  BCC fsr1
  RTS
+
+.SH7_END
+ASSERT SH7_END <= &8000
+
+\ ------------------------------------------------------------------------------
+\ Shadow &3F00-&3FFF: the tables (tools/flare.py: GHOSTS, LADDER, BAYER,
+\ hw_table; RING and the masks in bank 6, the variables in HAZEL and the
+\ zero page) and a disc's rows
+\ ------------------------------------------------------------------------------
+
+ORG &3F00
+
+.fl_htab                \ half-widths: the widest x with x^2 + d^2 <= r^2 + r,
+MACRO FLHW r            \ d = 0..r (one page: fl_hw's high byte is fixed)
+ FOR d, 0, r
+  EQUB INT(SQR(r * r + r - d * d))
+ NEXT
+ENDMACRO
+.fl_h3  FLHW 3
+.fl_h4  FLHW 4
+.fl_h5  FLHW 5
+.fl_h7  FLHW 7
+.fl_h10 FLHW 10
+.fl_h18 FLHW 18
+ASSERT HI(fl_htab) = HI(P% - 1)
+
+                        \ the ghosts, by number (k = 8, 5, 3, -1, -3, -4, -6,
+                        \ -8: centre C + k D / 8; 8: the ring round the sun):
+                        \ radius (a ring: its scale, 1 for 30, 0 for 15), ink,
+                        \ density index (+ &80: a dotted ring), half-widths
+.fl_rad EQUB 1, 4, 7, 3, 10, 5, 0, 18
+.fl_ink EQUB &FF, &FF, &F0, &0F, &0F, &FF, &F0, &0F
+.fl_ni  EQUB &83, 4, 3, 5, 3, 3, &83, 2
+.fl_hl  EQUB 0, LO(fl_h4), LO(fl_h7), LO(fl_h3), LO(fl_h10), LO(fl_h5), 0, LO(fl_h18)
+
+fl_mt = P% - 4          \ row masks of densities 1, 2, 4, 6, 8 / 16 (4x4
+                        \ Bayer), by density index (1..5) and row
+ EQUB &88, &00, &00, &00
+ EQUB &88, &00, &22, &00
+ EQUB &AA, &00, &AA, &00
+ EQUB &AA, &44, &AA, &11
+ EQUB &AA, &55, &AA, &55
+
+.fsd0
+.fsd1                   \ d (r down to 0): either row's mask not zero?
+ LDA fl_gy
+ SEC
+ SBC fl_d
+ AND #3
+ TAX
+ LDA fl_pat,X
+ BNE fsd5
+ LDA fl_gy
+ CLC
+ ADC fl_d
+ AND #3
+ TAX
+ LDA fl_pat,X
+ BEQ fsd8
+.fsd5                   \ the span gx - h..gx + h, clipped
+ LDY fl_d
+ LDA (fl_hw),Y
+ TAX
+ EOR #&FF               \ XL = max(gx - h, 2)
+ SEC
+ ADC fl_gx
+ BCS P%+4
+ LDA #0
+ CMP #2
+ BCS P%+4
+ LDA #2
+ STA R_XL
+ TXA                    \ XR = min(gx + h, 253)
+ CLC
+ ADC fl_gx
+ BCS P%+6
+ CMP #254
+ BCC P%+4
+ LDA #253
+ STA R_XR
+ CMP R_XL
+ BCC fsd8
+ AND #3                 \ the last byte's mask, the first's, the first's
+ TAX                    \ column (x 8) and 8 x (bytes - 1), shared by the
+ LDA fl_rmt,X           \ two rows
+ STA fl_rq
+ LDA R_XL
+ AND #3
+ TAX
+ LDA fl_lmt,X
+ STA fl_lq
+ LDA R_XL
+ AND #&FC
+ STA fl_t
+ ASL A
+ STA fl_cl
+ LDA #&20                \ (&40 + C)
+ ROL A
+ STA fl_ch
+ LDA R_XR
+ AND #&FC
+ SEC
+ SBC fl_t
+ ASL A
+ STA fl_n
+ BNE fsd2
+ LDA fl_lq              \ one byte: both masks
+ AND fl_rq
+ STA fl_lq
+.fsd2
+ LDA fl_gy              \ row gy - d, if >= 1
+ SEC
+ SBC fl_d
+ BCC fsd3
+ BEQ fsd3
+ JSR fl_row
+.fsd3
+ LDA fl_d               \ row gy + d, if d > 0 and gy + d <= 191
+ BEQ fsd8
+ CLC
+ ADC fl_gy
+ CMP #192
+ BCS fsd8
+ JSR fl_row
+.fsd8
+ DEC fl_d
+ BMI P%+5
+ JMP fsd1
+ RTS
+
+.SH3_END
+ASSERT SH3_END <= &4000
+
+\ ------------------------------------------------------------------------------
+\ Shadow &3000-&308F (below the zero page's save area at &3090, setzp):
+\ a ring's column and row, and a row's span
+\ ------------------------------------------------------------------------------
+
+ORG &3000
 
 .fl_dcol                \ column A: rows gy + dy and gy - dy
  CMP #2
@@ -505,6 +478,19 @@ ORG &3000
  BCS fsc9
  STA R_XL
  STA R_XR
+ TAY
+ AND #&FC               \ its byte's column (fl_cl, fl_ch), pixel mask
+ ASL A
+ STA fl_cl
+ LDA #&20                \ (&40 + C)
+ ROL A
+ STA fl_ch
+ TYA
+ AND #3
+ TAX
+ LDA fl_pxm,X
+ AND fl_u
+ STA fl_lq
  LDA fl_gy              \ (gy + dy <= 191 + 30: no carry)
  CLC
  ADC fl_hw+1
@@ -520,15 +506,60 @@ ORG &3000
  BCC fsc9
  CMP #192
  BCS fsc9
- STA fl_y
  CMP fl_ymax            \ the rows' range
  BCC P%+4
  STA fl_ymax
  CMP fl_ymin
  BCS P%+4
  STA fl_ymin
- JMP fl_span
+ TAY
+ JMP fl_row1
 .fsc9
+ RTS
+
+\ fl_row: row A (inside the clip window), if its mask (fl_pat) is not zero:
+\ extend this buffer's dirty extent for the row by R_XL..R_XR, point fl_sp
+\ at its first byte (column fl_cl / fl_ch), mask the end bytes' masks, and OR
+\ the bytes (fl_or, bank 6). Clobbers A, X, Y.
+
+.fl_row
+ TAY
+ AND #3
+ TAX
+ LDA fl_pat,X
+ BEQ fsr9
+ STA fl_m
+.fl_row1                \ (Y = row, fl_m = its mask)
+ LDA R_XL
+.fl_dl1
+ CMP R_DIRTYL0,Y        \ patched (this buffer's)
+ BCS P%+5
+.fl_dl2
+ STA R_DIRTYL0,Y
+ LDA R_XR
+.fl_dr1
+ CMP R_DIRTYR0,Y
+ BCC P%+5
+.fl_dr2
+ STA R_DIRTYR0,Y
+ TYA                    \ &4000 + (y DIV 8) * &200 + (y MOD 8) + 8 * (XL DIV 4)
+ AND #7
+ ORA fl_cl
+ STA fl_sp
+ TYA
+ LSR A
+ LSR A
+ AND #&FE
+ ORA fl_ch
+ STA fl_sp+1
+ LDA fl_lq
+ AND fl_m
+ STA fl_lm
+ LDA fl_rq
+ AND fl_m
+ STA fl_rm
+ JMP fl_or              \ (bank 6)
+.fsr9
  RTS
 
 .SH0_END

@@ -98,6 +98,8 @@ ASSERT HI(F_DSX) = HI(F_DSY+NDSTAR-1)
 .fl_mh  SKIP 2          \ and high bytes
 .fl_sl  SKIP 2          \ the centres' sums S (x, y)
 .fl_sh  SKIP 2
+.fl_lev SKIP 1          \ the level, 1..3
+.fl_xb  SKIP 1          \ ACCCON X while writing: 4 = clear it (buffer 0)
 .HZ_END
 PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
 ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00
