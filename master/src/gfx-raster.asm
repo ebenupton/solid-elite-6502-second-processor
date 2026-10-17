@@ -3049,7 +3049,15 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   TAY
   CPY RZ_SA+1
   BCS lsb
-.lb
+.lb                       \ (unrolled twice: saves a taken branch per pair; .la
+                          \ is not unrolled, as BCC oa would go out of range)
+  TXA
+  STA (RZ_PB),Y
+  TYA
+  ADC #8                  \ (C = 0 from the CPY)
+  TAY
+  CPY RZ_SA+1
+  BCS lsb
   TXA
   STA (RZ_PB),Y
   TYA
