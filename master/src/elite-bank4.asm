@@ -6855,16 +6855,17 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  STA XX3,X              \ Store the low byte of the result in the X-th byte of
                         \ the heap at XX3
 
- INX                    \ Increment the heap pointer in X to point to the next
-                        \ byte
 
  LDA #0                 \ And then subtract the high bytes
  SBC U
 
- STA XX3,X              \ Store the low byte of the result in the X-th byte of
+ STA XX3+1,X            \ Store the low byte of the result in the X-th byte of
                         \ the heap at XX3
 
  JMP LL66               \ Jump down to LL66
+
+ SKIP 1                 \ Port: the INX's byte (the high byte goes to
+                        \ XX3+1,X), so the code that follows does not move
 
 \ ******************************************************************************
 \
@@ -7061,29 +7062,26 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  STA XX3,X              \ Store the low byte of the result in the X-th byte of
                         \ the heap at XX3
 
- INX                    \ Increment the heap pointer in X to point to the next
-                        \ byte
 
  LDA U                  \ And then add the high bytes
  ADC #0
 
- STA XX3,X              \ Store the high byte of the result in the X-th byte of
+ STA XX3+1,X            \ Store the high byte of the result in the X-th byte of
                         \ the heap at XX3
 
 .LL66
 
+                        \ Port: X is not saved here, as LL68 reloads it from
+                        \ CNT (LL28 and LL61 leave CNT alone), and Q still
+                        \ holds z_lo from LL60 (LL28 and LL61 only read Q)
+
                         \ We've just stored the screen x-coordinate of the
                         \ vertex on the XX3 heap, so now for the y-coordinate
 
- TXA                    \ Store the heap pointer in X on the stack (at this
- PHA                    \ it points to the last entry on the heap, not the first
-                        \ free byte)
 
  LDA #0                 \ Set U = 0
  STA U
 
- LDA T                  \ Set Q = z_lo
- STA Q
 
  LDA XX15+3             \ Set A = y_lo
 
@@ -7121,6 +7119,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
  JMP LL50               \ Jump to LL50 to move on to the next vertex
 
+ SKIP 6                 \ Port: LL66's and LL69's old bytes, so that LL50
+                        \ and the code after it do not move
+
 .LL67
 
  JSR LL28               \ Call LL28 to calculate:
@@ -7151,12 +7152,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
                         \ up the screen, converts to a low y-coordinate, which
                         \ is the opposite way round to the x-coordinates
 
- PLA                    \ Restore the heap pointer from the stack into X
- TAX
-
- INX                    \ When we stored the heap pointer, it pointed to the
-                        \ last entry on the heap, not the first free byte, so we
-                        \ increment it so it does point to the next free byte
+ LDX CNT                \ Port: set X = CNT + 2, the heap pointer for the
+ INX                    \ y-coordinate, reloaded from CNT in place of the PHA
+ INX                    \ and PLA of X around the division
 
  LDA XX15+5             \ If y_sign is negative, jump up to LL70, which will
  BMI LL70               \ store #Y + (U R) on the XX3 heap and return by jumping
