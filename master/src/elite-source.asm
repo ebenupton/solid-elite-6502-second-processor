@@ -10949,24 +10949,70 @@ ENDMACRO
 
  LDX Q                  \ If |Q| = 0, i.e. Q = 0 or &80, then Q * A = 0, so
  BEQ mad2               \ skip MULT1 (whose other effects, X, T and the flags,
- CPX #%10000000         \ ADD overwrites) and do ADD's work with (A P) = 0,
- BNE mad1               \ otherwise jump to mad1 to call MULT1
+ CPX #%10000000         \ ADD overwrites) and do ADD's work with (A P) = 0 at
+ BEQ mad2               \ mad2, otherwise fall through into mad1 to call MULT1
 
-.mad2
+.mad1
 
- STZ P                  \ Set (A P) = 0, and do ADD's work directly: with
- STZ T1                 \ A = 0, ADD sets T1 = T = 0 and, if S is positive,
- STZ T                  \ returns (A X) = (S R) with C = V = 0 and N/Z from S;
- LDX R                  \ if S is negative it goes to MU8 with P = T1 = T = 0
- LDA S
- BPL mad3               \ (S negative: MU8 returns (A X) = (S R) with C = V = 0,
- BIT #%01111111         \ N = 1 and Z = 0 unless (S R) = &8000, so return that
- BEQ MU8                \ directly when |S| <> 0, as BIT #imm leaves N alone)
+ JSR MULT1              \ |Q| <> 0: set (A P) = Q * A (MULT1 has already set
+                        \ T to the sign of the result, and |A| < &80, so this
+                        \ is the head of ADD without the AND and STA T)
 
-.mad3
+ STA T1                 \ Store A in T1, as ADD does
 
- CLC
- CLV
+ EOR S                  \ If A and S have the same sign jump to add1 in ADD
+ BPL add1               \ (C is still clear from MULT1, so skip its CLC),
+                        \ otherwise fall through into MU8
+
+.MU8
+
+                        \ If we reach here, then A and S have different signs,
+                        \ so we can subtract their absolute values and set the
+                        \ sign to get the result
+                        \
+                        \ Port: |S| > |A| is the common case, so subtract the
+                        \ other way round with the borrow set, giving
+                        \ (A X) = |S R| - |A P| - 1 = NOT(|A P| - |S R|)
+                        \
+                        \ Port: MAD, mad1, MU8 and ADD are laid out so that
+                        \ every hot branch here stays within its page
+
+ LDA R                  \ Subtract the least significant bytes into X:
+ CLC                    \
+ SBC P                  \   X = R - P - 1
+ TAX
+
+ LDA S                  \ S and T1 have opposite signs, so S - T1 - borrow is
+ SBC T1                 \ m EOR &80, where m = |S| - |A| - borrow (-128..127),
+                        \ so bit 7 of the result is set if and only if m >= 0,
+                        \ i.e. |S R| > |A P| strictly (so the equal case still
+                        \ takes argument A's sign, as before)
+
+ CLV                    \ Both paths return with V = 0
+
+ BPL mu8b               \ If |S R| <= |A P|, jump to mu8b
+
+ INX                    \ |S R| > |A P|, so add 1 to (A X) to get
+ BNE mu8a               \ |S R| - |A P| (at most &7FFF, so m + 1 <= &7F and
+ INC A                  \ the increment cannot carry into bit 7)
+
+.mu8a
+
+ EOR T                  \ A = m EOR &80 already has the sign of S, i.e. the
+ CLC                    \ opposite of argument A's sign in T, so this gives the
+ RTS                    \ result S's sign; return with C = V = 0
+
+.mu8b
+
+ EOR #&7F               \ |S R| <= |A P|, so (A X) = NOT(|A P| - |S R|) with
+ PHA                    \ A = m EOR &80, and we invert both bytes (the high
+ TXA                    \ byte by EOR &7F, as bit 7 is already flipped) to get
+ EOR #&FF               \ |A P| - |S R|
+ TAX
+ PLA
+
+ EOR T                  \ Give the result the sign of argument A, and return
+ SEC                    \ with C = 1 and V = 0, as before
  RTS
 
 \ ******************************************************************************
@@ -11024,65 +11070,25 @@ ENDMACRO
 
  RTS                    \ Return from the subroutine
 
-.mad1
+.mad2
 
- JSR MULT1              \ |Q| <> 0: set (A P) = Q * A (MULT1 has already set
-                        \ T to the sign of the result, and |A| < &80, so this
-                        \ is the head of ADD without the AND and STA T)
+ STZ P                  \ MAD with |Q| = 0: set (A P) = 0, and do ADD's work
+ STZ T1                 \ directly: with A = 0, ADD sets T1 = T = 0 and, if S
+ STZ T                  \ is positive, returns (A X) = (S R) with C = V = 0 and
+ LDX R                  \ N/Z from S; if S is negative it goes to MU8 with
+ LDA S                  \ P = T1 = T = 0
+ BPL mad3               \ (S negative: MU8 returns (A X) = (S R) with C = V = 0,
+ BIT #%01111111         \ N = 1 and Z = 0 unless (S R) = &8000, so return that
+ BEQ MU8                \ directly when |S| <> 0, as BIT #imm leaves N alone)
 
- STA T1                 \ Store A in T1, as ADD does
+.mad3
 
- EOR S                  \ If A and S have the same sign jump to add1 in ADD
- BPL add1               \ (C is still clear from MULT1, so skip its CLC),
-                        \ otherwise fall through into MU8
-
-.MU8
-
-                        \ If we reach here, then A and S have different signs,
-                        \ so we can subtract their absolute values and set the
-                        \ sign to get the result
-                        \
-                        \ Port: |S| > |A| is the common case, so subtract the
-                        \ other way round with the borrow set, giving
-                        \ (A X) = |S R| - |A P| - 1 = NOT(|A P| - |S R|), with
-                        \ C set if and only if |S R| > |A P| strictly (so the
-                        \ equal case still takes argument A's sign, as before)
-
- LDA R                  \ Subtract the least significant bytes into X:
- CLC                    \
- SBC P                  \   X = R - P - 1
- TAX
-
- LDA S                  \ S and T1 have opposite signs, so flipping the sign
- EOR #%10000000         \ of S gives it the same bit 7 as T1, and then
- SBC T1                 \ (S EOR &80) - T1 - borrow = |S| - |A| - borrow
-                        \ (V = 0, as the operands have the same sign)
-
- BCC mu8b               \ If |S R| <= |A P|, jump to mu8b
-
- INX                    \ |S R| > |A P|, so add 1 to (A X) to get
- BNE mu8a               \ |S R| - |A P| (at most &7FFF, so the high byte
- INC A                  \ cannot overflow into bit 7)
-
-.mu8a
-
- ORA #%10000000         \ Give the result the sign of S, i.e. the opposite of
- EOR T                  \ argument A's sign in T, and return with C = V = 0,
- CLC                    \ exactly as the old wrong-way-round negation did
+ CLC
+ CLV
  RTS
 
-.mu8b
-
- EOR #&FF               \ |S R| <= |A P|, so (A X) = NOT(|A P| - |S R|), and
- PHA                    \ we invert both bytes to get |A P| - |S R|
- TXA
- EOR #&FF
- TAX
- PLA
-
- EOR T                  \ Give the result the sign of argument A, and return
- SEC                    \ with C = 1 and V = 0, as before
- RTS
+ EQUB 0, 0, 0           \ Port: padding, so that the code that follows does
+                        \ not move
 
 \ ******************************************************************************
 \
