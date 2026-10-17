@@ -1,25 +1,16 @@
 \ ******************************************************************************
 \
-\ elite-cold6b.asm - more cold game code in bank 6, at the end of the bank
-\ (see elite-cold6.asm)
+\ elite-hazel2.asm - game code in HAZEL's second block
+\
+\ Port: HAZEL &DB87-&DBFF, after the renderer's state (elite-gfx.asm), is the
+\ second block of game code in HAZEL. The loader stages it after the first
+\ block (HAZEL.bin; the disc's HAZEL file is both) and copies it into place
+\ with it. As elite-hazel.asm, it is visible to game code with bank 4 paged
+\ (ACCCON Y is always set), so it calls main RAM and bank 4 directly and they
+\ call it directly. Flight-rare code that was in bank 6 behind far6 stubs
+\ (FLIP, MAS1, MAS3), to make room there for the renderer.
 \
 \ ******************************************************************************
-
-.y4_PIXEL2
- JSR far4
- EQUW PIXEL2
-
-.y4_pxpatd
- JSR far4
- EQUW pxpatd
-
-.y4_MVT3
- JSR far4
- EQUW MVT3
-
-.y4_SQUA2
- JSR far4
- EQUW SQUA2
 
 \ ******************************************************************************
 \
@@ -44,9 +35,9 @@
 \
 \ ******************************************************************************
 
-.FLIP_C
+.FLIP
 
- JSR y4_pxpatd          \ Switch to stripe 3-2-3-2, which is cyan/red in the
+ JSR pxpatd             \ Switch to stripe 3-2-3-2, which is cyan/red in the
                         \ space view (Port: and patch the record-mode tests)
 
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
@@ -68,7 +59,7 @@
  LDA SZ,Y               \ Fetch the Y-th particle's distance from SZ+Y into ZZ
  STA ZZ
 
- JSR y4_PIXEL2             \ Draw a stardust particle at (X1,Y1) with distance ZZ
+ JSR PIXEL2             \ Draw a stardust particle at (X1,Y1) with distance ZZ
 
  DEY                    \ Decrement the counter to point to the next particle of
                         \ stardust
@@ -132,7 +123,7 @@
 \
 \ ******************************************************************************
 
-.MAS1_C
+.MAS1
 
  LDA INWK,Y             \ Set K(2 1) = (nosev_y_hi nosev_y_lo) * 2
  ASL A
@@ -145,7 +136,7 @@
  ROR A                  \ above result goes into K+3
  STA K+3
 
- JSR y4_MVT3               \ Add (x_sign x_hi x_lo) to K(3 2 1)
+ JSR MVT3               \ Add (x_sign x_hi x_lo) to K(3 2 1)
 
  STA INWK+2,X           \ Store the sign of the result in x_sign
 
@@ -200,15 +191,15 @@
 \
 \ ******************************************************************************
 
-.MAS3_C
+.MAS3
 
  LDA K%+1,Y             \ Set (A P) = x_hi * x_hi
- JSR y4_SQUA2
+ JSR SQUA2
 
  STA R                  \ Store A (high byte of result) in R
 
  LDA K%+4,Y             \ Set (A P) = y_hi * y_hi
- JSR y4_SQUA2
+ JSR SQUA2
 
  ADC R                  \ Add A (high byte of second result) to R
 
@@ -218,7 +209,7 @@
  STA R                  \ Store A (sum of the two high bytes) in R
 
  LDA K%+7,Y             \ Set (A P) = z_hi * z_hi
- JSR y4_SQUA2
+ JSR SQUA2
 
  ADC R                  \ Add A (high byte of third result) to R, so R now
                         \ contains the high byte of the entire sum, i.e. of

@@ -60,7 +60,7 @@ console.log(`sideways RAM banks in this model: ${cpu.model.swram.map((v, i) => v
 // (ROMSEL bit 7: ANDY at &8000-&8FFF). The game writes XX21+2/3 (the station's
 // blueprint) in bank 4 and patches DETOK's JSR at DTM (DTM_C in the cold area).
 const images = [["BANK4.bin", 4, 0x8000], ["ANDY.bin", 0x87, 0x8000], ["COLD7.bin", 7, 0xac40], ["TOKENS.bin", "shadow", 0x3100], ["STUBS.bin", "main", 0x7e00],
-    ["BANK5.bin", 5, 0x8000], ["BANK6.bin", 6, 0x8000], ["RAST7.bin", 7, 0x8000], ["HAZEL.bin", "hazel", syms.HZ_START], ["LOWCODE.bin", "main", 0x0840], ["HICODE.bin", "main", 0x7200],
+    ["BANK5.bin", 5, 0x8000], ["BANK6.bin", 6, 0x8000], ["RAST7.bin", 7, 0x8000], ["HAZEL.bin", "hazel", syms.HZ_START], ["HAZEL2.bin", "hazel", syms.HZ2_START], ["LOWCODE.bin", "main", 0x0840], ["HICODE.bin", "main", 0x7200],
     ["FLARE7.bin", "shadow", 0x7e00], ["FLARE3.bin", "shadow", 0x3f00], ["FLARE0.bin", "shadow", 0x3000]];
 const xx21 = syms.XX21;
 let diffs = [];

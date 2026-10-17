@@ -104,6 +104,15 @@ ASSERT HI(F_DSX) = HI(F_DSY+NDSTAR-1)
 PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
 ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00
 
+\ HAZEL's second block of game code (elite-hazel2.asm), after the state: the
+\ loader stages it after the first block and copies it here
+.HZ2_START
+INCLUDE "src/elite-hazel2.asm"
+.HZ2_END
+PRINT "HAZEL: code (block 2) ", ~HZ2_START, "-", ~HZ2_END-1, " free to &DC00 ", &DC00-HZ2_END
+ASSERT HZ2_END <= &DC00
+SAVE "build/HAZEL2.bin", HZ2_START, HZ2_END, HZ2_START
+
 ORG &DC40                       \ (after the longest OSCLI command the game
                                 \ issues, see SVE and friends)
 .R_NDN    SKIP 192       \ (raster_vars.asm: boundaries per disc row, 0..4)
@@ -154,7 +163,6 @@ ALIGN &100              \ (page-aligned so code size changes never add
 .F_DL   SKIP 1536       \ ship records: XX2 then XX3 copies
 .F_DLEND
 INCLUDE "src/gfx-frame_cold.asm"   \ (after the data, so that nothing else moves)
-INCLUDE "src/elite-cold6b.asm"     \ Elite's cold code in bank 6, part 2
 INCLUDE "src/gfx-flare6.asm"       \ the lens flare's step and span writer
 .B6_END
 PRINT "Bank 6: frame layer &8000-", ~B6_END-1, " free ", &C000-B6_END

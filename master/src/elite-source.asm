@@ -7491,7 +7491,7 @@ ENDIF
 
 \ Port: STARS6 moved to HAZEL (elite-hazel.asm)
 
-\ Port: MAS1 moved to bank 6 (elite-cold6b.asm)
+\ Port: MAS1 moved to HAZEL (elite-hazel2.asm)
 
 \ ******************************************************************************
 \
@@ -7555,7 +7555,7 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: MAS3 moved to bank 6 (elite-cold6b.asm)
+\ Port: MAS3 moved to HAZEL (elite-hazel2.asm)
 
 \ ******************************************************************************
 \
