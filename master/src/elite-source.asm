@@ -10548,20 +10548,19 @@ ENDMACRO
  ADC T1
  TAX
 
- TYA                    \ Set Y = ||A| - |Q||
- CLC
- SBC T1
- BCS mlt2
+ TYA                    \ Set Y = ||A| - |Q|| (C is already clear, as
+ SBC T1                 \ |A| + |Q| <= 254 in the ADC above)
+ BCS mlt2               \ C set on both paths into mlt2 for the SBC below
  EOR #&FF
- ADC #1
+ INC A
+ SEC
 
 .mlt2
 
  TAY
 
  LDA QSL,X              \ Set (A P) = (|A| + |Q|)^2 / 4 - (|A| - |Q|)^2 / 4
- SEC                    \           = |A| * |Q|
- SBC QSL,Y
+ SBC QSL,Y              \           = |A| * |Q|
  STA P
  LDA QSH,X
  SBC QSH,Y
