@@ -7112,7 +7112,8 @@ ENDIF
                         \ So X1 contains the original value of x_hi, which we
                         \ use below to remove the existing particle
 
- JSR MLU2               \ Set (A P) = |x_hi| * Q
+ JSR MLU3               \ Set (A P) = |x_hi| * Q (T = Q - 1 is still set
+                        \ by the call to MLU1 above, as Q is unchanged)
 
                         \ We now calculate:
                         \
