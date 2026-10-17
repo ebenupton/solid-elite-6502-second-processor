@@ -10780,61 +10780,48 @@ ENDMACRO
                         \ If we reach here, then A and S have different signs,
                         \ so we can subtract their absolute values and set the
                         \ sign to get the result
+                        \
+                        \ Port: |S| > |A| is the common case, so subtract the
+                        \ other way round with the borrow set, giving
+                        \ (A X) = |S R| - |A P| - 1 = NOT(|A P| - |S R|), with
+                        \ C set if and only if |S R| > |A P| strictly (so the
+                        \ equal case still takes argument A's sign, as before)
 
- LDA P                  \ Subtract the least significant bytes into X:
- SEC                    \
- SBC R                  \   X = P - R
+ LDA R                  \ Subtract the least significant bytes into X:
+ CLC                    \
+ SBC P                  \   X = R - P - 1
  TAX
 
- LDA T1                 \ Port: A and S have opposite signs, so flipping the
- EOR #%10000000         \ sign of T1 gives A the same bit 7 as S, and then
-                        \ (T1 EOR &80) - S - borrow = |A| - |S| - borrow
- SBC S                  \ exactly, with the same C and V (V = 0) as before,
-                        \ without having to build |S| in U
+ LDA S                  \ S and T1 have opposite signs, so flipping the sign
+ EOR #%10000000         \ of S gives it the same bit 7 as T1, and then
+ SBC T1                 \ (S EOR &80) - T1 - borrow = |S| - |A| - borrow
+                        \ (V = 0, as the operands have the same sign)
 
-                        \ At this point we have |A P| - |S R| in (A X), so we
-                        \ need to check whether the subtraction above was the
-                        \ right way round (i.e. that we subtracted the smaller
-                        \ absolute value from the larger absolute value)
+ BCC mu8b               \ If |S R| <= |A P|, jump to mu8b
 
- BCS MU9                \ If |A| >= |S|, our subtraction was the right way
-                        \ round, so jump to MU9 to set the sign
+ INX                    \ |S R| > |A P|, so add 1 to (A X) to get
+ BNE mu8a               \ |S R| - |A P| (at most &7FFF, so the high byte
+ INC A                  \ cannot overflow into bit 7)
 
-                        \ If we get here, then |A| < |S|, so our subtraction
-                        \ above was the wrong way round (we actually subtracted
-                        \ the larger absolute value from the smaller absolute
-                        \ value). So let's subtract the result we have in (A X)
-                        \ from zero, so that the subtraction is the right way
-                        \ round
+.mu8a
 
- STA U                  \ Store A in U
+ ORA #%10000000         \ Give the result the sign of S, i.e. the opposite of
+ EOR T                  \ argument A's sign in T, and return with C = V = 0,
+ CLC                    \ exactly as the old wrong-way-round negation did
+ RTS
 
- TXA                    \ Set X = 0 - X using two's complement (to negate a
- EOR #&FF               \ number in two's complement, you can invert the bits
- ADC #1                 \ and add one - and we know the C flag is clear as we
- TAX                    \ didn't take the BCS branch above, so the ADC will do
-                        \ the correct addition)
+.mu8b
 
- LDA #0                 \ Set A = 0 - A, which we can do this time using a
- SBC U                  \ subtraction with the C flag clear
+ EOR #&FF               \ |S R| <= |A P|, so (A X) = NOT(|A P| - |S R|), and
+ PHA                    \ we invert both bytes to get |A P| - |S R|
+ TXA
+ EOR #&FF
+ TAX
+ PLA
 
- ORA #%10000000         \ We now set the sign bit of A, so that the EOR on the
-                        \ next line will give the result the opposite sign to
-                        \ argument A (as T contains the sign bit of argument
-                        \ A). This is the same as giving the result the same
-                        \ sign as argument S (as A and S have different signs),
-                        \ which is what we want, as S has the larger absolute
-                        \ value
-
-.MU9
-
- EOR T                  \ If we get here from the BCS above, then |A| >= |S|,
-                        \ so we want to give the result the same sign as
-                        \ argument A, so if argument A was negative, we flip
-                        \ the sign of the result with an EOR (to make it
-                        \ negative)
-
- RTS                    \ Return from the subroutine
+ EOR T                  \ Give the result the sign of argument A, and return
+ SEC                    \ with C = 1 and V = 0, as before
+ RTS
 
 \ ******************************************************************************
 \
