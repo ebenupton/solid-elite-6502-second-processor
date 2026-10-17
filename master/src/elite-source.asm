@@ -4954,14 +4954,17 @@ ENDIF
                         \ do the reverse of the copy we did before, this time
                         \ copying from INWK to INF
 
+ JMP MALW               \ Port: MALW copies INWK back to the block unrolled
+                        \ for slots 0-5 and rejoins at MAL3e; other slots
+                        \ come back to MAL3s for the loop
+
+ SKIP 8                 \ (padding, so that the code that follows does not
+                        \ move)
+
+.MAL3s
+
  LDY #NI%-1             \ Set a counter in Y so we can loop through the NI%
                         \ bytes in the ship data block
-
-                        \ Port: the loop is unrolled twice and copies bytes 36
-                        \ down to 1 (NI% - 1 = 36 is even), then byte 0 is
-                        \ copied after the loop with (INF)
-
- ASSERT (NI% - 1) MOD 2 = 0
 
 .MAL3
 
@@ -4970,18 +4973,10 @@ ENDIF
 
  DEY                    \ Decrement the loop counter
 
- LDA INWK,Y             \ Load the Y-th byte of INWK and store it in the Y-th
- STA (INF),Y            \ byte of INF
+ BPL MAL3               \ Loop back until we have copied byte 0, leaving
+                        \ Y = &FF
 
- DEY                    \ Decrement the loop counter
-
- BNE MAL3               \ Loop back until Y = 0
-
- LDA INWK               \ Copy byte #0 last, as the original loop did
- STA (INF)
-
- DEY                    \ Set Y = &FF with N set and Z clear, as the original
-                        \ loop left them
+.MAL3e
 
 \ ******************************************************************************
 \
@@ -19289,11 +19284,9 @@ ENDIF
  LDA UNIV+1,Y
  STA INF+1
 
- CPX #6                 \ Slots 6 and up use the loop in MAL1
- BCC P%+5
+ LDY malct,X            \ Set Y = NI% * X, the block's offset in K%, or
+ BPL P%+5               \ &FF for slots 6 and up, which use the loop in MAL1
  JMP MAL1g
-
- LDY malct,X            \ Set Y = NI% * X, the block's offset in K%
 
  FOR i, 0, NI% - 1
   LDA K%+i,Y            \ Copy byte i of the block into INWK
@@ -19306,8 +19299,12 @@ ENDIF
 
 .malct
 
- FOR i, 0, 5
-  EQUB i * NI%          \ NI% * slot for slots 0-5
+ FOR i, 0, NOSH
+  IF i < 6
+   EQUB i * NI%         \ NI% * slot for slots 0-5
+  ELSE
+   EQUB &FF             \ and &FF for the others
+  ENDIF
  NEXT
 
  ASSERT 5 * NI% + NI% - 1 < 256 AND LO(K%) = 0

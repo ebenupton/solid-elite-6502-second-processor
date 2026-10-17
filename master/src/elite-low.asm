@@ -1681,3 +1681,32 @@ ENDIF
 
 \ Port: THERE moved to bank 5 (elite-cold5.asm)
 
+\ ******************************************************************************
+\
+\       Name: MALW
+\       Type: Subroutine
+\   Category: Main loop
+\    Summary: Copy INWK back to a ship's data block, unrolled for slots 0-5
+\             (Port: the demo port's CPYOUT, 8a7e690; in the low code for room)
+\
+\ ******************************************************************************
+
+.MALW
+
+                        \ Port: MAL3's copy of INWK back to the ship's block,
+                        \ unrolled for slots 0-5 as MALC (C and V, which the
+                        \ main loop still needs, are left alone)
+
+ LDX XSAV               \ Set Y = NI% * slot, the block's offset in K%, or &FF
+ LDY malct,X            \ for slots 6 and up, which go back to MAL3's loop
+ BPL P%+5
+ JMP MAL3s
+
+ FOR i, 0, NI% - 1
+  LDA INWK+i            \ Copy byte i of INWK into the block
+  STA K%+i,Y
+ NEXT
+
+ LDY #&FF               \ Y = &FF, as MAL3's loop leaves it
+
+ JMP MAL3e              \ Rejoin the main loop
