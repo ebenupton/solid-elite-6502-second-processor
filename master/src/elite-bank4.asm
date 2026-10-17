@@ -5815,7 +5815,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
  LDA XX16+4,Y           \ Set A = |sidev_z|
 
- JSR FMLTU              \ Set Q = A * Q / 256
+ JSR FMLTU+2            \ Set Q = A * Q / 256 (skip FMLTU's STX P: P = X
+                        \ still holds from the first FMLTU call this pass)
  STA Q                  \       = |sidev_z| * z_lo / 256
 
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
