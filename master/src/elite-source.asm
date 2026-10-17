@@ -7181,8 +7181,8 @@ ENDIF
  STX XX                 \
  STX R                  \   x = x - alpha * y / 256
                         \
-                        \ (XX+1 is not written here, as it is overwritten by
-                        \ STA XX+1 after the ADD below before it is ever read)
+                        \ (XX+1 is not written here, as it is not read again
+                        \ before it is next written)
                         \
                         \ Port: and (S R) = XX(1 0) now, as MUT2 did (MULTS-2
                         \ below leaves S and R alone)
@@ -7225,12 +7225,13 @@ ENDIF
                         \   (A X) = (A P) + (S R)
                         \         = 2 * (beta * y / 256) ^ 2 + x
 
- STA XX+1               \ Store the high byte A in XX+1
+ STA SX,Y               \ Store the high byte A straight in x_hi (Port: was
+                        \ XX+1, re-read after PIX1; nothing reads SX in PIX1)
 
  TXA                    \ Store the low byte X in x_lo
  STA SXL,Y
 
-                        \ So (XX+1 x_lo) now contains:
+                        \ So (x_hi x_lo) now contains:
                         \
                         \   x = x + 2 * (beta * y / 256) ^ 2
                         \
@@ -7264,14 +7265,13 @@ ENDIF
                         \ particle during the calculations above
 
                         \ We now have our newly moved stardust particle at
-                        \ x-coordinate (XX+1 x_lo) and y-coordinate (YY+1 y_lo)
+                        \ x-coordinate (x_hi x_lo) and y-coordinate (YY+1 y_lo)
                         \ and distance z_hi, so we draw it if it's still on
                         \ screen, otherwise we recycle it as a new bit of
                         \ stardust and draw that
 
- LDA XX+1               \ Set X1 and x_hi to the high byte of XX in XX+1, so
- STA X1                 \ the new x-coordinate is in (x_hi x_lo) and the high
- STA SX,Y               \ byte is in X1
+ LDA SX,Y               \ Set X1 to x_hi, so the new x-coordinate is in
+ STA X1                 \ (x_hi x_lo) and the high byte is in X1
 
  AND #%01111111         \ If |x_hi| >= 120 then jump to KILL1 to recycle this
  CMP #120               \ particle, as it's gone off the side of the screen,
