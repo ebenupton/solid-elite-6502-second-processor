@@ -3698,22 +3698,19 @@ NEXT
   BCC empd                \ (C clear: from emp, the new span empty)
   CMP RZ_T0
   BCC jonew
-  LDA RZ_T3               \ (nR >= nL here: the new span is not empty)
-                          \ apart (nR < oL or nL > oR): both (A = nR still)
-  CMP RZ_T0
-  BCC jboth
-  LDA RZ_T1
-  CMP RZ_T2
-  BCC jboth
+  CMP RZ_T2               \ (nR >= nL here: the new span is not empty)
+  BCC jboth               \ apart (oR < nL or nR < oL): both
 .ovl
   LDA RZ_T2               \ overlapping: the left end (R_WL/R_WR noted here,
   CMP RZ_T0               \ the left end's strip before the right end's)
-  BEQ requal
+  BEQ requal              \ (nL >= oL: nR >= nL >= oL, so not apart)
   BCS lshr
+  LDY RZ_T0               \ nL < oL: apart if nR < oL, i.e. oL-1 >= nR
+  DEY
+  CPY RZ_T3
+  BCS jboth
   AND #&FC                \ grown: nL .. oL-1 in the disc colour
   STA r_wmin
-  LDY RZ_T0
-  DEY
   TYA
   ORA #3
   STA r_wmax
@@ -3724,6 +3721,7 @@ NEXT
   LDX RZ_T2
   JSR r_sw
   BRA right
+  EQUB 0, 0, 0, 0         \ (padding: keeps the code below at its addresses)
 .jboth
   JMP both
 .jonew
