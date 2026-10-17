@@ -7147,10 +7147,13 @@ ENDIF
                         \
                         \   Q = 64 * speed / z_hi
 
- DEC A                  \ grind: set T = Q - 1 here from A = Q (what MLU2's
- STA T                  \ LDX Q/DEX/STX T would do, three cycles cheaper; C is
-                        \ untouched for the SBC below, and the inlined MLU1
-                        \ below then enters at MLU3)
+ STA mlq1+1             \ Port: patch q = Q into MLUQ, the |A| * Q multiply
+ STA mlq2+1             \ used twice below (the demo port's per-star MLU
+ STA mlq4+1             \ patching, f17d865 w_0050 and c9bfb3e w_0051): q into
+ EOR #&FF               \ the CPX and the QSL+q / QSH+q operands, and 256 - q
+ INC A                  \ (q >= 1) into the QSL-q / QSH-q ones; C is untouched
+ STA mlq3+1             \ for the SBC below
+ STA mlq5+1
 
  LDA SZL,Y              \ We now calculate the following:
  SBC DELT4              \
@@ -7168,9 +7171,9 @@ ENDIF
                         \   z = z - DELT4(1 0)
                         \     = z - speed * 64
 
- LDA SY,Y               \ grind: MLU1 inlined up to MLU3 (T is already set
- STA Y1                 \ above), so set Y1 = y_hi and
- JSR MLU3               \ call MLU3 to set:
+ LDA SY,Y               \ grind: MLU1 inlined, so set Y1 = y_hi and
+ STA Y1                 \ call MLUQ (Port: MLU3 with Q patched in) to set:
+ JSR MLUQ               \
                         \
                         \   Y1 = y_hi
                         \
@@ -7212,8 +7215,8 @@ ENDIF
                         \ So X1 contains the original value of x_hi, which we
                         \ use below to remove the existing particle
 
- JSR MLU3               \ Set (A P) = |x_hi| * Q (T = Q - 1 is still set
-                        \ by the call to MLU1 above, as Q is unchanged)
+ JSR MLUQ               \ Set (A P) = |x_hi| * Q (Port: MLUQ, Q still
+                        \ patched in)
 
                         \ We now calculate:
                         \
@@ -7468,6 +7471,49 @@ ENDIF
                         \ LDA instruction
 
  JMP STC1               \ Jump up to STC1 to draw this new particle
+
+.MLUQ
+
+                        \ Port: (A P) = |A| * Q with C clear, as MLU3 gives
+                        \ (it also leaves X = 0 and needs T = Q - 1; nothing
+                        \ in STL1 reads X or T after it), with Q patched in by
+                        \ STL1 once per particle: q at mlq1, mlq2 and mlq4,
+                        \ 256 - q at mlq3 and mlq5 (1 <= q <= 255, so the
+                        \ high bytes are fixed). For |A| >= q the product is
+                        \ QS(|A| + q) - QS(|A| - q), exactly as MU11 computes
+                        \ it; |A| < q goes to MLU3 at mlqr
+
+ AND #%01111111         \ Set X = |A|
+ TAX
+
+.mlq1
+
+ CPX #1                 \ (patched: q) If |A| < q, jump to mlqr (with C = 1
+ BCC mlqr               \ otherwise, for the SBC below)
+
+.mlq2
+
+ LDA QSL+1,X            \ (patched: QSL + q) Set (A P) = QS(|A| + q)
+.mlq3                   \                                - QS(|A| - q)
+ SBC QSL-1,X            \ (patched: QSL - q)              = |A| * q
+ STA P
+.mlq4
+ LDA QSH+1,X            \ (patched: QSH + q)
+.mlq5
+ SBC QSH-1,X            \ (patched: QSH - q)
+
+ CLC                    \ Return with C clear, as MLU3 does
+ RTS
+
+.mlqr
+
+ LDA Q                  \ |A| < q (rare): set T = Q - 1 and call MLU3 with
+ DEC A                  \ A = |A|, as STL1 used to
+ STA T
+ TXA
+ JMP MLU3
+
+ ASSERT QSH = QSL + 512 AND LO(QSL) = 0
 
                         \ Port: STARS1 has a fixed budget of 510 bytes, 256
                         \ more than the original routine's 254, so that the
