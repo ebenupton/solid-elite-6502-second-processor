@@ -6,9 +6,9 @@
 \ nothing needs rebuilding afterwards. (Split from raster_vars.asm.)
 \ ============================================================================
 
-.R_PN       SKIP 1          \ polygon vertex count 1..16
-.R_COL2     SKIP 1          \ R_POLY colour bytes for rows y AND 3 = 2, 3
-.R_COL3     SKIP 1
+.R_NDISCL   SKIP 192        \ new disc spans, left ends (rows NDT..NDB only, written
+                            \ for each frame before R_DISCROWS reads them); first,
+                            \ page aligned: R_NDISCL,X never crosses a page
 .R_PXL      SKIP 16         \ vertex x, low bytes  (signed 16-bit)
 .R_PXH      SKIP 16         \ vertex x, high bytes
 .R_PYL      SKIP 16         \ vertex y, low bytes
@@ -17,9 +17,11 @@
 .R_Y0       SKIP 2
 .R_X1       SKIP 2
 .R_Y1       SKIP 2
-.R_NDISCL   SKIP 192        \ new disc spans, left ends (rows NDT..NDB only, written
-                            \ for each frame before R_DISCROWS reads them)
+.R_PN       SKIP 1          \ polygon vertex count 1..16
+.R_COL2     SKIP 1          \ R_POLY colour bytes for rows y AND 3 = 2, 3
+.R_COL3     SKIP 1
 \ private to raster.asm: polygon edge tables
 .R_PTA      SKIP 192
 .R_PTB      SKIP 192
 ASSERT R_Y1 = R_Y0 + 4
+ASSERT LO(R_NDISCL) = 0 AND HI(R_PXL) = HI(R_PYH + 15)
