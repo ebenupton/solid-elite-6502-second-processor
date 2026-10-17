@@ -8105,12 +8105,9 @@ ENDIF
 
 .MVS5
 
- LDA INWK+1,X           \ Fetch roofv_x_hi, clear the sign bit, divide by 2 and
- AND #%01111111         \ store in T, so:
+ LDA INWK+1,X           \ Fetch roofv_x_hi, clear the sign bit, divide by 2, so
+ AND #%01111111         \ A = |roofv_x_hi| / 2 = |roofv_x| / 512
  LSR A                  \
- STA T                  \ T = |roofv_x_hi| / 2
-                        \   = |roofv_x| / 512
-                        \
                         \ The above is true because:
                         \
                         \ |roofv_x| = |roofv_x_hi| * 256 + roofv_x_lo
@@ -8121,10 +8118,12 @@ ENDIF
                         \                    + roofv_x_lo / 512
                         \                  = |roofv_x_hi| / 2
 
- LDA INWK,X             \ Now we do the following subtraction:
- SEC                    \
- SBC T                  \ (S R) = (roofv_x_hi roofv_x_lo) - |roofv_x| / 512
- STA R                  \       = (1 - 1/512) * roofv_x
+ EOR #&FF               \ Port: compute roofv_x_lo - A as roofv_x_lo + ~A + 1,
+ SEC                    \ which gives the same result and the same C as
+ ADC INWK,X             \ SBC, without going through T:
+ STA R                  \
+                        \ (S R) = (roofv_x_hi roofv_x_lo) - |roofv_x| / 512
+                        \       = (1 - 1/512) * roofv_x
                         \
                         \ by doing the low bytes first
 
