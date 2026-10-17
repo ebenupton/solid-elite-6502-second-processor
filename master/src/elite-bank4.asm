@@ -5825,10 +5825,11 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  EOR XX16+1,Y
  STA S
 
- LDA XX15+3             \ Set A to the sign of y_sign * sidev_y EOR S, so
- EOR XX16+3,Y           \ N tells us which case of the inlined LL38 we need
- EOR S                  \ before we multiply (the sign does not depend on the
- BMI ll51n1             \ product), jumping to ll51n1 if the signs differ
+ EOR XX15+3             \ A = S from the STA above, so this sets A to the
+ EOR XX16+3,Y           \ sign of y_sign * sidev_y EOR S, so N tells us which
+                        \ case of the inlined LL38 we need before we multiply
+                        \ (the sign does not depend on the product)
+ BMI ll51n1             \ Jump to ll51n1 if the signs differ
 
  LDA XX15+2             \ Set Q = y_lo
  STA Q
