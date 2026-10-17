@@ -312,13 +312,18 @@ DCN_MARK = 6            \ roll / pitch marker
  BCC P%+4
  LDA #32
  STA dsE
+ LDA SC+1               \ X = the cache index, as DILI
+ AND #%00001110
+ LSR A
+ BIT SC
+ BPL P%+4
+ ORA #8
+ TAX
+ LDA dsE
  CMP dT
  LDA dK
  BCS P%+5
  LDA dK1
- STA dcol
- JSR DILI
- LDA dcol
  CMP DILC,X
  BNE dil3               \ new colour: redraw all of it
  LDA dsE
@@ -356,6 +361,7 @@ DCN_MARK = 6            \ roll / pitch marker
  STA dl0
  LDA #3
  STA dln
+ LDY DILC,X             \ the colour number
  JSR DSEG
 .dil9
  INC SC+1               \ the next character row down
@@ -407,8 +413,7 @@ DCN_MARK = 6            \ roll / pitch marker
 .dl24
  LDA dsS
  STA DILQ,X
- LDA #DCN_MARK
- STA dcol
+ LDY #DCN_MARK
  LDA #1                 \ lines 1-5
  STA dl0
  LDA #5
@@ -447,14 +452,13 @@ DCN_MARK = 6            \ roll / pitch marker
 
 \ ------------------------------------------------------------------------------
 \ DSEG: draw bytes dlo..dhi-1 of an indicator at SC(1 0): the pixels of the
-\ segment [dsS, dsE) in colour dcol, the rest black, on dln lines from dl0
+\ segment [dsS, dsE) in colour number Y, the rest black, on dln lines from dl0
 \ ------------------------------------------------------------------------------
 
 .DSEG
- LDX dcol
- LDA dcolE,X
+ LDA dcolE,Y
  STA dpE
- LDA dcolO,X
+ LDA dcolO,Y
  STA dpO
  LDA dsE                \ the segment's end: byte deq, pixels der in it
  LSR A
