@@ -14146,7 +14146,10 @@ ENDIF
 
 .PLS22
 
- JSR H_PCURVE           \ Port: a new curve of the planet's detail, for the
+ JSR pl4pat             \ Port: a new curve of the planet's detail, for the
+                        \ renderer (H_PCURVE, called by pl4pat in the stubs
+                        \ area, which also picks this loop or PLL4F)
+                        \ (gfx-hooks.asm): the original comment continues
                         \ renderer (gfx-hooks.asm)
 
  LDX #0                 \ Set CNT = 0
@@ -14205,6 +14208,8 @@ ENDIF
  STA P                  \
                         \ The call to FMLTU also sets the C flag, so in the
                         \ following, ADC #207 adds 208 rather than 207
+
+.pl4t
 
  LDA CNT2               \ Port: (CNT2 + 15 + C) mod 64 >= 33 exactly when
  ADC #207               \ 18 <= CNT2 + C <= 48 (CNT2 + C is 0 to 64), i.e. when
@@ -14383,7 +14388,10 @@ ENDIF
 
  ASSERT CNT2 < &100     \ (LDA CNT2 at PLL4 is a 2-byte zero-page load)
 
- JMP PLL4+2             \ Jump back to PLL4 to draw the next segment, skipping
+.pl4j
+
+ JMP PLL4+2             \ Jump back to PLL4 (Port: patched by pl4pat: or to
+                        \ PLL4F) to draw the next segment, skipping
                         \ its LDA CNT2 as A already holds the new CNT2
 
 .PL40
@@ -20107,6 +20115,101 @@ ENDIF
  JSR DET1               \ the dashboard
 
  JMP DEATH2             \ Jump to DEATH2 to reset and restart the game
+
+
+.PLL4F
+
+ LDA CNT2               \ As PLL4: C = the sign of sin(CNT2), X = CNT2 mod 32,
+ CMP #33                \ XX16+5 = that sign, S = its EOR with XX16+2
+ AND #31
+ TAX
+ LDA #0
+ ROR A
+ STA XX16+5
+ EOR XX16+2
+ STA S
+
+ STX pl4x+1             \ Keep X = CNT2 mod 32 for the cos look-up
+
+ LDA SNE,X              \ Set Q = q = |sin(CNT2)|
+ STA Q
+ BEQ pl4z1              \ If q = 0, R = K = 0
+ TAX
+ CLC
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+2) + log(q)), or 0
+.pl4a2                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+2))
+ LDA log,X
+.pl4b2
+ ADC #0                 \ (patched: log(K2+2))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA R
+
+ LDX Q
+ CLC
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+3) + log(q)), or 0
+.pl4a3                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+3))
+ LDA log,X
+.pl4b3
+ ADC #0                 \ (patched: log(K2+3))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA K
+
+.pl4x
+
+ LDX #0                 \ (patched) X = CNT2 mod 32
+
+ CLC                    \ Set Q = q = |cos(CNT2)| (C clear, as PLL4)
+ LDA SNE+16,X
+ STA Q
+ BEQ pl4z2              \ If q = 0, K+2 = P = 0 with C clear
+ TAX
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+1) + log(q)), or 0
+.pl4a1                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+1))
+ LDA log,X
+.pl4b1
+ ADC #0                 \ (patched: log(K2+1))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA K+2
+
+ LDX Q
+ CLC
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+0) + log(q)), or 0
+.pl4a0                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+0))
+ LDA log,X
+.pl4b0
+ ADC #0                 \ (patched: log(K2+0))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA P
+
+ JMP pl4t               \ Join PLL4 (C as FMLTU leaves it, for its ADC #207)
+
+.pl4z1
+
+ STZ R                  \ q = 0: R = K = 0, as FMLTU (C is cleared below)
+ STZ K
+ BRA pl4x
+
+.pl4z2
+
+ STZ K+2                \ q = 0: K+2 = P = 0, C still clear, as FMLTU leaves
+ STZ P                  \ them
+ JMP pl4t
 
 .STUBS_END%
 

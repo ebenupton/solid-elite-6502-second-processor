@@ -10260,3 +10260,80 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  JMP DEATHT             \ Port: jump to DEATHT in the main RAM at &7E00 to
                         \ run the rest of the death sequence (moved there to
                         \ make room in bank 4)
+
+\ ******************************************************************************
+\
+\       Name: pl4pat
+\       Type: Subroutine
+\   Category: Drawing planets
+\    Summary: Pick PLL4 or PLL4F for a new curve, patching PLL4F's multipliers
+\             (Port: the demo port's per-curve PLL4 operand patching, 5518429
+\             and demo-final's pl4k/pl4p operands, with Master's log tables;
+\             in bank 4 for room, PLL4F in the main RAM at &7Fxx)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Called by PLS22 in place of its JSR H_PCURVE. K2 to K2+3 are fixed for the
+\ curve, so when none of them is 0, PLL4F replaces the four FMLTU calls of
+\ PLL4 by inline sums of log(q) and the patched-in log(K2+n), with exactly
+\ FMLTU's results (the antilog of the 16-bit log sum, or 0 with C clear when
+\ the sum is below 256, or 0 with C unchanged when q = 0); PLL4F then joins
+\ PLL4 at pl4t, and PLL4's loop-back JMP (pl4j) is patched to PLL4F+2. With
+\ any K2+n = 0 (FMLTU's A = 0 case, which leaves C unchanged) the curve uses
+\ PLL4 as before. Y is preserved.
+\
+\ ******************************************************************************
+
+.pl4pat
+
+ JSR H_PCURVE           \ The renderer's new curve, as PLS22 did
+
+ LDA K2+0               \ Patch logL(K2+0) and log(K2+0) into PLL4F, or
+ BEQ pl4old             \ use PLL4 if K2+0 = 0
+ TAX
+ LDA logL,X
+ STA pl4a0+1
+ LDA log,X
+ STA pl4b0+1
+ LDA K2+1               \ Patch logL(K2+1) and log(K2+1) into PLL4F, or
+ BEQ pl4old             \ use PLL4 if K2+1 = 0
+ TAX
+ LDA logL,X
+ STA pl4a1+1
+ LDA log,X
+ STA pl4b1+1
+ LDA K2+2               \ Patch logL(K2+2) and log(K2+2) into PLL4F, or
+ BEQ pl4old             \ use PLL4 if K2+2 = 0
+ TAX
+ LDA logL,X
+ STA pl4a2+1
+ LDA log,X
+ STA pl4b2+1
+ LDA K2+3               \ Patch logL(K2+3) and log(K2+3) into PLL4F, or
+ BEQ pl4old             \ use PLL4 if K2+3 = 0
+ TAX
+ LDA logL,X
+ STA pl4a3+1
+ LDA log,X
+ STA pl4b3+1
+
+ LDA #LO(PLL4F+2)       \ Loop back to PLL4F
+ STA pl4j+1
+ LDA #HI(PLL4F+2)
+ STA pl4j+2
+
+ PLA                    \ Do PLS22's set-up and enter PLL4F instead of PLL4,
+ PLA                    \ dropping the return address into PLS22 (PL40's RTS
+ LDX #0                 \ returns to PLS22's caller)
+ STX CNT
+ DEX
+ STX FLAG
+ JMP PLL4F
+
+.pl4old
+
+ LDA #LO(PLL4+2)        \ Loop back to PLL4, and return to PLS22 to run it
+ STA pl4j+1
+ LDA #HI(PLL4+2)
+ STA pl4j+2
+ RTS
