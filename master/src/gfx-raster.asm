@@ -3418,23 +3418,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BRA paint
 }
 
-\ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
-.r_bcols
-  TYA
-  LSR A
-  BCS bc1
-  LDA R_DCE
-  STA r_cA
-  LDA R_DBE
-  STA r_cB
-  RTS
-.bc1
-  LDA R_DCO
-  STA r_cA
-  LDA R_DBO
-  STA r_cB
-  RTS
-
 \ r_bstore: Y = row: remember the row's new boundaries (raw) in this buffer
 .r_bstore
   LDA R_NDN,Y
@@ -5094,6 +5077,24 @@ NEXT
   LDX R_XL
   JMP r_spc
 }
+
+\ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
+\ (here, after r_ypg, so that r_ypg's page has room for the code before it)
+.r_bcols
+  TYA
+  LSR A
+  BCS bc1
+  LDA R_DCE
+  STA r_cA
+  LDA R_DBE
+  STA r_cB
+  RTS
+.bc1
+  LDA R_DCO
+  STA r_cA
+  LDA R_DBO
+  STA r_cB
+  RTS
 
 ASSERT HI(r_ypg) = HI(r_ypg + 191)
 
