@@ -156,8 +156,7 @@
  LDA QQ11
  ORA GFORCE
  BNE hso8
- LDA #0
- STA R_SS,Y
+ STA R_SS,Y             \ (A = 0: QQ11 OR GFORCE is zero here)
 .hso9
  PLA
  CMP #Y
