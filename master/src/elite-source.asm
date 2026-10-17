@@ -10127,23 +10127,10 @@ ENDMACRO
                         \ results: (A P) = P * X (X = 1..255), T = X - 1,
                         \ X = 0, Y kept, C clear (callers use it)
 
- DEX                    \ Set T = X - 1 (X is never 0 here: both entries,
- STX T                  \ SQUA2's BNE and MULTU's fall-through after BEQ MU1,
-                        \ guarantee X <> 0, and X is not read again before
-                        \ the TAX below)
+ DEX                    \ Set T = X - 1 (X is never 0 here: MULTU's
+ STX T                  \ fall-through after BEQ MU1 guarantees X <> 0)
 
  PHY                    \ Keep Y
-
- LDA P                  \ Set Y = |P - X|
- CLC
- SBC T
- BCS mu4
- EOR #&FF
- ADC #1
-
-.mu4
-
- TAY
 
  LDA P                  \ Set X = P + X, with C set if it is 256 or more
  SEC
@@ -10153,12 +10140,24 @@ ENDMACRO
  BCS mu5                \ If P + X >= 256, jump to mu5 for the tables' upper
                         \ halves
 
+ LDA P                  \ Set Y = |P - X| (C is clear here as BCS mu5 was
+ SBC T                  \ not taken, so this is P - T - 1 = P - X)
+ BCS mu4
+ EOR #&FF
+ ADC #1
+
+.mu4
+
+ TAY
+
  LDA QSL,X              \ Set (A P) = (P + X)^2 / 4 - (P - X)^2 / 4
  SEC                    \           = P * X
  SBC QSL,Y
  STA P
  LDA QSH,X
  SBC QSH,Y
+
+.mu7
 
  PLY                    \ Restore Y
 
@@ -10169,6 +10168,17 @@ ENDMACRO
 
 .mu5
 
+ LDA P                  \ Set Y = |P - X|
+ CLC
+ SBC T
+ BCS mu6
+ EOR #&FF
+ ADC #1
+
+.mu6
+
+ TAY
+
  LDA QSL+256,X          \ As above, with P + X - 256 in X
  SEC
  SBC QSL,Y
@@ -10176,20 +10186,7 @@ ENDMACRO
  LDA QSH+256,X
  SBC QSH,Y
 
- PLY                    \ Restore Y
-
- LDX #0                 \ X = 0 and C clear, as the original leaves them
- CLC
-
- RTS                    \ Return from the subroutine
-
-.mu0
-
- LDA P                  \ (A P) = P * 256, C clear
- STZ P
- CLC
-
- RTS                    \ Return from the subroutine
+ BRA mu7                \ Restore Y, set X = 0 and C clear, and return
 
 
 \ ******************************************************************************
