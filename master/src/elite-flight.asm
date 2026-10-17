@@ -297,6 +297,98 @@
 
 \ ******************************************************************************
 \
+\       Name: TIS2
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate A = A / Q
+\  Deep dive: Shift-and-subtract division
+\
+\ ------------------------------------------------------------------------------
+\
+\ Calculate the following division, where A is a sign-magnitude number and Q is
+\ a positive integer:
+\
+\   A = A / Q
+\
+\ The value of A is returned as a sign-magnitude number with 96 representing 1,
+\ and the maximum value returned is 1 (i.e. 96). This routine is used when
+\ normalising vectors, where we represent fractions using integers, so this
+\ gives us an approximation to two decimal places.
+\
+\ ******************************************************************************
+
+.TIS2
+
+ TAY                    \ Store the argument A in Y
+
+ AND #%01111111         \ Strip the sign bit from the argument, so A = |A|
+
+ CMP Q                  \ If A >= Q then jump to TI4 to return a 1 with the
+ BCS TI4                \ correct sign
+
+ STZ T                  \ Port: set T = 0; the six iterations below are fully
+                        \ unrolled (the demo port's e9770fa, w_0139), so T
+                        \ needs no marker bits to end a loop
+
+ ASL A                  \ Iteration 1: shift A to the left
+ CMP Q                  \ If A < Q skip the following subtraction
+ BCC P%+4
+ SBC Q                  \ A >= Q (C set), so set A = A - Q (C stays set)
+ ROL T                  \ Catch the quotient bit into bit 0 of T
+
+ ASL A                  \ Iteration 2: shift A to the left
+ CMP Q                  \ If A < Q skip the following subtraction
+ BCC P%+4
+ SBC Q                  \ A >= Q (C set), so set A = A - Q (C stays set)
+ ROL T                  \ Catch the quotient bit into bit 0 of T
+
+ ASL A                  \ Iteration 3: shift A to the left
+ CMP Q                  \ If A < Q skip the following subtraction
+ BCC P%+4
+ SBC Q                  \ A >= Q (C set), so set A = A - Q (C stays set)
+ ROL T                  \ Catch the quotient bit into bit 0 of T
+
+ ASL A                  \ Iteration 4: shift A to the left
+ CMP Q                  \ If A < Q skip the following subtraction
+ BCC P%+4
+ SBC Q                  \ A >= Q (C set), so set A = A - Q (C stays set)
+ ROL T                  \ Catch the quotient bit into bit 0 of T
+
+ ASL A                  \ Iteration 5: shift A to the left
+ CMP Q                  \ If A < Q skip the following subtraction
+ BCC P%+4
+ SBC Q                  \ A >= Q (C set), so set A = A - Q (C stays set)
+ ROL T                  \ Catch the quotient bit into bit 0 of T
+
+ ASL A                  \ Iteration 6: shift A to the left
+ CMP Q                  \ If A < Q skip the following subtraction
+ BCC P%+4
+ SBC Q                  \ A >= Q (C set), so set A = A - Q (C stays set)
+ ROL T                  \ Catch the quotient bit into bit 0 of T
+
+ LDA T                  \ Set A = T + T / 2 (+ the bit shifted out)
+ LSR A                  \       = 3/8 of the full 8-bit quotient, as before
+ ADC T                  \ (grind: T is dead after TIS2 -- every path out of
+                        \ NORM writes T in MULT1 or SPS2 before reading it --
+                        \ so the result is not stored back in T)
+
+ CPY #%10000000         \ If the original argument A (in Y) was positive, we
+ BCC P%+4               \ are done as A = T, otherwise set bit 7 of A to apply
+ ORA #%10000000         \ the negative sign
+
+ RTS                    \ Return from the subroutine
+
+.TI4
+
+ TYA                    \ Fetch the sign bit of the original argument A
+ AND #%10000000
+
+ ORA #96                \ Apply the sign bit to 96 (which represents 1)
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
 \ Port: MVS5 in the demo port's form (bebd95c, 8a7e690, bcde44b w_0037,
 \ 73eee89 w_0040, 22be6e1 w_0040, b5ffdfd, 55e7b89 w_0039): both ADDs inline
 \ with the rare paths through ADD, at the end of the main code for room (MVEIT and HAS1 call it)
