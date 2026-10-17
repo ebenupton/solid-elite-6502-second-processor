@@ -6457,102 +6457,84 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
 .LL48
 
+                        \ Port: the vertex's coordinates are fetched only once
+                        \ it is known to be visible, and the face bytes are
+                        \ re-read rather than kept in P (the demo port's
+                        \ 9e57c03 w_0171 and 30e0da9 w_0172)
+
  STY XX17               \ Set XX17 = Y, so XX17 now contains the offset of the
-                        \ current vertex's data
+                        \ vertex data for the vertex we are processing
 
- LDA (V),Y              \ Fetch byte #0 for this vertex into XX15, so:
- STA XX15               \
-                        \   XX15 = magnitude of the vertex's x-coordinate
-
- INY                    \ Increment Y to point to byte #1
-
- LDA (V),Y              \ Fetch byte #1 for this vertex into XX15+2, so:
- STA XX15+2             \
-                        \   XX15+2 = magnitude of the vertex's y-coordinate
-
- INY                    \ Increment Y to point to byte #2
-
- LDA (V),Y              \ Fetch byte #2 for this vertex into XX15+4, so:
- STA XX15+4             \
-                        \   XX15+4 = magnitude of the vertex's z-coordinate
-
- INY                    \ Increment Y to point to byte #3
+ INY                    \ Set Y to point to byte #3
+ INY
+ INY
 
  LDA (V),Y              \ Fetch byte #3 for this vertex into T, so:
  STA T                  \
-                        \   T = %xyz vvvvv, where:
-                        \
-                        \     * Bits 0-4 = visibility distance, beyond which the
-                        \                  vertex is not shown
-                        \
-                        \     * Bits 7-5 = the sign bits of x, y and z
+                        \   T = %ZZZZZ (z_sign, y_sign, x_sign, visibility)
 
  AND #%00011111         \ Extract bits 0-4 to get the visibility distance
 
  CMP XX4                \ If XX4 > the visibility distance, where XX4 contains
- BCC LL49-3             \ the ship's z-distance reduced to 0-31 (which we set in
-                        \ part 2), then this vertex is too far away to be
-                        \ visible, so jump down to LL50 (via the JMP instruction
-                        \ in LL49-3) to move on to the next vertex
+ BCC LL48n              \ the ship's z-distance reduced to 0-31 (which we set in
+                        \ part 4), then this vertex is too far away to be
+                        \ visible, so jump down to LL50 (via the JMP at LL48n)
+                        \ to move on to the next vertex
 
  INY                    \ Increment Y to point to byte #4
 
- LDA (V),Y              \ Fetch byte #4 for this vertex into P, so:
- STA P                  \
-                        \  P = %ffff ffff, where:
-                        \
-                        \    * Bits 0-3 = the number of face 1
-                        \
-                        \    * Bits 4-7 = the number of face 2
-
- AND #%00001111         \ Extract the number of face 1 into X
+ LDA (V),Y              \ Fetch byte #4 and extract the number of face 1 into X
+ AND #%00001111
  TAX
 
  LDA XX2,X              \ If XX2+X is non-zero then we decided in part 5 that
- BNE LL49               \ face 1 is visible, so jump to LL49
+ BNE LL48v              \ face 1 is visible, so jump to LL48v
 
- LDA P                  \ Fetch byte #4 for this vertex into A
-
- LSR A                  \ Shift right four times to extract the number of face 2
- LSR A                  \ from bits 4-7 into X
+ LDA (V),Y              \ Fetch byte #4 again and shift right four times to
+ LSR A                  \ extract the number of face 2 from bits 4-7 into X
+ LSR A
  LSR A
  LSR A
  TAX
 
  LDA XX2,X              \ If XX2+X is non-zero then we decided in part 5 that
- BNE LL49               \ face 2 is visible, so jump to LL49
+ BNE LL48v              \ face 2 is visible, so jump to LL48v
 
  INY                    \ Increment Y to point to byte #5
 
- LDA (V),Y              \ Fetch byte #5 for this vertex into P, so:
- STA P                  \
-                        \  P = %ffff ffff, where:
-                        \
-                        \    * Bits 0-3 = the number of face 3
-                        \
-                        \    * Bits 4-7 = the number of face 4
-
- AND #%00001111         \ Extract the number of face 1 into X
+ LDA (V),Y              \ Fetch byte #5 and extract the number of face 3 into X
+ AND #%00001111
  TAX
 
  LDA XX2,X              \ If XX2+X is non-zero then we decided in part 5 that
- BNE LL49               \ face 3 is visible, so jump to LL49
+ BNE LL48v              \ face 3 is visible, so jump to LL48v
 
- LDA P                  \ Fetch byte #5 for this vertex into A
-
- LSR A                  \ Shift right four times to extract the number of face 4
+ LDA (V),Y              \ Fetch byte #5 again and extract the number of face 4
  LSR A                  \ from bits 4-7 into X
  LSR A
  LSR A
+ LSR A
  TAX
 
  LDA XX2,X              \ If XX2+X is non-zero then we decided in part 5 that
- BNE LL49               \ face 4 is visible, so jump to LL49
+ BNE LL48v              \ face 4 is visible, so jump to LL48v
 
- JMP LL50               \ If we get here then none of the four faces associated
-                        \ with this vertex are visible, so this vertex is also
-                        \ not visible, so jump to LL50 to move on to the next
-                        \ vertex
+.LL48n
+
+ JMP LL50               \ None of the four faces is visible, so neither is the
+                        \ vertex: move on to the next vertex
+
+.LL48v
+
+ LDY XX17               \ The vertex is visible: fetch bytes #0 to #2 into
+ LDA (V),Y              \ XX15, XX15+2 and XX15+4 (the magnitudes of x, y
+ STA XX15               \ and z)
+ INY
+ LDA (V),Y
+ STA XX15+2
+ INY
+ LDA (V),Y
+ STA XX15+4             \ (and fall into LL49, which is where it was)
 
 .LL49
 
