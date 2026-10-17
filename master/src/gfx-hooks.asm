@@ -148,22 +148,19 @@
 
 \ H_STAROFF: PIXEL2 found star Y off screen (entered by JMP, with C set and
 \ A = |Y1| compared with #Y): in record mode it is not on screen. Returns as
-\ PIXEL2's BCS PXR1 did
+\ PIXEL2's BCS PXR1 did as far as its callers read: C set, X and Y kept (A,
+\ N and Z are dead: every caller of PIXEL2 and PIX1 reaches a DEY first, and
+\ A is dead after it)
 
 .H_STAROFF
- PHA
  LDA QQ11
  ORA GFORCE
  BNE hso8
  STA R_SS,Y             \ (A = 0: QQ11 OR GFORCE is zero here)
-.hso9
- PLA
- CMP #Y
  RTS
 .hso8
  CLC                    \ outside record mode: star Y is no longer drawn
- JSR G_DSTAR
- BRA hso9
+ JMP G_DSTAR            \ (returns C set, X and Y kept)
 \ H_EE31: LL9 has projected the ship (part 9, EE31); in record mode record it
 \ (and its laser beam if it is firing at us) instead of drawing its edges, and
 \ return from LL9. What LL9's parts 9 to 12 leave that the game reads is set
