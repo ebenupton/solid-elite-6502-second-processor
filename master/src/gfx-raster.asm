@@ -3681,8 +3681,8 @@ NEXT
   STA RZ_PB+1
 .^r_pt50 LDA r_sl,X
   STA RZ_T0               \ oL
-.^r_pt51 LDA r_sr,X
-  STA RZ_T1               \ oR
+.^r_pt51 LDY r_sr,X       \ (Y = oR kept until the TYA below; emp leaves Y alone)
+  STY RZ_T1               \ oR
   LDA R_NDISCL,X          \ nL, nR: clamped to the window (empty: 255, 0)
   CMP R_CL
   BCS c0
@@ -3700,7 +3700,7 @@ NEXT
 .c1b
   STA RZ_T3
 .^r_pt52 STA r_sr,X
-  LDA RZ_T1               \ old empty: the new span
+  TYA                     \ old empty: the new span (A = oR)
   BCC empd                \ (C clear: from emp, the new span empty)
   CMP RZ_T0
   BCC jonew
