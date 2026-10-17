@@ -10742,6 +10742,8 @@ ENDMACRO
                         \ If we reach here, then A and S have the same sign, so
                         \ we can add them and set the sign to get the result
 
+.add1
+
  LDA R                  \ Add the least significant bytes together into X:
  CLC                    \
  ADC P                  \   X = P + R
@@ -10763,9 +10765,14 @@ ENDMACRO
 
 .mad1
 
- JSR MULT1              \ |Q| <> 0: set (A P) = Q * A
+ JSR MULT1              \ |Q| <> 0: set (A P) = Q * A (MULT1 has already set
+                        \ T to the sign of the result, and |A| < &80, so this
+                        \ is the head of ADD without the AND and STA T)
 
- BRA ADD                \ Jump to ADD to set (A X) = (A P) + (S R)
+ STA T1                 \ Store A in T1, as ADD does
+
+ EOR S                  \ If A and S have the same sign jump to add1 in ADD,
+ BPL add1               \ otherwise fall through into MU8
 
 .MU8
 
@@ -20198,14 +20205,8 @@ ENDIF
 \
 \ ******************************************************************************
 
-IF _SNG47
-
-.NMIpissoff
-
- CLI                    \ These instructions are never reached and have no
- RTI                    \ effect
-
-ENDIF
+                        \ Port: removed (it was never reached and nothing
+                        \ refers to it), to make room in the main code
 
 \ ******************************************************************************
 \
