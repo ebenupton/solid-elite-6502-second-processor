@@ -47,14 +47,8 @@
 \ clears the text map and buffer 0's shown map): no direct text or stars
 
 .F_DIRECT
- JSR f_direct0
- LDA #0
- STA f_dtext
- LDX #NDSTAR-1
-.fdr1
- STA F_DSS,X
- DEX
- BPL fdr1
+ JSR f_direct0          \ (which clears F_DSS with R_SS: no stars noted)
+ STZ f_dtext
  RTS
 
 \ f_enter2: the first record-mode frame since F_DIRECT. Main RAM is visible
@@ -181,8 +175,6 @@
 \ screen) come here (via G_DSTAR) to note it, so that f_unstar can remove it.
 \ Preserves X and Y; returns C set if it was clear.
 
-NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
-
 .F_DSTAR
  BCC fdzo
  CPY #NDSTAR
@@ -209,9 +201,8 @@ NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
  SEC
  RTS
 
-.F_DSS SKIP NDSTAR      \ size (0 = none)
-.F_DSX SKIP NDSTAR
-.F_DSY SKIP NDSTAR
+\ (F_DSS, F_DSX, F_DSY: the noted stars' sizes (0 = none), x and y, in HAZEL,
+\ elite-gfx.asm)
 
 \ f_sgs: f_sight2's rare case, out of line (frame.asm's fsg2 loop found bit 7
 \ set in rows SGY-SGOUT+Y or SGY-SGOUT-1+Y, Y = 1-41 odd): f_wcov with A = X =

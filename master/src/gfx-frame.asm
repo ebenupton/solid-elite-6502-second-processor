@@ -131,7 +131,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_NLINE
  STA F_NDOT
  STA F_PLON
- LDX #23
+ LDX #23+NDSTAR         \ (and F_DSS after it: no direct-mode stars noted)
 .fin1
  STA R_SS,X
  DEX
@@ -346,8 +346,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  CLI
  STY f_ysav
  JSR f_tmclear
- LDX #23                \ the stars will be re-recorded too
-.fdi1
+ LDX #23+NDSTAR         \ the stars will be re-recorded too (and F_DSS
+.fdi1                   \ after R_SS: no direct-mode stars noted)
  STA R_SS,X
  DEX
  BPL fdi1

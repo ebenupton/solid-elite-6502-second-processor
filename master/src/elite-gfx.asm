@@ -90,6 +90,10 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .dX1    SKIP 1          \ the dot's x-coordinate (SCAN, DOT)
 .dlen   SKIP 1          \ SCAN: the stick's length (signed)
 .dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
+NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
+.F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm's F_DSTAR,
+.F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, after R_SS)
+ASSERT HI(F_DSX) = HI(F_DSY+NDSTAR-1)
 .HZ_END
 PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
 ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00
@@ -106,6 +110,9 @@ ORG &DC40                       \ (after the longest OSCLI command the game
 ALIGN &100              \ (R_WR: no page crossing for any row)
 .R_WR    SKIP 192       \ (raster_vars.asm)
 .R_SS       SKIP 24         \ star size 1..3
+.F_DSS      SKIP NDSTAR     \ the directly drawn stars' sizes (0 = none; see
+                            \ F_DSX): cleared with R_SS (F_INIT, f_direct0)
+ASSERT F_DSS = R_SS + 24 AND HI(F_DSS) = HI(F_DSS+NDSTAR-1)
 ASSERT HI(R_NDN) = HI(R_NDN+191) AND HI(R_WL) = HI(R_WL+191) AND HI(R_WR) = HI(R_WR+191)
 ASSERT HI(R_SX) = HI(R_SX+23) AND HI(R_SY) = HI(R_SY+23) AND HI(R_SS) = HI(R_SS+23)
 .HZ_END2
