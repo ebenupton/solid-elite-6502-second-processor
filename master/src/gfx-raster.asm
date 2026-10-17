@@ -4260,12 +4260,14 @@ ENDMACRO
   STA cb1+1
   LDA R_SN                \ star count (only ever 0 or 19, so <= 24)
   STA sl+1                \ (patched: the loop limit)
+  STA nl+1                \ (and its copy at .nl)
   LDX #&FF
 .snext
   INX
 .sl
   CPX #0                  \ (R_SN)
   BCS sdone
+.sl2
   LDA R_SS,X
   BEQ snext
 .some
@@ -4328,7 +4330,10 @@ ENDMACRO
   BEQ third
   LDX RZ_TA+1             \ (snext inlined: INX, then the loop test)
   INX
-  JMP sl
+.nl
+  CPX #0                  \ (R_SN)
+  BCC sl2
+  JMP sdone
 .third
   STZ RZ_TA
   LDX RZ_SA
@@ -4338,7 +4343,7 @@ ENDMACRO
   LDA r_lm,X
   AND r_rm,X
   BRA msk
-  SKIP 14                 \ (keeps r_strow onward, and r_ypg's page, in place)
+  SKIP 7                  \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
