@@ -8225,8 +8225,8 @@ ENDIF
  EOR RAT2               \ Give it the sign as if we multiplied by the direction
                         \ by the pitch or roll direction
 
- STX Q                  \ Store the value of X so it can be restored after the
-                        \ call to ADD
+                        \ Q still holds X from the first STX Q above (neither
+                        \ ADD nor this routine writes Q), so X can be restored
 
  JSR ADD                \ (A X) = (A P) + (S R)
                         \       = -/+roofv_x / 16 + (1 - 1/512) * nosev_x
