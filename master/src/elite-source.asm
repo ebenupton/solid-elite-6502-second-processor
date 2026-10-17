@@ -7102,6 +7102,13 @@ ENDIF
 
 .STARS1
 
+ LDA ALP1               \ Port: patch the roll magnitude into MLSA and the
+ LDX #0                 \ pitch magnitude into MLSB (the multipliers of the
+ JSR stl_pat            \ MLS1/MLS2 and MULTS calls below), once per frame,
+ LDA BET1               \ as the demo port's MLSPT and MLSPB (f17d865 w_0319,
+ LDX #MLSB-MLSA         \ ad17570)
+ JSR stl_pat
+
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
                         \ we can use it as a counter through all the stardust
 
@@ -7246,7 +7253,8 @@ ENDIF
                         \ A has the opposite sign to the flipped roll angle
                         \ alpha, i.e. it gets the same sign as alpha
 
- JSR MLS1               \ Call MLS1 to calculate:
+ JSR MLSA               \ Call MLSA (Port: MLS1 with ALP1 patched in) to
+                        \ calculate:
                         \
                         \   (A P) = A * ALP1
                         \         = (x / 256) * alpha
@@ -7270,7 +7278,8 @@ ENDIF
  EOR ALP2               \ EOR A with the correct sign of the roll angle alpha,
                         \ so A has the opposite sign to the roll angle alpha
 
- JSR MLS2               \ Call MLS2 to calculate:
+ JSR MLS2A              \ Call MLS2A (Port: MLS2 with ALP1 patched in) to
+                        \ calculate:
                         \
                         \   (S R) = XX(1 0)
                         \         = x
@@ -7295,12 +7304,11 @@ ENDIF
                         \ Port: and (S R) = XX(1 0) now, as MUT2 did (MULTS
                         \ below leaves S and R alone)
 
- LDX BET1               \ Fetch the pitch magnitude into X
-
  LDA YY+1               \ Set A to y_hi and set it to the flipped sign of beta
  EOR BET2+1
 
- JSR MULTS              \ Call MULTS to calculate (X = BET1 is the multiplier):
+ JSR MLSB               \ Call MLSB (Port: MULTS with X = BET1 patched in) to
+                        \ calculate:
                         \
                         \   (A P) = X * A
                         \         = -beta * y_hi
@@ -7514,6 +7522,133 @@ ENDIF
  JMP MLU3
 
  ASSERT QSH = QSL + 512 AND LO(QSL) = 0
+
+.stl_pat
+
+                        \ Port: patch b = A AND 31 (MULTS multiplies by
+                        \ X AND 31) into MLSA (X = 0) or MLSB (X = MLSB -
+                        \ MLSA): b into the CPX and the QSL+b / QSH+b
+                        \ operands, QSL-b / QSH-b (both bytes, as b may be 0)
+                        \ into the others
+
+ AND #31
+ STA mla1+1,X
+ STA mla2+1,X
+ STA mla4+1,X
+ EOR #&FF               \ A = -b, with C = 1 if and only if b = 0
+ CLC
+ ADC #1
+ STA mla3+1,X
+ STA mla5+1,X
+ LDA #HI(QSL)-1
+ ADC #0
+ STA mla3+2,X
+ ADC #2                 \ (C = 0: no carry out of HI(QSL))
+ STA mla5+2,X
+ RTS
+
+.mls0
+
+ STA P+1                \ A = 0: set P(1 0) = 0 and return, as MULTS's MU6
+ STA P
+ RTS
+
+.MLS2A
+
+                        \ Port: MLS2 with ALP1 patched in: set (S R) = XX(1 0)
+                        \ and fall into MLSA
+
+ LDX XX
+ STX R
+ LDX XX+1
+ STX S
+
+                        \ Port: MLSA and MLSB are MULTS with the multiplier
+                        \ b = ALP1 AND 31 or BET1 AND 31 patched in by
+                        \ stl_pat: (A P) = |A| * b with A's sign, T = A,
+                        \ P(1 0) = 0 when A = 0, Y kept, as MULTS; X = |A|
+                        \ (MULTS leaves |A| + b; STL1 reads X after neither).
+                        \ For |A| >= b the product is QS(|A| + b) -
+                        \ QS(|A| - b), as MULTS computes it; |A| < b goes to
+                        \ MULTS
+
+.MLSA
+
+ STA T                  \ Set T = A, as MULTS does
+ AND #%01111111         \ If A = 0, set P(1 0) = 0 and return at mls0, as
+ BEQ mls0               \ MULTS does at MU6
+ TAX                    \ Set X = |A|
+
+.mla1
+
+ CPX #0                 \ (patched: b) If |A| < b, jump to mlar
+ BCC mlar             \ (C = 1 otherwise, for the SBC below)
+
+.mla2
+
+ LDA QSL,X              \ (patched: QSL + b) Set (A P) = QS(|A| + b)
+.mla3                  \                                - QS(|A| - b)
+ SBC QSL,X              \ (patched: QSL - b)              = |A| * b
+ STA P
+.mla4
+ LDA QSH,X              \ (patched: QSH + b)
+.mla5
+ SBC QSH,X              \ (patched: QSH - b)
+
+ BIT T                  \ Give A the sign of the argument, as MULTS does
+ BPL mla6
+ ORA #%10000000
+
+.mla6
+
+ RTS
+
+.mlar
+
+ LDA T                  \ |A| < b: call MULTS with X = ALP1 as before
+ LDX ALP1
+ JMP MULTS
+
+.MLSB
+
+ STA T                  \ Set T = A, as MULTS does
+ AND #%01111111         \ If A = 0, set P(1 0) = 0 and return at mls0, as
+ BEQ mls0               \ MULTS does at MU6
+ TAX                    \ Set X = |A|
+
+.mlb1
+
+ CPX #0                 \ (patched: b) If |A| < b, jump to mlbr
+ BCC mlbr             \ (C = 1 otherwise, for the SBC below)
+
+.mlb2
+
+ LDA QSL,X              \ (patched: QSL + b) Set (A P) = QS(|A| + b)
+.mlb3                  \                                - QS(|A| - b)
+ SBC QSL,X              \ (patched: QSL - b)              = |A| * b
+ STA P
+.mlb4
+ LDA QSH,X              \ (patched: QSH + b)
+.mlb5
+ SBC QSH,X              \ (patched: QSH - b)
+
+ BIT T                  \ Give A the sign of the argument, as MULTS does
+ BPL mlb6
+ ORA #%10000000
+
+.mlb6
+
+ RTS
+
+.mlbr
+
+ LDA T                  \ |A| < b: call MULTS with X = BET1 as before
+ LDX BET1
+ JMP MULTS
+
+ ASSERT mlb1 - mla1 = MLSB - MLSA AND mlb3 - mla3 = MLSB - MLSA
+ ASSERT mlb5 - mla5 = MLSB - MLSA AND mlb2 - mla2 = MLSB - MLSA
+ ASSERT mlb4 - mla4 = MLSB - MLSA
 
                         \ Port: STARS1 has a fixed budget of 510 bytes, 256
                         \ more than the original routine's 254, so that the
