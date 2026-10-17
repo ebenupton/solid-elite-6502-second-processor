@@ -10129,9 +10129,9 @@ ENDMACRO
 
 .sq6
 
- LDX #0                 \ X = 0, V and C clear, as MU11 leaves them
- CLV
- CLC
+ LDX #0                 \ X = 0, V and C clear, as MU11 leaves them (C is
+ CLV                    \ already clear here: BCS sq5 was not taken, and sq5
+                        \ clears it before joining)
 
  RTS                    \ Return from the subroutine
 
@@ -10140,6 +10140,7 @@ ENDMACRO
  LDA QSL+256,X          \ As above, with 2P - 256 in X
  STA P
  LDA QSH+256,X
+ CLC                    \ C was set by the ASL A
  BRA sq6
 
 \ ******************************************************************************
