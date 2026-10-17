@@ -2687,13 +2687,13 @@ MAXPT = 140             \ points per frame
 .fpp8
  PLY
 .fpp9
- RTS
+ JMP gback              \ (G_PPOINT tail-jumps here: page Elite's bank back in
+                        \ and return to BLINE)
 
 \ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
 
-.f_nobounds
- LDA #0
- STA R_NDF
+.f_nobounds             \ (STZ: no caller reads A, which left room for
+ STZ R_NDF              \ F_PPOINT's JMP gback)
  RTS
 
 .f_zerobounds           \ rows R_NDT..R_NDB: no boundaries yet (only caller

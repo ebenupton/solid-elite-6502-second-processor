@@ -113,8 +113,8 @@
  LDA #GFXBANK
  STA &F4
  STA &FE30
- JSR F_PPOINT
- JMP gback
+ JMP F_PPOINT           \ (it returns through gback)
+ SKIP 3                 \ (was JMP gback: keeps what follows in place)
 
  SKIP 12                \ Padding: keeps everything after (stubs, hooks,
                         \ raster_hz and the unaligned HAZEL tables) at the
