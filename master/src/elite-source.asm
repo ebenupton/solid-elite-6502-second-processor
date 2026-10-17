@@ -11419,10 +11419,11 @@ ENDMACRO
 
 .DVL9a
 
-                        \ Here A = 0 and Y = 0. If P+1 < 128, the DVL9 loop
-                        \ would shift exactly eight times (A stays below 64
-                        \ until the eighth shift), so do it as a byte move,
-                        \ (A P+1 P) = (P+1 P 0) with Y = 8, and carry on
+                        \ Here A = 0 and Y = 0 (&F9 with the -7 bias). If
+                        \ P+1 < 128, the DVL9 loop would shift exactly eight
+                        \ times (A stays below 64 until the eighth shift), so
+                        \ do it as a byte move, (A P+1 P) = (P+1 P 0) with
+                        \ Y = 8 (1 with the bias), and carry on
 
  LDY P+1                \ If bit 7 of P+1 is set, jump to DVL9b to run the
  BMI DVL9b              \ bitwise loop from A = 0
@@ -11432,14 +11433,15 @@ ENDMACRO
  STA P+1                \ shift bits of P into A, so the OR is done here rather
  TYA                    \ than on every call)
 
- LDY #8                 \ Count the eight shifts in Y
+ LDY #1                 \ Count the eight shifts in Y (grind: Y is biased by -7
+                        \ throughout, see DVID3B)
 
  BRA DVL9               \ Carry on shifting bit by bit
 
 .DVL9b
 
- LDY #0                 \ Set A = Y = 0 and run the bitwise loop (A < 64, so
- TYA                    \ skip the test at DVL9)
+ LDY #&F9               \ Set A = 0 and Y = 0 - 7 (biased) and run the bitwise
+ LDA #0                 \ loop (A < 64, so skip the test at DVL9)
  BRA DVL9l
 
 .DV14z
@@ -11449,14 +11451,8 @@ ENDMACRO
                         \ leaving A = R (which it already is), so we just need
                         \ to decrement the scale factor in Y by 8
 
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
+ DEY                    \ Grind: Y already carries -7 from the bias set at
+                        \ DVID3B, so one more DEY makes -8
 
  BRA DV9
 
@@ -11523,8 +11519,10 @@ ENDMACRO
                         \ path that reads it before DV9 overwrites it)
 
  TYA                    \ Set A = |Y|, clearing the sign bit so the division
- LDY #0                 \ can be done with positive numbers, and set Y = 0 to
- AND #%01111111         \ store the scale factor
+ LDY #&F9               \ can be done with positive numbers, and set Y = -7 to
+ AND #%01111111         \ store the scale factor (grind: biased by -7, which
+                        \ pays for DVL6a's -7 and seven of DV14z's eight DEYs,
+                        \ as every path to DV9 passes through one of them)
 
  BEQ DVL9a              \ If A = 0, jump to DVL9a to try a whole-byte shift
 
@@ -11596,9 +11594,8 @@ ENDMACRO
  ROL R
  ROL A
 
- BEQ DVL6               \ Port: loop while A is still zero
-
- BMI DV9                \ If bit 7 of A is set we are done
+ BEQ DVL6               \ Port: loop while A is still zero (grind: ROL A of 0
+                        \ gives 0 or 1, so A is now 1 and bit 7 is never set)
 
                         \ Otherwise A is now 1-127, so at most 7 more shifts are
                         \ needed and the bits of R already hold everything that
@@ -11612,14 +11609,9 @@ ENDMACRO
                         \ k is small here (usually 1 or 2), so we shift (A R)
                         \ right k times instead, doing Y = Y - (8 - k) as
                         \ Y - 7 and then k - 1 increments
-
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
+                        \
+                        \ (grind: the -7 is already in Y from the bias set at
+                        \ DVID3B)
 
  LSR A                  \ Shift (A R) right, stopping when A becomes zero (with
  BEQ DVL6c              \ C = 1, as A was 1) before shifting R
