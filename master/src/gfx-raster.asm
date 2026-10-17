@@ -375,8 +375,18 @@ R_ENDPAGE 13
   BEQ ok2
   BCS out
 .ok2
-  JSR r_pset
-  JMP r_cyrow
+  TYA                     \ extend the buffer's row range by row Y
+  LDY r_buf
+  CMP r_dyt,Y
+  BCS n3
+  STA r_dyt,Y
+.n3
+  CMP r_dyb,Y
+  BCC n4
+  STA r_dyb,Y
+.n4
+  TAY                     \ Y = row again
+  JMP r_pset              \ tail call
 .out
   RTS
 }
