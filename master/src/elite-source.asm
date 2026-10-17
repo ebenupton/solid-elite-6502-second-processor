@@ -19637,9 +19637,11 @@ ENDMACRO
                         \ where this routine is called in BCD mode)
 
  LDA KY6                \ If KY6 ("S") is being pressed, then KY6 is &FF, and
- EOR #&FF               \ KY6 EOR &FF AND KY19 will be zero, so this stops "C"
- AND KY19               \ from being registered as being pressed if "S" is being
- STA KY19               \ pressed. This code isn't necessary on a BBC Master, as
+ TRB KY19               \ KY19 AND NOT KY6 will be zero, so this stops "C"
+                        \ from being registered as being pressed if "S" is being
+                        \ pressed (grind: A and N/Z are dead here, as LDX KL
+                        \ sets N/Z and RDKEY reloads A). This code isn't
+                        \ necessary on a BBC Master, as
                         \ it's from other versions of Elite where there were
                         \ issues with "ghost keys", which the Master didn't have
 
