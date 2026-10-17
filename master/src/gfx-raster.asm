@@ -3295,10 +3295,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCS c3
   STX r_wmin
 .c3
-  CPY r_wmax
-  BCC c4
-  STY r_wmax
-.c4
+  STY r_wmax              \ (strips run left to right: each right end is the max)
   JSR r_sw
 .nx
   LDY r_cl
