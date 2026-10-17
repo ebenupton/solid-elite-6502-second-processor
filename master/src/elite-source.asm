@@ -10526,35 +10526,94 @@ ENDMACRO
 
                         \ Port: by quarter squares (QSL and QSH, elite-hi.asm):
                         \ (A P+1 P) = Q * (A ~P) as the two bytes' products,
-                        \ added. Exactly the original's results: X = 0, Q and Y
-                        \ kept, C clear (N and Z differ: no caller reads them)
+                        \ added. Exactly the original's results: Q kept, C
+                        \ clear (X, Y, N and Z differ: no caller reads them,
+                        \ as each caller's next use of X and Y sets them)
 
- PHY                    \ Keep Y
-
- STA P+1                \ Set P+1 = A and P = ~P, the two bytes
- LDA P
+ STA P+1                \ Y = |A - Q|, as QMUL P+1, P+1, Q with A already
+ SEC                    \ loaded
+ SBC Q
+ BCS MLTU2a
  EOR #&FF
- STA P
+ ADC #1
 
- QMUL P, P, Q           \ Set (A P) = ~P * Q
+.MLTU2a
+
+ TAY
+ LDA P+1                \ X = A + Q, C = bit 8
+ CLC
+ ADC Q
+ TAX
+ BCS MLTU2b
+ LDA QSL,X              \ Set (A P+1) = A * Q
+ SEC
+ SBC QSL,Y
+ STA P+1
+ LDA QSH,X
+ SBC QSH,Y
+ BRA MLTU2c
+
+.MLTU2b
+
+ LDA QSL+256,X
+ SEC
+ SBC QSL,Y
+ STA P+1
+ LDA QSH+256,X
+ SBC QSH,Y
+
+.MLTU2c
 
  PHA                    \ Keep the high byte
 
- QMUL P+1, P+1, Q       \ Set (A P+1) = A * Q
+                        \ Now the low byte lo = ~P, without inverting P: we
+                        \ have lo + Q = Q - P - 1 and |lo - Q| = |P + Q - 255|
 
- TAX                    \ Add the first product's high byte to (A P+1)
- PLA
- CLC
- ADC P+1
+ CLC                    \ Y = |lo - Q|: A = P + Q; if that doesn't carry then
+ LDA P                  \ lo - Q = 255 - (P + Q) = ~A (the common case, as Q
+ ADC Q                  \ is small), else Q - lo = A + 1 (at MLTU2g)
+ BCS MLTU2g
+ EOR #&FF
+
+.MLTU2d
+
+ TAY
+ CLC                    \ X = lo + Q = Q - P - 1, C = bit 8 (set if Q > P)
+ LDA Q
+ SBC P
+ TAX
+ BCS MLTU2e
+ LDA QSL,X              \ Set (A P) = lo * Q
+ SEC
+ SBC QSL,Y
+ STA P
+ LDA QSH,X
+ SBC QSH,Y
+ BRA MLTU2f
+
+.MLTU2e
+
+ LDA QSL+256,X
+ SEC
+ SBC QSL,Y
+ STA P
+ LDA QSH+256,X
+ SBC QSH,Y
+
+.MLTU2f
+
+ CLC                    \ Add this high byte to (A P+1), which leaves C clear
+ ADC P+1                \ as the product fits in 24 bits
  STA P+1
- TXA
+ PLA
  ADC #0
 
- LDX #0                 \ X = 0 and C clear, as the original leaves them
- PLY                    \ (and restore Y)
- CLC
-
  RTS                    \ Return from the subroutine
+
+.MLTU2g
+
+ ADC #0                 \ C is set, so A = P + Q - 255 = Q - lo = |lo - Q|
+ BRA MLTU2d
 
 
 \ ******************************************************************************
