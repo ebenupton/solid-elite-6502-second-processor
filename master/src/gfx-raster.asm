@@ -3717,7 +3717,7 @@ NEXT
   TYA
   ORA #3
   STA r_wmax
-  LDA RZ_Y                \ the row's disc colour: R_DCE / R_DCO by parity
+  TXA                     \ the row's disc colour: R_DCE / R_DCO by parity (X = RZ_Y)
   AND #1
   TAX
   LDA R_DCE,X
