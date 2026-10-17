@@ -20530,6 +20530,52 @@ ENDIF
 
  RTS                    \ Return from the subroutine (no laser on this view)
 
+\ ******************************************************************************
+\
+\       Name: DEATHT
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: The end of DEATH: run the exploding canister scene, then restart
+\             (Port: in the main RAM at &7E00, after the stubs, to make room
+\             in bank 4; reached only by DEATH's JMP DEATHT)
+\
+\ ******************************************************************************
+
+.DEATHT
+
+ LDA #0                 \ Set our speed in DELTA to 0, as we aren't going
+ STA DELTA              \ anywhere any more
+
+ JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
+                        \ then the frame (Port: the renderer, gfx-hooks.asm),
+                        \ which will display our exploding canister scene and
+                        \ move everything about, as well as decrementing the
+                        \ value in LASCT
+
+\JSR NOSPRITES          \ This instruction is commented out in the original
+                        \ source
+
+.D2
+
+ JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
+                        \ then the frame (Port: the renderer, gfx-hooks.asm),
+                        \ which will display our exploding canister scene and
+                        \ move everything about, as well as decrementing the
+                        \ value in LASCT
+
+ DEC LASCT              \ Decrement the counter in LASCT, which we set above,
+                        \ so for each loop around D2, we decrement LASCT by 5
+                        \ (the main loop decrements it by 4, and this one makes
+                        \ it 5)
+
+ BNE D2                 \ Loop back to call the main flight loop again, until we
+                        \ have called it 127 times
+
+ LDX #31                \ Set the screen to show all 31 text rows, which shows
+ JSR DET1               \ the dashboard
+
+ JMP DEATH2             \ Jump to DEATH2 to reset and restart the game
+
 .STUBS_END%
 
  PRINT "Stubs: &7E00-", ~STUBS_END%-1, " free ", &8000-STUBS_END%

@@ -5846,6 +5846,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
  STA R
 
+.ll51r1s
+
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z EOR S (S is
  EOR XX16+5,Y           \ final here, ll51n1 having run LL39), jumping to
  EOR S                  \ ll51n2 if the signs differ
@@ -5867,6 +5869,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
  STA XX12+6,X           \ Store the result in XX12+X+6(1 0)
  LDA S
+
+.ll51r2s
+
  STA XX12+7,X
 
  LDY ll51yt-&FA,X       \ Set Y = Y + 6 by lookup on X (X = -6 -> Y = 6,
@@ -5890,13 +5895,17 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  STA Q                  \ Q = |sidev_y| * y_lo / 256 as above, then call LL39
  LDA XX16+2,Y           \ for (S A) = (S R) + (A Q)
  JSR FMLTU+2
- STA Q
- LDA R                  \ (LL39 inlined: A = R - Q, and if that underflows,
- SEC                    \ LL40 negates A and flips the sign in S; C is clear
- SBC Q                  \ on entry to LL40 as it requires)
+ EOR #&FF               \ (LL39 inlined: A = R - product = R + ~product + 1,
+ SEC                    \ with C set if no underflow, as R - product)
+ ADC R
  BCS ll51r1
- JSR LL40
- BRA ll51r1
+ EOR #&FF               \ It underflowed (C clear), so negate A to give
+ ADC #1                 \ product - R in 1..255 (leaving C clear), store it
+ STA R                  \ in R and flip the sign in S, as LL40 would
+ LDA S
+ EOR #%10000000
+ STA S
+ BRA ll51r1s
 
 .ll51n2
 
@@ -5904,13 +5913,17 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  STA Q
  LDA XX16+4,Y
  JSR FMLTU+2
- STA Q
- LDA R                  \ (LL39 inlined, as for ll51n1: A = R - Q, and if
- SEC                    \ that underflows, LL40 negates A and flips S, C
- SBC Q                  \ being clear as it requires)
- BCS ll51r2
- JSR LL40
- BRA ll51r2
+ EOR #&FF               \ (LL39 inlined, as for ll51n1: A = R - product,
+ SEC                    \ and if that underflows, negate A to give the
+ ADC R                  \ magnitude product - R, store it and flip the sign
+ BCS ll51r2             \ in S, as LL40 would)
+ EOR #&FF
+ ADC #1
+ STA XX12+6,X
+ LDA S
+ EOR #%10000000
+ STA S
+ BRA ll51r2s
 
 \ ******************************************************************************
 \
@@ -10799,35 +10812,6 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \JSR U%                 \ This instruction is commented out in the original
                         \ source
 
- LDA #0                 \ Set our speed in DELTA to 0, as we aren't going
- STA DELTA              \ anywhere any more
-
- JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
-                        \ then the frame (Port: the renderer, gfx-hooks.asm),
-                        \ which will display our exploding canister scene and
-                        \ move everything about, as well as decrementing the
-                        \ value in LASCT
-
-\JSR NOSPRITES          \ This instruction is commented out in the original
-                        \ source
-
-.D2
-
- JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
-                        \ then the frame (Port: the renderer, gfx-hooks.asm),
-                        \ which will display our exploding canister scene and
-                        \ move everything about, as well as decrementing the
-                        \ value in LASCT
-
- DEC LASCT              \ Decrement the counter in LASCT, which we set above,
-                        \ so for each loop around D2, we decrement LASCT by 5
-                        \ (the main loop decrements it by 4, and this one makes
-                        \ it 5)
-
- BNE D2                 \ Loop back to call the main flight loop again, until we
-                        \ have called it 127 times
-
- LDX #31                \ Set the screen to show all 31 text rows, which shows
- JSR DET1               \ the dashboard
-
- JMP DEATH2             \ Jump to DEATH2 to reset and restart the game
+ JMP DEATHT             \ Port: jump to DEATHT in the main RAM at &7E00 to
+                        \ run the rest of the death sequence (moved there to
+                        \ make room in bank 4)
