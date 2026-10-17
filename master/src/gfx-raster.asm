@@ -3666,9 +3666,6 @@ NEXT
   LDA R_DCO
 .ev
   STA RZ_T5               \ the row's disc colour
-  LDA #&FF
-  STA r_wmin
-  STZ r_wmax
 .^r_pt50 LDA r_sl,X
   STA RZ_T0               \ oL
 .^r_pt51 LDA r_sr,X
@@ -3706,7 +3703,7 @@ NEXT
 .jboth
   JMP both
 .jonew
-  JMP onew
+  JMP onew0
 .joold
   JMP oold
 .emp
@@ -3768,7 +3765,7 @@ NEXT
 .requal                   \ left ends equal: r_wmin from the right end's strip
   LDA RZ_T3
   CMP RZ_T1
-  BEQ fin
+  BEQ none                \ same span: nothing written (X = RZ_Y)
   BCC rq1                 \ r_wmin = (MIN(oR, nR) + 1) AND &FC
   LDA RZ_T1
 .rq1
@@ -3778,7 +3775,11 @@ NEXT
   LDA RZ_T3               \ (C kept: set = grown, clear = shrunk)
   BCS rgr
   BRA rshr
-  SKIP 5                  \ (spare: keeps .both onward in place)
+.onew0                    \ old span empty: nothing noted yet
+  LDA #&FF
+  STA r_wmin
+  STZ r_wmax
+  BRA onew
 .both
   JSR oblk
 .onew
@@ -3807,7 +3808,10 @@ NEXT
   STX r_wb                \ rows go upwards
 .none
   RTS
-.oblk                     \ the old span black
+.oblk                     \ the old span black (always the first strip)
+  LDA #&FF
+  STA r_wmin
+  STZ r_wmax
   LDX RZ_T0
   LDY RZ_T1
   STZ RZ_COL
