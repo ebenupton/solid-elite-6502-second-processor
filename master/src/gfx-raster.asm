@@ -3115,12 +3115,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   INC A                   \ A = new count - old count
   BNE ne
   LDA R_NDP,X             \ (R_NDP and r_bdp only ever hold 0 or 1)
-.^r_pt155 EOR r_bdp,X
+.^r_pt155 CMP r_bdp,X     \ (CMP, not EOR: A keeps R_NDP; C is dead here)
   BNE r_dpeg
-  LDA R_NDN,X             \ no boundaries, old or new, and colour A (R_DCE /
-  ORA R_NDP,X             \ R_DCO) both times: a one-colour row, which r_dp2
-  BNE e9                  \ does in less time (the stored boundaries, count 0,
-  JMP r_dp2+2             \ are never read; RZ_Y = X already: skip STX)
+  ORA R_NDN,X             \ no boundaries, old or new, and colour A (R_DCE /
+  BNE e9                  \ R_DCO) both times: a one-colour row, which r_dp2
+  JMP r_dp2+2             \ does in less time (the stored boundaries, count 0,
+  EQUB 0, 0, 0            \ are never read; RZ_Y = X already: skip STX)
+                          \ (padding: keeps .ne at its address)
 .ne
   INC A                   \ A = difference + 1: 0 or 2 (counts differing by
   CMP #3                  \ 1 either way) go on, the rest to r_dpgl
