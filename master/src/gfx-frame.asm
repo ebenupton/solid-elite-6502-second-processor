@@ -1302,18 +1302,14 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA fdf_st
  LDA #1
  SBC fz_t               \ (C = 1) A = a + 1 (C = 0 after)
- STA fsx_y+1
+ STA fsy_cp+1
  ADC f_cy               \ A = cy + a + 1 <= B + 1 (C = 0 after)
  STA fsx_x+1
- STA fsy_cp+1
  LDA #&A2               \ LDX #
  BRA fds_c
 .fdsu                   \ b < a (C = 0): rows cy - k and cy + k together for
  INY                    \ k = 0..b, then rows cy - k for k = b + 1..a
- STY fsx_y+1
- TYA
- ADC f_cy               \ (C = 0) A = cy + b + 1 <= B + 1 (C = 0 after)
- STA fsy_cp+1
+ STY fsy_cp+1           \ (C = 0 still)
  LDA #2
  SBC fz_t               \ (C = 0) A = a + 1
  STA fdf_cp+1
@@ -1322,47 +1318,49 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA #&89               \ BIT # (X is already row cy - b - 1)
  BRA fds_c
 .fdse                   \ b = a (C = 1, Y = a): rows cy - k and cy + k for k = 0..a
- TYA
- ADC f_cy               \ (C = 1) A = cy + a + 1
- STA fsy_cp+1
+ INY
+ STY fsy_cp+1           \ a + 1
  LDA #&60               \ RTS
 .fds_c
  STA fsx_x              \ what follows the symmetric loop
- ASSERT LO(F_HW) = 0 AND LO(F_HW2) = 0   \ (so fpr_ld's low byte is always 0)
- LDA #0                 \ the symmetric loop reads n(k) at (table - cy) + (cy + k)
- SEC
- SBC f_cy
- STA fsy_ld+1
- LDA fpr_ld+2
- SBC #0
- STA fsy_ld+2
- LDA f_cy               \ X = row cy - k, Y = row cy + k, from k = 0
- TAX
- TAY
+ LDA fpr_ld+2           \ the symmetric loop reads n(k) at table + k (page
+ STA fsy_ld+2           \ aligned: no page crossing)
+ LDA f_cy               \ X = row cy - k, Y = k, from k = 0; rows cy + k are
+ TAX                    \ written at (table + cy) + k
  CLC
+ ADC #LO(R_NDISCR)      \ (cy <= R_CB = 191: no carry, see the ASSERT)
+ STA fsy_sr+1
+ TXA
+ ADC #LO(R_NDISCL)
+ STA fsy_sl+1
+ LDA #HI(R_NDISCL)
+ ADC #0                 \ (C = 0 after)
+ STA fsy_sl+2
+ LDY #0
 .fsyl                   \ C = 0 here
 .fsy_ld
- LDA F_HW,Y             \ patched: half-width table - cy (crosses a page if cy > 0)
+ LDA F_HW,Y             \ patched: half-width table (high byte)
 .fsy_cr
  ADC #0                 \ patched: cx
  STA R_NDISCR,X
- STA R_NDISCR,Y
+.fsy_sr
+ STA R_NDISCR,Y         \ patched: R_NDISCR + cy (low byte)
  EOR #&FF
 .fsy_cl
  ADC #0                 \ patched: 2cx + 1
  STA R_NDISCL,X
- STA R_NDISCL,Y
+.fsy_sl
+ STA R_NDISCL,Y         \ patched: R_NDISCL + cy
  DEX
  INY
 .fsy_cp
- CPY #0                 \ patched: last row cy + k, plus 1 (C = 0 until then)
+ CPY #0                 \ patched: last k, plus 1 (C = 0 until then)
  BNE fsyl
 .fsx_x
  LDX #0                 \ patched: LDX #first tail row, BIT # (no-op) or RTS
-.fsx_y
- LDY #0                 \ patched: k of the first tail row
- CLC
+ CLC                    \ (Y = k of the first tail row already)
  JMP fdf1
+ ASSERT LO(R_NDISCR) + 191 < 256 AND LO(F_HW) = 0 AND LO(F_HW2) = 0
 
 .f_cx EQUW 0
 .f_cy EQUW 0
