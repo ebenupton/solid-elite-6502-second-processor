@@ -10013,12 +10013,13 @@ ENDMACRO
  JSR MULT12             \ Set (S R) = Q * A
                         \           = vect_x * XX15
 
- LDX INWK+2,Y           \ Set Q = the Y+2-th byte of INWK, i.e. vect_y
- STX Q
-
  LDA XX15+1             \ Set A = XX15+1
 
- JSR MAD                \ Set (A X) = Q * A + (S R)
+ LDX INWK+2,Y           \ Set Q = the Y+2-th byte of INWK, i.e. vect_y
+ STX Q                  \ (loaded after A, so X = Q and Z is set from Q, as
+                        \ MAD's LDX Q would leave them)
+
+ JSR madq               \ Set (A X) = Q * A + (S R)
                         \           = vect_y * XX15+1 + vect_x * XX15
 
  STA S                  \ Set (S R) = (A X)
@@ -10053,6 +10054,9 @@ ENDMACRO
 .MAD
 
  LDX Q                  \ If |Q| = 0, i.e. Q = 0 or &80, then Q * A = 0, so
+
+.madq                   \ (TAS3 enters here with X = Q and Z set from it)
+
  BEQ mad2               \ skip MULT1 (whose other effects, X, T and the flags,
  CPX #%10000000         \ ADD overwrites) and do ADD's work with (A P) = 0 at
  BEQ mad2               \ mad2, otherwise fall through into mad1 to call MULT1
