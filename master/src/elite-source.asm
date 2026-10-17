@@ -8264,14 +8264,16 @@ ENDIF
 
  LDX Q                  \ Restore the value of X from before the call to ADD
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi, clear the sign bit, divide by 2, so
- STA S                  \ A = |nosev_x_hi| / 2 = |nosev_x| / 512 (port: also
- AND #%01111111         \ store nosev_x_hi in S as the high byte to borrow from)
- LSR A                  \
+ LDA INWK+1,Y           \ Fetch nosev_x_hi and store it in S as the high byte
+ STA S                  \ to borrow from (port)
 
- EOR #&FF               \ Port: compute nosev_x_lo - A as nosev_x_lo + ~A + 1,
- SEC                    \ which gives the same result and the same C as
- ADC INWK,Y             \ SBC, without going through T:
+ ORA #%10000001         \ Port: A = %01mmmmmm = &40 + |nosev_x_hi| / 2, and
+ LSR A                  \ forcing bit 0 to 1 makes the LSR set C = 1
+
+ EOR #&BF               \ Port: A = ~(|nosev_x_hi| / 2) = ~(|nosev_x| / 512),
+                        \ C = 1, so this computes nosev_x_lo - |nosev_x| / 512
+ ADC INWK,Y             \ as nosev_x_lo + ~A + 1, the same result and C as SBC,
+                        \ without going through T:
  STA R                  \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
                         \       = (1 - 1/512) * nosev_x
                         \
