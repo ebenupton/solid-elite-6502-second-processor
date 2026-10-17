@@ -99,8 +99,8 @@
 
 \ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
 \ curve. H_BPT: BLINE has the next point in K6(1 0), K6(3 2): record it.
-\ Both preserve X, Y and C (the callers set A and the other flags straight
-\ after)
+\ Both preserve X, and H_PCURVE also Y and C (the callers set A and the other
+\ flags straight after); H_BPT does not preserve Y or C (BLINE reloads Y)
 
 .H_PCURVE
  LDA QQ11

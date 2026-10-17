@@ -2672,11 +2672,10 @@ MAXPT = 140             \ points per frame
  LDA #0                 \ operand = F_NCV
 F_NCV = P%-1
  BEQ fpp9
- PHY
- LDY #0                 \ operand = F_NPT
-F_NPT = P%-1
- CPY #MAXPT
- BCS fpp8
+ LDY #0                 \ operand = F_NPT (Y is not preserved: BLINE, the
+F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
+ CPY #MAXPT             \ before reading it; CLIP2 only saves/restores it)
+ BCS fpp9
  LDA K6
  STA F_PXL,Y
  LDA K6+1
@@ -2687,11 +2686,10 @@ F_NPT = P%-1
  STA F_PYH,Y
  INY
  STY F_NPT
-.fpp8
- PLY
 .fpp9
  JMP gback              \ (G_PPOINT tail-jumps here: page Elite's bank back in
                         \ and return to BLINE)
+ EQUW 0                 \ pad (was PHY, PLY): keeps what follows in place
 
 \ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
 

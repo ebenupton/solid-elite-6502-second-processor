@@ -6744,7 +6744,7 @@ ENDIF
  STA XX12+1             \ Port: also set XX12+1 = y_hi (H_BPT keeps XX12)
 
  JSR H_BPT              \ Port: in record mode, record the point K6 for the
-                        \ renderer (gfx-hooks.asm; X, Y and C preserved)
+                        \ renderer (gfx-hooks.asm; X preserved, Y and C not)
 
  LDA FLAG               \ If FLAG = 0, jump down to BL1
  BEQ BL1
