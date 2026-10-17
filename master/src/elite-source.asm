@@ -6932,13 +6932,12 @@ ENDIF
                         \
                         \   Q = 64 * speed / z_hi
 
- STA mlq1+1             \ Port: patch q = Q into MLUQ, the |A| * Q multiply
- STA mlq2+1             \ used twice below (the demo port's per-star MLU
- STA mlq4+1             \ patching, f17d865 w_0050 and c9bfb3e w_0051): q into
- EOR #&FF               \ the CPX and the QSL+q / QSH+q operands, and 256 - q
- INC A                  \ (q >= 1) into the QSL-q / QSH-q ones; C is untouched
- STA mlq3+1             \ for the SBC below
- STA mlq5+1
+ STA mlq2+1             \ Port: patch q = Q into MLUQ, the |A| * Q multiply
+ STA mlq4+1             \ used twice below (the demo port's per-star MLU
+ EOR #&FF               \ patching, f17d865 w_0050 and c9bfb3e w_0051): q into
+ INC A                  \ the QSL+q / QSH+q operands, and 256 - q (q >= 1) into
+ STA mlq3+1             \ the QSL-q / QSH-q ones (MLUQ compares with Q itself,
+ STA mlq5+1             \ CPX Q); C is untouched for the SBC below
 
  LDA SZL,Y              \ We now calculate the following:
  SBC DELT4              \
@@ -7299,30 +7298,24 @@ ENDIF
  STA SZ,Y               \ z_hi so the new particle starts in the far distance
  STA ZZ
 
- LDA Y1                 \ Set A to the new value of y_hi. This has no effect as
-                        \ STC1 starts with a jump to PIXEL2, which starts with a
-                        \ LDA instruction
-
- JMP STC1               \ Jump up to STC1 to draw this new particle
+ BRA STC1               \ Jump up to STC1 to draw this new particle (A need not
+                        \ be set to y_hi: PIXEL2 starts by loading X1 into A)
 
 .MLUQ
 
                         \ Port: (A P) = |A| * Q with C clear, as MLU3 gives
-                        \ (it also leaves X = 0 and needs T = Q - 1; nothing
-                        \ in STL1 reads X or T after it), with Q patched in by
-                        \ STL1 once per particle: q at mlq1, mlq2 and mlq4,
-                        \ 256 - q at mlq3 and mlq5 (1 <= q <= 255, so the
-                        \ high bytes are fixed). For |A| >= q the product is
-                        \ QS(|A| + q) - QS(|A| - q), exactly as MU11 computes
-                        \ it; |A| < q goes to MLU3 at mlqr
+                        \ (it also leaves X = 0; nothing in STL1 reads X or T
+                        \ after it), with Q patched in by STL1 once per
+                        \ particle: q at mlq2 and mlq4, 256 - q at mlq3 and
+                        \ mlq5 (1 <= q <= 255, so the high bytes are fixed).
+                        \ For |A| >= q the product is QS(|A| + q) - QS(|A| - q),
+                        \ exactly as MU11 computes it; |A| < q goes to mlqr
 
  AND #%01111111         \ Set X = |A|
  TAX
 
-.mlq1
-
- CPX #1                 \ (patched: q) If |A| < q, jump to mlqr (with C = 1
- BCC mlqr               \ otherwise, for the SBC below)
+ CPX Q                  \ If |A| < q, jump to mlqr (with C = 1 otherwise, for
+ BCC mlqr               \ the SBC below)
 
 .mlq2
 
@@ -7340,11 +7333,28 @@ ENDIF
 
 .mlqr
 
- LDA Q                  \ |A| < q (rare): set T = Q - 1 and call MLU3 with
- DEC A                  \ A = |A|, as STL1 used to
- STA T
- TXA
- JMP MLU3
+                        \ |A| < q (rare), with C = 0 and A = X = |A|: join MU11
+                        \ past its set-up, with the registers and P it would
+                        \ have there (T = Q - 1 is not needed past that point,
+                        \ and is dead here: MLSA rewrites it before any read)
+
+ STY mu7+1              \ Keep Y, as MU11 does
+ STA P                  \ P = |A|, as MLU3 sets it
+
+ ADC Q                  \ Set X = |A| + q, with C set if it is 256 or more, as
+ TAX                    \ MU11 does with ADC T
+
+ BCS mlqh               \ If |A| + q >= 256, join MU11 at mu5
+
+ LDA Q                  \ Set A = q - |A| = |P - X| (C = 1 after, as q > |A|),
+ SEC                    \ as MU11 computes it before mu4, and join MU11 at mu4
+ SBC P
+ JMP mu4
+
+.mlqh
+
+ JMP mu5                \ Join MU11 at mu5 with C = 1, P = |A|, Q = q and
+                        \ X = |A| + q - 256, as MU11 arrives there
 
  ASSERT QSH = QSL + 512 AND LO(QSL) = 0
 
