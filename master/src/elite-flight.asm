@@ -256,3 +256,41 @@
  JMP MV45               \ We have now finished rotating the planet or sun by
                         \ our pitch and roll, so jump back into the MVEIT
                         \ routine at MV45 to apply all the other movements
+
+\ ******************************************************************************
+\
+\       Name: sightcol
+\       Type: Variable
+\   Category: Drawing lines
+\    Summary: Colours for the crosshair sights on the different laser types
+\             (Port: in the main code to make room in bank 4; the unused
+\             beamcol table that followed it is gone)
+\
+\ ******************************************************************************
+
+.sightcol
+
+ EQUB YELLOW            \ Pulse lasers have yellow sights
+
+ EQUB CYAN              \ Beam lasers have cyan sights
+
+ EQUB CYAN              \ Military lasers have cyan sights
+
+ EQUB YELLOW            \ Mining lasers have yellow sights
+
+\ ******************************************************************************
+\
+\       Name: LL9F
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: draw a ship with LL9, then the frame (the title screen)
+\             (in the main code to make room in bank 4)
+\
+\ ******************************************************************************
+
+.LL9F
+
+ JSR LL9                \ Draw the ship (recorded for the renderer when QQ11 = 0)
+
+ JMP hframe             \ Render the frame (gfx-hooks.asm), returning from the
+                        \ subroutine using a tail call

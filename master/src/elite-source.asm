@@ -14584,15 +14584,12 @@ ENDIF
                         \ left P = X, and X is unchanged since)
  STA K                  \ so (XX16+5 K) = |v_y| * sin(CNT2)
 
- TXA                    \ FMLTU preserves X = CNT2 mod 32, so set
- EOR #16                \ X = (CNT2 + 16) mod 32, so sin(X) = |cos(CNT2)|
- TAX
-
  CLC                    \ Clear the C flag, as the original ADC #16 did, as it
                         \ can pass through FMLTU into the ADC #207 below
 
- LDA SNE,X              \ Set Q = sin(X)
- STA Q                  \       = |cos(CNT2)|
+ LDA SNE+16,X           \ Set Q = sin((CNT2 + 16) mod 32) = |cos(CNT2)|, as
+ STA Q                  \ X = CNT2 mod 32 (FMLTU preserves X) and SNE+32 to
+                        \ SNE+47 repeat SNE to SNE+15
 
  LDA K2+1               \ Set K+2 = K2+1 * Q / 256
  JSR FMLTU              \         = |u_y| * |cos(CNT2)|
