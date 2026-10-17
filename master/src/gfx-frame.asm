@@ -2681,9 +2681,9 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  STA F_PXL,Y
  LDA K6+1
  STA F_PXH,Y
- LDA K6+2               \ (Master port: BLINE has the new point's y in K6(3 2))
+ LDA K5+2               \ (Master port: BLINE has the new point's y in K5(3 2))
  STA F_PYL,Y
- LDA K6+3
+ LDA K5+3
  STA F_PYH,Y
  INY
  STY F_NPT
