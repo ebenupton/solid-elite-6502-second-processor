@@ -2970,8 +2970,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 
 \ r_sw: pixels X .. Y (X <= Y) of the row (RZ_PA/RZ_PB set) in colour A.
 \ Clobbers A, X, Y, RZ_COL, RZ_SA, RZ_SA+1, RZ_T7.
-.r_sw
+\ (.cross sits before the entry so that BMI hx lies in the same page as hx.)
 {
+.cross
+  STX RZ_SB
+  STY RZ_TA+1
+  JMP r_lput2
+.^r_sw
   STA RZ_COL
   STY RZ_SA
   TXA
@@ -2989,10 +2994,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
   RTS
-.cross
-  STX RZ_SB
-  STY RZ_TA+1
-  JMP r_lput2
 .hx
   EOR RZ_SA
   CMP #4
