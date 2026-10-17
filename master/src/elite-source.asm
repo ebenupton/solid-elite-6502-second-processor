@@ -20374,6 +20374,76 @@ ENDIF
 
  INCLUDE "src/elite-stubs7.asm"     \ stubs into the cold area (far7, far7j)
 
+\ ******************************************************************************
+\
+\       Name: SIGHT
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Draw the laser crosshairs
+\             (Port: in the main RAM at &7E00, after the stubs, to make room
+\             in bank 4; called only by LOOK1 on a change of view)
+\
+\ ******************************************************************************
+
+.SIGHT
+
+ LDY VIEW               \ Fetch the laser power for our new view
+ LDA LASER,Y
+
+ BEQ SIG2               \ If it is zero (i.e. there is no laser fitted to this
+                        \ view), jump to SIG2 to return from the subroutine (as
+                        \ SIG2 contains an RTS)
+
+ LDY #0                 \ Set Y to 0, to represent a pulse laser
+
+ CMP #POW               \ If the laser power in A is equal to a pulse laser,
+ BEQ SIG1               \ jump to SIG1 with Y = 0
+
+ INY                    \ Increment Y to 1, to represent a beam laser
+
+ CMP #POW+128           \ If the laser power in A is equal to a beam laser,
+ BEQ SIG1               \ jump to SIG1 with Y = 1
+
+ INY                    \ Increment Y to 2, to represent a military laser
+
+ CMP #Armlas            \ If the laser power in A is equal to a military laser,
+ BEQ SIG1               \ jump to SIG1 with Y = 2
+
+ INY                    \ Increment Y to 3, to represent a mining laser
+
+.SIG1
+
+ LDA sightcol,Y         \ Set the colour from the sightcol table
+ STA COL
+
+ LDA #128               \ Set QQ19 to the x-coordinate of the centre of the
+ STA QQ19               \ screen
+
+ LDA #Y-24              \ Set QQ19+1 to the y-coordinate of the centre of the
+ STA QQ19+1             \ screen, minus 24 (because TT15 will add 24 to the
+                        \ coordinate when it draws the crosshairs)
+
+ LDA #20                \ Set QQ19+2 to size 20 for the crosshairs size
+ STA QQ19+2
+
+ JSR H_SIGHT            \ Port: in record mode the renderer draws the sights
+                        \ (gfx-hooks.asm)
+
+ JSR TT15               \ Call TT15 to draw crosshairs of size 20 just to the
+                        \ left of the middle of the screen
+
+ LDA #10                \ Set QQ19+2 to size 10 for the crosshairs size
+ STA QQ19+2
+
+ JMP TT15               \ Call TT15 to draw crosshairs of size 10 at the same
+                        \ location, which will remove the centre part from the
+                        \ laser crosshairs, leaving a gap in the middle, and
+                        \ return from the subroutine using a tail call
+
+.SIG2
+
+ RTS                    \ Return from the subroutine (no laser on this view)
+
 .STUBS_END%
 
  PRINT "Stubs: &7E00-", ~STUBS_END%-1, " free ", &8000-STUBS_END%

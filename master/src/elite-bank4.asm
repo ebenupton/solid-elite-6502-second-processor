@@ -5798,44 +5798,42 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  EOR XX16+1,Y
  STA S
 
+ LDA XX15+3             \ Set A to the sign of y_sign * sidev_y EOR S, so
+ EOR XX16+3,Y           \ N tells us which case of the inlined LL38 we need
+ EOR S                  \ before we multiply (the sign does not depend on the
+ BMI ll51n1             \ product), jumping to ll51n1 if the signs differ
+
  LDA XX15+2             \ Set Q = y_lo
  STA Q
 
  LDA XX16+2,Y           \ Set A = |sidev_y|
 
- JSR FMLTU+2            \ Set Q = A * Q / 256 (skip FMLTU's STX P: the
-                        \ first FMLTU call this pass already set P = X)
- STA Q                  \       = |sidev_y| * y_lo / 256
+ JSR FMLTU+2            \ Set A = A * Q / 256 = |sidev_y| * y_lo / 256
+                        \ (skip FMLTU's STX P: the first FMLTU call this
+                        \ pass already set P = X)
 
- LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
- EOR XX16+3,Y
-
- EOR S                  \ Set (S R) = (S R) + (A Q)
- BMI ll51n1             \           = |sidev_x| * x_lo + |sidev_y| * y_lo
- LDA Q                  \
- CLC                    \ (LL38 inlined: the same-sign case here, the
- ADC R                  \ different-sign case calls LL39 out of line)
+ CLC                    \ Set (S R) = (S R) + (A Q), same-sign case: R + A
+ ADC R                  \ (LL38 inlined; the different-sign case is ll51n1)
 
 .ll51r1
 
  STA R
+
+ LDA XX15+5             \ Set A to the sign of z_sign * sidev_z EOR S (S is
+ EOR XX16+5,Y           \ final here, ll51n1 having run LL39), jumping to
+ EOR S                  \ ll51n2 if the signs differ
+ BMI ll51n2
 
  LDA XX15+4             \ Set Q = z_lo
  STA Q
 
  LDA XX16+4,Y           \ Set A = |sidev_z|
 
- JSR FMLTU+2            \ Set Q = A * Q / 256 (skip FMLTU's STX P: P = X
-                        \ still holds from the first FMLTU call this pass)
- STA Q                  \       = |sidev_z| * z_lo / 256
+ JSR FMLTU+2            \ Set A = A * Q / 256 = |sidev_z| * z_lo / 256
+                        \ (skip FMLTU's STX P: P = X still holds from the
+                        \ first FMLTU call this pass)
 
- LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
- EOR XX16+5,Y
-
- EOR S                  \ Set (S A) = (S R) + (A Q)
- BMI ll51n2             \           = |sidev_x| * x_lo + |sidev_y| * y_lo
- LDA Q                  \             + |sidev_z| * z_lo
- CLC                    \
+ CLC                    \ Set (S A) = (S R) + (A Q), same-sign case: R + A
  ADC R                  \ (LL38 inlined, as above)
 
 .ll51r2
@@ -5858,11 +5856,21 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
 .ll51n1
 
- JSR LL39               \ The different-sign cases of the two inlined LL38s
+ LDA XX15+2             \ The different-sign case of the second term: set
+ STA Q                  \ Q = |sidev_y| * y_lo / 256 as above, then call LL39
+ LDA XX16+2,Y           \ for (S A) = (S R) + (A Q)
+ JSR FMLTU+2
+ STA Q
+ JSR LL39
  BRA ll51r1
 
 .ll51n2
 
+ LDA XX15+4             \ The different-sign case of the third term, likewise
+ STA Q
+ LDA XX16+4,Y
+ JSR FMLTU+2
+ STA Q
  JSR LL39
  BRA ll51r2
 
@@ -10606,70 +10614,6 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
                         \ And fall through into SIGHT to draw the laser
                         \ crosshairs
-
-\ ******************************************************************************
-\
-\       Name: SIGHT
-\       Type: Subroutine
-\   Category: Flight
-\    Summary: Draw the laser crosshairs
-\
-\ ******************************************************************************
-
-.SIGHT
-
- LDY VIEW               \ Fetch the laser power for our new view
- LDA LASER,Y
-
- BEQ LO2                \ If it is zero (i.e. there is no laser fitted to this
-                        \ view), jump to LO2 to return from the subroutine (as
-                        \ LO2 contains an RTS)
-
- LDY #0                 \ Set Y to 0, to represent a pulse laser
-
- CMP #POW               \ If the laser power in A is equal to a pulse laser,
- BEQ SIG1               \ jump to SIG1 with Y = 0
-
- INY                    \ Increment Y to 1, to represent a beam laser
-
- CMP #POW+128           \ If the laser power in A is equal to a beam laser,
- BEQ SIG1               \ jump to SIG1 with Y = 1
-
- INY                    \ Increment Y to 2, to represent a military laser
-
- CMP #Armlas            \ If the laser power in A is equal to a military laser,
- BEQ SIG1               \ jump to SIG1 with Y = 2
-
- INY                    \ Increment Y to 3, to represent a mining laser
-
-.SIG1
-
- LDA sightcol,Y         \ Set the colour from the sightcol table
- STA COL
-
- LDA #128               \ Set QQ19 to the x-coordinate of the centre of the
- STA QQ19               \ screen
-
- LDA #Y-24              \ Set QQ19+1 to the y-coordinate of the centre of the
- STA QQ19+1             \ screen, minus 24 (because TT15 will add 24 to the
-                        \ coordinate when it draws the crosshairs)
-
- LDA #20                \ Set QQ19+2 to size 20 for the crosshairs size
- STA QQ19+2
-
- JSR H_SIGHT            \ Port: in record mode the renderer draws the sights
-                        \ (gfx-hooks.asm)
-
- JSR TT15               \ Call TT15 to draw crosshairs of size 20 just to the
-                        \ left of the middle of the screen
-
- LDA #10                \ Set QQ19+2 to size 10 for the crosshairs size
- STA QQ19+2
-
- JMP TT15               \ Call TT15 to draw crosshairs of size 10 at the same
-                        \ location, which will remove the centre part from the
-                        \ laser crosshairs, leaving a gap in the middle, and
-                        \ return from the subroutine using a tail call
 
 \ ******************************************************************************
 \
