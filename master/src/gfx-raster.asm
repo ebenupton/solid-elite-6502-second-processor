@@ -886,36 +886,33 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .run
   LDY R_XR
   LDA r_j-4,Y             \ plant: column xr DIV 4
-  CMP r_j,X               \ entry: column xl DIV 4 + 1
-  BEQ norunx
   STA RZ_PP
-  LDA r_j,X
-  STA r_jsr+1
+  LDA r_j,X               \ entry: column xl DIV 4 + 1 (= the plant when no
+  STA r_jsr+1             \ whole byte lies between: the JSR hits the RTS)
   LDA #r_opRTS
   STA (RZ_PP)
   LDX RZ_PA
   LDA RZ_COL
 .^r_jsr
   JSR &FFFF
-  LDA #r_opSTA
-  STA (RZ_PP)
-.norunx
-  LDX R_XR                \ right edge (N = XR >= &80)
+  LDX R_XR                \ right edge (A = RZ_COL still; N = XR >= &80)
   BMI rb
   LDY r_xo,X
-  LDA (RZ_PA),Y
-  EOR RZ_COL
+  EOR (RZ_PA),Y
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
+  LDA #r_opSTA
+  STA (RZ_PP)
   RTS
 .rb
   LDY r_xo,X
-  LDA (RZ_PB),Y
-  EOR RZ_COL
+  EOR (RZ_PB),Y
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
+  LDA #r_opSTA
+  STA (RZ_PP)
   RTS
 .lb
   LDA (RZ_PB),Y           \ left edge, columns 32..63
@@ -926,25 +923,26 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BRA run
 .one
   LDY r_xo,X
-  LDA r_lm,X
-  LDX R_XR
-  AND r_rm,X
-  STA RZ_T7
-  CPX #&80
+  CPX #&80                \ XL, XR differ only in bits 0-1 (XL EOR XR < 4)
   BCS ob
   LDA (RZ_PA),Y
   EOR RZ_COL
-  AND RZ_T7
+  AND r_lm,X
+  LDX R_XR
+  AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
   RTS
 .ob
   LDA (RZ_PB),Y
   EOR RZ_COL
-  AND RZ_T7
+  AND r_lm,X
+  LDX R_XR
+  AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
+  SKIP 3                  \ (3 bytes saved above: keeps later bank-5 addresses unchanged)
 }
 
 \ ============================================================================
