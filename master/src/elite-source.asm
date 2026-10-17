@@ -10837,7 +10837,12 @@ ENDMACRO
  STZ T                  \ returns (A X) = (S R) with C = V = 0 and N/Z from S;
  LDX R                  \ if S is negative it goes to MU8 with P = T1 = T = 0
  LDA S
- BMI MU8
+ BPL mad3               \ (S negative: MU8 returns (A X) = (S R) with C = V = 0,
+ BIT #%01111111         \ N = 1 and Z = 0 unless (S R) = &8000, so return that
+ BEQ MU8                \ directly when |S| <> 0, as BIT #imm leaves N alone)
+
+.mad3
+
  CLC
  CLV
  RTS
