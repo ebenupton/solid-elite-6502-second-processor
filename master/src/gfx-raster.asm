@@ -862,27 +862,20 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCC one                 \ both ends in one byte
   LDY r_xo,X
   CPX #&80
-  BCC la
-  LDA (RZ_PB),Y           \ left edge, columns 32..63
-  EOR RZ_COL
-  AND r_lm,X
-  EOR (RZ_PB),Y
-  STA (RZ_PB),Y
-  BRA run
-.la
+  BCS lb
   LDA (RZ_PA),Y           \ left edge, columns 0..31
   EOR RZ_COL
   AND r_lm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
 .run
-  LDA r_j,X               \ entry: column xl DIV 4 + 1
-  STA r_jsr+1
-  LDX R_XR
-  LDA r_j-4,X             \ plant: column xr DIV 4
-  CMP r_jsr+1
-  BEQ norun
+  LDY R_XR
+  LDA r_j-4,Y             \ plant: column xr DIV 4
+  CMP r_j,X               \ entry: column xl DIV 4 + 1
+  BEQ norunx
   STA RZ_PP
+  LDA r_j,X
+  STA r_jsr+1
   LDA #r_opRTS
   STA (RZ_PP)
   LDX RZ_PA
@@ -891,6 +884,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JSR &FFFF
   LDA #r_opSTA
   STA (RZ_PP)
+.norunx
   LDX R_XR
 .norun
   LDY r_xo,X              \ right edge
@@ -909,6 +903,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
+.lb
+  LDA (RZ_PB),Y           \ left edge, columns 32..63
+  EOR RZ_COL
+  AND r_lm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  BRA run
 .one
   LDY r_xo,X
   LDA r_lm,X
