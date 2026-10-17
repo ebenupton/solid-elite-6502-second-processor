@@ -7245,7 +7245,7 @@ ENDIF
                         \   (A P) = A * ALP1
                         \         = (x / 256) * alpha
 
- JSR ADD                \ Call ADD to calculate:
+                        \ (Port: MLSA does ADD as well) ADD calculates:
                         \
                         \   (A X) = (A P) + (S R)
                         \         = (x / 256) * alpha + y
@@ -7273,7 +7273,7 @@ ENDIF
                         \   (A P) = A * ALP1
                         \         = -y / 256 * alpha
 
- JSR ADD                \ Call ADD to calculate:
+                        \ (Port: MLSA does ADD as well) ADD calculates:
                         \
                         \   (A X) = (A P) + (S R)
                         \         = -y / 256 * alpha + x
@@ -7561,8 +7561,8 @@ ENDIF
 .MLSA
 
  STA T                  \ Set T = A, as MULTS does
- AND #%01111111         \ If A = 0, set P(1 0) = 0 and return at mls0, as
- BEQ mls0               \ MULTS does at MU6
+ AND #%01111111         \ If A = 0, set P(1 0) = 0 at mlaz, as MULTS does
+ BEQ mlaz               \ at MU6
  TAX                    \ Set X = |A|
 
 .mla1
@@ -7587,13 +7587,43 @@ ENDIF
 
 .mla6
 
+                        \ Port: then ADD, inline (STL1 calls MLSA only
+                        \ just before ADD; the demo port's bebd95c, 045fd29,
+                        \ 5952708 w_0048 inline STL1's ADDs):
+                        \
+                        \   (A X) = (A P) + (S R)
+
+ STA T1                 \ As ADD: T1 = A, T = its sign, and if A and S have
+ AND #%10000000         \ different signs, MU8 at mlad
+ STA T
+ EOR S
+ BMI mlad
+
+ CLC                    \ Same signs: X = R + P, A = (S + T1 + C) OR T
+ LDA R
+ ADC P
+ TAX
+ LDA S
+ ADC T1
+ ORA T
  RTS
+
+.mlad
+
+ JMP MU8                \ Different signs: MU8 does the rest, as in ADD
+
+.mlaz
+
+ STA P+1                \ A = 0: P(1 0) = 0, as MULTS's MU6, then ADD
+ STA P
+ BRA mla6
 
 .mlar
 
- LDA T                  \ |A| < b: call MULTS with X = ALP1 as before
- LDX ALP1
- JMP MULTS
+ LDA T                  \ |A| < b: call MULTS with X = ALP1 as before, then
+ LDX ALP1               \ ADD
+ JSR MULTS
+ BRA mla6
 
 .MLSB
 
