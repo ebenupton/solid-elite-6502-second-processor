@@ -7184,11 +7184,13 @@ ENDIF
                         \         = -y / 256 * alpha + x
 
  STA S                  \ Set XX(1 0) = (A X), which gives us result 6 above:
- STX XX                 \
  STX R                  \   x = x - alpha * y / 256
                         \
                         \ (XX+1 is not written here, as it is not read again
                         \ before it is next written)
+                        \
+                        \ Port: nor is XX: no reader of XX runs before STL1's
+                        \ STA XX or another writer
                         \
                         \ Port: and (S R) = XX(1 0) now, as MUT2 did (MULTS-2
                         \ below leaves S and R alone)
