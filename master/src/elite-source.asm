@@ -7402,9 +7402,28 @@ ENDIF
 .mla5
  SBC QSH,X              \ (patched: QSH - b)
 
- BIT T                  \ Give A the sign of the argument, as MULTS does
- BPL mla6
- ORA #%10000000
+ BIT T                  \ If the argument is negative, give A its sign at mln
+ BMI mln                \ and do the general ADD from mla6
+
+.mlp
+
+                        \ Port: argument positive, so A = |A| * b / 256 <= 15
+                        \ has bit 7 clear and ADD sets T1 = A and T = 0; A
+                        \ and S then differ in sign if and only if S is
+                        \ negative. Also reached from mlaz (A = 0)
+
+ STA T1                 \ As ADD: T1 = A, T = its sign (0)
+ STZ T
+ BIT S                  \ If S is positive, the signs agree, so finish at mlt
+ BPL mlt                \ (where ORA T is ORA 0, as before)
+
+.mlad
+
+ JMP MU8                \ Different signs: MU8 does the rest, as in ADD
+
+.mln
+
+ ORA #%10000000         \ Give A the sign of the argument, as MULTS does
 
 .mla6
 
@@ -7420,6 +7439,8 @@ ENDIF
  EOR S
  BMI mlad
 
+.mlt
+
  CLC                    \ Same signs: X = R + P, A = (S + T1 + C) OR T
  LDA R
  ADC P
@@ -7429,15 +7450,11 @@ ENDIF
  ORA T
  RTS
 
-.mlad
-
- JMP MU8                \ Different signs: MU8 does the rest, as in ADD
-
 .mlaz
 
- STA P+1                \ A = 0: P(1 0) = 0, as MULTS's MU6, then ADD
- STA P
- BRA mla6
+ STA P+1                \ A = 0: P(1 0) = 0, as MULTS's MU6, then ADD at mlp
+ STA P                  \ (A = 0 is positive)
+ BRA mlp
 
 .mlar
 
