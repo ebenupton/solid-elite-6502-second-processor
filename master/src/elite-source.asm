@@ -7454,7 +7454,8 @@ ENDIF
                         \ more than the original routine's 254, so that the
                         \ code after it is exactly one page further on and
                         \ keeps its page offsets whatever the size of STARS1
-                        \ Port: FILLKL's variables (fkdet is in MVS5_HOLE)
+                        \ Port: FILLKL's variables (fkdet is in MVS5_HOLE,
+                        \ fkl at the end of the low code)
 
 .fkn
 
@@ -7467,10 +7468,6 @@ ENDIF
 .fkrb
 
  EQUB 0                 \ FILLKL: the row's first key number (16, 32, ... 112)
-
-.fkl
-
- SKIP 13                \ The columns with a key pressed, in increasing order
 
  ASSERT P% <= stl_dvs + 510
  SKIP stl_dvs + 510 - P%

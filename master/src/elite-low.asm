@@ -1710,3 +1710,17 @@ ENDIF
  LDY #&FF               \ Y = &FF, as MAL3's loop leaves it
 
  JMP MAL3e              \ Rejoin the main loop
+
+\ ******************************************************************************
+\
+\       Name: fkl
+\       Type: Variable
+\   Category: Keyboard
+\    Summary: FILLKL: the keyboard columns with a key pressed (Port: moved here
+\             from the end of STARS1's fixed budget, for room)
+\
+\ ******************************************************************************
+
+.fkl
+
+ SKIP 13                \ The columns with a key pressed, in increasing order
