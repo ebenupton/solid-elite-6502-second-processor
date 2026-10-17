@@ -3770,8 +3770,8 @@ NEXT
   TAX
   AND #&FC
   STA r_wmin
-  LDA #0
-  JSR r_sw
+  STZ RZ_COL              \ (black)
+  JSR r_sw+2              \ past r_sw's STA RZ_COL
 .right                    \ (r_wmin already set by the left end's strip)
   LDA RZ_T3
   CMP RZ_T1
