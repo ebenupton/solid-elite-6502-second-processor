@@ -7161,39 +7161,6 @@ ENDIF
  TXA                    \ Store the high byte, S + carry or (S - 1) + C, in x_hi
  ADC #0
  STA SX,Y
- BRA stld
-
-.mlbz
-
- STA P+1                \ MLSB with A = 0: set P(1 0) = 0, as MULTS's MU6,
- STA P                  \ and rejoin with A = 0
- BRA mlb6
-
-.mlbr
-
- LDA T                  \ MLSB with |A| < b: call MULTS with X = BET1 as
- LDX BET1               \ before and rejoin
- JSR MULTS
- BRA mlb6
-
-.stlb
-
- STA P                  \ Set (A P) = (C A), the high byte being 0 or 1
- LDA #0
- ROL A
-
- JSR ADD                \ Call ADD to calculate:
-                        \
-                        \   (A X) = (A P) + (S R)
-                        \         = 2 * (beta * y / 256) ^ 2 + x
-
-.stla
-
- STA SX,Y               \ Store the high byte A straight in x_hi (Port: was
-                        \ XX+1, re-read after PIX1; nothing reads SX in PIX1)
-
- TXA                    \ Store the low byte X in x_lo
- STA SXL,Y
 
 .stld
 
@@ -7273,6 +7240,41 @@ ENDIF
                         \ STL1 for the next particle
 
  RTS                    \ Return from the subroutine
+
+.mlbz
+
+ STA P+1                \ MLSB with A = 0: set P(1 0) = 0, as MULTS's MU6,
+ STA P                  \ and rejoin with A = 0
+ BRA mlb6
+
+.mlbr
+
+ LDA T                  \ MLSB with |A| < b: call MULTS with X = BET1 as
+ LDX BET1               \ before and rejoin
+ JSR MULTS
+ BRA mlb6
+
+.stlb
+
+ STA P                  \ Set (A P) = (C A), the high byte being 0 or 1
+ LDA #0
+ ROL A
+
+ JSR ADD                \ Call ADD to calculate:
+                        \
+                        \   (A X) = (A P) + (S R)
+                        \         = 2 * (beta * y / 256) ^ 2 + x
+
+.stla
+
+ STA SX,Y               \ Store the high byte A straight in x_hi (Port: was
+                        \ XX+1, re-read after PIX1; nothing reads SX in PIX1)
+
+ TXA                    \ Store the low byte X in x_lo
+ STA SXL,Y
+ BRA stld               \ Rejoin the main path (Port: the rare ADD case
+                        \ sits here after the loop, so the common stlp case
+                        \ falls straight into stld)
 
 .KILL1
 
