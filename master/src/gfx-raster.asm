@@ -3096,16 +3096,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .^r_pt154 SBC r_bdn,X     \ C = 0 (r_sl < &FF): A = new - old - 1
   INC A                   \ A = new count - old count
   BNE ne
-  LDA R_NDP,X
+  LDA R_NDP,X             \ (R_NDP and r_bdp only ever hold 0 or 1)
 .^r_pt155 EOR r_bdp,X
-  LSR A
-  BCS r_dpeg
+  BNE r_dpeg
   LDA R_NDN,X             \ no boundaries, old or new, and colour A (R_DCE /
-  BNE e9                  \ R_DCO) both times: a one-colour row, which r_dp2
-  LDA R_NDP,X             \ does in less time (the stored boundaries, count 0,
-  LSR A                   \ are never read)
-  BCS e9
-  JMP r_dp2
+  ORA R_NDP,X             \ R_DCO) both times: a one-colour row, which r_dp2
+  BNE e9                  \ does in less time (the stored boundaries, count 0,
+  JMP r_dp2               \ are never read)
 .ne
   INC A                   \ A = difference + 1: 0 or 2 (counts differing by
   CMP #3                  \ 1 either way) go on, the rest to r_dpgl
