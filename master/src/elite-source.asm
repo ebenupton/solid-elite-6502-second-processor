@@ -6794,7 +6794,10 @@ ENDIF
 
                         \ XX12(1 0) = K6(3 2) = y of new point was set above
 
- JSR LL145              \ Call LL145 to see if the new line segment needs to be
+ STZ SWAP               \ Set SWAP = 0 and enter at CLIP2 with A = x2_hi, which
+                        \ is what LL145 does itself (LDA #0, STA SWAP, LDA XX15+5)
+
+ JSR CLIP2              \ Call LL145 to see if the new line segment needs to be
                         \ clipped to fit on-screen, returning the clipped line's
                         \ end-points in (X1, Y1) and (X2, Y2)
 
