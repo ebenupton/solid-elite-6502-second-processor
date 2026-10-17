@@ -5244,131 +5244,93 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \
 \ ******************************************************************************
 
+LL51_OLDSIZE = 146     \ Port: the original LL51's size in bytes
+
 .LL51
 
- LDX #256-6             \ Set X = -6, which will contain the offset of the
-                        \ result bytes in XX12 (relative to XX12+6, wrapping
-                        \ within zero page), increasing by 2 for each new
-                        \ result until it wraps to 0
+                        \ Port: LL51 with the logs of x_lo, y_lo and z_lo
+                        \ patched into LL51L once per call (the demo port's
+                        \ 75cd7ba w_0151, nine products inline with the
+                        \ coordinates patched once, with Master's log tables):
+                        \ each product is FMLTU's alogh(log(a) + log(q)), or 0
+                        \ when a = 0 or the log sum is below 256; a zero
+                        \ coordinate patches 0 and 0, so that the sum never
+                        \ carries and the product is 0, as FMLTU (nothing in
+                        \ LL51 reads the C that FMLTU leaves). Q is left as
+                        \ z_lo, as before
 
- LDY #0                 \ Set Y = 0, which will contain the offset of the
-                        \ vector to use in the calculation (relative to XX16),
-                        \ increasing by 6 for each new vector
+ LDX XX15               \ Patch the logs of XX15 (0 and 0 if it is 0)
+ LDA logL,X
+ LDY log,X
+ CPX #1
+ BCS P%+6
+ LDA #0
+ LDY #0
+ STA lfa1+1
+ STY lfb1+1
 
-.ll51
+ LDX XX15+2               \ Patch the logs of XX15+2 (0 and 0 if it is 0)
+ LDA logL,X
+ LDY log,X
+ CPX #1
+ BCS P%+6
+ LDA #0
+ LDY #0
+ STA lfa2+1
+ STY lfb2+1
 
- LDA XX15               \ Set Q = x_lo
- STA Q
+ LDX XX15+4               \ Patch the logs of XX15+4 (0 and 0 if it is 0)
+ LDA logL,X
+ LDY log,X
+ CPX #1
+ BCS P%+6
+ LDA #0
+ LDY #0
+ STA lfa3+1
+ STY lfb3+1
 
- LDA XX16,Y             \ Set A = |sidev_x|
-
- JSR FMLTU              \ Set R = A * Q / 256
- STA R                  \       = |sidev_x| * x_lo / 256
-
- LDA XX15+1             \ Set S to the sign of x_sign * sidev_x
- EOR XX16+1,Y
- STA S
-
- EOR XX15+3             \ A = S from the STA above, so this sets A to the
- EOR XX16+3,Y           \ sign of y_sign * sidev_y EOR S, so N tells us which
-                        \ case of the inlined LL38 we need before we multiply
-                        \ (the sign does not depend on the product)
- BMI ll51n1             \ Jump to ll51n1 if the signs differ
-
- LDA XX15+2             \ Set Q = y_lo
- STA Q
-
- LDA XX16+2,Y           \ Set A = |sidev_y|
-
- JSR FMLTU+2            \ Set A = A * Q / 256 = |sidev_y| * y_lo / 256
-                        \ (skip FMLTU's STX P: the first FMLTU call this
-                        \ pass already set P = X)
-
- CLC                    \ Set (S R) = (S R) + (A Q), same-sign case: R + A
- ADC R                  \ (LL38 inlined; the different-sign case is ll51n1)
-
-.ll51r1
-
- STA R
-
-.ll51r1s
-
- LDA XX15+5             \ Set A to the sign of z_sign * sidev_z EOR S (S is
- EOR XX16+5,Y           \ final here, ll51n1 having run LL39), jumping to
- EOR S                  \ ll51n2 if the signs differ
- BMI ll51n2
-
- LDA XX15+4             \ Set Q = z_lo
- STA Q
-
- LDA XX16+4,Y           \ Set A = |sidev_z|
-
- JSR FMLTU+2            \ Set A = A * Q / 256 = |sidev_z| * z_lo / 256
-                        \ (skip FMLTU's STX P: P = X still holds from the
-                        \ first FMLTU call this pass)
-
- CLC                    \ Set (S A) = (S R) + (A Q), same-sign case: R + A
- ADC R                  \ (LL38 inlined, as above)
-
-.ll51r2
-
- STA XX12+6,X           \ Store the result in XX12+X+6(1 0)
- LDA S
-
-.ll51r2s
-
- STA XX12+7,X
-
- LDY ll51yt-&FA,X       \ Set Y = Y + 6 by lookup on X (X = -6 -> Y = 6,
-                        \ X = -4 -> Y = 12; on the last pass, X = -2, Y is
-                        \ loaded from the byte after the table but is unused)
-
- INX                    \ Set X = X + 2
- INX
-
- BNE ll51               \ Loop back to ll51 until X wraps from -2 to 0
-
- RTS                    \ Return from the subroutine
+ JMP LL51L              \ Run the loop (at the end of bank 4)
 
 .ll51yt
 
  EQUB 6, 0, 12          \ Next Y for X = -6 (+0) and X = -4 (+2)
 
-.ll51n1
 
- LDA XX15+2             \ The different-sign case of the second term: set
- STA Q                  \ Q = |sidev_y| * y_lo / 256 as above, then call LL39
- LDA XX16+2,Y           \ for (S A) = (S R) + (A Q)
- JSR FMLTU+2
- EOR #&FF               \ (LL39 inlined: A = R - product = R + ~product + 1,
- SEC                    \ with C set if no underflow, as R - product)
+.lfn1
+
+ LDA Q                  \ Different signs: A = R - product, as LL39, and if
+ EOR #&FF               \ that underflows, negate A, store it in R and flip
+ SEC                    \ the sign in S, as LL40
  ADC R
- BCS ll51r1
- EOR #&FF               \ It underflowed (C clear), so negate A to give
- ADC #1                 \ product - R in 1..255 (leaving C clear), store it
- STA R                  \ in R and flip the sign in S, as LL40 would
+ BCC P%+5
+ JMP lfr1
+ EOR #&FF
+ ADC #1
+ STA R
  LDA S
  EOR #%10000000
  STA S
- BRA ll51r1s
+ JMP lfr1s
 
-.ll51n2
+.lfn2
 
- LDA XX15+4             \ The different-sign case of the third term, likewise
- STA Q
- LDA XX16+4,Y
- JSR FMLTU+2
- EOR #&FF               \ (LL39 inlined, as for ll51n1: A = R - product,
- SEC                    \ and if that underflows, negate A to give the
- ADC R                  \ magnitude product - R, store it and flip the sign
- BCS ll51r2             \ in S, as LL40 would)
+ LDA Q                  \ As lfn1, for the third term
+ EOR #&FF
+ SEC
+ ADC R
+ BCC P%+5
+ JMP lfr2
  EOR #&FF
  ADC #1
+ LDX lfx+1
  STA XX12+6,X
  LDA S
  EOR #%10000000
  STA S
- BRA ll51r2s
+ JMP lfr2s
+
+ ASSERT P% <= LL51 + LL51_OLDSIZE
+ SKIP LL51 + LL51_OLDSIZE - P%  \ (the old LL51's space, so nothing moves)
 
 \ ******************************************************************************
 \
@@ -10317,3 +10279,136 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA #HI(PLL4+2)
  STA pl4j+2
  RTS
+
+\ ******************************************************************************
+\
+\       Name: LL51L
+\       Type: Subroutine
+\   Category: Maths (Geometry)
+\    Summary: LL51's loop, with the coordinates' logs patched in by LL51
+\             (Port: at the end of bank 4 for room)
+\
+\ ******************************************************************************
+
+.LL51L
+
+ LDX #256-6             \ X = -6, the result offset (relative to XX12+6)
+ LDY #0                 \ Y = 0, the vector offset (relative to XX16)
+
+.lf51
+
+ STX lfx+1              \ Keep X for the stores (X is the log index below)
+
+ LDA XX16,Y            \ Set A = |XX16,Y| * coordinate / 256, as FMLTU
+ BEQ lf1s              \ (A = 0: the product is 0)
+ TAX
+ CLC
+ LDA logL,X
+.lfa1
+ ADC #0                 \ (patched: logL of the coordinate, or 0)
+ LDA log,X
+.lfb1
+ ADC #0                 \ (patched: log of the coordinate, or 0)
+ TAX
+ LDA alogh,X
+ BCS lf1s
+ LDA #0                 \ (log sum below 256: the product is 0)
+.lf1s
+
+ STA R                  \ R = |sidev_x| * x_lo / 256
+
+ LDA XX15+1             \ Set S to the sign of x_sign * sidev_x
+ EOR XX16+1,Y
+ STA S
+
+ LDA XX16+2,Y            \ Set A = |XX16+2,Y| * coordinate / 256, as FMLTU
+ BEQ lf2s              \ (A = 0: the product is 0)
+ TAX
+ CLC
+ LDA logL,X
+.lfa2
+ ADC #0                 \ (patched: logL of the coordinate, or 0)
+ LDA log,X
+.lfb2
+ ADC #0                 \ (patched: log of the coordinate, or 0)
+ TAX
+ LDA alogh,X
+ BCS lf2s
+ LDA #0                 \ (log sum below 256: the product is 0)
+.lf2s
+
+ STA Q                  \ Q = |sidev_y| * y_lo / 256
+
+ LDA S                  \ Jump to lfn1 if the sign of y_sign * sidev_y
+ EOR XX15+3             \ differs from S
+ EOR XX16+3,Y
+ BMI lfn1j
+
+ LDA Q                  \ Same signs: (S R) = (S R) + (A Q), R + A
+ CLC
+ ADC R
+
+.lfr1
+
+ STA R
+
+.lfr1s
+
+ LDA XX16+4,Y            \ Set A = |XX16+4,Y| * coordinate / 256, as FMLTU
+ BEQ lf3s              \ (A = 0: the product is 0)
+ TAX
+ CLC
+ LDA logL,X
+.lfa3
+ ADC #0                 \ (patched: logL of the coordinate, or 0)
+ LDA log,X
+.lfb3
+ ADC #0                 \ (patched: log of the coordinate, or 0)
+ TAX
+ LDA alogh,X
+ BCS lf3s
+ LDA #0                 \ (log sum below 256: the product is 0)
+.lf3s
+
+ STA Q                  \ Q = |sidev_z| * z_lo / 256
+
+ LDA XX15+5             \ Jump to lfn2 if the sign of z_sign * sidev_z
+ EOR XX16+5,Y           \ differs from S
+ EOR S
+ BMI lfn2j
+
+ LDA Q                  \ Same signs: R + A
+ CLC
+ ADC R
+
+.lfr2
+
+.lfx
+
+ LDX #0                 \ (patched) X = the result offset
+ STA XX12+6,X           \ Store the result in XX12+X+6(1 0)
+ LDA S
+
+.lfr2s
+
+ STA XX12+7,X
+
+ LDY ll51yt-&FA,X       \ Set Y = Y + 6 by lookup on X
+ INX                    \ Set X = X + 2
+ INX
+ BEQ P%+5               \ Loop back until X wraps from -2 to 0 (the loop is
+ JMP lf51               \ too long for a branch)
+
+ LDA XX15+4             \ Q = z_lo, as LL51 left it
+ STA Q
+
+ RTS
+
+.lfn1j
+
+ JMP lfn1               \ Different signs: lfn1 and lfn2 are in LL51's old
+                        \ space (for room)
+
+.lfn2j
+
+ JMP lfn2
