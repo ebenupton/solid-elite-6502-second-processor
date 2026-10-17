@@ -65,6 +65,8 @@
 .f_enter2
  JSR f_unstar
  JSR f_enter
+ STZ f_hwr              \ f_enter used the half-width tables as its buffer
+ STZ f_hw2r
                         \ fall through into f_sync (QQ11 = 0 here)
 
 \ f_sync: called before each change to the text map. Outside record mode

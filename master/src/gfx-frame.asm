@@ -753,20 +753,20 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDX #7
 .fen1
  LDA &4000,X            \ column 0, lines 0-7 of this character row
- STA f_page,X
+ STA F_HW,X
 .fen5
  LDA &41F8,X            \ column 63
- STA f_page+8,X
+ STA F_HW+8,X
  DEX
  BPL fen1
  LDA #4
  TRB &FE34              \ X = 0: main RAM
  LDX #7
 .fen3
- LDA f_page,X
+ LDA F_HW,X
 .fen2
  STA &4000,X
- LDA f_page+8,X
+ LDA F_HW+8,X
 .fen6
  STA &41F8,X
  DEX
@@ -786,9 +786,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDX #0                 \ line 0: bytes 0, 8, 16, ... (every 8th byte of
 .fen7                   \ pages &40 and &41)
  LDA &4000,X
- STA f_page,X
+ STA F_HW,X
  LDA &4100,X
- STA f_page+256,X       \ (f_page is 512 bytes)
+ STA F_HW2,X            \ (F_HW, F_HW2: 512 bytes; rebuilt after)
  TXA
  CLC
  ADC #8
@@ -797,9 +797,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDA #4
  TRB &FE34
 .fen8
- LDA f_page,X
+ LDA F_HW,X
  STA &4000,X
- LDA f_page+256,X
+ LDA F_HW2,X
  STA &4100,X
  TXA
  CLC
@@ -834,7 +834,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA GMODE
  RTS
 
-.f_page SKIP 512
 
 \ ------------------------------------------------------------------------------
 \ Zero page used by the frame layer during F_FRAME (saved and restored along
