@@ -11336,13 +11336,36 @@ ENDMACRO
 
 .DVL6a
 
- DEY                    \ Decrement the scale factor in Y
+                        \ Port: A = 1-127 has k significant bits (k = 1-7), so
+                        \ shifting (A R) left until bit 7 of A is set takes
+                        \ 8-k shifts and leaves A = the low byte of (A R) >> k;
+                        \ k is small here (usually 1 or 2), so we shift (A R)
+                        \ right k times instead, doing Y = Y - (8 - k) as
+                        \ Y - 7 and then k - 1 increments
 
- ASL R                  \ Shift (A R) to the left
- ROL A
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
 
- BPL DVL6a              \ Loop up to DVL6a to do another shift, until bit 7 of A
-                        \ is set and we can't shift left any further
+ LSR A                  \ Shift (A R) right, stopping when A becomes zero (with
+ BEQ DVL6c              \ C = 1, as A was 1) before shifting R
+
+.DVL6b
+
+ ROR R
+ INY
+ LSR A
+ BNE DVL6b
+
+.DVL6c
+
+ LDA R                  \ Finish the last shift with A = R >> 1, setting bit 7
+ ROR A                  \ from the C flag (which is 1); R and Q are overwritten
+                        \ at DV9
 
 .DV9
 
