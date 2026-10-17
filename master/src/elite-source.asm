@@ -11300,10 +11300,40 @@ ENDMACRO
 
  STZ P                  \ Port: if A < Q then the quotient is 0 and the
  CMP Q                  \ remainder is A (no subtraction can happen and the
- BCC DVID4z             \ remainder never overflows), so set P = 0 and jump
-                        \ straight to the remainder conversion with A
+ BCS DVdiv              \ remainder never overflows), so set P = 0 and fall
+                        \ through to the remainder conversion with A
                         \ unchanged and C clear, exactly as the unrolled
-                        \ division below would leave them
+                        \ division below would leave them (grind: the full
+                        \ division is rare, so it is done out of line in
+                        \ DVdiv, which jumps back to DVID4z when done)
+
+.DVID4z
+
+ TAX                    \ This contains the code from the LL28+4 routine, so
+ BEQ LLfix22            \ this section is exactly equivalent to a JMP LL28+4
+ LDA log,X              \ call, but is slightly faster as it's been inlined
+ STA widget             \ (so it converts the remainder in A into an integer
+ LDA logL,X             \ representation of the fractional value A / Q, in R,
+ LDX Q                  \ where 1.0 = 255, and it also clears the C flag)
+ CMP logL,X             \ C = borrow from low bytes of log(A) - log(Q)
+ LDA widget
+ SBC log,X
+ BCS LL222
+ TAX
+ LDA alogh,X
+
+.LLfix22
+
+ STA R                  \ This is also part of the inline LL28+4 routine
+ RTS
+
+.LL222
+
+ LDA #255               \ This is also part of the inline LL28+4 routine
+ STA R
+ RTS
+
+.DVdiv
 
 \LDX #8                 \ This instruction is commented out in the original
                         \ source
@@ -11374,32 +11404,7 @@ ENDMACRO
  BCS DV4s8
 .DV4r8
  ROL P
-
-.DVID4z
-
- TAX                    \ This contains the code from the LL28+4 routine, so
- BEQ LLfix22            \ this section is exactly equivalent to a JMP LL28+4
- LDA log,X              \ call, but is slightly faster as it's been inlined
- STA widget             \ (so it converts the remainder in A into an integer
- LDA logL,X             \ representation of the fractional value A / Q, in R,
- LDX Q                  \ where 1.0 = 255, and it also clears the C flag)
- CMP logL,X             \ C = borrow from low bytes of log(A) - log(Q)
- LDA widget
- SBC log,X
- BCS LL222
- TAX
- LDA alogh,X
-
-.LLfix22
-
- STA R                  \ This is also part of the inline LL28+4 routine
- RTS
-
-.LL222
-
- LDA #255               \ This is also part of the inline LL28+4 routine
- STA R
- RTS
+ BRA DVID4z             \ grind: rejoin the remainder conversion above
 
 .DV4s5                  \ grind: out-of-line subtractions for DVID4's fifth to
  SBC Q                  \ eighth steps (C = 1 on entry and exit, as in-line)
