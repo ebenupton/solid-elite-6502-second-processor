@@ -65,7 +65,7 @@
  STA &FE30
  LDA gA
  JSR F_DIRECT
- JMP gback
+ JMP gdir2              \ (elite-hi.asm, after the hooks: nothing here moves)
 
 .G_PLANET
  STA gA

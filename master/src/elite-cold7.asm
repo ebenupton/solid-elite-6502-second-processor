@@ -6310,6 +6310,11 @@ ENDIF
  LSR A                  \ Set EV, the extra vessels spawning counter, to 0
  STA EV                 \ (the LSR produces a 0 as A was previously 1)
 
+ LDA #%10000000         \ Port: tell the renderer that LOOK1's TT66 is this
+ STA GWARP              \ jump's, so it keeps the double-buffered space view on
+                        \ show instead of blanking it (gfx-frame_cold.asm's
+                        \ F_DIRECT; LOOK1 starts with LDA #0)
+
  LDX VIEW               \ Set X to the current view (front, rear, left or right)
  JMP x4_LOOK1              \ and jump to LOOK1 to initialise that view, returning
                         \ from the subroutine using a tail call

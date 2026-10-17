@@ -47,6 +47,22 @@
 \ clears the text map and buffer 0's shown map): no direct text or stars
 
 .F_DIRECT
+ ASL GWARP              \ LOOK1's TT66 for an in-system jump (WARP) in space
+ BCC fdr1               \ mode: keep double buffering and the view on show (the
+ BIT GMODE              \ blank screen was all a held J ever showed). As
+ BPL fdr1               \ TTX66 would have cleared it, the text goes (the jump's
+ STZ GSIGHT             \ LOOK1 reprints the title and redraws the sights), and
+ JSR f_sync             \ G_DIRECT returns to TTX66's caller with its results,
+ LDX #0                 \ the cursor at (1, 1)
+ LDY #23
+ JSR f_clrtext0
+ LDX #0
+ LDY #0
+ LDA #1
+ STA XC
+ STA YC
+ RTS
+.fdr1
  JSR f_direct0          \ (which clears F_DSS with R_SS: no stars noted)
  STZ f_dtext
  RTS
