@@ -10289,50 +10289,55 @@ ENDMACRO
                         \ so we can subtract their absolute values and set the
                         \ sign to get the result
                         \
-                        \ Port: |S| > |A| is the common case, so subtract the
-                        \ other way round with the borrow set, giving
-                        \ (A X) = |S R| - |A P| - 1 = NOT(|A P| - |S R|)
+                        \ Port: |S R| > |A P| is the common case, so subtract
+                        \ the other way round first, |S R| - |A P|, which needs
+                        \ no negation then (the demo port's form, its 22be6e1
+                        \ and 55e7b89). Nothing reads V after ADD, MAD or MU8
+                        \ (every BVC/BVS follows its own BIT or ADC), so V is
+                        \ left as the subtraction leaves it
                         \
                         \ Port: MAD, mad1, MU8 and ADD are laid out so that
                         \ every hot branch here stays within its page
 
  LDA R                  \ Subtract the least significant bytes into X:
- CLC                    \
- SBC P                  \   X = R - P - 1
+ SEC                    \
+ SBC P                  \   X = R - P
  TAX
 
  LDA S                  \ S and T1 have opposite signs, so S - T1 - borrow is
  SBC T1                 \ m EOR &80, where m = |S| - |A| - borrow (-128..127),
                         \ so bit 7 of the result is set if and only if m >= 0,
-                        \ i.e. |S R| > |A P| strictly (so the equal case still
-                        \ takes argument A's sign, as before)
+                        \ i.e. |S R| >= |A P|
 
- CLV                    \ Both paths return with V = 0
+ BPL mu8b               \ If |S R| < |A P|, jump to mu8b
 
- BPL mu8b               \ If |S R| <= |A P|, jump to mu8b
-
- INX                    \ |S R| > |A P|, so add 1 to (A X) to get
- BNE mu8a               \ |S R| - |A P| (at most &7FFF, so m + 1 <= &7F and
- INC A                  \ the increment cannot carry into bit 7)
+ CPX #0                 \ If the low byte is 0, check for |S R| = |A P| at
+ BEQ mu8e               \ mu8e (X = 0 is rarer than a zero high magnitude)
 
 .mu8a
 
- EOR T                  \ A = m EOR &80 already has the sign of S, i.e. the
- CLC                    \ opposite of argument A's sign in T, so this gives the
- RTS                    \ result S's sign; return with C = V = 0
+ EOR T                  \ |S R| > |A P|: A = &80 OR m already has the sign of
+ CLC                    \ S, the opposite of argument A's sign in T, so this
+ RTS                    \ gives the result S's sign; return with C = 0
+
+.mu8e
+
+ CMP #%10000000         \ X = 0: if A <> &80 then |S R| > |A P|, so finish at
+ BNE mu8a               \ mu8a, otherwise the values are equal and mu8b gives
+                        \ X = 0, A = T, C = 1, as the original does
 
 .mu8b
 
- EOR #&7F               \ |S R| <= |A P|, so (A X) = NOT(|A P| - |S R|) with
- PHA                    \ A = m EOR &80, and we invert both bytes (the high
- TXA                    \ byte by EOR &7F, as bit 7 is already flipped) to get
- EOR #&FF               \ |A P| - |S R|
- TAX
- PLA
+ LDA P                  \ |S R| <= |A P|: the original computation:
+ SEC                    \
+ SBC R                  \   X = P - R
+ TAX                    \   A = |A| - |S| - borrow, C = 1
+ LDA T1
+ EOR #%10000000
+ SBC S
 
  EOR T                  \ Give the result the sign of argument A, and return
- SEC                    \ with C = 1 and V = 0, as before
- RTS
+ RTS                    \ with C = 1
 
 \ ******************************************************************************
 \
@@ -10402,12 +10407,8 @@ ENDMACRO
 
 .mad3
 
- CLC
- CLV
+ CLC                    \ (V is not read after MAD, see MU8)
  RTS
-
- EQUB 0, 0, 0           \ Port: padding, so that the code that follows does
-                        \ not move
 
 \ ******************************************************************************
 \
