@@ -8206,11 +8206,13 @@ ENDIF
 
 .MVS5
 
- LDA INWK+1,X           \ Fetch roofv_x_hi, clear the sign bit, divide by 2, so
- STA S                  \ A = |roofv_x_hi| / 2 = |roofv_x| / 512 (port: also
- AND #%01111111         \ store roofv_x_hi in S as the high byte to borrow from)
- LSR A                  \
-                        \ The above is true because:
+ LDA INWK+1,X           \ Fetch roofv_x_hi and store it in S as the high byte
+ STA S                  \ to borrow from (port)
+
+ ORA #%10000001         \ Port: A = %01mmmmmm = &40 + |roofv_x_hi| / 2, and
+ LSR A                  \ forcing bit 0 to 1 makes the LSR set C = 1
+                        \
+                        \ |roofv_x_hi| / 2 = |roofv_x| / 512 because:
                         \
                         \ |roofv_x| = |roofv_x_hi| * 256 + roofv_x_lo
                         \
@@ -8220,9 +8222,9 @@ ENDIF
                         \                    + roofv_x_lo / 512
                         \                  = |roofv_x_hi| / 2
 
- EOR #&FF               \ Port: compute roofv_x_lo - A as roofv_x_lo + ~A + 1,
- SEC                    \ which gives the same result and the same C as
- ADC INWK,X             \ SBC, without going through T:
+ EOR #&BF               \ Port: A = ~(|roofv_x_hi| / 2), C = 1, so this computes
+                        \ roofv_x_lo - |roofv_x| / 512 as roofv_x_lo + ~A + 1,
+ ADC INWK,X             \ the same result and C as SBC, without going via T:
  STA R                  \
                         \ (S R) = (roofv_x_hi roofv_x_lo) - |roofv_x| / 512
                         \       = (1 - 1/512) * roofv_x
