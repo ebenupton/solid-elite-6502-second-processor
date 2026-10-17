@@ -2930,7 +2930,8 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  LDA sg_ay+1
  STA sg_y+1
  LDA sg_by
- STA sg_y1
+ STA fsg_ya+1           \ sg_y1 (low byte) lives in the operands
+ STA fsg_yb+1           \ of the two hot exit tests
  SEC
  SBC sg_ay
  STA sg_dy
@@ -2961,7 +2962,7 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  BMI fsg_x
  BNE fsg_b
  LDA R_NDT
- CMP sg_y1
+ CMP fsg_ya+1
  BCC fsg_b              \ y1 > NDT: reaches the span
 .fsg_x
  RTS
@@ -3005,7 +3006,8 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  LDA #1
  STA R_NDN,Y
  INY                    \ (fsg_n inlined)
- CPY sg_y1
+.fsg_ya
+ CPY #0                 \ patched: sg_y1
  BNE fsg_m
  RTS
 .fsg_k1
@@ -3015,7 +3017,8 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  LDA #2
  STA R_NDN,Y
  INY                    \ (fsg_n inlined)
- CPY sg_y1
+.fsg_yb
+ CPY #0                 \ patched: sg_y1
  BNE fsg_m
  RTS
 .fsg_k2
@@ -3038,7 +3041,7 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
 .fsg_n
  INY                    \ next row: y++, x += sx * (q + carry of the error)
 .fsg_c
- CPY sg_y1              \ done at y1
+ CPY fsg_ya+1           \ done at y1
  BNE fsg_m
  RTS
 .fsg_hi                 \ rows above the screen: the step returns to fsg_up
@@ -3052,7 +3055,7 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  INC sg_y+1
  BEQ fsg_u0             \ y = 0: back to fsg_ry from the next row
 .fsg_u1
- CPY sg_y1
+ CPY fsg_ya+1
  BNE fsg_m
 .fsg_u0                 \ (and on the way out)
  LDX #LO(fsg_ry)
@@ -3094,7 +3097,7 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  DEC sg_x+1
  BRA fsg_jj
 
- SKIP 4                 \ (unused: keeps sg_ax onward where it was)
+ SKIP 3                 \ (unused: keeps sg_ax onward where it was)
 
 .sg_ax  EQUW 0          \ segment end points: ax, ay, bx, by would be
 .sg_ay  EQUW 0          \ contiguous with this order for the swap: ax, ay
