@@ -2080,6 +2080,23 @@
  JMP TT27_C               \ Print the second letter and return from the
                         \ subroutine
 
+.TT51w_C
+
+                        \ Port: TT51w and TT49w are here, out of the way, so
+                        \ that the scan loop in ex below stays in one page
+
+ INC V+1                \ We have just crossed into a new page, so increment
+ INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
+ BNE TT51_C             \ start of the new page, and keep scanning (this BNE
+                        \ is always taken)
+
+.TT49w_C
+
+ INC V+1                \ We have just crossed into a new page, so increment
+ INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
+ BNE TT59_C             \ start of the new page, and go on to count the token
+                        \ (this BNE is always taken)
+
 .TT47_C
 
  SBC #160               \ This is a recursive token in the range 160-255, so
@@ -2123,25 +2140,36 @@
 
  TAX                    \ Copy the token number into X
 
- LDA #LO(QQ18)          \ Set V(1 0) to point to the recursive token table at
- STA V                  \ location QQ18
- LDA #HI(QQ18)
+ LDA #LO(QQ18)          \ Set the low byte of V(1 0) to that of the recursive
+ STA V                  \ token table at QQ18
+
+ PHP                    \ Port: rather than scan from token 0, start at token
+ TXA                    \ 16*k (k = token DIV 16, 0-9), whose page and offset
+ LSR A                  \ are in QQ18IX_C, and skip only the remaining 0-15
+ LSR A                  \ tokens; V(1 0), Y and the LDA operand below end up
+ LSR A                  \ as the full scan from QQ18 leaves them (the flags
+ LSR A                  \ are saved around the shifts, so C and V are kept)
+ TAY
+
+ LDA QQ18IX_C,Y         \ Set V+1 to the page of token 16*k
  STA V+1
  STA TT51_C+2           \ Port: the scan below reads with LDA abs,Y, whose
                         \ operand (low byte LO(QQ18), high byte patched here and
                         \ incremented alongside V+1) always equals V(1 0)
 
- LDY #0                 \ Set a counter Y to point to the character offset
-                        \ as we scan through the table
+ LDA QQ18IX_C+10,Y      \ Set Y to the offset of token 16*k within that page
+ TAY
 
- TXA                    \ Copy the token number back into A, so both A and X
-                        \ now contain the token number we want to print
+ PLP                    \ Restore the flags
 
- BEQ TT50_C               \ If the token number we want is 0, then we have
-                        \ already found the token we are looking for, so jump
-                        \ to TT50, otherwise start working our way through the
-                        \ null-terminated token table until we find the X-th
-                        \ token
+ TXA                    \ Set X to the number of tokens still to skip, the
+ AND #15                \ token number mod 16
+ TAX
+
+ BEQ TT50_C               \ If there are none, then we have already found the
+                        \ token we are looking for, so jump to TT50, otherwise
+                        \ work our way through the null-terminated token table
+                        \ until we have skipped X more tokens
 
 .TT51_C
 
@@ -2174,22 +2202,8 @@
  BNE TT51_C               \ Assuming we haven't yet reached the token number in
                         \ X, look back up to keep fetching characters
 
- BEQ TT50_C             \ Otherwise we have found the token, so jump to TT50
-                        \ to print it (this BEQ is always taken)
-
-.TT51w_C
-
- INC V+1                \ We have just crossed into a new page, so increment
- INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
- BNE TT51_C             \ start of the new page, and keep scanning (this BNE
-                        \ is always taken)
-
-.TT49w_C
-
- INC V+1                \ We have just crossed into a new page, so increment
- INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
- BNE TT59_C             \ start of the new page, and go on to count the token
-                        \ (this BNE is always taken)
+                        \ Otherwise we have found the token, so fall through
+                        \ into TT50 to print it
 
 .TT50_C
 
@@ -2243,6 +2257,46 @@
 .TT48_C
 
  RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: QQ18IX_C
+\       Type: Variable
+\   Category: Text
+\    Summary: Port: where every 16th recursive token starts in QQ18, for ex
+\
+\ ------------------------------------------------------------------------------
+\
+\ Entry k is token 16*k as ex's scan from QQ18 would leave it, with V = LO(QQ18):
+\ the page (V+1) in the first ten bytes, the offset (Y) in the next ten. The
+\ offsets are those of tokens 0, 16, ..., 144 in QQ18 (elite-data.asm), whose
+\ contents are the original game's and never change.
+\
+\ ******************************************************************************
+
+.QQ18IX_C
+
+ EQUB HI(QQ18 + &000 - LO(QQ18))   \ Token 0
+ EQUB HI(QQ18 + &069 - LO(QQ18))   \ Token 16
+ EQUB HI(QQ18 + &0E1 - LO(QQ18))   \ Token 32
+ EQUB HI(QQ18 + &14E - LO(QQ18))   \ Token 48
+ EQUB HI(QQ18 + &1B9 - LO(QQ18))   \ Token 64
+ EQUB HI(QQ18 + &208 - LO(QQ18))   \ Token 80
+ EQUB HI(QQ18 + &26F - LO(QQ18))   \ Token 96
+ EQUB HI(QQ18 + &2C8 - LO(QQ18))   \ Token 112
+ EQUB HI(QQ18 + &340 - LO(QQ18))   \ Token 128
+ EQUB HI(QQ18 + &397 - LO(QQ18))   \ Token 144
+
+ EQUB LO(QQ18 + &000 - LO(QQ18))   \ Token 0
+ EQUB LO(QQ18 + &069 - LO(QQ18))   \ Token 16
+ EQUB LO(QQ18 + &0E1 - LO(QQ18))   \ Token 32
+ EQUB LO(QQ18 + &14E - LO(QQ18))   \ Token 48
+ EQUB LO(QQ18 + &1B9 - LO(QQ18))   \ Token 64
+ EQUB LO(QQ18 + &208 - LO(QQ18))   \ Token 80
+ EQUB LO(QQ18 + &26F - LO(QQ18))   \ Token 96
+ EQUB LO(QQ18 + &2C8 - LO(QQ18))   \ Token 112
+ EQUB LO(QQ18 + &340 - LO(QQ18))   \ Token 128
+ EQUB LO(QQ18 + &397 - LO(QQ18))   \ Token 144
 
 \ ******************************************************************************
 \
