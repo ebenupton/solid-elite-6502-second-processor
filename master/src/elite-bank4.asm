@@ -5842,10 +5842,9 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA S
  STA XX12+7,X
 
- TYA                    \ Set Y = Y + 6
- CLC
- ADC #6
- TAY
+ LDY ll51yt-&FA,X       \ Set Y = Y + 6 by lookup on X (X = -6 -> Y = 6,
+                        \ X = -4 -> Y = 12; on the last pass, X = -2, Y is
+                        \ loaded from the byte after the table but is unused)
 
  INX                    \ Set X = X + 2
  INX
@@ -5853,6 +5852,10 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  BNE ll51               \ Loop back to ll51 until X wraps from -2 to 0
 
  RTS                    \ Return from the subroutine
+
+.ll51yt
+
+ EQUB 6, 0, 12          \ Next Y for X = -6 (+0) and X = -4 (+2)
 
 .ll51n1
 
