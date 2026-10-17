@@ -7211,21 +7211,36 @@ ENDIF
  ASL A                  \ Set X = 2 * |Q| (the sign bit goes into C)
  TAX
 
- LDA QSL,X              \ Set (A P) = 2 * Q^2, so (A P) = 2 * (beta * y / 256) ^ 2
- ASL A                  \
- STA P                  \   (S R) is still XX(1 0) = x
- LDA #0
- ROL A                  \
+ LDA QSL,X              \ Set (C A) = 2 * Q^2, so (C A) = 2 * (beta * y / 256) ^ 2
+ ASL A                  \ (S R) is still XX(1 0) = x
+                        \
                         \ Port: the high byte of Q^2 is always 0 here (the
                         \ sign is Q EOR Q = 0, and |Q| <= 15 as MULTS uses
                         \ P AND 31, so Q^2 < 256), so the original's
                         \ sign-preserving STA T : LDA #0 : ROR A : ORA T is a
                         \ no-op (C = 0 and A, N, Z are the same; ADD rewrites T)
 
+ BCS stlb               \ Port: if the high byte C is 0 and x is positive, do
+ BIT S                  \ ADD's same-sign addition inline (P, T and T1 are dead:
+ BMI stlb               \ STZ P below, and PIX1's ADD rewrites T and T1), so
+ ADC R                  \ X = lo + R (C = 0) and A = S + carry, as add1 with
+ TAX                    \ T1 = T = 0; otherwise call ADD as before
+ LDA S
+ ADC #0
+ BRA stla
+
+.stlb
+
+ STA P                  \ Set (A P) = (C A), the high byte being 0 or 1
+ LDA #0
+ ROL A
+
  JSR ADD                \ Call ADD to calculate:
                         \
                         \   (A X) = (A P) + (S R)
                         \         = 2 * (beta * y / 256) ^ 2 + x
+
+.stla
 
  STA SX,Y               \ Store the high byte A straight in x_hi (Port: was
                         \ XX+1, re-read after PIX1; nothing reads SX in PIX1)
