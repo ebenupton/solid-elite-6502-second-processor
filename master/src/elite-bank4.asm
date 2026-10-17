@@ -5416,66 +5416,61 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
 .LL5
 
- LDY R                  \ Set (Y S) = (R Q)
+                        \ Port: the dividend high byte lives in T and the
+                        \ remainder in A during the loop, so both can be
+                        \ shifted in place, and Y is the loop counter
+
+ LDA R                  \ Set (T S) = (R Q)
+ STA T
  LDA Q
  STA S
 
-                        \ So now to calculate Q = SQRT(Y S)
+                        \ So now to calculate Q = SQRT(T S)
 
- LDX #0                 \ Set X = 0, to hold the remainder
+ STZ Q                  \ Set Q = 0, to hold the result
 
- STX Q                  \ Set Q = 0, to hold the result
+ LDA #0                 \ Set A = 0, to hold the remainder
 
- LDA #8                 \ Set T = 8, to use as a loop counter
- STA T
+ LDY #8                 \ Set Y = 8, to use as a loop counter
 
 .LL6
 
- CPX Q                  \ If X < Q, jump to LL7
+ CMP Q                  \ If A < Q, jump to LL7
  BCC LL7
 
- BNE P%+6               \ If X > Q, skip the next two instructions
+ BNE P%+8               \ If A > Q, skip the next three instructions
 
- CPY #64                \ If Y < 64, jump to LL7 with the C flag clear,
- BCC LL7                \ otherwise fall through into LL8 with the C flag set
+ LDX T                  \ If T < 64, jump to LL7 with the C flag clear,
+ CPX #64                \ otherwise fall through with the C flag set
+ BCC LL7
 
- TYA                    \ Set Y = Y - 64
- SBC #64                \
- TAY                    \ This subtraction will work as we know C is set from
-                        \ the BCC above, and the result will not underflow as we
-                        \ already checked that Y >= 64, so the C flag is also
-                        \ set for the next subtraction
-
- TXA                    \ Set X = X - Q
+ TAX                    \ Set (A T) = (A T) - (Q 64), with C set on entry
+ LDA T                  \ (same subtractions, in the same order, as the
+ SBC #64                \ original, so C and V end up the same)
+ STA T
+ TXA
  SBC Q
- TAX
 
 .LL7
 
  ROL Q                  \ Shift the result in Q to the left, shifting the C flag
                         \ into bit 0 and bit 7 into the C flag
 
- ASL S                  \ Shift the dividend in (Y S) to the left, inserting
- TYA                    \ bit 7 from above into bit 0
+ ASL S                  \ Shift (A T S) to the left
+ ROL T
  ROL A
- TAY
 
- TXA                    \ Shift the remainder in X to the left
+ ASL S                  \ Shift (A T S) to the left
+ ROL T
  ROL A
- TAX
 
- ASL S                  \ Shift the dividend in (Y S) to the left
- TYA
- ROL A
- TAY
-
- TXA                    \ Shift the remainder in X to the left
- ROL A
- TAX
-
- DEC T                  \ Decrement the loop counter
+ DEY                    \ Decrement the loop counter
 
  BNE LL6                \ Loop back to LL6 until we have done 8 loops
+
+ TAX                    \ Return with X = A = remainder; the 16 shifts leave
+ LDY #0                 \ T = 0, and Y = 0 with Z set and N clear, exactly as
+                        \ the original (C and V unchanged)
 
  RTS                    \ Return from the subroutine
 
