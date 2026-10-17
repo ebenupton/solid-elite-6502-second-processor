@@ -3272,8 +3272,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CPX RZ_T6               \ of the edge (X = the strip's left end)
   BCC gen
   STA RZ_T6
-  DEC A
-  STA RZ_TA+1
   DEY                     \ (colour index edge-1; the left end: black)
   TYA                     \ colour index Y: -1 black, else P EOR (Y AND 1)
   BPL cx                  \ (Y <= 6 otherwise: at most 7 edges)
@@ -3293,8 +3291,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   TAX                     \ X = the strip's left end
   LDA RZ_T0
   STA RZ_T6
-  DEC A
-  STA RZ_TA+1
   TYA                     \ colour index Y (0..r_ns here)
   CPY r_ns
   BEQ blk
@@ -3305,7 +3301,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCC c2
   LDA r_cB
 .c2
-  LDY RZ_TA+1             \ (X kept from above; r_sw sets RZ_COL from A)
+  LDY RZ_T6               \ Y = right end (RZ_T6 - 1); X kept from above;
+  DEY                     \ r_sw sets RZ_COL from A
   CPX r_wmin
   BCS c3
   STX r_wmin
