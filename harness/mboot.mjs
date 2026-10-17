@@ -10,7 +10,8 @@
 // RDKEY after TITLE starts), then reports ROMSEL / ACCCON, compares the
 // sideways, shadow and main RAM images the loader installs (BANK4.bin,
 // ANDY.bin, COLD7.bin, TOKENS.bin, STUBS.bin; the renderer's BANK5.bin,
-// BANK6.bin, RAST7.bin and HAZEL.bin; LOWCODE.bin) with what memory holds, and
+// BANK6.bin, RAST7.bin and HAZEL.bin; LOWCODE.bin; the lens flare's
+// FLARE7.bin, FLARE3.bin, FLARE0.bin) with what memory holds, and
 // writes title.png.
 // Exit status 0 if the title screen was reached and the banks match.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
@@ -59,7 +60,8 @@ console.log(`sideways RAM banks in this model: ${cpu.model.swram.map((v, i) => v
 // (ROMSEL bit 7: ANDY at &8000-&8FFF). The game writes XX21+2/3 (the station's
 // blueprint) in bank 4 and patches DETOK's JSR at DTM (DTM_C in the cold area).
 const images = [["BANK4.bin", 4, 0x8000], ["ANDY.bin", 0x87, 0x8000], ["COLD7.bin", 7, 0xac40], ["TOKENS.bin", "shadow", 0x3100], ["STUBS.bin", "main", 0x7e00],
-    ["BANK5.bin", 5, 0x8000], ["BANK6.bin", 6, 0x8000], ["RAST7.bin", 7, 0x8000], ["HAZEL.bin", "hazel", syms.HZ_START], ["LOWCODE.bin", "main", 0x0840], ["HICODE.bin", "main", 0x7200]];
+    ["BANK5.bin", 5, 0x8000], ["BANK6.bin", 6, 0x8000], ["RAST7.bin", 7, 0x8000], ["HAZEL.bin", "hazel", syms.HZ_START], ["LOWCODE.bin", "main", 0x0840], ["HICODE.bin", "main", 0x7200],
+    ["FLARE7.bin", "shadow", 0x7e00], ["FLARE3.bin", "shadow", 0x3f00], ["FLARE0.bin", "shadow", 0x3000]];
 const xx21 = syms.XX21;
 let diffs = [];
 for (const [f, rs, start] of images) {

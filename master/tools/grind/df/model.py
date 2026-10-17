@@ -128,7 +128,10 @@ def cycles(mn, mode):
 
 SEGFILE = {'BCODE': 'main', 'LOWCODE': 'main', 'HICODE': 'main', 'STUBS': 'main',
            'BANK4': 'B4', 'ANDY': 'ANDY', 'COLD7': 'C7', 'RAST7': 'R7', 'BANK5': 'B5',
-           'BANK6': 'B6', 'HAZEL': 'HZ'}
+           'BANK6': 'B6', 'HAZEL': 'HZ',
+           # the lens flare's code in shadow RAM (gfx-flare.asm), run from the frame
+           # layer with ACCCON X = 1 and bank 6 paged
+           'FLARE7': 'SHF', 'FLARE3': 'SHF', 'FLARE0': 'SHF'}
 SIDEWAYS = ('B4', 'ANDY', 'C7', 'R7', 'B5', 'B6')
 SEGORDER = ('main', 'B4', 'ANDY', 'C7', 'R7', 'HZ', 'B5', 'B6')
 # what code in a segment sees at &8000-&BFFF: [(segment, lo, hi)] (None: unknown, any bank)
@@ -137,7 +140,7 @@ B7VIEW = (('R7', 0x8000, 0xAC40), ('C7', 0xAC40, 0xC000))
 VIEW = {'main': (('B4', 0x8000, 0xC000),), 'RAM': (('B4', 0x8000, 0xC000),),
         'B4': (('B4', 0x8000, 0xC000),), 'ANDY': COLDVIEW, 'C7': COLDVIEW, 'R7': B7VIEW,
         'B5': (('B5', 0x8000, 0xC000),), 'B6': (('B6', 0x8000, 0xC000),), 'HZ': None,
-        'SH': None}
+        'SH': None, 'SHF': (('B6', 0x8000, 0xC000),)}
 # bank views by ROMSEL value (far calls: far7 pages COLDBANK &87, far4 HOMEBANK 4)
 ROMSEL_VIEW = {0x87: COLDVIEW, 0x04: (('B4', 0x8000, 0xC000),), 0x07: B7VIEW,
                0x05: (('B5', 0x8000, 0xC000),), 0x06: (('B6', 0x8000, 0xC000),)}

@@ -762,9 +762,21 @@ ENDIF
 .FTAB
 
  EQUW MESS1             \ BDATA: the dashboard image (Port: the MODE 1 CMYK one),
-                        \ to shadow RAM &7000-&7EFF
+                        \ to shadow RAM &7000-&7DFF
  EQUB HOMEBANK, %00001111
- EQUW &7000, &0F00
+ EQUW &7000, &0E00
+
+ EQUW MESS15            \ FLARE7, FLARE3, FLARE0: the lens flare's code and
+ EQUB HOMEBANK, %00001111 \ tables (gfx-flare.asm), to shadow RAM &7E00-&7FFF
+ EQUW &7E00, FL7LEN     \ (not displayed), &3F00-&3FFF (after the extended
+                        \ tokens) and &3000-&308F (below setzp's buffer)
+ EQUW MESS16
+ EQUB HOMEBANK, %00001111
+ EQUW &3F00, FL3LEN
+
+ EQUW MESS17
+ EQUB HOMEBANK, %00001111
+ EQUW &3000, FL0LEN
 
  EQUW MESS7             \ TOKENS: the extended tokens, to shadow RAM &3100-&3EFF
  EQUB HOMEBANK, %00001111
@@ -936,6 +948,21 @@ ENDIF
 .MESS14
 
  EQUS "L.HICODE FFFF1300"   \ Port: *LOAD HICODE FFFF1300
+ EQUB 13
+
+.MESS15
+
+ EQUS "L.FLARE7 FFFF1300"   \ Port: *LOAD FLARE7 FFFF1300
+ EQUB 13
+
+.MESS16
+
+ EQUS "L.FLARE3 FFFF1300"   \ Port: *LOAD FLARE3 FFFF1300
+ EQUB 13
+
+.MESS17
+
+ EQUS "L.FLARE0 FFFF1300"   \ Port: *LOAD FLARE0 FFFF1300
  EQUB 13
 
 .LOW_LOADER_END

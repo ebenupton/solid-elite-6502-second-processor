@@ -97,6 +97,8 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" LOWLEN = &%04X\n" % (sy["LOW_END%"] - 0x0840))
     f.write(" HILEN = &%04X\n" % (sy["HI_END%"] - 0x7200))
+    # the shadow RAM blocks (elite-gfx.asm)
+    f.write(" FL7LEN = &%04X\n FL3LEN = &%04X\n FL0LEN = &%04X\n" % (sy["SH7_END"] - 0x7E00, sy["SH3_END"] - 0x3F00, sy["SH0_END"] - 0x3000))
 PY
 python3 tools/bankcheck.py || exit 1
 for f in loader readme; do
