@@ -2721,8 +2721,35 @@
 
 .PIX1
 
- JSR ADD                \ Set (A X) = (A P) + (S R) (Port: ADD, ADDK's twin, which
-                        \ is below &3000)
+                        \ Set (A X) = (A P) + (S R) (Port: ADD inlined; all
+                        \ three callers set P = 0, so the same-sign low byte
+                        \ is X = R + 0 with C = 0, exactly as ADD's CLC : LDA R
+                        \ : ADC P : TAX, and the opposite-sign case calls MU8,
+                        \ ADD's own tail, with T and T1 set as ADD sets them)
+
+ STA T1                 \ Store argument A in T1
+
+ AND #%10000000         \ Extract the sign of A into T
+ STA T
+
+ EOR S                  \ If A and S have the same sign, add them at pxad
+ BPL pxad
+
+ JSR MU8                \ Different signs: (A X) = (A P) + (S R) via MU8
+
+ BRA pxst
+
+.pxad
+
+ LDX R                  \ X = R + P = R (P = 0, no carry)
+
+ LDA S                  \ A = S + T1 + 0, with ADD's C and V
+ CLC
+ ADC T1
+
+ ORA T                  \ Give the result the sign of argument A
+
+.pxst
 
  STA YY+1               \ Set YY+1 to A, the high byte of the result
 
