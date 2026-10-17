@@ -14850,7 +14850,10 @@ ENDIF
  AND #63
  STA CNT2
 
- JMP PLL4               \ Jump back to PLL4 to draw the next segment
+ ASSERT CNT2 < &100     \ (LDA CNT2 at PLL4 is a 2-byte zero-page load)
+
+ JMP PLL4+2             \ Jump back to PLL4 to draw the next segment, skipping
+                        \ its LDA CNT2 as A already holds the new CNT2
 
 .PL40
 
