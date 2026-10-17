@@ -1986,3 +1986,44 @@ ENDIF
  LDA #201               \ Print recursive token 41 ("MISSILE JAMMED") as an
  JMP MESS               \ in-flight message and return from the subroutine using
                         \ a tail call
+
+\ ******************************************************************************
+\
+\       Name: ZEKTRAN
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Clear the key logger
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   X                   X is set to 0
+\
+\ ******************************************************************************
+
+                        \ Port: moved here from the main code (elite-source.asm)
+                        \ to make room there; far4 reaches it in main RAM
+
+.ZEKTRAN
+
+ LDA #0                 \ We want to zero the key logger buffer, so set A % 0
+
+ LDX #17                \ We want to clear the 17 key logger locations from
+                        \ KL to KY20, so set a counter in X
+
+.ZEKLOOP
+
+ STA JSTY,X             \ Store 0 in the X-th byte of the key logger
+
+ DEX                    \ Decrement the counter
+
+ BNE ZEKLOOP            \ And loop back for the next key, until we have just
+                        \ KL+1. We don't want to clear the first key logger
+                        \ location at KL, as the keyboard table at KYTB starts
+                        \ with offset 1, not 0, so KL is not technically part of
+                        \ the key logger (it's actually used for logging keys
+                        \ that don't appear in the keyboard table, and which
+                        \ therefore don't use the key logger)
+
+ RTS                    \ Return from the subroutine

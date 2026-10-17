@@ -11084,28 +11084,28 @@ ENDMACRO
  SBC Q
  ROL P
 
- ROL A                  \ Repeat for the fifth time
- CMP Q
- BCC P%+4
- SBC Q
+ ROL A                  \ Repeat for the fifth time (grind: the subtraction is
+ CMP Q                  \ rare here, so it is done out of line in DV4s5, which
+ BCS DV4s5              \ makes the common no-subtract path one cycle faster)
+.DV4r5
  ROL P
 
  ROL A                  \ Repeat for the sixth time
  CMP Q
- BCC P%+4
- SBC Q
+ BCS DV4s6
+.DV4r6
  ROL P
 
  ROL A                  \ Repeat for the seventh time
  CMP Q
- BCC P%+4
- SBC Q
+ BCS DV4s7
+.DV4r7
  ROL P
 
  ROL A                  \ Repeat for the eighth time
  CMP Q
- BCC P%+4
- SBC Q
+ BCS DV4s8
+.DV4r8
  ROL P
 
 .DVID4z
@@ -11133,6 +11133,22 @@ ENDMACRO
  LDA #255               \ This is also part of the inline LL28+4 routine
  STA R
  RTS
+
+.DV4s5                  \ grind: out-of-line subtractions for DVID4's fifth to
+ SBC Q                  \ eighth steps (C = 1 on entry and exit, as in-line)
+ BRA DV4r5
+
+.DV4s6
+ SBC Q
+ BRA DV4r6
+
+.DV4s7
+ SBC Q
+ BRA DV4r7
+
+.DV4s8
+ SBC Q
+ BRA DV4r8
 
 \ ******************************************************************************
 \
@@ -19530,44 +19546,6 @@ IF _SNG47
  RTS                    \ Return from the subroutine
 
 ENDIF
-
-\ ******************************************************************************
-\
-\       Name: ZEKTRAN
-\       Type: Subroutine
-\   Category: Keyboard
-\    Summary: Clear the key logger
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   X                   X is set to 0
-\
-\ ******************************************************************************
-
-.ZEKTRAN
-
- LDA #0                 \ We want to zero the key logger buffer, so set A % 0
-
- LDX #17                \ We want to clear the 17 key logger locations from
-                        \ KL to KY20, so set a counter in X
-
-.ZEKLOOP
-
- STA JSTY,X             \ Store 0 in the X-th byte of the key logger
-
- DEX                    \ Decrement the counter
-
- BNE ZEKLOOP            \ And loop back for the next key, until we have just
-                        \ KL+1. We don't want to clear the first key logger
-                        \ location at KL, as the keyboard table at KYTB starts
-                        \ with offset 1, not 0, so KL is not technically part of
-                        \ the key logger (it's actually used for logging keys
-                        \ that don't appear in the keyboard table, and which
-                        \ therefore don't use the key logger)
-
- RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
