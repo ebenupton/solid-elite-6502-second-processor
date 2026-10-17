@@ -84,6 +84,7 @@ LAB2 = 'M'            # CT LT AL / 1 2 3 4 labels
 ELL = 'M'             # scanner ellipse
 GRID = 'M'           # scanner grid
 RING = 'C'            # compass ring
+CROSS = 'M'           # compass cross-hair
 
 BAR_SAFE = 'Y'        # shields, energy (PZW safe colour)
 BAR_SAFE2 = 'C'       # speed, temperatures (PZW2 safe colour)
@@ -381,8 +382,16 @@ def draw_static():
         cv.put(SCX + dx, SCY + 1, 'C')
     cv.put(SCX, SCY, 'C')
 
-    # compass ring and cross-hair
+    # compass ring and cross-hair: dashed, as Master's (P.DIALS2P), clear of the
+    # centred dot (x 195..197, lines 10..12), so the dot (EOR) sits in the gap
+    # when the planet or station is dead ahead
     cv.ellipse(CMX, CMY, CMR, CMR, RING)
+    for d in (2, 3, 6, 7):
+        cv.put(CMX - d, 11, CROSS)
+        cv.put(CMX + d, 11, CROSS)
+    for d in (3, 5, 7, 9):
+        cv.put(CMX, 11 - d, CROSS)
+        cv.put(CMX, 11 + d, CROSS)
     # corner ornaments of the scanner
     for (x, y, sx, sy) in ((49, 1, 1, 1), (206, 54, -1, -1), (49, 54, 1, -1)):
         for i in range(4):
