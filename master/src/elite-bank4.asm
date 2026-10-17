@@ -10158,6 +10158,15 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA ALPHA              \ Set Q = alpha (the roll angle to rotate through)
  STA Q
 
+ ASL A                  \ Port: if |alpha| = 0 (alpha = 0 or &80) and nosev_y
+ BNE mvs4a              \ is not -0 (nosev_y_hi <> &80), then the first MAD
+ LDA INWK+3,Y           \ below leaves nosev_y unchanged, and everything else
+ CMP #%10000000         \ it writes (A, X, flags, P, T, T1, R, S) is written
+ BNE mvs4b              \ again by the second MAD (with Q = 0 it ignores A),
+                        \ so skip straight to the second MAD
+
+.mvs4a
+
  LDX INWK+2,Y           \ Set (S R) = nosev_y
  STX R
  LDX INWK+3,Y
@@ -10178,6 +10187,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
                         \ Port: the original's dead STX P (MAD sets P before
                         \ reading it) is dropped here
+
+.mvs4b
 
  LDX INWK,Y             \ Set (S R) = nosev_x
  STX R
