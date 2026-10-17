@@ -4752,7 +4752,9 @@ ENDIF
 
  LDA (INF),Y            \ Copy the last byte (NI%-1) on its own, using a
  STA INWK+NI%-1         \ zero-page store, so the remaining NI%-1 = 36 bytes
- DEY                    \ can be copied two per loop pass
+ DEY                    \ can be copied four per loop pass
+
+ ASSERT (NI%-1) MOD 4 = 0 \ The loop below copies four bytes per pass
 
 .MAL2
 
@@ -4761,7 +4763,17 @@ ENDIF
 
  DEY                    \ Decrement the loop counter
 
- LDA (INF),Y            \ Second byte of this pass (loop unrolled twice)
+ LDA (INF),Y            \ Second byte of this pass (loop unrolled four times)
+ STA INWK,Y
+
+ DEY                    \ Decrement the loop counter
+
+ LDA (INF),Y            \ Third byte of this pass
+ STA INWK,Y
+
+ DEY                    \ Decrement the loop counter
+
+ LDA (INF),Y            \ Fourth byte of this pass
  STA INWK,Y
 
  DEY                    \ Decrement the loop counter
