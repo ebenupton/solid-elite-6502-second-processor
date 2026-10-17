@@ -56,12 +56,14 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
 \ fl_or: OR the span at fl_sp into the back buffer: its last byte (offset
 \ fl_n) with fl_rq AND fl_m, then if fl_n > 0 the bytes between with fl_m and
 \ its first with fl_lq AND fl_m (fl_n = 0: the one byte, with fl_lq AND
-\ fl_m), with ACCCON X cleared around it for buffer 0 (fl_xb = 4). Called
-\ from shadow RAM, so X is set again before returning. Clobbers A, Y.
+\ fl_m), with ACCCON X cleared around it for buffer 0 (fl_xb = 4; buffer 1
+\ enters at fl_or1). Called from shadow RAM, so X is set again before
+\ returning. Clobbers A, Y.
 
 .fl_or
  LDA fl_xb
  TRB &FE34
+.fl_or1                 \ (buffer 1: X already set)
  LDY fl_n
  BEQ flo9
  LDA fl_rq
@@ -87,3 +89,4 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
  LDA #4
  TSB &FE34
  RTS
+ASSERT HI(fl_or) = HI(fl_or1)

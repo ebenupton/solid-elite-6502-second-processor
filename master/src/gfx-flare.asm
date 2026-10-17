@@ -122,6 +122,11 @@ ORG &7E00
  LDA fsw_d2+2
  STA fl_dr1+2
  STA fl_dr2+2
+ LDA #LO(fl_or)         \ buffer 1 (shadow RAM): ACCCON X stays set while
+ LDX fl_xb              \ fl_or writes
+ BNE P%+4
+ LDA #LO(fl_or1)
+ STA fl_jor+1
  LDA #255
  STA fl_ymin
  STZ fl_ymax
@@ -552,7 +557,8 @@ ORG &3000
  AND #&FE
  ORA fl_ch
  STA fl_sp+1
- JMP fl_or              \ (bank 6)
+.fl_jor
+ JMP fl_or              \ (patched: past the ACCCON switch for buffer 1)              \ (bank 6)
 .fsr9
  RTS
 
