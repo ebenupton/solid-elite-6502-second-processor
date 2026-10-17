@@ -8265,7 +8265,8 @@ ENDIF
  LDX Q                  \ Restore the value of X from before the call to ADD
 
  LDA INWK+1,Y           \ Fetch nosev_x_hi, clear the sign bit, divide by 2, so
- AND #%01111111         \ A = |nosev_x_hi| / 2 = |nosev_x| / 512
+ STA S                  \ A = |nosev_x_hi| / 2 = |nosev_x| / 512 (port: also
+ AND #%01111111         \ store nosev_x_hi in S as the high byte to borrow from)
  LSR A                  \
 
  EOR #&FF               \ Port: compute nosev_x_lo - A as nosev_x_lo + ~A + 1,
@@ -8276,9 +8277,8 @@ ENDIF
                         \
                         \ by doing the low bytes first
 
- LDA INWK+1,Y           \ And then the high bytes (the high byte of the right
- SBC #0                 \ side of the subtraction being 0)
- STA S
+ BCS P%+4               \ And then the high byte: S = nosev_x_hi - borrow,
+ DEC S                  \ i.e. only decrement S if the low bytes borrowed
 
  LDA INWK,X             \ Set P = roofv_x_lo
  STA P
