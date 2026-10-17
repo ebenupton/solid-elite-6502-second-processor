@@ -3682,6 +3682,7 @@ NEXT
   LDA R_CL
 .c0
   STA RZ_T2
+.^r_pt53 STA r_sl,X       \ (before r_sr: nothing reads either in between)
   LDA R_NDISCR,X
   CMP R_CR
   BCC c1
@@ -3692,8 +3693,6 @@ NEXT
 .c1b
   STA RZ_T3
 .^r_pt52 STA r_sr,X
-  LDA RZ_T2
-.^r_pt53 STA r_sl,X
   LDA RZ_T1               \ old empty: the new span
   BCC empd                \ (C clear: from emp, the new span empty)
   CMP RZ_T0
@@ -3721,7 +3720,7 @@ NEXT
   LDX RZ_T2
   JSR r_sw
   BRA right
-  EQUB 0, 0, 0, 0         \ (padding: keeps the code below at its addresses)
+  EQUB 0, 0, 0            \ (padding: keeps the code below at its addresses)
 .jboth
   JMP both
 .jonew
@@ -3732,8 +3731,12 @@ NEXT
   LDA RZ_T0               \ (as oblk: X = oL, r_wmin = oL AND &FC, then
   BRA rqs1                \ .rshr2: Y = oR, r_wmax = oR OR 3, black)
 .emp
+  LDA r_pt53+2            \ (r_sl's current page, as R_SETBUF patched it)
+  STA es+2
   LDA #&FF                \ empty new span: (255, 0)
   STA RZ_T2
+.es
+  STA r_sl,X              \ (nopatch: its page is copied from r_pt53+2 just above)
   INC A                   \ (A = 0, C clear: BCC emp)
   BRA c1b
 .requal                   \ left ends equal: r_wmin from the right end's strip
@@ -3846,7 +3849,6 @@ NEXT
   STA r_wmax
 .p2
   JMP r_sw+2              \ past r_sw's STA RZ_COL (RZ_COL already set)
-  EQUB 0, 0, 0, 0, 0, 0   \ (padding: keeps the code after r_dp2 at its addresses)
 }
 
 \ r_drg: general disc row, Y = row
