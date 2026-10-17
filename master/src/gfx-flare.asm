@@ -519,8 +519,8 @@ ORG &3000
 
 \ fl_row: row A (inside the clip window), if its mask (fl_pat) is not zero:
 \ extend this buffer's dirty extent for the row by R_XL..R_XR, point fl_sp
-\ at its first byte (column fl_cl / fl_ch), mask the end bytes' masks, and OR
-\ the bytes (fl_or, bank 6). Clobbers A, X, Y.
+\ at its first byte (column fl_cl / fl_ch) and OR the bytes (fl_or, bank 6,
+\ with the row's mask fl_m). Clobbers A, X, Y.
 
 .fl_row
  TAY
@@ -552,12 +552,6 @@ ORG &3000
  AND #&FE
  ORA fl_ch
  STA fl_sp+1
- LDA fl_lq
- AND fl_m
- STA fl_lm
- LDA fl_rq
- AND fl_m
- STA fl_rm
  JMP fl_or              \ (bank 6)
 .fsr9
  RTS

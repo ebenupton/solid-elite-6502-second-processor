@@ -28,8 +28,6 @@ fl_m    = &20           \ the row's mask (fl_or: the middle bytes')
 fl_sp   = &21           \ screen pointer (fl_or)
 fl_n    = &23           \ 8 * (bytes - 1) (fl_or)
 fl_ch   = &24           \ &40 + (a span's first byte's column >= 32)
-fl_lm   = &25           \ the first byte's mask (fl_or)
-fl_rm   = &26           \ the last byte's mask (fl_or)
 fl_cl   = &27           \ 8 x a span's first byte's column, low byte
 
 FLNG = 8                \ ghosts
@@ -56,18 +54,19 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
  JMP f_text2
 
 \ fl_or: OR the span at fl_sp into the back buffer: its last byte (offset
-\ fl_n) with fl_rm, then if fl_n > 0 the bytes between with fl_m and its
-\ first with fl_lm (fl_n = 0: the one byte, with fl_lm), with ACCCON X
-\ cleared around it for buffer 0 (fl_xb = 4). Called from shadow RAM, so X
-\ is set again before returning. Clobbers A, Y.
+\ fl_n) with fl_rq AND fl_m, then if fl_n > 0 the bytes between with fl_m and
+\ its first with fl_lq AND fl_m (fl_n = 0: the one byte, with fl_lq AND
+\ fl_m), with ACCCON X cleared around it for buffer 0 (fl_xb = 4). Called
+\ from shadow RAM, so X is set again before returning. Clobbers A, Y.
 
 .fl_or
  LDA fl_xb
  TRB &FE34
  LDY fl_n
  BEQ flo9
- LDA (fl_sp),Y
- ORA fl_rm
+ LDA fl_rq
+ AND fl_m
+ ORA (fl_sp),Y
  STA (fl_sp),Y
  SEC
  BRA flo3
@@ -81,8 +80,9 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
  TAY
  BNE flo2
 .flo9
- LDA (fl_sp)
- ORA fl_lm
+ LDA fl_lq
+ AND fl_m
+ ORA (fl_sp)
  STA (fl_sp)
  LDA #4
  TSB &FE34
