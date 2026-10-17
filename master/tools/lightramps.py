@@ -289,7 +289,9 @@ def expand(a, b, c):
     return out
 
 
-NRAMP6 = 1                      # ramps 0..NRAMP6-1 in bank 6, the rest in HAZEL
+NRAMP6 = 9                      # ramps 0..NRAMP6-1 in bank 6, the rest in HAZEL
+                                # (all of them, since f_enter stopped using its
+                                # own 512-byte buffer; LT_FIX goes with them)
 
 
 def emit_light(path6, pathhz):
@@ -314,7 +316,7 @@ def emit_light(path6, pathhz):
             '\\   thresholds t < a yellow, < b cyan, < c magenta, the rest black.',
             '\\ LT_HL0..3[n] (n = 0..16): row r\'s mask m of pixels with threshold < n as',
             '\\   m << 4 OR m: row byte = H[a] EOR H[c] EOR HL[b], H = HL AND &F0.',
-            '\\ LT_FIX[k] (in HAZEL): the unlit colours (black, cyan, magenta, yellow) as',
+            '\\ LT_FIX[k] (with the last ramp): the unlit colours (black, cyan, magenta, yellow) as',
             '\\   MODE 1 bytes.',
             '\\ (The unit face normals, magnitude %d, are in gfx-faces.asm\'s face lists.)' % NSC,
             '']
@@ -341,8 +343,9 @@ def emit_light(path6, pathhz):
     LH = [h % 'gfx-lighthz.asm' if '%s' in h else h for h in head]
     for i in range(NRAMP6, NRAMP):
         ramp(LH, i)
-    LH.append('.LT_FIX')
-    eb(LH, FIXED_BYTE)
+    LF = L6 if NRAMP6 == NRAMP else LH
+    LF.append('.LT_FIX')
+    eb(LF, FIXED_BYTE)
     open(path6, 'w').write('\n'.join(L6) + '\n')
     open(pathhz, 'w').write('\n'.join(LH) + '\n')
 
