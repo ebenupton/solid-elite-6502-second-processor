@@ -1233,10 +1233,11 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  INC fz_t
  BNE P%+4
  INC fz_u
- CPY R_NDB
+ CPY fz_q               \ (= R_NDB: stored from fz_q at fdx4, unchanged here)
  INY
  BCC fpr2
  RTS
+ EQUB 0                 \ pad: keeps fds_fast onward (and F_TM) in place
 
 .fds_fast               \ here r <= 127 and |d| <= r, so d fits a signed byte
  LDA f_cx
