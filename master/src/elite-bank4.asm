@@ -5871,7 +5871,11 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA XX16+4,Y
  JSR FMLTU+2
  STA Q
- JSR LL39
+ LDA R                  \ (LL39 inlined, as for ll51n1: A = R - Q, and if
+ SEC                    \ that underflows, LL40 negates A and flips S, C
+ SBC Q                  \ being clear as it requires)
+ BCS ll51r2
+ JSR LL40
  BRA ll51r2
 
 \ ******************************************************************************
