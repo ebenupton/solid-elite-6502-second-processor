@@ -2389,10 +2389,13 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  ASL A
  ASL A
  STA fz_nm               \ low byte (16*col, may carry)
+ ORA #8                  \ fz_v3 = fz_nm + 8, the right byte of the cell (low
+ STA fz_v3               \ nibble 0: no carry; ORA keeps C for the ROL)
  LDA fz_i                \ high byte = 2*row + carry + &40 (row <= 23, so
  ROL A                   \ ROL leaves C = 0 and the ADC cannot carry)
  ADC #&40
  STA fz_nm+1
+ STA fz_v3+1
  LDA #&FF               \ masks for the border columns (patched into the loop)
  STA fglm+1
  STA fgrm+1
@@ -2405,11 +2408,6 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  LDA #&CC               \ pixels 254-255 are the border
  STA fgrm+1
  ASSERT F_TCOL = &FF    \ ink is all-ones: (m AND ink) OR (NOT m AND s) = m OR s
- LDA fz_nm              \ fz_v3 = fz_nm + 8, the right byte of the cell
- ORA #8                 \ (fz_nm = 16*col: low nibble 0, so no carry; fz_v3 is free here)
- STA fz_v3
- LDA fz_nm+1
- STA fz_v3+1
  LDA fz_i               \ first line y = 8*row
  ASL A
  ASL A
