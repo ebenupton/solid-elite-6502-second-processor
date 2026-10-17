@@ -95,15 +95,18 @@ ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00
 
 ORG &DC40                       \ (after the longest OSCLI command the game
                                 \ issues, see SVE and friends)
-.R_WL    SKIP 192       \ this frame's written extents (empty: R=0)
-.R_WR    SKIP 192       \ (raster_vars.asm)
 .R_NDN    SKIP 192       \ (raster_vars.asm: boundaries per disc row, 0..4)
-\ (raster_vars.asm: the stars)
+.R_WL    SKIP 192       \ this frame's written extents (empty: R=0)
+\ (raster_vars.asm: the stars, R_SS after R_WR)
 .R_SN       SKIP 1          \ star count 0..24
 .R_SX       SKIP 24
 .R_SY       SKIP 24
-.R_SS       SKIP 24         \ star size 1..3
 .R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
+ALIGN &100              \ (R_WR: no page crossing for any row)
+.R_WR    SKIP 192       \ (raster_vars.asm)
+.R_SS       SKIP 24         \ star size 1..3
+ASSERT HI(R_NDN) = HI(R_NDN+191) AND HI(R_WL) = HI(R_WL+191) AND HI(R_WR) = HI(R_WR+191)
+ASSERT HI(R_SX) = HI(R_SX+23) AND HI(R_SY) = HI(R_SY+23) AND HI(R_SS) = HI(R_SS+23)
 .HZ_END2
 PRINT "HAZEL: data &DC40-", ~HZ_END2-1, " free to &DF00 ", &DF00-HZ_END2
 ASSERT HZ_END2 <= &DF00         \ the MOS's filing system workspace
