@@ -7116,13 +7116,13 @@ ENDIF
                         \
                         \   XX(1 0) = (A P) + x
 
- STA XX+1               \ First we do the low bytes:
+ TAX                    \ First we do the low bytes:
  LDA P                  \
  ADC SXL,Y              \   XX(1 0) = (A P) + x_lo
  STA XX
 
- LDA X1                 \ And then we do the high bytes:
- ADC XX+1               \
+ TXA                    \ And then we do the high bytes:
+ ADC X1                 \
  STA XX+1               \   XX(1 0) = XX(1 0) + (x_hi 0)
                         \
                         \ so we get our result:
