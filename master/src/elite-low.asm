@@ -2077,3 +2077,34 @@ ENDIF
  LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
  JMP NOISE              \ of the missile being launched and return from the
                         \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: ECMOF
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Switch off the E.C.M. and turn off the dashboard bulb
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: moved from the end of the main code (cold), to make room there
+\
+\ ******************************************************************************
+
+.ECMOF
+
+IF _SNG47
+
+ LDA #0                 \ Set ECMA and ECMP to 0 to indicate that no E.C.M. is
+ STA ECMA               \ currently running
+ STA ECMP
+
+ELIF _COMPACT
+
+ STZ ECMA               \ Set ECMA and ECMP to 0 to indicate that no E.C.M. is
+ STZ ECMP               \ currently running
+
+ENDIF
+
+ JMP ECBLB              \ Update the E.C.M. indicator bulb on the dashboard and
+                        \ return from the subroutine using a tail call

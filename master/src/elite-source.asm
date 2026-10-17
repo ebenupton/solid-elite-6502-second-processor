@@ -19446,8 +19446,13 @@ ENDMACRO
 .FILLKL
 
  JSR ZEKTRAN            \ Call ZEKTRAN to clear the key logger, which also sets
-                        \ X to 0 (so we can use X as an index for working our
-                        \ way through the flight keys in Rd2 below)
+                        \ X to 0
+
+ STX RdX+1              \ Store X = 0 as the operand of the LDX at RdX, which
+                        \ holds the index into the flight keys for Rd2 below
+
+ LDX #%01111111         \ Keep the DDRA value %01111111 in X for the loop (Rd2
+                        \ restores it whenever it uses X)
 
  LDA #16                \ Start the scan with internal key number 16 ("Q")
 
@@ -19464,8 +19469,8 @@ ENDMACRO
  STY VIA+&40            \ Set 6522 System VIA output register ORB (SHEILA &40)
                         \ to %00000011 to stop auto scan of keyboard
 
- LDY #%01111111         \ Set 6522 System VIA data direction register DDRA
- STY VIA+&43            \ (SHEILA &43) to %01111111. This sets the A registers
+ STX VIA+&43            \ Set 6522 System VIA data direction register DDRA
+                        \ (SHEILA &43) to X = %01111111. This sets the A registers
                         \ (IRA and ORA) so that:
                         \
                         \   * Bits 0-6 of ORA will be sent to the keyboard
@@ -19510,9 +19515,7 @@ ENDMACRO
                         \ it's from other versions of Elite where there were
                         \ issues with "ghost keys", which the Master didn't have
 
- LDA KL                 \ Fetch the last key pressed from KL
-
- TAX                    \ Copy the key value into X
+ LDX KL                 \ Fetch the last key pressed from KL into X
 
  RTS                    \ Return from the subroutine
 
@@ -19529,6 +19532,11 @@ ENDMACRO
 
  STA KL                 \ Store the number of the key pressed in KL
 
+.RdX
+
+ LDX #0                 \ Set X to the index into IKNS (this operand is modified
+                        \ by FILLKL and Rd6)
+
                         \ Now to scan the IKNS table for a possible match for
                         \ the pressed key (if we get a match we update the key
                         \ logger, as IKNS contains the flight keys that have
@@ -19541,8 +19549,8 @@ ENDMACRO
 
 .Rd5
 
- CMP IKNS,X             \ If A is less than the X-th byte in IKNS, jump back to
- BCC Rd3                \ Rd3 to continue scanning for more keys, as this key
+ CMP IKNS,X             \ If A is less than the X-th byte in IKNS, jump to
+ BCC Rd6                \ Rd6 to continue scanning for more keys, as this key
                         \ isn't in the IKNS table and doesn't have an entry in
                         \ the key logger
 
@@ -19572,9 +19580,15 @@ ENDMACRO
 
  CLC                    \ Clear the C flag so we can do more additions
 
+.Rd6
+
+ STX RdX+1              \ Save the IKNS index in the operand of the LDX at RdX
+
+ LDX #%01111111         \ Restore X to the DDRA value for the scan loop
+
  BCC Rd3                \ Jump back to Rd3 to continue scanning for more keys
-                        \ (this BCC is effectively a JMP as we just cleared the
-                        \ C flag)
+                        \ (this BCC is effectively a JMP as the C flag is clear
+                        \ on both paths here)
 
 \ ******************************************************************************
 \
@@ -20121,33 +20135,6 @@ ENDIF
 .DEMON
 
  RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: ECMOF
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Switch off the E.C.M. and turn off the dashboard bulb
-\
-\ ******************************************************************************
-
-.ECMOF
-
-IF _SNG47
-
- LDA #0                 \ Set ECMA and ECMP to 0 to indicate that no E.C.M. is
- STA ECMA               \ currently running
- STA ECMP
-
-ELIF _COMPACT
-
- STZ ECMA               \ Set ECMA and ECMP to 0 to indicate that no E.C.M. is
- STZ ECMP               \ currently running
-
-ENDIF
-
- JMP ECBLB              \ Update the E.C.M. indicator bulb on the dashboard and
-                        \ return from the subroutine using a tail call
 
 \ ******************************************************************************
 \
