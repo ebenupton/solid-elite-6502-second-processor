@@ -3276,7 +3276,11 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   DEC A
   STA RZ_TA+1
   DEY                     \ (colour index edge-1; the left end: black)
-  BRA col
+  TYA                     \ colour index Y: -1 black, else P EOR (Y AND 1)
+  BPL cx                  \ (Y <= 6 otherwise: at most 7 edges)
+.blk
+  LDA #0                  \ black (the left end here; the right end from .lt)
+  BRA c2
 .eq
   CMP RZ_T6
   BCC gen
@@ -3292,14 +3296,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA RZ_T6
   DEC A
   STA RZ_TA+1
+  TYA                     \ colour index Y (0..r_ns here)
   CPY r_ns
-  BNE col
-.blk
-  LDA #0                  \ the end strip: black
-  BRA c2
-.col
-  TYA                     \ colour index Y: -1 black, else P EOR (Y AND 1)
-  BMI blk                 \ (Y <= 6 otherwise: at most 7 edges)
+  BEQ blk
+.cx
   EOR r_np
   LSR A
   LDA r_cA
