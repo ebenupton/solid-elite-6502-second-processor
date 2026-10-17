@@ -11001,10 +11001,12 @@ ENDMACRO
                         \ If we reach here, then A and S have the same sign, so
                         \ we can add them and set the sign to get the result
 
-.add1
 
- LDA R                  \ Add the least significant bytes together into X:
- CLC                    \
+ CLC                    \ Add the least significant bytes together into X:
+                        \
+.add1                   \ (mad1 enters here, as MULT1 returns with C clear)
+
+ LDA R                  \
  ADC P                  \   X = P + R
  TAX
 
@@ -11030,8 +11032,9 @@ ENDMACRO
 
  STA T1                 \ Store A in T1, as ADD does
 
- EOR S                  \ If A and S have the same sign jump to add1 in ADD,
- BPL add1               \ otherwise fall through into MU8
+ EOR S                  \ If A and S have the same sign jump to add1 in ADD
+ BPL add1               \ (C is still clear from MULT1, so skip its CLC),
+                        \ otherwise fall through into MU8
 
 .MU8
 
