@@ -7259,7 +7259,7 @@ ENDIF
                         \ Port: nor is XX: no reader of XX runs before STL1's
                         \ STA XX or another writer
                         \
-                        \ Port: and (S R) = XX(1 0) now, as MUT2 did (MULTS-2
+                        \ Port: and (S R) = XX(1 0) now, as MUT2 did (MULTS
                         \ below leaves S and R alone)
 
  LDX BET1               \ Fetch the pitch magnitude into X
@@ -7267,7 +7267,7 @@ ENDIF
  LDA YY+1               \ Set A to y_hi and set it to the flipped sign of beta
  EOR BET2+1
 
- JSR MULTS-2            \ Call MULTS-2 to calculate:
+ JSR MULTS              \ Call MULTS to calculate (X = BET1 is the multiplier):
                         \
                         \   (A P) = X * A
                         \         = -beta * y_hi
@@ -10086,9 +10086,9 @@ ENDMACRO
 
  TAY                    \ Set Y = |A| (Y is free, as it is saved on the stack)
 
- TXA                    \ Set P = b = P AND 31 (X = P on entry: MULTS is only
-                        \ reached by falling through from MLS1's or MULTS-2's
-                        \ STX P; P is overwritten by the result below)
+ TXA                    \ Set P = b = X AND 31 (X holds the multiplier on
+                        \ entry, so P is never read before this store, and
+                        \ STL1 calls MULTS directly with X = BET1)
  AND #31
  STA P
 
