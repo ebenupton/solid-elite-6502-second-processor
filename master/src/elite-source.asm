@@ -11260,12 +11260,13 @@ ENDMACRO
                         \ until the eighth shift), so do it as a byte move,
                         \ (A P+1 P) = (P+1 P 0) with Y = 8, and carry on
 
- LDA P+1                \ If bit 7 of P+1 is set, jump to DVL9b to run the
+ LDY P+1                \ If bit 7 of P+1 is set, jump to DVL9b to run the
  BMI DVL9b              \ bitwise loop from A = 0
 
- LDY P                  \ Set (A P+1 P) = (P+1 P 0)
- STY P+1
- STZ P
+ LDA P                  \ Set (A P+1) = (P+1 P OR 1), making sure the
+ ORA #1                 \ numerator is at least 1 (grind: only this path can
+ STA P+1                \ shift bits of P into A, so the OR is done here rather
+ TYA                    \ than on every call)
 
  LDY #8                 \ Count the eight shifts in Y
 
@@ -11273,8 +11274,9 @@ ENDMACRO
 
 .DVL9b
 
- TYA                    \ Set A = Y = 0 and run the bitwise loop (A < 64, so
- BRA DVL9l              \ skip the test at DVL9)
+ LDY #0                 \ Set A = Y = 0 and run the bitwise loop (A < 64, so
+ TYA                    \ skip the test at DVL9)
+ BRA DVL9l
 
 .DV14z
 
@@ -11357,9 +11359,6 @@ ENDMACRO
                         \
                         \   K(3 2 1 0) = (Y P+1 P) / (S R Q)
 
- LDA #1                 \ Make sure P is at least 1
- TSB P
-
  TYA                    \ Set A = |Y|, clearing the sign bit so the division
  LDY #0                 \ can be done with positive numbers, and set Y = 0 to
  AND #%01111111         \ store the scale factor
@@ -11380,9 +11379,9 @@ ENDMACRO
 
 .DVL9l
 
- ASL P                  \ Shift (A P+1 P) to the left
- ROL P+1
- ROL A
+ ASL P+1                \ Shift (A P+1) to the left (grind: at most 7 shifts
+ ROL A                  \ here, or up to 14 after DVL9a's byte move, so no bit
+                        \ of P can reach A, and P(1 0) is not used afterwards)
 
  INY                    \ Increment the scale factor in Y
 
