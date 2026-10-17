@@ -20,8 +20,8 @@ fl_r    = &18           \ a disc's radius (a ring: the step, 2 or 4)
 fl_hw   = &19           \ a disc's half-width table (a ring: dx, dy)
 fl_pat  = &1B           \ a disc's ink masks for rows y AND 3 = 0..3 (a
                         \ ring: -, its scale, the point's offset)
-fl_y    = &1F           \ row (fl_kd: |k|)
-fl_yb   = &20           \ last row (fl_kd: +-D; fl_main: the phase)
+fl_y    = &1F           \ row
+fl_yb   = &20           \ last row (fl_main: the phase)
 fl_m    = &21           \ this span's ink mask (a ghost's density index)
 fl_sp   = &22           \ screen pointer (fl_or)
 fl_n    = &24           \ 8 * (bytes - 1) (fl_or)

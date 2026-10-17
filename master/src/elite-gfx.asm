@@ -94,6 +94,10 @@ NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 .F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm's F_DSTAR,
 .F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, after R_SS)
 ASSERT HI(F_DSX) = HI(F_DSY+NDSTAR-1)
+.fl_ml  SKIP 2          \ the lens flare (gfx-flare.asm): 32 D (x, y), low
+.fl_mh  SKIP 2          \ and high bytes
+.fl_sl  SKIP 2          \ the centres' sums S (x, y)
+.fl_sh  SKIP 2
 .HZ_END
 PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
 ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00

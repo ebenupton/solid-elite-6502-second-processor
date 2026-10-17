@@ -129,6 +129,27 @@ ORG &7E00
  LDA #255
  STA fl_ymin
  STZ fl_ymax
+ LDX #1                 \ the centres' sums (x, then y): S = 32 k D, k = 8
+.flm0                   \ to start (S = 256 D), stepped down by 32 D (|S| <
+ LDA fl_dx,X            \ 2^15: the centre's offset k D / 8, floored, is S's
+ STA fl_sh,X            \ high byte)
+ STZ fl_sl,X
+ CMP #&80               \ 32 D: D >> 3 (arithmetic), (D AND 7) << 5
+ ROR A
+ CMP #&80
+ ROR A
+ CMP #&80
+ ROR A
+ STA fl_mh,X
+ LDA fl_dx,X
+ AND #7
+ LSR A
+ ROR A
+ ROR A
+ ROR A
+ STA fl_ml,X
+ DEX
+ BPL flm0
  STZ fl_i
  BRA flm3
 
@@ -146,14 +167,33 @@ ORG &7E00
 .fl_rts
  RTS
 
+.flm8                   \ the sums for the next ghost: S -= (k - k') 32 D
+ LDY fl_dk,X
+ PHX
+.flc1
+ LDX #1
+.flc2
+ SEC
+ LDA fl_sl,X
+ SBC fl_ml,X
+ STA fl_sl,X
+ LDA fl_sh,X
+ SBC fl_mh,X
+ STA fl_sh,X
+ DEX
+ BPL flc2
+ DEY
+ BNE flc1
+ PLX
+ BRA flm4
+
 .flm3                   \ the next ghost
  LDX fl_i
  CPX #FLNG
  BCS flm9
  INC fl_i
- LDA fl_k,X             \ k = 8: the ring round the sun, if the sun is small
- CMP #8
- BNE flm4
+ TXA                    \ k = 8: the ring round the sun, if the sun is small
+ BNE flm8
  LDA GSUNR
  CMP #FLHMAX+1
  BCS flm3
@@ -166,12 +206,10 @@ ORG &7E00
  BEQ flm3
  BMI flm3
  STA fl_m
- LDY #0                 \ centre = (128, 96) + (k D) >> 3
- JSR fl_kd
+ LDA fl_sh              \ centre = (128, 96) + (k D) >> 3
  EOR #&80
  STA fl_gx
- LDY #1
- JSR fl_kd
+ LDA fl_sh+1
  CLC
  ADC #96
  STA fl_gy
@@ -184,46 +222,6 @@ ORG &7E00
 .flm5
  JSR fl_disc            \ a disc
  BRA flm3
-
-\ fl_kd: A = (k D) >> 3 (floor) for k = fl_k,X and D = fl_dx,Y (Y = 0: x,
-\ 1: y): - D added - k times when k < 0, as 16 bits. Keeps X.
-
-.fl_kd
- LDA fl_k,X
- STA fl_y
- LDA fl_dx,Y
- BIT fl_y
- BPL P%+5
- EOR #&FF
- INC A
- STA fl_yb
- LDA fl_y
- JSR fl_abs
- STA fl_y
- STZ fl_t
- STZ fl_u
-.fsk1
- LDA fl_yb
- CLC
- ADC fl_t
- STA fl_t
- LDA #0
- BIT fl_yb
- BPL P%+4
- LDA #&FF
- ADC fl_u
- STA fl_u
- DEC fl_y
- BNE fsk1
- LDY #3                 \ >> 3, arithmetic: bits 3..10
-.fsk2
- CMP #&80
- ROR A
- ROR fl_t
- DEY
- BNE fsk2
- LDA fl_t
- RTS
 
 \ fl_disc: ghost X, a disc (centre fl_gx, fl_gy; ink fl_u; density index
 \ fl_m): its radius, half-widths and four row masks, then rows max(gy - r,
@@ -352,11 +350,10 @@ ENDMACRO
 .fl_h18 FLHW 18
 ASSERT HI(fl_htab) = HI(P% - 1)
 
-                        \ the ghosts, by number: k (centre C + k D / 8; 8: the
-                        \ ring round the sun), radius (a ring: its scale, 1
+                        \ the ghosts, by number (k = 8, 5, 3, -1, -3, -4, -6,
+                        \ -8: centre C + k D / 8; 8: the ring round the sun): radius (a ring: its scale, 1
                         \ for 30, 0 for 15), ink, density index (+ &80: a
                         \ dotted ring), half-widths
-.fl_k   EQUB 8, 5, 3, -1 AND &FF, -3 AND &FF, -4 AND &FF, -6 AND &FF, -8 AND &FF
 .fl_rad EQUB 1, 4, 7, 3, 10, 5, 0, 18
 .fl_ink EQUB &FF, &FF, &F0, &0F, &0F, &FF, &F0, &0F
 .fl_ni  EQUB &83, 4, 3, 5, 3, 3, &83, 2

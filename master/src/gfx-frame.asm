@@ -723,6 +723,9 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 .COLD6                 \ (spare, 250 bytes: Elite's cold code in bank 6, then
  INCLUDE "src/elite-cold6.asm"  \ spare bytes)
+                       \ the lens flare's k steps (gfx-flare.asm, read with
+                       \ ACCCON X = 1): 8 -> 5 -> 3 -> -1 -> -3 -> -4 -> -6 -> -8
+.fl_dk  EQUB 0, 3, 2, 4, 2, 1, 2, 2
  ASSERT P% <= COLD6 + 250
 .COLD6_END
  SKIP COLD6 + 250 - P%
