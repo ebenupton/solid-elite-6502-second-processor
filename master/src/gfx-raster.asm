@@ -3659,16 +3659,10 @@ NEXT
   AND #7
   STA RZ_PA
   STA RZ_PB
-  LSR A                   \ C = row parity (kept through to BCC ev)
   LDA r_ypg,X
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
-  LDA R_DCE
-  BCC ev
-  LDA R_DCO
-.ev
-  STA RZ_T5               \ the row's disc colour
 .^r_pt50 LDA r_sl,X
   STA RZ_T0               \ oL
 .^r_pt51 LDA r_sr,X
@@ -3712,14 +3706,13 @@ NEXT
 .emp
   LDA #&FF                \ empty new span: (255, 0)
   STA RZ_T2
-  LDA #0
+  INC A                   \ (A = 0)
   BRA c1b
 .ovl
   LDA RZ_T2               \ overlapping: the left end (R_WL/R_WR noted here,
   CMP RZ_T0               \ the left end's strip before the right end's)
   BEQ requal
   BCS lshr
-  TAX
   AND #&FC                \ grown: nL .. oL-1 in the disc colour
   STA r_wmin
   LDY RZ_T0
@@ -3727,7 +3720,11 @@ NEXT
   TYA
   ORA #3
   STA r_wmax
-  LDA RZ_T5
+  LDA RZ_Y                \ the row's disc colour: R_DCE / R_DCO by parity
+  AND #1
+  TAX
+  LDA R_DCE,X
+  LDX RZ_T2
   JSR r_sw
   BRA right
 .lshr
@@ -3749,10 +3746,13 @@ NEXT
 .rgr
   ORA #3                  \ grown: oR+1 .. nR in the disc colour
   STA r_wmax
+  LDA RZ_Y                \ the row's disc colour
+  AND #1
+  TAX
+  LDA R_DCE,X
   LDX RZ_T1
   INX
   LDY RZ_T3
-  LDA RZ_T5
   JSR r_sw
   BRA fin
 .rshr
@@ -3789,10 +3789,13 @@ NEXT
   LDA RZ_T3
   CMP RZ_T2
   BCC fin
-  LDX RZ_T2
   TAY
-  LDA RZ_T5
+  LDA RZ_Y                \ the row's disc colour
+  AND #1
+  TAX
+  LDA R_DCE,X
   STA RZ_COL
+  LDX RZ_T2
   JSR put
   BRA fin
 .oold
@@ -4344,7 +4347,7 @@ ENDMACRO
   LDA r_lm,X
   AND r_rm,X
   BRA msk
-  SKIP 7                  \ (keeps r_strow onward, and r_ypg's page, in place)
+  SKIP 1                  \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
