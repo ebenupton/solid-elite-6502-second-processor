@@ -2641,8 +2641,10 @@ SGOUT = 20
 MAXCV = 3               \ curves per frame
 MAXPT = 140             \ points per frame
 
-.F_NCV EQUB 0           \ curves recorded this frame
-.F_NPT EQUB 0           \ points recorded this frame
+                        \ F_NCV (curves recorded this frame) and F_NPT
+                        \ (points recorded this frame) live in F_PPOINT's
+                        \ LDA #/LDY # operands
+ EQUW 0                 \ pad (were F_NCV, F_NPT): keeps F_CVS onward in place
 .F_CVS SKIP MAXCV       \ first point of each curve
 .F_CVE SKIP MAXCV       \ one past its last point
 .F_CVT SKIP MAXCV       \ TGT: 31 (half ellipse) or 64 (full)
@@ -2667,10 +2669,12 @@ MAXPT = 140             \ points per frame
  RTS
 
 .F_PPOINT               \ (the current curve's F_CVE is set from F_NPT at fbd2)
- LDA F_NCV
+ LDA #0                 \ operand = F_NCV
+F_NCV = P%-1
  BEQ fpp9
  PHY
- LDY F_NPT
+ LDY #0                 \ operand = F_NPT
+F_NPT = P%-1
  CPY #MAXPT
  BCS fpp8
  LDA K6
@@ -2720,6 +2724,7 @@ MAXPT = 140             \ points per frame
  BNE fnb1
 .fnb9
  RTS
+ EQUB 0, 0              \ pad: keeps what follows (f_bounds onward) in place
 
 \ f_bounds: the planet's curves -> R_NDN/R_NDX0-3/R_NDP for rows
 \ R_NDT..R_NDB (which f_plrows has just set), and colour B
