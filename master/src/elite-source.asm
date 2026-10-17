@@ -10009,23 +10009,21 @@ ENDMACRO
                         \ Port: the product by quarter squares (the tables QSL
                         \ and QSH, elite-hi.asm), with exactly the original's
                         \ results: (A P) = |A| * (P AND 31) with A's sign (the
-                        \ shift-and-add only used bits 0-4 of P), T1 =
-                        \ |A| - 1, T = the sign, Y kept, N and Z from A (X and
-                        \ C are left differently, but no caller reads them)
+                        \ shift-and-add only used bits 0-4 of P), Y kept (T,
+                        \ T1, X, C, N, Z and V are left differently, but every
+                        \ caller goes on to ADD, MULT1 or MAD, which rewrite
+                        \ T and T1 before reading them, and none reads X or
+                        \ the flags)
 
- STA T                  \ Set T = A for now
+ STA T                  \ Set T = A, so bit 7 of T is the sign of A
 
  AND #%01111111         \ Set A = |A|
 
  BEQ MU6                \ If A = 0, jump to MU6 to set P(1 0) = 0 and return
-                        \ (T = A = its sign bit already)
-
- TRB T                  \ Clear |A|'s bits in T, leaving T = the sign bit
 
  PHY                    \ Keep Y
 
- DEC A                  \ Set T1 = |A| - 1
- STA T1
+ TAY                    \ Set Y = |A| (Y is free, as it is saved on the stack)
 
  TXA                    \ Set P = b = P AND 31 (X = P on entry: MULTS is only
                         \ reached by falling through from MLS1's or MULTS-2's
@@ -10033,42 +10031,46 @@ ENDMACRO
  AND #31
  STA P
 
- CLC                    \ Set X = b + |A| - 1 (< 256, so C ends up clear), so
- ADC T1                 \ QSL+1,X is QS(b + |A|)
+ TYA                    \ Set X = |A| + b (< 256, so C ends up clear), so
+ CLC                    \ QSL,X is QS(b + |A|)
+ ADC P
  TAX
 
- LDA T1                 \ Set A = T1 - b - 1 = |A| - b - 2 (C clear), with C
- SBC P                  \ set if |A| >= b + 2
- BCC mlt4               \ If |A| < b + 2 (rare), jump to mlt4
+ TYA                    \ Set A = |A| - b - 1 (C clear), with C set if
+ SBC P                  \ |A| >= b + 1
+ BCC mlt4               \ If |A| < b + 1 (rare), jump to mlt4
 
 .mlt1
 
- TAY                    \ Y = |A| - b - 2, so QSL+2,Y is QS(|A| - b)
+ TAY                    \ Y = |A| - b - 1, so QSL+1,Y is QS(|A| - b)
 
- LDA QSL+1,X            \ Set (A P) = (b + |A|)^2 / 4 - (b - |A|)^2 / 4
- SBC QSL+2,Y            \           = b * |A|  (C is set on both entries)
+ LDA QSL,X              \ Set (A P) = (b + |A|)^2 / 4 - (b - |A|)^2 / 4
+ SBC QSL+1,Y            \           = b * |A|  (C is set on both entries)
  STA P
- LDA QSH+1,X
- SBC QSH+2,Y
+ LDA QSH,X
+ SBC QSH+1,Y
 
 .mlt5
 
  PLY                    \ Restore Y
 
- ORA T                  \ Give A the sign bit of the original argument A that
-                        \ we stored in T
+ BIT T                  \ Give A the sign bit of the original argument A that
+ BPL mlt6               \ we stored in T (the high byte is < 16, so bit 7 is
+ ORA #%10000000         \ clear before this)
+
+.mlt6
 
  RTS                    \ Return from the subroutine
 
 .mlt4
 
- EOR #&FF               \ A = |A| - b - 2 (-32..-1) so this is b - |A| + 1, and
- SBC #2                 \ with C clear A = b - |A| - 2; if b >= |A| + 2 this is
- BPL mlt1               \ >= 0 with C set, the QSL+2,Y index of QS(b - |A|)
+ EOR #&FF               \ A = |A| - b - 1 (-32..-1) so this is b - |A|, and
+ SBC #0                 \ with C clear A = b - |A| - 1; if b >= |A| + 1 this is
+ BPL mlt1               \ >= 0 with C set, the QSL+1,Y index of QS(b - |A|)
 
- LDA QSL+1,X            \ |b - |A|| <= 1, so QS(|b - |A||) = 0 and
+ LDA QSL,X              \ b = |A|, so QS(b - |A|) = 0 and
  STA P                  \ (A P) = QS(b + |A|)
- LDA QSH+1,X
+ LDA QSH,X
  BRA mlt5
 
 .MU6
