@@ -2661,6 +2661,13 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .smd
   INC r_dsub
   BRA gd
+.ch                       \ (here, in the loop's page: the BNE ch's and
+.^r_pt409 LDA r_dl,X      \ BRA nx below take no page-crossing cycle)
+  INC A
+  BNE gd                  \ dirty
+  JSR r_dpe
+  LDX RZ_Y
+  BRA nx
 .nz                       \ 1..4 boundaries
 .^r_pt92 CMP r_bdn,X
   BNE ch
@@ -2689,13 +2696,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BNE gd                  \ dirty
   JMP r_dq
 .^r_dmbx
-  LDX RZ_Y
-  BRA nx
-.ch
-.^r_pt409 LDA r_dl,X
-  INC A
-  BNE gd                  \ dirty
-  JSR r_dpe
   LDX RZ_Y
   BRA nx
 .gd
