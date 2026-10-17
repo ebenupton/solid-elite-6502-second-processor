@@ -72,7 +72,7 @@ with open("build/banks.txt", "w") as f:
     for src, bank in (("src/elite-bank4.asm", "4"),
                       ("src/elite-andy.asm", "87"), ("src/elite-coldstubs.asm", "87"),
                       ("src/elite-cold7.asm", "87"),
-                      ("src/gfx-raster.asm", "5"), ("src/gfx-frame.asm", "6"),
+                      ("src/gfx-raster.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"),
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
                       ("src/gfx-raster7.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
@@ -97,7 +97,7 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" LOWLEN = &%04X\n" % (sy["LOW_END%"] - 0x0840))
     f.write(" HILEN = &%04X\n" % (sy["HI_END%"] - 0x7200))
-    # the shadow RAM blocks (elite-gfx.asm)
+    # the lens flare's shadow RAM blocks (gfx-flare.asm)
     f.write(" FL7LEN = &%04X\n FL3LEN = &%04X\n FL0LEN = &%04X\n" % (sy["SH7_END"] - 0x7E00, sy["SH3_END"] - 0x3F00, sy["SH0_END"] - 0x3000))
 PY
 python3 tools/bankcheck.py || exit 1

@@ -149,6 +149,7 @@ ALIGN &100              \ (page-aligned so code size changes never add
 .F_DLEND
 INCLUDE "src/gfx-frame_cold.asm"   \ (after the data, so that nothing else moves)
 INCLUDE "src/elite-cold6b.asm"     \ Elite's cold code in bank 6, part 2
+INCLUDE "src/gfx-flare6.asm"       \ the lens flare's step and span writer
 .B6_END
 PRINT "Bank 6: frame layer &8000-", ~B6_END-1, " free ", &C000-B6_END
 ASSERT B6_END <= &C000
@@ -162,25 +163,16 @@ PRINT "Bank 7: rasteriser (cold) &8000-", ~R7_END-1, " free to the cold area ", 
 ASSERT R7_END <= &AC40
 SAVE "build/RAST7.bin", &8000, R7_END, &8000
 
-\ Shadow RAM (ACCCON X = 1): code and data that the frame layer reaches with
-\ ACCCON X set around the call, at &7E00-&7FFF after the dashboard (the
-\ screen ends at &7DFF), &3F00-&3FFF after the extended tokens (elite-
-\ data.asm, &3100-&3EFF) and &3000-&308F before setzp's zero page save. Main
-\ RAM at these addresses holds BCODE and the stubs, saved above, so these
-\ blocks come last. (Nothing yet.)
+\ Shadow RAM (ACCCON X = 1): the lens flare (gfx-flare.asm), at &7E00-&7FFF
+\ after the dashboard (the screen ends at &7DFF), &3F00-&3FFF after the
+\ extended tokens (elite-data.asm, &3100-&3EFF) and &3000-&308F before
+\ setzp's zero page save. Main RAM at these addresses holds BCODE and the
+\ stubs, saved above, so these blocks come last.
 CLEAR &7E00, &8000
 CLEAR &3F00, &4000
 CLEAR &3000, &3090
-ORG &7E00
- EQUB 0
-.SH7_END
-ORG &3F00
- EQUB 0
-.SH3_END
-ORG &3000
- EQUB 0
-.SH0_END
-PRINT "Shadow: &7E00-", ~SH7_END-1, " free ", &8000-SH7_END, ", &3F00-", ~SH3_END-1, " free ", &4000-SH3_END, ", &3000-", ~SH0_END-1, " free ", &3090-SH0_END
+INCLUDE "src/gfx-flare.asm"
+PRINT "Shadow: lens flare &7E00-", ~SH7_END-1, " free ", &8000-SH7_END, ", &3F00-", ~SH3_END-1, " free ", &4000-SH3_END, ", &3000-", ~SH0_END-1, " free ", &3090-SH0_END
 SAVE "build/FLARE7.bin", &7E00, SH7_END, &7E00
 SAVE "build/FLARE3.bin", &3F00, SH3_END, &3F00
 SAVE "build/FLARE0.bin", &3000, SH0_END, &3000

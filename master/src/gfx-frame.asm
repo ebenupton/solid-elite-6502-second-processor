@@ -677,7 +677,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_ships            \ filled ships, far to near
  JSR f_dots             \ particles, distant ships
  JSR f_lasers           \ our laser beams and the sights
- JSR f_text2            \ text on top
+ JSR f_flt              \ the lens flare (gfx-flare6.asm), then the text on top
  JSR f_sight2           \ and the sights
  JSR f_stars            \ stardust, on black only (last: erasing it next
                         \ time restores black, so it needs no WL/WR)
