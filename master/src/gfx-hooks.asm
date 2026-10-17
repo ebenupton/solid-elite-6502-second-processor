@@ -117,20 +117,18 @@
  RTS
 
 \ H_STAR: PIXEL2 has star Y's screen position in X = x, A = y and is about to
-\ fall into PIXEL; in record mode it is recorded straight into the
+\ fall into PIXEL (it JMPs here); in record mode it is recorded straight into the
 \ rasteriser's arrays, by star index (R_SS: 2 = a dash, ZZ >= 80, 3 = a
 \ double-height dash, as PIXEL draws them; 0 = none), and PIXEL2 returns as
 \ PIXEL would: T1 = Y, C = (ZZ >= 80) (not N and Z from Y: every caller
-\ reaches a DEY or LDA first). Outside record mode A is restored and PIXEL
-\ draws it
+\ reaches a DEY or LDA first). Outside record mode A is restored and it
+\ jumps to PIXEL to draw it
 
-.H_STAR
+.H_STAR                 \ (entered by JMP from PIXEL2, so RTS returns from it)
  STA R_SY,Y
  LDA QQ11
  ORA GFORCE
  BNE hst9
- PLA
- PLA
  TXA
  STA R_SX,Y
  LDA #2
@@ -147,7 +145,7 @@
  SEC                    \ frame in record mode can remove it (f_unstar)
  JSR G_DSTAR
  LDA hA
- RTS
+ JMP PIXEL
 
 \ H_STAROFF: PIXEL2 found star Y off screen (entered by JMP, with C set and
 \ A = |Y1| compared with #Y): in record mode it is not on screen. Returns as

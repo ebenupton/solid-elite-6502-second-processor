@@ -2823,9 +2823,9 @@
                         \ Fall through into PIXEL to draw the stardust at the
                         \ screen coordinates in (X, A)
 
- JSR H_STAR             \ Port: in record mode, record star Y's position for the
+ JMP H_STAR             \ Port: in record mode, record star Y's position for the
                         \ renderer and return from PIXEL2 (gfx-hooks.asm),
-                        \ otherwise fall into PIXEL to draw it
+                        \ otherwise jump back to PIXEL to draw it
 
 \ ******************************************************************************
 \
