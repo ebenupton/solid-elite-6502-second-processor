@@ -240,10 +240,6 @@
  JSR far4
  EQUW EDGES
 
-.x4_FRS1
- JSR far4
- EQUW FRS1
-
 .x4_HLOIN
  JSR far4
  EQUW HLOIN
@@ -263,3 +259,12 @@
 .x4_msblob
  JSR far4
  EQUW msblob
+
+.x4_GINF
+ JSR far4
+ EQUW GINF
+
+.x4_ABORT
+ JSR far4
+ EQUW ABORT
+
