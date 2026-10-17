@@ -9884,7 +9884,9 @@ ENDMACRO
  DEC A                  \ Set T1 = |A| - 1
  STA T1
 
- LDA P                  \ Set Y = b = P AND 31
+ TXA                    \ Set Y = b = P AND 31 (X = P on entry: MULTS is only
+                        \ reached by falling through from MLS1's or MULTS-2's
+                        \ STX P)
  AND #31
  TAY
 
