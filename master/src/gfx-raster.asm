@@ -3089,14 +3089,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   CMP #&FF
   BEQ r_dpeg
   LDA R_NDN,X             \ (early out: counts differing by 2 or more, or
-  CLC                     \ the same count with the colour flipped)
-  ADC #1
-  SEC
-.^r_pt154 SBC r_bdn,X
-  CMP #3
-  BCS r_dpeg
-  CMP #1
-  BNE e9
+                          \ the same count with the colour flipped)
+.^r_pt154 SBC r_bdn,X     \ C = 0 (r_sl < &FF): A = new - old - 1
+  INC A                   \ A = new count - old count
+  BNE ne
   LDA R_NDP,X
 .^r_pt155 EOR r_bdp,X
   LSR A
@@ -3107,6 +3103,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LSR A                   \ are never read)
   BCS e9
   JMP r_dp2
+.ne
+  INC A                   \ A = difference + 1: 0 or 2 (counts differing by
+  CMP #3                  \ 1 either way) go on, the rest to r_dpgl
+  BCS r_dpeg
 .e9
 .^r_pt131 LDA r_sl,X
   STA r_ev+7              \ old left end
