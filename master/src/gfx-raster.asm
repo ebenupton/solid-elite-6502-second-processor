@@ -3693,28 +3693,16 @@ NEXT
   LDA RZ_T2
 .^r_pt53 STA r_sl,X
   LDA RZ_T1               \ old empty: the new span
+  BCC empd                \ (C clear: from emp, the new span empty)
   CMP RZ_T0
   BCC jonew
-  LDA RZ_T3               \ new empty: the old span black
-  CMP RZ_T2
-  BCC joold
+  LDA RZ_T3               \ (nR >= nL here: the new span is not empty)
                           \ apart (nR < oL or nL > oR): both (A = nR still)
   CMP RZ_T0
   BCC jboth
   LDA RZ_T1
   CMP RZ_T2
-  BCS ovl
-.jboth
-  JMP both
-.jonew
-  JMP onew0
-.joold
-  JMP oold
-.emp
-  LDA #&FF                \ empty new span: (255, 0)
-  STA RZ_T2
-  INC A                   \ (A = 0)
-  BRA c1b
+  BCC jboth
 .ovl
   LDA RZ_T2               \ overlapping: the left end (R_WL/R_WR noted here,
   CMP RZ_T0               \ the left end's strip before the right end's)
@@ -3734,6 +3722,19 @@ NEXT
   LDX RZ_T2
   JSR r_sw
   BRA right
+.jboth
+  JMP both
+.jonew
+  JMP onew0
+.empd                     \ new empty (A = oR): old empty too: onew0, else
+  CMP RZ_T0               \ the old span black
+  BCC jonew
+  JMP oold
+.emp
+  LDA #&FF                \ empty new span: (255, 0)
+  STA RZ_T2
+  INC A                   \ (A = 0, C clear: BCC emp)
+  BRA c1b
 .lshr
   DEC A                   \ shrunk: oL .. nL-1 black
   TAY
@@ -4354,7 +4355,6 @@ ENDMACRO
   LDA r_lm,X
   AND r_rm,X
   BRA msk
-  SKIP 2                  \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
