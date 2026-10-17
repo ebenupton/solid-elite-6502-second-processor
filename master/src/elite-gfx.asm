@@ -45,7 +45,8 @@ INCLUDE "src/gfx-gvars.asm"
 INCLUDE "src/gfx-tramp.asm"
 INCLUDE "src/gfx-hzhooks.asm"   \ (the other hooks are in main RAM, elite-hi.asm)
 INCLUDE "src/gfx-raster_hz.asm" \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
-INCLUDE "src/gfx-lighthz.asm"   \ the lighting ramps that bank 6 has no room for
+INCLUDE "src/gfx-lighthz.asm"   \ (empty: the lighting ramps are all in bank 6)
+INCLUDE "src/elite-hazel.asm"   \ game code in HAZEL
 .HZ_CODE_END
 
 \ raster_vars at a fixed place, whatever the size of the code above: the
