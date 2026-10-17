@@ -2127,6 +2127,9 @@
  STA V                  \ location QQ18
  LDA #HI(QQ18)
  STA V+1
+ STA TT51_C+2           \ Port: the scan below reads with LDA abs,Y, whose
+                        \ operand (low byte LO(QQ18), high byte patched here and
+                        \ incremented alongside V+1) always equals V(1 0)
 
  LDY #0                 \ Set a counter Y to point to the character offset
                         \ as we scan through the table
@@ -2142,8 +2145,9 @@
 
 .TT51_C
 
- LDA (V),Y              \ Fetch the Y-th character from the token table page
-                        \ we are currently scanning
+ LDA QQ18,Y             \ Fetch the Y-th character from the token table page
+                        \ we are currently scanning (the operand's high byte is
+                        \ self-modified to track V+1, so this is LDA (V),Y)
 
  BEQ TT49_C               \ If the character is null, we've reached the end of
                         \ this token, so jump to TT49
@@ -2152,19 +2156,15 @@
  BNE TT51_C               \ the next character in this token, assuming Y hasn't
                         \ yet wrapped around to 0
 
- INC V+1                \ If it has wrapped round to 0, we have just crossed
- BNE TT51_C               \ into a new page, so increment V+1 so that V points
-                        \ to the start of the new page
+ BEQ TT51w_C            \ Y has wrapped round to 0, so jump to TT51w to move to
+                        \ the next page (this BEQ is always taken)
 
 .TT49_C
 
  INY                    \ Increment the character pointer
 
- BNE TT59_C               \ If Y hasn't just wrapped around to 0, skip the next
-                        \ instruction
-
- INC V+1                \ We have just crossed into a new page, so increment
-                        \ V+1 so that V points to the start of the new page
+ BEQ TT49w_C            \ If Y has just wrapped around to 0, jump to TT49w to
+                        \ move to the next page
 
 .TT59_C
 
@@ -2173,6 +2173,23 @@
 
  BNE TT51_C               \ Assuming we haven't yet reached the token number in
                         \ X, look back up to keep fetching characters
+
+ BEQ TT50_C             \ Otherwise we have found the token, so jump to TT50
+                        \ to print it (this BEQ is always taken)
+
+.TT51w_C
+
+ INC V+1                \ We have just crossed into a new page, so increment
+ INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
+ BNE TT51_C             \ start of the new page, and keep scanning (this BNE
+                        \ is always taken)
+
+.TT49w_C
+
+ INC V+1                \ We have just crossed into a new page, so increment
+ INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
+ BNE TT59_C             \ start of the new page, and go on to count the token
+                        \ (this BNE is always taken)
 
 .TT50_C
 
