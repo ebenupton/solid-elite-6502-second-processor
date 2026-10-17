@@ -839,7 +839,8 @@ def colour_ship(t, s, seed=1, iters=40000):
     s['soft_adj'] = [(orb[a], orb[b]) for a, b in (tuple(p) for p in soft_adj)]
     # details: polygons in the colour (of the ship's two ramps or black) that
     # contrasts most with their face
-    cands = sorted(set(RAMPS[hA] + RAMPS[hB] + ([BLACK] if t in (2, 33) else [])))   # black: the docking slot
+    cands = sorted(set(RAMPS[hA] + RAMPS[hB] + ([BLACK] if t in (2, 33) else [])))   # black: the docking slot (the only
+    # polygon detail with colour byte &80, which gfx-frame_cold.asm's f_poly2 outlines)
     for d in s['dets']:
         f = d['faces'][0]
         if d['kind'] == 'poly':
@@ -900,11 +901,40 @@ def _equb(vals, per=16):
     return out
 
 
+def slot_vis(s):
+    """The unlit (black) polygon details, the stations' docking slots, which
+    gfx-frame_cold.asm's f_poly2 fills and outlines: drawn as long as Elite
+    draws any of their edges. The loop is rotated so that its first side is
+    the edge Elite draws furthest out (with both ends projected), and 'vis'
+    becomes that distance; 'fillvis' is the least visibility of its vertices
+    (all projected: fill and outline), and beyond it f_poly2 draws only the
+    side from vertex 0 to vertex 1. (The Dodo's slot: vertices 22 and 23 go
+    at XX4 > 23 and its edges 31 and 33 at XX4 > 20, but edge 30, 20-21,
+    stays to XX4 = 30.)"""
+    for d in s['dets']:
+        if d['kind'] != 'poly' or d.get('fam') or d['col'] != BLACK:
+            continue
+        loop = d['verts']
+        n = len(loop)
+        vv = [s['verts'][v]['vis'] for v in loop]
+        best, bk = -1, 0
+        for k in range(n):
+            a, b = loop[k], loop[(k + 1) % n]
+            ev = [e['vis'] for e in s['edges'] if {e['v1'], e['v2']} == {a, b}]
+            sc = min(ev + [vv[k], vv[(k + 1) % n]])
+            if sc > best:
+                best, bk = sc, k
+        d['verts'] = loop[bk:] + loop[:bk]
+        d['fillvis'] = min(vv)
+        d['vis'] = max(best, d['fillvis'])
+
+
 def prepare(ships):
     for t, s in ships:
         reconstruct(s)
         structure(s)
         colour_ship(t, s)
+        slot_vis(s)
     return ships
 
 
@@ -944,6 +974,9 @@ def emit(ships, path):
           '\\   between face1 and face2): k = number of face1, face2 visible; draw',
           '\\   k = 0 before the faces (behind the body), k = 1 after the details,',
           '\\   then k = 2 (the fin nearest the viewer) last.',
+          '\\   An unlit polygon detail (the docking slots: black) has 4 * its fill',
+          '\\   visibility added to its colour byte: if XX4 > that, some vertices',
+          '\\   are unprojected, and f_poly2 draws only its side from vertex 0 to 1.',
           '\\ FC_MINVIS[type]: if XX4 > it, a polygon vertex may not have been',
           '\\   projected (vertex visibility distance < XX4): do not fill that ship.',
           '\\ FC_DOTE/FC_DOTO[type]: colour of the ship drawn as a distant dot.',
@@ -980,6 +1013,8 @@ def emit(ships, path):
             nonlocal nbytes
             if d.get('kind') == 'line' or not d.get('fam'):
                 c = LR.fixed_byte(d['col'])
+                if 'fillvis' in d:
+                    c |= d['fillvis'] << 2      # (f_col reads bits 0-1 only)
             else:
                 c = LR.hue_byte(d['fam'])
             f1, f2 = d['faces']

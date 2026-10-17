@@ -25,6 +25,9 @@
 \   between face1 and face2): k = number of face1, face2 visible; draw
 \   k = 0 before the faces (behind the body), k = 1 after the details,
 \   then k = 2 (the fin nearest the viewer) last.
+\   An unlit polygon detail (the docking slots: black) has 4 * its fill
+\   visibility added to its colour byte: if XX4 > that, some vertices
+\   are unprojected, and f_poly2 draws only its side from vertex 0 to 1.
 \ FC_MINVIS[type]: if XX4 > it, a polygon vertex may not have been
 \   projected (vertex visibility distance < XX4): do not fill that ship.
 \ FC_DOTE/FC_DOTO[type]: colour of the ship drawn as a distant dot.
@@ -143,7 +146,7 @@ FC_PLANE = &05 : FC_PLANO = &5A
 .FC_S2_D
  EQUB 0                       \ fins
  EQUB 1                       \ details
- EQUB 30, &00, &80, 4, 60, 56, 52, 48    \ poly [15, 14, 13, 12], unlit 34
+ EQUB 30, &00, &F8, 4, 60, 56, 52, 48    \ poly [15, 14, 13, 12], unlit 34
 
 \ Escape pod (type 3): hues grey + red
 .FC_S3_F
@@ -704,7 +707,7 @@ FC_PLANE = &05 : FC_PLANO = &5A
 .FC_S33_D
  EQUB 0                       \ fins
  EQUB 1                       \ details
- EQUB 20, &00, &80, 4, 88, 92, 84, 80    \ poly [22, 23, 21, 20], unlit 34
+ EQUB 30, &00, &DC, 4, 84, 80, 88, 92    \ poly [21, 20, 22, 23], unlit 34
 
 .FC_MINVIS                     \ by type: least visibility distance of any polygon vertex;
                               \ if XX4 > this, some polygon vertex may be unprojected (stale)

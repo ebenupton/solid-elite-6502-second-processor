@@ -1832,7 +1832,7 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  JSR f_winding
  BCC fit8
 .fit2
- JSR T_POLY
+ JSR f_poly2            \ (T_POLY, and the docking slot's outline)
  JMP fit8
 .fit3
  LDA R_PXL              \ a line

@@ -51,6 +51,74 @@
  STZ f_dtext
  RTS
 
+\ f_poly2: f_item's polygon detail (T_POLY), and a station's docking slot
+\ (the only unlit polygon detail: black, colour byte &80 + 4 * its fill
+\ visibility, gfx-faces.asm) filled and outlined in yellow over that. A fill
+\ only a pixel or two across can come out empty, so the slot vanished long
+\ before Elite stopped drawing its edges; lines always show, so the slot is
+\ seen as early as in the original (its item's visibility is the furthest
+\ Elite draws any of its edges: beyond its fill visibility, where some of its
+\ vertices are not projected, just its side from vertex 0 to 1, as Elite),
+\ and stands out from the dithered face. f_itemv has left the vertices in
+\ R_PXL/R_PXH/R_PYL/R_PYH, which T_POLY and T_LINE do not change, and n in
+\ fz_n.
+
+.f_poly2
+ LDY #2
+ LDA (fz_q),Y           \ the colour byte: a hue ramp (bit 7 clear), or the
+ BPL fpo8               \ slot's
+ LSR A
+ LSR A
+ AND #31                \ its fill visibility
+ CMP f_x4
+ LDA #1                 \ (beyond it, A = 1: the edge from vertex 0 to 1 only)
+ BCC fpo2
+ JSR T_POLY
+ LDA fz_n
+.fpo2
+ PHA
+ LDA #1                 \ yellow (F_CPE/F_CPO entry 1)
+ JSR f_setcol
+ PLA
+.fpo1                   \ A = i + 1 (i = n-1 down to 0): the edge from vertex i
+ STA fz_u               \ to vertex (i + 1) MOD n
+ DEC A
+ LDX #3
+ JSR fpo_ld             \ R_X0, R_Y0 = vertex i
+ LDA fz_u
+ CMP fz_n
+ BCC P%+4
+ LDA #0
+ LDX #7
+ JSR fpo_ld             \ R_X1, R_Y1 = vertex (i + 1) MOD n
+ JSR T_LINE
+ DEC fz_u
+ LDA fz_u
+ BNE fpo1
+ RTS
+.fpo8
+ JMP T_POLY
+
+\ fpo_ld: A = vertex number, X = 3 (to R_X0, R_Y0) or 7 (to R_X1, R_Y1): the
+\ vertex's R_PYH, R_PYL, R_PXH, R_PXL (16 bytes apart) to R_X0 + X, X-1,
+\ X-2, X-3
+
+.fpo_ld
+ ORA #48
+ TAY
+ SEC
+.fpol1
+ LDA R_PXL,Y
+ STA R_X0,X
+ TYA
+ SBC #16
+ TAY
+ DEX
+ BCS fpol1
+ RTS
+ ASSERT R_PXH = R_PXL + 16 AND R_PYL = R_PXL + 32 AND R_PYH = R_PXL + 48
+ ASSERT R_Y0 = R_X0 + 2 AND R_X1 = R_X0 + 4 AND R_Y1 = R_X0 + 6
+
 \ f_enter2: the first record-mode frame since F_DIRECT. Main RAM is visible
 \ (X = 0): remove the directly drawn stars before f_enter copies the border
 \ to shadow RAM, then give buffer 0's shown map (which f_enter clears) the
