@@ -289,6 +289,27 @@ R_ENDPAGE 9
 .r_cidx EQUB 0, 0
 .r_ccnt EQUB 0, 0
 .r_cend EQUB 0, 0
+.r_smx                    \ r_dmb, an unchanged dirty row (X; A = dL + 1): a
+  DEC A                   \ dirty extent clear of the span only needs blacking
+  CMP R_NDISCR,X          \ (r_dp1, as r_drg would)
+  BEQ sms
+  BCS smf                 \ dL > sR
+  LDA r_pt409+2           \ dR (this buffer's R_DIRTYR: R_DIRTYL's page + 1)
+  INC A
+  STA smo+2
+.smo
+  LDA R_DIRTYR0,X
+  CMP R_NDISCL,X
+  BCC smf                 \ dR < sL
+.sms
+  INC r_dsub
+  JMP r_dmgd
+.smf
+  TXA
+  TAY
+  JMP r_gd1
+ASSERT HI(R_DIRTYR0) = HI(R_DIRTYL0) + 1 AND HI(R_DIRTYR1) = HI(R_DIRTYL1) + 1
+ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
 R_ENDPAGE 10
 .r_run11 R_RUN 11
 .r_ov SKIP 59           \ variables of routines never active together
@@ -2675,8 +2696,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .e2
   RTS
 .smd
-  INC r_dsub
-  BRA gd
+  JMP r_smx               \ (r_smx: in page &8E's spare bytes)
+  EQUB 0, 0
 .ch                       \ (here, in the loop's page: the BNE ch's and
 .^r_pt409 LDA r_dl,X      \ BRA nx below take no page-crossing cycle)
   INC A
@@ -2715,12 +2736,14 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDX RZ_Y
   BRA nx
 .gd
+.^r_dmgd
   TXA
   TAY
   LDA R_NDISCL,Y
 .^r_pt97 AND r_sl,Y
   INC A
   BNE gg
+.^r_gd1
   STZ r_dsub
   JSR r_dp1               \ no disc, old or new: black the dirty extent
   LDX RZ_Y
