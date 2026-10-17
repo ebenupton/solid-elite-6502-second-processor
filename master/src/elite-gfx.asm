@@ -140,6 +140,7 @@ ALIGN &100              \ (page-aligned so code size changes never add
 .F_DL   SKIP 1536       \ ship records: XX2 then XX3 copies
 .F_DLEND
 INCLUDE "src/gfx-frame_cold.asm"   \ (after the data, so that nothing else moves)
+INCLUDE "src/elite-cold6b.asm"     \ Elite's cold code in bank 6, part 2
 .B6_END
 PRINT "Bank 6: frame layer &8000-", ~B6_END-1, " free ", &C000-B6_END
 ASSERT B6_END <= &C000

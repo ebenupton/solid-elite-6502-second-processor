@@ -212,3 +212,19 @@
  JSR far6
  EQUW BOMBON_C
 
+.OOPS
+ JSR far6
+ EQUW OOPS_C
+
+.FLIP
+ JSR far6
+ EQUW FLIP_C
+
+.MAS1
+ JSR far6
+ EQUW MAS1_C
+
+.MAS3
+ JSR far6
+ EQUW MAS3_C
+
