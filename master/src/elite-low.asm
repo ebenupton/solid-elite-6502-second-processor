@@ -683,10 +683,12 @@ ENDIF
  CMP Q                  \ If A >= Q then jump to TI4 to return a 1 with the
  BCS TI4                \ correct sign
 
- LDX #%11111110         \ Set T to have bits 1-7 set, so we can rotate through 7
- STX T                  \ loop iterations, getting a 1 each time, and then
-                        \ getting a 0 on the 8th iteration... and we can also
-                        \ use T to catch our result bits into bit 0 each time
+ LDX #%11111000         \ Port: set T to have bits 3-7 set, so we rotate
+ STX T                  \ through only 6 loop iterations (getting a 0 on the
+                        \ 6th): the original 8-bit quotient was divided by 4
+                        \ afterwards, so its two low bits were never used, and
+                        \ T catches the top 6 quotient bits (X ends &F8, but
+                        \ no caller reads it)
 
 .TIL2
 
@@ -707,20 +709,16 @@ ENDIF
                         \ do the subtraction, or 1 if we did)
 
  BCS TIL2               \ If we still have set bits in T, loop back to TIL2 to
-                        \ do the next iteration of 7
+                        \ do the next iteration of 6
 
-                        \ We've done the division and now have a result in the
-                        \ range 0-255 here, which we need to reduce to the range
-                        \ 0-96. We can do that by multiplying the result by 3/8,
-                        \ as 256 * 3/8 = 96
+                        \ T now holds the 8-bit quotient / 4 (0-63), which we
+                        \ need to reduce to the range 0-96. We can do that by
+                        \ multiplying the full quotient by 3/8, as 256 * 3/8 =
+                        \ 96
 
- LDA T                  \ Set T = T / 4
- LSR A
- LSR A
- STA T
-
- LSR A                  \ Set T = T / 8 + T / 4
- ADC T                  \       = 3T / 8
+ LDA T                  \ Set T = T + T / 2 (+ the bit shifted out)
+ LSR A                  \       = 3/8 of the full 8-bit quotient, as before
+ ADC T
  STA T
 
  TYA                    \ Fetch the sign bit of the original argument A
