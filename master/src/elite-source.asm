@@ -6713,9 +6713,11 @@ ENDIF
  TXA                    \ Set K6(3 2) = (T X) + K4(1 0)
  ADC K4                 \             = y-coord of centre + y-coord of new point
  STA K6+2               \
+ STA XX12               \ Port: also set XX12 = y_lo of new point for LL145
  LDA K4+1               \ so K6(3 2) now contains the y-coordinate of the new
  ADC T                  \ point on the circle but as a screen coordinate, to go
  STA K6+3               \ along with the screen x-coordinate in K6(1 0)
+ STA XX12+1             \ Port: also set XX12+1 = y_hi (H_BPT keeps XX12)
 
  JSR H_BPT              \ Port: in record mode, record the point K6 for the
                         \ renderer (gfx-hooks.asm; X, Y and C preserved)
@@ -6776,11 +6778,7 @@ ENDIF
  LDA K6+1               \ Set XX15+5 = x_hi of new point
  STA XX15+5
 
- LDA K6+2               \ Set XX12 = y_lo of new point
- STA XX12
-
- LDA K6+3               \ Set XX12+1 = y_hi of new point
- STA XX12+1
+                        \ XX12(1 0) = K6(3 2) = y of new point was set above
 
  JSR LL145              \ Call LL145 to see if the new line segment needs to be
                         \ clipped to fit on-screen, returning the clipped line's
