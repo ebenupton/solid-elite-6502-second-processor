@@ -11000,6 +11000,13 @@ ENDMACRO
 
 .DVID4
 
+ STZ P                  \ Port: if A < Q then the quotient is 0 and the
+ CMP Q                  \ remainder is A (no subtraction can happen and the
+ BCC DVID4z             \ remainder never overflows), so set P = 0 and jump
+                        \ straight to the remainder conversion with A
+                        \ unchanged and C clear, exactly as the unrolled
+                        \ division below would leave them
+
 \LDX #8                 \ This instruction is commented out in the original
                         \ source
 
@@ -11069,6 +11076,8 @@ ENDMACRO
  BCC P%+4
  SBC Q
  ROL P
+
+.DVID4z
 
  TAX                    \ This contains the code from the LL28+4 routine, so
  BEQ LLfix22            \ this section is exactly equivalent to a JMP LL28+4
