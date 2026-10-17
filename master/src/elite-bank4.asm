@@ -7415,8 +7415,20 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
  LDA #4                 \ If we get here then either (U T) < 4 or the
  STA T                  \ subtraction underflowed, so set (U T) = 4
- STZ U
- BRA LL57
+ STZ U                  \ and fall through into LL57
+
+.LL57
+
+                        \ By this point we have our results, so now to scale
+                        \ the 16-bit results down into 8-bit values
+
+ LDA U                  \ If the high bytes of the result are all zero, we are
+
+.LL57A
+
+ ORA XX15+1             \ done, so jump to LL60 for the next stage
+ ORA XX15+4
+ BEQ LL60
 
 .LL57S
 
@@ -7429,18 +7441,10 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LSR U                  \ Shift (U T) to the right
  ROR T
 
-.LL57
-
-                        \ By this point we have our results, so now to scale
-                        \ the 16-bit results down into 8-bit values
-
- LDA U                  \ If the high bytes of the result are all zero, we are
-
-.LL57A
-
- ORA XX15+1             \ done, so fall through into LL60 for the next stage,
- ORA XX15+4             \ otherwise loop back to shift again
- BNE LL57S
+ LSR A                  \ Port: A = U OR XX15+1 OR XX15+4 of the shifted values
+ BNE LL57S              \ (shifting each right shifts their OR right), so loop
+                        \ until the high bytes are all zero, then fall through
+                        \ into LL60
 
 \ ******************************************************************************
 \
