@@ -3254,12 +3254,11 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BEQ eq
   BCC lt
   LDX RZ_T0               \ moved right: old .. new-1 take the colour left
-  CPX RZ_T6               \ of the edge
+  CPX RZ_T6               \ of the edge (X = the strip's left end)
   BCC gen
   STA RZ_T6
   DEC A
   STA RZ_TA+1
-  STX RZ_SB
   DEY                     \ (colour index edge-1; the left end: black)
   BRA col
 .eq
@@ -3272,11 +3271,11 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 .lt
   CMP RZ_T6               \ moved left: new .. old-1 take the colour right
   BCC gen                 \ of the edge (the right end: black)
-  STA RZ_SB
-  LDX RZ_T0
-  STX RZ_T6
-  DEX
-  STX RZ_TA+1
+  TAX                     \ X = the strip's left end
+  LDA RZ_T0
+  STA RZ_T6
+  DEC A
+  STA RZ_TA+1
   CPY r_ns
   BNE col
 .blk
@@ -3291,8 +3290,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   BCC c2
   LDA r_cB
 .c2
-  LDX RZ_SB               \ (r_sw sets RZ_COL from A)
-  LDY RZ_TA+1
+  LDY RZ_TA+1             \ (X kept from above; r_sw sets RZ_COL from A)
   CPX r_wmin
   BCS c3
   STX r_wmin
@@ -3304,10 +3302,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   JSR r_sw
 .nx
   LDY r_cl
+  CPY r_ns                \ (r_cl <= r_ns <= 7: no wrap at INY)
   INY
-  CPY r_ns
   BCC st
-  BEQ st
   LDX RZ_Y                \ remember the new row
   LDA r_ev
 .^r_pt144 STA r_sl,X
