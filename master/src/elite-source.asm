@@ -8729,6 +8729,20 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: HANGFLAG
+\       Type: Variable
+\   Category: Ship hangar
+\    Summary: The number of ships being displayed in the ship hangar
+\             (Port: in main RAM, read by HANGER in the cold area)
+\
+\ ******************************************************************************
+
+.HANGFLAG
+
+ EQUB 0
+
+\ ******************************************************************************
+\
 \       Name: HALL
 \       Type: Subroutine
 \   Category: Ship hangar
@@ -9045,9 +9059,9 @@ HANGHEAP = &C000
 
 \ Port: STARS2 moved to HAZEL (elite-hazel.asm); the padding keeps the code
 \ that follows on the same page offsets as before (the two moves take out
-\ 512 bytes net)
+\ 512 bytes net, with HANGFLAG's byte above)
 
- EQUB 0, 0, 0
+ EQUB 0, 0
 
 \ ******************************************************************************
 \
