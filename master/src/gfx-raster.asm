@@ -3769,6 +3769,7 @@ NEXT
 .rshr
   INC A                   \ shrunk: nR+1 .. oR black
   TAX
+.rshr2                    \ (entered here from .requal with X = nR+1)
   LDA RZ_T1
   TAY
   ORA #3
@@ -3780,15 +3781,19 @@ NEXT
   LDA RZ_T3
   CMP RZ_T1
   BEQ none                \ same span: nothing written (X = RZ_Y)
-  BCC rq1                 \ r_wmin = (MIN(oR, nR) + 1) AND &FC
-  LDA RZ_T1
-.rq1
+  BCC rqs
+  LDA RZ_T1               \ grown: r_wmin = (oR + 1) AND &FC
   INC A
   AND #&FC
   STA r_wmin
-  LDA RZ_T3               \ (C kept: set = grown, clear = shrunk)
-  BCS rgr
-  BRA rshr
+  LDA RZ_T3
+  BRA rgr
+.rqs                      \ shrunk: r_wmin = (nR + 1) AND &FC, X = nR + 1
+  INC A
+  TAX
+  AND #&FC
+  STA r_wmin
+  BRA rshr2
 .onew0                    \ old span empty: nothing noted yet
   LDA #&FF
   STA r_wmin
