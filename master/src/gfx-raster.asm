@@ -871,13 +871,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ ============================================================================
 .r_spc
 {
-  TXA
+  TXA                     \ N = xl >= &80 (from TXA)
+  BMI lb
   EOR R_XR
   CMP #4
   BCC one                 \ both ends in one byte
   LDY r_xo,X
-  CPX #&80
-  BCS lb
   LDA (RZ_PA),Y           \ left edge, columns 0..31
   EOR RZ_COL
   AND r_lm,X
@@ -914,7 +913,11 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA #r_opSTA
   STA (RZ_PP)
   RTS
-.lb
+.lb                       \ xl >= &80 (A = xl)
+  EOR R_XR
+  CMP #4
+  BCC one                 \ both ends in one byte
+  LDY r_xo,X
   LDA (RZ_PB),Y           \ left edge, columns 32..63
   EOR RZ_COL
   AND r_lm,X
