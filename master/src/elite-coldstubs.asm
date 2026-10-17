@@ -260,6 +260,6 @@
  JSR far4
  EQUW SOFLUSH
 
-.x4_MSBAR
+.x4_msblob
  JSR far4
- EQUW MSBAR
+ EQUW msblob

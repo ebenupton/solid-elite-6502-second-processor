@@ -25,7 +25,7 @@ import re, sys
 SRC = "src/"
 FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-low.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "elite-hazel.asm": "main",
          "elite-bank4.asm": "bank4", "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold",
-         "elite-cold7.asm": "cold", "elite-cold6.asm": "cold6", "elite-cold6b.asm": "cold6"}
+         "elite-cold7.asm": "cold", "elite-cold6.asm": "cold6", "elite-cold6b.asm": "cold6", "elite-cold5.asm": "cold5"}
 MNEM = set(("ADC AND ASL BCC BCS BEQ BIT BMI BNE BPL BRA BRK BVC BVS CLC CLD CLI CLV CMP CPX CPY "
             "DEC DEX DEY EOR INC INX INY JMP JSR LDA LDX LDY LSR NOP ORA PHA PHP PHX PHY PLA PLP PLX "
             "PLY ROL ROR RTI RTS SBC SEC SED SEI STA STX STY STZ TAX TAY TRB TSB TSX TXA TXS TYA").split())
@@ -96,12 +96,12 @@ for f, a in FILES.items():
         if ok:
             prev, prevop = mn, op.strip()
             continue
-        if mn is None and re.match(r"^EQUW\b", op.strip(), re.I) and prev in ("JSR",) and prevop in ("far4", "far4j", "far6", "far7", "far7j"):
+        if mn is None and re.match(r"^EQUW\b", op.strip(), re.I) and prev in ("JSR",) and prevop in ("far4", "far4j", "far5", "far6", "far7", "far7j"):
             prev, prevop = None, None
             continue                       # the EQUW of a far-call stub
         for x in idents(op):
             b = area.get(x)
-            if b is None or b == a or x in ("far4", "far4j", "far6", "far7", "far7j"):
+            if b is None or b == a or x in ("far4", "far4j", "far5", "far6", "far7", "far7j"):
                 continue                   # (the far-call code is callable from anywhere)
             where = "%s:%d" % (f, n)
             if b == "shadow":
@@ -110,13 +110,13 @@ for f, a in FILES.items():
                 continue
             if mn in BRANCH:
                 errors.append("%s: branch from %s to %s %s" % (where, a, b, x))
-            elif a in ("cold", "cold6"):
-                if b == "bank4" or b in ("cold", "cold6"):
+            elif a in ("cold", "cold6", "cold5"):
+                if b == "bank4" or b in ("cold", "cold6", "cold5"):
                     errors.append("%s: %s code refers to %s label %s" % (where, a, b, x))
                 elif mn in ("JSR", "JMP"):
                     errors.append("%s: %s code calls %s in %s directly (use a stub)" % (where, a, x, b))
             else:
-                if b in ("cold", "cold6"):
+                if b in ("cold", "cold6", "cold5"):
                     errors.append("%s: %s refers to cold label %s (use a stub)" % (where, a, x))
         prev = mn
         prevop = op.strip()

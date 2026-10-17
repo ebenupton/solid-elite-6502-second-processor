@@ -727,3 +727,32 @@
  BNE STC2               \ Jump up to STC2 to draw this new particle (this BNE is
                         \ effectively a JMP as A will never be zero)
 
+\ ******************************************************************************
+\
+\ Port: far5 (far7 with ROMSEL 5, elite-far.asm) and the stubs into the cold
+\ code in bank 5 (elite-cold5.asm)
+\
+\ ******************************************************************************
+
+.far5
+ PHP
+ STA fA
+ LDA #5
+ JMP farc
+
+.SFRMIS
+ JSR far5
+ EQUW SFRMIS_C
+
+.ECMOF
+ JSR far5
+ EQUW ECMOF_C
+
+.THERE
+ JSR far5
+ EQUW THERE_C
+
+.msblob
+ JSR far5
+ EQUW msblob_C
+

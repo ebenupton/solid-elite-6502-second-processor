@@ -2818,7 +2818,7 @@ ENDIF
 \
 \ ******************************************************************************
 
- JSR msblob_C              \ Reset the dashboard's missile indicators so none of
+ JSR x4_msblob              \ Reset the dashboard's missile indicators so none of
                         \ them are targeted
 
  LDA #7                 \ Call TITLE to show a rotating Cougar (#COU) and token
@@ -6040,7 +6040,7 @@ ENDIF
 
 .SOS1_C
 
- JSR msblob_C              \ Reset the dashboard's missile indicators so none of
+ JSR x4_msblob              \ Reset the dashboard's missile indicators so none of
                         \ them are targeted
 
  LDA #127               \ Set the pitch and roll counters to 127, so that's a
@@ -7181,52 +7181,6 @@ ENDIF
 
  BNE DVL4K              \ Loop back for the next bit until we have done all 8
                         \ bits of P
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: msblob
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Display the dashboard's missile indicators in green
-\
-\ ------------------------------------------------------------------------------
-\
-\ Display the dashboard's missile indicators, with all the missiles reset to
-\ green (i.e. not armed or locked).
-\
-\ ******************************************************************************
-
-.msblob_C
-
- LDX #4                 \ Set up a loop counter in X to count through all four
-                        \ missile indicators
-
-.ss
-
- CPX NOMSL              \ If the counter is equal to the number of missiles,
- BEQ SAL8               \ jump down to SAL8 to draw the remaining missiles, as
-                        \ the rest of them are present and should be drawn in
-                        \ green
-
- LDY #0                 \ Draw the missile indicator at position X in black
- JSR x4_MSBAR
-
- DEX                    \ Decrement the counter to point to the next missile
-
- BNE ss                 \ Loop back to ss if we still have missiles to draw
-
- RTS                    \ Return from the subroutine
-
-.SAL8
-
- LDY #GREEN2            \ Draw the missile indicator at position X in green
- JSR x4_MSBAR
-
- DEX                    \ Decrement the counter to point to the next missile
-
- BNE SAL8               \ Loop back to SAL8 if we still have missiles to draw
 
  RTS                    \ Return from the subroutine
 

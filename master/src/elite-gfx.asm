@@ -116,6 +116,7 @@ SAVE "build/HAZEL.bin", HZ_START, HZ_CODE_END, HZ_START
 CLEAR &8000, &C000
 ORG &8000
 INCLUDE "src/gfx-raster.asm"
+INCLUDE "src/elite-cold5.asm"     \ Elite's cold code in bank 5
 .B5_END
 PRINT "Bank 5: rasteriser &8000-", ~B5_END-1, " free ", &C000-B5_END
 ASSERT B5_END <= &C000
