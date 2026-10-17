@@ -5422,18 +5422,29 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
                         \ remainder in A during the loop, so both can be
                         \ shifted in place, and Y is the loop counter
 
- LDA R                  \ Set (T S) = (R Q)
+ LDA R                  \ Set T = R, the dividend high byte
  STA T
- LDA Q
- STA S
+ LDA Q                  \ Push Q, the dividend low byte, which is fed into T
+ PHA                    \ after the first four loops (when the original's
+                        \ 8 shifts of (T S) would have moved S into T)
 
                         \ So now to calculate Q = SQRT(T S)
 
  STZ Q                  \ Set Q = 0, to hold the result
 
+ STZ S                  \ Leave S = 0 on exit, as the original's 16 shifts do
+
  LDA #0                 \ Set A = 0, to hold the remainder
 
- LDY #8                 \ Set Y = 8, to use as a loop counter
+ JSR LL5h               \ Do the first four loops, shifting zeroes into T
+
+ PLX                    \ T is now 0, so set T to the dividend low byte, as
+ STX T                  \ the original has it at this point, and fall through
+                        \ to do the last four loops
+
+.LL5h
+
+ LDY #4                 \ Set Y = 4, to use as a loop counter
 
 .LL6
 
@@ -5458,17 +5469,15 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  ROL Q                  \ Shift the result in Q to the left, shifting the C flag
                         \ into bit 0 and bit 7 into the C flag
 
- ASL S                  \ Shift (A T S) to the left
- ROL T
+ ASL T                  \ Shift (A T) to the left
  ROL A
 
- ASL S                  \ Shift (A T S) to the left
- ROL T
+ ASL T                  \ Shift (A T) to the left
  ROL A
 
  DEY                    \ Decrement the loop counter
 
- BNE LL6                \ Loop back to LL6 until we have done 8 loops
+ BNE LL6                \ Loop back to LL6 until we have done 4 loops
 
  TAX                    \ Return with X = A = remainder; the 16 shifts leave
  LDY #0                 \ T = 0, and Y = 0 with Z set and N clear, exactly as
