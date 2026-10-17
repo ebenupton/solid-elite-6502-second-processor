@@ -7081,9 +7081,9 @@ ENDIF
                         \
                         \   (S R) = YY(1 0) = (A P) + y
 
- STA S                  \ First we do the low bytes with:
+ TAX                    \ First we do the low bytes with:
  LDA P                  \
- ADC SYL,Y              \   S = A (temporarily)
+ ADC SYL,Y              \   X = A (temporarily; MLU2 below resets X)
  STA R                  \   R = P + y_lo
                         \
                         \ so we get this:
@@ -7094,9 +7094,9 @@ ENDIF
                         \ by STA YY+1 / STX YY after the ADD below before it
                         \ is ever read)
 
- LDA Y1                 \ And then we do the high bytes with:
- ADC S                  \
- STA S                  \   S = y_hi + S
+ TXA                    \ And then we do the high bytes with:
+ ADC Y1                 \
+ STA S                  \   S = y_hi + X
                         \ so we get our result:
                         \
                         \   (S R) = YY(1 0) = (A P) + (y_hi y_lo)
