@@ -14366,7 +14366,9 @@ ENDIF
  STA R                  \ so (XX16+5 R) = |v_x| * sin(CNT2)
 
  LDA K2+3               \ Set K = K2+3 * Q / 256
- JSR FMLTU              \       = |v_y| * |sin(CNT2)|
+ JSR FMLTU+2            \       = |v_y| * |sin(CNT2)|
+                        \ (skip FMLTU's STX P: the previous FMLTU call already
+                        \ left P = X, and X is unchanged since)
  STA K                  \ so (XX16+5 K) = |v_y| * sin(CNT2)
 
  TXA                    \ FMLTU preserves X = CNT2 mod 32, so set
