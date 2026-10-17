@@ -14478,6 +14478,13 @@ ENDIF
  ROR A                  \ XX16+5 has the correct sign for sin(CNT2)
  STA XX16+5             \ (this also clears the C flag)
 
+ EOR XX16+2             \ Set S = the sign of XX16+2 * XX16+5
+ STA S                  \       = the sign of v_x * XX16+5
+                        \ (A still holds XX16+5; the FMLTU calls below do not
+                        \ touch S or XX16+2), so once R is set below:
+                        \
+                        \   (S R) = v_x * sin(CNT2)
+
  LDA SNE,X              \ Set Q = sin(X)
  STA Q                  \       = |sin(CNT2)|
 
@@ -14509,22 +14516,7 @@ ENDIF
  JSR FMLTU+2            \       = |u_x| * |cos(CNT2)|
                         \ (skip FMLTU's STX P: the previous FMLTU call already
                         \ left P = X, and X is unchanged since)
- STA P
-
- LDA XX16+5             \ Set S = the sign of XX16+2 * XX16+5
- EOR XX16+2             \       = the sign of v_x * XX16+5
- STA S                  \
-                        \ So because we set this above:
-                        \
-                        \   (XX16+5 R) = |v_x| * sin(CNT2)
-                        \
-                        \ we now have this:
-                        \
-                        \   (S R) = v_x * sin(CNT2)
-                        \
-                        \ (LDA/EOR/STA leave C alone, so the C flag from
-                        \ FMLTU still reaches the ADC #15 below)
-                        \
+ STA P                  \
                         \ The call to FMLTU also sets the C flag, so in the
                         \ following, ADC #15 adds 16 rather than 15
 
