@@ -4978,7 +4978,9 @@ ENDMACRO
   AND #&FC
   ADC #3                  \ (C = 1 from the CMP)
   CMP RZ_T7
-  BNE long
+  BEQ adj
+  JMP long                \ (r_ypg sits between here and .long)
+.adj
   LDY r_xo,X              \ first byte: from X on
   CPX #&80
   BCS h2
@@ -5012,6 +5014,10 @@ ENDMACRO
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
+.^r_ypg                   \ high byte of row y's byte 0 (here so that it
+FOR y, 0, 191             \ lies in one page: LDA r_ypg,X/Y never cross)
+  EQUB &40 + 2 * (y DIV 8)
+NEXT
 .long
   STX R_XL                \ up to 12 bytes: masked ends, whole bytes stored
   TYA                     \ through a byte pointer
@@ -5085,11 +5091,7 @@ ENDMACRO
   JMP r_spc
 }
 
+ASSERT HI(r_ypg) = HI(r_ypg + 191)
 
-
-.r_ypg                    \ high byte of row y's byte 0
-FOR y, 0, 191
-  EQUB &40 + 2 * (y DIV 8)
-NEXT
 .r_end
 PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end
