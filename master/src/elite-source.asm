@@ -8177,26 +8177,21 @@ ENDIF
  LDA INWK,X             \ Set P = roofv_x_lo
  STA P
 
- LDA INWK+1,X           \ Fetch the sign of roofv_x_hi (bit 7) and store in T
- AND #%10000000
- STA T
+ LDA INWK+1,X           \ Fetch roofv_x_hi (sign bit included)
 
- LDA INWK+1,X           \ Fetch roofv_x_hi into A and clear the sign bit, so
- AND #%01111111         \ A = |roofv_x_hi|
-
- LSR A                  \ Set (A P) = (A P) / 16
- ROR P                  \           = |roofv_x_hi roofv_x_lo| / 16
- LSR A                  \           = |roofv_x| / 16
+ LSR A                  \ Set (A P) = (A P) / 16, so P is as for
+ ROR P                  \ |roofv_x| / 16 and A = %0000smmm, where s is the
+ LSR A                  \ sign of roofv_x and mmm = |roofv_x_hi| / 16
  ROR P
  LSR A
  ROR P
  LSR A
  ROR P
 
- ORA T                  \ Set the sign of A to the opposite sign to T (i.e. the
- EOR #%10000000         \ sign of the original -roofv_x), so now:
-                        \
-                        \ (A P) = -roofv_x / 16
+ CLC                    \ Port: move the sign from bit 3 to bit 7 and flip it:
+ ADC #&F8               \ s=0: &F8+mmm, AND &87 = &80+mmm
+ AND #%10000111         \ s=1: &100+mmm wraps to mmm, AND &87 = mmm
+                        \ so now (A P) = -roofv_x / 16
 
  EOR RAT2               \ Give it the sign as if we multiplied by the direction
                         \ by the pitch or roll direction
