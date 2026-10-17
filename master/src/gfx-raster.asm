@@ -3763,8 +3763,8 @@ NEXT
   TAY
   ORA #3
   STA r_wmax
-  LDA #0
-  JSR r_sw
+  STZ RZ_COL
+  JSR r_sw+2              \ past r_sw's STA RZ_COL (black)
   BRA fin
 .requal                   \ left ends equal: r_wmin from the right end's strip
   LDA RZ_T3
