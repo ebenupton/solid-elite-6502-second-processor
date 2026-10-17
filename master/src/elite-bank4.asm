@@ -7252,7 +7252,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  ADC #0                 \ we know the sign byte of vertv_y is 0)
  STA U
 
- JMP LL57               \ We've added the z-coordinates, so jump to LL57
+ BRA LL57A              \ We've added the z-coordinates, so jump to LL57A
+                        \ (A = U already)
 
                         \ The adding process is continued in part 7, after a
                         \ couple of subroutines that we don't need quite yet
