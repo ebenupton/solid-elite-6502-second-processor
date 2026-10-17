@@ -279,7 +279,8 @@ harmless; the save, load, delete and catalogue tests pass.
 The failing case is a third-party ROM that hooks BYTEV (or WORDV) on a
 service call and writes its private page on every call. Its page is given
 out below the standard ones, i.e. somewhere in &C7-&D8, or it may be &DB
-(DASHV, the dashboard's scalars) and up. The loader already resets the
+(DASHV, the dashboard's scalars, and since the review fixes the game code's
+block 2 at &DB87-&DBEA) and up. The loader already resets the
 non-filing-system vectors (3a4686e), so a ROM hooked at boot is unhooked;
 the risk is a ROM that hooks again during the game's own disc commands.
 

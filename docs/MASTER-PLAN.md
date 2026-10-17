@@ -549,3 +549,62 @@ blacking of the flare's own spans (r7_rowrep, r_spc). Checks after every
 step: check.py 0 errors on four paths (sweep 300, square 160, planet line
 160, leaving 80: 552 flared frames), frames without the flare byte for byte
 the no-flare build's, game state unchanged; test_raster --quick passes.
+
+## Review fixes (after the lens flare)
+
+A reviewer played the full port and missed three things. Each was compared
+with the original in the harness at the same game state (the gate's pilot
+and seed; scratch scripts, headless jsbeeb); screenshots, original | port
+before | port after: /Users/ebenupton/elite-full/screenshots/review/.
+
+* **The compass's cross-hair** (compass.png). Master's dashboard image
+  (P.DIALS2P) has a dashed cross-hair in the compass, which tells at a glance
+  whether the dot is centred; ours had only the ring. dashboard.py draws it,
+  dashed in magenta, clear of the centred dot (x 195..197, lines 10..12), so
+  the dot (EOR) sits in its gap when the planet or station is dead ahead.
+  The space view's sights were already the same.
+* **The docking slot seen late** (slot.png, slot-zoom.png: the Dodo held
+  with its slot facing us at z = 4200 down to 1000). The slot is a black
+  polygon detail on the front face. A fill only a pixel or two across comes
+  out empty, so the slot appeared at about z = 1800, against z ~ 3900 in the
+  original (whose wireframe draws its edges up to XX4 = 30, XX4 = z / 128),
+  and dark on the dithered face it was hard to pick out even then. Now
+  f_item's polygon details go through f_poly2 (frame_cold), which for the
+  slot (the only unlit polygon detail) fills it, then outlines it in yellow:
+  lines always show at least a pixel. faces.py gives each slot the
+  visibility of the furthest edge Elite draws (its loop rotated so that edge
+  is its first side) and puts its fill visibility, the least of its
+  vertices', in bits 2-6 of the colour byte (f_col reads bits 0-1 only):
+  beyond it some vertices are unprojected and f_poly2 draws only the side
+  from vertex 0 to 1, as Elite does (the Dodo: edge 20-21 to XX4 = 30, all
+  of it to 23; it was 20 for the whole slot). No table changed size.
+* **Nothing visible during in-system jumps** (jump.png: J at iterations
+  716, 718 and 719). WARP calls LOOK1 with QQ11 = 1, so its TT66 clears the
+  screen and redraws the view; the original does both in the same
+  iteration, so the planet is seen growing. Here TTX66's G_DIRECT switched
+  to direct mode, showing shadow RAM as TTX66 blanked it: every jump showed
+  an empty space view until the next frame, so with J held nothing at all
+  was visible. WARP now sets GWARP (HAZEL) before LOOK1; F_DIRECT, finding
+  it set in space mode, keeps double buffering: it clears the text map (as
+  TTX66 clears the text; LOOK1 reprints the title and redraws the sights),
+  sets XC = YC = 1, X = Y = 0, and G_DIRECT's end (gdir2, after the hooks in
+  elite-hi.asm) returns to TTX66's caller with TTX66's other results (A =
+  %00001001, C = 0, V = 0; COL unchanged; measured over 6000 piloted
+  iterations: TTX66 always returns those) without clearing shadow RAM or
+  drawing the border. Every other TT66 is as before.
+
+Room for these: FLIP, MAS1 and MAS3 (flight-rare game code at the end of
+bank 6, behind far6 stubs) moved to a second block of HAZEL code at
+&DB87-&DBEA, after the renderer's state (elite-hazel2.asm): HAZEL is visible
+to game code with bank 4 paged, so it calls PIXEL2, pxpatd, MVT3 and SQUA2
+directly and is called directly (the far6 stubs went). The disc's HAZEL
+file is HAZEL.bin then HAZEL2.bin; the loader stages both at &4000 as before
+and copies the second block into place after the first. Bank 6 went from 23
+free to 143, and is at 28 after the slot (81) and the jump (34). No stub,
+hook or HAZEL code moved (gdir2 and GWARP were put after them).
+
+Gate (verify.sh 10000, game state identical, redock and savetest pass):
+1.236 17.27 before; 1.236 17.27 after the HAZEL move; 1.229 17.18 with the
+slot outline (approach 16.48 it/s: four lines a frame while the slot is in
+range, much of the pilot's approach); 1.232 17.21 with the jump fix (the
+pilot's in-system jumps no longer clear shadow RAM and draw a border).

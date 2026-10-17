@@ -262,7 +262,8 @@ are recorded in docs/MASTER-PLAN.md (Stage B results).
 | bank 7 &AC40-&BE55 | Elite cold code (incl. DOSCLI/DOSNMI disc glue) | 426 |
 | HAZEL &C000-&C2BF | rasteriser scratch, incl. R_COL2/R_COL3 (shared with DFS's catalogue cache: invalidated before each disc command) | - |
 | HAZEL &C300-&C704 | renderer code: gvars, trampolines, text hooks, cross-bank stubs; lighting ramps 1-8 and the unlit colours (gfx-lighthz, 516) | 46 (to &C733) |
-| HAZEL &C733-&DB86 | renderer state (raster_vars, dashboard scalars, F_DSX/F_DSY) | 121 (to &DC00) |
+| HAZEL &C733-&DB86 | renderer state (raster_vars, dashboard scalars, F_DSX/F_DSY) | - |
+| HAZEL &DB87-&DBEA | game code, block 2 (elite-hazel2.asm: FLIP, MAS1, MAS3), staged after block 1 in the disc's HAZEL file and copied into place by the loader | 21 (to &DC00) |
 | HAZEL &DC40-&DEEC | renderer state (R_WR, R_NDN, stars, F_DSS after R_SS) | 19 (to &DF00) |
 
 After the lens flare and its speed-ups (docs/MASTER-PLAN.md, "Lens
@@ -275,3 +276,11 @@ take &88C1-&88E6), bank 7 rasteriser 3, bank 7 cold 12, HAZEL code 12, HAZEL
 data 111 to &DC00 (the flare's variables after F_DSY) and 19 to &DF00; the
 shadow rows above. The bank 6 row above predates this (bank 6 now ends at
 &BFF7, with the flare's f_flt and fl_or last).
+
+After the review fixes (docs/MASTER-PLAN.md, "Review fixes"): FLIP, MAS1
+and MAS3 moved from the end of bank 6 to HAZEL's block 2 (above), their far6
+stubs gone; the slot outline (f_poly2) and the in-system jump (F_DIRECT)
+took some of that. Free: low code 14, hi code 22 (plus the slack before
+QSL), stubs 28, bank 4 4, ANDY 5, bank 5 30, bank 6 28 at its end plus 43 in
+the COLD6 area and 16 at the SKIP before sg_ax, bank 7 rasteriser 3, bank 7
+cold 7, HAZEL code 11, HAZEL block 2 21.
