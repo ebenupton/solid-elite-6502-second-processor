@@ -10684,18 +10684,20 @@ ENDMACRO
 
  LDX Q                  \ If |Q| = 0, i.e. Q = 0 or &80, then Q * A = 0, so
  BEQ mad2               \ skip MULT1 (whose other effects, X, T and the flags,
- CPX #%10000000         \ ADD overwrites) and fall into ADD with (A P) = 0,
+ CPX #%10000000         \ ADD overwrites) and do ADD's work with (A P) = 0,
  BNE mad1               \ otherwise jump to mad1 to call MULT1
 
 .mad2
 
- STZ P                  \ Set (A P) = 0
- LDA #0
-
-                        \ Fall through into ADD to do:
-                        \
-                        \   (A X) = (A P) + (S R)
-                        \         = Q * A + (S R)
+ STZ P                  \ Set (A P) = 0, and do ADD's work directly: with
+ STZ T1                 \ A = 0, ADD sets T1 = T = 0 and, if S is positive,
+ STZ T                  \ returns (A X) = (S R) with C = V = 0 and N/Z from S;
+ LDX R                  \ if S is negative it goes to MU8 with P = T1 = T = 0
+ LDA S
+ BMI MU8
+ CLC
+ CLV
+ RTS
 
 \ ******************************************************************************
 \
