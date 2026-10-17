@@ -4291,9 +4291,9 @@ ENDMACRO
   CPY #0                  \ (CB + 1)
   BCS slow
   LDA RZ_TA
-  CMP #2                  \ size 1: one pixel; 2, 3: two
-  BCC one
-  BEQ two2                \ (size 2)
+  LSR A                   \ size 1..3: C = 0 for 2; else A = 0 for 1, 1 for 3
+  BCC two2                \ (size 2)
+  BEQ one                 \ size 1: one pixel; 2, 3: two
   STX RZ_SA               \ (x for the second row at nx)
   CPY R_CB                \ size 3: the second row inside too? (y + 1 <= CB)
   BCS slow
@@ -4348,7 +4348,7 @@ ENDMACRO
   LDA r_lm,X
   AND r_rm,X
   BRA msk
-  SKIP 1                  \ (keeps r_strow onward, and r_ypg's page, in place)
+  SKIP 2                  \ (keeps r_strow onward, and r_ypg's page, in place)
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
