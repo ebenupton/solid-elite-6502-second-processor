@@ -8175,12 +8175,11 @@ ENDIF
  ROR P
  LSR A
  ROR P
- LSR A
- ROR P
 
- CLC                    \ Port: move the sign from bit 3 to bit 7:
- ADC #&78               \ s=0: &78+mmm, AND &87 = mmm
- AND #%10000111         \ s=1: &80+mmm, AND &87 = &80+mmm
+ CMP #%00010000         \ Port: A = %000smmmm here, so this sets C = s; the
+ ROR A                  \ ROR then gives A = %s000smmm with C = bit 0 of the
+ ROR P                  \ old A (as the LSR would), and the AND clears bit 3,
+ AND #%10000111         \ moving the sign from bit 4 to bit 7 for free
                         \ so now (A P) = nosev_x / 16
 
  EOR RAT2               \ Give it the sign as if we multiplied by the direction
