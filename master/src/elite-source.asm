@@ -10088,17 +10088,15 @@ ENDMACRO
  LDA R                  \ Subtract the least significant bytes into X:
  SEC                    \
  SBC P                  \   X = R - P
- TAX
+ TAX                    \ If the low byte is 0, check for |S R| = |A P| at
+ BEQ mu8z               \ mu8z (TAX has just set Z from X)
 
  LDA S                  \ S and T1 have opposite signs, so S - T1 - borrow is
  SBC T1                 \ m EOR &80, where m = |S| - |A| - borrow (-128..127),
                         \ so bit 7 of the result is set if and only if m >= 0,
-                        \ i.e. |S R| >= |A P|
+                        \ i.e. |S R| >= |A P| (X <> 0 here, so never equal)
 
  BPL mu8b               \ If |S R| < |A P|, jump to mu8b
-
- CPX #0                 \ If the low byte is 0, check for |S R| = |A P| at
- BEQ mu8e               \ mu8e (X = 0 is rarer than a zero high magnitude)
 
 .mu8a
 
@@ -10106,11 +10104,12 @@ ENDMACRO
  CLC                    \ S, the opposite of argument A's sign in T, so this
  RTS                    \ gives the result S's sign; return with C = 0
 
-.mu8e
+.mu8z
 
- CMP #%10000000         \ X = 0: if A <> &80 then |S R| > |A P|, so finish at
- BNE mu8a               \ mu8a, otherwise the values are equal and mu8b gives
-                        \ X = 0, A = T, C = 1, as the original does
+ LDA S                  \ X = 0, so there was no borrow (C = 1) and A = S - T1
+ SBC T1                 \ = m EOR &80; |S R| > |A P| if and only if A >= &81
+ CMP #%10000001         \ (A = &80 means equal, and mu8b then gives X = 0,
+ BCS mu8a               \ A = T, C = 1, as the original does)
 
 .mu8b
 
