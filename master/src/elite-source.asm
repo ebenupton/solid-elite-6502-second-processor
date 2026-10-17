@@ -10450,8 +10450,10 @@ ENDMACRO
  AND #%10000000
  STA T
 
- TXA                    \ Set A to the high byte of the result with the sign bit
- AND #%01111111         \ cleared, so (A ?) = |X * A + (S R)|
+ TXA                    \ Set A to the high byte of the result (Port: its sign
+                        \ bit need not be cleared, as the ASL A at the start of
+                        \ DVL3 drops it, so (A ?) = |X * A + (S R)| as far as
+                        \ the loop is concerned)
 
                         \ The following is identical to TIS2, except Q is
                         \ hard-coded to 96, so this does A = A / 96
