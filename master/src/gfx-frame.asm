@@ -1095,9 +1095,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  RTS
 
 .f_discspans            \ rows of the disc (f_cx, f_cy, f_r) within the window
- LDA #255               \ (rows outside R_NDT..R_NDB are not looked at)
- STA R_NDT
- STZ R_NDB
+                        \ (every exit sets R_NDT and R_NDB)
  LDA f_cy               \ fz_p = top row = cy - r, fz_q = bottom row = cy + r
  SEC
  SBC f_r
@@ -1144,7 +1142,10 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  SBC f_cy+1
  STA fz_u
  LDA f_cx+1             \ fast path if the whole disc is inside the window
- BNE fds_nz             \ horizontally: cx - r >= CL and cx + r <= CR
+ BEQ fds_z              \ horizontally: cx - r >= CL and cx + r <= CR
+ LDA #&80               \ high byte of cx nonzero: fpr_b1 and fpr_b2 become
+ BRA fds_pat            \ BRA
+.fds_z
  LDA f_cx
  SEC
  SBC f_r
@@ -1155,23 +1156,25 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CLC
  ADC f_r
  BCS fds_slow
- CMP R_CR
+ SBC R_CR               \ (C = 0) borrow iff cx + r <= CR
  BCC fds_fast           \ (the fast path follows the slow one)
- BEQ fds_fast
 .fds_slow               \ (the disc crosses the window's side, or the screen's)
  LDA #&A2               \ high byte of cx zero: fpr_b1 and fpr_b2 become
 .fds_pat                \ LDX #imm (no-ops)
  STA fpr_b1
  STA fpr_b2
  LDY R_NDT
-.fpr2
- LDX fz_t               \ |d|
- LDA fz_u
+ LDX #&E6               \ fz_t = |d|, stepped by fpr_id: INC zp (&E6) if
+ LDA fz_u               \ d >= 0, else DEC zp (&C6) until d reaches 0
  BPL fpr4
  EOR fz_t               \ (d < 0: fz_u = &FF as |d| <= r <= 255, so A = NOT d)
- TAX
- INX
+ INC A
+ STA fz_t
+ LDX #&C6
 .fpr4
+ STX fpr_id
+.fpr2
+ LDX fz_t               \ |d|
 .fpr_ld2
  LDA F_HW,X             \ patched: half-width
  STA fz_n
@@ -1205,9 +1208,6 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fpr3
  LDA R_CL
  BRA fpr7
-.fds_nz                 \ (out of line) high byte of cx nonzero: fpr_b1 and
- LDA #&80               \ fpr_b2 become BRA
- BRA fds_pat
 .fpr10                  \ right, X = high byte of cx (nonzero), C = carry:
  LDX f_cx+1
  BCC fpr12              \ high byte of cx + n = X + C
@@ -1230,14 +1230,16 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fpr7
  STA R_NDISCL,Y
 .fpr9
- INC fz_t
- BNE P%+4
- INC fz_u
+.fpr_id
+ INC fz_t               \ patched: DEC fz_t while d < 0; when |d| reaches 0
+ BNE fpr16              \ step up from then on (fz_u is not kept)
+ LDA #&E6
+ STA fpr_id
+.fpr16
  CPY fz_q               \ (= R_NDB: stored from fz_q at fdx4, unchanged here)
  INY
  BCC fpr2
  RTS
- EQUB 0                 \ pad: keeps fds_fast onward (and F_TM) in place
 
 .fds_fast               \ here r <= 127 and |d| <= r, so d fits a signed byte
  LDA f_cx
