@@ -5799,8 +5799,15 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA XX15+3             \ Set A to the sign of y_sign * sidev_y
  EOR XX16+3,Y
 
- JSR LL38               \ Set (S R) = (S R) + (A Q)
- STA R                  \           = |sidev_x| * x_lo + |sidev_y| * y_lo
+ EOR S                  \ Set (S R) = (S R) + (A Q)
+ BMI ll51n1             \           = |sidev_x| * x_lo + |sidev_y| * y_lo
+ LDA Q                  \
+ CLC                    \ (LL38 inlined: the same-sign case here, the
+ ADC R                  \ different-sign case calls LL39 out of line)
+
+.ll51r1
+
+ STA R
 
  LDA XX15+4             \ Set Q = z_lo
  STA Q
@@ -5813,9 +5820,13 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA XX15+5             \ Set A to the sign of z_sign * sidev_z
  EOR XX16+5,Y
 
- JSR LL38               \ Set (S A) = (S R) + (A Q)
-                        \           = |sidev_x| * x_lo + |sidev_y| * y_lo
-                        \             + |sidev_z| * z_lo
+ EOR S                  \ Set (S A) = (S R) + (A Q)
+ BMI ll51n2             \           = |sidev_x| * x_lo + |sidev_y| * y_lo
+ LDA Q                  \             + |sidev_z| * z_lo
+ CLC                    \
+ ADC R                  \ (LL38 inlined, as above)
+
+.ll51r2
 
  STA XX12+6,X           \ Store the result in XX12+X+6(1 0)
  LDA S
@@ -5832,6 +5843,16 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  BNE ll51               \ Loop back to ll51 until X wraps from -2 to 0
 
  RTS                    \ Return from the subroutine
+
+.ll51n1
+
+ JSR LL39               \ The different-sign cases of the two inlined LL38s
+ BRA ll51r1
+
+.ll51n2
+
+ JSR LL39
+ BRA ll51r2
 
 \ ******************************************************************************
 \
