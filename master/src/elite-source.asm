@@ -6870,17 +6870,10 @@ ENDIF
                         \ storing this line
 
  LDA SWAP               \ If SWAP = 0, then we didn't have to swap the line
- BEQ BL9                \ coordinates around during the clipping process, so
-                        \ jump to BL9 to skip the following swap
-
- LDA X1                 \ Otherwise the coordinates were swapped by the call to
- LDY X2                 \ LL145 above, so we swap (X1, Y1) and (X2, Y2) back
- STA X2                 \ again
- STY X1
- LDA Y1
- LDY Y2
- STA Y2
- STY Y1
+ BNE BL12               \ coordinates around during the clipping process, so
+                        \ fall through to BL9; otherwise jump to BL12 to swap
+                        \ them back (Port: the rare swap is out of line, so the
+                        \ common case is an untaken branch)
 
 .BL9
 
@@ -6949,6 +6942,19 @@ ENDIF
 
  JSR LOIN               \ Not in record mode: draw the line, then rejoin above
  BRA BL11
+
+.BL12
+
+ LDA X1                 \ The coordinates were swapped by the call to
+ LDY X2                 \ LL145 above, so we swap (X1, Y1) and (X2, Y2) back
+ STA X2                 \ again
+ STY X1
+ LDA Y1
+ LDY Y2
+ STA Y2
+ STY Y1
+
+ BRA BL9                \ Rejoin the main path at BL9
 
 \ ******************************************************************************
 \
