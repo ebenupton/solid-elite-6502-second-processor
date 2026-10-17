@@ -126,9 +126,8 @@
 
 .H_STAR                 \ (entered by JMP from PIXEL2, so RTS returns from it)
  STA R_SY,Y
- LDA QQ11
- ORA GFORCE
- BNE hst9
+.hstp                   \ (patched by pxpat: BIT #imm in record mode, BRA hst9
+ BIT #hst9-hstp-2       \ outside it; was LDA QQ11 : ORA GFORCE : BNE hst9)
  TXA
  STA R_SX,Y
  LDA #2
@@ -138,6 +137,7 @@
  LDA #3
  STA R_SS,Y
  RTS
+ SKIP 5                 \ (the old test's bytes, so nothing moves)
 .hst9
  LDA R_SY,Y             \ outside record mode PIXEL draws it: note where (in
  STA hA                 \ shadow RAM, the direct-mode screen), so that the first
@@ -153,11 +153,12 @@
 \ A is dead after it)
 
 .H_STAROFF
- LDA QQ11
- ORA GFORCE
- BNE hso8
- STA R_SS,Y             \ (A = 0: QQ11 OR GFORCE is zero here)
+.hsop                   \ (patched by pxpat, as hstp; was LDA QQ11 : ORA
+ BIT #hso8-hsop-2       \ GFORCE : BNE hso8)
+ LDA #0
+ STA R_SS,Y
  RTS
+ SKIP 3                 \ (the old test's bytes, so nothing moves)
 .hso8
  CLC                    \ outside record mode: star Y is no longer drawn
  JMP G_DSTAR            \ (returns C set, X and Y kept)

@@ -2756,10 +2756,23 @@
  TXA                    \ Set SYL+Y to X, the low byte of the result
  STA SYL,Y
 
- LDA QQ11               \ Port: in record mode PIX1's drawing only erases the
- ORA GFORCE             \ particle's old position, which the renderer has no
- BNE PIXEL2             \ need of (the particle's new position is recorded by
- RTS                    \ the PIXEL2 call that follows for it), so return
+.pxr
+
+ RTS                    \ Port: in record mode PIX1's drawing only erases the
+                        \ particle's old position, which the renderer has no
+                        \ need of (the particle's new position is recorded by
+                        \ the PIXEL2 call that follows for it), so return
+                        \ (patched by pxpat once per star pass: RTS in record
+                        \ mode, NOP outside it, falling into PIXEL2; this was
+                        \ LDA QQ11 : ORA GFORCE : BNE PIXEL2 : RTS)
+
+ NOP                    \ (padding where the test was, so nothing moves; only
+ NOP                    \ outside record mode does it run)
+ NOP
+ NOP
+ NOP
+ NOP
+ NOP
 
                         \ Fall through into PIXEL2 to draw the stardust particle
                         \ at (X1,Y1)

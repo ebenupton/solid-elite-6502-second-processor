@@ -589,3 +589,58 @@ ENDIF
  JMP mvs5sm             \ Port: the rare path, in main RAM (MVS5_HOLE)
 
  ASSERT P% - mvs5n <= MVS5_SPAN \ (MVS5_SPAN above covers all of MVS5)
+
+\ ******************************************************************************
+\
+\       Name: pxpatd
+\       Type: Subroutine
+\   Category: Stardust
+\    Summary: Set COL for the stardust, then pxpat
+\
+\ ******************************************************************************
+
+.pxpatd
+
+ LDA #DUST              \ Switch to stripe 3-2-3-2, as nWq and FLIP did
+ STA COL
+
+\ ******************************************************************************
+\
+\       Name: pxpat
+\       Type: Subroutine
+\   Category: Stardust
+\    Summary: Patch PIX1's, H_STAR's and H_STAROFF's record-mode tests for a
+\             pass over the stardust (Port: the demo port's per-frame patching
+\             of the QQ11 OR GFORCE test, transfer item B12)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Called at the start of each pass that draws stardust (STARS1, STARS2,
+\ STARS6, nWq, FLIP), during which QQ11 and GFORCE do not change. Corrupts A
+\ only.
+\
+\ ******************************************************************************
+
+.pxpat
+
+ LDA QQ11               \ Record mode if QQ11 OR GFORCE is zero
+ ORA GFORCE
+ BEQ pxp1
+
+ LDA #&EA               \ Outside record mode: PIX1 falls into PIXEL2 (NOP),
+ STA pxr                \ H_STAR and H_STAROFF branch (BRA)
+ LDA #&80
+ BNE pxp2
+
+.pxp1
+
+ LDA #&60               \ Record mode: PIX1 returns (RTS), H_STAR and
+ STA pxr                \ H_STAROFF fall through (BIT #imm)
+ LDA #&89
+
+.pxp2
+
+ STA hstp
+ STA hsop
+ RTS
+

@@ -9,6 +9,10 @@
  JSR far4
  EQUW PIXEL2
 
+.y4_pxpatd
+ JSR far4
+ EQUW pxpatd
+
 .y4_MVT3
  JSR far4
  EQUW MVT3
@@ -42,8 +46,8 @@
 
 .FLIP_C
 
- LDA #DUST              \ Switch to stripe 3-2-3-2, which is cyan/red in the
- STA COL                \ space view
+ JSR y4_pxpatd          \ Switch to stripe 3-2-3-2, which is cyan/red in the
+                        \ space view (Port: and patch the record-mode tests)
 
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
                         \ we can use it as a counter through all the stardust

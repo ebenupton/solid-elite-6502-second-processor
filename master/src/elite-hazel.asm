@@ -48,6 +48,8 @@
 
 .STARS6
 
+ JSR pxpat              \ Port: patch the record-mode tests for this pass
+
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
                         \ we can use it as a counter through all the stardust
 
@@ -412,6 +414,8 @@
 \ ******************************************************************************
 
 .STARS2
+
+ JSR pxpat              \ Port: patch the record-mode tests for this pass
 
  LDA #0                 \ Set A to 0 so we can use it to capture a sign bit
 

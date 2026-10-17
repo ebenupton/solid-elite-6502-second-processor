@@ -6858,6 +6858,8 @@ ENDIF
 
 .STARS1
 
+ JSR pxpat              \ Port: patch the record-mode tests for this pass
+
  LDA ALP1               \ Port: patch the roll magnitude into MLSA and the
  LDX #0                 \ pitch magnitude into MLSB (the multipliers of the
  JSR stl_pat            \ MLS1/MLS2 and MULTS calls below), once per frame,
@@ -11903,8 +11905,9 @@ ENDIF
 
 .nWq
 
- LDA #DUST              \ Switch to stripe 3-2-3-2, which is cyan/red in the
- STA COL                \ space view
+ JSR pxpatd             \ Switch to stripe 3-2-3-2, which is cyan/red in the
+ NOP                    \ space view (Port: and patch the record-mode tests,
+                        \ pxpatd; the NOP keeps the size)
 
  LDY NOSTM              \ Set Y to the current number of stardust particles, so
                         \ we can use it as a counter through all the stardust
