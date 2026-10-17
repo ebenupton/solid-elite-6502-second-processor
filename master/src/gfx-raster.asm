@@ -900,11 +900,9 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA #r_opSTA
   STA (RZ_PP)
 .norunx
-  LDX R_XR
-.norun
-  LDY r_xo,X              \ right edge
-  CPX #&80
-  BCS rb
+  LDX R_XR                \ right edge (N = XR >= &80)
+  BMI rb
+  LDY r_xo,X
   LDA (RZ_PA),Y
   EOR RZ_COL
   AND r_rm,X
@@ -912,6 +910,7 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STA (RZ_PA),Y
   RTS
 .rb
+  LDY r_xo,X
   LDA (RZ_PB),Y
   EOR RZ_COL
   AND r_rm,X
