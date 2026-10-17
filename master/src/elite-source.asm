@@ -10050,59 +10050,6 @@ ENDMACRO
 
 \ ******************************************************************************
 \
-\       Name: MLU1
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following assignment, and multiply the Y-th stardust particle's
-\ y-coordinate with an unsigned number Q:
-\
-\   Y1 = y_hi
-\
-\   (A P) = |y_hi| * Q
-\
-\ ******************************************************************************
-
-.MLU1
-
- LDA SY,Y               \ Set Y1 the Y-th byte of SY
- STA Y1
-
-                        \ Fall through into MLU2 to calculate:
-                        \
-                        \   (A P) = |A| * Q
-
-\ ******************************************************************************
-\
-\       Name: MLU2
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = |A| * Q
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of a sign-magnitude 8-bit number P with an
-\ unsigned number Q:
-\
-\   (A P) = |A| * Q
-\
-\ ******************************************************************************
-
-.MLU2
-
- AND #%01111111         \ Clear the sign bit in P, so P = |A|
- STA P
-
-                        \ Fall through into MULTU to calculate:
-                        \
-                        \   (A P) = P * Q
-                        \         = |A| * Q
-
-\ ******************************************************************************
-\
 \       Name: MULTU
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
@@ -10124,24 +10071,68 @@ ENDMACRO
                         \ clear the C flag and return from the subroutine using
                         \ a tail call
 
-                        \ Otherwise fall through into MU11 to set (A P) = P * X
+ DEX                    \ Set T = X - 1 (X is never 0 here)
+ STX T
+
+ LDA P                  \ Set A = P and join MU11 to set (A P) = P * Q
+ BRA MU11
+
+\ ******************************************************************************
+\
+\       Name: MLU1
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate Y1 = y_hi and (A P) = |y_hi| * Q for Y-th stardust
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following assignment, and multiply the Y-th stardust particle's
+\ y-coordinate with an unsigned number Q:
+\
+\   Y1 = y_hi
+\
+\   (A P) = |y_hi| * Q
+\
+\ ------------------------------------------------------------------------------
+\
+\ MLU1, MLU2 and MLU3 are only called by STL1 and STL2, which set Q = A OR 1,
+\ so Q is never 0 here and the MULTU test for Q = 0 is not needed. MLU3 also
+\ skips setting T = Q - 1, so it may only be called when T is already set from
+\ the same Q by a previous call to MLU1 or MLU2.
+\
+\ ******************************************************************************
+
+.MLU1
+
+ LDA SY,Y               \ Set Y1 the Y-th byte of SY
+ STA Y1
+
+                        \ Fall through into MLU2 to calculate:
+                        \
+                        \   (A P) = |A| * Q
+
+.MLU2
+
+ LDX Q                  \ Set T = Q - 1 (Q is never 0 here, see above)
+ DEX
+ STX T
+
+.MLU3
+
+ AND #%01111111         \ Clear the sign bit in P, so P = |A|
+ STA P
+
+                        \ Fall through into MU11 to calculate:
+                        \
+                        \   (A P) = P * Q
+                        \         = |A| * Q
 
 \ ******************************************************************************
 \
 \       Name: MU11
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = P * X
-\  Deep dive: Shift-and-add multiplication
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of two unsigned 8-bit numbers:
-\
-\   (A P) = P * X
-\
-\ This uses the same shift-and-add approach as MULT1, but it's simpler as we
-\ are dealing with unsigned numbers in P and X.
+\    Summary: Calculate (A P) = P * (T + 1), entered with A = P
 \
 \ ******************************************************************************
 
@@ -10149,15 +10140,12 @@ ENDMACRO
 
                         \ Port: the product by quarter squares (the tables QSL
                         \ and QSH, elite-hi.asm), with exactly the original's
-                        \ results: (A P) = P * X (X = 1..255), T = X - 1,
+                        \ results: (A P) = P * X (X = T + 1 = 1..255), T = X - 1,
                         \ X = 0, Y kept, C clear (callers use it)
-
- DEX                    \ Set T = X - 1 (X is never 0 here: MULTU's
- STX T                  \ fall-through after BEQ MU1 guarantees X <> 0)
 
  PHY                    \ Keep Y
 
- LDA P                  \ Set X = P + X, with C set if it is 256 or more
+                        \ Set X = P + X, with C set if it is 256 or more (A = P)
  SEC
  ADC T
  TAX
@@ -19992,7 +19980,7 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ This routine contains an RTS so we can return from the SFRMIS subroutine with
+\ This routine contains an RTS so we can return from a subroutine with
 \ a branch instruction.
 \
 \ It also contains the DEMON label, which is left over from the 6502 Second
@@ -20033,51 +20021,6 @@ ENDIF
 
  JMP ECBLB              \ Update the E.C.M. indicator bulb on the dashboard and
                         \ return from the subroutine using a tail call
-
-\ ******************************************************************************
-\
-\       Name: SFRMIS
-\       Type: Subroutine
-\   Category: Tactics
-\    Summary: Add an enemy missile to our local bubble of universe
-\
-\ ------------------------------------------------------------------------------
-\
-\ An enemy has fired a missile, so add the missile to our universe if there is
-\ room, and if there is, make the appropriate warnings and noises.
-\
-\ ******************************************************************************
-
-.SFRMIS
-
- LDX #MSL               \ Set X to the ship type of a missile, and call SFS1-2
- JSR SFS1-2             \ to add a missile to our universe that has AI (bit 7
-                        \ set), is hostile (bit 6 set) and has been launched
-                        \ (bit 0 clear); the target slot number is set to 31,
-                        \ but this is ignored as the hostile flags means we
-                        \ are the target
-
-IF _SNG47
-
- BCC yetanotherrts      \ The C flag will be set if the call to SFS1-2 was a
-                        \ success, so if it's clear, jump to yetanotherrts to
-                        \ return from the subroutine (as yetanotherrts contains
-                        \ an RTS)
-
-ELIF _COMPACT
-
- BCC TT17X-1            \ The C flag will be set if the call to SFS1-2 was a
-                        \ success, so if it's clear, jump to TT17X-1 to return
-                        \ from the subroutine (as TT17X-1 contains an RTS)
-
-ENDIF
-
- LDA #120               \ Print recursive token 120 ("INCOMING MISSILE") as an
- JSR MESS               \ in-flight message
-
- LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
- JMP NOISE              \ of the missile being launched and return from the
-                        \ subroutine using a tail call
 
 \ ******************************************************************************
 \

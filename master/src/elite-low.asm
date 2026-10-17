@@ -2026,4 +2026,54 @@ ENDIF
                         \ that don't appear in the keyboard table, and which
                         \ therefore don't use the key logger)
 
+.ZEKRTS
+
  RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: SFRMIS
+\       Type: Subroutine
+\   Category: Tactics
+\    Summary: Add an enemy missile to our local bubble of universe
+\
+\ ------------------------------------------------------------------------------
+\
+\ An enemy has fired a missile, so add the missile to our universe if there is
+\ room, and if there is, make the appropriate warnings and noises.
+\
+\ ******************************************************************************
+
+                        \ Port: moved here from the main code (elite-source.asm)
+                        \ to make room there
+
+.SFRMIS
+
+ LDX #MSL               \ Set X to the ship type of a missile, and call SFS1-2
+ JSR SFS1-2             \ to add a missile to our universe that has AI (bit 7
+                        \ set), is hostile (bit 6 set) and has been launched
+                        \ (bit 0 clear); the target slot number is set to 31,
+                        \ but this is ignored as the hostile flags means we
+                        \ are the target
+
+IF _SNG47
+
+ BCC ZEKRTS             \ The C flag will be set if the call to SFS1-2 was a
+                        \ success, so if it's clear, jump to ZEKRTS to
+                        \ return from the subroutine (as ZEKRTS contains
+                        \ an RTS)
+
+ELIF _COMPACT
+
+ BCC TT17X-1            \ The C flag will be set if the call to SFS1-2 was a
+                        \ success, so if it's clear, jump to TT17X-1 to return
+                        \ from the subroutine (as TT17X-1 contains an RTS)
+
+ENDIF
+
+ LDA #120               \ Print recursive token 120 ("INCOMING MISSILE") as an
+ JSR MESS               \ in-flight message
+
+ LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
+ JMP NOISE              \ of the missile being launched and return from the
+                        \ subroutine using a tail call
