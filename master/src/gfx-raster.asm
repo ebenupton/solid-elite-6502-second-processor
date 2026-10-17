@@ -3036,18 +3036,18 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   TYA
   ADC #7                  \ (C = 1 from the CMP: + 8)
   TAY
+  TXA                     \ A = colour (C kept)
   CPY RZ_SA+1
   BCS lsa
 .la
-  TXA
   STA (RZ_PA),Y
   TYA
   ADC #8                  \ (C = 0 from the CPY)
   TAY
+  TXA
   CPY RZ_SA+1
   BCC la
 .lsa
-  TXA
   LDX RZ_SA
   EOR (RZ_PA),Y
   AND r_rm,X
