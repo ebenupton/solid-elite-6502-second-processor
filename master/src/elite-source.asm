@@ -7236,14 +7236,23 @@ ENDIF
                         \ sign-preserving STA T : LDA #0 : ROR A : ORA T is a
                         \ no-op (C = 0 and A, N, Z are the same; ADD rewrites T)
 
- BCS stlb               \ Port: if the high byte C is 0 and x is positive, do
- BIT S                  \ ADD's same-sign addition inline (P, T and T1 are dead:
- BMI stlb               \ STZ P below, and PIX1's ADD rewrites T and T1), so
- ADC R                  \ X = lo + R (C = 0) and A = S + carry, as add1 with
- TAX                    \ T1 = T = 0; otherwise call ADD as before
- LDA S
+ BCS stlb               \ Port: if the high byte C is 0, do ADD inline (P, T
+ LDX S                  \ and T1 are dead: STZ P below, and PIX1's ADD rewrites
+ BPL stlp               \ T and T1). x positive: same-sign add1 with T1 = T = 0
+ DEX                    \ x negative with |S| >= 1: MU8's |S R| > |A P| case,
+ BPL stlb               \ (A X) = (S R) - lo with S's sign; S = &80 (|x| < 256,
+ EOR #&FF               \ A and C = 0 untouched) calls ADD as before. Here
+ SEC                    \ A = R - lo with C = no borrow, and X = S - 1 so
+                        \ X + C = S - borrow (>= &80, as S >= &81)
+
+.stlp
+
+ ADC R                  \ Store the low byte, R + lo (x positive, C = 0) or
+ STA SXL,Y              \ R - lo (x negative), in x_lo
+ TXA                    \ Store the high byte, S + carry or (S - 1) + C, in x_hi
  ADC #0
- BRA stla
+ STA SX,Y
+ BRA stld
 
 .stlb
 
@@ -7263,6 +7272,8 @@ ENDIF
 
  TXA                    \ Store the low byte X in x_lo
  STA SXL,Y
+
+.stld
 
                         \ So (x_hi x_lo) now contains:
                         \
@@ -16992,55 +17003,6 @@ ENDIF
                         \ jump back up to KSL1 to see if there is another slot
                         \ that needs shuffling down (this BEQ is effectively a
                         \ JMP as A will always be zero)
-
-\ ******************************************************************************
-\
-\       Name: THERE
-\       Type: Subroutine
-\   Category: Missions
-\    Summary: Check whether we are in the Constrictor's system in mission 1
-\
-\ ------------------------------------------------------------------------------
-\
-\ The stolen Constrictor is the target of mission 1. We finally track it down to
-\ the Orarra system in the second galaxy, which is at galactic coordinates
-\ (144, 33). This routine checks whether we are in this system and sets the C
-\ flag accordingly.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   C flag              Set if we are in the Constrictor system, otherwise clear
-\
-\ ******************************************************************************
-
-.THERE
-
- LDX GCNT               \ Set X = GCNT - 1
- DEX
-
- BNE THEX               \ If X is non-zero (i.e. GCNT is not 1, so we are not in
-                        \ the second galaxy), then jump to THEX
-
- LDA QQ0                \ Set A = the current system's galactic x-coordinate
-
- CMP #144               \ If A <> 144 then jump to THEX
- BNE THEX
-
- LDA QQ1                \ Set A = the current system's galactic y-coordinate
-
- CMP #33                \ If A = 33 then set the C flag
-
- BEQ THEX+1             \ If A = 33 then jump to THEX+1, so we return from the
-                        \ subroutine with the C flag set (otherwise we clear the
-                        \ C flag with the next instruction)
-
-.THEX
-
- CLC                    \ Clear the C flag
-
- RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
