@@ -1038,7 +1038,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA F_SUX
  STA f_cx
  LDA F_SUX+1
- STA f_cx+1
+ STA f_cxh
  LDA F_SUY
  STA f_cy
  LDA F_SUY+1
@@ -1066,7 +1066,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA F_PLX
  STA f_cx
  LDA F_PLX+1
- STA f_cx+1
+ STA f_cxh
  LDA F_PLY
  STA f_cy
  LDA F_PLY+1
@@ -1143,7 +1143,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA #0
  SBC f_cy+1
  STA fz_u
- LDA f_cx+1             \ fast path if the whole disc is inside the window
+ LDA f_cxh             \ fast path if the whole disc is inside the window
  BEQ fds_z              \ horizontally: cx - r >= CL and cx + r <= CR
  LDA #&80               \ high byte of cx nonzero: fpr_b1 and fpr_b2 become
  BRA fds_pat            \ BRA
@@ -1183,7 +1183,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA F_HW,X             \ patched: half-width
  STA fz_n
  CLC                    \ right = cx + n, clamped as f_clamp does: < CL (or
- ADC f_cx               \ negative): empty; > CR (or > 255): CR
+.fpr_cx
+ ADC #0                 \ patched: f_cx (the low byte of cx lives in this
+                        \ operand); negative): empty; > CR (or > 255): CR
 .fpr_b1
  BRA fpr10              \ patched: BRA if the high byte of cx is nonzero (out
                         \ of line), else BIT #imm (a no-op)
@@ -1214,7 +1216,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BRA fpr7
 .fpr10                  \ right, A = low byte, C = carry, high byte of cx
  STA fz_t               \ nonzero (X = |d| kept; fz_t is free in the loop)
- LDA f_cx+1
+ LDA f_cxh
  ADC #0                 \ high byte of cx + n
  BMI fpr8               \ minus: empty
  BNE fpr5               \ plus: CR
@@ -1225,7 +1227,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BRA fpr14
 .fpr13                  \ left, A = low byte, C = no borrow, high byte of cx
  STA fz_t               \ nonzero
- LDA f_cx+1
+ LDA f_cxh
  SBC #0                 \ high byte of cx - n
  BEQ fpr17
  BMI fpr3               \ (plus: empty)
@@ -1370,7 +1372,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  JMP fdf1
  ASSERT LO(R_NDISCR) + 191 < 256 AND LO(F_HW) = 0 AND LO(F_HW2) = 0
 
-.f_cx EQUW 0
+f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
+.f_cxh EQUB 0           \ high byte of cx
+ EQUB 0, 0              \ (spare: keeps the layout after this unchanged)
 .f_cy EQUW 0
 .f_r  EQUB 0
 .f_hwr EQUB 0           \ radius F_HW was built for (0 = none)
