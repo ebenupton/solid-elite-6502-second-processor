@@ -3000,29 +3000,8 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR RZ_SA
   BMI cross               \ X in columns 0..31, Y in 32..63
   CMP #4
-  BCS ma
-  LDY r_xo,X              \ one byte, columns 0..31
-  LDA RZ_COL
-  EOR (RZ_PA),Y
-  AND r_lm,X
-  LDX RZ_SA
-  AND r_rm,X
-  EOR (RZ_PA),Y
-  STA (RZ_PA),Y
-  RTS
-.hx
-  EOR RZ_SA
-  CMP #4
-  BCS mb
-  LDY r_xo,X              \ one byte, columns 32..63
-  LDA RZ_COL
-  EOR (RZ_PB),Y
-  AND r_lm,X
-  LDX RZ_SA
-  AND r_rm,X
-  EOR (RZ_PB),Y
-  STA (RZ_PB),Y
-  RTS
+  BCC oa                  \ one byte, columns 0..31 (the rarer case: the
+                          \ commoner multi-byte case falls through)
 .ma
   LDA r_xo,Y              \ both in columns 0..31
   STA RZ_SA+1
@@ -3054,6 +3033,10 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
   RTS
+.hx
+  EOR RZ_SA
+  CMP #4
+  BCC ob                  \ one byte, columns 32..63
 .mb
   LDA r_xo,Y              \ both in columns 32..63
   STA RZ_SA+1
@@ -3081,6 +3064,26 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   TXA
   LDX RZ_SA
   EOR (RZ_PB),Y
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  RTS
+.oa
+  LDY r_xo,X              \ one byte, columns 0..31
+  LDA RZ_COL
+  EOR (RZ_PA),Y
+  AND r_lm,X
+  LDX RZ_SA
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  RTS
+.ob
+  LDY r_xo,X              \ one byte, columns 32..63
+  LDA RZ_COL
+  EOR (RZ_PB),Y
+  AND r_lm,X
+  LDX RZ_SA
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
