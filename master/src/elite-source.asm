@@ -9889,11 +9889,10 @@ ENDMACRO
  ADC T1                 \ QSL+1,X is QS(b + |A|)
  TAX
 
- TYA                    \ Set Y = |b - |A|| (C clear: b - T1 - 1 = b - |A|)
+ TYA                    \ Set A = b - |A| (C clear: b - T1 - 1 = b - |A|)
  SBC T1
- BCS mlt1
- EOR #&FF
- ADC #1
+ BCS mlt4               \ If b >= |A| (rare), jump to mlt4
+ EOR #&FF               \ Set A = |A| - b - 1, so QSL+1,Y is QS(|A| - b)
 
 .mlt1
 
@@ -9901,10 +9900,12 @@ ENDMACRO
 
  LDA QSL+1,X            \ Set (A P) = (b + |A|)^2 / 4 - (b - |A|)^2 / 4
  SEC                    \           = b * |A|
- SBC QSL,Y
+ SBC QSL+1,Y
  STA P
  LDA QSH+1,X
- SBC QSH,Y
+ SBC QSH+1,Y
+
+.mlt5
 
  PLY                    \ Restore Y
 
@@ -9912,6 +9913,16 @@ ENDMACRO
                         \ we stored in T
 
  RTS                    \ Return from the subroutine
+
+.mlt4
+
+ DEC A                  \ Set A = b - |A| - 1 (-1..30) and if b > |A|, use it
+ BPL mlt1               \ as the QSL+1,Y index of QS(b - |A|)
+
+ LDA QSL+1,X            \ b = |A|, so (A P) = QS(2|A|) - QS(0) = QS(2|A|)
+ STA P
+ LDA QSH+1,X
+ BRA mlt5
 
 .MU6
 
