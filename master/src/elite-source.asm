@@ -8187,16 +8187,15 @@ ENDIF
 
  LDX Q                  \ Restore the value of X from before the call to ADD
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi, clear the sign bit, divide by 2 and
- AND #%01111111         \ store in T, so:
+ LDA INWK+1,Y           \ Fetch nosev_x_hi, clear the sign bit, divide by 2, so
+ AND #%01111111         \ A = |nosev_x_hi| / 2 = |nosev_x| / 512
  LSR A                  \
- STA T                  \ T = |nosev_x_hi| / 2
-                        \   = |nosev_x| / 512
 
- LDA INWK,Y             \ Now we do the following subtraction:
- SEC                    \
- SBC T                  \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
- STA R                  \       = (1 - 1/512) * nosev_x
+ EOR #&FF               \ Port: compute nosev_x_lo - A as nosev_x_lo + ~A + 1,
+ SEC                    \ which gives the same result and the same C as
+ ADC INWK,Y             \ SBC, without going through T:
+ STA R                  \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
+                        \       = (1 - 1/512) * nosev_x
                         \
                         \ by doing the low bytes first
 
