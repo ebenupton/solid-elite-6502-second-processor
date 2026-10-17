@@ -1157,24 +1157,26 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  ADC f_r
  BCS fds_slow
  SBC R_CR               \ (C = 0) borrow iff cx + r <= CR
- BCC fds_fast           \ (the fast path follows the slow one)
+ BCS fds_slow
+ JMP fds_fast           \ (the fast path follows the slow one, out of
+                        \ branch range)
 .fds_slow               \ (the disc crosses the window's side, or the screen's)
- LDA #&A2               \ high byte of cx zero: fpr_b1 and fpr_b2 become
-.fds_pat                \ LDX #imm (no-ops)
+ LDA #&89               \ high byte of cx zero: fpr_b1 and fpr_b2 become
+.fds_pat                \ BIT #imm (no-ops: they keep X and C)
  STA fpr_b1
  STA fpr_b2
  LDY R_NDT
- LDX #&E6               \ fz_t = |d|, stepped by fpr_id: INC zp (&E6) if
- LDA fz_u               \ d >= 0, else DEC zp (&C6) until d reaches 0
+ LDX #&E8               \ X = |d| through the loop, stepped by fpr_id: INX
+ LDA fz_u               \ (&E8) if d >= 0, else DEX (&CA) until d reaches 0
  BPL fpr4
  EOR fz_t               \ (d < 0: fz_u = &FF as |d| <= r <= 255, so A = NOT d)
  INC A
  STA fz_t
- LDX #&C6
+ LDX #&CA
 .fpr4
  STX fpr_id
-.fpr2
  LDX fz_t               \ |d|
+.fpr2
 .fpr_ld2
  LDA F_HW,X             \ patched: half-width
  STA fz_n
@@ -1182,7 +1184,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  ADC f_cx               \ negative): empty; > CR (or > 255): CR
 .fpr_b1
  BRA fpr10              \ patched: BRA if the high byte of cx is nonzero (out
-                        \ of line), else LDX #imm (a no-op)
+                        \ of line), else BIT #imm (a no-op)
  BCS fpr5               \ high byte of cx + n = 1
 .fpr11
  CMP R_CL
@@ -1208,21 +1210,23 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fpr3
  LDA R_CL
  BRA fpr7
-.fpr10                  \ right, X = high byte of cx (nonzero), C = carry:
- LDX f_cx+1
- BCC fpr12              \ high byte of cx + n = X + C
- INX
- BEQ fpr11
-.fpr12
- BPL fpr5               \ (N: of X + C; minus: empty)
- BMI fpr8
-.fpr13                  \ left, X = high byte of cx (nonzero), C = no borrow:
- LDX f_cx+1
- BCS fpr15              \ high byte of cx - n = X - 1 + C
- DEX
- BEQ fpr14
-.fpr15
- BMI fpr3               \ (N: of X - 1 + C; plus: empty)
+.fpr10                  \ right, A = low byte, C = carry, high byte of cx
+ STA fz_t               \ nonzero (X = |d| kept; fz_t is free in the loop)
+ LDA f_cx+1
+ ADC #0                 \ high byte of cx + n
+ BMI fpr8               \ minus: empty
+ BNE fpr5               \ plus: CR
+ LDA fz_t               \ zero
+ BRA fpr11
+.fpr17
+ LDA fz_t               \ (fpr13: high byte zero)
+ BRA fpr14
+.fpr13                  \ left, A = low byte, C = no borrow, high byte of cx
+ STA fz_t               \ nonzero
+ LDA f_cx+1
+ SBC #0                 \ high byte of cx - n
+ BEQ fpr17
+ BMI fpr3               \ (plus: empty)
 .fpr8
  LDA #0                 \ empty row: R = 0, L = 255
  STA R_NDISCR,Y
@@ -1231,9 +1235,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA R_NDISCL,Y
 .fpr9
 .fpr_id
- INC fz_t               \ patched: DEC fz_t while d < 0; when |d| reaches 0
+ INX                    \ patched: DEX while d < 0; when |d| reaches 0
  BNE fpr16              \ step up from then on (fz_u is not kept)
- LDA #&E6
+ LDA #&E8
  STA fpr_id
 .fpr16
  CPY fz_q               \ (= R_NDB: stored from fz_q at fdx4, unchanged here)
