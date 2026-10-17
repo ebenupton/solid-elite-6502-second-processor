@@ -10338,7 +10338,7 @@ ENDMACRO
                         \ results: (A P) = P * X (X = T + 1 = 1..255), T = X - 1,
                         \ X = 0, Y kept, C clear (callers use it)
 
- PHY                    \ Keep Y
+ STY mu7+1              \ Keep Y (in the operand of the LDY #0 at mu7)
 
                         \ Set X = P + X, with C set if it is 256 or more (A = P)
  SEC
@@ -10367,7 +10367,8 @@ ENDMACRO
 
 .mu7
 
- PLY                    \ Restore Y
+ LDY #0                 \ Restore Y (self-modified: the operand is the Y
+                        \ that MU11 was called with)
 
  LDX #0                 \ X = 0 and C clear, as the original leaves them
  CLC
@@ -10376,19 +10377,18 @@ ENDMACRO
 
 .mu5
 
- LDA P                  \ Set Y = |P - X|
- CLC
- SBC T
+ LDA P                  \ Set Y = |P - X| (C is set here as BCS mu5 was
+ SBC Q                  \ taken, and Q = T + 1 = X on every entry to MU11)
  BCS mu6
- EOR #&FF
- ADC #1
+ EOR #&FF               \ Negate A (C is clear here, as BCS mu6 was not
+ INC A                  \ taken)
+ SEC                    \ Set C for the SBC below (BCS mu6 arrives with C set)
 
 .mu6
 
  TAY
 
  LDA QSL+256,X          \ As above, with P + X - 256 in X
- SEC
  SBC QSL,Y
  STA P
  LDA QSH+256,X
