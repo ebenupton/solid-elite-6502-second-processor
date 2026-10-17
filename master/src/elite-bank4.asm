@@ -10158,7 +10158,7 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDX INWK+1,Y
  STX S
 
- LDA INWK+3,Y           \ Set A = nosev_y_hi
+                        \ Port: A = nosev_y_hi still, from the STA above
 
  JSR MAD                \ Set (A X) = Q * A + (S R)
  STA INWK+1,Y           \           = alpha * nosev_y_hi + nosev_x
@@ -10167,8 +10167,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
                         \
                         \ nosev_x = nosev_x + alpha * nosev_y_hi
 
- STX P                  \ This instruction has no effect as MAD overwrites P,
-                        \ but it sets P = nosev_x_lo
+                        \ Port: the original's dead STX P (MAD sets P before
+                        \ reading it) and LDX INWK+4,Y are dropped here
 
  LDA BETA               \ Set Q = beta (the pitch angle to rotate through)
  STA Q
@@ -10177,10 +10177,6 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  STX R
  LDX INWK+3,Y
  STX S
- LDX INWK+4,Y
-
- STX P                  \ This instruction has no effect as MAD overwrites P,
-                        \ but it sets P = nosev_y
 
  LDA INWK+5,Y           \ Set A = -nosev_z_hi
  EOR #%10000000
@@ -10192,15 +10188,12 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
                         \
                         \ nosev_y = nosev_y - beta * nosev_z_hi
 
- STX P                  \ This instruction has no effect as MAD overwrites P,
-                        \ but it sets P = nosev_y_lo
-
  LDX INWK+4,Y           \ Set (S R) = nosev_z
  STX R
  LDX INWK+5,Y
  STX S
 
- LDA INWK+3,Y           \ Set A = nosev_y_hi
+                        \ Port: A = nosev_y_hi still, from the STA above
 
  JSR MAD                \ Set (A X) = Q * A + (S R)
  STA INWK+5,Y           \           = beta * nosev_y_hi + nosev_z
