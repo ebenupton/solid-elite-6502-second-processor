@@ -11432,10 +11432,6 @@ ENDMACRO
  AND #%10000000         \ result) and store it in T
  STA T
 
- LDA INWK+6             \ Set Q = z_lo, making sure Q is at least 1
- ORA #1
- STA Q
-
  LDA INWK+7             \ Set R = z_hi
  STA R
 
@@ -11448,6 +11444,9 @@ ENDMACRO
                         \ the following to get the result we want:
                         \
                         \   K(3 2 1 0) = (Y P+1 P) / (S R Q)
+                        \
+                        \ (grind: Q = z_lo OR 1 is only set below, on the one
+                        \ path that reads it before DV9 overwrites it)
 
  TYA                    \ Set A = |Y|, clearing the sign bit so the division
  LDY #0                 \ can be done with positive numbers, and set Y = 0 to
@@ -11497,6 +11496,10 @@ ENDMACRO
 
  ORA R                  \ |S| = 0, so set A = R, and if R >= 128 jump to DV14z
  BMI DV14z              \ to do the 8 shifts in one go
+
+ LDA INWK+6             \ Set Q = z_lo, making sure Q is at least 1 (grind:
+ ORA #1                 \ only this full shift reads Q before DV9 sets it, so
+ STA Q                  \ it is set here rather than on every call)
 
  LDA #0                 \ Otherwise restore A = |S| = 0 for the full shift
 
