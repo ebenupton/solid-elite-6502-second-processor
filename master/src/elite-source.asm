@@ -11160,6 +11160,47 @@ ENDMACRO
  SBC Q
  BRA DV4r8
 
+.DVL9a
+
+                        \ Here A = 0 and Y = 0. If P+1 < 128, the DVL9 loop
+                        \ would shift exactly eight times (A stays below 64
+                        \ until the eighth shift), so do it as a byte move,
+                        \ (A P+1 P) = (P+1 P 0) with Y = 8, and carry on
+
+ LDA P+1                \ If bit 7 of P+1 is set, jump to DVL9b to run the
+ BMI DVL9b              \ bitwise loop from A = 0
+
+ LDY P                  \ Set (A P+1 P) = (P+1 P 0)
+ STY P+1
+ STZ P
+
+ LDY #8                 \ Count the eight shifts in Y
+
+ BRA DVL9               \ Carry on shifting bit by bit
+
+.DVL9b
+
+ TYA                    \ Set A = Y = 0 and run the bitwise loop (A < 64, so
+ BRA DVL9l              \ skip the test at DVL9)
+
+.DV14z
+
+                        \ Port: if we get here then |S| = 0 and R >= 128, so the
+                        \ loop below would shift (A R Q) left exactly 8 times,
+                        \ leaving A = R (which it already is), so we just need
+                        \ to decrement the scale factor in Y by 8
+
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+ DEY
+
+ BRA DV9
+
 \ ******************************************************************************
 \
 \       Name: DVID3B2
@@ -11223,9 +11264,8 @@ ENDMACRO
                         \
                         \   K(3 2 1 0) = (Y P+1 P) / (S R Q)
 
- LDA P                  \ Make sure P is at least 1
- ORA #1
- STA P
+ LDA #1                 \ Make sure P is at least 1
+ TSB P
 
  TYA                    \ Set A = |Y|, clearing the sign bit so the division
  LDY #0                 \ can be done with positive numbers, and set Y = 0 to
@@ -11245,55 +11285,16 @@ ENDMACRO
  CMP #64                \ If A >= 64, jump down to DV14
  BCS DV14
 
+.DVL9l
+
  ASL P                  \ Shift (A P+1 P) to the left
  ROL P+1
  ROL A
 
  INY                    \ Increment the scale factor in Y
 
- BNE DVL9               \ Loop up to DVL9 (this BNE is effectively a JMP, as Y
-                        \ will never be zero)
-
-.DVL9a
-
-                        \ Here A = 0 and Y = 0. If P+1 < 128, the loop above
-                        \ would shift exactly eight times (A stays below 64
-                        \ until the eighth shift), so do it as a byte move,
-                        \ (A P+1 P) = (P+1 P 0) with Y = 8, and carry on
-
- LDA P+1                \ If bit 7 of P+1 is set, jump to DVL9b to run the
- BMI DVL9b              \ bitwise loop from A = 0
-
- LDY P                  \ Set (A P+1 P) = (P+1 P 0)
- STY P+1
- STZ P
-
- LDY #8                 \ Count the eight shifts in Y
-
- BRA DVL9               \ Carry on shifting bit by bit
-
-.DVL9b
-
- TYA                    \ Set A = Y = 0 and run the bitwise loop
- BRA DVL9
-
-.DV14z
-
-                        \ Port: if we get here then |S| = 0 and R >= 128, so the
-                        \ loop below would shift (A R Q) left exactly 8 times,
-                        \ leaving A = R (which it already is), so we just need
-                        \ to decrement the scale factor in Y by 8
-
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
- DEY
-
- BRA DV9
+ CMP #64                \ Loop back to DVL9l until A >= 64, then fall through
+ BCC DVL9l              \ into DV14 with the C flag set
 
 .DV14
 
