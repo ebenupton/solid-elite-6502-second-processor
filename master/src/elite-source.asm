@@ -9735,8 +9735,10 @@ ENDMACRO
                         \ Port: by quarter squares (QSL and QSH, elite-hi.asm):
                         \ the three bytes' products by |Q|, added. Exactly the
                         \ original's results: K(3 2 1 0) with the sign of A
-                        \ EOR Q, A = K+3, T = K+3 without the sign, R = the
-                        \ argument A, X = 0, Y kept, C clear, N and Z from A
+                        \ EOR Q, A = K+3, R = the argument A, Y kept, N and Z
+                        \ from A (T, X, C and V are left differently, but all
+                        \ four callers in elite-flight.asm overwrite them
+                        \ before reading them)
 
  STA R                  \ Store the high byte of (A P+1 P) in R
 
@@ -9769,17 +9771,14 @@ ENDMACRO
  CLC
  ADC K+1
  STA K+1
- LDA K+2
- ADC #0
- STA K+2
- LDA K+3
- ADC #0
+ BCC mlt3b              \ Propagate the carry into (K+3 K+2); K+3 stays below
+ INC K+2                \ 64 as the product is under 2^30
+ BNE mlt3b
+ INC K+3
 
- STA T                  \ Save the high byte of the result into T
+.mlt3b
 
- LDX #0                 \ X = 0 and C clear, as the original leaves them
- PLY                    \ (and restore Y)
- CLC
+ PLY                    \ Restore Y
 
  LDA R                  \ Fetch the sign byte from the original (A P+1 P)
                         \ argument that we stored in R
@@ -9789,7 +9788,7 @@ ENDMACRO
 
  AND #%10000000         \ Extract the sign bit
 
- ORA T                  \ Apply this to the high byte of the result in T
+ ORA K+3                \ Apply this to the high byte of the result in K+3
 
  STA K+3                \ Store A in K+3, so K(3 2 1 0) now contains the result
 
