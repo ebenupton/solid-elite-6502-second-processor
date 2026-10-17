@@ -7067,6 +7067,11 @@ ENDIF
                         \
                         \   Q = 64 * speed / z_hi
 
+ DEC A                  \ grind: set T = Q - 1 here from A = Q (what MLU2's
+ STA T                  \ LDX Q/DEX/STX T would do, three cycles cheaper; C is
+                        \ untouched for the SBC below, and the inlined MLU1
+                        \ below then enters at MLU3)
+
  LDA SZL,Y              \ We now calculate the following:
  SBC DELT4              \
  STA SZL,Y              \  (z_hi z_lo) = (z_hi z_lo) - DELT4(1 0)
@@ -7083,7 +7088,9 @@ ENDIF
                         \   z = z - DELT4(1 0)
                         \     = z - speed * 64
 
- JSR MLU1               \ Call MLU1 to set:
+ LDA SY,Y               \ grind: MLU1 inlined up to MLU3 (T is already set
+ STA Y1                 \ above), so set Y1 = y_hi and
+ JSR MLU3               \ call MLU3 to set:
                         \
                         \   Y1 = y_hi
                         \
