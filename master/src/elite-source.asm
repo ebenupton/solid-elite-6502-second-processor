@@ -6834,8 +6834,11 @@ ENDIF
 
  STY LSP                \ Update LSP to point to the same as Y
 
- JSR H_BLOIN            \ Draw a line from (X1, Y1) to (X2, Y2) (Port: not in
-                        \ record mode, gfx-hooks.asm)
+ LDA QQ11               \ Draw a line from (X1, Y1) to (X2, Y2), but only when
+ ORA GFORCE             \ not in record mode (Port: H_BLOIN inlined, with the
+ BNE BL10               \ LOIN call out of line below)
+
+.BL11
 
  LDA XX13               \ If XX13 is non-zero, jump up to BL5 to add a &FF
  BNE BL5                \ marker to the end of the line heap. XX13 is non-zero
@@ -6862,6 +6865,11 @@ ENDIF
  STA CNT
 
  RTS                    \ Return from the subroutine
+
+.BL10
+
+ JSR LOIN               \ Not in record mode: draw the line, then rejoin above
+ BRA BL11
 
 \ ******************************************************************************
 \
