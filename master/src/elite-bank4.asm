@@ -2804,8 +2804,9 @@
                         \ to skip the following negation
 
  EOR #%01111111         \ The x-coordinate offset is negative, so flip all the
- CLC                    \ bits apart from the sign bit and add 1, to convert it
- ADC #1                 \ from a sign-magnitude number to a signed number
+ INC A                  \ bits apart from the sign bit and add 1, to convert it
+                        \ from a sign-magnitude number to a signed number (Port:
+                        \ INC A, as C is dead here and V is not read after PIXEL2)
 
 .PX21
 
