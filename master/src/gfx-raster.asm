@@ -3729,12 +3729,31 @@ NEXT
 .empd                     \ new empty (A = oR): old empty too: onew0, else
   CMP RZ_T0               \ the old span black
   BCC jonew
-  JMP oold
+  LDA RZ_T0               \ (as oblk: X = oL, r_wmin = oL AND &FC, then
+  BRA rqs1                \ .rshr2: Y = oR, r_wmax = oR OR 3, black)
 .emp
   LDA #&FF                \ empty new span: (255, 0)
   STA RZ_T2
   INC A                   \ (A = 0, C clear: BCC emp)
   BRA c1b
+.requal                   \ left ends equal: r_wmin from the right end's strip
+  LDA RZ_T3
+  CMP RZ_T1
+  BEQ none                \ same span: nothing written (X = RZ_Y)
+  BCC rqs
+  LDA RZ_T1               \ grown: r_wmin = (oR + 1) AND &FC
+  INC A
+  AND #&FC
+  STA r_wmin
+  LDA RZ_T3
+  BRA rgr
+.rqs                      \ shrunk: r_wmin = (nR + 1) AND &FC, X = nR + 1
+  INC A
+.rqs1                     \ (entered here from .empd with A = oL)
+  TAX
+  AND #&FC
+  STA r_wmin
+  BRA rshr2
 .lshr
   DEC A                   \ shrunk: oL .. nL-1 black
   TAY
@@ -3766,31 +3785,26 @@ NEXT
 .rshr
   INC A                   \ shrunk: nR+1 .. oR black
   TAX
-.rshr2                    \ (entered here from .requal with X = nR+1)
+.rshr2                    \ (entered here from .rqs1 with X = nR+1 or oL)
   LDA RZ_T1
   TAY
   ORA #3
   STA r_wmax
   STZ RZ_COL
   JSR r_sw+2              \ past r_sw's STA RZ_COL (black)
-  BRA fin
-.requal                   \ left ends equal: r_wmin from the right end's strip
-  LDA RZ_T3
-  CMP RZ_T1
-  BEQ none                \ same span: nothing written (X = RZ_Y)
-  BCC rqs
-  LDA RZ_T1               \ grown: r_wmin = (oR + 1) AND &FC
-  INC A
-  AND #&FC
-  STA r_wmin
-  LDA RZ_T3
-  BRA rgr
-.rqs                      \ shrunk: r_wmin = (nR + 1) AND &FC, X = nR + 1
-  INC A
-  TAX
-  AND #&FC
-  STA r_wmin
-  BRA rshr2
+.fin                      \ (r_wmax >= 3 here on every path: a strip was written)
+  LDX RZ_Y                \ (X = RZ_Y on return: r_dla/r_dlb rely on it)
+  LDA r_wmax              \ R_WL/R_WR: the bytes written
+  STA R_WR,X
+  LDA r_wmin
+  STA R_WL,X
+  CPX r_wt
+  BCS w1
+  STX r_wt
+.w1
+  STX r_wb                \ rows go upwards
+.none
+  RTS
 .onew0                    \ old span empty: nothing noted yet
   LDA #&FF
   STA r_wmin
@@ -3811,21 +3825,6 @@ NEXT
   LDX RZ_T2
   JSR put
   BRA fin
-.oold
-  JSR oblk
-.fin                      \ (r_wmax >= 3 here on every path: a strip was written)
-  LDX RZ_Y                \ (X = RZ_Y on return: r_dla/r_dlb rely on it)
-  LDA r_wmax              \ R_WL/R_WR: the bytes written
-  STA R_WR,X
-  LDA r_wmin
-  STA R_WL,X
-  CPX r_wt
-  BCS w1
-  STX r_wt
-.w1
-  STX r_wb                \ rows go upwards
-.none
-  RTS
 .oblk                     \ the old span black (always the first strip)
   LDA #&FF
   STA r_wmin
@@ -3847,7 +3846,7 @@ NEXT
   STA r_wmax
 .p2
   JMP r_sw+2              \ past r_sw's STA RZ_COL (RZ_COL already set)
-  EQUB 0, 0               \ (padding: keeps the code after r_dp2 at its addresses)
+  EQUB 0, 0, 0, 0, 0, 0   \ (padding: keeps the code after r_dp2 at its addresses)
 }
 
 \ r_drg: general disc row, Y = row
