@@ -7180,19 +7180,22 @@ ENDIF
                         \
                         \   Q = -beta * y_hi / 256
 
- JSR MULT1              \ Call MULT1 (S and R already set) to calculate:
-                        \
-                        \   (S R) = XX(1 0) = x
-                        \
-                        \   (A P) = Q * A
-                        \         = (-beta * y_hi / 256) * (-beta * y_hi / 256)
-                        \         = (beta * y / 256) ^ 2
+                        \ Port: (A P) = 2 * Q * Q straight from the quarter
+                        \ squares, as MULT1 with A = Q gives sign 0 and |Q| <=
+                        \ 15, so Q^2 = QS(2 * |Q|) < 256 and the high byte is 0
+                        \ (MULT1's T, T1 and X are all rewritten by ADD below)
 
- ASL P                  \ Double (A P), so (A P) = 2 * (beta * y / 256) ^ 2
+ ASL A                  \ Set X = 2 * |Q| (the sign bit goes into C)
+ TAX
+
+ LDA QSL,X              \ Set (A P) = 2 * Q^2, so (A P) = 2 * (beta * y / 256) ^ 2
+ ASL A                  \
+ STA P                  \   (S R) is still XX(1 0) = x
+ LDA #0
  ROL A                  \
-                        \ Port: MUT2 always returns A = 0 here (A = Q on entry
-                        \ so the sign is Q EOR Q = 0, and |Q| <= 15 as MULTS
-                        \ uses P AND 31, so Q^2 < 256), so the original's
+                        \ Port: the high byte of Q^2 is always 0 here (the
+                        \ sign is Q EOR Q = 0, and |Q| <= 15 as MULTS uses
+                        \ P AND 31, so Q^2 < 256), so the original's
                         \ sign-preserving STA T : LDA #0 : ROR A : ORA T is a
                         \ no-op (C = 0 and A, N, Z are the same; ADD rewrites T)
 
