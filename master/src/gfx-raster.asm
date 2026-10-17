@@ -184,10 +184,15 @@ ALIGN &100
 FOR x, 0, 255
   EQUB (x * 2) AND &F8
 NEXT
-.r_j                    \ 3 * (x DIV 4): run entry offset (column x DIV 4 + 1)
-FOR x, 0, 255
-  EQUB 3 * (x DIV 4)
+.r_jm                   \ 3 * (x DIV 4) - 3 = r_j[x - 4]: run plant offset (column x DIV 4)
+FOR x, 0, 255           \ (read as r_j-4,Y with Y = xr >= 4: page-aligned, no crossing)
+  IF x < 4
+    EQUB &F8              \ (what r_j-4,Y read here before: r_xo[252..255])
+  ELSE
+    EQUB 3 * (x DIV 4) - 3
+  ENDIF
 NEXT
+r_j = r_jm + 4          \ r_j,X = 3 * (x DIV 4) for X = xl <= 251 (never crosses the page)
 .r_lm                   \ pixels (x AND 3)..3 of a byte
 FOR x, 0, 255
   EQUB ((&F0 >> (x AND 3)) AND &F0) OR (&0F >> (x AND 3))
