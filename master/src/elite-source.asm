@@ -8132,26 +8132,21 @@ ENDIF
  LDA INWK,Y             \ Set P = nosev_x_lo
  STA P
 
- LDA INWK+1,Y           \ Fetch the sign of nosev_x_hi (bit 7) and store in T
- AND #%10000000
- STA T
+ LDA INWK+1,Y           \ Fetch nosev_x_hi (sign bit included)
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi into A and clear the sign bit, so
- AND #%01111111         \ A = |nosev_x_hi|
-
- LSR A                  \ Set (A P) = (A P) / 16
- ROR P                  \           = |nosev_x_hi nosev_x_lo| / 16
- LSR A                  \           = |nosev_x| / 16
+ LSR A                  \ Set (A P) = (A P) / 16, so P is as for
+ ROR P                  \ |nosev_x| / 16 and A = %0000smmm, where s is the
+ LSR A                  \ sign of nosev_x and mmm = |nosev_x_hi| / 16
  ROR P
  LSR A
  ROR P
  LSR A
  ROR P
 
- ORA T                  \ Set the sign of A to the sign in T (i.e. the sign of
-                        \ the original nosev_x), so now:
-                        \
-                        \ (A P) = nosev_x / 16
+ CLC                    \ Port: move the sign from bit 3 to bit 7:
+ ADC #&78               \ s=0: &78+mmm, AND &87 = mmm
+ AND #%10000111         \ s=1: &80+mmm, AND &87 = &80+mmm
+                        \ so now (A P) = nosev_x / 16
 
  EOR RAT2               \ Give it the sign as if we multiplied by the direction
                         \ by the pitch or roll direction
