@@ -210,7 +210,11 @@ unstash: LDX #63 : .u1 LDA STASH,X : STA &C2C0,X : DEX : BPL u1
   With HAZEL paged (Y=1), the "VDU code" shadow access (E bit) is disabled, so X=1 is
   the only route.
 * Master Elite itself uses shadow &3090-&30FF (getzp/setzp zero-page save around disc
-  access), so leave &3000-&30FF alone or move that buffer.
+  access), so leave &3090-&30FF alone or move that buffer.
+* As used by the port: &3100-&3EFF the extended tokens; &3000-&308F, &3F00-&3FFF and
+  &7E00-&7FFF the lens flare's code and tables (loaded from FLARE0, FLARE3, FLARE7;
+  &7E00-&7FFF is not displayed, as CRTC R6 = 31 ends the screen at &7DFF). Nothing in
+  shadow &3000-&3FFF or &7E00-&7FFF is left free beyond a few bytes per block.
 * Bonus: `LOAD TEST 3800` with ACCCON X=1 put the data **into shadow** &3800 (DFS's NMI
   code at &0D00 stores through the normal &3000-&7FFF mapping). A docked-only overlay
   can therefore be loaded straight into shadow RAM.

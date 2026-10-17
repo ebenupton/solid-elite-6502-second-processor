@@ -247,8 +247,13 @@ are recorded in docs/MASTER-PLAN.md (Stage B results).
 | main &7600-&79FF | QSL/QSH quarter-square tables (1K) | - |
 | main &7A00-&7DE9 | the ship lighting's game-context half (gfx-light.asm: L_SUN, L_REC and their variables, 1002) | 22 |
 | main &7E00-&7EE0 | far-call stubs (STUBS) | 287 |
+| shadow &3000-&308A | the lens flare: dotted rings (gfx-flare.asm, FLARE0) | 5 (to setzp's &3090) |
+| shadow &3090-&30FF | zero-page save (setzp/getzp) | - |
+| shadow &3100-&3EFF | extended tokens (TOKENS) | - |
+| shadow &3F00-&3FF1 | the lens flare: tables, span set-up (FLARE3) | 14 |
 | shadow &4000-&6FFF | buffer 1 (Master's direct-mode screen) | - |
-| shadow &7000-&7FFF | the CMYK dashboard | - |
+| shadow &7000-&7DFF | the CMYK dashboard | - |
+| shadow &7E00-&7FEC | the lens flare: frame step, centres, discs (FLARE7; not displayed, the screen ends at &7DFF) | 19 |
 | ANDY &8000-&8FBE | cold code | 65 |
 | bank 4 &8000-&BFE6 | blueprints, flight code, Master drawing, the CMYK dashboard code (elite-dash) | 25 |
 | bank 5 &8000-&BF4D | rasteriser (polygons in a 4-row colour) | 178 |
@@ -257,5 +262,12 @@ are recorded in docs/MASTER-PLAN.md (Stage B results).
 | bank 7 &AC40-&BE55 | Elite cold code (incl. DOSCLI/DOSNMI disc glue) | 426 |
 | HAZEL &C000-&C2BF | rasteriser scratch, incl. R_COL2/R_COL3 (shared with DFS's catalogue cache: invalidated before each disc command) | - |
 | HAZEL &C300-&C704 | renderer code: gvars, trampolines, text hooks, cross-bank stubs; lighting ramps 1-8 and the unlit colours (gfx-lighthz, 516) | 46 (to &C733) |
-| HAZEL &C733-&DB5C | renderer state (raster_vars, dashboard scalars) | 163 (to &DC00) |
-| HAZEL &DC40-&DEC9 | renderer state (R_WR, R_NDN, stars) | 54 (to &DF00) |
+| HAZEL &C733-&DB86 | renderer state (raster_vars, dashboard scalars, F_DSX/F_DSY) | 121 (to &DC00) |
+| HAZEL &DC40-&DEEC | renderer state (R_WR, R_NDN, stars, F_DSS after R_SS) | 19 (to &DF00) |
+
+After the lens flare (docs/MASTER-PLAN.md, "Lens flare"), measured from
+build/compile.txt: low code 14 free, hi code 22, stubs 13, BCODE 6, bank 4
+4, ANDY 5, bank 5 30, bank 6 23 at its end plus 43 in the COLD6 area
+(&88C1-&88EB), bank 7 rasteriser 3, bank 7 cold 12, HAZEL code 12; the
+shadow rows above. The bank 6 row above predates this (bank 6 now ends at
+&BFE8, with the flare's f_flt and fl_or last).

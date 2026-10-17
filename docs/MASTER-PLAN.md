@@ -448,3 +448,66 @@ than by bank:
   against the sun (median 3 degrees; up to 33 degrees for the iterations
   after an in-system jump, until the next reseed).
 * Cost: verify.sh 10000 goes from 0.985 to 0.970 of the reference's speed.
+
+## Lens flare (after the lighting)
+
+The demo port's lens flare (its docs/FLARE.md, src/flare*.asm, model
+tools/flare.py), ported with the same recipe, arithmetic and pixels: when
+SUN has drawn the sun this frame, in the front view (VIEW = 0), with its
+centre on the screen (x 1..255, y 0..191) and not inside the planet's disc
+(F_HW, the planet's half-widths), eight ghosts at C + k D / 8 (C = (128,
+96), D = sun - C, k = 8, 5, 3, -1, -3, -4, -6, -8): six dithered discs and
+two dotted rings (the one round the sun only for a sun of radius 26 or
+less). Each disc pixel of its 4x4 Bayer mask is ORed in its ink (OR lifts
+K = 00, C = 01, M = 10, Y = 11 upwards: additive light); three levels by
+|dx| + |dy| (< 96, < 192, more) step every density down the ladder 0 1 2 4
+6 8 / 16. It is drawn after the lasers and before the text, sights and
+stars, and every span extends this buffer's dirty extent for its row (the
+rows' range goes to R_MARKDIRTY), so the next frame on this buffer repairs
+it like any other shape. It never touches game state.
+
+Layout (master/src/gfx-flare6.asm, gfx-flare.asm):
+* F_FRAME's `JSR f_text2` is `JSR f_flt` (bank 6, at its end): without the
+  sun a test of GSUNON (10 cycles); with it ACCCON X = 1 around FL_MAIN,
+  in shadow RAM, and X put back for this buffer after. FL_MAIN does the
+  tests, the level, the ghosts' centres and rows; fl_or (bank 6) ORs each
+  span, clearing X around the writes when the back buffer is main RAM
+  (buffer 0). Bank 6: 64 bytes.
+* Shadow RAM, filled by the loader from FLARE7, FLARE3, FLARE0: &7E00-&7FEC
+  (frame step, centres, discs), &3F00-&3FF1 (tables, span set-up),
+  &3000-&308A (dotted rings). Zero page: the rasteriser's &10-&27, which
+  F_FRAME saves.
+* Differences from the demo's code (not its pixels): the centres are
+  k D added up |k| times, not running sums; the rows' range is kept per
+  disc and per dot; ring points on the axes are plotted once, not twice;
+  the demo's FL4 (one ghost at a time, called from bank 6) becomes a loop
+  in shadow RAM calling the bank 6 writer instead, as the back buffer may be
+  main RAM.
+
+Space, paid by cycle-neutral moves (each gated at 1.236, 17.27 it/s):
+F_DSS/F_DSX/F_DSY (63 bytes of bank 6 state) to HAZEL, with F_DIRECT's
+clear loop folded into f_direct0's (+73 at bank 6's end); F_INIT saving
+the zero page in F_DL rather than f_zsave (+34 in the COLD6 area); the
+three unused shadow RAM blocks (912 bytes, 874 used). Bank 6 free goes
+from 14 to 23 + 43; HAZEL data from 163 + 40 to 121 + 19.
+
+Checks (headless, scratch scripts: the gate's pilot to iteration 1000,
+then the sun placed in front of the ship along a path each iteration, the
+back buffer dumped as each frame finishes, against the same run of the
+build without the flare with the demo's tools/flare.py applied): 0 pixels
+differ from the model over 704 frames (514 with the flare: levels 1, 2
+and 3, the sun behind the planet, leaving the screen), apart from text,
+sights and stars drawn after it; every frame without the flare is byte for
+byte the other build's (no residue); game state identical. Screenshots:
+/Users/ebenupton/elite-full/screenshots/flare/ (montage.png, compare-*.png:
+port | model | differences, display-*.png: jsbeeb's display).
+
+Cost: nothing on the gate (the pilot never has the sun in front: verify.sh
+1.236, 17.27 it/s before and after). With the sun on screen f_flt takes
+about 20000 cycles a frame at level 1, 27000-34000 at level 2 and
+37000-47000 at level 3 (mean 30000 over the sweep), and the next frame on
+that buffer spends about 26000 more repairing the rows (mostly R_DISCROWS
+and the span fills): a sweep with the sun always in view runs at 9.2 it/s
+against 12.5 without the flare (-26%). The demo measured about 25000 +
+10000 and -2 to -14% in windows where the sun was on screen part of the
+time.
