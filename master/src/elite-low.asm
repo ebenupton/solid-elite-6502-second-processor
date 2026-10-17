@@ -725,10 +725,9 @@ ENDIF
  ADC T
  STA T
 
- TYA                    \ Fetch the sign bit of the original argument A
- AND #%10000000
-
- ORA T                  \ Apply the sign bit to T
+ CPY #%10000000         \ If the original argument A (in Y) was positive, we
+ BCC P%+4               \ are done as A = T, otherwise set bit 7 of A to apply
+ ORA #%10000000         \ the negative sign
 
  RTS                    \ Return from the subroutine
 
