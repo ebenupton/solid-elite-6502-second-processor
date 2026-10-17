@@ -7993,194 +7993,59 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ ******************************************************************************
-\
-\       Name: MVS5
-\       Type: Subroutine
-\   Category: Moving
-\    Summary: Apply a 3.6 degree pitch or roll to an orientation vector
-\  Deep dive: Orientation vectors
-\             Pitching and rolling by a fixed angle
-\
-\ ------------------------------------------------------------------------------
-\
-\ Pitch or roll a ship by a small, fixed amount (1/16 radians, or 3.6 degrees),
-\ in a specified direction, by rotating the orientation vectors. The vectors to
-\ rotate are given in X and Y, and the direction of the rotation is given in
-\ RAT2. The calculation is as follows:
-\
-\   * If the direction is positive:
-\
-\     X = X * (1 - 1/512) + Y / 16
-\     Y = Y * (1 - 1/512) - X / 16
-\
-\   * If the direction is negative:
-\
-\     X = X * (1 - 1/512) - Y / 16
-\     Y = Y * (1 - 1/512) + X / 16
-\
-\ So if X = 15 (roofv_x), Y = 21 (sidev_x) and RAT2 is positive, it does this:
-\
-\   roofv_x = roofv_x * (1 - 1/512)  + sidev_x / 16
-\   sidev_x = sidev_x * (1 - 1/512)  - roofv_x / 16
-\
-\ ------------------------------------------------------------------------------
-\
-\ Arguments:
-\
-\   X                   The first vector to rotate:
-\
-\                         * If X = 15, rotate roofv_x
-\
-\                         * If X = 17, rotate roofv_y
-\
-\                         * If X = 19, rotate roofv_z
-\
-\                         * If X = 21, rotate sidev_x
-\
-\                         * If X = 23, rotate sidev_y
-\
-\                         * If X = 25, rotate sidev_z
-\
-\   Y                   The second vector to rotate:
-\
-\                         * If Y = 9,  rotate nosev_x
-\
-\                         * If Y = 11, rotate nosev_y
-\
-\                         * If Y = 13, rotate nosev_z
-\
-\                         * If Y = 21, rotate sidev_x
-\
-\                         * If Y = 23, rotate sidev_y
-\
-\                         * If Y = 25, rotate sidev_z
-\
-\   RAT2                The direction of the pitch or roll to perform, positive
-\                       or negative (i.e. the sign of the roll or pitch counter
-\                       in bit 7)
-\
-\ ******************************************************************************
+\ Port: MVS5 moved to bank 4 (elite-bank4.asm), in the demo port's form; the
+\ space keeps the code that follows in place
 
-.MVS5
+.MVS5_HOLE
 
- LDA INWK+1,X           \ Fetch roofv_x_hi and store it in S as the high byte
- STA S                  \ to borrow from (port)
+.mvs5r
 
- ORA #%10000001         \ Port: A = %01mmmmmm = &40 + |roofv_x_hi| / 2, and
- LSR A                  \ forcing bit 0 to 1 makes the LSR set C = 1
-                        \
-                        \ |roofv_x_hi| / 2 = |roofv_x| / 512 because:
-                        \
-                        \ |roofv_x| = |roofv_x_hi| * 256 + roofv_x_lo
-                        \
-                        \ so:
-                        \
-                        \ |roofv_x| / 512 = |roofv_x_hi| * 256 / 512
-                        \                    + roofv_x_lo / 512
-                        \                  = |roofv_x_hi| / 2
+                        \ Port (the demo port's MVS5): MVS5's rare first-half ADD path
+                        \ (from mvs5x), entered with the argument's high byte
+                        \ in K+1, K = R - P (so the argument's low byte P is
+                        \ R - K), R and S unchanged, and the second half's
+                        \ argument in P and T1 (saved and restored here)
 
- EOR #&BF               \ Port: A = ~(|roofv_x_hi| / 2), C = 1, so this computes
-                        \ roofv_x_lo - |roofv_x| / 512 as roofv_x_lo + ~A + 1,
- ADC INWK,X             \ the same result and C as SBC, without going via T:
- STA R                  \
-                        \ (S R) = (roofv_x_hi roofv_x_lo) - |roofv_x| / 512
-                        \       = (1 - 1/512) * roofv_x
-                        \
-                        \ by doing the low bytes first
+ LDA P                  \ Save the second half's argument (P, T1)
+ PHA
+ LDA T1
+ PHA
 
- BCS P%+4               \ And then the high byte: S = roofv_x_hi - borrow,
- DEC S                  \ i.e. only decrement S if the low bytes borrowed
-
- LDA INWK,Y             \ Set P = nosev_x_lo
+ LDA R                  \ P = R - K, the first half's argument low byte
+ SEC
+ SBC K
  STA P
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi (sign bit included)
-
- LSR A                  \ Set (A P) = (A P) / 16, so P is as for
- ROR P                  \ |nosev_x| / 16 and A = %0000smmm, where s is the
- LSR A                  \ sign of nosev_x and mmm = |nosev_x_hi| / 16
- ROR P
- LSR A
- ROR P
-
- CMP #%00010000         \ Port: A = %000smmmm here, so this sets C = s; the
- ROR A                  \ ROR then gives A = %s000smmm with C = bit 0 of the
- ROR P                  \ old A (as the LSR would), and the AND clears bit 3,
- AND #%10000111         \ moving the sign from bit 4 to bit 7 for free
-                        \ so now (A P) = nosev_x / 16
-
- EOR RAT2               \ Give it the sign as if we multiplied by the direction
-                        \ by the pitch or roll direction
-
- STX Q                  \ Store the value of X so it can be restored after the
-                        \ call to ADD
-
- JSR ADD                \ (A X) = (A P) + (S R)
-                        \       = +/-nosev_x / 16 + (1 - 1/512) * roofv_x
-
- STA K+1                \ Set K(1 0) = (1 - 1/512) * roofv_x +/- nosev_x / 16
+ PHX                    \ Call ADD with A = K+1 (P, R, S as above) and store
+ LDA K+1                \ its result (A X) in K(1 0)
+ JSR ADD
+ STA K+1
  STX K
+ PLX
 
- LDX Q                  \ Restore the value of X from before the call to ADD
+ STA INWK+1,X           \ roofv_x = K(1 0)
+ LDA K
+ STA INWK,X
 
- LDA INWK+1,Y           \ Fetch nosev_x_hi and store it in S as the high byte
- STA S                  \ to borrow from (port)
-
- ORA #%10000001         \ Port: A = %01mmmmmm = &40 + |nosev_x_hi| / 2, and
- LSR A                  \ forcing bit 0 to 1 makes the LSR set C = 1
-
- EOR #&BF               \ Port: A = ~(|nosev_x_hi| / 2) = ~(|nosev_x| / 512),
-                        \ C = 1, so this computes nosev_x_lo - |nosev_x| / 512
- ADC INWK,Y             \ as nosev_x_lo + ~A + 1, the same result and C as SBC,
-                        \ without going through T:
- STA R                  \ (S R) = (nosev_x_hi nosev_x_lo) - |nosev_x| / 512
-                        \       = (1 - 1/512) * nosev_x
-                        \
-                        \ by doing the low bytes first
-
- BCS P%+4               \ And then the high byte: S = nosev_x_hi - borrow,
- DEC S                  \ i.e. only decrement S if the low bytes borrowed
-
- LDA INWK,X             \ Set P = roofv_x_lo
+ PLA                    \ Restore the second half's argument
+ STA T1
+ PLA
  STA P
 
- LDA INWK+1,X           \ Fetch roofv_x_hi (sign bit included)
+ JMP mvs5h              \ Back to the second half of MVS5
 
- LSR A                  \ Set (A P) = (A P) / 16, so P is as for
- ROR P                  \ |roofv_x| / 16 and A = %0000smmm, where s is the
- LSR A                  \ sign of roofv_x and mmm = |roofv_x_hi| / 16
- ROR P
- LSR A
- ROR P
- LSR A
- ROR P
+.mvs5sm
 
- CLC                    \ Port: move the sign from bit 3 to bit 7 and flip it:
- ADC #&F8               \ s=0: &F8+mmm, AND &87 = &80+mmm
- AND #%10000111         \ s=1: &100+mmm wraps to mmm, AND &87 = mmm
-                        \ so now (A P) = -roofv_x / 16
-
- EOR RAT2               \ Give it the sign as if we multiplied by the direction
-                        \ by the pitch or roll direction
-
-                        \ Q still holds X from the first STX Q above (neither
-                        \ ADD nor this routine writes Q), so X can be restored
-
- JSR ADD                \ (A X) = (A P) + (S R)
-                        \       = -/+roofv_x / 16 + (1 - 1/512) * nosev_x
-
- STA INWK+1,Y           \ Set nosev_x = (1-1/512) * nosev_x -/+ roofv_x / 16
+ PHX                    \ Rare: call ADD with the original argument (T1, and
+ LDA T1                 \ P, R, S are unchanged), storing its result over the
+ JSR ADD                \ low byte we stored above, and restore X
+ STA INWK+1,Y
  STX INWK,Y
+ PLX
+ RTS
 
- LDX Q                  \ Restore the value of X from before the call to ADD
-
- LDA K                  \ Set roofv_x = K(1 0)
- STA INWK,X             \             = (1-1/512) * roofv_x +/- nosev_x / 16
- LDA K+1
- STA INWK+1,X
-
- RTS                    \ Return from the subroutine
+ ASSERT P% <= MVS5_HOLE + 117
+ SKIP MVS5_HOLE + 117 - P%
 
 \ ******************************************************************************
 \
