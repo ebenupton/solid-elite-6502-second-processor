@@ -3719,15 +3719,15 @@ NEXT
   STA r_wmin
   TYA
   ORA #3
-  STA r_wmax
-  TXA                     \ the row's disc colour: R_DCE / R_DCO by parity (X = RZ_Y)
+  STA R_WR,X              \ R_WR: the left end's bytes (the right end's strip, if
+  TXA                     \ any, overwrites it) (X = RZ_Y; the row's disc colour:
+                          \ R_DCE / R_DCO by parity)
   AND #1
   TAX
   LDA R_DCE,X
   LDX RZ_T2
   JSR r_sw
   BRA right
-  EQUB 0, 0, 0            \ (padding: keeps the code below at its addresses)
 .jboth
   JMP both
 .jonew
@@ -3736,7 +3736,7 @@ NEXT
   CMP RZ_T0               \ the old span black
   BCC jonew
   LDA RZ_T0               \ (as oblk: X = oL, r_wmin = oL AND &FC, then
-  BRA rqs1                \ .rshr2: Y = oR, r_wmax = oR OR 3, black)
+  BRA rqs1                \ .rshr2: Y = oR, R_WR = oR OR 3, black)
 .emp
   LDA r_pt53+2            \ (r_sl's current page, as R_SETBUF patched it)
   STA es+2
@@ -3768,45 +3768,47 @@ NEXT
   DEC A                   \ shrunk: oL .. nL-1 black
   TAY
   ORA #3
-  STA r_wmax
+  STA R_WR,X              \ (X = RZ_Y: R_WR as above)
   LDA RZ_T0
   TAX
   AND #&FC
   STA r_wmin
   STZ RZ_COL              \ (black)
   JSR r_sw+2              \ past r_sw's STA RZ_COL
-.right                    \ (r_wmin already set by the left end's strip)
+.right                    \ (r_wmin and R_WR already set by the left end's strip)
   LDA RZ_T3
   CMP RZ_T1
   BEQ fin
-  BCC rshr
+  BCS rgr
+.rshr
+  INC A                   \ shrunk: nR+1 .. oR black
+  TAX
+.rshr2                    \ (entered here from .rqs1 with X = nR+1 or oL)
+  LDY RZ_T1
+  STZ RZ_COL
+  JSR r_sw+2              \ past r_sw's STA RZ_COL (black)
+  LDX RZ_Y
+  LDA RZ_T1               \ R_WR: the bytes written
+  ORA #3
+.wr
+  STA R_WR,X
+  BRA fin2
 .rgr
   TAY                     \ (Y = nR for r_sw)
   ORA #3                  \ grown: oR+1 .. nR in the disc colour
-  STA r_wmax
-  LDA RZ_Y                \ the row's disc colour
+  LDX RZ_Y
+  STA R_WR,X              \ R_WR: the bytes written (the right end's strip is the max)
+  TXA                     \ the row's disc colour
   AND #1
   TAX
   LDA R_DCE,X
   LDX RZ_T1
   INX
   JSR r_sw
-  BRA fin
-.rshr
-  INC A                   \ shrunk: nR+1 .. oR black
-  TAX
-.rshr2                    \ (entered here from .rqs1 with X = nR+1 or oL)
-  LDA RZ_T1
-  TAY
-  ORA #3
-  STA r_wmax
-  STZ RZ_COL
-  JSR r_sw+2              \ past r_sw's STA RZ_COL (black)
-.fin                      \ (r_wmax >= 3 here on every path: a strip was written)
+.fin                      \ (R_WR set and a strip written on every path here)
   LDX RZ_Y                \ (X = RZ_Y on return: r_dla/r_dlb rely on it)
-  LDA r_wmax              \ R_WL/R_WR: the bytes written
-  STA R_WR,X
-  LDA r_wmin
+.fin2
+  LDA r_wmin              \ R_WL: the bytes written
   STA R_WL,X
   CPX r_wt
   BCS w1
@@ -3834,7 +3836,9 @@ NEXT
   STA RZ_COL
   LDX RZ_T2
   JSR put
-  BRA fin
+  LDX RZ_Y
+  LDA r_wmax              \ R_WR: the bytes written (r_wmax >= 3: a strip was written)
+  BRA wr
 .oblk                     \ the old span black (always the first strip)
   LDA #&FF
   STA r_wmin
