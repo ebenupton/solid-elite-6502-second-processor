@@ -4798,40 +4798,48 @@ ENDIF
 
  ASSERT (NI%-1) MOD 6 = 0 \ The loop below copies six bytes per pass
 
+ ASSERT INWK >= 5 AND INWK + NI% <= &100 \ zp,X stores below stay in zero page
+
 .MAL2
 
+ TYA                    \ Set X = Y at the start of each pass so the stores
+ TAX                    \ can use the cheaper zero-page INWK-k,X mode
+
  LDA (INF),Y            \ Load the Y-th byte of INF and store it in the Y-th
- STA INWK,Y             \ byte of INWK
+ STA INWK,X             \ byte of INWK
 
  DEY                    \ Decrement the loop counter
 
  LDA (INF),Y            \ Second byte of this pass (loop unrolled six times)
- STA INWK,Y
+ STA INWK-1,X
 
  DEY                    \ Decrement the loop counter
 
  LDA (INF),Y            \ Third byte of this pass
- STA INWK,Y
+ STA INWK-2,X
 
  DEY                    \ Decrement the loop counter
 
  LDA (INF),Y            \ Fourth byte of this pass
- STA INWK,Y
+ STA INWK-3,X
 
  DEY                    \ Decrement the loop counter
 
  LDA (INF),Y            \ Fifth byte of this pass
- STA INWK,Y
+ STA INWK-4,X
 
  DEY                    \ Decrement the loop counter
 
  LDA (INF),Y            \ Sixth byte of this pass
- STA INWK,Y
+ STA INWK-5,X
 
  DEY                    \ Decrement the loop counter
 
  BPL MAL2               \ Loop back for the next byte until we have copied the
                         \ last byte from INF to INWK
+
+ LDX XSAV               \ Restore X = slot number (GINF preserved it, the loop
+                        \ above used X as the store index)
 
  LDA TYPE               \ If the ship type is negative then this indicates a
  BMI MA21               \ planet or sun, so jump down to MA21, as the next bit
