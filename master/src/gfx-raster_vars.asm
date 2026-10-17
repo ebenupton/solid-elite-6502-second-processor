@@ -11,12 +11,12 @@
 .R_NDISCR   SKIP 192
 .R_DIRTYL0  SKIP 192        \ buffer 0: dirty extents (empty: L=255, R=0)
 .R_DIRTYR0  SKIP 192
-.R_DISCL0   SKIP 192        \ buffer 0: disc spans (empty: L=255, R=0)
-.R_DISCR0   SKIP 192
+.R_DISCR0   SKIP 192        \ buffer 0: disc spans (empty: L=255, R=0); R before
+.R_DISCL0   SKIP 192        \ L so that L (read more often) is at LO &35: no page crossing
 .R_DIRTYL1  SKIP 192        \ buffer 1: the same, &300 on
 .R_DIRTYR1  SKIP 192
-.R_DISCL1   SKIP 192
 .R_DISCR1   SKIP 192
+.R_DISCL1   SKIP 192
 \ two-colour discs (R_DISCROWS): rows NDT..NDB, used when R_NDF <> 0
 .R_NDF      SKIP 1          \ 0: no boundaries this frame (disc all colour A)
 .R_DBE      SKIP 1          \ colour B pair (even, odd rows)
