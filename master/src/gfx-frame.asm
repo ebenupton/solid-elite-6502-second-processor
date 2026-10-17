@@ -99,16 +99,16 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 \ ------------------------------------------------------------------------------
 
 .F_INIT
- LDX #&21               \ R_INIT uses &06-&27: keep Elite's values
-.fin0
+ LDX #&21               \ R_INIT uses &06-&27: keep Elite's values (in F_DL,
+.fin0                   \ the ship records, unused until the first frame)
  LDA &06,X
- STA f_zsave,X
+ STA F_DL,X
  DEX
  BPL fin0
  JSR T_INIT
  LDX #&21
 .fin4
- LDA f_zsave,X
+ LDA F_DL,X
  STA &06,X
  DEX
  BPL fin4
@@ -721,11 +721,11 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDY f_ysav
  RTS
 
-.f_zsave SKIP &22
-.COLD6                 \ (spare, 216 bytes: Elite's cold code in bank 6)
- INCLUDE "src/elite-cold6.asm"
- ASSERT P% <= COLD6 + 216
- SKIP COLD6 + 216 - P%
+.COLD6                 \ (spare, 250 bytes: Elite's cold code in bank 6, then
+ INCLUDE "src/elite-cold6.asm"  \ spare bytes)
+ ASSERT P% <= COLD6 + 250
+.COLD6_END
+ SKIP COLD6 + 250 - P%
 
 \ f_enter: switch from direct drawing to double buffering. Main RAM (buffer
 \ 0) has just been cleared by TT66 and holds the border; shadow RAM (buffer 1)

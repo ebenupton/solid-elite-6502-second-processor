@@ -3,7 +3,7 @@
 \ elite-cold6.asm - cold game code in bank 6
 \
 \ Port: flight-rare game code in sideways RAM bank 6, in the frame layer's
-\ spare space (gfx-frame.asm, after f_zsave), to make room in main RAM. As
+\ spare space (gfx-frame.asm, after f_reset), to make room in main RAM. As
 \ for the cold area (elite-far.asm), code outside calls it through 5-byte
 \ stubs that keep the routine's name (JSR far6 : EQUW name_C, in the stubs
 \ area at &7E00), and it calls code outside through stubs of its own, here:
