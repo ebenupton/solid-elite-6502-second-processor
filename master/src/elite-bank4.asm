@@ -10199,6 +10199,15 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  LDA BETA               \ Set Q = beta (the pitch angle to rotate through)
  STA Q
 
+ ASL A                  \ Port: if |beta| = 0 (beta = 0 or &80) and nosev_y
+ BNE mvs4c              \ is not -0 (nosev_y_hi <> &80), then the next MAD
+ LDA INWK+3,Y           \ leaves nosev_y unchanged, and everything else it
+ CMP #%10000000         \ writes (A, X, flags, P, T, T1, R, S) is written
+ BNE mvs4d              \ again by the last MAD (with Q = 0 it ignores A),
+                        \ so skip straight to the last MAD
+
+.mvs4c
+
  LDX INWK+2,Y           \ Set (S R) = nosev_y
  STX R
  LDX INWK+3,Y
@@ -10213,6 +10222,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
                         \ and store (A X) in nosev_y, so this does:
                         \
                         \ nosev_y = nosev_y - beta * nosev_z_hi
+
+.mvs4d
 
  LDX INWK+4,Y           \ Set (S R) = nosev_z
  STX R
