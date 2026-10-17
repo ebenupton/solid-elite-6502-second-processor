@@ -3796,7 +3796,7 @@ NEXT
 .onew
   LDA RZ_T3
   CMP RZ_T2
-  BCC fin
+  BCC none                \ both spans empty (only from onew0, X = RZ_Y still)
   TAY
   LDA RZ_Y                \ the row's disc colour
   AND #1
@@ -3808,10 +3808,9 @@ NEXT
   BRA fin
 .oold
   JSR oblk
-.fin
+.fin                      \ (r_wmax >= 3 here on every path: a strip was written)
   LDX RZ_Y                \ (X = RZ_Y on return: r_dla/r_dlb rely on it)
   LDA r_wmax              \ R_WL/R_WR: the bytes written
-  BEQ none
   STA R_WR,X
   LDA r_wmin
   STA R_WL,X
@@ -3843,6 +3842,7 @@ NEXT
   STA r_wmax
 .p2
   JMP r_sw+2              \ past r_sw's STA RZ_COL (RZ_COL already set)
+  EQUB 0, 0               \ (padding: keeps the code after r_dp2 at its addresses)
 }
 
 \ r_drg: general disc row, Y = row
