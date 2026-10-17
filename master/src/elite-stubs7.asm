@@ -190,3 +190,25 @@
 .HANGER
  JSR far7
  EQUW HANGER_C
+
+\ Port: far6, as far7 (elite-far.asm) for the cold code in bank 6
+\ (elite-cold6.asm), and the stubs into it
+
+.far6
+ PHP
+ STA fA
+ LDA #6
+ JMP farc
+
+.BOMBOFF
+ JSR far6
+ EQUW BOMBOFF_C
+
+.BOMBEFF2
+ JSR far6
+ EQUW BOMBEFF2_C
+
+.BOMBON
+ JSR far6
+ EQUW BOMBON_C
+

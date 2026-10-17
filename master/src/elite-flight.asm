@@ -372,10 +372,12 @@
 \
 \ ******************************************************************************
 
-                        \ Port: start mvs5n on a page boundary when it would
-                        \ otherwise sit just below one, so that MVS5's BMI
-                        \ mvs5n and mvs5a's branches stay within a page
-IF LO(P% + 3) >= &C0
+                        \ Port: start mvs5n on a page boundary when MVS5 would
+                        \ otherwise straddle one, so that MVS5's branches stay
+                        \ within a page (MVS5_SPAN: mvs5n to the end of MVS5)
+MVS5_SPAN = &D8
+
+IF HI(P% + 3) <> HI(P% + 3 + MVS5_SPAN - 1)
  SKIP 256 - LO(P% + 3)
 ENDIF
 
@@ -585,3 +587,5 @@ ENDIF
 .mvs5s
 
  JMP mvs5sm             \ Port: the rare path, in main RAM (MVS5_HOLE)
+
+ ASSERT P% - mvs5n <= MVS5_SPAN \ (MVS5_SPAN above covers all of MVS5)

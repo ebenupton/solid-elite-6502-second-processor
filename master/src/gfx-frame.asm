@@ -722,7 +722,10 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  RTS
 
 .f_zsave SKIP &22
- SKIP 216               \ (spare)
+.COLD6                 \ (spare, 216 bytes: Elite's cold code in bank 6)
+ INCLUDE "src/elite-cold6.asm"
+ ASSERT P% <= COLD6 + 216
+ SKIP COLD6 + 216 - P%
 
 \ f_enter: switch from direct drawing to double buffering. Main RAM (buffer
 \ 0) has just been cleared by TT66 and holds the border; shadow RAM (buffer 1)
