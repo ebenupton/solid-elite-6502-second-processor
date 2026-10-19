@@ -3,7 +3,7 @@
 // the same keys, so the session (and any divergence) comes back exactly.
 //
 // node master/tools/agentplay/replay.mjs --run DIR [--out DIR2] [--until ITER] [--keepgoing N]
-//      [--trace FROM,TO [--tracefull]] [--shots N] [--noobserve] [--cand disc --csyms syms] [--ref disc --rsyms syms] [--log inputs.jsonl]
+//      [--cut ITER --save FILE] [--trace FROM,TO [--tracefull]] [--shots N] [--noobserve] [--cand disc --csyms syms] [--ref disc --rsyms syms] [--log inputs.jsonl]
 // Defaults: the discs and symbols in DIR/inputs.jsonl's header (the candidate can be swapped for
 // another build to test a fix); --out DIR/replay. --until: stop after that iteration (a
 // divergence's, for a short repro). Exit status as agentplay.mjs.
@@ -12,9 +12,20 @@ import { readFileSync } from "fs";
 
 const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
 const log = a.log || `${a.run}/inputs.jsonl`;
-if (!a.run && !a.out) { console.error("--run DIR or --log FILE with --out DIR"); process.exit(2); }
+if (!a.run && !a.out && a.cut === undefined) { console.error("--run DIR or --log FILE with --out DIR"); process.exit(2); }
 const h = JSON.parse(readFileSync(log, "utf8").split("\n")[0]);
 if (!h.header) { console.error("no header in", log); process.exit(2); }
+// --cut ITER --save FILE: write the log cut short after iteration ITER (a minimal repro
+// of a divergence there), with an end record, and stop
+if (a.cut !== undefined) {
+    const it = +a.cut, lines = readFileSync(log, "utf8").split("\n").filter(Boolean).map(l => JSON.parse(l));
+    const keep = lines.filter(e => e.header || (!e.end && (e.i === undefined || e.i <= it) && (e.poke === undefined || e.poke <= it + 1)));
+    keep.push({ end: true, iter: it + 1, cut: true });
+    const { writeFileSync } = await import("fs");
+    writeFileSync(a.save, keep.map(e => JSON.stringify(e)).join("\n") + "\n");
+    console.log(`${a.save}: ${keep.length} records, to iteration ${it + 1}`);
+    process.exit(0);
+}
 // (the header's paths are absolute; a log moved to another checkout falls back to its
 // files of the same name under this one)
 import { existsSync } from "fs";
