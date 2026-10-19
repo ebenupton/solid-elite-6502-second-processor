@@ -40,7 +40,7 @@ export const ROUTINES = ["LAUN", "DOENTRY", "TT18", "Ghy", "MJP", "ptg", "WARP",
 export class EliteMachine {
     // opts: name, disc, syms (loadSyms), input ({ rdkey(ctx), dks5(ctx), joy(ctx) }),
     //       seedFrom (another EliteMachine whose TT170 state seeds this one's boot leftovers),
-    //       rand (4 bytes written to RAND at TT170), patch(m) (called once, at the first BAY after QU5),
+    //       rand (4 bytes written to RAND at TT170), patch(m) (called once, at the first QU5),
     //       watch0d (record page &0D writes by game code)
     constructor(opts) {
         Object.assign(this, { name: opts.name, disc: opts.disc, sy: opts.syms, input: opts.input, opts });
@@ -243,10 +243,9 @@ export class EliteMachine {
         } else if (this._at(H.TT100, pc) && this.started) {
             this.tt100++;
         } else if (this._at(H.QU5, pc)) {
-            this.armPatch = true;
-        } else if (this._at(H.BAY, pc) && this.armPatch) {
-            this.armPatch = false;
-            if (!this.patched && this.opts.patch) { this.patched = true; this.opts.patch(this); this.event("patch", "commander patched at BAY"); }
+            // the commander patch, once: at QU5, before DFAULT copies NA% (the last-saved
+            // commander) into the commander and the game sets up the current system from it
+            if (!this.patched && this.opts.patch) { this.patched = true; this.opts.patch(this); this.event("patch", "commander patched at QU5"); }
         } else if (this._at(H.S, pc) && !this.inGame) {
             this.inGame = true;
             if (this.onEntry) this.onEntry(this);

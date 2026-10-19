@@ -1,5 +1,6 @@
 // Play styles for agentplay: the commanders a session starts with (patched into both
-// machines at the first BAY, the live commander and NA%, the copy a death goes back to),
+// machines' NA%, the last-saved commander, at the first QU5: DFAULT then copies it into the
+// commander, and the game sets up the current system from it; a death goes back to it too),
 // elite-agent's own modes (environment for agentd), and the chaos overlay: extra keys
 // and pokes, chosen from the reference's state with a seeded random number generator,
 // that drive the game into what the agent rarely does on its own (escape pod, energy
@@ -8,16 +9,26 @@
 
 // A commander patch: { symbol: bytes } written into the live commander and into NA% (the
 // last-saved copy; NA%+8 lines up with TP, as elite-agent's save check assumes)
+// The original checks NA%'s checksum in DFAULT and loops for ever if it is wrong (the
+// port has the checksums removed), so the patch sets CHK as CHECK computes it, and CHK2 to
+// CHK EOR &A9 (or the game marks the commander as tampered with in COK)
 function patcher(fields) {
     return m => {
-        const sy = m.sy;
+        const sy = m.sy, na = sy["NA%"];
         for (const [k, v] of Object.entries(fields)) {
             m.wr(sy[k], v);
-            if (sy[k] >= sy.TP && sy[k] <= sy.SVC) m.wr(sy["NA%"] + 8 + sy[k] - sy.TP, v);
+            if (sy[k] >= sy.TP && sy[k] <= sy.SVC) m.wr(na + 8 + sy[k] - sy.TP, v);
         }
+        // CHECK: X = NT% - 3, A = X, C = 0; A = A + NA%+7+X + C, A = A EOR NA%+8+X, for X down to 1
+        let x = sy.SVC - sy.TP, a = x, c = 0;
+        for (; x > 0; x--) { const t = a + m.rb(na + 7 + x) + c; a = t & 255; c = t > 255 ? 1 : 0; a ^= m.rb(na + 8 + x); }
+        m.wr(sy.CHK, [a]); m.wr(sy.CHK2, [a ^ 0xa9]);
     };
 }
 const cash = cr => { const t = Math.round(cr * 10); return [t >>> 24 & 255, t >>> 16 & 255, t >>> 8 & 255, t & 255]; };
+// the galaxy seeds QQ21 of galaxy g (0-7): Lave's galaxy's, each byte rotated left g times
+const twist = (b, n) => { for (let i = 0; i < n; i++) b = ((b << 1) | (b >> 7)) & 255; return b; };
+const galaxy = g => ({ GCNT: [g], QQ21: [0x4a, 0x5a, 0x48, 0x02, 0x53, 0xb7].map(b => twist(b, g)) });
 const ALL = { ECM: [0xff], BST: [0xff], BOMB: [0x7f], ENGY: [1], DKCMP: [0xff], GHYP: [0xff], ESCP: [0xff], NOMSL: [4], CRGO: [37], QQ14: [70] };
 
 export const COMMANDERS = {
@@ -30,6 +41,11 @@ export const COMMANDERS = {
     deadly: { what: "Deadly (tally 5000), military laser, everything fitted, 20000 Cr", patch: patcher({ ...ALL, LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [5000 & 255, 5000 >> 8] }) },
     // the Thargoid plans mission due (Constrictor mission done: TP bits 0-1 = 2), in galaxy 1 with the hyperdrive
     mission2: { what: "Constrictor mission done, tally 1400, all fitted: the Thargoid plans mission next", patch: patcher({ ...ALL, LASER: [0x97, 0, 0, 0], CASH: cash(20000), TALLY: [1400 & 255, 1400 >> 8], TP: [2] }) },
+    // mission 1 done but not yet debriefed (TP bits 0-1 = 3): the next dock debriefs
+    debrief1: { what: "the Constrictor destroyed, not yet debriefed (TP = 3): debriefing at the first dock", patch: patcher({ ...ALL, LASER: [0x97, 0, 0, 0], CASH: cash(5000), TALLY: [1000 & 255, 1000 >> 8], TP: [3] }) },
+    // galaxy 3 at Ceerdi (215, 84) with mission 1 done and tally 1400: the Thargoid plans
+    // briefing at the first dock, then Ceerdi (BRIEF3) and Birera (DEBRIEF2)
+    galaxy3: { what: "galaxy 3 at Ceerdi, mission 1 done, tally 1400, all fitted: the Thargoid plans mission", patch: patcher({ ...ALL, ...galaxy(2), QQ0: [215], QQ1: [84], LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [1400 & 255, 1400 >> 8], TP: [2] }) },
     wanted: { what: "a fugitive (legal status 80), 2000 Cr, ECM and pod", patch: patcher({ FIST: [80], CASH: cash(2000), ECM: [0xff], ESCP: [0xff] }) },
 };
 
