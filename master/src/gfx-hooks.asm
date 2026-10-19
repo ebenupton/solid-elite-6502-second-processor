@@ -87,9 +87,8 @@
  JMP WP1
 
 \ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
-\ curve. H_BPT: BLINE has the next point in K6(1 0), K6(3 2): record it.
-\ Both preserve X, and H_PCURVE also Y and C (the callers set A and the other
-\ flags straight after); H_BPT does not preserve Y or C (BLINE reloads Y)
+\ curve (BLINE records each point itself, through G_PPOINT). It preserves X,
+\ Y and C (the caller sets A and the other flags straight after)
 
 .H_PCURVE
  LDA QQ11
@@ -97,11 +96,6 @@
  BNE hpc9
  JMP G_PCURVE
 
-.H_BPT
- LDA QQ11
- ORA GFORCE
- BNE hpc9
- JMP G_PPOINT
 .hpc9
  RTS
 

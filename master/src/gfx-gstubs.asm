@@ -118,7 +118,7 @@
  JMP gback
 
 .G_PCURVE               \ (F_PCURVE and F_PPOINT do not read A, and both
- LDA #GFXBANK           \ callers, H_PCURVE and H_BPT, enter with A = 0 and
+ LDA #GFXBANK           \ callers, H_PCURVE and BLINE, enter with A = 0 and
  STA &F4                \ reload A afterwards, so A need not be kept in gA)
  STA &FE30
  JSR F_PCURVE

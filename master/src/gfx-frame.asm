@@ -2637,7 +2637,7 @@ MAXPT = 140             \ points per frame
 F_NCV = P%-1
  BEQ fpp9
  LDY #0                 \ operand = F_NPT (Y is not preserved: BLINE, the
-F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
+F_NPT = P%-1            \ only caller, reloads Y on every path
  CPY #MAXPT             \ before reading it; CLIP2 only saves/restores it)
  BCS fpp9
  LDA K6

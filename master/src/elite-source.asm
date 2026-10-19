@@ -6760,15 +6760,17 @@ ENDIF
 
  TXA                    \ Set K5(3 2) = XX12(1 0) = (T X) + K4(1 0)
  ADC K4                 \   = y-coord of centre + y-coord of new point
- STA XX12               \ (XX12 for LL145, as H_BPT keeps it)
+ STA XX12               \ (XX12 for LL145, as recording the point keeps it)
  STA K5+2
  LDA K4+1
  ADC T
  STA XX12+1
  STA K5+3
 
- JSR H_BPT              \ Port: in record mode, record the point (F_PPOINT
-                        \ reads its y from K5(3 2))
+ LDA QQ11               \ Port: in record mode, record the point (F_PPOINT
+ ORA GFORCE             \ reads its y from K5(3 2); this was the H_BPT hook,
+ BNE P%+5               \ inlined)
+ JSR G_PPOINT
 
  LDA K5                 \ Set XX15(1 0) = K5(1 0) = x of the previous point
  STA XX15
