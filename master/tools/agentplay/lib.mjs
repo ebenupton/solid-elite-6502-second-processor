@@ -77,10 +77,42 @@ export class EliteMachine {
             if (inRam && this.page0d.length < 20) { this.page0d.push([this.iter, pc, a]); this.event("page0d", `PC &${pc.toString(16)} wrote &${a.toString(16)}`); }
             return false;
         });
-        this.handler = cpu.debugInstruction.add(pc => this.tab(pc));
+        this._fastExec();
+        // render the picture one frame in FRAMESKIP (default 25; screenshot() renders a fresh one)
+        this.s._video.frameSkipCount = +(process.env.FRAMESKIP || 25);
         this.cyclesNow = () => cpu.cycleSeconds * 2e6 + cpu.currentCycles;
     }
 
+    // jsbeeb's execute, with this machine's hooks tested inline (a table lookup per
+    // instruction rather than a chain of hook calls): about twice as fast. Other
+    // debugInstruction hooks (traces) are still called.
+    _fastExec() {
+        const cpu = this.cpu, tab = this.hookTab, self = this;
+        cpu.execute = function (n) {
+            this.halted = false;
+            this.targetCycles += n;
+            const smaller = Math.min(this.targetCycles, this.currentCycles) & 0xfffffffe;
+            if (smaller >= 2 * 1000 * 1000) { this.targetCycles -= 2 * 1000 * 1000; this.currentCycles -= 2 * 1000 * 1000; this.cycleSeconds++; }
+            let first = true;
+            while (!this.halted && this.currentCycles < this.targetCycles) {
+                const pc = this.pc;
+                this.oldPcIndex = (this.oldPcIndex + 1) & 0xff;
+                this.oldPcArray[this.oldPcIndex] = pc;
+                this.memStatOffset = this.memStatOffsetByIFetchBank & (1 << (pc >>> 12)) ? 256 : 0;
+                const opcode = this.readmem(pc);
+                if (!first) {
+                    if (tab[pc] && self.tab(pc)) { this.halted = true; return false; }
+                    if (this._debugInstruction && this._debugInstruction(pc, opcode)) return false;
+                }
+                first = false;
+                this.incpc();
+                this.runner.run(opcode);
+                if (this.takeInt) this.brk(true);
+                if (!this.resetLine) this.reset(false);
+            }
+            return !this.halted;
+        };
+    }
     emuSecs() { return this.cpu.cycleSeconds + this.cpu.currentCycles / 2e6; }
     rb(a) { return this.ram[a & 0xffff]; }
     rd(a, n) { return Array.from(this.ram.subarray(a, a + n)); }
@@ -195,6 +227,7 @@ export class EliteMachine {
             if (!this.patched && this.opts.patch) { this.patched = true; this.opts.patch(this); this.event("patch", "commander patched at BAY"); }
         } else if (this._at(H.S, pc) && !this.inGame) {
             this.inGame = true;
+            if (this.onEntry) this.onEntry(this);
         } else if (this._at(H.TT170, pc) && !this.started) {
             if (this.opts.seedFrom && !this.opts.seedFrom.init) return this._block({ kind: "tt170" });
             this.blocked = null;
@@ -301,6 +334,8 @@ export class EliteMachine {
         });
     }
     async screenshot() { return this.s.screenshotActive({ scale: 1 }); }
+    // render every frame from now on (for screenshots that show the current picture)
+    renderAll() { this.s._video.frameSkipCount = 1; }
 }
 
 // ---- comparing two machines' game state
