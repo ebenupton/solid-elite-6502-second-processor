@@ -32,13 +32,13 @@ NEXT
 FOR y, 0, 191
   EQUB HI(r7_rrun) + (y DIV 8)
 NEXT
-.r7_lm
-FOR x, 0, 255
-  EQUB ((&F0 >> (x AND 3)) AND &F0) OR (&0F >> (x AND 3))
+.r7_lm                    \ pixels x..3 of a byte (x = 0..3)
+FOR x, 0, 3
+  EQUB ((&F0 >> x) AND &F0) OR (&0F >> x)
 NEXT
-.r7_rm
-FOR x, 0, 255
-  EQUB ((&F0 << (3 - (x AND 3))) AND &F0) OR ((&0F << (3 - (x AND 3))) AND &0F)
+.r7_rm                    \ pixels 0..x of a byte (x = 0..3)
+FOR x, 0, 3
+  EQUB ((&F0 << (3 - x)) AND &F0) OR ((&0F << (3 - x)) AND &0F)
 NEXT
 
 
@@ -299,14 +299,18 @@ c_BB  = &25
   LDX #0
   BRA eg
 .edge63
-  LDX c_L
-  CPX #252
+  LDA c_L
+  CMP #252
   BCS e6a
-  LDX #252
+  LDA #252
 .e6a
+  AND #3
+  TAX
+  LDA c_R                 \ (>= 252)
+  AND #3
+  TAY
   LDA r7_lm,X
-  LDX c_R
-  AND r7_rm,X
+  AND r7_rm,Y
   LDX #&F8
 .eg
   EOR #&FF
