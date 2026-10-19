@@ -21,8 +21,8 @@ Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers
         renderer stubs and hooks, the lighting's game half, the far7 stubs)
   B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: data, then code)
   ANDY  ANDY.bin, &8000-&8FFF of the cold area (ROMSEL &87)
-  C7    COLD7.bin, bank 7 &AC40- (QQ18, the far4 stubs, the cold code; ROMSEL &87)
-  R7    RAST7.bin, bank 7 &8000-&AC3F (the rasteriser's cold code; ROMSEL 7)
+  C7    COLD7.bin, bank 7 COLD7LO- (QQ18, the far4 stubs, the cold code; ROMSEL &87)
+  R7    RAST7.bin, bank 7 &8000- below COLD7LO (the rasteriser's cold code; ROMSEL 7)
   B5    BANK5.bin (rasteriser)      B6  BANK6.bin (frame layer, faces, lighting)
   HZ    HAZEL &C000-&DFFF (HAZEL.bin: the code at &C300-, plus scratch and state)
   SH    shadow RAM &3100- (TOKENS.bin: TKN1, RUPLA, RUGAL, RUTOK; data only, read with
@@ -135,8 +135,9 @@ SEGFILE = {'BCODE': 'main', 'LOWCODE': 'main', 'HICODE': 'main',
 SIDEWAYS = ('B4', 'ANDY', 'C7', 'R7', 'B5', 'B6')
 SEGORDER = ('main', 'B4', 'ANDY', 'C7', 'R7', 'HZ', 'B5', 'B6')
 # what code in a segment sees at &8000-&BFFF: [(segment, lo, hi)] (None: unknown, any bank)
-COLDVIEW = (('ANDY', 0x8000, 0x9000), ('R7', 0x9000, 0xAC40), ('C7', 0xAC40, 0xC000))
-B7VIEW = (('R7', 0x8000, 0xAC40), ('C7', 0xAC40, 0xC000))
+COLD7LO = 0xAC40        # the cold area's bank 7 part starts here (set_cold7lo: from the build)
+COLDVIEW = (('ANDY', 0x8000, 0x9000), ('R7', 0x9000, COLD7LO), ('C7', COLD7LO, 0xC000))
+B7VIEW = (('R7', 0x8000, COLD7LO), ('C7', COLD7LO, 0xC000))
 VIEW = {'main': (('B4', 0x8000, 0xC000),), 'RAM': (('B4', 0x8000, 0xC000),),
         'B4': (('B4', 0x8000, 0xC000),), 'ANDY': COLDVIEW, 'C7': COLDVIEW, 'R7': B7VIEW,
         'B5': (('B5', 0x8000, 0xC000),), 'B6': (('B6', 0x8000, 0xC000),), 'HZ': None,
@@ -144,6 +145,20 @@ VIEW = {'main': (('B4', 0x8000, 0xC000),), 'RAM': (('B4', 0x8000, 0xC000),),
 # bank views by ROMSEL value (far calls: far7 pages COLDBANK &87, far4 HOMEBANK 4)
 ROMSEL_VIEW = {0x87: COLDVIEW, 0x04: (('B4', 0x8000, 0xC000),), 0x07: B7VIEW,
                0x05: (('B5', 0x8000, 0xC000),), 0x06: (('B6', 0x8000, 0xC000),)}
+
+
+def set_cold7lo(lo):
+    """the build's COLD7LO (elite-data.asm): where bank 7's cold area part starts"""
+    global COLD7LO, COLDVIEW, B7VIEW
+    COLD7LO = lo
+    COLDVIEW = (('ANDY', 0x8000, 0x9000), ('R7', 0x9000, lo), ('C7', lo, 0xC000))
+    B7VIEW = (('R7', 0x8000, lo), ('C7', lo, 0xC000))
+    VIEW['ANDY'] = VIEW['C7'] = COLDVIEW
+    VIEW['R7'] = B7VIEW
+    ROMSEL_VIEW[0x87] = COLDVIEW
+    ROMSEL_VIEW[0x07] = B7VIEW
+
+
 # shadow RAM data (elite-data.asm's TOKENS.bin): the equates naming it
 SHADOW_NAMES = ('TKN1', 'RUPLA', 'RUGAL', 'RUTOK')
 
@@ -275,6 +290,8 @@ class Program:
                 self.gsym.setdefault(m.group(1), int(m.group(2)))
         except OSError:
             self.notes.append('symbols.txt missing: no equates')
+        if 'COLD7_START%' in self.gsym:
+            set_cold7lo(self.gsym['COLD7_START%'])
 
     def segname(self, pc, epoch):
         for name, s, e, ep, _f in self.gsaves:

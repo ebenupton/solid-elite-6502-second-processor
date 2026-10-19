@@ -43,14 +43,14 @@ INCLUDEs at its end):
 | `main` | `LOWCODE` &0840-, `BCODE` &1300-&3FFF, `HICODE` &7200-&7FFF | low code (DOKEY, DOCKIT ...), the flight code and data, the high code: the quarter-square tables QSL/QSH at &7200, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the lighting's game half (gfx-light), the far7 stubs into the cold area |
 | `B4` | `BANK4` | bank 4, Elite's home bank: the data (INCBIN BANK4D: blueprints, XX21 ..., SNE, ACT) and code (TACTICS, LL9, MVEIT, Master's drawing, the CMYK dashboard) |
 | `ANDY` | `ANDY` | the cold area's &8000-&8FFF (ROMSEL &87) |
-| `C7` | `COLD7` | bank 7 &AC40-: QQ18, the far4 stubs out of the cold area, the cold code |
-| `R7` | `RAST7` | bank 7 &8000-&AC3F: the rasteriser's cold code (ROMSEL 7) |
+| `C7` | `COLD7` | bank 7 from COLD7LO (elite-data.asm): QQ18, the far4 stubs out of the cold area, the cold code |
+| `R7` | `RAST7` | bank 7 &8000 up to COLD7LO: the rasteriser's cold code (ROMSEL 7) |
 | `HZ` | `HAZEL` (&C300-, the code) | HAZEL: gvars, the T_ trampolines, the text hooks, the raster stubs, the lighting ramps; and (no image) the rasteriser's scratch at &C000, raster_vars, the dashboard variables, the &DC40 block |
 | `B5`, `B6` | `BANK5`, `BANK6` | the rasteriser; the frame layer, faces, lighting tables |
 | `SH` | TOKENS.bin (elite-data.asm) at TKN1 = &3100 | shadow RAM data only: TKN1, RUPLA, RUGAL, RUTOK |
 | `RAM` | none | zero page, stack, K%, WP ... |
 
-The profile's bank 7 key (`B7:`) is split at &AC40 into `R7` and `C7`.  The disc's
+The profile's bank 7 key (`B7:`) is split at COLD7LO into `R7` and `C7`.  The disc's
 BCODE.bin (commander checksum set) is used rather than BCODE.unprot.bin, as the loader
 loads it.
 
@@ -63,7 +63,7 @@ loads it.
   the operand names (`JSR F_FRAME` in a G_ stub reaches B6, `JSR R_POLY` in a T_
   trampoline B5, `STA r_pt3+2` patches B5); else what the referencing code sees paged:
   main and B4 code bank 4; cold code (ANDY, C7: ROMSEL &87) ANDY at &8000-&8FFF and bank 7
-  (R7 below &AC40, C7 above); the rasteriser's bank 7 code (R7, ROMSEL 7) R7 and C7; B5
+  (R7 below COLD7LO, C7 above); the rasteriser's bank 7 code (R7, ROMSEL 7) R7 and C7; B5
   and B6 themselves; HAZEL code any bank (a HAZEL reference naming no label is
   ambiguous: all banks, conservative).
 * **Shadow RAM.**  The token readers (TKRD, RUPRD, RUGRD) set ACCCON X and read shadow

@@ -20238,9 +20238,9 @@ ENDIF
 \
 \ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
 \ (&87): ANDY at &8000-&8FFF (elite-andy.asm) and sideways RAM bank 7 from
-\ &AC40 (QQ18 from elite-data.asm, the stubs that lead out of the cold area,
+\ COLD7LO (QQ18 from elite-data.asm, the stubs that lead out of the cold area,
 \ then elite-cold7.asm).
-\ Bank 7 below &AC40 is kept for the renderer's cold code.
+\ Bank 7 below COLD7LO is kept for the renderer's cold code.
 \
 \ ******************************************************************************
 
@@ -20256,7 +20256,9 @@ ENDIF
  SAVE "build/ANDY.bin", &8000, &9000, &8000
 
  CLEAR &8000, &C000
- ORG &AC40
+ ORG COLD7LO
+
+.COLD7_START%
 
  INCBIN "build/QQ18D.bin"           \ QQ18, the recursive token table
 
@@ -20266,12 +20268,12 @@ ENDIF
 
 .COLD7_END%
 
- PRINT "Bank 7 cold: &AC40-", ~COLD7_END%-1, " free ", &C000-COLD7_END%
- SAVE "build/COLD7.bin", &AC40, &C000, &AC40
+ PRINT "Bank 7 cold: ", ~COLD7LO, "-", ~COLD7_END%-1, " free ", &C000-COLD7_END%
+ SAVE "build/COLD7.bin", COLD7LO, &C000, COLD7LO
 
  PRINT "Addresses for the scramble routines in elite-checksum.py"
  PRINT "F% = ", ~F%
  PRINT "G% = ", ~G%
  PRINT "NA2% = ", ~NA2%
 
- INCLUDE "src/elite-gfx.asm"      \ Port: the filled renderer (HAZEL, banks 5 and 6, bank 7 below &AC40)
+ INCLUDE "src/elite-gfx.asm"      \ Port: the filled renderer (HAZEL, banks 5 and 6, bank 7 below COLD7LO)

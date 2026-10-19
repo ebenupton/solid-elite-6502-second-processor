@@ -18,8 +18,8 @@
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser (gfx-raster.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (gfx-frame.asm),
 \                    the ship faces and colours (gfx-faces.asm) and its state
-\   build/RAST7.bin  sideways RAM bank 7 &8000-&AC3F: the rasteriser's cold
-\                    code (gfx-raster7.asm), under the cold area at &AC40
+\   build/RAST7.bin  sideways RAM bank 7 from &8000: the rasteriser's cold
+\                    code (gfx-raster7.asm), below the cold area at COLD7LO
 \
 \ ******************************************************************************
 
@@ -159,8 +159,8 @@ CLEAR &8000, &C000
 ORG &8000
 INCLUDE "src/gfx-raster7.asm"   \ the rasteriser's second bank (cold code)
 .R7_END
-PRINT "Bank 7: rasteriser (cold) &8000-", ~R7_END-1, " free to the cold area ", &AC40-R7_END
-ASSERT R7_END <= &AC40
+PRINT "Bank 7: rasteriser (cold) &8000-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
+ASSERT R7_END <= COLD7LO
 SAVE "build/RAST7.bin", &8000, R7_END, &8000
 
 \ Shadow RAM (ACCCON X = 1): the lens flare (gfx-flare.asm), at &7E00-&7FFF

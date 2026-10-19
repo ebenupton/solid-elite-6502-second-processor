@@ -41,11 +41,14 @@ SEGORDER = ('main', 'B4', 'ANDY', 'C7', 'R7', 'HZ', 'B5', 'B6')
 SEGPFX = {'M': 'main', 'A': 'ANDY', 'HZ': 'HZ', 'B4': 'B4', 'B5': 'B5', 'B6': 'B6'}
 
 
+COLD7LO = 0xAC40        # the cold area's bank 7 part (main: from the build's symbols)
+
+
 def seg_of(pfx, a):
     """the analysis segment of a profile key (bank 7: the rasteriser's cold code below
-    &AC40, the cold area's bank 7 part from &AC40)"""
+    COLD7LO, the cold area's bank 7 part from COLD7LO)"""
     if pfx == 'B7':
-        return 'R7' if a < 0xAC40 else 'C7'
+        return 'R7' if a < COLD7LO else 'C7'
     return SEGPFX.get(pfx)
 
 
@@ -121,6 +124,15 @@ def main():
     J = json.load(open(os.path.join(G, 'insns.json')))
     recs = J['insns']
     build = J['meta']['build']
+    global COLD7LO
+    for c in (os.path.join(str(build), 'tree', 'master', 'build', 'symbols.txt'),
+              os.path.join(str(build), 'symbols.txt')):
+        if os.path.exists(c):
+            import re
+            m = re.search(r"'COLD7_START%':(\d+)", open(c, encoding='latin-1').read())
+            if m:
+                COLD7LO = int(m.group(1))
+            break
     prof, pmeta = load_profile(a.profile, recs)
     for r in recs:
         p = prof.get((r['seg'], int(r['addr'], 16)), (0.0, 0.0, {}))

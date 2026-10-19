@@ -790,9 +790,9 @@ ENDIF
  EQUB &87, %00001001
  EQUW &8000, &1000
 
- EQUW MESS6             \ COLD7: the cold area's second part, bank 7 &AC40-&BFFF
+ EQUW MESS6             \ COLD7: the cold area's second part, bank 7 from COLD7LO
  EQUB 7, %00001001      \ (above the space for the renderer's code there)
- EQUW &AC40, &C000-&AC40
+ EQUW COLD7LO, &C000-COLD7LO
 
  EQUW MESS9             \ BANK5: the renderer's rasteriser, bank 5
  EQUB 5, %00001001
@@ -802,7 +802,7 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
- EQUW MESS11            \ RAST7: the rasteriser's cold code, bank 7 &8000-&AC3F
+ EQUW MESS11            \ RAST7: the rasteriser's cold code, bank 7 from &8000
  EQUB 7, %00001001      \ (below the cold area)
  EQUW &8000, R7LEN
 
