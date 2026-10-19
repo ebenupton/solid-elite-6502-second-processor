@@ -530,17 +530,6 @@ ENDIF
  DEY
  BNE HZC
 
-                        \ Port: then HAZEL's second block of code, staged
-                        \ after the first (HZ1LEN bytes on), to HZ2_START
- LDX #0
-.HZC2
- LDA &4000+HZ1LEN,X
- STA HZ2_START,X
- INX
- CPX #HZ2LEN
- BNE HZC2
-
- ASSERT HZ2LEN > 0 AND HZ2LEN < 256
  ASSERT LOWLEN <= &0D00 - &0840 \ (never into page &0D)
  ASSERT HZLEN <= &0800  \ (HAZEL's staging copy at &4000 must not reach &4800)
 

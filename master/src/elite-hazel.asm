@@ -4,9 +4,9 @@
 \
 \ Port: HAZEL (&C300-&DBFF, ACCCON Y) is visible to game code with bank 4
 \ paged, so code here calls main RAM and bank 4 directly, and they call it
-\ directly. INCLUDEd by elite-gfx.asm in the HAZEL code. Flight code that the
-\ gate never runs (the stardust of the rear and side views) lives here, to
-\ make room in main RAM.
+\ directly. INCLUDEd by elite-gfx.asm in the HAZEL code: the stardust of the
+\ rear and side views (STARS6, STARS2) and FLIP, which reflects the stardust
+\ when the view changes.
 \
 \ ******************************************************************************
 
@@ -726,3 +726,60 @@
 
  BNE STC2               \ Jump up to STC2 to draw this new particle (this BNE is
                         \ effectively a JMP as A will never be zero)
+
+\ ******************************************************************************
+\
+\       Name: FLIP
+\       Type: Subroutine
+\   Category: Stardust
+\    Summary: Reflect the stardust particles in the screen diagonal and redraw
+\             the stardust field
+\
+\ ------------------------------------------------------------------------------
+\
+\ Swap the x- and y-coordinates of all the stardust particles and draw the new
+\ set of particles. Called by LOOK1 when we switch views.
+\
+\ This is a quick way of making the stardust field in the new view feel
+\ different without having to generate a whole new field. If you look carefully
+\ at the stardust field when you switch views, you can just about see that the
+\ new field is a reflection of the previous field in the screen diagonal, i.e.
+\ in the line from bottom left to top right. This is the line where x = y when
+\ the origin is in the middle of the screen, and positive x and y are right and
+\ up, which is the coordinate system we use for stardust).
+\
+\ ******************************************************************************
+
+.FLIP
+
+ JSR pxpatd             \ Switch to stripe 3-2-3-2, which is cyan/red in the
+                        \ space view (Port: and patch the record-mode tests)
+
+ LDY NOSTM              \ Set Y to the current number of stardust particles, so
+                        \ we can use it as a counter through all the stardust
+
+.FLL1
+
+ LDX SY,Y               \ Copy the Y-th particle's y-coordinate from SY+Y into X
+
+ LDA SX,Y               \ Copy the Y-th particle's x-coordinate from SX+Y into
+ STA Y1                 \ both Y1 and the particle's y-coordinate
+ STA SY,Y
+
+ TXA                    \ Copy the Y-th particle's original y-coordinate into
+ STA X1                 \ both X1 and the particle's x-coordinate, so the x- and
+ STA SX,Y               \ y-coordinates are now swapped and (X1, Y1) contains
+                        \ the particle's new coordinates
+
+ LDA SZ,Y               \ Fetch the Y-th particle's distance from SZ+Y into ZZ
+ STA ZZ
+
+ JSR PIXEL2             \ Draw a stardust particle at (X1,Y1) with distance ZZ
+
+ DEY                    \ Decrement the counter to point to the next particle of
+                        \ stardust
+
+ BNE FLL1               \ Loop back to FLL1 until we have moved all the stardust
+                        \ particles
+
+ RTS                    \ Return from the subroutine
