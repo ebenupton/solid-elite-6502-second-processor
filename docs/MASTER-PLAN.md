@@ -644,4 +644,6 @@ in single-purpose gated commits:
 
 Free bytes went from about 230 (plus the 224-byte gap) to about 1700;
 trampolines from 156 stubs and 6 far-call helpers to 134 and 4. Gate:
-1.232, 17.21 it/s before; after, see the final commit's message.
+1.232, 17.21 it/s before; 1.235, 17.25 it/s after (115930 cycles per flight
+iteration, 732 of them page crossings), with test_raster --quick and the
+flare's pixel check passing.
