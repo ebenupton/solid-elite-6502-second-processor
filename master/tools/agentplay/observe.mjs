@@ -23,7 +23,7 @@ export const DIALS = [
 // the scanner and compass area: x from the left panel's bars' end to the right panel's start
 const AREA = { x0: 50, x1: 206, y0: 0, y1: 56 };
 // EOR bulbs: [name, address of the 16 bytes (two characters, lines 0-7)]
-const BULBS = [["ECM", 0x7a70], ["STATION", 0x7b80]];
+const BULBS = [["ECM", 0x7a70, "ECBT"], ["STATION", 0x7b80, "SPBT"]];
 
 export class Observer {
     // m: an EliteMachine (lib.mjs); its kind ("mode2" for the original, "mode1" for the port)
@@ -54,6 +54,15 @@ export class Observer {
         if (this.mode === 1) { const p = x & 3; return ((b >> (7 - p)) & 1) << 1 | ((b >> (3 - p)) & 1); }
         const p = (x >> 1) & 1;
         return p === 0 ? (b & 0xaa) && ((b >> 7) & 1) << 3 | ((b >> 5) & 1) << 2 | ((b >> 3) & 1) << 1 | ((b >> 1) & 1) : ((b >> 6) & 1) << 3 | ((b >> 4) & 1) << 2 | ((b >> 2) & 1) << 1 | (b & 1);
+    }
+    // a bulb's 16-byte bitmap: the original's in main RAM, the port's in bank 4 (elite-dash.asm)
+    pattern(sym) {
+        this.pats ||= {};
+        if (!this.pats[sym]) {
+            const a = this.m.sy[sym], cpu = this.m.cpu;
+            this.pats[sym] = Array.from({ length: 16 }, (_, i) => this.mode === 1 ? cpu.ramRomOs[cpu.romOffset + 4 * 16384 + a + i - 0x8000] : this.m.rb(a + i));
+        }
+        return this.pats[sym];
     }
     captureBackground() { this.bg = this.m.ram.slice(SHADOW + BASE, SHADOW + BASE + 0xe00); }
 
@@ -87,10 +96,14 @@ export class Observer {
             const a = 0x7c60 - 16 * X + 3, b = this.scr(a);
             out.missiles.push(this.missileClass(b));
         }
-        for (const [name, a] of BULBS) {
-            let on = 0;
-            for (let i = 0; i < 16; i++) if (this.scr(a + i) !== this.bg[a + i - BASE]) on++;
-            out.bulbs[name] = on > 0;
+        // a bulb is on when the screen XOR the image is its bitmap (ECBT, SPBT), off when it is
+        // nothing; a scanner dot drawn over it spoils a few bytes, so 12 of the 16 decide,
+        // and otherwise it is unknown (null, not compared)
+        for (const [name, a, sym] of BULBS) {
+            const pat = this.pattern(sym);
+            let on = 0, off = 0;
+            for (let i = 0; i < 16; i++) { const d = this.scr(a + i) ^ this.bg[a + i - BASE]; if (d === pat[i]) on++; if (d === 0) off++; }
+            out.bulbs[name] = on >= 12 ? true : off >= 12 ? false : null;
         }
         const d = this.dots();
         out.dots = d.dots; out.lit = d.lit;
@@ -177,7 +190,7 @@ export class Observer {
             }
         }
         for (let i = 0; i < 4; i++) if (r.missiles[i] !== c.missiles[i]) out.push({ what: `missile ${i + 1}`, ref: r.missiles[i], cand: c.missiles[i] });
-        for (const k of Object.keys(r.bulbs)) if (r.bulbs[k] !== c.bulbs[k]) out.push({ what: `${k} bulb`, ref: r.bulbs[k], cand: c.bulbs[k] });
+        for (const k of Object.keys(r.bulbs)) if (r.bulbs[k] !== null && c.bulbs[k] !== null && r.bulbs[k] !== c.bulbs[k]) out.push({ what: `${k} bulb`, ref: r.bulbs[k], cand: c.bulbs[k] });
         // dots: each one's area (x - 3 .. x + 4, its line and the ones either side: the port's
         // dots are two lines tall, the original's one line and a stick) must have
         // something EORed on in the other's screen; the compass's (x >= 184, lines < 24)
