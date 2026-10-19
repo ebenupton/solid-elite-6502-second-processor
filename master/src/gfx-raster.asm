@@ -102,7 +102,6 @@
 \ R_MARKDIRTY  Y = row, extend this buffer's DIRTY[y] by R_XL..R_XR (use it
 \              for anything else drawn into the buffer, e.g. text, so the next
 \              R_DISCROWS on this buffer repairs it).
-\ R_WMERGE     fold DIRTY of the current buffer into R_WL/R_WR (optional).
 \
 \ Frame order for buffer b:  R_SETBUF b; R_STARERASE; (fill R_NDISC*, R_NDT,
 \ R_NDB, R_DCE/R_DCO) R_DISCROWS; R_POLY/R_LINE/R_DOT ...; text; R_STARPLOT.
@@ -121,7 +120,7 @@
 \ also starts the frame's R_WL/R_WR (clearing last frame's rows): afterwards
 \ they hold, per row, the extent of the disc-layer writes (and of the
 \ dirty repair).  Shapes are NOT added to R_WL/R_WR: what was written this
-\ frame is R_WL/R_WR[y] union DIRTY[b][y] (or call R_WMERGE at the end).
+\ frame is R_WL/R_WR[y] union DIRTY[b][y].
 \ Rows of R_NDISCL/R in NDT..NDB with NDISCL = 255 (or L > R) are empty;
 \ spans are clamped to the clip window.
 \ Two-colour discs (R_NDF <> 0): pixel x of a disc row has colour R_NDP
@@ -534,12 +533,6 @@ R_ENDPAGE 17
 .n4
   RTS
 }
-.R_WMERGE                 \ (bank 7: r7_wmerge)
-  LDX #LO(r7_wmerge)
-  BRA r_c7
-.r_c7                     \ X = low byte of a bank-7 routine in page HI(r7_wmerge)
-  TXA
-  LDX #HI(r7_wmerge)
 .r_c7x                    \ A, X = bank-7 routine (low, high)
   STA r_hzt7
   STX r_hzt7+1
@@ -637,8 +630,9 @@ R_ENDPAGE 22
   LDA r_dyz
   CMP r_dya
   BCC c4                  \ (no dirty rows)
-  LDX #LO(r7_crep)
-  JSR r_c7
+  LDA #LO(r7_crep)
+  LDX #HI(r7_crep)
+  JSR r_c7x
 .c4
   LDX r_buf
   RTS
@@ -4110,21 +4104,12 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 }
 
 \ ============================================================================
-\ R_WMERGE: WL/WR |= DIRTY[b] over the clip rows.
-\ ============================================================================
-
-
-
-
-\ ============================================================================
 \ Cold entry points: the code is in bank 7 (raster7.asm)
 \ ============================================================================
 MACRO R_TO7 target
-  LDX #LO(target)
-  STX r_hzt7
+  LDA #LO(target)
   LDX #HI(target)
-  STX r_hzt7+1
-  JMP r_call7
+  JMP r_c7x
 ENDMACRO
 \ r_clrrow: (for bank 7's R_CLEARALL) Y = row: black from CL to CR
 .r_clrrow

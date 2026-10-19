@@ -71,8 +71,6 @@ c_BT  = &24
 c_BB  = &25
 
 
-\ (r7_crep and r7_wmerge share a page, as r_c7 calls them by their low
-\ bytes: first after the tables, which end on a page boundary)
 .r7_crep
 {
   STZ R_PRCWB
@@ -169,56 +167,6 @@ c_BB  = &25
   STY R_PRWT
 .r1
   JMP r7_rowrep
-}
-
-\ ============================================================================
-\ R_WMERGE (bank 7 part): WL/WR |= DIRTY[b] over the clip rows
-\ ============================================================================
-.r7_wmerge
-{
-  LDX R_PRBUF
-  LDA dlh,X
-  STA l1+2
-  LDA drh,X
-  STA l2+2
-  LDY R_CT
-.lp
-.l2
-  LDA R_DIRTYR0,Y
-  BEQ nx
-  STA c_R
-.l1
-  LDA R_DIRTYL0,Y
-  LDX R_WR,Y
-  BNE mg
-  STA R_WL,Y
-  LDA c_R
-  STA R_WR,Y
-  BRA rg
-.mg
-  CMP R_WL,Y
-  BCS m1
-  STA R_WL,Y
-.m1
-  LDA c_R
-  CMP R_WR,Y
-  BCC rg
-  STA R_WR,Y
-.rg
-  CPY R_PRWT
-  BCS m2
-  STY R_PRWT
-.m2
-  CPY R_PRWB
-  BCC nx
-  STY R_PRWB
-.nx
-  CPY R_CB
-  INY
-  BCC lp
-  RTS
-.dlh EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
-.drh EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 }
 
 \ r7_rowrep: rows Y .. c_YE - 1 (see above)
@@ -390,7 +338,6 @@ c_BB  = &25
 .drh EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 }
 
-ASSERT HI(r7_crep) = HI(r7_wmerge)  \ (r_c7 calls them by their low bytes)
 
 \ ============================================================================
 \ R_INIT (bank 7 part)
