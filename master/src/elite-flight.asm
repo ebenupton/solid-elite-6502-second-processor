@@ -466,8 +466,11 @@
 
                         \ Port: start mvs5n on a page boundary when MVS5 would
                         \ otherwise straddle one, so that MVS5's branches stay
-                        \ within a page (MVS5_SPAN: mvs5n to the end of MVS5)
+                        \ within a page (MVS5_SPAN: mvs5n to the end of MVS5);
+                        \ the main code's free bytes, if any, are here
 MVS5_SPAN = &D8
+
+.MVS5_GAP
 
 IF HI(P% + 3) <> HI(P% + 3 + MVS5_SPAN - 1)
  SKIP 256 - LO(P% + 3)
@@ -476,7 +479,7 @@ ENDIF
 .mvs5x
 
  JMP mvs5r              \ Port: the rare first-half path, in main RAM
-                        \ (MVS5_HOLE), as the demo's at the end of bank 4
+                        \ (where MVS5 was), as the demo's at the end of bank 4
 
 .mvs5n
 
@@ -678,7 +681,7 @@ ENDIF
 
 .mvs5s
 
- JMP mvs5sm             \ Port: the rare path, in main RAM (MVS5_HOLE)
+ JMP mvs5sm             \ Port: the rare path, in main RAM (where MVS5 was)
 
  ASSERT P% - mvs5n <= MVS5_SPAN \ (MVS5_SPAN above covers all of MVS5)
 

@@ -4958,9 +4958,6 @@ ENDIF
                         \ for slots 0-5 and rejoins at MAL3e; other slots
                         \ come back to MAL3s for the loop
 
- SKIP 8                 \ (padding, so that the code that follows does not
-                        \ move)
-
 .MAL3s
 
  LDY #NI%-1             \ Set a counter in Y so we can loop through the NI%
@@ -7467,12 +7464,8 @@ ENDIF
  ASSERT mla5 - mlb5 = MLSA - MLSB AND mla2 - mlb2 = MLSA - MLSB
  ASSERT mla4 - mlb4 = MLSA - MLSB AND MLSA - MLSB < 256
 
-                        \ Port: STARS1 has a fixed budget of 510 bytes, 256
-                        \ more than the original routine's 254, so that the
-                        \ code after it is exactly one page further on and
-                        \ keeps its page offsets whatever the size of STARS1
-                        \ Port: FILLKL's variables (fkdet is in MVS5_HOLE,
-                        \ fkl at the end of the low code)
+                        \ Port: FILLKL's variables (fkdet follows MVS5's rare
+                        \ paths below, fkl is at the end of the low code)
 
 .fkn
 
@@ -7486,8 +7479,6 @@ ENDIF
 
  EQUB 0                 \ FILLKL: the row's first key number (16, 32, ... 112)
 
- ASSERT P% <= stl_dvs + 510
- SKIP stl_dvs + 510 - P%
 
 \ Port: STARS6 moved to HAZEL (elite-hazel.asm)
 
@@ -7674,10 +7665,8 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: MVS5 moved to bank 4 (elite-bank4.asm), in the demo port's form; the
-\ space keeps the code that follows in place
-
-.MVS5_HOLE
+\ Port: MVS5 is at the end of the main code (elite-flight.asm), in the demo
+\ port's form; its rare paths mvs5r and mvs5sm, and FILLKL's fkdet, are here
 
 .mvs5r
 
@@ -7773,8 +7762,6 @@ ENDIF
  RTS
 
 
- ASSERT P% <= MVS5_HOLE + 117
- SKIP MVS5_HOLE + 117 - P%
 
 \ ******************************************************************************
 \
@@ -8859,11 +8846,7 @@ HANGHEAP = &C000
 
  RTS                    \ Return from the subroutine
 
-\ Port: STARS2 moved to HAZEL (elite-hazel.asm); the padding keeps the code
-\ that follows on the same page offsets as before (the two moves take out
-\ 512 bytes net, with HANGFLAG's byte above)
-
- EQUB 0, 0
+\ Port: STARS2 moved to HAZEL (elite-hazel.asm)
 
 \ ******************************************************************************
 \
@@ -19395,6 +19378,7 @@ ENDIF
 \ ******************************************************************************
 
  PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ PRINT "Main code: &1300-", ~P%-1, " free ", mvs5x - MVS5_GAP + &4000 - P%, " (", mvs5x - MVS5_GAP, " before MVS5)"
  SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
 
 \ ******************************************************************************
