@@ -9149,11 +9149,14 @@ ENDIF
                         \ HALL), so LL9 writes their line heaps. The original's
                         \ &0B00 holds the port's low code (DOCKIT and the
                         \ tactics helpers, elite-low.asm), which those writes
-                        \ wrecked, so the heap goes in the rasteriser's HAZEL
-                        \ scratch instead, unused while docked (and not DFS's
-                        \ lasting state, docs/MASTER-MEMORY.md)
+                        \ wrecked, so the heap goes in HAZEL's &DF00-&DFFF
+                        \ instead: the MOS's filing system workspace during
+                        \ disc commands (DOSCLI keeps its lasting bytes), and
+                        \ otherwise only for state rebuilt on re-entering
+                        \ flight (docs/MASTER-MEMORY.md). (Not the rasteriser's
+                        \ scratch at &C000: LL9 draws through it.)
 
-HANGHEAP = &C000
+HANGHEAP = &DF00
 
 .HA1
 
