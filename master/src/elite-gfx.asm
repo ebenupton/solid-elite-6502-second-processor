@@ -92,8 +92,6 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .dlen   SKIP 1          \ SCAN: the stick's length (signed)
 .dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
 NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
-.F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm's F_DSTAR,
-.F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, after R_SS)
 .fl_ml  SKIP 2          \ the lens flare (gfx-flare.asm): 32 D (x, y), low
 .fl_mh  SKIP 2          \ and high bytes
 .fl_sl  SKIP 2          \ the centres' sums S (x, y)
@@ -107,7 +105,7 @@ NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 .DFSIN  SKIP 1          \ bit 7: a disc command is under way (DOSCLI, DOSNMI)
 ASSERT DFSIN = DFSST + 66       \ (the loader clears it)
 .HZ_END
-PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
+PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &D900-HZ_END, " free to &D900)"
 ASSERT HZ_END <= &D900          \ (&D900-&DAFF: the ADFS and DFS private pages,
                                 \ written by disc commands)
 
@@ -159,6 +157,9 @@ INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step and span writer
 .F_TMR  SKIP 24         \ non-empty cells per row
 .F_SHR0 SKIP 24
 .F_SHR1 SKIP 24
+.F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm's F_DSTAR,
+.F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, in HAZEL after
+                        \ R_SS, cleared with it)
 .B6_END
 PRINT "Bank 6: frame layer &8000-", ~B6_CODE_END-1, ", data ", ~F_HW, "-", ~B6_END-1, " free ", &C000-B6_END
 ASSERT B6_END <= &C000
