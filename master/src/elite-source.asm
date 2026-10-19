@@ -4777,8 +4777,8 @@ ENDIF
  STA TYPE               \ Store the ship type in TYPE
 
  JMP MALC               \ Port: MALC does GINF and, for slots 0-5, the copy below
-                        \ unrolled, rejoining at MAL2e (slots 6+ rejoin at
-                        \ MAL1g for the loop); originally: Call GINF
+                        \ unrolled, rejoining at MAL2e (slots 6 and up rejoin
+                        \ at MAL1g for the loop); originally: Call GINF
                         \ for the ship in slot X and store it in INF. The data
                         \ block is in the K% workspace, which is where all the
                         \ ship data blocks are stored
@@ -4793,46 +4793,10 @@ ENDIF
                         \ the INWK workspace, so we set a counter in Y so we can
                         \ loop through them
 
- LDA (INF),Y            \ Copy the last byte (NI%-1) on its own, using a
- STA INWK+NI%-1         \ zero-page store, so the remaining NI%-1 = 36 bytes
- DEY                    \ can be copied six per loop pass
-
- ASSERT (NI%-1) MOD 6 = 0 \ The loop below copies six bytes per pass
-
- ASSERT INWK >= 5 AND INWK + NI% <= &100 \ zp,X stores below stay in zero page
-
 .MAL2
 
- TYA                    \ Set X = Y at the start of each pass so the stores
- TAX                    \ can use the cheaper zero-page INWK-k,X mode
-
  LDA (INF),Y            \ Load the Y-th byte of INF and store it in the Y-th
- STA INWK,X             \ byte of INWK
-
- DEY                    \ Decrement the loop counter
-
- LDA (INF),Y            \ Second byte of this pass (loop unrolled six times)
- STA INWK-1,X
-
- DEY                    \ Decrement the loop counter
-
- LDA (INF),Y            \ Third byte of this pass
- STA INWK-2,X
-
- DEY                    \ Decrement the loop counter
-
- LDA (INF),Y            \ Fourth byte of this pass
- STA INWK-3,X
-
- DEY                    \ Decrement the loop counter
-
- LDA (INF),Y            \ Fifth byte of this pass
- STA INWK-4,X
-
- DEY                    \ Decrement the loop counter
-
- LDA (INF),Y            \ Sixth byte of this pass
- STA INWK-5,X
+ STA INWK,Y             \ byte of INWK
 
  DEY                    \ Decrement the loop counter
 
@@ -4840,9 +4804,6 @@ ENDIF
                         \ last byte from INF to INWK
 
 .MAL2e
-
- LDX XSAV               \ Restore X = slot number (GINF preserved it, the loop
-                        \ above used X as the store index)
 
  LDA TYPE               \ If the ship type is negative then this indicates a
  BMI MA21               \ planet or sun, so jump down to MA21, as the next bit
