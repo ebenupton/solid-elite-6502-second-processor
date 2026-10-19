@@ -19,13 +19,36 @@
 #    ACCCON X set, by readers marked "bankcheck: ok"; other references to it
 #    must be immediate (#LO/#HI: its address);
 #  * a line with the comment "bankcheck: ok" is exempt (reviewed by hand).
+#  * the renderer's banks (bank5: gfx-raster.asm, bank6: the frame layer, the
+#    faces, the lighting tables, frame_cold and the flare's bank 6 part,
+#    bank7r: gfx-raster7.asm, flare: the flare's shadow RAM code) are reached
+#    from other areas only through the stubs in GLUE files (G_ stubs, T_
+#    trampolines, raster_hz, the HAZEL hooks) or as addresses (#LO/#HI); their
+#    code calls main RAM and HAZEL code directly but nothing in another bank,
+#    reads no other bank's data (the flare's code runs with bank 6 paged), and
+#    reads main RAM data only below &3000 (the frame layer may run with ACCCON
+#    X set, which hides main RAM above);
+#  * HAZEL ("hazel": the renderer's glue and state) is visible to every area.
 # Exit status 1 if any rule is broken.
 import re, sys
 
 SRC = "src/"
-FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-low.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "elite-hazel.asm": "main",
-         "elite-bank4.asm": "bank4", "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold",
-         "elite-cold7.asm": "cold"}
+FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-low.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main", "elite-hazel.asm": "main",
+         "elite-bank4.asm": "bank4", "elite-dash.asm": "bank4",
+         "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold", "elite-cold7.asm": "cold",
+         # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
+         # and its banks
+         "gfx-gvars.asm": "hazel", "gfx-tramp.asm": "hazel", "gfx-hzhooks.asm": "hazel",
+         "gfx-raster_hz.asm": "hazel", "gfx-lighthz.asm": "hazel", "gfx-raster_scr.asm": "hazel",
+         "gfx-raster_vars.asm": "hazel", "elite-gfx.asm": "hazel",
+         "gfx-raster.asm": "bank5", "gfx-raster7.asm": "bank7r",
+         "gfx-frame.asm": "bank6", "gfx-faces.asm": "bank6", "gfx-light6.asm": "bank6",
+         "gfx-frame_cold.asm": "bank6", "gfx-flare6.asm": "bank6", "gfx-flare.asm": "flare"}
+RENDER = ("bank5", "bank6", "bank7r", "flare")
+# the files that hold the cross-bank stubs into the renderer's banks (the G_
+# stubs page bank 6 in from game code, the T_ trampolines bank 5 from bank 6,
+# raster_hz bank 7 from bank 5 and back, the HAZEL hooks bank 6 from any bank)
+GLUE = ("gfx-gstubs.asm", "gfx-tramp.asm", "gfx-raster_hz.asm", "gfx-hzhooks.asm")
 MNEM = set(("ADC AND ASL BCC BCS BEQ BIT BMI BNE BPL BRA BRK BVC BVS CLC CLD CLI CLV CMP CPX CPY "
             "DEC DEX DEY EOR INC INX INY JMP JSR LDA LDX LDY LSR NOP ORA PHA PHP PHX PHY PLA PLP PLX "
             "PLY ROL ROR RTI RTS SBC SEC SED SEI STA STX STY STZ TAX TAY TRB TSB TSX TXA TXS TYA").split())
@@ -77,10 +100,22 @@ def idents(op):
 
 
 area = {}
+own = {}                                   # each file's own labels (local names win)
 for f, a in FILES.items():
+    own[f] = set()
     for n, line, labels, mn, op, ok in statements(SRC + f):
         for l in labels:
-            area[l] = a
+            area.setdefault(l, a)
+            own[f].add(l)
+        m = re.match(r"^(MACRO\s+\w+|FOR)\s+(.*)$", op.strip(), re.I)
+        if m:                              # (macro parameters and loop variables)
+            own[f].update(IDENT.findall(m.group(2).split(",")[0] if m.group(1).upper() == "FOR" else m.group(2)))
+addr = {}                                  # the labels' addresses (build/symbols.txt)
+try:
+    for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
+        addr.setdefault(m.group(1), int(m.group(2)))
+except FileNotFoundError:
+    pass
 try:
     for line in open("build/data-addresses.asm"):
         m = re.match(r"^\s*(\S+)\s*=\s*&[0-9A-F]+\s*\\\s*(\w+)", line)
@@ -96,12 +131,16 @@ for f, a in FILES.items():
         if ok:
             prev, prevop = mn, op.strip()
             continue
+        if mn is None and re.match(r"^[A-Za-z_][\w%]*\s*=", op.strip()):
+            continue                       # (an assignment defines a constant)
+        if mn is None and re.match(r"^(PRINT|SAVE|ASSERT|IF|ELIF|SKIP|ORG|CLEAR|ALIGN|GUARD|INCLUDE|INCBIN|R_TO7)\b", op.strip(), re.I):
+            continue                       # (assembler directives; R_TO7: the call to bank 7)
         if mn is None and re.match(r"^EQUW\b", op.strip(), re.I) and prev in ("JSR",) and prevop in ("far4", "far4j", "far7", "far7j"):
             prev, prevop = None, None
             continue                       # the EQUW of a far-call stub
         for x in idents(op):
-            b = area.get(x)
-            if b is None or b == a or x in ("far4", "far4j", "far7", "far7j"):
+            b = "self" if x in own[f] else area.get(x)
+            if b is None or b == a or b == "self" or x in ("far4", "far4j", "far7", "far7j"):
                 continue                   # (the far-call code is callable from anywhere)
             where = "%s:%d" % (f, n)
             if b == "shadow":
@@ -110,6 +149,18 @@ for f, a in FILES.items():
                 continue
             if mn in BRANCH:
                 errors.append("%s: branch from %s to %s %s" % (where, a, b, x))
+            elif b in RENDER or a in RENDER:
+                if op.strip().startswith("#") or f in GLUE:
+                    continue               # (an address, or a stub that pages the bank in)
+                if a in RENDER and b in ("main", "hazel") and mn in ("JSR", "JMP"):
+                    continue               # (main RAM and HAZEL code is visible from the banks)
+                if a in RENDER and b == "main" and addr.get(x, 0x10000) < 0x3000:
+                    continue               # (main RAM below &3000 is visible whatever ACCCON X)
+                if a == "flare" and b == "bank6":
+                    continue               # (the flare's shadow RAM code runs with bank 6 paged)
+                if b == "hazel":
+                    continue
+                errors.append("%s: %s refers to %s label %s (use a stub)" % (where, a, b, x))
             elif a == "cold":
                 if b in ("bank4", "cold"):
                     errors.append("%s: %s code refers to %s label %s" % (where, a, b, x))

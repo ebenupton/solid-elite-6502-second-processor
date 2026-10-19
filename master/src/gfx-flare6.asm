@@ -47,7 +47,7 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
  STA fl_xb
  LDA #4
  TSB &FE34
- JSR FL_MAIN
+ JSR FL_MAIN            \ (in shadow RAM: ACCCON X is set; bankcheck: ok)
  LDA fl_xb
  TRB &FE34
 .flt9

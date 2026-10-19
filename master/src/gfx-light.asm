@@ -426,20 +426,20 @@
  DEX
  BPL lr3
 
- LDX F_NSHIP            \ the record's XX2 copy
- LDA F_SPL,X
+ LDX F_NSHIP            \ the record's XX2 copy (bankcheck: ok: L_REC runs
+ LDA F_SPL,X            \ from F_SHIP, with bank 6 paged; bankcheck: ok)
  STA lrv+1
  STA lrw+1
- LDA F_SPH,X
+ LDA F_SPH,X            \ (bankcheck: ok)
  STA lrv+2
  STA lrw+2
  LDA GTYPE              \ the face list (in bank 6)
  ASL A
  TAX
- LDA FC_FACETAB,X
+ LDA FC_FACETAB,X       \ (bankcheck: ok)
  STA lrn+1
  STA lrf+1
- LDA FC_FACETAB+1,X
+ LDA FC_FACETAB+1,X     \ (bankcheck: ok)
  STA lrn+2
  STA lrf+2
  LDX #0
