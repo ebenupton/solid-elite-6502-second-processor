@@ -149,25 +149,24 @@ SAVE "build/BANK5.bin", &8000, B5_END, &8000
 CLEAR &8000, &C000
 ORG &8000
 INCLUDE "src/gfx-frame.asm"
-PRINT "DBG before faces ", ~P%
 INCLUDE "src/gfx-faces.asm"
 INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
-PRINT "DBG after light6 ", ~P%
+INCLUDE "src/gfx-frame_cold.asm"
+INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step and span writer
+.B6_CODE_END
+ALIGN &100              \ (page-aligned, so that the indexed loads never take
+.F_HW   SKIP 256        \ page-crossing cycles): planet half-widths
+.F_HW2  SKIP 256        \ sun half-widths
+.F_DL   SKIP 1536       \ ship records: XX2 then XX3 copies
+.F_DLEND
 .F_TM   SKIP 768        \ text map: desired characters, 24 rows of 32
 .F_SH0  SKIP 768        \ what buffer 0 shows
 .F_SH1  SKIP 768        \ what buffer 1 shows
 .F_TMR  SKIP 24         \ non-empty cells per row
 .F_SHR0 SKIP 24
 .F_SHR1 SKIP 24
-ALIGN &100              \ (page-aligned so code size changes never add
-.F_HW   SKIP 256        \ page-crossing cycles to the indexed loads): planet half-widths
-.F_HW2  SKIP 256        \ sun half-widths
-.F_DL   SKIP 1536       \ ship records: XX2 then XX3 copies
-.F_DLEND
-INCLUDE "src/gfx-frame_cold.asm"   \ (after the data, so that nothing else moves)
-INCLUDE "src/gfx-flare6.asm"       \ the lens flare's step and span writer
 .B6_END
-PRINT "Bank 6: frame layer &8000-", ~B6_END-1, " free ", &C000-B6_END
+PRINT "Bank 6: frame layer &8000-", ~B6_CODE_END-1, ", data ", ~F_HW, "-", ~B6_END-1, " free ", &C000-B6_END
 ASSERT B6_END <= &C000
 SAVE "build/BANK6.bin", &8000, B6_END, &8000
 

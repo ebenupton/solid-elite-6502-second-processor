@@ -721,19 +721,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDY f_ysav
  RTS
 
-.COLD6                 \ (spare, 250 bytes: Elite's cold code in bank 6, then
- INCLUDE "src/elite-cold6.asm"  \ spare bytes)
-                       \ the lens flare's tables (gfx-flare.asm), read with
-                       \ ACCCON X = 1: the k steps 8 -> 5 -> 3 -> -1 -> -3 ->
-.fl_dk  EQUB 0, 3, 2, 4, 2, 1, 2, 2         \ -4 -> -6 -> -8, by ghost
-.fl_lmt EQUB &FF, &77, &33, &11      \ pixels x AND 3..3 of a byte
-.fl_rmt EQUB &88, &CC, &EE, &FF      \ pixels 0..x AND 3
-.fl_pxm EQUB &88, &44, &22, &11      \ pixel x AND 3
-.fl_ring               \ (dx, dy) of 9 points of a quarter circle of radius 15
- EQUB 15, 0, 15, 3, 14, 6, 12, 8, 11, 11, 8, 12, 6, 14, 3, 15, 0, 15
- ASSERT P% <= COLD6 + 250
-.COLD6_END
- SKIP COLD6 + 250 - P%
 
 \ f_enter: switch from direct drawing to double buffering. Main RAM (buffer
 \ 0) has just been cleared by TT66 and holds the border; shadow RAM (buffer 1)

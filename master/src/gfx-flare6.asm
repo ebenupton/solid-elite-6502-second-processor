@@ -90,3 +90,14 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
  TSB &FE34
  RTS
 ASSERT HI(fl_or) = HI(fl_or1)
+
+\ The flare's tables, read by its code in shadow RAM (bank 6 is paged
+\ while it runs)
+
+.fl_dk  EQUB 0, 3, 2, 4, 2, 1, 2, 2 \ the k steps 8 -> 5 -> 3 -> -1 -> -3 ->
+                                    \ -4 -> -6 -> -8, by ghost
+.fl_lmt EQUB &FF, &77, &33, &11     \ pixels x AND 3..3 of a byte
+.fl_rmt EQUB &88, &CC, &EE, &FF     \ pixels 0..x AND 3
+.fl_pxm EQUB &88, &44, &22, &11     \ pixel x AND 3
+.fl_ring                \ (dx, dy) of 9 points of a quarter circle of radius 15
+ EQUB 15, 0, 15, 3, 14, 6, 12, 8, 11, 11, 8, 12, 6, 14, 3, 15, 0, 15
