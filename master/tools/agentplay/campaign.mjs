@@ -50,6 +50,21 @@ const PLANS = {
         ["load-s21", 12, "--seed", "21", "--mode", "load", "--from", "eff-s1", ...W],
         ["load-s22", 12, "--seed", "22", "--mode", "load,curious", "--from", "deadly-s9", "--chaos", "views,ecm,bomb", ...W],
     ],
+    // a second round: the missions' later stages, more deaths, pods and galactic jumps, a long career
+    extra: [
+        ["galaxy3-s40", 30, "--seed", "40", "--commander", "galaxy3", "--savediscs", ...W],
+        ["galaxy3-s41", 20, "--seed", "41", "--commander", "galaxy3", "--mode", "curious", ...W],
+        ["debrief1-s42", 12, "--seed", "42", "--commander", "debrief1", ...W],
+        ["deadly-s43", 20, "--seed", "43", "--commander", "deadly", "--mode", "curious", ...W],
+        ["long-s44", 40, "--seed", "44", "--savediscs", ...W],
+        ["death-s45", 15, "--seed", "45", "--commander", "equipped", "--chaos", "hurt*8,heat*4", ...W],
+        ["death-s46", 15, "--seed", "46", "--chaos", "hurt*8,spin*3", "--mode", "keyboard", ...W],
+        ["pods-s47", 15, "--seed", "47", "--commander", "deadly", "--chaos", "pod*8,ghyp*6,bomb*2", ...W],
+        ["fairchaos-s48", 15, "--seed", "48", "--commander", "equipped", "--mode", "fair", "--chaos", "all", ...W],
+        ["wanted-s49", 15, "--seed", "49", "--commander", "wanted", "--chaos", "ecm*2,missile*2", ...W],
+        ["load-s50", 15, "--seed", "50", "--mode", "load", "--from", "galaxy3-s40", "--chaos", "views,ecm", ...W],
+        ["load-s51", 15, "--seed", "51", "--mode", "load,curious", "--from", "long-s44", ...W],
+    ],
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],

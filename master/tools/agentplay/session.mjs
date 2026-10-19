@@ -192,11 +192,14 @@ export class Session {
             for (const n of r.notes) {
                 appendFileSync(this.files.journal, JSON.stringify({ frame: this.frame, iter: ref.iter, e: safeJson(n) }) + "\n");
                 const ev = /"event": "([^"]+)"/.exec(n); if (ev) this.stats.notes[ev[1]] = (this.stats.notes[ev[1]] || 0) + 1;
-                if (ev && (ev[1] === "save" || ev[1] === "loaded")) { this.discCheckAt = this.frame + 100; this.discNoteIter = ref.iter; }
+
             }
             if (this.chaos) this.chaos.frame(this);
         }
-        if (this.discCheckAt !== undefined && this.frame >= this.discCheckAt) { this.discCheckAt = undefined; this.compareDiscs(); }
+        // after each disc access (the reference entering SVE, the disc menu), once both machines
+        // are past the next MLOOP (the access is over in both: SVE returns before it)
+        const sve = this.ref.sveAt;
+        if (sve !== undefined && sve !== this.checkedSve && this.ref.iter > sve && this.cand.iter > sve) { this.checkedSve = sve; this.compareDiscs(); }
         ref.run(CYCLES_PER_FRAME);
         this.frame++;
         // the candidate: until it blocks at a read the reference hasn't made (or 2 s, to keep both responsive)
@@ -286,10 +289,10 @@ export class Session {
     compareDiscs(final = false) {
         // (not while a disc access is under way: the two machines' disc controllers run on
         // their own clocks, so one can be part way through writing a file the other has
-        // finished. At the end, if the reference entered the disc menu (SVE) after the
-        // agent last reported a save or load, the access may be in progress: skip)
-        const sve = this.ref.events.filter(e => e[1] === "routine" && e[2] === "SVE").map(e => e[0]).pop();
-        if (final && sve !== undefined && sve >= (this.discNoteIter ?? -1) && this.discNoteIter !== sve) { this.stats.discSkipped = (this.stats.discSkipped || 0) + 1; if (this.cfg.saveDiscs) this.finalDiscsUnsettled = true; }
+        // finished. At the end, if a machine hasn't passed the MLOOP after the reference's
+        // last SVE, the access may be in progress: skip)
+        const sve = this.ref.sveAt;
+        if (final && sve !== undefined && !(this.ref.iter > sve && this.cand.iter > sve)) this.stats.discSkipped = (this.stats.discSkipped || 0) + 1;
         let r, c;
         try { r = discFiles(this.ref); c = discFiles(this.cand); } catch (e) { this.finding("internal", `disc read: ${e.message}`); return; }
         this.stats.discChecks = (this.stats.discChecks || 0) + 1;

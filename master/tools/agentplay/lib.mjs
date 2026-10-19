@@ -282,7 +282,7 @@ export class EliteMachine {
             this.redirectTo = sy.SIGHT;
             return true;
         } else if (this.started) {
-            for (const k of ROUTINES) if (this._at(H[k], pc)) { this.event("routine", k); break; }
+            for (const k of ROUTINES) if (this._at(H[k], pc)) { this.event("routine", k); if (k === "SVE") this.sveAt = this.iter; break; }
         }
         return false;
     }
