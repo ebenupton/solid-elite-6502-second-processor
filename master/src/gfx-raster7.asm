@@ -12,6 +12,7 @@
 \ columns k = 1..63, then RTS
 ALIGN &100
 .r7_rrun
+ASSERT (HI(r7_rrun) AND 31) = 0  \ (the row's run page is Y DIV 8 OR HI(r7_rrun))
 FOR r, 0, 23
   FOR k, 1, 63
     STA &4000 + r * &200 + k * 8 - r * 8, Y
@@ -19,26 +20,23 @@ FOR r, 0, 23
   RTS
   ALIGN &100
 NEXT
-.r7_jr                    \ run offset of byte column x DIV 4 + 1 (the RTS); read
-                          \ as r7_jr-4,X (x >= 4): the offset of column x DIV 4
-FOR x, 0, 255
-  EQUB LO(3 * (x DIV 4))
-NEXT
-.r7_j3                    \ run offset of byte column k (1..63)
-FOR k, 0, 63
-  EQUB LO(3 * (k - 1))
-NEXT
-.r7_rp                    \ run page of row y
-FOR y, 0, 191
-  EQUB HI(r7_rrun) + (y DIV 8)
-NEXT
 .r7_lm                    \ pixels x..3 of a byte (x = 0..3)
 FOR x, 0, 3
   EQUB ((&F0 >> x) AND &F0) OR (&0F >> x)
 NEXT
+.r7_jr                    \ run offset of byte column x DIV 4 + 1 (the RTS); read
+                          \ as r7_jr-4,X (x >= 4): the offset of column x DIV 4
+FOR x, 0, 255             \ (4 bytes into a page: neither read crosses one)
+  EQUB LO(3 * (x DIV 4))
+NEXT
+ASSERT LO(r7_jr) = 4
 .r7_rm                    \ pixels 0..x of a byte (x = 0..3)
 FOR x, 0, 3
   EQUB ((&F0 << (3 - x)) AND &F0) OR ((&0F << (3 - x)) AND &0F)
+NEXT
+.r7_j3                    \ run offset of byte column k (1..63)
+FOR k, 0, 63
+  EQUB LO(3 * (k - 1))
 NEXT
 
 
@@ -198,7 +196,11 @@ c_BB  = &25
   LDA #&FF
 .fs1
   STA R_DIRTYL0,Y
-  LDA r7_rp,Y
+  TYA                     \ the run page of row Y
+  LSR A
+  LSR A
+  LSR A
+  ORA #HI(r7_rrun)        \ (= ADC: Y DIV 8 < 32)
   STA fj+2
   STA RZ_PP+1
   LDA #&60
@@ -256,7 +258,11 @@ c_BB  = &25
   TAX                     \ plant the RTS at column NR
   LDA r7_j3,X
   STA RZ_PP
-  LDA r7_rp,Y
+  TYA                     \ the run page of row Y
+  LSR A
+  LSR A
+  LSR A
+  ORA #HI(r7_rrun)        \ (= ADC: Y DIV 8 < 32)
   STA RZ_PP+1
   STA rj+2
   LDX c_NL
