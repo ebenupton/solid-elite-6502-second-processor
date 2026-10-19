@@ -142,6 +142,10 @@
 
 .f_enter2
  JSR f_unstar
+ BIT GSTASH             \ after a disc command buffer 0 holds no frame: start it
+ BPL fen2a              \ afresh (f_b0new)
+ JSR f_b0new
+.fen2a
  JSR f_enter
  STZ f_hwr              \ f_enter used the half-width tables as its buffer
  STZ f_hw2r
@@ -187,6 +191,49 @@
  RTS
 
 .f_dtext EQUB 0
+
+\ f_b0new: a disc command has used buffer 0 (main RAM &4000-&5FFF) to stash
+\ HAZEL (DOSCLI, elite-cold7.asm), so it no longer holds the last frame of
+\ the previous space-mode session that its rasteriser state, disc colour and
+\ shown-text map describe: clear it and forget that state, as F_INIT leaves
+\ it, for f_enter to carry on from (it then copies the border across)
+
+.f_b0new
+ STZ GSTASH
+ LDA #4                 \ X = 0: main RAM
+ TRB &FE34
+ LDA #&40
+ STA fbn1+2
+ LDA #0
+ TAX
+.fbn1
+ STA &4000,X            \ (patched) clear &4000-&6FFF
+ INX
+ BNE fbn1
+ INC fbn1+2
+ LDY fbn1+2
+ CPY #&70
+ BNE fbn1
+ STZ F_SGS              \ no sights drawn in it
+ LDA #&FF               \ no disc colour
+ STA F_DCOL
+ LDA #0                 \ its rasteriser state: empty
+ JSR T_SETBUF
+ JSR T_RESETBUF
+ LDA #0                 \ and its shown-text map: empty
+ TAX
+.fbn2
+ STA F_SH0,X
+ STA F_SH0+256,X
+ STA F_SH0+512,X
+ INX
+ BNE fbn2
+ LDX #23
+.fbn3
+ STA F_SHR0,X
+ DEX
+ BPL fbn3
+ RTS
 
 \ f_unstar: EOR away the stars PIXEL drew directly into main RAM since
 \ F_DIRECT (F_DSTAR noted them), exactly as PIXEL drew

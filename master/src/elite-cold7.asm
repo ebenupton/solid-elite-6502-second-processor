@@ -6569,22 +6569,25 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ DFS and the MOS overwrite HAZEL's &C000-&C2FF, &DC00 up to the command's end
-\ and &DF00-&DFFF during a disc command, and keep their own lasting state in
-\ &C2C0-&C2FF and &DFDA-&DFDB (docs/MASTER-MEMORY.md). The game keeps only
-\ scratch (nothing kept between calls) in &C000-&C2FF and only state that is
-\ rebuilt on re-entering flight in &DC00-&DFFF, so nothing needs rebuilding
-\ afterwards, but it may write DFS's lasting bytes: those live in DFSST
-\ (the loader takes them after its last disc access), go back before the
-\ command and are stashed again after it (or after its error, through
-\ DOSNMI), as *DIR and *DRIVE change them. Before the command the catalogue
-\ cache is invalidated too (&FF to &C282, &C287 and &C28B-&C28E: re-read
-\ the catalogue, restore the head), as with the drive motor still on DFS
-\ would otherwise trust a cache the game's scratch has overwritten (and
-\ could write a catalogue built from it). Nothing that the IRQ handler or
-\ the printing of the catalogue (CHPR) reads may be in those places. DFS
-\ copies its own NMI routine to &0D00 for the command; afterwards the 1770
-\ is quietened (Force Interrupt) and the minimal handler the loader
+\ DFS and the MOS overwrite HAZEL's &C000-&C2FF, the DFS and ADFS private
+\ pages &D900-&DAFF, &DC00 up to the command's end and &DF00-&DFFF during a
+\ disc command, and keep their own lasting state in &C2C0-&C2FF and
+\ &DFDA-&DFDB (docs/MASTER-MEMORY.md); a third-party ROM may write its own
+\ page of HAZEL too. So the whole of HAZEL is stashed in screen buffer 0
+\ (main RAM &4000-&5FFF, not on show while docked) for the command and copied
+\ back afterwards, and GSTASH tells the renderer that buffer 0 no longer
+\ holds a frame (the next space-mode frame clears it, f_b0new). DFS's
+\ lasting bytes live in DFSST while the game runs (the loader takes them
+\ after its last disc access): they go back before the command and are
+\ stashed again after it (or after its error, through DOSNMI), as *DIR and
+\ *DRIVE change them. Before the command the catalogue cache is invalidated
+\ too (&FF to &C282, &C287 and &C28B-&C28E: re-read the catalogue, restore
+\ the head), as with the drive motor still on DFS would otherwise trust a
+\ cache the game has overwritten (and could write a catalogue built from
+\ it). What the IRQ handler and the printing of the catalogue (CHPR) read
+\ during the command is in HAZEL's &C300-&D8FF, which disc commands leave
+\ alone. DFS copies its own NMI routine to &0D00 for the command; afterwards
+\ the 1770 is quietened (Force Interrupt) and the minimal handler the loader
 \ installed goes back (a stray NMI would otherwise run DFS's handler with
 \ the game's zero page at &A0-&A7). The error path (BRKV, NEWBRK) does the
 \ same through DOSNMI.
@@ -6593,9 +6596,17 @@ ENDIF
 
 .DOSCLI_C
 
- PHA                    \ Put back DFS's lasting bytes (A, X and Y are kept for
- PHX                    \ OSCLI)
- LDX #63
+ PHA                    \ Stash HAZEL in buffer 0 (A, X and Y are kept for
+ PHX                    \ OSCLI), with GSTASH set (in HAZEL: the copy back
+ PHY                    \ keeps it): buffer 0 holds no frame from now on
+ LDA #&80
+ STA GSTASH
+ LDX #&C0
+ LDY #&40
+ JSR dosmv
+ PLY
+
+ LDX #63                \ Put back DFS's lasting bytes
 .dosc1
  LDA DFSST,X
  STA &C2C0,X
@@ -6656,8 +6667,9 @@ ENDIF
 .DOSNMI_END_C
 
  BIT DFSIN              \ After a disc command (or its error), stash DFS's
- BPL dosn3              \ lasting bytes again: the command may have changed
- PHX                    \ them (*DIR, *DRIVE)
+ BPL dosn3              \ lasting bytes again (the command may have changed
+ PHX                    \ them: *DIR, *DRIVE), then put HAZEL back from
+ PHY                    \ buffer 0
  LDX #63
 .dosn2
  LDA &C2C0,X
@@ -6668,12 +6680,35 @@ ENDIF
  STA DFSST+64
  LDA &DFDB
  STA DFSST+65
+ LDX #&40
+ LDY #&C0
+ JSR dosmv
  STZ DFSIN
+ PLY
  PLX
 .dosn3
 
  PLA
  PLP
+ RTS
+
+.dosmv                  \ Copy the 32 pages (8K) from page X on to page Y on,
+ LDA #4                 \ with ACCCON X = 0 (buffer 0 is main RAM)
+ TRB VIA+&34
+ STX dosm1+2
+ STY dosm2+2
+ LDY #32
+ LDX #0
+.dosm1
+ LDA &C000,X            \ (patched)
+.dosm2
+ STA &4000,X            \ (patched)
+ INX
+ BNE dosm1
+ INC dosm1+2
+ INC dosm2+2
+ DEY
+ BNE dosm1
  RTS
 
 \ ******************************************************************************

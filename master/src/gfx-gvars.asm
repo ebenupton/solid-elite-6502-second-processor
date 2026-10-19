@@ -23,3 +23,5 @@
 .GTYPE   EQUB 0         \ the type whose faces the ship being recorded uses
 .GSUNON  EQUB 0         \ non-zero: SUN drew the sun this frame (LSO, SUNX valid)
 .GSUNR   EQUB 0         \ the sun's radius this frame
+.GSTASH  EQUB 0         \ bit 7: a disc command has stashed HAZEL in buffer 0
+                        \ (DOSCLI), which the next space-mode frame clears
