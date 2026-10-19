@@ -90,7 +90,7 @@ export class Session {
             this.agent = new Agent(cfg.agentEnv || {});
             this.chaos = cfg.chaos ? makeChaos(cfg.chaos, cfg.seed || 0) : null;
             const header = { header: true, ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms,
-                seed: cfg.seed, commander: cfg.commander || "jameson", agentEnv: cfg.agentEnv || {}, chaos: cfg.chaos || null, startFrame: cfg.startFrame, strict: !!cfg.strict, workarounds: cfg.workarounds || [] };
+                seed: cfg.seed, commander: cfg.commander || "jameson", mode: cfg.mode || "efficient", agentEnv: cfg.agentEnv || {}, chaos: cfg.chaos || null, startFrame: cfg.startFrame, strict: !!cfg.strict, workarounds: cfg.workarounds || [] };
             appendFileSync(this.files.inputs, JSON.stringify(header) + "\n");
             writeFileSync(`${cfg.out}/config.json`, JSON.stringify({ ...header, minutes: cfg.minutes, iters: cfg.iters }, null, 1));
         }
@@ -192,7 +192,7 @@ export class Session {
             for (const n of r.notes) {
                 appendFileSync(this.files.journal, JSON.stringify({ frame: this.frame, iter: ref.iter, e: safeJson(n) }) + "\n");
                 const ev = /"event": "([^"]+)"/.exec(n); if (ev) this.stats.notes[ev[1]] = (this.stats.notes[ev[1]] || 0) + 1;
-                if (ev && (ev[1] === "save" || ev[1] === "loaded")) this.discCheckAt = this.frame + 100;
+                if (ev && (ev[1] === "save" || ev[1] === "loaded")) { this.discCheckAt = this.frame + 100; this.discNoteIter = ref.iter; }
             }
             if (this.chaos) this.chaos.frame(this);
         }
@@ -244,7 +244,10 @@ export class Session {
             const r = obsR.q.shift(), c = obsC.q.shift();
             if (r.iter !== c.iter) continue;
             this.obsChecked++;
-            const diffs = Observer.compare(r, c);
+            const all = Observer.compare(r, c);
+            // expected differences (overlapping scanner dots) are counted, not reported
+            for (const x of all.filter(x => x.expected)) { this.obsExpected ||= {}; const k = this.obsExpected[x.what] ||= { n: 0, first: r.iter, example: x }; k.n++; }
+            const diffs = all.filter(x => !x.expected);
             if (diffs.length) {
                 this.obsDiffs++;
                 const key = diffs.map(x => x.what).join(",");
@@ -281,10 +284,17 @@ export class Session {
 
     // the commander files (directory E) the two machines have written must be the same
     compareDiscs(final = false) {
+        // (not while a disc access is under way: the two machines' disc controllers run on
+        // their own clocks, so one can be part way through writing a file the other has
+        // finished. At the end, if the reference entered the disc menu (SVE) after the
+        // agent last reported a save or load, the access may be in progress: skip)
+        const sve = this.ref.events.filter(e => e[1] === "routine" && e[2] === "SVE").map(e => e[0]).pop();
+        if (final && sve !== undefined && sve >= (this.discNoteIter ?? -1) && this.discNoteIter !== sve) { this.stats.discSkipped = (this.stats.discSkipped || 0) + 1; if (this.cfg.saveDiscs) this.finalDiscsUnsettled = true; }
         let r, c;
         try { r = discFiles(this.ref); c = discFiles(this.cand); } catch (e) { this.finding("internal", `disc read: ${e.message}`); return; }
         this.stats.discChecks = (this.stats.discChecks || 0) + 1;
         const names = new Set([...Object.keys(r.files), ...Object.keys(c.files)].filter(n => n.startsWith("E.")));
+        if (final && this.stats.discSkipped) names.clear();
         for (const n of names) {
             const a = r.files[n], b = c.files[n];
             const key = `disc:${n}`;
@@ -348,8 +358,8 @@ export class Session {
             out: cfg.out, wall, frames: this.frame, gameMinutes: +(Math.max(0, this.frame) / 3000).toFixed(2),
             refIters: ref.iter, candIters: cand.iter, compared: this.stats.iters, flight: ref.tt100, reads: ref.polls, keyReads: this.stats.keyPolls,
             divergence: this.div, findings: this.findings, events: this.stats.events, agentNotes: this.stats.notes,
-            observables: this.obsR ? { checked: this.obsChecked, differing: this.obsDiffs, kinds: this.obsKinds || {} } : null,
-            discChecks: this.stats.discChecks || 0, saveFilesSame: this.stats.saveFilesSame || 0,
+            observables: this.obsR ? { checked: this.obsChecked, differing: this.obsDiffs, kinds: this.obsKinds || {}, expected: this.obsExpected || {} } : null,
+            discChecks: this.stats.discChecks || 0, saveFilesSame: this.stats.saveFilesSame || 0, discFinalSkipped: !!this.stats.discSkipped,
             seeded: cand.seeded?.length, workaroundHits: this.stats.workarounds || 0, workarounds: cfg.workarounds || [], final: finalState(ref, this.rsy),
         };
         writeFileSync(`${cfg.out}/summary.json`, JSON.stringify(s, null, 1));

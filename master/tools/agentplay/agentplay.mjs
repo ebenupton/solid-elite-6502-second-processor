@@ -3,7 +3,8 @@
 // port replays its inputs read for read; game state compared every iteration.
 //
 // node master/tools/agentplay/agentplay.mjs --out DIR [--minutes 10] [--seed N]
-//      [--commander jameson|trader|equipped|rich|deadly|mission2|wanted] [--mode efficient,curious,fair,keyboard,nosave,nomission]
+//      [--commander jameson|trader|equipped|rich|deadly|mission2|debrief1|galaxy3|wanted]
+//      [--mode efficient,curious,fair,keyboard,nosave,nomission,load]
 //      [--chaos all|ecm,bomb,...] [--start FRAMES] [--shots N] [--keepgoing N] [--strict] [--noobserve]
 //      [--workaround look1] (candidate-side runtime workaround for a known port bug, to play on past it)
 //      [--savediscs] (write both machines' discs, with their saves, at the end: ref-disc.ssd, cand-disc.ssd)
@@ -19,7 +20,7 @@ const env = {};
 for (const m of String(a.mode || "efficient").split(",")) { if (!MODES[m]) { console.error(`unknown mode ${m}`); process.exit(2); } Object.assign(env, MODES[m]); }
 const cfg = {
     out: a.out, minutes: +(a.minutes || 10), seed: a.seed !== undefined ? +a.seed : undefined, commander: a.commander || "jameson",
-    agentEnv: env, chaos: a.chaos || null, startFrame: +(a.start || 700), shots: +(a.shots || 0), keepGoing: +(a.keepgoing || 0),
+    agentEnv: env, mode: String(a.mode || "efficient"), chaos: a.chaos || null, startFrame: +(a.start || 700), shots: +(a.shots || 0), keepGoing: +(a.keepgoing || 0),
     strict: !!a.strict, saveDiscs: !!a.savediscs, workarounds: a.workaround ? String(a.workaround).split(",") : [], observe: !a.noobserve, iters: a.iters ? +a.iters : undefined,
 };
 for (const k of ["ref", "rsyms", "cand", "csyms"]) if (a[k]) cfg[k] = a[k];

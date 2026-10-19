@@ -102,7 +102,7 @@ for (const [name] of plan) {
     for (const [k, v] of Object.entries(s.events || {})) { const m = /^ref:routine:(.*)$/.exec(k); if (m) { ev[m[1]] = v; cover[m[1]] = (cover[m[1]] || 0) + v; } }
     const real = s.findings.filter(f => f.kind !== "observable");
     rows.push({ name, status: real.length ? "FINDINGS" : "clean", minutes: s.gameMinutes, iters: s.compared, flight: s.flight, reads: s.reads,
-        commander: cfg.commander, mode: Object.keys(cfg.agentEnv || {}).join(",") || "efficient", chaos: cfg.chaos || "", workaround: (cfg.workarounds || []).join(","),
+        commander: cfg.commander, mode: cfg.mode || modeOf(cfg.agentEnv || {}), chaos: cfg.chaos || "", workaround: (cfg.workarounds || []).join(","),
         workaroundHits: s.workaroundHits, divergence: s.divergence ? s.divergence.iter : null, findings: s.findings.length, events: ev, notes: s.agentNotes,
         observables: s.observables && { checked: s.observables.checked, differing: s.observables.differing }, saves: s.saveFilesSame, final: s.final });
     for (const f of s.findings) {
@@ -118,6 +118,10 @@ for (const [name] of plan) {
         if (!g.sessions.includes(name)) g.sessions.push(name);
         g.iterations += v.n;
     }
+}
+function modeOf(env) {
+    const names = { CURIOUS: "curious", FAIR: "fair", JOYSTICK: "keyboard", SAVE: "nosave", NOMISSION: "nomission", LOAD: "load" };
+    return Object.keys(env).map(k => names[k] || k).join(",") || "efficient";
 }
 function fingerprint(f) {
     if (f.kind === "observable") return null;

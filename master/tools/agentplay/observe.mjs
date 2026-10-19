@@ -94,6 +94,7 @@ export class Observer {
         }
         const d = this.dots();
         out.dots = d.dots; out.lit = d.lit;
+        out.ships = this.shipDots();
         return out;
     }
     colourClass(c, x0, y) {
@@ -139,6 +140,30 @@ export class Observer {
         return { dots: dots.map(d => [d.x, d.y, d.n]).sort((a, b) => a[1] - b[1] || a[0] - b[0]), lit };
     }
 
+    // where SCAN puts each ship's dot, from the K% slots as they are at MLOOP (both
+    // machines' state is the same): [x, dashboard line], as the original's SCAN computes
+    // X1 and Y1 (8-bit arithmetic and all)
+    shipDots() {
+        const m = this.m, sy = m.sy, out = [];
+        for (let i = 0; i < 12; i++) {
+            const type = m.rb(sy.FRIN + i);
+            if (!type) break;
+            if (type & 0x80) continue;
+            const b = sy["K%"] + 37 * i, r = k => m.rb(b + k);
+            if (!(r(31) & 0x10) || ((r(1) | r(4) | r(7)) & 0xc0)) continue;
+            const x1 = (125 + (r(2) & 0x80 ? (-r(1)) & 255 : r(1))) & 0xfe;
+            let a = r(7) >> 2, c = 0;
+            if (r(8) & 0x80) { a ^= 255; c = 1; }
+            const y2 = ((a + 35 + c) & 255) ^ 255;
+            a = r(4) >> 1; c = 0;
+            if (!(r(5) & 0x80)) { a ^= 255; c = 1; }
+            let y1 = a + y2 + c; const neg = (y1 & 0x80) !== 0; y1 &= 255;
+            y1 = !neg ? 246 : Math.min(246, Math.max(194, y1));
+            out.push([x1, y1 - 192, type]);
+        }
+        return out;
+    }
+
     // differences between the original's record r and the port's c
     static compare(r, c) {
         const out = [];
@@ -159,7 +184,14 @@ export class Observer {
         // are told apart from the scanner's
         const near = (lit, [x, y]) => { const L = new Set(lit); for (let yy = y - 1; yy <= y + 1; yy++) for (let xx = x - 3; xx <= x + 4; xx++) if (L.has(yy * 256 + xx)) return true; return false; };
         const where = ([x, y]) => x >= 184 && y < 24 ? `compass ${x},${y}` : "scanner";
-        const miss = r.dots.filter(d => !near(c.lit, d)), extra = c.dots.filter(d => !near(r.lit, d));
+        let miss = r.dots.filter(d => !near(c.lit, d)), extra = c.dots.filter(d => !near(r.lit, d));
+        // two or more ships' dots on top of each other: EOR mixes them, and the mixes differ
+        // (the original's same-coloured dots cancel; the port's dither patterns don't): not a
+        // difference in what the scanner shows (an expected difference)
+        const overlap = ([x, y]) => (r.ships || []).filter(([sx, sy]) => Math.abs(sx - x) <= 4 && Math.abs(sy - y) <= 2).length >= 2;
+        const ov = [...miss.filter(overlap), ...extra.filter(overlap)];
+        if (ov.length) out.push({ what: "scanner dots overlapping (expected)", ref: miss.filter(overlap), cand: extra.filter(overlap), expected: true });
+        miss = miss.filter(d => !overlap(d)); extra = extra.filter(d => !overlap(d));
         for (const w of new Set(miss.map(where))) out.push({ what: `${w} dot missing in port`, ref: miss.filter(d => where(d) === w), cand: null });
         for (const w of new Set(extra.map(where))) out.push({ what: `${w} dot extra in port`, ref: null, cand: extra.filter(d => where(d) === w) });
         return out;
