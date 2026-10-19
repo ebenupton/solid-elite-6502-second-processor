@@ -3,7 +3,7 @@
 //
 // node master/tools/grind/profile.mjs [--root <tree>] [--disc d] [--syms s]
 //                                     [--iters 10000] [--seed boot|none]
-//                                     [--out <tree>/scratch/grind/profile.json]
+//                                     [--out <tree>/scratch/grind/profile.json] [--pagex]
 //
 // The run: harness/mlib.mjs runElite with harness/mpilot.mjs's pilot and its commander
 // patch, the candidate's boot leftovers seeded from the reference disc at TT170 exactly
@@ -18,6 +18,12 @@
 //   M:<pc>  main RAM (&0000-&7FFF)       A:<pc>   ANDY (&8000-&8FFF, ROMSEL bit 7)
 //   B<n>:<pc> sideways RAM bank n (4-7)  HZ:<pc>  HAZEL (&C000-&DFFF, ACCCON Y)
 //   MOS:<pc>  the MOS (&C000- without Y, &E000-) and any other paged ROM (DFS ...)
+//
+// --pagex: also count the page-crossing cycles, per PC and per scenario (a taken
+// branch whose target is in another page than the next instruction; an
+// abs,X / abs,Y / (zp),Y read whose indexed address is in another page than its
+// base), into each scenario's "pagex" (total) and "pagex_pcs": the cycles that
+// page alignment would save (docs/MASTER-MAP.md, "Alignment candidates").
 //
 // Scenarios, as the gate's speed figure (mcompare.mjs flightRates) counts:
 //   "flight"   the flight iterations: TT100 to the next TT100 when exactly one MLOOP
@@ -73,7 +79,15 @@ if (SEED === "boot") {
 // ---- the profile
 const MAPS = ["M", "A", "B4", "B5", "B6", "B7", "HZ", "MOS"];
 const NM = MAPS.length, SZ = NM * 65536;
-const mk = () => ({ iterations: 0, total_cycles: 0, c: new Float64Array(SZ) });
+const PAGEX = !!args.pagex;
+const mk = () => ({ iterations: 0, total_cycles: 0, c: new Float64Array(SZ), px: PAGEX ? new Float64Array(SZ) : null, pxt: 0 });
+// the 65C12's reads that take a cycle more when the indexed address crosses a page
+const IDXX = new Set([0x1D, 0x3D, 0x5D, 0x7D, 0xBD, 0xBC, 0xDD, 0xFD, 0x3C, 0x1E, 0x3E, 0x5E, 0x7E]);
+const IDXY = new Set([0x19, 0x39, 0x59, 0x79, 0xB9, 0xBE, 0xD9, 0xF9]);
+const ZPY = new Set([0x11, 0x31, 0x51, 0x71, 0xB1, 0xD1, 0xF1]);
+const BRANCH = new Set([0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0, 0x80]);
+const curPX = PAGEX ? new Float64Array(SZ) : null;
+let curPXT = 0, prevBranch = -1, prevBranchIdx = -1, prevTarget = -1;
 const scen = { flight: mk(), other: mk() };
 const cur = new Float64Array(SZ), stamp = new Uint32Array(SZ);
 let touched = [], gen = 1, curTotal = 0;
@@ -94,16 +108,23 @@ const idxOf = pc => {
 };
 const close = dest => {
     const ds = [dest];
-    for (const sc of ds) sc.total_cycles += curTotal;
-    for (const k of touched) { const v = cur[k]; for (const sc of ds) sc.c[k] += v; cur[k] = 0; }
-    touched = []; gen++; curTotal = 0;
+    for (const sc of ds) { sc.total_cycles += curTotal; sc.pxt += curPXT; }
+    for (const k of touched) {
+        const v = cur[k]; for (const sc of ds) sc.c[k] += v; cur[k] = 0;
+        if (PAGEX) { for (const sc of ds) sc.px[k] += curPX[k]; curPX[k] = 0; }
+    }
+    touched = []; gen++; curTotal = 0; curPXT = 0;
 };
 const closeFlight = phase => {
     const ph = (scen["phase:" + phase] ||= mk());
     ph.iterations++; scen.flight.iterations++;
     ph.total_cycles += curTotal; scen.flight.total_cycles += curTotal;
-    for (const k of touched) { const v = cur[k]; ph.c[k] += v; scen.flight.c[k] += v; cur[k] = 0; }
-    touched = []; gen++; curTotal = 0;
+    ph.pxt += curPXT; scen.flight.pxt += curPXT;
+    for (const k of touched) {
+        const v = cur[k]; ph.c[k] += v; scen.flight.c[k] += v; cur[k] = 0;
+        if (PAGEX) { ph.px[k] += curPX[k]; scen.flight.px[k] += curPX[k]; curPX[k] = 0; }
+    }
+    touched = []; gen++; curTotal = 0; curPXT = 0;
 };
 const r = await runElite({
     disc: DISC, syms: sy, pilot, iters: ITERS, maxSecs: 4 * ITERS, patch: patchCommander, seedBoot,
@@ -122,6 +143,28 @@ const r = await runElite({
                 cur[lastIdx] += d; curTotal += d;
             }
             last = now;
+            if (PAGEX) {
+                // the branch just executed: taken into another page?
+                if (prevBranch >= 0 && pc === prevTarget && ((prevBranch + 2) >> 8 & 255) !== (pc >> 8)) {
+                    if (stamp[prevBranchIdx] !== gen) { stamp[prevBranchIdx] = gen; touched.push(prevBranchIdx); }
+                    curPX[prevBranchIdx]++; curPXT++;
+                }
+                prevBranch = -1;
+                const op = cpu.readmem(pc);
+                let base = -1, ix = 0;
+                if (IDXX.has(op)) { base = cpu.readmem((pc + 1) & 0xffff); ix = cpu.x; }
+                else if (IDXY.has(op)) { base = cpu.readmem((pc + 1) & 0xffff); ix = cpu.y; }
+                else if (ZPY.has(op)) { const z = cpu.readmem((pc + 1) & 0xffff); base = cpu.readmem(z); ix = cpu.y; }
+                if (base >= 0 && base + ix > 255) {
+                    const k = idxOf(pc);
+                    if (stamp[k] !== gen) { stamp[k] = gen; touched.push(k); }
+                    curPX[k]++; curPXT++;
+                }
+                if (BRANCH.has(op)) {
+                    const o = cpu.readmem((pc + 1) & 0xffff);
+                    prevBranch = pc; prevBranchIdx = idxOf(pc); prevTarget = (pc + 2 + (o < 128 ? o : o - 256)) & 0xffff;
+                }
+            }
             if (pc === sw && pc < 0x8000) {
                 // a TT100 entry: close the interval since the previous one
                 if (prevTT >= 0 && myIter === prevTT + 1) closeFlight(pilot.P.phase);
@@ -145,9 +188,18 @@ for (const [n, sc] of Object.entries(scen)) {
     out.scenarios[n] = { iterations: sc.iterations, total_cycles: sc.total_cycles,
         cycles_per_iteration: sc.iterations ? sc.total_cycles / sc.iterations : null,
         pcs: Object.fromEntries(pcs) };
+    if (PAGEX) {
+        const px = [];
+        for (let k = 0; k < SZ; k++) if (sc.px[k]) px.push([`${MAPS[k >> 16]}:${(k & 0xffff).toString(16)}`, sc.px[k]]);
+        px.sort((x, y) => y[1] - x[1]);
+        out.scenarios[n].pagex = sc.pxt;
+        out.scenarios[n].pagex_per_iteration = sc.iterations ? sc.pxt / sc.iterations : null;
+        out.scenarios[n].pagex_pcs = Object.fromEntries(px);
+    }
     console.log(`${n}: ${sc.iterations} iterations, ${sc.total_cycles.toFixed(0)} cycles` +
         (sc.iterations ? `, ${(sc.total_cycles / sc.iterations).toFixed(0)} cycles/iteration` +
-            (n === "other" ? "" : `, ${(2e6 * sc.iterations / sc.total_cycles).toFixed(2)} it/s`) : ""));
+            (n === "other" ? "" : `, ${(2e6 * sc.iterations / sc.total_cycles).toFixed(2)} it/s`) : "") +
+        (PAGEX && sc.iterations ? `, page crossings ${(sc.pxt / sc.iterations).toFixed(0)} cycles/iteration` : ""));
 }
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, JSON.stringify(out));
