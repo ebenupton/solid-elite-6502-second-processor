@@ -1,0 +1,139 @@
+#!/usr/bin/env node
+// A campaign: many agentplay sessions with varied seeds and play styles, run a few at a
+// time, then one table of what they covered and every finding, grouped.
+//
+// node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|quick]
+//      [--only name,name] [--scale 1.0] [--summarise]
+// Each session runs as agentplay.mjs in DIR/<name>/; a session already finished there
+// (summary.json) is not run again, so a campaign can be resumed. --scale multiplies every
+// session's length. --summarise only rewrites the summary (DIR/campaign.json, DIR/campaign.md).
+// Sessions in phase 2 start from discs a phase 1 session saved (--savediscs), and load
+// the agent's commander from them.
+import { spawn } from "child_process";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+
+const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
+if (!a.out) { console.error("--out DIR required"); process.exit(2); }
+const OUT = a.out, JOBS = +(a.jobs || 3), SCALE = +(a.scale || 1);
+const HERE = decodeURIComponent(new URL(".", import.meta.url).pathname);
+mkdirSync(OUT, { recursive: true });
+
+// name, minutes, then agentplay options. W: play on past the LOOK1 bug (--workaround look1)
+const W = ["--workaround", "look1"];
+const PLANS = {
+    default: [
+        // elite-agent's own modes, from Jameson
+        ["eff-s1", 20, "--seed", "1", "--savediscs", ...W],
+        ["eff-s2", 15, "--seed", "2", ...W],
+        ["curious-s3", 20, "--seed", "3", "--mode", "curious", ...W],
+        ["fair-s4", 15, "--seed", "4", "--mode", "fair", ...W],
+        ["keyboard-s5", 15, "--seed", "5", "--mode", "keyboard", ...W],
+        ["nosave-s6", 12, "--seed", "6", "--mode", "nosave", ...W],
+        // other commanders
+        ["trader-s7", 15, "--seed", "7", "--commander", "trader", ...W],
+        ["rich-s8", 15, "--seed", "8", "--commander", "rich", "--mode", "curious", ...W],
+        ["deadly-s9", 20, "--seed", "9", "--commander", "deadly", "--savediscs", ...W],
+        ["mission2-s10", 20, "--seed", "10", "--commander", "mission2", ...W],
+        ["wanted-s11", 12, "--seed", "11", "--commander", "wanted", ...W],
+        // the chaos overlay: what the agent rarely does
+        ["chaos-all-s12", 12, "--seed", "12", "--commander", "equipped", "--chaos", "all", ...W],
+        ["chaos-all-s13", 12, "--seed", "13", "--commander", "equipped", "--chaos", "all", "--mode", "keyboard", ...W],
+        ["chaos-gear-s14", 12, "--seed", "14", "--commander", "equipped", "--chaos", "ghyp*4,pod*4,bomb*3,ecm*3,missile*2,unarm", ...W],
+        ["chaos-gear-s15", 12, "--seed", "15", "--commander", "deadly", "--chaos", "ghyp*4,pod*4,bomb*3,ecm*3,hyper*2", ...W],
+        ["chaos-death-s16", 12, "--seed", "16", "--commander", "equipped", "--chaos", "hurt*4,heat*2,fuel*2", ...W],
+        ["chaos-death-s17", 12, "--seed", "17", "--chaos", "hurt*4,spin*2,jump", "--mode", "nosave", ...W],
+        ["chaos-views-s18", 10, "--seed", "18", "--commander", "equipped", "--chaos", "views*3,charts*3,dock*3", ...W],
+        // without the workaround: how soon the LOOK1 bug ends a session by itself
+        ["nowork-s19", 10, "--seed", "19", "--mode", "curious"],
+        ["nowork-s20", 10, "--seed", "20", "--commander", "equipped", "--chaos", "views"],
+        // phase 2: from phase 1's discs, loading the saved commander
+        ["load-s21", 12, "--seed", "21", "--mode", "load", "--from", "eff-s1", ...W],
+        ["load-s22", 12, "--seed", "22", "--mode", "load,curious", "--from", "deadly-s9", "--chaos", "views,ecm,bomb", ...W],
+    ],
+    quick: [
+        ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
+        ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
+        ["q-load", 2, "--seed", "3", "--mode", "load", "--from", "q-eff", ...W],
+    ],
+};
+const plan = PLANS[a.plan || "default"].filter(([n]) => !a.only || a.only.split(",").includes(n));
+
+function runOne([name, minutes, ...opts]) {
+    const dir = `${OUT}/${name}`;
+    if (existsSync(`${dir}/summary.json`)) { console.log(`${name}: done already`); return Promise.resolve(); }
+    const args = [`${HERE}agentplay.mjs`, "--out", dir, "--minutes", String(+(minutes * SCALE).toFixed(2))];
+    for (let i = 0; i < opts.length; i++) {
+        if (opts[i] === "--from") { const f = `${OUT}/${opts[++i]}`; args.push("--ref", `${f}/ref-disc.ssd`, "--cand", `${f}/cand-disc.ssd`); }
+        else args.push(opts[i]);
+    }
+    mkdirSync(dir, { recursive: true });
+    console.log(`${name}: start (${args.slice(1).join(" ")})`);
+    return new Promise(res => {
+        const p = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+        let log = "";
+        p.stdout.on("data", d => { log += d; });
+        p.stderr.on("data", d => { log += d; });
+        p.on("exit", code => {
+            writeFileSync(`${dir}/run.log`, log);
+            const last = log.split("\n").filter(l => /^AGENTPLAY/.test(l)).pop() || `exit ${code}`;
+            console.log(`${name}: ${last}`);
+            res();
+        });
+    });
+}
+
+if (!a.summarise) {
+    const phase1 = plan.filter(p => !p.includes("--from")), phase2 = plan.filter(p => p.includes("--from"));
+    for (const phase of [phase1, phase2]) {
+        const queue = [...phase];
+        await Promise.all(Array.from({ length: Math.max(1, JOBS) }, async () => { while (queue.length) await runOne(queue.shift()); }));
+    }
+}
+
+// ---- the summary
+const rows = [], groups = new Map();
+const cover = {};
+for (const [name] of plan) {
+    const f = `${OUT}/${name}/summary.json`;
+    if (!existsSync(f)) { rows.push({ name, status: "not run" }); continue; }
+    const s = JSON.parse(readFileSync(f, "utf8"));
+    const cfg = existsSync(`${OUT}/${name}/config.json`) ? JSON.parse(readFileSync(`${OUT}/${name}/config.json`, "utf8")) : {};
+    const ev = {};
+    for (const [k, v] of Object.entries(s.events || {})) { const m = /^ref:routine:(.*)$/.exec(k); if (m) { ev[m[1]] = v; cover[m[1]] = (cover[m[1]] || 0) + v; } }
+    const real = s.findings.filter(f => f.kind !== "observable");
+    rows.push({ name, status: real.length ? "FINDINGS" : "clean", minutes: s.gameMinutes, iters: s.compared, flight: s.flight, reads: s.reads,
+        commander: cfg.commander, mode: Object.keys(cfg.agentEnv || {}).join(",") || "efficient", chaos: cfg.chaos || "", workaround: (cfg.workarounds || []).join(","),
+        workaroundHits: s.workaroundHits, divergence: s.divergence ? s.divergence.iter : null, findings: s.findings.length, events: ev, notes: s.agentNotes,
+        observables: s.observables && { checked: s.observables.checked, differing: s.observables.differing }, saves: s.saveFilesSame, final: s.final });
+    for (const f of s.findings) {
+        const key = fingerprint(f);
+        if (!groups.has(key)) groups.set(key, { key, kind: f.kind, sessions: [], first: { session: name, ...f } });
+        const g = groups.get(key);
+        if (!g.sessions.includes(name)) g.sessions.push(name);
+    }
+    for (const [k, v] of Object.entries(s.observables?.kinds || {})) {
+        const key = `observable: ${k}`;
+        if (!groups.has(key)) groups.set(key, { key, kind: "observable", sessions: [], iterations: 0, first: { session: name, iter: v.first, example: v.example } });
+        const g = groups.get(key);
+        if (!g.sessions.includes(name)) g.sessions.push(name);
+        g.iterations += v.n;
+    }
+}
+function fingerprint(f) {
+    if (f.kind === "observable") return null;
+    if (f.kind === "divergence") return `divergence: ${(f.text.split(": ").slice(1).join(": ")).replace(/\d+/g, "#")}`;
+    if (f.kind === "control-flow") return `control-flow: ${f.text.replace(/read \d+ \(iteration \d+\)/, "").replace(/\(iteration \d+\)/g, "").trim()}`;
+    return `${f.kind}: ${f.text.replace(/iteration \d+/g, "iteration #").replace(/&[0-9a-f]+/g, m => m)}`;
+}
+groups.delete(null);
+const tot = rows.reduce((t, r) => ({ minutes: t.minutes + (r.minutes || 0), iters: t.iters + (r.iters || 0), flight: t.flight + (r.flight || 0) }), { minutes: 0, iters: 0, flight: 0 });
+writeFileSync(`${OUT}/campaign.json`, JSON.stringify({ rows, coverage: cover, totals: tot, groups: [...groups.values()] }, null, 1));
+const md = [];
+md.push(`# agentplay campaign: ${OUT}`, "", `${rows.length} sessions, ${tot.minutes.toFixed(1)} game minutes, ${tot.iters} iterations compared (${tot.flight} in flight).`, "");
+md.push("| session | commander | mode | chaos | min | iterations | status | first divergence | findings | LOOK1 workaround hits |", "|---|---|---|---|---|---|---|---|---|---|");
+for (const r of rows) md.push(`| ${r.name} | ${r.commander || ""} | ${r.mode || ""} | ${r.chaos || ""} | ${r.minutes ?? ""} | ${r.iters ?? ""} | ${r.status} | ${r.divergence ?? ""} | ${r.findings ?? ""} | ${r.workaround ? r.workaroundHits : "off"} |`);
+md.push("", "Coverage (reference machine, routine entries over all sessions):", "", Object.entries(cover).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", "), "");
+md.push("Findings, grouped:", "");
+for (const g of groups.values()) md.push(`- **${g.key}** in ${g.sessions.length} session(s) (${g.sessions.join(", ")})${g.iterations ? `, ${g.iterations} iterations` : ""}; first: ${g.first.session} ${g.first.iter !== undefined ? "iteration " + g.first.iter : ""} ${g.first.text || JSON.stringify(g.first.example || "")}`.slice(0, 1200));
+writeFileSync(`${OUT}/campaign.md`, md.join("\n") + "\n");
+console.log(md.join("\n"));
