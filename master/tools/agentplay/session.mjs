@@ -125,11 +125,12 @@ export class Session {
         const S = this;
         const take = ctx => {
             const k = ctx.poll - S.qBase;
-            if (k >= S.q.length) return null;
+            if (k >= S.q.length || S.cfDiverged) return null;      // (after a control-flow divergence the candidate stays where it is)
             const e = S.q[k];
             if (e.t !== (ctx.kind === "rdkey" ? "r" : "d") || e.s !== ctx.site || (e.t === "d" && e.key !== ctx.key)) {
                 S.finding("control-flow", `read ${ctx.poll} (iteration ${ctx.iter}): reference ${e.t === "r" ? "RDKEY" : "DKS5 key &" + e.key.toString(16)} from ${e.s} (iteration ${e.i}), candidate ${ctx.kind === "rdkey" ? "RDKEY" : "DKS5 key &" + ctx.key.toString(16)} from ${ctx.site}`, { poll: ctx.poll, iter: ctx.iter });
-                S.stopNow = true;
+                S.stopNow = true; S.cfDiverged = true;
+                return null;
             }
             return e;
         };

@@ -12,8 +12,15 @@ import { readFileSync } from "fs";
 
 const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
 const log = a.log || `${a.run}/inputs.jsonl`;
+if (!a.run && !a.out) { console.error("--run DIR or --log FILE with --out DIR"); process.exit(2); }
 const h = JSON.parse(readFileSync(log, "utf8").split("\n")[0]);
 if (!h.header) { console.error("no header in", log); process.exit(2); }
+// (the header's paths are absolute; a log moved to another checkout falls back to its
+// files of the same name under this one)
+import { existsSync } from "fs";
+import { ROOT } from "./lib.mjs";
+const here = f => !f || existsSync(f) ? f : (() => { const m = /(master\/.*)$/.exec(f); return m && existsSync(ROOT + m[1]) ? ROOT + m[1] : f; })();
+for (const k of ["ref", "rsyms", "cand", "csyms"]) h[k] = here(h[k]);
 const cfg = {
     out: a.out || `${a.run}/replay`, replay: log, seed: h.seed, commander: h.commander, startFrame: h.startFrame, strict: h.strict,
     ref: a.ref || h.ref, rsyms: a.rsyms || h.rsyms, cand: a.cand || h.cand, csyms: a.csyms || h.csyms,
