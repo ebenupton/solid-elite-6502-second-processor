@@ -1675,11 +1675,11 @@ ENDIF
  JSR far7
  EQUW fq1_C
 
-\ Port: SFRMIS moved to bank 5 (elite-cold5.asm)
+\ Port: SFRMIS moved to the high code (main RAM)
 
-\ Port: ECMOF moved to bank 5 (elite-cold5.asm)
+\ Port: ECMOF moved to the high code (main RAM)
 
-\ Port: THERE moved to bank 5 (elite-cold5.asm)
+\ Port: THERE moved to the high code (main RAM)
 
 \ ******************************************************************************
 \

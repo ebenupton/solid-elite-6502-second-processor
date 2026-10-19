@@ -16260,7 +16260,7 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: msblob moved to the cold area (elite-cold7.asm)
+\ Port: msblob moved to the high code (main RAM)
 
 \ ******************************************************************************
 \
@@ -19925,6 +19925,154 @@ ENDIF
 
  JMP OUCH               \ And jump to OUCH to take damage and return from the
                         \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: SFRMIS
+\       Type: Subroutine
+\   Category: Tactics
+\    Summary: Add an enemy missile to our local bubble of universe
+\
+\ ------------------------------------------------------------------------------
+\
+\ An enemy has fired a missile, so add the missile to our universe if there is
+\ room, and if there is, make the appropriate warnings and noises.
+\
+\ ******************************************************************************
+
+.SFRMIS
+
+ LDX #MSL               \ Set X to the ship type of a missile, and call SFS1-2
+ JSR SFS1-2             \ to add a missile to our universe that has AI (bit 7
+                        \ set), is hostile (bit 6 set) and has been launched
+                        \ (bit 0 clear); the target slot number is set to 31,
+                        \ but this is ignored as the hostile flags means we
+                        \ are the target
+
+ BCS P%+3               \ The C flag will be set if the call to SFS1-2 was a
+ RTS                    \ success, so if it's clear, return from the
+                        \ subroutine (Port: the original branches to an RTS
+                        \ elsewhere)
+
+ LDA #120               \ Print recursive token 120 ("INCOMING MISSILE") as an
+ JSR MESS               \ in-flight message
+
+ LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
+ JMP NOISE              \ of the missile being launched and return from the
+                        \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: ECMOF
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Switch off the E.C.M. and turn off the dashboard bulb
+\
+\ ******************************************************************************
+
+.ECMOF
+
+ LDA #0                 \ Set ECMA and ECMP to 0 to indicate that no E.C.M. is
+ STA ECMA               \ currently running
+ STA ECMP
+
+ JMP ECBLB              \ Update the E.C.M. indicator bulb on the dashboard and
+                        \ return from the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: THERE
+\       Type: Subroutine
+\   Category: Missions
+\    Summary: Check whether we are in the Constrictor's system in mission 1
+\
+\ ------------------------------------------------------------------------------
+\
+\ The stolen Constrictor is the target of mission 1. We finally track it down to
+\ the Orarra system in the second galaxy, which is at galactic coordinates
+\ (144, 33). This routine checks whether we are in this system and sets the C
+\ flag accordingly.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              Set if we are in the Constrictor system, otherwise clear
+\
+\ ******************************************************************************
+
+.THERE
+
+ LDX GCNT               \ Set X = GCNT - 1
+ DEX
+
+ BNE THEX               \ If X is non-zero (i.e. GCNT is not 1, so we are not in
+                        \ the second galaxy), then jump to THEX
+
+ LDA QQ0                \ Set A = the current system's galactic x-coordinate
+
+ CMP #144               \ If A <> 144 then jump to THEX
+ BNE THEX
+
+ LDA QQ1                \ Set A = the current system's galactic y-coordinate
+
+ CMP #33                \ If A = 33 then set the C flag
+
+ BEQ THEX+1             \ If A = 33 then jump to THEX+1, so we return from the
+                        \ subroutine with the C flag set (otherwise we clear the
+                        \ C flag with the next instruction)
+
+.THEX
+
+ CLC                    \ Clear the C flag
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: msblob
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Display the dashboard's missile indicators in green
+\
+\ ------------------------------------------------------------------------------
+\
+\ Display the dashboard's missile indicators, with all the missiles reset to
+\ green (i.e. not armed or locked).
+\
+\ ******************************************************************************
+
+.msblob
+
+ LDX #4                 \ Set up a loop counter in X to count through all four
+                        \ missile indicators
+
+.ss
+
+ CPX NOMSL              \ If the counter is equal to the number of missiles,
+ BEQ SAL8               \ jump down to SAL8 to draw the remaining missiles, as
+                        \ the rest of them are present and should be drawn in
+                        \ green
+
+ LDY #0                 \ Draw the missile indicator at position X in black
+ JSR MSBAR
+
+ DEX                    \ Decrement the counter to point to the next missile
+
+ BNE ss                 \ Loop back to ss if we still have missiles to draw
+
+ RTS                    \ Return from the subroutine
+
+.SAL8
+
+ LDY #GREEN2            \ Draw the missile indicator at position X in green
+ JSR MSBAR
+
+ DEX                    \ Decrement the counter to point to the next missile
+
+ BNE SAL8               \ Loop back to SAL8 if we still have missiles to draw
+
+ RTS                    \ Return from the subroutine
 
 .HI_END%
 
