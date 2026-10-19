@@ -4,10 +4,10 @@
 \
 \ Each G_xxx preserves A, X, Y and C into F_xxx, which lives in sideways RAM bank
 \ GFXBANK; Elite's own bank (ELITEBANK) is paged back in afterwards. Master
-\ port: assembled with the main code (elite-flight.asm), as they are only
-\ ever called from game code, with ACCCON X clear (the frame sets X itself,
-\ inside F_FRAME); G_MERID, which bank 6 calls during the frame, and the
-\ variables shared with the IRQ and the frame are in HAZEL (gfx-gvars.asm).
+\ port: in the high code (elite-hi.asm), as they are only ever called from
+\ game code, with ACCCON X clear (the frame sets X itself, inside F_FRAME);
+\ the variables shared with the IRQ and the frame are in HAZEL
+\ (gfx-gvars.asm).
 \
 \ ******************************************************************************
 

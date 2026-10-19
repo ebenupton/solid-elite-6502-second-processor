@@ -36,12 +36,6 @@
 \ (in the gap between the two buffers' boundary arrays: Master port, for room
 \ in HAZEL below &DC00)
 .R_GAP0
-.PM_OK   SKIP 1         \ bit 7: PM_BLK1/2 hold this frame's meridian constants
-.PM_R    SKIP 1         \ the planet's radius (F_PLANET)
-.PM_BLK1 SKIP MCB       \ roofv's circle (planet4.asm -> f_merid)
-.PM_BLK2 SKIP MCB       \ sidev's
-.PM_CX   SKIP 2         \ the planet's centre (f_merid -> PM_MERID)
-.PM_CY   SKIP 2
 \ private to raster.asm / raster7.asm: shared state
 .R_PRBUF    SKIP 1
 .R_PRDYT    SKIP 2
@@ -67,6 +61,7 @@
 .r7_lpb     SKIP 1
 .r7_lpn     SKIP 1
 .r7_lpk     SKIP 1          \ last row whose R_WL/R_WR the repair wrote (0: none)
+PRINT "raster_vars: the gap between the boundary arrays has ", &500 - 6 * 192 - (P% - R_GAP0), " bytes free"
             SKIP &500 - 6 * 192 - (P% - R_GAP0)
 .R_BDN1     SKIP 192
 .R_BDP1     SKIP 192

@@ -561,7 +561,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA F_PLY+1
  LDA K
  STA F_PLR
- STA PM_R
  LDA TYPE
  STA F_PLT
  LDA INWK+7
@@ -706,7 +705,6 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDA #0                 \ empty the per-frame lists
  STA GLASV              \ (Master port: the beams show for one frame per LASLI)
  STA f_bomb             \ (and no bomb bolt yet)
- STA PM_OK
  STA F_NSHIP
  STA F_NLINE
  STA F_NDOT
@@ -2746,7 +2744,7 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  STA R_DBE
  LDA #&AF
  STA R_DBO
- JMP f_merid            \ the meridians: from the true geometry
+ JMP f_nobounds         \ (the meridians are not drawn: a plain disc)
 .fbd1
  JSR f_zerobounds
  LDA #&50
@@ -2795,8 +2793,7 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  CPX #0                 \ patched: F_CVE of this curve
  BCC fbd4
 .fbd6
-                        \ (a crater's full ellipse is closed; the meridians'
-                        \ half ellipses go to f_merid instead)
+                        \ (a crater's full ellipse is closed)
 .fbd7
  INC f_ci
  JMP fbd3
@@ -3177,43 +3174,6 @@ F_NPT = P%-1            \ only caller via H_BPT, reloads Y on every path
  BCC P%+3
  RTS
  JMP fpa1
-
-\ ------------------------------------------------------------------------------
-\ f_merid: the meridian planet's colour boundaries from the true geometry.
-\ Elite draws the visible halves of two great circles, in the planes normal to
-\ sidev and roofv; here each is projected exactly instead of via Elite's
-\ polylines. For a great circle with normal m (Elite axes, y up, negated if
-\ need be so that mz >= 0) and row Ys = y - cy (down), the projected ellipse
-\ crosses the row at x = cx + a Ys -/+ sqrt(D), D = K0 - K2 Ys^2, with
-\ a = -mx my' / rho2, K0 = r^2 mz^2 / rho2, K2 = mz^2 |m|^2 / rho2^2,
-\ my' = -my, rho2 = mx^2 + mz^2. The X- crossing is on the visible hemisphere
-\ iff the side function f = m.p is <= 0 at the row's left limb point, X+ iff
-\ it is at the right one; along the limb f changes sign only at the circle's
-\ nodes (rows cy -/+ w, w = r mx / sqrt(mx^2 + my^2)), so both tests are row
-\ comparisons, and the row starts (left limb) on the f > 0 side iff X- is not
-\ valid. Colour B where the surface point is on the same side of both planes
-\ (as the polyline construction had it). Boundary pixel = ceil(x), with
-\ sqrt(D) rounded to the nearest integer.
-\ Per circle: constants (planet4.asm PM_HOOK, run from the H_PCURVE hook: a
-\ few 16-bit multiplies and divides, once per frame), then rows in pairs
-\ cy + k, cy - k from the centre out, with D(k), s(k) = round(sqrt(D(k))) and
-\ cx + a k stepped incrementally (planet4.asm PM_MERID, in bank 4 for room:
-\ reached through G_MERID).
-\ tools/planet_analytic.py (analytic_rows_fixed) models this code exactly.
-\ ------------------------------------------------------------------------------
-
-.f_merid
- BIT PM_OK              \ the constants (at PLS22 time)
- BMI fmw0
- JMP f_nobounds
-.fmw0
- LDX #3                 \ the centre for bank 4
-.fmw1
- LDA F_PLX,X
- STA PM_CX,X
- DEX
- BPL fmw1
- JMP G_MERID
 
 \ ------------------------------------------------------------------------------
 \ f_behind: is ship f_si behind the planet, with the first vertex of its first

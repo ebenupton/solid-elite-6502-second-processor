@@ -1,14 +1,9 @@
 \ ******************************************************************************
 \
-\ gfx-gvars.asm - the frame layer's HAZEL part of the stubs (G_MERID, called
-\ from bank 6 while ACCCON X is set) and the variables shared between Elite,
-\ the IRQ handler and the graphics bank (split from gfx-gstubs.asm)
+\ gfx-gvars.asm - the variables shared between Elite, the IRQ handler and the
+\ graphics bank
 \
 \ ******************************************************************************
-
-.G_MERID                \ (from bank 6) PM_MERID in bank 4 (planet4.asm, not
- JMP tback              \ yet in the build), then back to 6
-
 
 \ Variables shared between Elite, the IRQ handler and the graphics bank
 

@@ -30,7 +30,6 @@ MAXDT = 64              \ dots per frame
 RASTBANK = 5
 GFXBANK = 6
 ELITEBANK = HOMEBANK
-MCB = 24                \ bytes of a meridian circle's constants (f_merid, planet4.asm)
 
 CLEAR &C000, &E000
 ORG &C000
