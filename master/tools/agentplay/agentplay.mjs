@@ -6,6 +6,7 @@
 //      [--commander jameson|trader|equipped|rich|deadly|mission2|wanted] [--mode efficient,curious,fair,keyboard,nosave,nomission]
 //      [--chaos all|ecm,bomb,...] [--start FRAMES] [--shots N] [--keepgoing N] [--strict] [--noobserve]
 //      [--workaround look1] (candidate-side runtime workaround for a known port bug, to play on past it)
+//      [--savediscs] (write both machines' discs, with their saves, at the end: ref-disc.ssd, cand-disc.ssd)
 //      [--ref disc --rsyms syms] [--cand disc --csyms syms] [--iters N]
 // Writes DIR/{config.json, inputs.jsonl, agent.log, journal.jsonl, events.jsonl, summary.json, *.png}.
 // Exit status: 0 no findings, 1 a finding (divergence, crash, hang, BRK, page &0D), 2 error.
@@ -19,7 +20,7 @@ for (const m of String(a.mode || "efficient").split(",")) { if (!MODES[m]) { con
 const cfg = {
     out: a.out, minutes: +(a.minutes || 10), seed: a.seed !== undefined ? +a.seed : undefined, commander: a.commander || "jameson",
     agentEnv: env, chaos: a.chaos || null, startFrame: +(a.start || 700), shots: +(a.shots || 0), keepGoing: +(a.keepgoing || 0),
-    strict: !!a.strict, workarounds: a.workaround ? String(a.workaround).split(",") : [], observe: !a.noobserve, iters: a.iters ? +a.iters : undefined,
+    strict: !!a.strict, saveDiscs: !!a.savediscs, workarounds: a.workaround ? String(a.workaround).split(",") : [], observe: !a.noobserve, iters: a.iters ? +a.iters : undefined,
 };
 for (const k of ["ref", "rsyms", "cand", "csyms"]) if (a[k]) cfg[k] = a[k];
 try {

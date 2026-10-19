@@ -41,6 +41,7 @@ export const MODES = {
     keyboard: { JOYSTICK: "0" },          // keys for roll and pitch instead of the stick
     nosave: { SAVE: "0" },
     nomission: { NOMISSION: "1" },
+    load: { LOAD: "CLAUDE" },           // load commander CLAUDE from the disc when first docked (a disc from --savediscs)
 };
 
 // ---- the chaos overlay
