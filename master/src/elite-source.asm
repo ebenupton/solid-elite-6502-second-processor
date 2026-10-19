@@ -14044,8 +14044,23 @@ ENDIF
                         \
                         \   (A P) = u_x * cos(CNT2)
 
- JSR ADD                \ Set (A X) = (A P) + (S R)
-                        \           = u_x * cos(CNT2) + v_x * sin(CNT2)
+ STA T1                 \ Set (A X) = (A P) + (S R), as ADD (Port: inlined,
+ AND #%10000000         \ with MU8 for different signs)
+ STA T
+ EOR S
+ BPL pl4ca
+ JSR MU8
+ BRA pl4cb
+.pl4ca
+ CLC
+ LDA R
+ ADC P
+ TAX
+ LDA S
+ ADC T1
+ ORA T
+.pl4cb
+                        \ = u_x * cos(CNT2) + v_x * sin(CNT2)
 
  STA T                  \ Store the high byte in T, so the result is now:
                         \
@@ -14120,8 +14135,23 @@ ENDIF
                         \
                         \   (A P) = u_y * cos(CNT2)
 
- JSR ADD                \ Set (A X) = (A P) + (S R)
-                        \           =  u_y * cos(CNT2) + v_y * sin(CNT2)
+ STA T1                 \ Set (A X) = (A P) + (S R), as ADD (Port: inlined,
+ AND #%10000000         \ with MU8 for different signs)
+ STA T
+ EOR S
+ BPL pl4da
+ JSR MU8
+ BRA pl4db
+.pl4da
+ CLC
+ LDA R
+ ADC P
+ TAX
+ LDA S
+ ADC T1
+ ORA T
+.pl4db
+                        \ = u_y * cos(CNT2) + v_y * sin(CNT2)
 
  EOR #%10000000         \ Store the negated high byte in T, so the result is
  STA T                  \ now:
