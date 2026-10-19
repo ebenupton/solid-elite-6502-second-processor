@@ -3057,8 +3057,6 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
  DEC sg_x+1
  BRA fsg_jj
 
- SKIP 16                \ (unused: keeps sg_ax onward where it was)
-
 .sg_ax  EQUW 0          \ segment end points: ax, ay, bx, by would be
 .sg_ay  EQUW 0          \ contiguous with this order for the swap: ax, ay
 .sg_bx  EQUW 0

@@ -10209,8 +10209,7 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \   Category: Drawing planets
 \    Summary: Pick PLL4 or PLL4F for a new curve, patching PLL4F's multipliers
 \             (Port: the demo port's per-curve PLL4 operand patching, 5518429
-\             and demo-final's pl4k/pl4p operands, with Master's log tables;
-\             in bank 4 for room, PLL4F in the main RAM at &7Fxx)
+\             and demo-final's pl4k/pl4p operands, with Master's log tables)
 \
 \ ------------------------------------------------------------------------------
 \

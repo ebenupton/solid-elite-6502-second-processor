@@ -14193,7 +14193,118 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
- SKIP 2                 \ Port: keep the code that follows where it was
+\ ******************************************************************************
+\
+\       Name: PLL4F
+\       Type: Subroutine
+\   Category: Drawing planets
+\    Summary: Port: PLL4 with the curve's four FMLTU multipliers patched in once
+\             per curve
+\
+\ ------------------------------------------------------------------------------
+\
+\ The points of a planet curve (PLS22's loop) when none of K2 to K2+3 is zero:
+\ pl4pat (bank 4) patches logL(K2+n) and log(K2+n) into the ADC # operands
+\ below and PLL4's loop-back jump (pl4j) to here, so each product K2+n * |sin|
+\ or |cos| adds log(q) inline and takes the antilog, exactly as FMLTU does (0,
+\ with C clear, when the log sum is below 256; 0 with C unchanged when q = 0),
+\ then joins PLL4 at pl4t.
+\
+\ ******************************************************************************
+
+.PLL4F
+
+ LDA CNT2               \ As PLL4: C = the sign of sin(CNT2), X = CNT2 mod 32,
+ CMP #33                \ XX16+5 = that sign, S = its EOR with XX16+2
+ AND #31
+ TAX
+ LDA #0
+ ROR A
+ STA XX16+5
+ EOR XX16+2
+ STA S
+
+ STX pl4x+1             \ Keep X = CNT2 mod 32 for the cos look-up
+
+ LDA SNE,X              \ Set Q = q = |sin(CNT2)|
+ STA Q
+ BEQ pl4z1              \ If q = 0, R = K = 0
+ TAX
+ CLC
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+2) + log(q)), or 0
+.pl4a2                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+2))
+ LDA log,X
+.pl4b2
+ ADC #0                 \ (patched: log(K2+2))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA R
+
+ LDX Q
+ CLC
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+3) + log(q)), or 0
+.pl4a3                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+3))
+ LDA log,X
+.pl4b3
+ ADC #0                 \ (patched: log(K2+3))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA K
+
+.pl4x
+
+ LDX #0                 \ (patched) X = CNT2 mod 32
+
+ CLC                    \ Set Q = q = |cos(CNT2)| (C clear, as PLL4)
+ LDA SNE+16,X
+ STA Q
+ BEQ pl4z2              \ If q = 0, K+2 = P = 0 with C clear
+ TAX
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+1) + log(q)), or 0
+.pl4a1                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+1))
+ LDA log,X
+.pl4b1
+ ADC #0                 \ (patched: log(K2+1))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA K+2
+
+ LDX Q
+ CLC
+ LDA logL,X             \ Set A = FMLTU's alogh(log(K2+0) + log(q)), or 0
+.pl4a0                   \ (with C clear) if the sum is below 256, as FMLTU
+ ADC #0                 \ (patched: logL(K2+0))
+ LDA log,X
+.pl4b0
+ ADC #0                 \ (patched: log(K2+0))
+ TAX
+ LDA alogh,X
+ BCS P%+4
+ LDA #0
+ STA P
+
+ JMP pl4t               \ Join PLL4 (C as FMLTU leaves it, for its ADC #207)
+
+.pl4z1
+
+ STZ R                  \ q = 0: R = K = 0, as FMLTU (C is cleared below)
+ STZ K
+ BRA pl4x
+
+.pl4z2
+
+ STZ K+2                \ q = 0: K+2 = P = 0, C still clear, as FMLTU leaves
+ STZ P                  \ them
+ JMP pl4t
 
 \ ******************************************************************************
 \
@@ -19589,59 +19700,6 @@ ENDIF
 \ ******************************************************************************
 
 
-\ ******************************************************************************
-\
-\       Name: MALC
-\       Type: Subroutine
-\   Category: Main loop
-\    Summary: GINF and the copy of a ship's data block into INWK, unrolled for
-\             slots 0-5 (Port: the demo port's CPYIN, 8a7e690, 9bb50a9 w_0367)
-\
-\ ------------------------------------------------------------------------------
-\
-\ Entered by JMP from MAL1 with X = the slot. Sets INF as GINF does, and for
-\ slots 0-5 (whose blocks start at most 185 bytes into K%, so K% + i + Y
-\ never crosses a page) copies the 37 bytes with LDA K%+i,Y / STA INWK+i and
-\ rejoins MAL1 at MAL2e with Y = &FF, as the loop leaves it; other slots
-\ rejoin at MAL1g to run the loop.
-\
-\ ******************************************************************************
-
-.MALC
-
- TXA                    \ Set INF to the address of the slot's data block, as
- ASL A                  \ GINF does
- TAY
- LDA UNIV,Y
- STA INF
- LDA UNIV+1,Y
- STA INF+1
-
- LDY malct,X            \ Set Y = NI% * X, the block's offset in K%, or
- BPL P%+5               \ &FF for slots 6 and up, which use the loop in MAL1
- JMP MAL1g
-
- FOR i, 0, NI% - 1
-  LDA K%+i,Y            \ Copy byte i of the block into INWK
-  STA INWK+i
- NEXT
-
- LDY #&FF               \ Y = &FF, as MAL2's loop leaves it
-
- JMP MAL2e              \ Rejoin MAL1
-
-.malct
-
- FOR i, 0, NOSH
-  IF i < 6
-   EQUB i * NI%         \ NI% * slot for slots 0-5
-  ELSE
-   EQUB &FF             \ and &FF for the others
-  ENDIF
- NEXT
-
- ASSERT 5 * NI% + NI% - 1 < 256 AND LO(K%) = 0
-
  INCLUDE "src/elite-flight.asm" \ Port: the rest of the flight code
 
 .F%
@@ -19843,100 +19901,6 @@ ENDIF
 
  JMP DEATH2             \ Jump to DEATH2 to reset and restart the game
 
-
-.PLL4F
-
- LDA CNT2               \ As PLL4: C = the sign of sin(CNT2), X = CNT2 mod 32,
- CMP #33                \ XX16+5 = that sign, S = its EOR with XX16+2
- AND #31
- TAX
- LDA #0
- ROR A
- STA XX16+5
- EOR XX16+2
- STA S
-
- STX pl4x+1             \ Keep X = CNT2 mod 32 for the cos look-up
-
- LDA SNE,X              \ Set Q = q = |sin(CNT2)|
- STA Q
- BEQ pl4z1              \ If q = 0, R = K = 0
- TAX
- CLC
- LDA logL,X             \ Set A = FMLTU's alogh(log(K2+2) + log(q)), or 0
-.pl4a2                   \ (with C clear) if the sum is below 256, as FMLTU
- ADC #0                 \ (patched: logL(K2+2))
- LDA log,X
-.pl4b2
- ADC #0                 \ (patched: log(K2+2))
- TAX
- LDA alogh,X
- BCS P%+4
- LDA #0
- STA R
-
- LDX Q
- CLC
- LDA logL,X             \ Set A = FMLTU's alogh(log(K2+3) + log(q)), or 0
-.pl4a3                   \ (with C clear) if the sum is below 256, as FMLTU
- ADC #0                 \ (patched: logL(K2+3))
- LDA log,X
-.pl4b3
- ADC #0                 \ (patched: log(K2+3))
- TAX
- LDA alogh,X
- BCS P%+4
- LDA #0
- STA K
-
-.pl4x
-
- LDX #0                 \ (patched) X = CNT2 mod 32
-
- CLC                    \ Set Q = q = |cos(CNT2)| (C clear, as PLL4)
- LDA SNE+16,X
- STA Q
- BEQ pl4z2              \ If q = 0, K+2 = P = 0 with C clear
- TAX
- LDA logL,X             \ Set A = FMLTU's alogh(log(K2+1) + log(q)), or 0
-.pl4a1                   \ (with C clear) if the sum is below 256, as FMLTU
- ADC #0                 \ (patched: logL(K2+1))
- LDA log,X
-.pl4b1
- ADC #0                 \ (patched: log(K2+1))
- TAX
- LDA alogh,X
- BCS P%+4
- LDA #0
- STA K+2
-
- LDX Q
- CLC
- LDA logL,X             \ Set A = FMLTU's alogh(log(K2+0) + log(q)), or 0
-.pl4a0                   \ (with C clear) if the sum is below 256, as FMLTU
- ADC #0                 \ (patched: logL(K2+0))
- LDA log,X
-.pl4b0
- ADC #0                 \ (patched: log(K2+0))
- TAX
- LDA alogh,X
- BCS P%+4
- LDA #0
- STA P
-
- JMP pl4t               \ Join PLL4 (C as FMLTU leaves it, for its ADC #207)
-
-.pl4z1
-
- STZ R                  \ q = 0: R = K = 0, as FMLTU (C is cleared below)
- STZ K
- BRA pl4x
-
-.pl4z2
-
- STZ K+2                \ q = 0: K+2 = P = 0, C still clear, as FMLTU leaves
- STZ P                  \ them
- JMP pl4t
 
 \ ******************************************************************************
 \
@@ -20187,6 +20151,59 @@ ENDIF
  BNE SAL8               \ Loop back to SAL8 if we still have missiles to draw
 
  RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: MALC
+\       Type: Subroutine
+\   Category: Main loop
+\    Summary: GINF and the copy of a ship's data block into INWK, unrolled for
+\             slots 0-5 (Port: the demo port's CPYIN, 8a7e690, 9bb50a9 w_0367)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Entered by JMP from MAL1 with X = the slot. Sets INF as GINF does, and for
+\ slots 0-5 (whose blocks start at most 185 bytes into K%, so K% + i + Y
+\ never crosses a page) copies the 37 bytes with LDA K%+i,Y / STA INWK+i and
+\ rejoins MAL1 at MAL2e with Y = &FF, as the loop leaves it; other slots
+\ rejoin at MAL1g to run the loop.
+\
+\ ******************************************************************************
+
+.MALC
+
+ TXA                    \ Set INF to the address of the slot's data block, as
+ ASL A                  \ GINF does
+ TAY
+ LDA UNIV,Y
+ STA INF
+ LDA UNIV+1,Y
+ STA INF+1
+
+ LDY malct,X            \ Set Y = NI% * X, the block's offset in K%, or
+ BPL P%+5               \ &FF for slots 6 and up, which use the loop in MAL1
+ JMP MAL1g
+
+ FOR i, 0, NI% - 1
+  LDA K%+i,Y            \ Copy byte i of the block into INWK
+  STA INWK+i
+ NEXT
+
+ LDY #&FF               \ Y = &FF, as MAL2's loop leaves it
+
+ JMP MAL2e              \ Rejoin MAL1
+
+.malct
+
+ FOR i, 0, NOSH
+  IF i < 6
+   EQUB i * NI%         \ NI% * slot for slots 0-5
+  ELSE
+   EQUB &FF             \ and &FF for the others
+  ENDIF
+ NEXT
+
+ ASSERT 5 * NI% + NI% - 1 < 256 AND LO(K%) = 0
 
 .HI_END%
 
