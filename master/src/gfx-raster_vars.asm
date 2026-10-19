@@ -52,13 +52,6 @@
 .R_PRDYA    SKIP 1
 .R_PRDYZ    SKIP 1
 .R_PRCWB    SKIP 1
-.r7_lpx     SKIP 1          \ r_lc16 -> r7_lines: start pixel, error, a, b, count, kind
-.r7_lpy     SKIP 1
-.r7_lpe     SKIP 1
-.r7_lpa     SKIP 1
-.r7_lpb     SKIP 1
-.r7_lpn     SKIP 1
-.r7_lpk     SKIP 1          \ last row whose R_WL/R_WR the repair wrote (0: none)
 PRINT "raster_vars: the gap between the boundary arrays has ", &500 - 5 * 192 - (P% - R_GAP0), " bytes free"
             SKIP &500 - 5 * 192 - (P% - R_GAP0)
 .R_BDP1     SKIP 192

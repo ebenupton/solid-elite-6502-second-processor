@@ -79,9 +79,9 @@
  JSR R_POLY
  JMP tback
 
-.T_LINE
+.T_LINE                 \ (R_LINE is in the rasteriser's bank 7)
  STA tA
- LDA #RASTBANK
+ LDA #R_BANK_AUX
  STA &F4
  STA &FE30
  LDA tA

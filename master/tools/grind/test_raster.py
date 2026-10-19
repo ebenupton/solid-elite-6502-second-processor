@@ -126,6 +126,48 @@ class Machine(tr.Machine):
                 raise AssertionError('%s left run %d modified' % (name, r))
 
 
+    def page(self, nb):
+        """page sideways bank nb in (as a write to ROMSEL would)"""
+        if nb != self.bank:
+            self.banks[self.bank] = self.mem[0x8000:0xC000]
+            self.mem[0x8000:0xC000] = self.banks[nb]
+            self.bank = nb
+        self.mem[tr.ROMSEL] = self.mem[tr.ROMSELCOPY] = nb
+
+    def call(self, name, a=0, x=0, y=0, maxcyc=20_000_000, bank=5):
+        """as the demo's, but entered (and returning) with bank `bank` paged: R_LINE is
+        in bank 7, which the frame layer's T_LINE pages in itself"""
+        self.page(bank)
+        mpu, mem = self.mpu, self.mem
+        if self.guard:
+            snap = mem[:]
+        mpu.a, mpu.x, mpu.y = a, x, y
+        mpu.p = 0x24
+        ret = tr.RET - 1
+        mem[0x1FF] = ret >> 8
+        mem[0x1FE] = ret & 0xFF
+        mpu.sp = 0xFD
+        mpu.pc = self.syms[name] if isinstance(name, str) else name
+        c0 = mpu.processorCycles
+        step = mpu.step
+        while mpu.pc != tr.RET:
+            step()
+            nb = mem[tr.ROMSEL]
+            if nb != self.bank:
+                self.banks[self.bank] = mem[0x8000:0xC000]
+                mem[0x8000:0xC000] = self.banks[nb]
+                self.bank = nb
+            if mpu.processorCycles - c0 > maxcyc:
+                raise RuntimeError('runaway in %s' % name)
+        if self.bank != bank:
+            raise AssertionError('%s returned with bank %d paged' % (name, self.bank))
+        self.cycles = mpu.processorCycles - c0
+        if self.guard:
+            self.check_writes(snap, name)
+        self.page(5)
+        return self.cycles
+
+
 def set_col(self, ce, co):
     self.m.wzp('R_COLE', ce)
     self.m.wzp('R_COLO', co)
@@ -133,9 +175,19 @@ def set_col(self, ce, co):
     self.m.wr('R_COL3', co)
 
 
+def draw_line(self, x0, y0, x1, y1, ce, co, entry='R_LINE'):
+    m = self.m
+    for nm, v in (('R_X0', x0), ('R_Y0', y0), ('R_X1', x1), ('R_Y1', y1)):
+        m.wr(nm, v & 0xFF)
+        m.wr(nm, (v >> 8) & 0xFF, 1)
+    self.set_col(ce, co)
+    return m.call(entry, bank=7)          # (T_LINE: bank 7)
+
+
 tr.assemble = assemble
 tr.Machine = Machine
 tr.Tester.set_col = set_col
+tr.Tester.draw_line = draw_line
 
 if __name__ == '__main__':
     tr.main()
