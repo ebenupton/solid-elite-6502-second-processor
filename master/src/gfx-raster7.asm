@@ -7,6 +7,21 @@
 \ page the rest in through raster_hz.asm's stubs.
 \ ============================================================================
 
+\ R_LINE's zero page (r7_line's loops; here, before the code in the run
+\ pages' tails that uses it)
+l_x0 = &18
+l_y0 = &19
+l_x1 = &1A
+l_y1 = &1B
+l_e  = &1C
+l_m  = &1D
+l_n  = &1E
+l_a  = &1F
+l_b  = &20
+l_x  = &21
+l_k  = &22              \ kind (0..3)
+l_c  = &23              \ 0: inside, 8: clipped
+
 \ (The bank starts on a page boundary: the runs need whole pages.)
 .r7_start
 \ the row runs: one page per character row r: STA &4000+&200r+8k-8r,Y (Y = row) for byte
@@ -188,22 +203,271 @@ R7_ENDPAGE 8
 R7_RUN 9
 R7_ENDPAGE 9
 R7_RUN 10
+.r7_j3                    \ run offset of byte column k (1..63)
+FOR k, 0, 63
+  EQUB LO(3 * (k - 1))
+NEXT
 R7_ENDPAGE 10
 R7_RUN 11
+\ ============================================================================
+\ R_RESETBUF (bank 7 part): the current buffer's state, not the screen
+\ ============================================================================
+.r7_resetbuf
+{
+  LDY #191
+  LDX R_PRBUF
+  BNE b1
+.c0
+  LDA #&FF
+  STA R_DIRTYL0,Y
+  STA R_DISCL0,Y
+  LDA #0
+  STA R_DIRTYR0,Y
+  STA R_DISCR0,Y
+  DEY
+  CPY #&FF
+  BNE c0
+  BRA done
+.b1
+  LDA #&FF
+  STA R_DIRTYL1,Y
+  STA R_DISCL1,Y
+  LDA #0
+  STA R_DIRTYR1,Y
+  STA R_DISCR1,Y
+  DEY
+  CPY #&FF
+  BNE b1
+.done
+  JMP r7_reset1
+}
 R7_ENDPAGE 11
 R7_RUN 12
+\ r7_reset1: buffer X's scalars (keeps X)
+.r7_reset1
+  LDA #&FF
+  STA R_PRDYT,X
+  STA R_PRDST,X
+  STZ R_PRDYB,X
+  STZ R_PRDSB,X
+  STZ R_PRSCNT,X
+  STZ R_PRECNT,X
+  STZ R_PRBMODE,X
+  RTS
+
+
+\ r7_lc16's variables
+.c_m0 SKIP 2            \ major start
+.c_n0 SKIP 2            \ minor start
+.c_d  SKIP 1
+.c_a  SKIP 1
+.c_s  SKIP 1            \ bit 7: minor decreases
+.c_k  SKIP 1            \ kind
+.c_i  SKIP 2            \ first index
+.c_t  SKIP 2
+.c_lo SKIP 1            \ major window lo, hi, minor lo, hi
+.c_hi SKIP 1
+.c_nl SKIP 1
+.c_nh SKIP 1
+.c_m0w SKIP 2           \ mul / div: 16-bit value, 8-bit operand, remainder
+.c_op SKIP 1
+.c_r  SKIP 1
 R7_ENDPAGE 12
 R7_RUN 13
+\ ============================================================================
+\ R_CLEARALL (bank 7 part): black the clip window, reset the buffer's state
+\ ============================================================================
+.r7_clearall
+{
+  LDX #LO(r_clrrow)       \ each row by bank 5's span code
+  STX r_hzt5
+  LDX #HI(r_clrrow)
+  STX r_hzt5+1
+  LDY R_CT
+.row
+  STY RZ_T0
+  JSR r_call5
+  LDY RZ_T0
+  CPY R_CB
+  INY
+  BCC row
+  JSR r7_resetbuf
+  LDY R_CT                \ WL/WR: the whole window was written
+.cw
+  LDA R_CL
+  STA R_WL,Y
+  LDA R_CR
+  STA R_WR,Y
+  CPY R_CB
+  INY
+  BCC cw
+  LDA R_CT
+  CMP R_PRWT
+  BCS w1
+  STA R_PRWT
+.w1
+  LDA R_CB
+  CMP R_PRWB
+  BCC w2
+  STA R_PRWB
+.w2
+  RTS
+}
 R7_ENDPAGE 13
 R7_RUN 14
+\ ab: X = 0 / 2: |T(X), T(X+1)| -> A, C = 1 if >= 256
+.r7_cab
+{
+  LDA RZ_T1,X
+  BMI n
+  BNE n9
+  LDA RZ_T0,X
+  CLC
+  RTS
+.n
+  CMP #&FF
+  BNE n9
+  LDA RZ_T0,X
+  BEQ n9                 \ (-256)
+  EOR #&FF
+  INC A
+  CLC
+  RTS
+.n9
+  SEC
+  RTS
+}
+\ swap: r7_lc16's ends exchanged
+.r7_cswap
+{
+  LDX #3
+.l1
+  LDA R_X0,X
+  LDY R_X1,X
+  STA R_X1,X
+  TYA
+  STA R_X0,X
+  DEX
+  BPL l1
+  LDX #2                  \ the differences change sign
+.l2
+  SEC
+  LDA #0
+  SBC RZ_T0,X
+  STA RZ_T0,X
+  LDA #0
+  SBC RZ_T1,X
+  STA RZ_T1,X
+  DEX
+  DEX
+  BPL l2
+  RTS
+}
 R7_ENDPAGE 14
 R7_RUN 15
+\ mul: c_m0w = A * X
+.r7_cmul
+{
+  STA c_op
+  STX c_t+1
+  STZ c_m0w
+  STZ c_m0w+1
+  LDX #8
+.l1
+  ASL c_m0w
+  ROL c_m0w+1
+  ASL c_op
+  BCC l2
+  LDA c_t+1
+  CLC
+  ADC c_m0w
+  STA c_m0w
+  BCC l2
+  INC c_m0w+1
+.l2
+  DEX
+  BNE l1
+  RTS
+}
 R7_ENDPAGE 15
 R7_RUN 16
+\ div: c_m0w = c_m0w DIV A, c_r = MOD (A >= 1)
+.r7_cdiv
+{
+  STA c_op
+  STZ c_r
+  LDX #16
+.l1
+  ASL c_m0w
+  ROL c_m0w+1
+  ROL c_r
+  BCS l2
+  LDA c_r
+  CMP c_op
+  BCC l3
+.l2
+  LDA c_r
+  SBC c_op
+  STA c_r
+  INC c_m0w
+.l3
+  DEX
+  BNE l1
+  RTS
+}
 R7_ENDPAGE 16
 R7_RUN 17
+\ r7_lstart: A = steps: l_n = A, l_e = (A DIV 2) - l_b, l_x = x0, the buffer's
+\ dirty rows += y0..y1 (in the window)
+.r7_lstart
+{
+  STA l_n
+  LSR A
+  SEC
+  SBC l_b
+  STA l_e
+  LDA l_x0
+  STA l_x
+  LDX R_PRBUF
+  LDA l_y0
+  LDY l_y1
+  CMP l_y1
+  BCC t0
+  TAY
+  LDA l_y1
+.t0
+  CMP R_CT                \ A = top, Y = bottom (clamped to the window)
+  BCS t1
+  LDA R_CT
+.t1
+  CMP R_PRDYT,X
+  BCS t2
+  STA R_PRDYT,X
+.t2
+  TYA
+  CMP R_CB
+  BCC t3
+  LDA R_CB
+.t3
+  CMP R_PRDYB,X
+  BCC t4
+  STA R_PRDYB,X
+.t4
+  RTS
+}
 R7_ENDPAGE 17
 R7_RUN 18
+\ r7_lswap: R_LINE's 8-bit ends exchanged
+.r7_lswap
+  LDX l_x1
+  LDY l_x0
+  STX l_x0
+  STY l_x1
+  LDX l_y1
+  LDY l_y0
+  STX l_y0
+  STY l_y1
+  RTS
 R7_ENDPAGE 18
 R7_RUN 19
 R7_ENDPAGE 19
@@ -229,10 +493,7 @@ ASSERT LO(r7_jr) = 4
 FOR x, 0, 3
   EQUB ((&F0 << (3 - x)) AND &F0) OR ((&0F << (3 - x)) AND &0F)
 NEXT
-.r7_j3                    \ run offset of byte column k (1..63)
-FOR k, 0, 63
-  EQUB LO(3 * (k - 1))
-NEXT
+
 
 
 \ ============================================================================
@@ -595,90 +856,7 @@ c_BB  = &25
   RTS
 }
 
-\ r7_reset1: buffer X's scalars (keeps X)
-.r7_reset1
-  LDA #&FF
-  STA R_PRDYT,X
-  STA R_PRDST,X
-  STZ R_PRDYB,X
-  STZ R_PRDSB,X
-  STZ R_PRSCNT,X
-  STZ R_PRECNT,X
-  STZ R_PRBMODE,X
-  RTS
 
-\ ============================================================================
-\ R_RESETBUF (bank 7 part): the current buffer's state, not the screen
-\ ============================================================================
-.r7_resetbuf
-{
-  LDY #191
-  LDX R_PRBUF
-  BNE b1
-.c0
-  LDA #&FF
-  STA R_DIRTYL0,Y
-  STA R_DISCL0,Y
-  LDA #0
-  STA R_DIRTYR0,Y
-  STA R_DISCR0,Y
-  DEY
-  CPY #&FF
-  BNE c0
-  BRA done
-.b1
-  LDA #&FF
-  STA R_DIRTYL1,Y
-  STA R_DISCL1,Y
-  LDA #0
-  STA R_DIRTYR1,Y
-  STA R_DISCR1,Y
-  DEY
-  CPY #&FF
-  BNE b1
-.done
-  JMP r7_reset1
-}
-
-\ ============================================================================
-\ R_CLEARALL (bank 7 part): black the clip window, reset the buffer's state
-\ ============================================================================
-.r7_clearall
-{
-  LDX #LO(r_clrrow)       \ each row by bank 5's span code
-  STX r_hzt5
-  LDX #HI(r_clrrow)
-  STX r_hzt5+1
-  LDY R_CT
-.row
-  STY RZ_T0
-  JSR r_call5
-  LDY RZ_T0
-  CPY R_CB
-  INY
-  BCC row
-  JSR r7_resetbuf
-  LDY R_CT                \ WL/WR: the whole window was written
-.cw
-  LDA R_CL
-  STA R_WL,Y
-  LDA R_CR
-  STA R_WR,Y
-  CPY R_CB
-  INY
-  BCC cw
-  LDA R_CT
-  CMP R_PRWT
-  BCS w1
-  STA R_PRWT
-.w1
-  LDA R_CB
-  CMP R_PRWB
-  BCC w2
-  STA R_PRWB
-.w2
-  RTS
-}
 
 
 
@@ -1113,18 +1291,6 @@ r_lcnt = r7_ov + 27
 \ inside the window are stepped over, and the loops stop at the first one
 \ past it (the pixels inside are one run: x and y are monotonic).
 \ ============================================================================
-l_x0 = &18
-l_y0 = &19
-l_x1 = &1A
-l_y1 = &1B
-l_e  = &1C
-l_m  = &1D
-l_n  = &1E
-l_a  = &1F
-l_b  = &20
-l_x  = &21
-l_k  = &22              \ kind (0..3)
-l_c  = &23              \ 0: inside, 8: clipped
 
 
 \ r7_lpat: X = buffer: patch R_LINE's DIRTY operands for it
@@ -1239,10 +1405,10 @@ l_c  = &23              \ 0: inside, 8: clipped
   LDA l_y1                \ y major: from the top end
   CMP l_y0
   BCS y1
-  JSR swap
+  JSR r7_lswap
 .y1
   LDA l_b                 \ steps = dy, e = (dy DIV 2) - dy, a = |dx|, b = dy
-  JSR start
+  JSR r7_lstart
   LDA l_x1
   CMP l_x0
   LDA #0
@@ -1252,14 +1418,14 @@ l_c  = &23              \ 0: inside, 8: clipped
   LDA l_x1                \ x major: from the left end
   CMP l_x0
   BCS x1
-  JSR swap
+  JSR r7_lswap
 .x1
   LDX l_a                 \ a = |dy|, b = |dx|
   LDY l_b
   STX l_b
   STY l_a
   TXA
-  JSR start
+  JSR r7_lstart
   LDA l_y1
   CMP l_y0
   LDA #1
@@ -1308,52 +1474,6 @@ l_c  = &23              \ 0: inside, 8: clipped
   JMP &FFFF
 .tab
   EQUW lyl, lyr, lxu, lxd, 0, 0, 0, 0, lylc, lyrc, lxuc, lxdc
-.swap
-  LDX l_x1
-  LDY l_x0
-  STX l_x0
-  STY l_x1
-  LDX l_y1
-  LDY l_y0
-  STX l_y0
-  STY l_y1
-  RTS
-\ start: A = steps: l_n = A, l_e = (A DIV 2) - l_b, l_x = x0, the buffer's
-\ dirty rows += y0..y1 (in the window)
-.start
-  STA l_n
-  LSR A
-  SEC
-  SBC l_b
-  STA l_e
-  LDA l_x0
-  STA l_x
-  LDX R_PRBUF
-  LDA l_y0
-  LDY l_y1
-  CMP l_y1
-  BCC t0
-  TAY
-  LDA l_y1
-.t0
-  CMP R_CT                \ A = top, Y = bottom (clamped to the window)
-  BCS t1
-  LDA R_CT
-.t1
-  CMP R_PRDYT,X
-  BCS t2
-  STA R_PRDYT,X
-.t2
-  TYA
-  CMP R_CB
-  BCC t3
-  LDA R_CB
-.t3
-  CMP R_PRDYB,X
-  BCC t4
-  STA R_PRDYB,X
-.t4
-  RTS
 \ clip: step from pixel 0 (l_x, row X) over the pixels outside the window
 \ (l_n counting down, l_e as the loops); C = 1 if none is inside.  Then
 \ l_y0 = the row.  Bounds for the loops: r7_cr1, r7_cb1.
@@ -1822,21 +1942,6 @@ l_c  = &23              \ 0: inside, 8: clipped
 \ d DIV 2), then bank 7's clipped loops from there (r7_lines: they stop at
 \ the first pixel past the window).  A <> 0: not handled (the general path), else A = 0.
 \ ----------------------------------------------------------------------------
-.c_m0 SKIP 2            \ major start
-.c_n0 SKIP 2            \ minor start
-.c_d  SKIP 1
-.c_a  SKIP 1
-.c_s  SKIP 1            \ bit 7: minor decreases
-.c_k  SKIP 1            \ kind
-.c_i  SKIP 2            \ first index
-.c_t  SKIP 2
-.c_lo SKIP 1            \ major window lo, hi, minor lo, hi
-.c_hi SKIP 1
-.c_nl SKIP 1
-.c_nh SKIP 1
-.c_m0w SKIP 2           \ mul / div: 16-bit value, 8-bit operand, remainder
-.c_op SKIP 1
-.c_r  SKIP 1
 .r7_lc16
 {
   SEC                     \ dx -> T0,T1; dy -> T2,T3
@@ -1854,11 +1959,11 @@ l_c  = &23              \ 0: inside, 8: clipped
   SBC R_Y0+1
   STA RZ_T3
   LDX #0                  \ |dx| -> T4, |dy| -> T5 (both must be < 256)
-  JSR ab
+  JSR r7_cab
   BCS no
   STA RZ_T4
   LDX #2
-  JSR ab
+  JSR r7_cab
   BCS no
   STA RZ_T5
   CMP RZ_T4
@@ -1866,7 +1971,7 @@ l_c  = &23              \ 0: inside, 8: clipped
   BEQ xm
   LDA RZ_T3               \ y major: from the top end
   BPL y1
-  JSR swap
+  JSR r7_cswap
 .y1
   LDA R_Y0
   STA c_m0
@@ -1903,7 +2008,7 @@ l_c  = &23              \ 0: inside, 8: clipped
 .xm
   LDA RZ_T1               \ x major: from the left end
   BPL x1
-  JSR swap
+  JSR r7_cswap
 .x1
   LDA R_X0
   STA c_m0
@@ -1978,7 +2083,7 @@ l_c  = &23              \ 0: inside, 8: clipped
   JMP none
   LDA c_t                 \ i >= ceil((k * d - h) / a) = (k*d - h + a - 1) DIV a
   LDX c_d
-  JSR mul
+  JSR r7_cmul
   LDA c_d
   LSR A
   STA c_t
@@ -1999,7 +2104,7 @@ l_c  = &23              \ 0: inside, 8: clipped
   INC c_m0w+1
 .k1
   LDA c_a
-  JSR div
+  JSR r7_cdiv
   LDA c_m0w+1             \ i = max(i, that)
   CMP c_i+1
   BCC k0
@@ -2023,7 +2128,7 @@ l_c  = &23              \ 0: inside, 8: clipped
   \ q, r = (h + i * a) DIV / MOD d
   LDA c_i
   LDX c_a
-  JSR mul
+  JSR r7_cmul
   LDA c_d
   LSR A
   CLC
@@ -2039,7 +2144,7 @@ l_c  = &23              \ 0: inside, 8: clipped
   STZ c_r
   BRA q3
 .q2
-  JSR div
+  JSR r7_cdiv
 .q3
   \ start: major m0 + i, minor n0 +/- q: inside the window?
   CLC
@@ -2118,93 +2223,6 @@ l_c  = &23              \ 0: inside, 8: clipped
   STX l_k
   JSR r7_lines
   LDA #0
-  RTS
-\ ab: X = 0 / 2: |T(X), T(X+1)| -> A, C = 1 if >= 256
-.ab
-  LDA RZ_T1,X
-  BMI abn
-  BNE ab9
-  LDA RZ_T0,X
-  CLC
-  RTS
-.abn
-  CMP #&FF
-  BNE ab9
-  LDA RZ_T0,X
-  BEQ ab9                 \ (-256)
-  EOR #&FF
-  INC A
-  CLC
-  RTS
-.ab9
-  SEC
-  RTS
-\ mul: c_m0w = A * X
-.mul
-  STA c_op
-  STX c_t+1
-  STZ c_m0w
-  STZ c_m0w+1
-  LDX #8
-.mu1
-  ASL c_m0w
-  ROL c_m0w+1
-  ASL c_op
-  BCC mu2
-  LDA c_t+1
-  CLC
-  ADC c_m0w
-  STA c_m0w
-  BCC mu2
-  INC c_m0w+1
-.mu2
-  DEX
-  BNE mu1
-  RTS
-\ div: c_m0w = c_m0w DIV A, c_r = MOD (A >= 1)
-.div
-  STA c_op
-  STZ c_r
-  LDX #16
-.dv1
-  ASL c_m0w
-  ROL c_m0w+1
-  ROL c_r
-  BCS dv2
-  LDA c_r
-  CMP c_op
-  BCC dv3
-.dv2
-  LDA c_r
-  SBC c_op
-  STA c_r
-  INC c_m0w
-.dv3
-  DEX
-  BNE dv1
-  RTS
-.swap
-  LDX #3
-.sw1
-  LDA R_X0,X
-  LDY R_X1,X
-  STA R_X1,X
-  TYA
-  STA R_X0,X
-  DEX
-  BPL sw1
-  LDX #2                  \ the differences change sign
-.sw2
-  SEC
-  LDA #0
-  SBC RZ_T0,X
-  STA RZ_T0,X
-  LDA #0
-  SBC RZ_T1,X
-  STA RZ_T1,X
-  DEX
-  DEX
-  BPL sw2
   RTS
 }
 
