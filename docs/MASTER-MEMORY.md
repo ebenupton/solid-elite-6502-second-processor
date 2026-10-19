@@ -17,6 +17,30 @@ an IRQ-only busy loop with keys pressed, and a private WRCHV that writes output 
 RAM buffer as Elite's CHPR does. Verdicts check the disc image itself (catalogue
 and file contents, through jsbeeb's `toSsdOrDsd`), not only the screen output.
 
+## How the port uses this memory
+
+docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
+
+* **ANDY** holds cold code (the cold area's first 4K, ROMSEL &87). The loader sets
+  `*FX 225,128` and the game prints through its own WRCHV, so the MOS never reads the
+  font or soft keys there.
+* **HAZEL** follows the "lay out HAZEL so those bytes are never written" strategy, with
+  no stash: &C000-&C2BF holds only the rasteriser's scratch (nothing kept between
+  calls); code and lasting state are at &C300-&DB90 (the code at &C300-&C728, then the
+  state); &DC40-&DEDE holds only state that is rebuilt on re-entering flight; &DF00-&DFFF
+  is the MOS's. DOSCLI (the cold area) writes &FF to &C282, &C287 and &C28B-&C28E before
+  each disc command, so DFS re-reads the catalogue, and puts the minimal NMI handler back
+  afterwards. The loader copies HAZEL's code into place after its own last disc access.
+* **Exposure.** &C300-&C3BF (HAZEL code: the shared variables, the T_ trampolines) is
+  DFS's open-file channel table, which DFS writes only on `*DISC` or a filing system
+  change (the game makes neither) and when files are opened with OSFIND (the game opens
+  none). A third-party ROM given a private page in &C3-&DB (see "ROM private pages"
+  below) would overlap HAZEL's code (&C3-&C7) or its lasting state (&C7-&DB).
+* **Shadow RAM**: &3100-&3EFF the extended tokens, &3090-&30FF the zero-page save,
+  &3000-&307F, &3F00-&3FFC and &7E00-&7FF8 the lens flare.
+* **Main RAM below &0E00**: the low code at &0840-&0CF1 (the MOS's sound, printer, RS423,
+  cassette and speech buffers and the unused &0B00-&0CFF). Nothing in page &0D.
+
 Short answer:
 
 | Region | Usable by the port? | Bytes |
@@ -211,10 +235,7 @@ unstash: LDX #63 : .u1 LDA STASH,X : STA &C2C0,X : DEX : BPL u1
   the only route.
 * Master Elite itself uses shadow &3090-&30FF (getzp/setzp zero-page save around disc
   access), so leave &3090-&30FF alone or move that buffer.
-* As used by the port: &3100-&3EFF the extended tokens; &3000-&308F, &3F00-&3FFF and
-  &7E00-&7FFF the lens flare's code and tables (loaded from FLARE0, FLARE3, FLARE7;
-  &7E00-&7FFF is not displayed, as CRTC R6 = 31 ends the screen at &7DFF). Nothing in
-  shadow &3000-&3FFF or &7E00-&7FFF is left free beyond a few bytes per block.
+* &7E00-&7FFF is not displayed, as CRTC R6 = 31 ends the screen at &7DFF.
 * Bonus: `LOAD TEST 3800` with ACCCON X=1 put the data **into shadow** &3800 (DFS's NMI
   code at &0D00 stores through the normal &3000-&7FFF mapping). A docked-only overlay
   can therefore be loaded straight into shadow RAM.
@@ -278,9 +299,10 @@ harmless; the save, load, delete and catalogue tests pass.
 
 The failing case is a third-party ROM that hooks BYTEV (or WORDV) on a
 service call and writes its private page on every call. Its page is given
-out below the standard ones, i.e. somewhere in &C7-&D8, or it may be &DB
-(DASHV, the dashboard's scalars, and since the review fixes the game code's
-block 2 at &DB87-&DBEA) and up. The loader already resets the
+out below the standard ones, i.e. somewhere in &C3-&D8 (HAZEL's code is at
+&C300-&C728, its lasting state from &C733), or it may be &DB (the end of the
+state: DASHV, the dashboard's scalars, F_DSX/F_DSY and the flare's variables,
+to &DB90) and up. The loader already resets the
 non-filing-system vectors (3a4686e), so a ROM hooked at boot is unhooked;
 the risk is a ROM that hooks again during the game's own disc commands.
 
@@ -291,8 +313,8 @@ Cheap mitigations considered:
 * Stash and restore, around OSCLI, each page listed in &0DF0-&0DFF that
   lies in the lasting data (except &D9 and &DA, which are harmless and are
   the ROMs' own): about 80 bytes of code in the cold area and 256 bytes a
-  page of buffer in main RAM (the hi region has 1K free, enough for four
-  pages). It covers disc commands only; the game makes no OSBYTE or OSWORD
+  page of buffer in main RAM (there is no such room in main RAM now; a
+  sideways bank's free space would do). It covers disc commands only; the game makes no OSBYTE or OSWORD
   calls in flight, but the docked screens make some (e.g. *FX through
   OSBYTE), which it would not cover.
 * Rebuild the renderer's lasting data after each disc command: the

@@ -608,3 +608,40 @@ Gate (verify.sh 10000, game state identical, redock and savetest pass):
 slot outline (approach 16.48 it/s: four lines a frame while the slot is in
 range, much of the pilot's approach); 1.232 17.21 with the jump fix (the
 pilot's in-system jumps no longer clear shadow RAM and draw a border).
+
+## Rationalisation (after the review fixes)
+
+The grind left code wherever bytes were free: game code in banks 5 and 6
+behind far5 and far6, two blocks of game code in HAZEL, a separate stubs
+region, keep-in-place padding, and alignment pads. The rationalisation
+gave each region one purpose (docs/MASTER-MAP.md, rewritten as the design),
+in single-purpose gated commits:
+
+* One high code region (&7200-&7FFF, the quarter squares first, freeing
+  their 224-byte alignment gap); the energy bomb, OOPS, SFRMIS, ECMOF,
+  THERE and msblob back in main RAM (far5, far6, elite-cold5.asm,
+  elite-cold6.asm and 33 stubs gone, and the cold area's double hops to
+  ECMOF and msblob); HAZEL's game code one block (FLIP with the other
+  views' stardust); MAS1, MAS3, the bomb routines and PLL4F back beside
+  the code they belong with in the main code; the cold area's bank 7 part
+  from COLD7LO (&AA00, one label) instead of the literal &AC40.
+* All keep-in-place padding and speed-only alignment taken out (the final
+  pass will put back what pays: MASTER-MAP.md lists the candidates and what
+  each is worth), the font and log tables first in the main code (171
+  bytes of ALIGN gone), bank 7's row runs first, dead code and data gone
+  (r7_xo, r7_j, f_clamp, H_BLOIN, r_cyrow, r_wlu, GACCX, the unported
+  meridians' scaffolding and gfx-planet4.asm, gfx-lighthz.asm).
+* bankcheck.py covers the renderer's banks and HAZEL; profile.mjs --pagex
+  measures page-crossing cycles apart from the rest.
+* The exchange rate (MASTER-MAP.md): the grind's last byte purchases paid
+  about 2 cycles per flight iteration per byte; three below that were
+  backed out (R_STARPLOT's dispatch, r_sw's .la unroll, MAL2's unrolled
+  copy), and three new speed-ups beat it (DVID4z inline in STL1, ADD
+  inline in PLL4, H_BPT's test in BLINE).
+* Two port bugs found by the play-testing tool were fixed: LOOK1 fell into
+  DEATH on any change of view (the gate now has a view-change regression,
+  mcompare --views), and the compass drew a stray dot while COMC = 0.
+
+Free bytes went from about 230 (plus the 224-byte gap) to about 1700;
+trampolines from 156 stubs and 6 far-call helpers to 134 and 4. Gate:
+1.232, 17.21 it/s before; after, see the final commit's message.

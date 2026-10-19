@@ -11,6 +11,7 @@ Everything here reads the sources; nothing here edits master/src.
     node master/tools/grind/profile.mjs \
         --disc scratch/grind/build/tree/master/build/elite-master-sng47.ssd \
         --syms scratch/grind/build/tree/master/build/symbols.txt   # -> scratch/grind/profile.json (~3-5 min)
+                                                                   # (--pagex: also the page-crossing cycles)
     python3 master/tools/grind/windows.py         # -> scratch/grind/windows/, windows.json, windows.md (~10 s)
     master/tools/grind/verify.sh /Users/ebenupton/elite-full-grind   # the gate (~4-6 min)
 
