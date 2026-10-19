@@ -167,6 +167,7 @@ export class Session {
             if (e.p !== undefined) this.rlog.set(e.p, e);
             else if (e.j !== undefined) this.rjoy[e.w].push([e.j, e.v]);
             else if (e.poke !== undefined) for (const m of [this.ref, this.cand]) (m.pokes ||= new Map()).set(e.poke, e.v);
+            else if (e.end) this.logEnd = e;
         }
         this.lastPoll = Math.max(-1, ...this.rlog.keys());
     }
@@ -318,7 +319,8 @@ export class Session {
             if (this.stopFrame !== undefined && this.frame >= this.stopFrame) break;
             await this.step();
             if (cfg.iters && this.stats.iters >= cfg.iters) break;
-            if (cfg.replay && (this.ref.polls > this.lastPoll + 50 && (cfg.until === undefined || this.ref.iter > cfg.until))) break;
+            // (a replay runs to where the session ended, or 50 reads past its last key without an end record)
+            if (cfg.replay && cfg.until === undefined && (this.logEnd ? this.ref.iter >= this.logEnd.iter : this.ref.polls > this.lastPoll + 50)) break;
             if (cfg.replay && cfg.until !== undefined && this.ref.iter > cfg.until + (cfg.keepGoing || 0) + 1) break;
             if (this.divShots && this.divShotFrame === undefined) { this.divShotFrame = this.frame + 3; this.ref.renderAll(); this.cand.renderAll(); }
             if (this.divShots && this.frame >= this.divShotFrame) { this.divShots = false; await this.shots(`divergence-${String(this.div.iter).padStart(6, "0")}`); }
@@ -329,6 +331,7 @@ export class Session {
                     ` cash ${cashOf(this.ref)} tally ${this.ref.rb(this.rsy.TALLY) | this.ref.rb(this.rsy.TALLY + 1) << 8} galaxy ${this.ref.rb(this.rsy.GCNT) + 1}`);
             }
         }
+        if (!cfg.replay) this.logInput({ end: true, iter: this.ref.iter, polls: this.ref.polls, frames: this.frame });
         this.compareDiscs(true);
         this.ref.renderAll(); this.cand.renderAll();
         if (this.findings.some(f => f.kind !== "observable") && !this.div) await this.shots("finding");

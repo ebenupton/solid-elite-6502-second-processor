@@ -99,12 +99,11 @@ export class Observer {
     colourClass(c, x0, y) {
         if (c < 0) return "none";
         if (this.mode === 2) return c === 1 ? "danger" : c === 2 ? "flash" : "normal";
-        // the port's colours are 2 x 2 dither cells: danger &F5/&FA, flash &5F/&AF
-        const b = this.scr(BASE + (y >> 3) * ROWB + (x0 >> 2) * 8 + (y & 7));
-        const full = b;   // (the first byte of a bar of 4 or more)
-        if ((full & 0x88) === (0xf5 & 0x88) && (full === 0xf5 || full === 0xfa || (full & 0xf0) === 0xf0 && (full & 0x0f) !== 0x0f)) return "danger";
-        if (full === 0x5f || full === 0xaf || ((full & 0xf0) !== 0xf0 && (full & 0xf0) !== 0 && (full & 0x0f) === 0x0f)) return "flash";
-        return "normal";
+        // the port's colours are 2 x 2 dither cells, on an even line: danger &F5 (pixels
+        // 2 3 2 3), flash &5F (1 3 1 3), the others solid (yellow 3, cyan 1): told by the
+        // bar's first two pixels
+        const c1 = this.pix(x0 + 1, y);
+        return c === 2 && c1 === 3 ? "danger" : c === 1 && c1 === 3 ? "flash" : "normal";
     }
     missileClass(b) {
         if (this.mode === 2) {
