@@ -35,10 +35,9 @@ fz_u    = FZ+15
 \ State
 \ ------------------------------------------------------------------------------
 
-\ Shared with the IRQ handler and Elite (these live in main RAM, defined by the
-\ main source): GMODE (bit 7 set = space mode, double buffered), GFRONT (0/1
-\ buffer displayed), GFLIP (non-zero = flip pending to GPEND), GPEND, GACCX
-\ (ACCCON X bit value currently wanted by the main code: 0 or 4), GDRAWON
+\ Shared with the IRQ handler and Elite (these live in HAZEL, gfx-gvars.asm):
+\ GMODE (bit 7 set = space mode, double buffered), GFRONT (0/1 buffer
+\ displayed), GFLIP (non-zero = flip pending to GPEND), GPEND, GDRAWON
 \ (0 = primitives are erasing, so ignore them), GFORCE (non-zero = draw
 \ directly even though QQ11 = 0), GSIGHT, GLASV.
 
@@ -988,41 +987,6 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BNE fdd1
  RTS
 
-\ f_clamp: (fz_p) = 16-bit left edge, (fz_q) = 16-bit right edge -> R_XL, R_XR
-\ clamped to the clip window; C set if the span is empty.
-
-.f_clamp
- LDA fz_q+1
- BMI fcl9               \ right < 0
- BNE fcl1
- LDA fz_q
- CMP R_CL
- BCC fcl9               \ right < CL
- CMP R_CR
- BCC fcl2
-.fcl1
- LDA R_CR
-.fcl2
- STA R_XR
- LDA fz_p+1
- BMI fcl3               \ left < 0
- BNE fcl9               \ left > 255
- LDA fz_p
- CMP R_CR
- BEQ fcl4
- BCS fcl9               \ left > CR
- CMP R_CL
- BCS fcl4
-.fcl3
- LDA R_CL
-.fcl4
- STA R_XL
- CLC
- RTS
-.fcl9
- SEC
- RTS
-
 \ f_sunrows / f_plrows: a disc's spans into R_NDISCL/R and R_NDT/R_NDB, from
 \ its centre (16-bit screen coordinates) and radius (8-bit), using a cached
 \ half-width table per disc (rebuilt only when the radius changes)
@@ -1175,7 +1139,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .fpr_ld2
  LDA F_HW,X             \ patched: half-width
  STA fz_n
- CLC                    \ right = cx + n, clamped as f_clamp does: < CL (or
+ CLC                    \ right = cx + n, clamped: < CL (or
 .fpr_cx
  ADC #0                 \ patched: f_cx (the low byte of cx lives in this
                         \ operand); negative): empty; > CR (or > 255): CR

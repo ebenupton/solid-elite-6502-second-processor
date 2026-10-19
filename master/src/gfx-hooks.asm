@@ -86,17 +86,6 @@
  PLA
  JMP WP1
 
-\ H_BLOIN: BLINE's line (planet meridians, craters, the hyperspace rings):
-\ drawn only outside record mode (in record mode the frame layer fills the
-\ planet's detail from BLINE's points instead). Y preserved, as LOIN
-
-.H_BLOIN
- LDA QQ11
- ORA GFORCE
- BEQ P%+5
- JMP LOIN
- RTS
-
 \ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
 \ curve. H_BPT: BLINE has the next point in K6(1 0), K6(3 2): record it.
 \ Both preserve X, and H_PCURVE also Y and C (the callers set A and the other

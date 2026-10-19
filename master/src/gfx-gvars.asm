@@ -12,7 +12,6 @@
                         \ Master's direct-mode screen)
 .GFLIP   EQUB 0         \ non-zero: show buffer GPEND at the next vsync
 .GPEND   EQUB 0
-.GACCX   EQUB 0         \ ACCCON X bit wanted by the main code (0 or 4)
 .GDRAWON EQUB &FF       \ 0: drawing primitives are erasing, ignore them
 .GFORCE  EQUB 0         \ non-zero: draw directly even though QQ11 = 0
 .GSIGHT  EQUB 0         \ non-zero: draw the laser sights

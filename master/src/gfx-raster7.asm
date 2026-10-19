@@ -39,14 +39,6 @@ NEXT
 FOR y, 0, 191
   EQUB HI(r7_rrun) + (y DIV 8)
 NEXT
-.r7_xo
-FOR x, 0, 255
-  EQUB (x * 2) AND &F8
-NEXT
-.r7_j
-FOR x, 0, 255
-  EQUB 3 * (x DIV 4)
-NEXT
 .r7_lm
 FOR x, 0, 255
   EQUB ((&F0 >> (x AND 3)) AND &F0) OR (&0F >> (x AND 3))

@@ -458,22 +458,6 @@ R_ENDPAGE 14
 }
 R_ENDPAGE 15
 .r_run16 R_RUN 16
-.r_cyrow
-{
-  PHX
-  LDX r_buf
-  TYA
-  CMP r_dyt,X
-  BCS n3
-  STA r_dyt,X
-.n3
-  CMP r_dyb,X
-  BCC n4
-  STA r_dyb,X
-.n4
-  PLX
-  RTS
-}
 .R_SPAN
 {
   LDA R_XR
@@ -646,37 +630,6 @@ R_ENDPAGE 20
 }
 R_ENDPAGE 21
 .r_run22 R_RUN 22
-.r_wlu
-{
-  STA RZ_T0
-  LDA R_WR,Y
-  BNE ne
-  LDA RZ_T0
-  STA R_WL,Y
-  TXA
-  STA R_WR,Y
-  BRA rg
-.ne
-  LDA RZ_T0
-  CMP R_WL,Y
-  BCS u1
-  STA R_WL,Y
-.u1
-  TXA
-  CMP R_WR,Y
-  BCC rg
-  STA R_WR,Y
-.rg
-  CPY r_wt
-  BCS u2
-  STY r_wt
-.u2
-  CPY r_wb
-  BCC u3
-  STY r_wb
-.u3
-  RTS
-}
 R_ENDPAGE 22
 .r_run23 R_RUN 23
 .r_crep5                  \ R_DISCROWS: r7_crep (returns X = r_buf)
@@ -981,8 +934,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 \ r_pset: X = x, Y = y (inside the clip window): pixel in the colour pair's
 \ dither, extends DIRTY[y] and the buffer's row range.  Clobbers A; keeps X, Y.
 \ ============================================================================
-
-\ r_cyrow: extend the current buffer's row range by row Y (keeps X, Y)
 
 \ r_pclip: X = x, Y = y: r_pset (and row range) if inside the clip window
 
@@ -4189,9 +4140,6 @@ NEXT
   LDX R_XL
   JMP r_spc
 }
-
-\ r_wlu: Y = row, A = xmin, X = xmax: WL/WR[y] |= [A, X]; extends r_wt/r_wb.
-\ Keeps Y.
 
 \ ============================================================================
 \ R_WMERGE: WL/WR |= DIRTY[b] over the clip rows.

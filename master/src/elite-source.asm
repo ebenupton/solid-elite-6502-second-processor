@@ -6894,8 +6894,9 @@ ENDIF
  STY LSP                \ Update LSP to point to the same as Y
 
  LDA QQ11               \ Draw a line from (X1, Y1) to (X2, Y2), but only when
- ORA GFORCE             \ not in record mode (Port: H_BLOIN inlined, with the
- BNE BL10               \ LOIN call out of line below)
+ ORA GFORCE             \ not in record mode (Port: in record mode the frame
+ BNE BL10               \ layer fills the planet's detail from BLINE's points;
+                        \ the LOIN call is out of line below)
 
 .BL11
 
