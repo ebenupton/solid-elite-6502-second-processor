@@ -7,10 +7,12 @@
 \ layer can use Elite's symbols). From the Demonstration Disc port (tag
 \ demo-final, src/gfx-build.asm), with the HAZEL layout changed for disc
 \ access (docs/MASTER-MEMORY.md): DFS overwrites &C000-&C2FF, &DC00 up to
-\ the end of an OSCLI command and &DF00-&DFFF, and keeps its own state in
-\ &C2C0-&C2FF and &DFDA-&DFDB. So &C000-&C2BF holds only the rasteriser's
-\ scratch variables (no call reads what an earlier one left there), and the
-\ code and the lasting state start at &C300 and stop below &DC00. Produces:
+\ the end of an OSCLI command and &DF00-&DFFF, and writes its own and
+\ ADFS's private pages &D900-&DAFF. So &C000-&C2FF holds only the
+\ rasteriser's scratch variables (no call reads what an earlier one left
+\ there; DOSCLI puts DFS's lasting bytes &C2C0-&C2FF back for each disc
+\ command), the code and the lasting state are at &C300-&D8FF, and
+\ &DC40-&DFFF holds only state rebuilt on re-entering flight. Produces:
 \
 \   build/HAZEL.bin  HAZEL &C300 to the end of the code (and the variables
 \                    with initial values), which the loader copies into place
@@ -36,7 +38,7 @@ ORG &C000
 
 INCLUDE "src/gfx-raster_scr.asm"
 .HZ_SCR_END
-ASSERT HZ_SCR_END <= &C2C0      \ DFS's lasting state is at &C2C0-&C2FF
+ASSERT HZ_SCR_END <= &C300      \ (DFS's &C2C0-&C2FF: stashed in DFSST)
 
 ORG &C300
 .HZ_START
@@ -98,9 +100,16 @@ NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 .fl_sh  SKIP 2
 .fl_lev SKIP 1          \ the level, 1..3
 .fl_xb  SKIP 1          \ ACCCON X while writing: 4 = clear it (buffer 0)
+.DFSST  SKIP 66         \ DFS's and the MOS's lasting bytes in HAZEL, &C2C0-&C2FF
+                        \ and &DFDA-&DFDB, while the game uses those places: put
+                        \ back for each disc command (DOSCLI; the loader takes
+                        \ them first)
+.DFSIN  SKIP 1          \ bit 7: a disc command is under way (DOSCLI, DOSNMI)
+ASSERT DFSIN = DFSST + 66       \ (the loader clears it)
 .HZ_END
 PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &DC00-HZ_END, " free to &DC00)"
-ASSERT HZ_END <= &DC00          \ OSCLI copies its command line to &DC00
+ASSERT HZ_END <= &D900          \ (&D900-&DAFF: the ADFS and DFS private pages,
+                                \ written by disc commands)
 
 
 ORG &DC40                       \ (after the longest OSCLI command the game
@@ -118,8 +127,10 @@ ORG &DC40                       \ (after the longest OSCLI command the game
                             \ F_DSX): cleared with R_SS (F_INIT, f_direct0)
 ASSERT F_DSS = R_SS + 24
 .HZ_END2
-PRINT "HAZEL: data &DC40-", ~HZ_END2-1, " free to &DF00 ", &DF00-HZ_END2
-ASSERT HZ_END2 <= &DF00         \ the MOS's filing system workspace
+PRINT "HAZEL: data &DC40-", ~HZ_END2-1, " free to &E000 ", &E000-HZ_END2
+ASSERT HZ_END2 <= &E000         \ (&DF00-&DFFF: the MOS's filing system workspace
+                                \ during disc commands; DOSCLI's stash has its
+                                \ lasting bytes)
 SAVE "build/HAZEL.bin", HZ_START, HZ_CODE_END, HZ_START
 
 CLEAR &8000, &C000

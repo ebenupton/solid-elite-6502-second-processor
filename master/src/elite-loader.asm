@@ -530,6 +530,18 @@ ENDIF
  DEY
  BNE HZC
 
+ LDX #63                \ Port: and stash DFS's lasting bytes in HAZEL, which
+.DFST                   \ the game uses (DOSCLI puts them back for each disc
+ LDA &C2C0,X            \ command): &C2C0-&C2FF and the MOS's copy of FSCV at
+ STA DFSST,X            \ &DFDA-&DFDB
+ DEX
+ BPL DFST
+ LDA &DFDA
+ STA DFSST+64
+ LDA &DFDB
+ STA DFSST+65
+ STZ DFSST+66           \ (DFSIN: no disc command under way)
+
  ASSERT LOWLEN <= &0D00 - &0840 \ (never into page &0D)
  ASSERT HZLEN <= &0800  \ (HAZEL's staging copy at &4000 must not reach &4800)
 

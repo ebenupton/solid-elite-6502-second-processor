@@ -7,7 +7,8 @@
 // 2 (save) as TESTA; CASH is changed; "@" -> 1 (load) TESTA; CASH must be
 // the marker again. Then a load of a file that isn't there (the error path),
 // "@" -> 3 (catalogue, drive 0), and a launch (f0) to check that the
-// renderer is intact after the disc access. Checks the minimal NMI handler is
+// renderer is intact after the disc access. HAZEL's &C000-&C2FF and &DF00-&DFFF are
+// filled with junk before each disc command (DOSCLI's stash of DFS's bytes). Checks the minimal NMI handler is
 // back at &0D00 and that the disc's catalogue holds E.TESTA and every file. Screenshots of
 // each step go to <out>. Exit status 0 on success.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
@@ -33,6 +34,16 @@ const key = async (k, hold = 0.15, after = 0.6) => { cpu.sysvia.keyDownRaw(BBC[k
 const slowType = async t => { for (const c of t) { await s.type(c); await secs(0.3); } };
 const cash = () => [0, 1, 2, 3].map(i => cpu.ramRomOs[sy.CASH + i]);
 const setCash = v => v.forEach((b, i) => { cpu.ramRomOs[sy.CASH + i] = b; });
+// The game may use HAZEL's &C000-&C2FF (the rasteriser's scratch) and &DF00-&DFFF
+// (state rebuilt on re-entering flight) between disc commands, as DOSCLI puts DFS's and
+// the MOS's lasting bytes there (&C2C0-&C2FF, &DFDA-&DFDB) back from its stash (DFSST)
+// for each command: fill them with junk before each one. (jsbeeb keeps HAZEL at &9000
+// in its RAM array.)
+const HZ = a => 0x9000 + a - 0xc000;
+let seed = 12345;
+const junk = () => {
+    if (cpu.ramRomOs[HZ(sy.GDRAWON)] !== 0xff) { console.log("HAZEL is not where expected"); process.exit(1); }
+    for (const [lo, hi] of [[0xc000, 0xc300], [0xdf00, 0xe000]]) for (let a = lo; a < hi; a++) { seed = (seed * 1103515245 + 12345) >>> 0; cpu.ramRomOs[HZ(a)] = seed >>> 24; } };
 await secs(28);
 await snap("title");
 await key("N");                       // N: no commander to load
@@ -42,7 +53,7 @@ await secs(4);
 await snap("docked");
 const MARK = [0x00, 0x01, 0xe2, 0x40];   // 12345.6 Cr
 setCash(MARK);
-await key("AT", 0.15, 1.5);           // @: the disc menu
+junk(); await key("AT", 0.15, 1.5);           // @: the disc menu
 await snap("menu");
 console.log("QQ11 after @:", cpu.ramRomOs[sy.QQ11]);
 await key("K2", 0.15, 1.5);            // 2: save
@@ -50,7 +61,7 @@ await s.type("TESTA"); await key("RETURN", 0.1, 1.5);
 await s.type("0"); await secs(6);       // drive 0
 await snap("saved");
 setCash([0, 0, 0, 7]);
-await key("AT", 0.15, 1.5);
+junk(); await key("AT", 0.15, 1.5);
 await key("K1", 0.15, 1.5);            // 1: load
 await s.type("TESTA"); await key("RETURN", 0.1, 1.5);
 await s.type("0"); await secs(6);       // drive 0
@@ -60,7 +71,7 @@ const ok = got.every((b, i) => b === MARK[i]);
 console.log("CASH after load:", got.map(b => b.toString(16)).join(" "), ok ? "matches" : "DOES NOT MATCH");
 await key("F8", 0.15, 2);             // (another key first: the game ignores a
                                        // key pressed again straight away)
-await key("AT", 0.15, 1.5);           // the error path: load a file that
+junk(); await key("AT", 0.15, 1.5);           // the error path: load a file that
 await snap("e-menu");
 await key("K1", 0.15, 1.5);            // isn't there ("File not found",
 await s.type("QQ"); await key("RETURN", 0.1, 1.5); // through BRKV, NEWBRK)
@@ -71,7 +82,7 @@ await secs(5);
 await snap("error");
 await key("SPACE", 0.15, 2);
 await key("F8", 0.15, 2);
-await key("AT", 0.15, 1.5);
+junk(); await key("AT", 0.15, 1.5);
 await key("K3", 0.15, 1.5);            // 3: catalogue
 await s.type("0"); await key("RETURN", 0.1, 5);
 await snap("catalogue");

@@ -6569,33 +6569,52 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ The renderer keeps its code and lasting state in HAZEL clear of what DFS uses
-\ (&C000-&C2FF, &DC00 up to the command's end, &DF00 up), and DFS's own
-\ lasting state (&C2C0-&C2FF and the MOS's &DFDA-&DFDB) is never written, so
-\ nothing needs saving or rebuilding. But &C000-&C2BF holds the rasteriser's
-\ scratch, which DFS's catalogue cache and drive state share: if anything has
-\ written there since the last disc access, DFS would trust a stale cache
-\ (with the drive motor still on it skips re-reading the catalogue, and could
-\ write a catalogue built from garbage). So before the command the cache is
-\ invalidated (&FF to &C282, &C287 and &C28B-&C28E: re-read the catalogue,
-\ restore the head). DFS copies its own NMI routine to &0D00 for the
-\ command; afterwards the 1770 is quietened (Force Interrupt) and the
-\ minimal handler the loader installed goes back (a stray NMI would
-\ otherwise run DFS's handler with the game's zero page at &A0-&A7). The
-\ error path (BRKV, NEWBRK) does the same through DOSNMI.
+\ DFS and the MOS overwrite HAZEL's &C000-&C2FF, &DC00 up to the command's end
+\ and &DF00-&DFFF during a disc command, and keep their own lasting state in
+\ &C2C0-&C2FF and &DFDA-&DFDB (docs/MASTER-MEMORY.md). The game keeps only
+\ scratch (nothing kept between calls) in &C000-&C2FF and only state that is
+\ rebuilt on re-entering flight in &DC00-&DFFF, so nothing needs rebuilding
+\ afterwards, but it may write DFS's lasting bytes: those live in DFSST
+\ (the loader takes them after its last disc access), go back before the
+\ command and are stashed again after it (or after its error, through
+\ DOSNMI), as *DIR and *DRIVE change them. Before the command the catalogue
+\ cache is invalidated too (&FF to &C282, &C287 and &C28B-&C28E: re-read
+\ the catalogue, restore the head), as with the drive motor still on DFS
+\ would otherwise trust a cache the game's scratch has overwritten (and
+\ could write a catalogue built from it). Nothing that the IRQ handler or
+\ the printing of the catalogue (CHPR) reads may be in those places. DFS
+\ copies its own NMI routine to &0D00 for the command; afterwards the 1770
+\ is quietened (Force Interrupt) and the minimal handler the loader
+\ installed goes back (a stray NMI would otherwise run DFS's handler with
+\ the game's zero page at &A0-&A7). The error path (BRKV, NEWBRK) does the
+\ same through DOSNMI.
 \
 \ ******************************************************************************
 
 .DOSCLI_C
 
- PHA                    \ Invalidate DFS's catalogue cache and drive state
- LDA #&FF               \ (A is kept for OSCLI)
+ PHA                    \ Put back DFS's lasting bytes (A, X and Y are kept for
+ PHX                    \ OSCLI)
+ LDX #63
+.dosc1
+ LDA DFSST,X
+ STA &C2C0,X
+ DEX
+ BPL dosc1
+ LDA DFSST+64
+ STA &DFDA
+ LDA DFSST+65
+ STA &DFDB
+ PLX
+
+ LDA #&FF               \ Invalidate DFS's catalogue cache and drive state
  STA &C282
  STA &C287
  STA &C28B
  STA &C28C
  STA &C28D
  STA &C28E
+ STA DFSIN              \ (a disc command is under way)
  PLA
 
  JSR OSCLI              \ The command
@@ -6635,6 +6654,23 @@ ENDIF
  STA &0D00
 
 .DOSNMI_END_C
+
+ BIT DFSIN              \ After a disc command (or its error), stash DFS's
+ BPL dosn3              \ lasting bytes again: the command may have changed
+ PHX                    \ them (*DIR, *DRIVE)
+ LDX #63
+.dosn2
+ LDA &C2C0,X
+ STA DFSST,X
+ DEX
+ BPL dosn2
+ LDA &DFDA
+ STA DFSST+64
+ LDA &DFDB
+ STA DFSST+65
+ STZ DFSIN
+ PLX
+.dosn3
 
  PLA
  PLP
