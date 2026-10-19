@@ -29,6 +29,13 @@ export { loadSyms, regionsFor };
 export const ROOT = decodeURIComponent(new URL("../../..", import.meta.url).pathname).replace(/\/$/, "") + "/";
 export const NI = 37, NOSH = 12;
 export const CYCLES_PER_FRAME = 40000;          // 2 MHz, 50 Hz
+// routines whose entries are counted (coverage): launch, docking, hyperspace, galactic
+// hyperspace, witchspace, mis-jump, in-system jump, death, escape pod, energy bomb, E.C.M.,
+// missiles (ours and theirs), explosions, Thargoids, the docked screens, save and load,
+// the missions' briefings and debriefings, pause
+export const ROUTINES = ["LAUN", "DOENTRY", "TT18", "Ghy", "MJP", "ptg", "WARP", "DEATH", "ESCAPE", "BOMBON", "ECBLB2", "ECMOF",
+    "FRMIS", "SFRMIS", "EXNO3", "GTHG", "EQSHP", "TT219", "TT208", "TT213", "TT25", "TT167", "STATUS", "SVE", "LOD",
+    "BRIEF", "BRIEF2", "BRIEF3", "DEBRIEF", "DEBRIEF2", "FREEZE"];
 
 export class EliteMachine {
     // opts: name, disc, syms (loadSyms), input ({ rdkey(ctx), dks5(ctx), joy(ctx) }),
@@ -53,13 +60,24 @@ export class EliteMachine {
         this.regions = regionsFor(sy);
         this.ram = cpu.ramRomOs;
         this._labels();
-        const hook = (name, off = 0) => { const n = sy[name + "_C"] !== undefined ? name + "_C" : name; if (sy[n] === undefined) return null; return { a: sy[n] + off, m: mapOfLabel(sy, n), name }; };
+        // (a label in sideways RAM with no bank in banks.txt can't be told from whatever
+        // else is at that address in another bank: then its stub, if it has one in main
+        // RAM, or nothing)
+        const hook = (name, off = 0) => {
+            for (const n of [name + "_C", name]) {
+                if (sy[n] === undefined) continue;
+                const a = sy[n] + off, m = mapOfLabel(sy, n);
+                if (a >= 0x8000 && a < 0xc000 && m === "m") continue;
+                return { a, m, name };
+            }
+            return null;
+        };
         const H = this.H = {
             RDK: hook("RDKEY", 5), DKS5: hook("DKS5", 17), NOISE: hook("NOISE"), MLOOP: hook("MLOOP"), LL5: hook("LL5"),
             TT100: hook("TT100"), QU5: hook("QU5"), BAY: hook("BAY"), TT170: hook("TT170"), NEWBRK: hook("NEWBRK"), S: hook("S%"),
-            DEATH: hook("DEATH"), TT18: hook("TT18"), ESCAPE: hook("ESCAPE"), LAUN: hook("LAUN"), DOENTRY: hook("DOENTRY"),
-            SVE: hook("SVE"), GTHG: hook("GTHG"), MJP: hook("MJP"), BOMBON: hook("BOMBON"), ECBLB2: hook("ECBLB2"),
         };
+        // routines counted as events (coverage): what the session did, in each machine
+        for (const r of ROUTINES) H[r] = hook(r);
         // the two joystick reads in DK15 (found once the game is loaded: _findJoy at TT170)
         this.dk15 = hook("DK15");
         H.JOY = [null, null];
@@ -147,7 +165,11 @@ export class EliteMachine {
         }
         return { site: w + 1 - 3, romsel, k };
     }
-    _at(h, pc) { return h && pc === h.a && (h.m === "m" || h.m === mapAt(this.cpu.romsel, pc)); }
+    _at(h, pc) {
+        if (!h || pc !== h.a) return false;
+        if (h.m !== "m") return h.m === mapAt(this.cpu.romsel, pc);
+        return pc < 0xc000 || pc >= 0xe000 || (this.cpu.acccon & 8) !== 0;     // (&C000-&DFFF: HAZEL, not the MOS)
+    }
 
     _fillkl(keys) {
         const sy = this.sy, ram = this.ram;
@@ -261,7 +283,7 @@ export class EliteMachine {
             this.redirectTo = sy.SIGHT;
             return true;
         } else if (this.started) {
-            for (const k of ["DEATH", "TT18", "ESCAPE", "LAUN", "DOENTRY", "SVE", "GTHG", "MJP", "BOMBON"]) if (this._at(H[k], pc)) { this.event("routine", k); break; }
+            for (const k of ROUTINES) if (this._at(H[k], pc)) { this.event("routine", k); break; }
         }
         return false;
     }
