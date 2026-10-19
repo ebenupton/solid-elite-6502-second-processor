@@ -184,9 +184,9 @@ instruction, segment/address order; plus `far: true` on a far call's JSR, whose
    R_COLE/R_COLO (the 2-row colour pair the reference models; the 4-row dither is not
    checked);
 2. `<worktree>/master/verify.sh 10000`: build (FAIL on error/ASSERT), determinism of game
-   state against the reference over 10000 piloted iterations (and page &0D), the redock
-   and save/load regressions.  PASS only on its `VERIFY PASS`, a "Game state identical
-   at all" line and "regressions: PASS (redock, savetest)".
+   state against the reference over 10000 piloted iterations (and page &0D), the redock,
+   save/load and view-change regressions.  PASS only on its `VERIFY PASS`, a "Game state identical
+   at all" line and "regressions: PASS (redock, savetest, views)".
 
 Prints `VERIFY PASS <cand/ref ratio> <cand it/s>` or `VERIFY FAIL <step>` (test_raster,
 build, compare, redock, savetest, ...); exit status 0 only on pass.  Logs in

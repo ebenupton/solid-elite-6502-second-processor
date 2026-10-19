@@ -136,6 +136,13 @@ export function makePilot(opts = {}) {
 
     function flightKeys(c) {
         const sy = c.sy, keys = [];
+        // opts.views (mcompare --views, the view-change regression): every 50
+        // flight iterations look rear, left and right, then front again (f1, f2,
+        // f3, f0, two iterations apart), whatever else the pilot is doing
+        if (opts.views) {
+            const v = { 20: K.F1, 22: K.F2, 24: K.F3, 26: K.F0 }[P.flightIter % 50];
+            if (v) { P.stats.views = (P.stats.views || 0) + 1; return [v]; }
+        }
         if (c.rb(sy.auto)) return keys;              // docking computer flying
         // E.C.M. against a close missile we did not fire recently
         if (c.rb(sy.ECM) && !c.rb(sy.ECMA) && P.flightIter - P.lastMissile > 60) {

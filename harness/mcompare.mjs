@@ -6,7 +6,7 @@
 // node harness/mcompare.mjs [--iters 5000] [--ref disc] [--rsyms file]
 //                           [--cand disc] [--csyms file] [--seed boot|rand|none]
 //                           [--loose] [--window 200] [--out dir] [--shots N]
-//                           [--maxsecs S] [--nopatch] [--norefcache]
+//                           [--maxsecs S] [--nopatch] [--norefcache] [--views]
 //                           [--trace FROM,TO,LABEL+LABEL,VAR+VAR~OFFSET]
 //
 // Defaults: reference = master/reference/elite-master-sng47.ssd (the released
@@ -66,7 +66,7 @@ mkdirSync(OUT, { recursive: true });
 const rsy = loadSyms(RSYMS), csy = loadSyms(CSYMS);
 
 async function run(label, disc, sy, seed, seedBoot) {
-    const pilot = makePilot();
+    const pilot = makePilot({ views: !!args.views });   // --views: the pilot changes view in flight
     const phases = [];
     // --trace FROM,TO,LABEL+LABEL,EXTRA+EXTRA (mtrace.mjs): <out>/trace-<label>.txt
     const traceOut = [];
@@ -94,7 +94,7 @@ async function cachedRef() {
     const { gzipSync, gunzipSync } = await import("zlib");
     const h = createHash("sha1");
     for (const f of [REF, RSYMS, `${ROOT}harness/mlib.mjs`, `${ROOT}harness/mpilot.mjs`]) h.update(readFileSync(f));
-    h.update(JSON.stringify([ITERS, args.maxsecs || 0, !!args.nopatch]));
+    h.update(JSON.stringify([ITERS, args.maxsecs || 0, !!args.nopatch, !!args.views]));
     const dir = `${ROOT}scratch/master/refcache`, file = `${dir}/${h.digest("hex")}.json.gz`;
     if (!args.norefcache && !args.trace && existsSync(file)) {
         const o = JSON.parse(gunzipSync(readFileSync(file)).toString());
