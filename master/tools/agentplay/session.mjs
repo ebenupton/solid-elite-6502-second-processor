@@ -20,6 +20,20 @@ import { EliteMachine, loadSyms, compareSetup, diffSnaps, fieldName, groupOf, RO
 import { Agent } from "./agent.mjs";
 import { COMMANDERS, makeChaos } from "./styles.mjs";
 import { Observer } from "./observe.mjs";
+import { toSsdOrDsd } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/disc.js";
+
+// the files on a machine's drive 0, as written so far: { "D.NAME": { load, exec, len, data } }
+export function discFiles(m) {
+    const img = toSsdOrDsd(m.cpu.fdc._drives[0].disc);
+    const n = img[0x105] / 8, out = {};
+    for (let i = 0; i < n; i++) {
+        const o = 8 + 8 * i, b = img.subarray(0x100 + o, 0x108 + o);
+        const name = String.fromCharCode(img[o + 7] & 0x7f) + "." + String.fromCharCode(...img.subarray(o, o + 7)).trim();
+        const len = b[4] | b[5] << 8 | ((b[6] >> 4) & 3) << 16, sec = b[7] | (b[6] & 3) << 8;
+        out[name] = { load: b[0] | b[1] << 8 | ((b[6] >> 2) & 3) << 16, exec: b[2] | b[3] << 8 | ((b[6] >> 6) & 3) << 16, len, data: img.subarray(sec * 256, sec * 256 + len) };
+    }
+    return { img, files: out };
+}
 
 export const DEFAULTS = {
     ref: `${ROOT}master/reference/elite-master-sng47.ssd`, rsyms: `${ROOT}master/reference/symbols.txt`,
@@ -176,14 +190,15 @@ export class Session {
             for (const n of r.notes) {
                 appendFileSync(this.files.journal, JSON.stringify({ frame: this.frame, iter: ref.iter, e: safeJson(n) }) + "\n");
                 const ev = /"event": "([^"]+)"/.exec(n); if (ev) this.stats.notes[ev[1]] = (this.stats.notes[ev[1]] || 0) + 1;
+                if (ev && (ev[1] === "save" || ev[1] === "loaded")) this.discCheckAt = this.frame + 100;
             }
             if (this.chaos) this.chaos.frame(this);
         }
-        if (this.pokes) this.pokes(this);
+        if (this.discCheckAt !== undefined && this.frame >= this.discCheckAt) { this.discCheckAt = undefined; this.compareDiscs(); }
         ref.run(CYCLES_PER_FRAME);
         this.frame++;
         // the candidate: until it blocks at a read the reference hasn't made (or 2 s, to keep both responsive)
-        for (let k = 0; k < 100 && !this.stopNow; k++) if (cand.run(CYCLES_PER_FRAME) === "blocked") break;
+        for (let k = 0; k < 100; k++) if (cand.run(CYCLES_PER_FRAME) === "blocked" || this.stopNow) break;
         this.trim();
         this.compare();
         this.checkHealth();
@@ -262,6 +277,28 @@ export class Session {
         if (cb > rb && cand.iter <= ref.iter && !this.brkMismatch) { this.brkMismatch = true; this.finding("brk-mismatch", `candidate disc error (${cand.brks.at(-1).msg}) at iteration ${cand.iter} with none in the reference`); }
     }
 
+    // the commander files (directory E) the two machines have written must be the same
+    compareDiscs(final = false) {
+        let r, c;
+        try { r = discFiles(this.ref); c = discFiles(this.cand); } catch (e) { this.finding("internal", `disc read: ${e.message}`); return; }
+        this.stats.discChecks = (this.stats.discChecks || 0) + 1;
+        const names = new Set([...Object.keys(r.files), ...Object.keys(c.files)].filter(n => n.startsWith("E.")));
+        for (const n of names) {
+            const a = r.files[n], b = c.files[n];
+            const key = `disc:${n}`;
+            if (!a || !b) { this.onceFinding(key, "save-file", `${n} is on the ${a ? "reference's" : "candidate's"} disc only`); continue; }
+            const diffs = [];
+            if (a.load !== b.load || a.exec !== b.exec || a.len !== b.len) diffs.push(`catalogue load/exec/length ref &${a.load.toString(16)}/&${a.exec.toString(16)}/${a.len} cand &${b.load.toString(16)}/&${b.exec.toString(16)}/${b.len}`);
+            const bad = [];
+            for (let i = 0; i < Math.min(a.len, b.len); i++) if (a.data[i] !== b.data[i]) bad.push(i);
+            if (bad.length) diffs.push(`${bad.length} bytes differ, first at offset ${bad[0]} (ref &${a.data[bad[0]].toString(16)} cand &${b.data[bad[0]].toString(16)})`);
+            if (diffs.length) this.onceFinding(key, "save-file", `${n}: ${diffs.join("; ")}`);
+            else this.stats.saveFilesSame = (this.stats.saveFilesSame || 0) + 1;
+        }
+        if (final && this.cfg.saveDiscs) { writeFileSync(`${this.cfg.out}/ref-disc.ssd`, r.img); writeFileSync(`${this.cfg.out}/cand-disc.ssd`, c.img); }
+    }
+    onceFinding(key, kind, text) { this.once ||= new Set(); if (this.once.has(key)) return; this.once.add(key); this.finding(kind, text); }
+
     async shots(tag) {
         const { cfg } = this;
         try {
@@ -275,12 +312,16 @@ export class Session {
         const maxFrames = cfg.replay ? Infinity : cfg.startFrame + Math.round(cfg.minutes * 3000);
         const t0 = Date.now();
         let lastLog = 0;
-        while (!this.stopNow && this.frame < maxFrames) {
+        if (cfg.shots) { this.ref.renderAll(); this.cand.renderAll(); }
+        while (this.frame < maxFrames) {
+            if (this.stopNow && this.stopFrame === undefined) { this.stopFrame = this.frame + 3; this.ref.renderAll(); this.cand.renderAll(); }
+            if (this.stopFrame !== undefined && this.frame >= this.stopFrame) break;
             await this.step();
             if (cfg.iters && this.stats.iters >= cfg.iters) break;
             if (cfg.replay && (this.ref.polls > this.lastPoll + 50 && (cfg.until === undefined || this.ref.iter > cfg.until))) break;
             if (cfg.replay && cfg.until !== undefined && this.ref.iter > cfg.until + (cfg.keepGoing || 0) + 1) break;
-            if (this.divShots) { this.divShots = false; await this.shots(`divergence-${String(this.div.iter).padStart(6, "0")}`); }
+            if (this.divShots && this.divShotFrame === undefined) { this.divShotFrame = this.frame + 3; this.ref.renderAll(); this.cand.renderAll(); }
+            if (this.divShots && this.frame >= this.divShotFrame) { this.divShots = false; await this.shots(`divergence-${String(this.div.iter).padStart(6, "0")}`); }
             if (this.shotsDue !== undefined) { await this.shots(`it${String(this.shotsDue).padStart(6, "0")}`); this.shotsDue = undefined; }
             if (Date.now() - lastLog > 30000) {
                 lastLog = Date.now();
@@ -288,8 +329,10 @@ export class Session {
                     ` cash ${cashOf(this.ref)} tally ${this.ref.rb(this.rsy.TALLY) | this.ref.rb(this.rsy.TALLY + 1) << 8} galaxy ${this.ref.rb(this.rsy.GCNT) + 1}`);
             }
         }
+        this.compareDiscs(true);
+        this.ref.renderAll(); this.cand.renderAll();
         if (this.findings.some(f => f.kind !== "observable") && !this.div) await this.shots("finding");
-        await this.shots("end");
+        else await this.shots("end");
         if (this.traces) for (const k of ["ref", "cand"]) writeFileSync(`${cfg.out}/trace-${k}.txt`, this.traces[k].join("\n") + "\n");
         this.agent?.close();
         return this.summary((Date.now() - t0) / 1000);
@@ -302,6 +345,7 @@ export class Session {
             refIters: ref.iter, candIters: cand.iter, compared: this.stats.iters, flight: ref.tt100, reads: ref.polls, keyReads: this.stats.keyPolls,
             divergence: this.div, findings: this.findings, events: this.stats.events, agentNotes: this.stats.notes,
             observables: this.obsR ? { checked: this.obsChecked, differing: this.obsDiffs, kinds: this.obsKinds || {} } : null,
+            discChecks: this.stats.discChecks || 0, saveFilesSame: this.stats.saveFilesSame || 0,
             seeded: cand.seeded?.length, workaroundHits: this.stats.workarounds || 0, workarounds: cfg.workarounds || [], final: finalState(ref, this.rsy),
         };
         writeFileSync(`${cfg.out}/summary.json`, JSON.stringify(s, null, 1));
