@@ -11,14 +11,14 @@ Built from what master/tools/grind/mkbuild.sh leaves in a build directory:
                 non-macro line (the "site"); label definitions; CLEAR / ORG / SAVE /
                 COPYBLOCK events
   tree/master/src     the sources exactly as assembled
-  tree/master/build   the SAVEd images (BCODE, LOWCODE, HICODE, STUBS, BANK4, ANDY,
+  tree/master/build   the SAVEd images (BCODE, LOWCODE, HICODE, BANK4, ANDY,
                       COLD7, HAZEL, BANK5, BANK6, RAST7) and TOKENS.bin (elite-data.asm)
   symbols.txt   beebasm -d (global symbols: labels and equates)
 
 Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers it):
 
-  main  main RAM: LOWCODE &0840-, BCODE &1300-&3FFF, HICODE &7200- (renderer stubs and
-        hooks, QSL/QSH at &7600, the lighting's game half), STUBS &7E00- (far7 stubs)
+  main  main RAM: LOWCODE &0840-, BCODE &1300-&3FFF, HICODE &7200-&7FFF (QSL/QSH,
+        renderer stubs and hooks, the lighting's game half, the far7 stubs)
   B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: data, then code)
   ANDY  ANDY.bin, &8000-&8FFF of the cold area (ROMSEL &87)
   C7    COLD7.bin, bank 7 &AC40- (QQ18, the far4 stubs, the cold code; ROMSEL &87)
@@ -126,7 +126,7 @@ def cycles(mn, mode):
     return 2, ''
 
 
-SEGFILE = {'BCODE': 'main', 'LOWCODE': 'main', 'HICODE': 'main', 'STUBS': 'main',
+SEGFILE = {'BCODE': 'main', 'LOWCODE': 'main', 'HICODE': 'main',
            'BANK4': 'B4', 'ANDY': 'ANDY', 'COLD7': 'C7', 'RAST7': 'R7', 'BANK5': 'B5',
            'BANK6': 'B6', 'HAZEL': 'HZ',
            # the lens flare's code in shadow RAM (gfx-flare.asm), run from the frame

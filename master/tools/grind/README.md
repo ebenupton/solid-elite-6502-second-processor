@@ -40,7 +40,7 @@ INCLUDEs at its end):
 
 | segment | image (SAVE) | what |
 |---|---|---|
-| `main` | `LOWCODE` &0840-, `BCODE` &1300-&3FFF, `HICODE` &7200-&7DFF, `STUBS` &7E00- | low code (DOKEY, DOCKIT ...), the flight code and data, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the quarter-square tables QSL/QSH at &7600, the lighting's game half (gfx-light), the 44 far7 stubs into the cold area |
+| `main` | `LOWCODE` &0840-, `BCODE` &1300-&3FFF, `HICODE` &7200-&7FFF | low code (DOKEY, DOCKIT ...), the flight code and data, the high code: the quarter-square tables QSL/QSH at &7200, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the lighting's game half (gfx-light), the far7 stubs into the cold area |
 | `B4` | `BANK4` | bank 4, Elite's home bank: the data (INCBIN BANK4D: blueprints, XX21 ..., SNE, ACT) and code (TACTICS, LL9, MVEIT, Master's drawing, the CMYK dashboard) |
 | `ANDY` | `ANDY` | the cold area's &8000-&8FFF (ROMSEL &87) |
 | `C7` | `COLD7` | bank 7 &AC40-: QQ18, the far4 stubs out of the cold area, the cold code |

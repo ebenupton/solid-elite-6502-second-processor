@@ -19399,10 +19399,8 @@ ENDIF
 
 \ ******************************************************************************
 \
-\ Port: the stubs into the cold area, in main RAM at &7E00-&7FFF (above the
-\ dashboard, docs/MASTER-MAP.md). They are called only by game code, never
-\ while ACCCON X is set (which hides main RAM there). Saved as STUBS, which
-\ the loader copies there.
+\ Port: the low code, main RAM &0840-&0CFF (docs/MASTER-MAP.md), saved as
+\ LOWCODE, which the loader copies there
 \
 \ ******************************************************************************
 
@@ -19416,17 +19414,19 @@ ENDIF
  ASSERT LOW_END% <= &0D00           \ page &0D is off limits (docs/MASTER-MEMORY.md)
  SAVE "build/LOWCODE.bin", &0840, LOW_END%, &0840
 
+\ ******************************************************************************
+\
+\ Port: the high code, main RAM &7200-&7FFF (docs/MASTER-MAP.md): the
+\ quarter-square tables, the renderer's game-context side (elite-hi.asm), the
+\ stubs into the cold area (elite-stubs7.asm), then the routines below. Code
+\ here runs only in game context, never while ACCCON X is set (which hides
+\ main RAM at &3000-&7FFF). Saved as HICODE, which the loader copies there.
+\
+\ ******************************************************************************
+
  ORG &7200
 
- INCLUDE "src/elite-hi.asm"         \ renderer stubs and hooks, &7200-&7DFF
-
-.HI_END%
-
- PRINT "Hi code: &7200-", ~HI_END%-1, " free ", &7E00-HI_END%
- ASSERT HI_END% <= &7E00
- SAVE "build/HICODE.bin", &7200, HI_END%, &7200
-
- ORG &7E00
+ INCLUDE "src/elite-hi.asm"         \ quarter squares, renderer stubs and hooks
 
  INCLUDE "src/elite-stubs7.asm"     \ stubs into the cold area (far7, far7j)
 
@@ -19436,8 +19436,8 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Draw the laser crosshairs
-\             (Port: in the main RAM at &7E00, after the stubs, to make room
-\             in bank 4; called only by LOOK1 on a change of view)
+\             (Port: in the high code, main RAM; called only by LOOK1 on a
+\             change of view)
 \
 \ ******************************************************************************
 
@@ -19506,8 +19506,8 @@ ENDIF
 \       Type: Subroutine
 \   Category: Start and end
 \    Summary: The end of DEATH: run the exploding canister scene, then restart
-\             (Port: in the main RAM at &7E00, after the stubs, to make room
-\             in bank 4; reached only by DEATH's JMP DEATHT)
+\             (Port: in the high code, main RAM; reached only by DEATH's JMP
+\             DEATHT)
 \
 \ ******************************************************************************
 
@@ -19641,11 +19641,11 @@ ENDIF
  STZ P                  \ them
  JMP pl4t
 
-.STUBS_END%
+.HI_END%
 
- PRINT "Stubs: &7E00-", ~STUBS_END%-1, " free ", &8000-STUBS_END%
- ASSERT STUBS_END% <= &8000
- SAVE "build/STUBS.bin", &7E00, &8000, &7E00
+ PRINT "Hi code: &7200-", ~HI_END%-1, " free ", &8000-HI_END%
+ ASSERT HI_END% <= &8000
+ SAVE "build/HICODE.bin", &7200, HI_END%, &7200
 
 \ ******************************************************************************
 \

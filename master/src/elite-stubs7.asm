@@ -2,7 +2,8 @@
 \
 \ elite-stubs7.asm - stubs into the cold area
 \
-\ Port (master/src/elite-far.asm): in main RAM at &7E00-&7FFF. Each cold routine that code
+\ Port (master/src/elite-far.asm): in the high code, main RAM (elite-hi.asm).
+\ Each cold routine that code
 \ outside the cold area calls keeps its name here, as a far call (far7) or a
 \ far jump (far7j, for routines that never return) to its cold copy (_C).
 \ ******************************************************************************

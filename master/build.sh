@@ -5,7 +5,8 @@
 #   build/M128Elt.bin (loader), build/README.txt,
 #   build/BANK4.bin (Elite's home bank: the data and bank 4 code),
 #   build/ANDY.bin, build/COLD7.bin (the cold area: ANDY, bank 7 from &AC40),
-#   build/STUBS.bin (main RAM &7E00-&7FFF), build/TOKENS.bin (shadow &3100),
+#   build/LOWCODE.bin, HICODE.bin (main RAM &0840-&0CFF, &7200-&7FFF),
+#   build/TOKENS.bin (shadow &3100),
 #   build/symbols.txt (beebasm -d symbol dump of elite-source.asm; zero page,
 #   workspaces, main code and banked code), build/banks.txt (the banked
 #   labels' banks), build/symbols-data.txt (elite-data.asm),

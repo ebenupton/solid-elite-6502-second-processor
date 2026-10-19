@@ -793,10 +793,6 @@ ENDIF
  EQUB HOMEBANK, %00001111
  EQUW &3100, &0E00
 
- EQUW MESS8             \ STUBS: the stubs into the cold area, to main RAM at
- EQUB HOMEBANK, %00001001 \ &7E00-&7FFF
- EQUW &7E00, &0200
-
  EQUW MESS4             \ BANK4: Elite's home bank
  EQUB HOMEBANK, %00001001
  EQUW &8000, &4000
@@ -826,8 +822,9 @@ ENDIF
  EQUW &4000, HZLEN      \ after the last disc access (see LDEND), as DFS uses
                         \ HAZEL
 
- EQUW MESS14            \ HICODE: the renderer's stubs and hooks, main RAM &7200
- EQUB HOMEBANK, %00001001
+ EQUW MESS14            \ HICODE: the high code (the quarter squares, the
+ EQUB HOMEBANK, %00001001 \ renderer's stubs and hooks, the stubs into the cold
+                        \ area), main RAM &7200-&7FFF
  EQUW &7200, HILEN
 
  EQUW MESS1             \ BDATA again: the dashboard's first character row in
@@ -924,11 +921,6 @@ ENDIF
 .MESS7
 
  EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
- EQUB 13
-
-.MESS8
-
- EQUS "L.STUBS FFFF1300"    \ Port: *LOAD STUBS FFFF1300
  EQUB 13
 
 .MESS9
