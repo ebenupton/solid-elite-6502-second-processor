@@ -19,15 +19,8 @@ FOR r, 0, 23
   RTS
   ALIGN &100
 NEXT
-.r7_fr                    \ x DIV 4
-FOR x, 0, 255
-  EQUB x DIV 4
-NEXT
-.r7_jl                    \ run offset of byte column x DIV 4 (x >= 4)
-FOR x, 0, 255
-  EQUB LO(3 * (x DIV 4 - 1))
-NEXT
-.r7_jr                    \ run offset of byte column x DIV 4 + 1 (the RTS)
+.r7_jr                    \ run offset of byte column x DIV 4 + 1 (the RTS); read
+                          \ as r7_jr-4,X (x >= 4): the offset of column x DIV 4
 FOR x, 0, 255
   EQUB LO(3 * (x DIV 4))
 NEXT
@@ -200,7 +193,7 @@ c_BB  = &25
   BEQ slow
   STA R_WL,Y
   TAX
-  LDA r7_jl,X             \ enter at column L DIV 4 (r7_jl(L AND &FC) = r7_jl(L))
+  LDA r7_jr-4,X           \ enter at column L DIV 4
   STA fj+1
   LDA #&FF
 .fs1
@@ -244,12 +237,15 @@ c_BB  = &25
   LDA #0
 .sd2
   STA R_DIRTYR0,Y
-  LDA r7_fr,X             \ first byte column (0: the border's)
+  TXA                     \ first byte column (0: the border's)
+  LSR A
+  LSR A
   BEQ e0
 .nl1
   STA c_NL
-  LDX c_R
-  LDA r7_fr,X             \ last byte column (63: the border's)
+  LDA c_R                 \ last byte column (63: the border's)
+  LSR A
+  LSR A
   CMP #63
   BEQ e63
 .nr1
