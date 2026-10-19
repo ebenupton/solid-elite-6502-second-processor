@@ -44,13 +44,11 @@ version's ships, missions and extended text. Master is the user's preferred base
 
 The port uses HAZEL (&C000-&DFFF) because the MOS never touches it during flight.
 Full Elite does disc I/O (commander save/load and catalogue) while docked, and DFS
-keeps its workspace in HAZEL. One of these is required:
-* stash DFS's HAZEL workspace at load time and swap it in around every OSFILE/OSCLI;
-* or reinitialise the filing system before disc I/O and rebuild the port's HAZEL
-  contents afterwards. Rebuilding is cheap: the code image is in bank 6 (HZIMG),
-  and the flight runtime state can be reset on launch.
-
-Decide this by experiment in jsbeeb.
+keeps its workspace in HAZEL. The port stashes DFS's lasting bytes (&C2C0-&C2FF and
+the MOS's &DFDA-&DFDB, 66 in all) at load time and swaps them in around its one OS
+call, OSCLI in DOSCLI, invalidating DFS's catalogue cache each time; what DFS and the
+MOS overwrite during a command holds only scratch and state rebuilt in flight, so
+nothing needs rebuilding (docs/MASTER-MEMORY.md, docs/MASTER-MAP.md rule 8).
 
 ## Verification
 
@@ -647,3 +645,38 @@ trampolines from 156 stubs and 6 far-call helpers to 134 and 4. Gate:
 1.232, 17.21 it/s before; 1.235, 17.25 it/s after (115930 cycles per flight
 iteration, 732 of them page crossings), with test_raster --quick and the
 flare's pixel check passing.
+
+## Memory relayout (after the rationalisation)
+
+The renderer's banks and HAZEL were relaid so that each bank keeps its
+private tables and HAZEL holds only shared, always-visible content
+(docs/MASTER-MAP.md rule 10), in single-purpose gated commits:
+
+* Bank 5 keeps what a frame calls often and the private state its inner
+  loops read: the twelve boundary arrays (R_BD*) moved there from HAZEL as
+  one block (each pair sharing its low byte, the most read at low bytes
+  &00 and &40). Its small routines and high-byte tables fill the tails of
+  its run pages; r_wclear is a loop and r_div8 too.
+* Bank 7 takes what runs at most once or twice a frame or only for big and
+  clipped shapes: R_LINE whole (T_LINE pages bank 7 itself), the 16-bit
+  polygons' phase A (bank 5 keeps phase B, the rows passing through HAZEL
+  scratch), with its own pixel plotter, arithmetic and edge loops. Its
+  tables were cut to what is read (r7_fr, r7_jl, r7_rp computed, r7_lm and
+  r7_rm four entries each), and its run pages' tails hold its variables and
+  small routines. The cold area starts a page higher (COLD7LO &AB00).
+* DOSCLI stashes DFS's lasting bytes (DFSST), which frees &C2C0-&C2FF for
+  scratch and &DF00-&DFFF for state rebuilt in flight; the hangar's line
+  heap moved from the rasteriser's scratch to &DF00. HAZEL's lasting state
+  stays below &D900, clear of the DFS and ADFS private pages. The save
+  test fills HAZEL's scratch and &DF00-&DFFF with junk before each disc
+  command.
+* Dead code went (R_WMERGE, T_WMERGE, T_CLEARALL), and the stars drawn
+  directly (F_DSX, F_DSY) moved into bank 6, whose code alone reads them.
+
+HAZEL's free space for code and lasting state went from 251 bytes to 2063,
+bank 5's from 172 to 809, at 305 cycles per flight iteration (196 of them
+instructions, 109 page crossings for the final alignment pass to recover).
+Gate: 1.235, 17.25 it/s before; 1.231, 17.21 it/s after, with
+test_raster (full), the flare's pixel check, the agentplay repros and a
+short campaign with a save and a load passing.
+
