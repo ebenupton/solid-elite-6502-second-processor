@@ -92,14 +92,18 @@ Pixels are never compared.
 - **Page &0D writes:** the candidate's game code must not write page &0D.
 - **Hangs:** a machine that makes no read and no iteration for 30 emulated seconds.
 - **Crashes:** a machine with its PC in page 0 or 1.
-- **Save files:** after every save or load, and at the end, the commander files in
-  directory E on the two machines' discs must match, catalogue and bytes.
+- **Save files:** after every disc access, once both machines are past the next MLOOP (SVE
+  returns before it), and at the end, the commander files in directory E on the two discs
+  must match, catalogue and bytes.
 
 **Play styles** (`styles.mjs`):
 
 - `--commander`: the starting commander, patched into both machines at the first BAY,
-  both into the live commander and into NA%. The choices are `jameson`, `trader`,
-  `equipped`, `rich`, `deadly`, `mission2` and `wanted`.
+  The patch goes into NA% (with its checksum) at the first QU5, before DFAULT copies it.
+  The choices are:
+  - `jameson`, `trader`, `equipped`, `rich`, `deadly`, `mission2` and `wanted`;
+  - for the missions: `debrief1` (the Constrictor destroyed), `galaxy3` (Ceerdi, with mission
+    1 done) and `debrief2` (Birera, with the plans).
 - `--mode`: elite-agent's own modes. The choices are `efficient`, `curious`, `fair`,
   `keyboard` (keys rather than the stick), `nosave`, `nomission`, and `load`, which loads
   CLAUDE from a disc that `--savediscs` wrote.
@@ -142,6 +146,7 @@ the same session, read for read.
 | `--trace A,B` | write every labelled routine each machine enters in iterations A to B, to `trace-ref.txt` and `trace-cand.txt`, to diff |
 | `--cand`/`--csyms` | try a fixed build against the same inputs |
 | `--workaround none` | turn off a workaround the session used |
+| `--cut N --save FILE` | write the log cut short after iteration N, as a minimal repro |
 
 `repro/` holds the input logs of the port bugs found, cut short after the divergence.
 `replay.mjs --log repro/<name>.jsonl --out DIR` shows each one again in under a minute.
@@ -155,7 +160,8 @@ writes `campaign.json` and `campaign.md`, which give:
 - coverage, as the original's routine entries summed over the campaign;
 - every finding, grouped across sessions.
 
-Plans are lists in campaign.mjs: `default` and `quick`.
+Plans are lists in campaign.mjs: `default` (22 sessions), `extra` (12 more: the missions'
+later stages, deaths, pods, a long career) and `quick`.
 
 ## Limits
 
