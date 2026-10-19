@@ -2766,14 +2766,6 @@
                         \ mode, NOP outside it, falling into PIXEL2; this was
                         \ LDA QQ11 : ORA GFORCE : BNE PIXEL2 : RTS)
 
- NOP                    \ (padding where the test was, so nothing moves; only
- NOP                    \ outside record mode does it run)
- NOP
- NOP
- NOP
- NOP
- NOP
-
                         \ Fall through into PIXEL2 to draw the stardust particle
                         \ at (X1,Y1)
 
@@ -5257,8 +5249,6 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \
 \ ******************************************************************************
 
-LL51_OLDSIZE = 146     \ Port: the original LL51's size in bytes
-
 .LL51
 
                         \ Port: LL51 with the logs of x_lo, y_lo and z_lo
@@ -5342,8 +5332,6 @@ LL51_OLDSIZE = 146     \ Port: the original LL51's size in bytes
  STA S
  JMP lfr2s
 
- ASSERT P% <= LL51 + LL51_OLDSIZE
- SKIP LL51 + LL51_OLDSIZE - P%  \ (the old LL51's space, so nothing moves)
 
 \ ******************************************************************************
 \
@@ -6821,8 +6809,6 @@ LL51_OLDSIZE = 146     \ Port: the original LL51's size in bytes
 
  JMP LL66               \ Jump down to LL66
 
- SKIP 1                 \ Port: the INX's byte (the high byte goes to
-                        \ XX3+1,X), so the code that follows does not move
 
 \ ******************************************************************************
 \
@@ -7076,8 +7062,6 @@ LL51_OLDSIZE = 146     \ Port: the original LL51's size in bytes
 
  JMP LL50               \ Jump to LL50 to move on to the next vertex
 
- SKIP 6                 \ Port: LL66's and LL69's old bytes, so that LL50
-                        \ and the code after it do not move
 
 .LL67
 
