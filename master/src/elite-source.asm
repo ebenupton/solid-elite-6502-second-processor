@@ -6180,7 +6180,188 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: BOMBOFF, BOMBEFF2, BOMBON and BOMBPOS moved to the high code (main RAM)
+\ ******************************************************************************
+\
+\       Name: BOMBOFF
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Draw the zig-zag lightning bolt for the energy bomb
+\
+\ ******************************************************************************
+
+.BOMBOFF
+
+ LDA #CYAN              \ Change the current colour to cyan
+ STA COL
+
+ LDA QQ11               \ If the current view is non-zero (i.e. not a space
+ BNE BOMBR1             \ view), return from the subroutine (as BOMBR1 contains
+                        \ an RTS)
+
+ JSR H_BOMB             \ Port: a new bolt for the renderer (gfx-hooks.asm)
+
+ LDY #1                 \ We now want to loop through the 10 (BOMBTBX, BOMBTBY)
+                        \ coordinates, drawing a total of 9 lines between them
+                        \ to make the lightning effect, so set an index in Y
+                        \ to point to the end-point for each line, starting with
+                        \ the second coordinate pair
+
+ LDA BOMBTBX            \ Store the first coordinate pair from (BOMBTBX,
+ STA XX12               \ BOMBTBY) in (XX12, XX12+1)
+ LDA BOMBTBY
+ STA XX12+1
+
+.BOMBL1
+
+\JSR CLICK              \ This instruction is commented out in the original
+                        \ source
+
+ LDA XX12               \ Set (X1, Y1) = (XX12, XX12+1)
+ STA X1                 \
+ LDA XX12+1             \ so the start point for this line
+ STA Y1
+
+ LDA BOMBTBX,Y          \ Set X2 = Y-th x-coordinate from BOMBTBX
+ STA X2
+
+ STA XX12               \ Set XX12 = X2
+
+ LDA BOMBTBY,Y          \ Set Y2 = Y-th y-coordinate from BOMBTBY, so we now
+ STA Y2                 \ have:
+                        \
+                        \   (X2, Y2) = Y-th coordinate from (BOMBTBX, BOMBTBY)
+
+ STA XX12+1             \ Set XX12+1 = Y2, so we now have
+                        \
+                        \   (XX12, XX12+1) = (X2, Y2)
+                        \
+                        \ so in the next loop iteration, the start point of the
+                        \ line will be the end point of this line, making the
+                        \ zig-zag lines all join up like a lightning bolt
+
+ JSR H_LLINE            \ Draw a line from (X1, Y1) to (X2, Y2) (Port: recorded
+                        \ for the renderer in record mode, gfx-hooks.asm)
+
+ INY                    \ Increment the loop counter
+
+ CPY #10                \ If Y < 10, loop back until we have drawn all the lines
+ BCC BOMBL1
+
+.BOMBR1
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: BOMBEFF2
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Erase the energy bomb zig-zag lightning bolt, make the sound of
+\             the energy bomb going off, draw a new bolt and repeat four times
+\
+\ ******************************************************************************
+
+.BOMBEFF2
+
+ JSR P%+3               \ This pair of JSRs runs the following code four times
+ JSR BOMBEFF
+
+.BOMBEFF
+
+ LDY #sobomb            \ Call the NOISE routine with Y = 6 to make the sound of
+ JSR NOISE              \ an energy bomb going off
+
+ JSR BOMBOFF            \ Our energy bomb is going off, so call BOMBOFF to draw
+                        \ the current zig-zag lightning bolt, which will erase
+                        \ it from the screen
+
+                        \ Fall through into BOMBON to set up and display a new
+                        \ zig-zag lightning bolt
+
+\ ******************************************************************************
+\
+\       Name: BOMBON
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Randomise and draw the energy bomb's zig-zag lightning bolt lines
+\
+\ ******************************************************************************
+
+.BOMBON
+
+ LDY #0                 \ We first need to generate 10 random coordinates for a
+                        \ zig-zag lightning bolt, with the x-coordinates in the
+                        \ table at BOMBTBX and the y-coordinates in the table at
+                        \ BOMBTBY, so set a counter in Y as an index to point at
+                        \ each coordinate as we create them
+                        \
+                        \ Note that we generate the points from right to left,
+                        \ so that's high x-coordinate to low x-coordinate
+
+.BOMBL2
+
+ JSR DORND              \ Set A and X to random numbers and reduce A to a
+ AND #127               \ random number in the range 0-127
+
+ ADC #3                 \ Add 3 so A is now in the range 3-130, so the smallest
+                        \ possible value gives a y-coordinate just below the top
+                        \ border, and the highest possible value gives a
+                        \ y-coordinate that's around two-thirds of the way down
+                        \ the space view
+
+ STA BOMBTBY,Y          \ Store A in the Y-th byte of BOMBTBY, as the
+                        \ y-coordinate of the Y-th point in our lightning bolt
+
+ TXA                    \ Fetch the random number from X into A and reduce it to
+ AND #31                \ the range 0-31
+
+ CLC                    \ Add the Y-th value from BOMBPOS table, which contains
+ ADC BOMBPOS,Y          \ the smallest possible x-coordinate for the Y-th point
+                        \ (so the coordinates in the bolt will step along the
+                        \ screen from right to left, but with varying step
+                        \ sizes)
+
+ STA BOMBTBX,Y          \ Store A in the Y-th byte of BOMBTBX, as the
+                        \ x-coordinate of the Y-th point in our lightning bolt
+
+ INY                    \ Increment the loop index
+
+ CPY #10                \ Loop back to generate the next coordinate until we
+ BCC BOMBL2             \ have generated all ten
+
+ LDX #0                 \ Set BOMBTBX+9 = 0, so the lightning bolt starts at the
+ STX BOMBTBX+9          \ left edge of the screen
+
+ DEX                    \ Set BOMBTBX = 255, so the lightning bolt ends at the
+ STX BOMBTBX            \ right edge of the screen
+
+ BCS BOMBOFF            \ Call BOMBOFF to draw the newly generated zig-zag
+                        \ lightning bolt and return from the subroutine using a
+                        \ tail call (this BCS is effectively a JMP as we passed
+                        \ through the BCC above)
+
+\ ******************************************************************************
+\
+\       Name: BOMBPOS
+\       Type: Variable
+\   Category: Drawing lines
+\    Summary: A set of x-coordinates that are used as the basis for the energy
+\             bomb's zig-zag lightning bolt
+\
+\ ******************************************************************************
+
+.BOMBPOS
+
+ EQUB 224
+ EQUB 224
+ EQUB 192
+ EQUB 160
+ EQUB 128
+ EQUB 96
+ EQUB 64
+ EQUB 32
+ EQUB 0
+ EQUB 0
 
 \ ******************************************************************************
 \
@@ -7479,7 +7660,88 @@ ENDIF
 
 \ Port: STARS6 moved to HAZEL (elite-hazel.asm)
 
-\ Port: MAS1 moved to the high code (main RAM)
+\ ******************************************************************************
+\
+\       Name: MAS1
+\       Type: Subroutine
+\   Category: Maths (Geometry)
+\    Summary: Add an orientation vector coordinate to an INWK coordinate
+\  Deep dive: The space station safe zone
+\
+\ ------------------------------------------------------------------------------
+\
+\ Add a doubled nosev vector coordinate, e.g. (nosev_y_hi nosev_y_lo) * 2, to
+\ an INWK coordinate, e.g. (x_sign x_hi x_lo), storing the result in the INWK
+\ coordinate. The axes used in each side of the addition are specified by the
+\ arguments X and Y.
+\
+\ In the comments below, we document the routine as if we are doing the
+\ following, i.e. if X = 0 and Y = 11:
+\
+\   (x_sign x_hi x_lo) = (x_sign x_hi x_lo) + (nosev_y_hi nosev_y_lo) * 2
+\
+\ as that way the variable names in the comments contain "x" and "y" to match
+\ the registers that specify the vector axis to use.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   X                   The coordinate to add, as follows:
+\
+\                         * If X = 0, add (x_sign x_hi x_lo)
+\                         * If X = 3, add (y_sign y_hi y_lo)
+\                         * If X = 6, add (z_sign z_hi z_lo)
+\
+\   Y                   The vector to add, as follows:
+\
+\                         * If Y = 9,  add (nosev_x_hi nosev_x_lo)
+\                         * If Y = 11, add (nosev_y_hi nosev_y_lo)
+\                         * If Y = 13, add (nosev_z_hi nosev_z_lo)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   A                   The highest byte of the result with the sign cleared
+\                       (e.g. |x_sign| when X = 0, etc.)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   MA9                 Contains an RTS
+\
+\ ******************************************************************************
+
+.MAS1
+
+ LDA INWK,Y             \ Set K(2 1) = (nosev_y_hi nosev_y_lo) * 2
+ ASL A
+ STA K+1
+ LDA INWK+1,Y
+ ROL A
+ STA K+2
+
+ LDA #0                 \ Set K+3 bit 7 to the C flag, so the sign bit of the
+ ROR A                  \ above result goes into K+3
+ STA K+3
+
+ JSR MVT3               \ Add (x_sign x_hi x_lo) to K(3 2 1)
+
+ STA INWK+2,X           \ Store the sign of the result in x_sign
+
+ LDY K+1                \ Store K(2 1) in (x_hi x_lo)
+ STY INWK,X
+ LDY K+2
+ STY INWK+1,X
+
+ AND #%01111111         \ Set A to the sign byte with the sign cleared,
+                        \ i.e. |x_sign| when X = 0
+
+.MA9
+
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
@@ -7543,7 +7805,77 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: MAS3 moved to the high code (main RAM)
+\ ******************************************************************************
+\
+\       Name: MAS3
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate A = x_hi^2 + y_hi^2 + z_hi^2 in the K% block
+\
+\ ------------------------------------------------------------------------------
+\
+\ Given a value in Y that points to the start of a ship data block as an offset
+\ from K%, calculate the following:
+\
+\   (A ?) = x_hi^2 + y_hi^2 + z_hi^2
+\
+\ returning A = &FF if the calculation overflows a one-byte result. The K%
+\ workspace contains the ship data blocks, so the offset in Y must be 0 or a
+\ multiple of NI% (as each block in K% contains NI% bytes).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   Y                   The offset from K% for the start of the ship data block
+\                       to use
+\
+\ Returns
+\
+\   A                   The high byte of x_hi^2 + y_hi^2 + z_hi^2
+\
+\   C flag              The overflow status (i.e. did the result fit into one
+\                       byte):
+\
+\                         * Clear if the calculation didn't overflow
+\
+\                         * Set if the calculation overflowed (in which case A
+\                           is set to &FF)
+\
+\ ******************************************************************************
+
+.MAS3
+
+ LDA K%+1,Y             \ Set (A P) = x_hi * x_hi
+ JSR SQUA2
+
+ STA R                  \ Store A (high byte of result) in R
+
+ LDA K%+4,Y             \ Set (A P) = y_hi * y_hi
+ JSR SQUA2
+
+ ADC R                  \ Add A (high byte of second result) to R
+
+ BCS MA30               \ If the addition of the two high bytes caused a carry
+                        \ (i.e. they overflowed), jump to MA30 to return A = &FF
+
+ STA R                  \ Store A (sum of the two high bytes) in R
+
+ LDA K%+7,Y             \ Set (A P) = z_hi * z_hi
+ JSR SQUA2
+
+ ADC R                  \ Add A (high byte of third result) to R, so R now
+                        \ contains the high byte of the entire sum, i.e. of
+                        \ x_hi^2 + y_hi^2 + z_hi^2
+
+ BCC P%+4               \ If there is no carry, skip the following instruction
+                        \ to return straight from the subroutine
+
+.MA30
+
+ LDA #&FF               \ The calculation has overflowed, so set A = &FF
+
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
@@ -19624,189 +19956,6 @@ ENDIF
 
 \ ******************************************************************************
 \
-\       Name: BOMBOFF
-\       Type: Subroutine
-\   Category: Drawing lines
-\    Summary: Draw the zig-zag lightning bolt for the energy bomb
-\
-\ ******************************************************************************
-
-.BOMBOFF
-
- LDA #CYAN              \ Change the current colour to cyan
- STA COL
-
- LDA QQ11               \ If the current view is non-zero (i.e. not a space
- BNE BOMBR1             \ view), return from the subroutine (as BOMBR1 contains
-                        \ an RTS)
-
- JSR H_BOMB             \ Port: a new bolt for the renderer (gfx-hooks.asm)
-
- LDY #1                 \ We now want to loop through the 10 (BOMBTBX, BOMBTBY)
-                        \ coordinates, drawing a total of 9 lines between them
-                        \ to make the lightning effect, so set an index in Y
-                        \ to point to the end-point for each line, starting with
-                        \ the second coordinate pair
-
- LDA BOMBTBX            \ Store the first coordinate pair from (BOMBTBX,
- STA XX12               \ BOMBTBY) in (XX12, XX12+1)
- LDA BOMBTBY
- STA XX12+1
-
-.BOMBL1
-
-\JSR CLICK              \ This instruction is commented out in the original
-                        \ source
-
- LDA XX12               \ Set (X1, Y1) = (XX12, XX12+1)
- STA X1                 \
- LDA XX12+1             \ so the start point for this line
- STA Y1
-
- LDA BOMBTBX,Y          \ Set X2 = Y-th x-coordinate from BOMBTBX
- STA X2
-
- STA XX12               \ Set XX12 = X2
-
- LDA BOMBTBY,Y          \ Set Y2 = Y-th y-coordinate from BOMBTBY, so we now
- STA Y2                 \ have:
-                        \
-                        \   (X2, Y2) = Y-th coordinate from (BOMBTBX, BOMBTBY)
-
- STA XX12+1             \ Set XX12+1 = Y2, so we now have
-                        \
-                        \   (XX12, XX12+1) = (X2, Y2)
-                        \
-                        \ so in the next loop iteration, the start point of the
-                        \ line will be the end point of this line, making the
-                        \ zig-zag lines all join up like a lightning bolt
-
- JSR H_LLINE            \ Draw a line from (X1, Y1) to (X2, Y2) (Port: recorded
-                        \ for the renderer in record mode, gfx-hooks.asm)
-
- INY                    \ Increment the loop counter
-
- CPY #10                \ If Y < 10, loop back until we have drawn all the lines
- BCC BOMBL1
-
-.BOMBR1
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: BOMBEFF2
-\       Type: Subroutine
-\   Category: Drawing lines
-\    Summary: Erase the energy bomb zig-zag lightning bolt, make the sound of
-\             the energy bomb going off, draw a new bolt and repeat four times
-\
-\ ******************************************************************************
-
-.BOMBEFF2
-
- JSR P%+3               \ This pair of JSRs runs the following code four times
- JSR BOMBEFF
-
-.BOMBEFF
-
- LDY #sobomb            \ Call the NOISE routine with Y = 6 to make the sound of
- JSR NOISE              \ an energy bomb going off
-
- JSR BOMBOFF            \ Our energy bomb is going off, so call BOMBOFF to draw
-                        \ the current zig-zag lightning bolt, which will erase
-                        \ it from the screen
-
-                        \ Fall through into BOMBON to set up and display a new
-                        \ zig-zag lightning bolt
-
-\ ******************************************************************************
-\
-\       Name: BOMBON
-\       Type: Subroutine
-\   Category: Drawing lines
-\    Summary: Randomise and draw the energy bomb's zig-zag lightning bolt lines
-\
-\ ******************************************************************************
-
-.BOMBON
-
- LDY #0                 \ We first need to generate 10 random coordinates for a
-                        \ zig-zag lightning bolt, with the x-coordinates in the
-                        \ table at BOMBTBX and the y-coordinates in the table at
-                        \ BOMBTBY, so set a counter in Y as an index to point at
-                        \ each coordinate as we create them
-                        \
-                        \ Note that we generate the points from right to left,
-                        \ so that's high x-coordinate to low x-coordinate
-
-.BOMBL2
-
- JSR DORND              \ Set A and X to random numbers and reduce A to a
- AND #127               \ random number in the range 0-127
-
- ADC #3                 \ Add 3 so A is now in the range 3-130, so the smallest
-                        \ possible value gives a y-coordinate just below the top
-                        \ border, and the highest possible value gives a
-                        \ y-coordinate that's around two-thirds of the way down
-                        \ the space view
-
- STA BOMBTBY,Y          \ Store A in the Y-th byte of BOMBTBY, as the
-                        \ y-coordinate of the Y-th point in our lightning bolt
-
- TXA                    \ Fetch the random number from X into A and reduce it to
- AND #31                \ the range 0-31
-
- CLC                    \ Add the Y-th value from BOMBPOS table, which contains
- ADC BOMBPOS,Y          \ the smallest possible x-coordinate for the Y-th point
-                        \ (so the coordinates in the bolt will step along the
-                        \ screen from right to left, but with varying step
-                        \ sizes)
-
- STA BOMBTBX,Y          \ Store A in the Y-th byte of BOMBTBX, as the
-                        \ x-coordinate of the Y-th point in our lightning bolt
-
- INY                    \ Increment the loop index
-
- CPY #10                \ Loop back to generate the next coordinate until we
- BCC BOMBL2             \ have generated all ten
-
- LDX #0                 \ Set BOMBTBX+9 = 0, so the lightning bolt starts at the
- STX BOMBTBX+9          \ left edge of the screen
-
- DEX                    \ Set BOMBTBX = 255, so the lightning bolt ends at the
- STX BOMBTBX            \ right edge of the screen
-
- BCS BOMBOFF            \ Call BOMBOFF to draw the newly generated zig-zag
-                        \ lightning bolt and return from the subroutine using a
-                        \ tail call (this BCS is effectively a JMP as we passed
-                        \ through the BCC above)
-
-\ ******************************************************************************
-\
-\       Name: BOMBPOS
-\       Type: Variable
-\   Category: Drawing lines
-\    Summary: A set of x-coordinates that are used as the basis for the energy
-\             bomb's zig-zag lightning bolt
-\
-\ ******************************************************************************
-
-.BOMBPOS
-
- EQUB 224
- EQUB 224
- EQUB 192
- EQUB 160
- EQUB 128
- EQUB 96
- EQUB 64
- EQUB 32
- EQUB 0
- EQUB 0
-
-\ ******************************************************************************
-\
 \       Name: OOPS
 \       Type: Subroutine
 \   Category: Flight
@@ -20052,161 +20201,6 @@ ENDIF
  DEX                    \ Decrement the counter to point to the next missile
 
  BNE SAL8               \ Loop back to SAL8 if we still have missiles to draw
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MAS1
-\       Type: Subroutine
-\   Category: Maths (Geometry)
-\    Summary: Add an orientation vector coordinate to an INWK coordinate
-\  Deep dive: The space station safe zone
-\
-\ ------------------------------------------------------------------------------
-\
-\ Add a doubled nosev vector coordinate, e.g. (nosev_y_hi nosev_y_lo) * 2, to
-\ an INWK coordinate, e.g. (x_sign x_hi x_lo), storing the result in the INWK
-\ coordinate. The axes used in each side of the addition are specified by the
-\ arguments X and Y.
-\
-\ In the comments below, we document the routine as if we are doing the
-\ following, i.e. if X = 0 and Y = 11:
-\
-\   (x_sign x_hi x_lo) = (x_sign x_hi x_lo) + (nosev_y_hi nosev_y_lo) * 2
-\
-\ as that way the variable names in the comments contain "x" and "y" to match
-\ the registers that specify the vector axis to use.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Arguments:
-\
-\   X                   The coordinate to add, as follows:
-\
-\                         * If X = 0, add (x_sign x_hi x_lo)
-\                         * If X = 3, add (y_sign y_hi y_lo)
-\                         * If X = 6, add (z_sign z_hi z_lo)
-\
-\   Y                   The vector to add, as follows:
-\
-\                         * If Y = 9,  add (nosev_x_hi nosev_x_lo)
-\                         * If Y = 11, add (nosev_y_hi nosev_y_lo)
-\                         * If Y = 13, add (nosev_z_hi nosev_z_lo)
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   A                   The highest byte of the result with the sign cleared
-\                       (e.g. |x_sign| when X = 0, etc.)
-\
-\ ------------------------------------------------------------------------------
-\
-\ Other entry points:
-\
-\   MA9                 Contains an RTS
-\
-\ ******************************************************************************
-
-.MAS1
-
- LDA INWK,Y             \ Set K(2 1) = (nosev_y_hi nosev_y_lo) * 2
- ASL A
- STA K+1
- LDA INWK+1,Y
- ROL A
- STA K+2
-
- LDA #0                 \ Set K+3 bit 7 to the C flag, so the sign bit of the
- ROR A                  \ above result goes into K+3
- STA K+3
-
- JSR MVT3               \ Add (x_sign x_hi x_lo) to K(3 2 1)
-
- STA INWK+2,X           \ Store the sign of the result in x_sign
-
- LDY K+1                \ Store K(2 1) in (x_hi x_lo)
- STY INWK,X
- LDY K+2
- STY INWK+1,X
-
- AND #%01111111         \ Set A to the sign byte with the sign cleared,
-                        \ i.e. |x_sign| when X = 0
-
-.MA9
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MAS3
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate A = x_hi^2 + y_hi^2 + z_hi^2 in the K% block
-\
-\ ------------------------------------------------------------------------------
-\
-\ Given a value in Y that points to the start of a ship data block as an offset
-\ from K%, calculate the following:
-\
-\   (A ?) = x_hi^2 + y_hi^2 + z_hi^2
-\
-\ returning A = &FF if the calculation overflows a one-byte result. The K%
-\ workspace contains the ship data blocks, so the offset in Y must be 0 or a
-\ multiple of NI% (as each block in K% contains NI% bytes).
-\
-\ ------------------------------------------------------------------------------
-\
-\ Arguments:
-\
-\   Y                   The offset from K% for the start of the ship data block
-\                       to use
-\
-\ Returns
-\
-\   A                   The high byte of x_hi^2 + y_hi^2 + z_hi^2
-\
-\   C flag              The overflow status (i.e. did the result fit into one
-\                       byte):
-\
-\                         * Clear if the calculation didn't overflow
-\
-\                         * Set if the calculation overflowed (in which case A
-\                           is set to &FF)
-\
-\ ******************************************************************************
-
-.MAS3
-
- LDA K%+1,Y             \ Set (A P) = x_hi * x_hi
- JSR SQUA2
-
- STA R                  \ Store A (high byte of result) in R
-
- LDA K%+4,Y             \ Set (A P) = y_hi * y_hi
- JSR SQUA2
-
- ADC R                  \ Add A (high byte of second result) to R
-
- BCS MA30               \ If the addition of the two high bytes caused a carry
-                        \ (i.e. they overflowed), jump to MA30 to return A = &FF
-
- STA R                  \ Store A (sum of the two high bytes) in R
-
- LDA K%+7,Y             \ Set (A P) = z_hi * z_hi
- JSR SQUA2
-
- ADC R                  \ Add A (high byte of third result) to R, so R now
-                        \ contains the high byte of the entire sum, i.e. of
-                        \ x_hi^2 + y_hi^2 + z_hi^2
-
- BCC P%+4               \ If there is no carry, skip the following instruction
-                        \ to return straight from the subroutine
-
-.MA30
-
- LDA #&FF               \ The calculation has overflowed, so set A = &FF
 
  RTS                    \ Return from the subroutine
 
