@@ -27,7 +27,6 @@
 .R_NDX2     SKIP 192
 .R_NDX3     SKIP 192
 \ private to raster.asm: each buffer's last boundaries (raw), &500 apart
-.R_BDN0     SKIP 192
 .R_BDP0     SKIP 192
 .R_BDX00    SKIP 192
 .R_BDX10    SKIP 192
@@ -60,9 +59,8 @@
 .r7_lpb     SKIP 1
 .r7_lpn     SKIP 1
 .r7_lpk     SKIP 1          \ last row whose R_WL/R_WR the repair wrote (0: none)
-PRINT "raster_vars: the gap between the boundary arrays has ", &500 - 6 * 192 - (P% - R_GAP0), " bytes free"
-            SKIP &500 - 6 * 192 - (P% - R_GAP0)
-.R_BDN1     SKIP 192
+PRINT "raster_vars: the gap between the boundary arrays has ", &500 - 5 * 192 - (P% - R_GAP0), " bytes free"
+            SKIP &500 - 5 * 192 - (P% - R_GAP0)
 .R_BDP1     SKIP 192
 .R_BDX01    SKIP 192
 .R_BDX11    SKIP 192
@@ -71,4 +69,4 @@ PRINT "raster_vars: the gap between the boundary arrays has ", &500 - 6 * 192 - 
 
 
 ASSERT R_DIRTYL1 = R_DIRTYL0 + &300
-ASSERT R_BDN1 = R_BDN0 + &500
+ASSERT R_BDP1 = R_BDP0 + &500

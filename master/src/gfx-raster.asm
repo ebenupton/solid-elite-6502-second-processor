@@ -645,6 +645,15 @@ R_ENDPAGE 22
   RTS
 R_ENDPAGE 23
 
+\ ============================================================================
+\ The boundary arrays of two-colour discs (R_DISCROWS, r_dbm): each buffer's
+\ last boundaries per row.  Buffer 1's array of a pair shares buffer 0's low
+\ byte, as r_dbm patches only operands' high bytes (from r_sbh_bd*).
+\ ============================================================================
+.R_BDN0 SKIP 192        \ boundaries per row, 0..4
+.r_bdh0                 \ (64 bytes free)
+  SKIP R_BDN0 + &100 - P%
+.R_BDN1 SKIP 192
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
 ASSERT r_s1a = r_s0a + &300 AND r_s1b = r_s0b + &300
 
