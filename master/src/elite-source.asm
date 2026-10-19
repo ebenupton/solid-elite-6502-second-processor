@@ -3958,10 +3958,6 @@ ENDIF
 \
 \ ******************************************************************************
 
-                        \ Port: moved back here from the low code (elite-low.asm),
-                        \ to make room there, into the slack in front of the
-                        \ font; far4 reaches it in main RAM
-
 .ZEKTRAN
 
  LDA #0                 \ We want to zero the key logger buffer, so set A % 0
@@ -19265,7 +19261,7 @@ ENDIF
 \ ******************************************************************************
 
                         \ Port: removed (it was never reached and nothing
-                        \ refers to it), to make room in the main code
+                        \ refers to it)
 
 \ ******************************************************************************
 \
@@ -19330,7 +19326,7 @@ ENDIF
 
  ASSERT 5 * NI% + NI% - 1 < 256 AND LO(K%) = 0
 
- INCLUDE "src/elite-flight.asm" \ Port: flight code moved back from bank 4
+ INCLUDE "src/elite-flight.asm" \ Port: the rest of the flight code
 
 .F%
 

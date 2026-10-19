@@ -652,7 +652,7 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: TIS2 moved to the main code (elite-flight.asm), fully unrolled
+\ Port: TIS2 is in the main code (elite-flight.asm), fully unrolled
 
 \ ******************************************************************************
 \
@@ -1660,7 +1660,7 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: FRS1, FRMIS, ANGRY and FR1 moved to the cold area (elite-cold7.asm,
+\ Port: FRS1, FRMIS, ANGRY and FR1 are in the cold area (elite-cold7.asm,
 \ ANGRY in elite-andy.asm); their stubs:
 
 .FRMIS
@@ -1675,11 +1675,7 @@ ENDIF
  JSR far7
  EQUW fq1_C
 
-\ Port: SFRMIS moved to the high code (main RAM)
-
-\ Port: ECMOF moved to the high code (main RAM)
-
-\ Port: THERE moved to the high code (main RAM)
+\ Port: SFRMIS, ECMOF and THERE are in the high code (main RAM)
 
 \ ******************************************************************************
 \
@@ -1716,8 +1712,7 @@ ENDIF
 \       Name: fkl
 \       Type: Variable
 \   Category: Keyboard
-\    Summary: FILLKL: the keyboard columns with a key pressed (Port: moved here
-\             from the end of STARS1's fixed budget, for room)
+\    Summary: Port: FILLKL's keyboard columns with a key pressed
 \
 \ ******************************************************************************
 

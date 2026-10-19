@@ -7419,9 +7419,7 @@ ENDIF
  JMP MESS_C               \ in-flight message and return from the subroutine using
                         \ a tail call
 
-                        \ Port: ZEKTRAN has moved to the main code, in front of
-                        \ the font (elite-source.asm), to make room here; this
-                        \ RTS is still SFRMIS's return
+                        \ Port: ZEKTRAN is in the main code (elite-source.asm)
 
 .ZEKRTS
 

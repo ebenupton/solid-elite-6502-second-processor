@@ -1,8 +1,9 @@
 \ ******************************************************************************
 \
-\ elite-flight.asm - flight code moved back from bank 4 to the end of the main
-\ code (docs/MASTER-MAP.md), to make room in bank 4 for the renderer's
-\ pieces. Game logic only: none of it runs with ACCCON X set.
+\ elite-flight.asm - flight code at the end of the main code (docs/MASTER-MAP.md):
+\ the moving of ships and the planet (MV40, MV1, MV2, MVS5), TIS2, the laser
+\ sights' colours, LL9F and the stardust's record-mode patching. Game logic
+\ only: none of it runs with ACCCON X set.
 \
 \ ******************************************************************************
 
@@ -263,8 +264,7 @@
 \       Type: Variable
 \   Category: Drawing lines
 \    Summary: Colours for the crosshair sights on the different laser types
-\             (Port: in the main code to make room in bank 4; the unused
-\             beamcol table that followed it is gone)
+\             (Port: the unused beamcol table that followed it is gone)
 \
 \ ******************************************************************************
 
@@ -284,7 +284,6 @@
 \       Type: Subroutine
 \   Category: Drawing ships
 \    Summary: Port: draw a ship with LL9, then the frame (the title screen)
-\             (in the main code to make room in bank 4)
 \
 \ ******************************************************************************
 

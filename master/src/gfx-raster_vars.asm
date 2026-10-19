@@ -42,7 +42,6 @@
 .PM_BLK2 SKIP MCB       \ sidev's
 .PM_CX   SKIP 2         \ the planet's centre (f_merid -> PM_MERID)
 .PM_CY   SKIP 2
-\ (from raster_vars.asm, moved here for room below &DC00)
 \ private to raster.asm / raster7.asm: shared state
 .R_PRBUF    SKIP 1
 .R_PRDYT    SKIP 2
