@@ -8871,7 +8871,7 @@ ENDIF
                         \ view)
 
  LDA #&FF               \ Port: the hangar's ships are drawn directly, not
- STA GFORCE             \ recorded for the renderer (GFORCE, gfx-gstubs.asm)
+ STA GFORCE             \ recorded for the renderer (GFORCE, gfx-gvars.asm)
 
  JSR DORND              \ Set A and X to random numbers
 
@@ -13941,10 +13941,8 @@ ENDIF
 .PLS22
 
  JSR pl4pat             \ Port: a new curve of the planet's detail, for the
-                        \ renderer (H_PCURVE, called by pl4pat in the stubs
-                        \ area, which also picks this loop or PLL4F)
-                        \ (gfx-hooks.asm): the original comment continues
-                        \ renderer (gfx-hooks.asm)
+                        \ renderer (pl4pat in bank 4 calls H_PCURVE in
+                        \ gfx-hooks.asm, and picks this loop or PLL4F)
 
  LDX #0                 \ Set CNT = 0
  STX CNT

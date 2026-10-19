@@ -33,8 +33,7 @@
 .R_BDX10    SKIP 192
 .R_BDX20    SKIP 192
 .R_BDX30    SKIP 192
-\ (in the gap between the two buffers' boundary arrays: Master port, for room
-\ in HAZEL below &DC00)
+\ (in the gap between the two buffers' boundary arrays: Master port)
 .R_GAP0
 \ private to raster.asm / raster7.asm: shared state
 .R_PRBUF    SKIP 1

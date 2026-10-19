@@ -4913,7 +4913,7 @@ ENDIF
 .HFS1_C
 
  LDX #&FF               \ Port: the rings are drawn directly, even in record
- STX GFORCE             \ mode (GFORCE, gfx-gstubs.asm)
+ STX GFORCE             \ mode (GFORCE, gfx-gvars.asm)
 
  LDX #X                 \ Set K3 = #X (the x-coordinate of the centre of the
  STX K3                 \ screen)

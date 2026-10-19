@@ -1683,7 +1683,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Main loop
 \    Summary: Copy INWK back to a ship's data block, unrolled for slots 0-5
-\             (Port: the demo port's CPYOUT, 8a7e690; in the low code for room)
+\             (Port: the demo port's CPYOUT, 8a7e690)
 \
 \ ******************************************************************************
 

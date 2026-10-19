@@ -59,9 +59,8 @@ ASSERT P% <= RVBASE
 SKIP RVBASE - P%
 INCLUDE "src/gfx-raster_vars.asm"
 ASSERT R_DIRTYR0 = RVBASE + RVOFF
-\ The CMYK dashboard's scalar variables (elite-dash.asm), here for room in
-\ bank 4 (the dashboard routines run with ACCCON X set, so not main RAM above
-\ &3000)
+\ The CMYK dashboard's scalar variables (elite-dash.asm; the dashboard
+\ routines run with ACCCON X set, so not main RAM above &3000)
 .DASHV
 .dpE    SKIP 1          \ the current colour pair (even, odd lines)
 .dpO    SKIP 1

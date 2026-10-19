@@ -10198,9 +10198,8 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \JSR U%                 \ This instruction is commented out in the original
                         \ source
 
- JMP DEATHT             \ Port: jump to DEATHT in the main RAM at &7E00 to
-                        \ run the rest of the death sequence (moved there to
-                        \ make room in bank 4)
+ JMP DEATHT             \ Port: jump to DEATHT in the high code (main RAM) to
+                        \ run the rest of the death sequence
 
 \ ******************************************************************************
 \
@@ -10284,7 +10283,7 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \       Type: Subroutine
 \   Category: Maths (Geometry)
 \    Summary: LL51's loop, with the coordinates' logs patched in by LL51
-\             (Port: at the end of bank 4 for room)
+\             (Port: at the end of bank 4)
 \
 \ ******************************************************************************
 
@@ -10404,8 +10403,7 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 
 .lfn1j
 
- JMP lfn1               \ Different signs: lfn1 and lfn2 are in LL51's old
-                        \ space (for room)
+ JMP lfn1               \ Different signs: lfn1 and lfn2 are in LL51
 
 .lfn2j
 

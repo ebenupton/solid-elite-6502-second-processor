@@ -390,7 +390,7 @@
 \
 \ Port: MVS5 in the demo port's form (bebd95c, 8a7e690, bcde44b w_0037,
 \ 73eee89 w_0040, 22be6e1 w_0040, b5ffdfd, 55e7b89 w_0039): both ADDs inline
-\ with the rare paths through ADD, at the end of the main code for room (MVEIT and HAS1 call it)
+\ with the rare paths through ADD (MVEIT and HAS1 call it)
 \
 \ ******************************************************************************
 
