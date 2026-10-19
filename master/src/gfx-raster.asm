@@ -4229,29 +4229,6 @@ ENDMACRO
   LDA r_k
   STA r_scnt,X
   RTS
-.one
-  LDA r_lm,X
-  AND r_rm,X
-  JMP msk                 \ (out of BRA range)
-.odd                      \ size 1 or 3: the fast path's tests, as for size 2
-  LDY R_SY,X
-  LDA R_SX,X
-  TAX
-  CPX R_CL
-  BCC slow
-  CPX R_CR
-  BCS slow
-  CPY R_CT
-  BCC slow
-.cb1
-  CPY #0                  \ (CB + 1)
-  BCS slow
-  LDA RZ_TA
-  LSR A                   \ size 1 or 3: A = 0 for 1, 1 for 3
-  BEQ one                 \ size 1: one pixel; 3: two
-  STX RZ_SA               \ (x for the second row at nx)
-  CPY R_CB                \ size 3: the second row inside too? (y + 1 <= CB)
-  BCC two2
 .slow
   STX RZ_SA               \ (X = x, Y = y on every branch here)
   STY RZ_SA+1
@@ -4270,7 +4247,6 @@ ENDMACRO
   LDA R_CB
   INC A
   STA cb1+1
-  STA cb2+1
   LDA R_SN                \ star count (only ever 0 or 19, so <= 24)
   STA sl+1                \ (patched: the loop limit)
   STA nl+1                \ (and its copy at .nl)
@@ -4286,8 +4262,6 @@ ENDMACRO
 .some
   STX RZ_TA+1
   STA RZ_TA
-  LSR A                   \ size 1..3: C = 0 for 2 (the common case)
-  BCS odd                 \ (size 1 or 3)
   LDY R_SY,X
   LDA R_SX,X
   TAX                     \ fast path: x .. x+1 inside the window, in one byte,
@@ -4297,8 +4271,15 @@ ENDMACRO
   BCS slow
   CPY R_CT                \ (two pixels split across bytes, x AND 3 = 3 with
   BCC slow                \ size >= 2: caught by the mask being 0 at .two)
-.cb2
+.cb1
   CPY #0                  \ (CB + 1)
+  BCS slow
+  LDA RZ_TA
+  LSR A                   \ size 1..3: C = 0 for 2; else A = 0 for 1, 1 for 3
+  BCC two2                \ (size 2)
+  BEQ one                 \ size 1: one pixel; 2, 3: two
+  STX RZ_SA               \ (x for the second row at nx)
+  CPY R_CB                \ size 3: the second row inside too? (y + 1 <= CB)
   BCS slow
 .two2
   LDA r_lm,X
@@ -4347,6 +4328,10 @@ ENDMACRO
   LDX RZ_SA
   INY
   BRA row
+.one
+  LDA r_lm,X
+  AND r_rm,X
+  BRA msk
 }
 
 \ one row of a star: row RZ_SA+1, pixel RZ_SA (and RZ_SA+1 if size >= 2).
