@@ -3,7 +3,7 @@
 // port replays its inputs read for read; game state compared every iteration.
 //
 // node master/tools/agentplay/agentplay.mjs --out DIR [--minutes 10] [--seed N]
-//      [--commander jameson|trader|equipped|rich|deadly|mission2|debrief1|galaxy3|wanted]
+//      [--commander jameson|trader|equipped|rich|deadly|mission2|debrief1|galaxy3|debrief2|wanted]
 //      [--mode efficient,curious,fair,keyboard,nosave,nomission,load]
 //      [--chaos all|ecm,bomb,...] [--start FRAMES] [--shots N] [--keepgoing N] [--strict] [--noobserve]
 //      [--workaround look1] (candidate-side runtime workaround for a known port bug, to play on past it)

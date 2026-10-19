@@ -46,6 +46,9 @@ export const COMMANDERS = {
     // galaxy 3 at Ceerdi (215, 84) with mission 1 done and tally 1400: the Thargoid plans
     // briefing at the first dock, then Ceerdi (BRIEF3) and Birera (DEBRIEF2)
     galaxy3: { what: "galaxy 3 at Ceerdi, mission 1 done, tally 1400, all fitted: the Thargoid plans mission", patch: patcher({ ...ALL, ...galaxy(2), QQ0: [215], QQ1: [84], LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [1400 & 255, 1400 >> 8], TP: [2] }) },
+    // galaxy 3 at Birera (63, 72) with the Thargoid plans aboard (TP = %1010): the agent
+    // takes them to Birera, where docking debriefs mission 2
+    debrief2: { what: "galaxy 3 at Birera with the Thargoid plans (TP = 10): mission 2's debriefing at Birera", patch: patcher({ ...ALL, ...galaxy(2), QQ0: [63], QQ1: [72], LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [1500 & 255, 1500 >> 8], TP: [10] }) },
     wanted: { what: "a fugitive (legal status 80), 2000 Cr, ECM and pod", patch: patcher({ FIST: [80], CASH: cash(2000), ECM: [0xff], ESCP: [0xff] }) },
 };
 

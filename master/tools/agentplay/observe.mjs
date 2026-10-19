@@ -154,8 +154,8 @@ export class Observer {
     }
 
     // where SCAN puts each ship's dot, from the K% slots as they are at MLOOP (both
-    // machines' state is the same): [x, dashboard line], as the original's SCAN computes
-    // X1 and Y1 (8-bit arithmetic and all)
+    // machines' state is the same): [x, dot's dashboard line, type, stick base's line], as
+    // the original's SCAN computes X1, Y1 and Y2 (8-bit arithmetic and all)
     shipDots() {
         const m = this.m, sy = m.sy, out = [];
         for (let i = 0; i < 12; i++) {
@@ -172,7 +172,7 @@ export class Observer {
             if (!(r(5) & 0x80)) { a ^= 255; c = 1; }
             let y1 = a + y2 + c; const neg = (y1 & 0x80) !== 0; y1 &= 255;
             y1 = !neg ? 246 : Math.min(246, Math.max(194, y1));
-            out.push([x1, y1 - 192, type]);
+            out.push([x1, y1 - 192, type, y2 - 192]);
         }
         return out;
     }
@@ -202,7 +202,10 @@ export class Observer {
         // (the original's same-coloured dots cancel; the port's dither patterns don't): not a
         // difference in what the scanner shows (an expected difference)
         // (a blob of dots and sticks side by side: count the ships whose dots fall in its box)
-        const overlap = ([x, y, n = 1, e = x + 3]) => (r.ships || []).filter(([sx, sy]) => sx >= x - 4 && sx <= e + 4 && sy >= y - n - 1 && sy <= y + 2).length >= 2;
+        // (a blob of dots and sticks side by side: count the ships whose dot or stick, from
+        // the dot's line to the stick's base, falls in its box)
+        const overlap = ([x, y, n = 1, e = x + 3]) => (r.ships || []).filter(([sx, sy, , sb = sy]) =>
+            sx >= x - 4 && sx <= e + 4 && Math.min(sy, sb) - 1 <= y + 2 && Math.max(sy, sb) + 1 >= y - n - 1).length >= 2;
         const ov = [...miss.filter(overlap), ...extra.filter(overlap)];
         if (ov.length) out.push({ what: "scanner dots overlapping (expected)", ref: miss.filter(overlap), cand: extra.filter(overlap), expected: true });
         miss = miss.filter(d => !overlap(d)); extra = extra.filter(d => !overlap(d));
