@@ -1,9 +1,9 @@
 \ ============================================================================
 \ raster_scr.asm -- the rasteriser's scratch variables: inputs of one call
-\ (polygon vertices, line end points) and the polygon edge tables, which no
-\ call reads from an earlier one. They can therefore live in HAZEL's
-\ &C000-&C2BF, which DFS overwrites during disc access (docs/MASTER-MEMORY.md):
-\ nothing needs rebuilding afterwards. (Split from raster_vars.asm.)
+\ (polygon vertices, line end points) and the polygon edge tables and rows,
+\ which no call reads from an earlier one. They can therefore live in
+\ HAZEL's &C000-&C2FF, which DFS overwrites during disc access
+\ (docs/MASTER-MEMORY.md): nothing needs rebuilding afterwards.
 \ ============================================================================
 
 .R_NDISCL   SKIP 192        \ new disc spans, left ends (rows NDT..NDB only, written

@@ -116,9 +116,6 @@ class Machine(tr.Machine):
                     if mem[a] != snap[a]:
                         raise AssertionError('%s wrote &%04X' % (name, a))
             a0 = max(a0, hi)
-        w0 = s.get('r_wcrun')
-        if w0 is not None and mem[w0:w0 + 3 * 193 + 1] != snap[w0:w0 + 3 * 193 + 1]:
-            raise AssertionError('%s left r_wcrun modified' % name)
         r0 = s['r_run0']
         for r in range(24):
             b = r0 + 256 * r
