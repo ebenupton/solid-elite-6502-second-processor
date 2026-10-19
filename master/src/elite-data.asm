@@ -3568,7 +3568,7 @@ ENDMACRO
                         \ follow below, after QQ18); the padding that put QQ18 at
                         \ &A000 in the original is gone
 
- ORG &AA00              \ Port: QQ18 is cold data, at the start of the cold
+ ORG &AB00              \ Port: QQ18 is cold data, at the start of the cold
                         \ area's bank 7 part (docs/MASTER-MAP.md); bank 7 below
                         \ COLD7LO holds the rasteriser's cold code
 
