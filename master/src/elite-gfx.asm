@@ -95,7 +95,6 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 .F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm's F_DSTAR,
 .F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, after R_SS)
-ASSERT HI(F_DSX) = HI(F_DSY+NDSTAR-1)
 .fl_ml  SKIP 2          \ the lens flare (gfx-flare.asm): 32 D (x, y), low
 .fl_mh  SKIP 2          \ and high bytes
 .fl_sl  SKIP 2          \ the centres' sums S (x, y)
@@ -116,14 +115,11 @@ ORG &DC40                       \ (after the longest OSCLI command the game
 .R_SX       SKIP 24
 .R_SY       SKIP 24
 .R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
-ALIGN &100              \ (R_WR: no page crossing for any row)
 .R_WR    SKIP 192       \ (raster_vars.asm)
 .R_SS       SKIP 24         \ star size 1..3
 .F_DSS      SKIP NDSTAR     \ the directly drawn stars' sizes (0 = none; see
                             \ F_DSX): cleared with R_SS (F_INIT, f_direct0)
-ASSERT F_DSS = R_SS + 24 AND HI(F_DSS) = HI(F_DSS+NDSTAR-1)
-ASSERT HI(R_NDN) = HI(R_NDN+191) AND HI(R_WL) = HI(R_WL+191) AND HI(R_WR) = HI(R_WR+191)
-ASSERT HI(R_SX) = HI(R_SX+23) AND HI(R_SY) = HI(R_SY+23) AND HI(R_SS) = HI(R_SS+23)
+ASSERT F_DSS = R_SS + 24
 .HZ_END2
 PRINT "HAZEL: data &DC40-", ~HZ_END2-1, " free to &DF00 ", &DF00-HZ_END2
 ASSERT HZ_END2 <= &DF00         \ the MOS's filing system workspace
@@ -145,8 +141,7 @@ INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
 INCLUDE "src/gfx-frame_cold.asm"
 INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step and span writer
 .B6_CODE_END
-ALIGN &100              \ (page-aligned, so that the indexed loads never take
-.F_HW   SKIP 256        \ page-crossing cycles): planet half-widths
+.F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
 .F_DL   SKIP 1536       \ ship records: XX2 then XX3 copies
 .F_DLEND

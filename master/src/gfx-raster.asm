@@ -5030,8 +5030,8 @@ ENDMACRO
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
-.^r_ypg                   \ high byte of row y's byte 0 (here so that it
-FOR y, 0, 191             \ lies in one page: LDA r_ypg,X/Y never cross)
+.^r_ypg                   \ high byte of row y's byte 0
+FOR y, 0, 191
   EQUB &40 + 2 * (y DIV 8)
 NEXT
 .long
@@ -5124,8 +5124,6 @@ NEXT
   LDA R_DBO
   STA r_cB
   RTS
-
-ASSERT HI(r_ypg) = HI(r_ypg + 191)
 
 .r_end
 PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end

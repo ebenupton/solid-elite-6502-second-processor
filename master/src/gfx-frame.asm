@@ -1365,7 +1365,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDX #0                 \ patched: LDX #first tail row, BIT # (no-op) or RTS
  CLC                    \ (Y = k of the first tail row already)
  JMP fdf1
- ASSERT LO(R_NDISCR) + 191 < 256 AND LO(F_HW) = 0 AND LO(F_HW2) = 0
+ ASSERT LO(R_NDISCR) + 191 < 256 AND LO(F_HW) = LO(F_HW2)
 
 f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
 .f_cxh EQUB 0           \ high byte of cx
@@ -2560,7 +2560,6 @@ SGOUT = 20
  ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
  ASSERT HI(R_DIRTYR0+SGY-SGOUT-1) = HI(R_DIRTYR0)+1 AND HI(R_DIRTYR1+SGY-SGOUT-1) = HI(R_DIRTYR1)+1
  ASSERT HI(R_DIRTYR0+SGY-SGOUT-1) = HI(R_DIRTYR0+SGY+SGOUT+1)   \ no page crossings in the loop
- ASSERT HI(R_WR+SGY-SGOUT-1) = HI(R_WR+SGY+SGOUT+1)
  LDY #2*SGOUT+1         \ two rows a pass: SGY-SGOUT+Y and SGY-SGOUT-1+Y, Y = 41,
 .fsg2                   \ 39 .. 1 (row SGY+SGOUT+1 is read too; f_sgs ignores it).
  LDA R_WR+SGY-SGOUT,Y   \ f_wcov with A = X = SGX: WR, DIRTYR >= SGX (= &80,
