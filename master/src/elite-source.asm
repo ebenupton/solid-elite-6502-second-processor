@@ -6976,6 +6976,11 @@ ENDIF
 \
 \ ******************************************************************************
 
+.stlff
+
+ LDA #255               \ STL1's inlined DVID4z: R = 255
+ JMP stlr
+
 .stl_dvs
 
  JSR DVID4              \ DELTA >= z_hi (rare): (P R) = 256 * DELTA / z_hi with
@@ -7058,7 +7063,22 @@ ENDIF
  CMP Q
  BCS stl_dvs
 
- JSR DVID4z             \ Set A = R = 256 * speed / z_hi (P = 0), as DV42
+ TAX                    \ Set A = R = 256 * speed / z_hi (P = 0), as DV42,
+ BEQ stlr               \ with DVID4z inlined (A = 0 gives R = 0)
+ LDA log,X
+ STA widget
+ LDA logL,X
+ LDX Q
+ CMP logL,X             \ C = borrow from the low bytes of log(A) - log(Q)
+ LDA widget
+ SBC log,X
+ BCS stlff              \ A >= Q in the logs: R = 255 (at stlff)
+ TAX
+ LDA alogh,X
+
+.stlr
+
+ STA R
 
  LSR A                  \ Shift (0 A) right by 2 places, so:
  LSR A                  \
