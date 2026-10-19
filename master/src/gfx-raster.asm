@@ -913,7 +913,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
-  SKIP 3                  \ (3 bytes saved above: keeps later bank-5 addresses unchanged)
 }
 
 \ ============================================================================
@@ -1792,7 +1791,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   STX r_v0
   JMP r_div8
 }
-  SKIP 6                  \ the two JMPs removed above: keeps later bank-5 addresses unchanged
 
 \ ----------------------------------------------------------------------------
 \ Phase B: rows RZ_Y.., RZ_SA of them; left table r_pbl1, right (exclusive)
