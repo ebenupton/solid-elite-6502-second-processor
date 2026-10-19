@@ -6,8 +6,39 @@
 \ entry points page it in through raster_hz.asm's stubs.
 \ ============================================================================
 
-ALIGN &100
+\ (The bank starts on a page boundary: the runs need whole pages.)
 .r7_start
+\ the row runs: one page per character row r: STA &4000+&200r+8k-8r,Y (Y = row) for byte
+\ columns k = 1..63, then RTS
+ALIGN &100
+.r7_rrun
+FOR r, 0, 23
+  FOR k, 1, 63
+    STA &4000 + r * &200 + k * 8 - r * 8, Y
+  NEXT
+  RTS
+  ALIGN &100
+NEXT
+.r7_fr                    \ x DIV 4
+FOR x, 0, 255
+  EQUB x DIV 4
+NEXT
+.r7_jl                    \ run offset of byte column x DIV 4 (x >= 4)
+FOR x, 0, 255
+  EQUB LO(3 * (x DIV 4 - 1))
+NEXT
+.r7_jr                    \ run offset of byte column x DIV 4 + 1 (the RTS)
+FOR x, 0, 255
+  EQUB LO(3 * (x DIV 4))
+NEXT
+.r7_j3                    \ run offset of byte column k (1..63)
+FOR k, 0, 63
+  EQUB LO(3 * (k - 1))
+NEXT
+.r7_rp                    \ run page of row y
+FOR y, 0, 191
+  EQUB HI(r7_rrun) + (y DIV 8)
+NEXT
 .r7_xo
 FOR x, 0, 255
   EQUB (x * 2) AND &F8
@@ -25,146 +56,6 @@ FOR x, 0, 255
   EQUB ((&F0 << (3 - (x AND 3))) AND &F0) OR ((&0F << (3 - (x AND 3))) AND &0F)
 NEXT
 
-
-\ ============================================================================
-\ R_INIT (bank 7 part)
-\ ============================================================================
-.r7_init
-{
-  LDA #1
-  STA R_CL
-  STA R_CT
-  LDA #254
-  STA R_CR
-  LDA #191
-  STA R_CB
-  LDA #&FF
-  STA R_SCOL
-  STA R_NDT
-  STZ R_NDB
-  STZ R_NDF
-  STZ R_SN
-  STZ R_PN
-  LDA #1                  \ R_SETBUF 0 (forcing the patch)
-  STA R_PRBUF
-  LDX #LO(R_SETBUF)
-  STX r_hzt5
-  LDX #HI(R_SETBUF)
-  STX r_hzt5+1
-  LDA #0
-  JSR r_call5
-  LDY #191
-.il
-  LDA #&FF
-  STA R_DIRTYL0,Y
-  STA R_DISCL0,Y
-  STA R_DIRTYL1,Y
-  STA R_DISCL1,Y
-  STA R_WL,Y
-  LDA #0
-  STA R_DIRTYR0,Y
-  STA R_DISCR0,Y
-  STA R_DIRTYR1,Y
-  STA R_DISCR1,Y
-  STA R_WR,Y
-  DEY
-  CPY #&FF
-  BNE il
-  LDX #1
-.ib
-  JSR r7_reset1
-  DEX
-  BPL ib
-  LDA #&FF
-  STA R_PRWT
-  STZ R_PRWB
-  RTS
-}
-
-\ r7_reset1: buffer X's scalars (keeps X)
-.r7_reset1
-  LDA #&FF
-  STA R_PRDYT,X
-  STA R_PRDST,X
-  STZ R_PRDYB,X
-  STZ R_PRDSB,X
-  STZ R_PRSCNT,X
-  STZ R_PRECNT,X
-  STZ R_PRBMODE,X
-  RTS
-
-\ ============================================================================
-\ R_RESETBUF (bank 7 part): the current buffer's state, not the screen
-\ ============================================================================
-.r7_resetbuf
-{
-  LDY #191
-  LDX R_PRBUF
-  BNE b1
-.c0
-  LDA #&FF
-  STA R_DIRTYL0,Y
-  STA R_DISCL0,Y
-  LDA #0
-  STA R_DIRTYR0,Y
-  STA R_DISCR0,Y
-  DEY
-  CPY #&FF
-  BNE c0
-  BRA done
-.b1
-  LDA #&FF
-  STA R_DIRTYL1,Y
-  STA R_DISCL1,Y
-  LDA #0
-  STA R_DIRTYR1,Y
-  STA R_DISCR1,Y
-  DEY
-  CPY #&FF
-  BNE b1
-.done
-  JMP r7_reset1
-}
-
-\ ============================================================================
-\ R_CLEARALL (bank 7 part): black the clip window, reset the buffer's state
-\ ============================================================================
-.r7_clearall
-{
-  LDX #LO(r_clrrow)       \ each row by bank 5's span code
-  STX r_hzt5
-  LDX #HI(r_clrrow)
-  STX r_hzt5+1
-  LDY R_CT
-.row
-  STY RZ_T0
-  JSR r_call5
-  LDY RZ_T0
-  CPY R_CB
-  INY
-  BCC row
-  JSR r7_resetbuf
-  LDY R_CT                \ WL/WR: the whole window was written
-.cw
-  LDA R_CL
-  STA R_WL,Y
-  LDA R_CR
-  STA R_WR,Y
-  CPY R_CB
-  INY
-  BCC cw
-  LDA R_CT
-  CMP R_PRWT
-  BCS w1
-  STA R_PRWT
-.w1
-  LDA R_CB
-  CMP R_PRWB
-  BCC w2
-  STA R_PRWB
-.w2
-  RTS
-}
 
 \ ============================================================================
 \ Dirty repair outside the disc rows (R_DISCROWS calls r7_crep before its row
@@ -187,7 +78,9 @@ c_CO  = &22
 c_BT  = &24
 c_BB  = &25
 
-ALIGN &100
+
+\ (r7_crep and r7_wmerge share a page, as r_c7 calls them by their low
+\ bytes: first after the tables, which end on a page boundary)
 .r7_crep
 {
   STZ R_PRCWB
@@ -505,41 +398,150 @@ ALIGN &100
 .drh EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 }
 
-ASSERT HI(r7_crep) = HI(r7_wmerge)
-ALIGN &100                \ page-aligned: no +1 page-crossing cycles on the ,X / ,Y lookups
-.r7_fr                    \ x DIV 4
-FOR x, 0, 255
-  EQUB x DIV 4
-NEXT
-.r7_jl                    \ run offset of byte column x DIV 4 (x >= 4)
-FOR x, 0, 255
-  EQUB LO(3 * (x DIV 4 - 1))
-NEXT
-.r7_jr                    \ run offset of byte column x DIV 4 + 1 (the RTS)
-FOR x, 0, 255
-  EQUB LO(3 * (x DIV 4))
-NEXT
-.r7_j3                    \ run offset of byte column k (1..63)
-FOR k, 0, 63
-  EQUB LO(3 * (k - 1))
-NEXT
-.r7_rp                    \ run page of row y
-FOR y, 0, 191
-  EQUB HI(r7_rrun) + (y DIV 8)
-NEXT
-ASSERT LO(r7_fr) = 0 AND LO(r7_jl) = 0 AND LO(r7_jr) = 0
-ASSERT HI(r7_j3 + 63) = HI(r7_j3) AND HI(r7_rp + 191) = HI(r7_rp)
-\ the row runs: one page per character row r: STA &4000+&200r+8k-8r,Y (Y = row) for byte
-\ columns k = 1..63, then RTS
-ALIGN &100
-.r7_rrun
-FOR r, 0, 23
-  FOR k, 1, 63
-    STA &4000 + r * &200 + k * 8 - r * 8, Y
-  NEXT
+ASSERT HI(r7_crep) = HI(r7_wmerge)  \ (r_c7 calls them by their low bytes)
+
+\ ============================================================================
+\ R_INIT (bank 7 part)
+\ ============================================================================
+.r7_init
+{
+  LDA #1
+  STA R_CL
+  STA R_CT
+  LDA #254
+  STA R_CR
+  LDA #191
+  STA R_CB
+  LDA #&FF
+  STA R_SCOL
+  STA R_NDT
+  STZ R_NDB
+  STZ R_NDF
+  STZ R_SN
+  STZ R_PN
+  LDA #1                  \ R_SETBUF 0 (forcing the patch)
+  STA R_PRBUF
+  LDX #LO(R_SETBUF)
+  STX r_hzt5
+  LDX #HI(R_SETBUF)
+  STX r_hzt5+1
+  LDA #0
+  JSR r_call5
+  LDY #191
+.il
+  LDA #&FF
+  STA R_DIRTYL0,Y
+  STA R_DISCL0,Y
+  STA R_DIRTYL1,Y
+  STA R_DISCL1,Y
+  STA R_WL,Y
+  LDA #0
+  STA R_DIRTYR0,Y
+  STA R_DISCR0,Y
+  STA R_DIRTYR1,Y
+  STA R_DISCR1,Y
+  STA R_WR,Y
+  DEY
+  CPY #&FF
+  BNE il
+  LDX #1
+.ib
+  JSR r7_reset1
+  DEX
+  BPL ib
+  LDA #&FF
+  STA R_PRWT
+  STZ R_PRWB
   RTS
-  ALIGN &100
-NEXT
+}
+
+\ r7_reset1: buffer X's scalars (keeps X)
+.r7_reset1
+  LDA #&FF
+  STA R_PRDYT,X
+  STA R_PRDST,X
+  STZ R_PRDYB,X
+  STZ R_PRDSB,X
+  STZ R_PRSCNT,X
+  STZ R_PRECNT,X
+  STZ R_PRBMODE,X
+  RTS
+
+\ ============================================================================
+\ R_RESETBUF (bank 7 part): the current buffer's state, not the screen
+\ ============================================================================
+.r7_resetbuf
+{
+  LDY #191
+  LDX R_PRBUF
+  BNE b1
+.c0
+  LDA #&FF
+  STA R_DIRTYL0,Y
+  STA R_DISCL0,Y
+  LDA #0
+  STA R_DIRTYR0,Y
+  STA R_DISCR0,Y
+  DEY
+  CPY #&FF
+  BNE c0
+  BRA done
+.b1
+  LDA #&FF
+  STA R_DIRTYL1,Y
+  STA R_DISCL1,Y
+  LDA #0
+  STA R_DIRTYR1,Y
+  STA R_DISCR1,Y
+  DEY
+  CPY #&FF
+  BNE b1
+.done
+  JMP r7_reset1
+}
+
+\ ============================================================================
+\ R_CLEARALL (bank 7 part): black the clip window, reset the buffer's state
+\ ============================================================================
+.r7_clearall
+{
+  LDX #LO(r_clrrow)       \ each row by bank 5's span code
+  STX r_hzt5
+  LDX #HI(r_clrrow)
+  STX r_hzt5+1
+  LDY R_CT
+.row
+  STY RZ_T0
+  JSR r_call5
+  LDY RZ_T0
+  CPY R_CB
+  INY
+  BCC row
+  JSR r7_resetbuf
+  LDY R_CT                \ WL/WR: the whole window was written
+.cw
+  LDA R_CL
+  STA R_WL,Y
+  LDA R_CR
+  STA R_WR,Y
+  CPY R_CB
+  INY
+  BCC cw
+  LDA R_CT
+  CMP R_PRWT
+  BCS w1
+  STA R_PRWT
+.w1
+  LDA R_CB
+  CMP R_PRWB
+  BCC w2
+  STA R_PRWB
+.w2
+  RTS
+}
+
+
+
 
 \ ============================================================================
 \ r7_line: R_LINE for 8-bit end points (0..255), R_LINE's pixels (Bresenham
