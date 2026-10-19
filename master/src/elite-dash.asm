@@ -788,7 +788,7 @@ DCN_MARK = 6            \ roll / pitch marker
 
 \ ------------------------------------------------------------------------------
 \ DOT: draw (EOR) the compass dot at (COMX, COMY) in colour COMC: YELLOW2 (in
-\ front) a 3 x 2 dot, GREEN2 (behind) a 3 x 1 one. Leaves X1 = COMX, COL =
+\ front) a 3 x 2 dot, GREEN2 (behind) a 3 x 1 one, 0 (no dot yet) nothing. Leaves X1 = COMX, COL =
 \ COMC and Y1 = COMY (minus one for the 3 x 2 dot), and A = %00001001, as
 \ Master's DOT
 \ ------------------------------------------------------------------------------
@@ -818,6 +818,7 @@ DCN_MARK = 6            \ roll / pitch marker
  STA dtmp
  LDA COMC
  STA COL
+ BEQ dot9               \ COMC = 0: nothing to draw (Master EORs colour 0)
  CMP #YELLOW2
  BNE dot1
  TXA                    \ In front: a double-height dot, Y1 one less
@@ -836,6 +837,7 @@ DCN_MARK = 6            \ roll / pitch marker
 .dot2
  LDA dtmp
  JSR ddot
+.dot9
  LDA #4                 \ Main RAM back at &3000-&7FFF
  TRB VIA+&34
  LDA #%00001001         \ (A as Master's DOT leaves it)
