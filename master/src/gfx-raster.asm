@@ -632,10 +632,19 @@ R_ENDPAGE 23
 
 \ ============================================================================
 \ The boundary arrays of two-colour discs (R_DISCROWS, r_dbm): each buffer's
-\ last boundaries per row.  Buffer 1's array of a pair shares buffer 0's low
-\ byte, as r_dbm patches only operands' high bytes (from r_sbh_bd*).
+\ last boundaries per row.  Each buffer's six arrays are contiguous, buffer
+\ 1's &500 after buffer 0's, so that the two arrays of a pair share their low
+\ byte (r_dbm patches only operands' high bytes, from r_sbh_bd*).  The most
+\ read, R_BDN, R_BDP and R_BDX0, are at low bytes &00, &40 and &00: reading
+\ them ,X never crosses a page.
 \ ============================================================================
-.R_BDN0 SKIP 192        \ boundaries per row, 0..4
+.R_BDN0  SKIP 192       \ boundaries per row, 0..4
+.R_BDX10 SKIP 192       \ their x (raw), the second ...
+.R_BDX20 SKIP 192
+.R_BDP0  SKIP 192       \ bit 0: the colour at the span's left end
+.R_BDX00 SKIP 192       \ ... and the first
+.R_BDX30 SKIP 192
+\ (the 128 bytes up to buffer 1's arrays)
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
 \ (RZ_PP+1 and r_jsr+2).  Clobbers A.
 .r_rowset
@@ -677,8 +686,35 @@ R_ENDPAGE 23
   LDX R_XL
   JMP r_spc
 }
-  SKIP R_BDN0 + &100 - P%
-.R_BDN1 SKIP 192
+\ r_bstore: Y = row: remember the row's new boundaries (raw) in this buffer
+.r_bstore
+  LDA R_NDN,Y
+  CMP #5
+  BCC bs1
+  LDA #4
+.bs1
+.^r_pt98 STA r_bdn,Y
+  LDA R_NDP,Y
+  AND #1
+.^r_pt99 STA r_bdp,Y
+  LDA R_NDX0,Y
+.^r_pt100 STA r_bdx0,Y
+  LDA R_NDX1,Y
+.^r_pt101 STA r_bdx1,Y
+  LDA R_NDX2,Y
+.^r_pt102 STA r_bdx2,Y
+  LDA R_NDX3,Y
+.^r_pt103 STA r_bdx3,Y
+  RTS
+
+  SKIP R_BDN0 + &500 - P%
+.R_BDN1  SKIP 192
+.R_BDX11 SKIP 192
+.R_BDX21 SKIP 192
+.R_BDP1  SKIP 192
+.R_BDX01 SKIP 192
+.R_BDX31 SKIP 192
+ASSERT R_BDN1 = R_BDN0 + &500 AND R_BDX31 = R_BDX30 + &500
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
 ASSERT r_s1a = r_s0a + &300 AND r_s1b = r_s0b + &300
 
@@ -2769,27 +2805,6 @@ r_bdx3 = R_BDX30
   STA r_nR
   BRA paint
 }
-
-\ r_bstore: Y = row: remember the row's new boundaries (raw) in this buffer
-.r_bstore
-  LDA R_NDN,Y
-  CMP #5
-  BCC bs1
-  LDA #4
-.bs1
-.^r_pt98 STA r_bdn,Y
-  LDA R_NDP,Y
-  AND #1
-.^r_pt99 STA r_bdp,Y
-  LDA R_NDX0,Y
-.^r_pt100 STA r_bdx0,Y
-  LDA R_NDX1,Y
-.^r_pt101 STA r_bdx1,Y
-  LDA R_NDX2,Y
-.^r_pt102 STA r_bdx2,Y
-  LDA R_NDX3,Y
-.^r_pt103 STA r_bdx3,Y
-  RTS
 
 \ r_segw: r_drg with boundaries: the whole new span r_nL..r_nR, segment by
 \ segment in colours A / B (row RZ_Y, r_cA/r_cB set)

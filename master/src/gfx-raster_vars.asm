@@ -2,7 +2,7 @@
 \ raster_vars.asm -- the variables and arrays of raster.asm that its caller
 \ reads or writes.  Assemble it (before INCLUDEing raster.asm) anywhere in
 \ memory both the caller and the rasteriser can see (e.g. HAZEL, &C000-&DFFF).
-\ No ORG and no alignment: it is placed at P%.  5921 bytes.
+\ No ORG and no alignment: it is placed at P%.
 \ See raster.asm for what each one means.
 \ ============================================================================
 
@@ -26,15 +26,7 @@
 .R_NDX1     SKIP 192        \ colour; values <= NDISCL or > NDISCR are allowed
 .R_NDX2     SKIP 192
 .R_NDX3     SKIP 192
-\ private to raster.asm: each buffer's last boundaries (raw), &500 apart
-.R_BDP0     SKIP 192
-.R_BDX00    SKIP 192
-.R_BDX10    SKIP 192
-.R_BDX20    SKIP 192
-.R_BDX30    SKIP 192
-\ (in the gap between the two buffers' boundary arrays: Master port)
-.R_GAP0
-\ private to raster.asm / raster7.asm: shared state
+\ private to raster.asm / raster7.asm: their shared state
 .R_PRBUF    SKIP 1
 .R_PRDYT    SKIP 2
 .R_PRDYB    SKIP 2
@@ -52,14 +44,5 @@
 .R_PRDYA    SKIP 1
 .R_PRDYZ    SKIP 1
 .R_PRCWB    SKIP 1
-PRINT "raster_vars: the gap between the boundary arrays has ", &500 - 5 * 192 - (P% - R_GAP0), " bytes free"
-            SKIP &500 - 5 * 192 - (P% - R_GAP0)
-.R_BDP1     SKIP 192
-.R_BDX01    SKIP 192
-.R_BDX11    SKIP 192
-.R_BDX21    SKIP 192
-.R_BDX31    SKIP 192
-
 
 ASSERT R_DIRTYL1 = R_DIRTYL0 + &300
-ASSERT R_BDP1 = R_BDP0 + &500
