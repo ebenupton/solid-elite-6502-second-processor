@@ -137,7 +137,7 @@ export class Observer {
             if (d) { d.y = y; d.n++; d.x = Math.min(d.x, x); d.e = Math.max(d.e, e); }
             else dots.push({ x, e, y, n: 1 });
         }
-        return { dots: dots.map(d => [d.x, d.y, d.n]).sort((a, b) => a[1] - b[1] || a[0] - b[0]), lit };
+        return { dots: dots.map(d => [d.x, d.y, d.n, d.e]).sort((a, b) => a[1] - b[1] || a[0] - b[0]), lit };
     }
 
     // where SCAN puts each ship's dot, from the K% slots as they are at MLOOP (both
@@ -188,7 +188,8 @@ export class Observer {
         // two or more ships' dots on top of each other: EOR mixes them, and the mixes differ
         // (the original's same-coloured dots cancel; the port's dither patterns don't): not a
         // difference in what the scanner shows (an expected difference)
-        const overlap = ([x, y]) => (r.ships || []).filter(([sx, sy]) => Math.abs(sx - x) <= 4 && Math.abs(sy - y) <= 2).length >= 2;
+        // (a blob of dots and sticks side by side: count the ships whose dots fall in its box)
+        const overlap = ([x, y, n = 1, e = x + 3]) => (r.ships || []).filter(([sx, sy]) => sx >= x - 4 && sx <= e + 4 && sy >= y - n - 1 && sy <= y + 2).length >= 2;
         const ov = [...miss.filter(overlap), ...extra.filter(overlap)];
         if (ov.length) out.push({ what: "scanner dots overlapping (expected)", ref: miss.filter(overlap), cand: extra.filter(overlap), expected: true });
         miss = miss.filter(d => !overlap(d)); extra = extra.filter(d => !overlap(d));
