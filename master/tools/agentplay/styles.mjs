@@ -1,0 +1,115 @@
+// Play styles for agentplay: the commanders a session starts with (patched into both
+// machines at the first BAY, the live commander and NA%, the copy a death goes back to),
+// elite-agent's own modes (environment for agentd), and the chaos overlay: extra keys
+// and pokes, chosen from the reference's state with a seeded random number generator,
+// that drive the game into what the agent rarely does on its own (escape pod, energy
+// bomb, E.C.M., galactic hyperdrive, the views, deaths). Everything the overlay does goes
+// through the same input log, so a session replays exactly.
+
+// A commander patch: { symbol: bytes } written into the live commander and into NA% (the
+// last-saved copy; NA%+8 lines up with TP, as elite-agent's save check assumes)
+function patcher(fields) {
+    return m => {
+        const sy = m.sy;
+        for (const [k, v] of Object.entries(fields)) {
+            m.wr(sy[k], v);
+            if (sy[k] >= sy.TP && sy[k] <= sy.SVC) m.wr(sy["NA%"] + 8 + sy[k] - sy.TP, v);
+        }
+    };
+}
+const cash = cr => { const t = Math.round(cr * 10); return [t >>> 24 & 255, t >>> 16 & 255, t >>> 8 & 255, t & 255]; };
+const ALL = { ECM: [0xff], BST: [0xff], BOMB: [0x7f], ENGY: [1], DKCMP: [0xff], GHYP: [0xff], ESCP: [0xff], NOMSL: [4], CRGO: [37], QQ14: [70] };
+
+export const COMMANDERS = {
+    jameson: { what: "the default commander: 100 Cr, a pulse laser, 3 missiles" },
+    trader: { what: "5000 Cr and a large cargo bay", patch: patcher({ CASH: cash(5000), CRGO: [37] }) },
+    equipped: { what: "every piece of equipment, a beam laser, 4 missiles, 3000 Cr", patch: patcher({ ...ALL, LASER: [0x8f, 0, 0, 0], CASH: cash(3000) }) },
+    rich: { what: "100000 Cr, nothing fitted", patch: patcher({ CASH: cash(100000) }) },
+    // a tally of 5000 (Deadly): the missions come up as soon as the agent docks in
+    // galaxy 1 (Constrictor) and after (Thargoid plans, galaxy 3)
+    deadly: { what: "Deadly (tally 5000), military laser, everything fitted, 20000 Cr", patch: patcher({ ...ALL, LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [5000 & 255, 5000 >> 8] }) },
+    // the Thargoid plans mission due (Constrictor mission done: TP bits 0-1 = 2), in galaxy 1 with the hyperdrive
+    mission2: { what: "Constrictor mission done, tally 1400, all fitted: the Thargoid plans mission next", patch: patcher({ ...ALL, LASER: [0x97, 0, 0, 0], CASH: cash(20000), TALLY: [1400 & 255, 1400 >> 8], TP: [2] }) },
+    wanted: { what: "a fugitive (legal status 80), 2000 Cr, ECM and pod", patch: patcher({ FIST: [80], CASH: cash(2000), ECM: [0xff], ESCP: [0xff] }) },
+};
+
+// elite-agent's modes, as agentd's environment
+export const MODES = {
+    efficient: {},
+    curious: { CURIOUS: "1" },
+    fair: { FAIR: "1" },
+    keyboard: { JOYSTICK: "0" },          // keys for roll and pitch instead of the stick
+    nosave: { SAVE: "0" },
+    nomission: { NOMISSION: "1" },
+};
+
+// ---- the chaos overlay
+// Keys (BBC internal numbers)
+const K = { E: 0x22, TAB: 0x60, ESC: 0x70, F0: 0x20, F1: 0x71, F2: 0x72, F3: 0x73, F4: 0x14, F5: 0x74, T: 0x23, M: 0x65, U: 0x35, J: 0x45, H: 0x54, CTRL: 0x01, C: 0x52, SPACE: 0x62, SLASH: 0x68, X: 0x42, S: 0x51 };
+// actions: when they may happen (the reference's RAM), the keys and for how many frames,
+// and how often (mean frames between, while allowed)
+const ACTIONS = {
+    ecm:     { every: 1500, when: (r, sy) => flying(r, sy) && r[sy.ECM], keys: [[K.E, 4]] },
+    bomb:    { every: 6000, when: (r, sy) => flying(r, sy) && r[sy.BOMB], keys: [[K.TAB, 3]] },
+    pod:     { every: 20000, when: (r, sy) => flying(r, sy) && r[sy.ESCP], keys: [[K.ESC, 6]] },
+    views:   { every: 1200, when: flying, keys: () => [[[K.F1, K.F2, K.F3][Math.floor(rng() * 3)], 3], [null, 120], [K.F0, 3]] },
+    missile: { every: 2500, when: (r, sy) => flying(r, sy) && r[sy.NOMSL], keys: [[K.T, 3], [null, 25], [K.M, 3]] },
+    unarm:   { every: 4000, when: (r, sy) => flying(r, sy) && r[sy.NOMSL], keys: [[K.T, 3], [null, 25], [K.U, 3]] },
+    ghyp:    { every: 30000, when: (r, sy) => flying(r, sy) && r[sy.GHYP] && !r[sy.QQ22 + 1], keys: [[K.CTRL, 1], [[K.CTRL, K.H], 4], [K.CTRL, 2]] },
+    hyper:   { every: 15000, when: (r, sy) => flying(r, sy) && !r[sy.QQ22 + 1], keys: [[K.H, 4]] },
+    jump:    { every: 2000, when: flying, keys: [[K.J, 30]] },
+    dock:    { every: 8000, when: (r, sy) => flying(r, sy) && r[sy.DKCMP], keys: [[K.C, 3]] },
+    charts:  { every: 3000, when: flying, keys: () => [[[K.F4, K.F5][Math.floor(rng() * 2)], 3], [null, 100], [K.F0, 3]] },
+    spin:    { every: 2500, when: flying, keys: () => [[[[0x66, K.X], [0x67, K.S], [0x66, K.S]][Math.floor(rng() * 3)], 40]] },
+};
+// pokes (both machines, at an iteration boundary): drained shields and energy (a fight
+// then kills us), cabin heat near the limit
+const POKES = {
+    hurt: { every: 15000, when: flying, poke: () => [["FSH", 0, [0]], ["ASH", 0, [0]], ["ENERGY", 0, [12]]] },
+    heat: { every: 20000, when: flying, poke: () => [["CABTMP", 0, [230]]] },
+    fuel: { every: 20000, when: flying, poke: () => [["QQ14", 0, [3]]] },
+};
+function flying(r, sy) { return !r[sy.QQ12] && !r[sy.QQ11] && r[sy.MCNT] !== 0xff; }
+
+let rng = Math.random;
+function mulberry(a) { return () => { a |= 0; a = a + 0x6d2b79f5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+// spec: "all" or a comma list of action and poke names, with an optional *factor on the
+// rate ("ecm,bomb*2")
+export function makeChaos(spec, seed) {
+    const r = mulberry(seed * 7919 + 17);
+    const names = spec === "all" ? [...Object.keys(ACTIONS), ...Object.keys(POKES)] : spec.split(",");
+    const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
+    let seq = null, seqLeft = 0, cur = [];
+    const done = {};
+    return {
+        counts: done,
+        // once a frame (after the agent): maybe start an action
+        frame(S) {
+            rng = r;
+            const ram = S.ref.ram, sy = S.rsy;
+            if (seq) {
+                if (--seqLeft > 0) return;
+                if (!seq.length) { seq = null; cur = []; return; }
+                const [k, n] = seq.shift(); cur = k === null ? [] : Array.isArray(k) ? k : [k]; seqLeft = n;
+                return;
+            }
+            for (const { nm, a, rate } of acts) {
+                if (r() >= rate || !a.when(ram, sy)) continue;
+                done[nm] = (done[nm] || 0) + 1;
+                S.logInput({ chaos: nm, frame: S.frame, i: S.ref.iter });
+                if (a.poke) {
+                    const at = S.ref.iter + 3;
+                    const pk = a.poke();
+                    for (const m of [S.ref, S.cand]) { (m.pokes ||= new Map()).set(at, pk); }
+                    S.logInput({ poke: at, v: pk });
+                    return;
+                }
+                seq = (typeof a.keys === "function" ? a.keys() : a.keys).map(x => [...x]);
+                const [k, n] = seq.shift(); cur = k === null ? [] : Array.isArray(k) ? k : [k]; seqLeft = n;
+                return;
+            }
+        },
+        keys() { return cur; },
+    };
+}
