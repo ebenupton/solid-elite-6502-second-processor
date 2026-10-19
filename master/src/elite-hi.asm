@@ -47,22 +47,4 @@ NEXT
  INCLUDE "src/gfx-gstubs.asm"       \ stubs that page the frame layer in
  INCLUDE "src/gfx-hooks.asm"        \ the hooks in Elite's drawing code
 
-\ G_DIRECT's end (gfx-gstubs.asm), here so that no stub or hook moves: if
-\ F_DIRECT kept space mode (an in-system jump), return to TTX66's caller
-\ instead, with TTX66's results but no screen clear and border (F_DIRECT set
-\ XC = YC = 1 and X = Y = 0; COL is as it was): A = %00001001, C = 0 and
-\ V = 0 (from the BIT: GMODE = &80), as TTX66 returns
-
-.gdir2
- BIT GMODE
- BPL gdir9
- PLA
- PLA
- JSR gback
- LDA #%00001001
- CLC
- RTS
-.gdir9
- JMP gback
-
  INCLUDE "src/gfx-light.asm"        \ the ship lighting's game-context half

@@ -65,7 +65,22 @@
  STA &FE30
  LDA gA
  JSR F_DIRECT
- JMP gdir2              \ (elite-hi.asm, after the hooks: nothing here moves)
+
+\ If F_DIRECT kept space mode (an in-system jump), return to TTX66's caller
+\ instead, with TTX66's results but no screen clear and border (F_DIRECT set
+\ XC = YC = 1 and X = Y = 0; COL is as it was): A = %00001001, C = 0 and
+\ V = 0 (from the BIT: GMODE = &80), as TTX66 returns
+
+ BIT GMODE
+ BPL gdir9
+ PLA
+ PLA
+ JSR gback
+ LDA #%00001001
+ CLC
+ RTS
+.gdir9
+ JMP gback
 
 .G_PLANET
  STA gA
@@ -114,11 +129,6 @@
  STA &F4
  STA &FE30
  JMP F_PPOINT           \ (it returns through gback)
- SKIP 3                 \ (was JMP gback: keeps what follows in place)
-
- SKIP 12                \ Padding: keeps everything after (stubs, hooks,
-                        \ raster_hz and the unaligned HAZEL tables) at the
-                        \ same addresses
 
 
 .G_DSTAR                \ (C preserved both ways)

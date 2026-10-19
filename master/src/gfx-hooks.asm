@@ -137,7 +137,6 @@
  LDA #3
  STA R_SS,Y
  RTS
- SKIP 5                 \ (the old test's bytes, so nothing moves)
 .hst9
  LDA R_SY,Y             \ outside record mode PIXEL draws it: note where (in
  STA hA                 \ shadow RAM, the direct-mode screen), so that the first
@@ -158,7 +157,6 @@
  LDA #0
  STA R_SS,Y
  RTS
- SKIP 3                 \ (the old test's bytes, so nothing moves)
 .hso8
  CLC                    \ outside record mode: star Y is no longer drawn
  JMP G_DSTAR            \ (returns C set, X and Y kept)
