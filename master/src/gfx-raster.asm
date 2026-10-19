@@ -396,6 +396,26 @@ R_ENDPAGE 13
 .out
   RTS
 }
+\ R_SETBUF's and r_dbm's high bytes of each buffer's arrays
+.r_sbh_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
+ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1)
+.r_sbh_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
+ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
+.r_sbh_s0a EQUB HI(r_s0a), HI(r_s1a)
+ASSERT LO(r_s0a) = LO(r_s1a)
+.r_sbh_s0x EQUB HI(r_s0x), HI(r_s1x)
+ASSERT LO(r_s0x) = LO(r_s1x)
+.r_sbh_s0y EQUB HI(r_s0y), HI(r_s1y)
+ASSERT LO(r_s0y) = LO(r_s1y)
+.r_sbh_sl EQUB HI(R_DISCL0), HI(R_DISCL1)
+.r_sbh_s0k EQUB HI(r_s0k), HI(r_s1k)
+ASSERT LO(r_s0k) = LO(r_s1k)
+.r_sbh_s0r EQUB HI(r_s0r), HI(r_s1r)
+ASSERT LO(r_s0r) = LO(r_s1r)
+.r_sbh_s0b EQUB HI(r_s0b), HI(r_s1b)
+ASSERT LO(r_s0b) = LO(r_s1b)
+.r_sbh_bdx3 EQUB HI(R_BDX30), HI(R_BDX31)
+ASSERT LO(R_BDX30) = LO(R_BDX31)
 R_ENDPAGE 14
 .r_run15 R_RUN 15
 .r_pset
@@ -518,6 +538,19 @@ R_ENDPAGE 17
   STA r_hzt7
   STX r_hzt7+1
   JMP r_call7
+.r_sbh_bdx2 EQUB HI(R_BDX20), HI(R_BDX21)
+ASSERT LO(R_BDX20) = LO(R_BDX21)
+.r_sbh_bdx1 EQUB HI(R_BDX10), HI(R_BDX11)
+ASSERT LO(R_BDX10) = LO(R_BDX11)
+.r_sbh_bdx0 EQUB HI(R_BDX00), HI(R_BDX01)
+ASSERT LO(R_BDX00) = LO(R_BDX01)
+.r_sbh_bdp EQUB HI(R_BDP0), HI(R_BDP1)
+ASSERT LO(R_BDP0) = LO(R_BDP1)
+.r_sbh_bdn EQUB HI(R_BDN0), HI(R_BDN1)
+ASSERT LO(R_BDN0) = LO(R_BDN1)
+ASSERT LO(R_DISCL0) = LO(R_DISCL1)
+.r_sbh_sr EQUB HI(R_DISCR0), HI(R_DISCR1)
+ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 R_ENDPAGE 18
 .r_run19 R_RUN 19
 .r_div32
@@ -604,6 +637,38 @@ R_ENDPAGE 20
 }
 R_ENDPAGE 21
 .r_run22 R_RUN 22
+\ r_bmn: black on [r_ba, r_bb] minus [r_nL, r_nR]
+.r_bmn
+{
+  LDA r_nR
+  CMP r_nL
+  BCC whole
+  LDA r_nR
+  CMP r_ba
+  BCC whole
+  LDA r_bb
+  CMP r_nL
+  BCC whole
+  LDA r_ba
+  CMP r_nL
+  BCS b2
+  LDX r_nL
+  DEX
+  JSR r_dw
+.b2
+  LDA r_nR
+  CMP r_bb
+  BCS done
+  INC A
+  LDX r_bb
+  JMP r_dw
+.whole
+  LDA r_ba
+  LDX r_bb
+  JMP r_dw
+.done
+  RTS
+}
 R_ENDPAGE 22
 .r_run23 R_RUN 23
 .r_crep5                  \ R_DISCROWS: r7_crep (returns X = r_buf)
@@ -624,6 +689,22 @@ R_ENDPAGE 22
   STA r_wb
 .c5
   RTS
+\ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
+.r_bcols
+  TYA
+  LSR A
+  BCS bc1
+  LDA R_DCE
+  STA r_cA
+  LDA R_DBE
+  STA r_cB
+  RTS
+.bc1
+  LDA R_DCO
+  STA r_cA
+  LDA R_DBO
+  STA r_cB
+  RTS
 R_ENDPAGE 23
 
 \ ============================================================================
@@ -632,7 +713,47 @@ R_ENDPAGE 23
 \ byte, as r_dbm patches only operands' high bytes (from r_sbh_bd*).
 \ ============================================================================
 .R_BDN0 SKIP 192        \ boundaries per row, 0..4
-.r_bdh0                 \ (64 bytes free)
+\ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
+\ (RZ_PP+1 and r_jsr+2).  Clobbers A.
+.r_rowset
+  STY RZ_Y
+  TYA
+  AND #7
+  STA RZ_PA
+  STA RZ_PB
+  TYA
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  STA RZ_PA+1
+  INC A
+  STA RZ_PB+1
+  TYA
+  LSR A
+  LSR A
+  LSR A
+  CLC
+  ADC #HI(r_run0)
+  STA RZ_PP+1
+  STA r_jsr+2
+  RTS
+\ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
+.r_dw
+{
+  STA R_XL
+  STX R_XR
+  CMP r_wmin
+  BCS w1
+  STA r_wmin
+.w1
+  CPX r_wmax
+  BCC w2
+  STX r_wmax
+.w2
+  LDX R_XL
+  JMP r_spc
+}
   SKIP R_BDN0 + &100 - P%
 .R_BDN1 SKIP 192
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
@@ -761,67 +882,6 @@ r_bdx3 = R_BDX30
   STA r_pt153+2
   RTS
 }
-.r_sbh_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
-ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1)
-.r_sbh_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
-ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
-.r_sbh_s0a EQUB HI(r_s0a), HI(r_s1a)
-ASSERT LO(r_s0a) = LO(r_s1a)
-.r_sbh_s0x EQUB HI(r_s0x), HI(r_s1x)
-ASSERT LO(r_s0x) = LO(r_s1x)
-.r_sbh_s0y EQUB HI(r_s0y), HI(r_s1y)
-ASSERT LO(r_s0y) = LO(r_s1y)
-.r_sbh_sl EQUB HI(R_DISCL0), HI(R_DISCL1)
-.r_sbh_s0k EQUB HI(r_s0k), HI(r_s1k)
-ASSERT LO(r_s0k) = LO(r_s1k)
-.r_sbh_s0r EQUB HI(r_s0r), HI(r_s1r)
-ASSERT LO(r_s0r) = LO(r_s1r)
-.r_sbh_s0b EQUB HI(r_s0b), HI(r_s1b)
-ASSERT LO(r_s0b) = LO(r_s1b)
-.r_sbh_bdx3 EQUB HI(R_BDX30), HI(R_BDX31)
-ASSERT LO(R_BDX30) = LO(R_BDX31)
-.r_sbh_bdx2 EQUB HI(R_BDX20), HI(R_BDX21)
-ASSERT LO(R_BDX20) = LO(R_BDX21)
-.r_sbh_bdx1 EQUB HI(R_BDX10), HI(R_BDX11)
-ASSERT LO(R_BDX10) = LO(R_BDX11)
-.r_sbh_bdx0 EQUB HI(R_BDX00), HI(R_BDX01)
-ASSERT LO(R_BDX00) = LO(R_BDX01)
-.r_sbh_bdp EQUB HI(R_BDP0), HI(R_BDP1)
-ASSERT LO(R_BDP0) = LO(R_BDP1)
-.r_sbh_bdn EQUB HI(R_BDN0), HI(R_BDN1)
-ASSERT LO(R_BDN0) = LO(R_BDN1)
-ASSERT LO(R_DISCL0) = LO(R_DISCL1)
-.r_sbh_sr EQUB HI(R_DISCR0), HI(R_DISCR1)
-ASSERT LO(R_DISCR0) = LO(R_DISCR1)
-
-\ ============================================================================
-\ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
-\ (RZ_PP+1 and r_jsr+2).  Clobbers A.
-\ ============================================================================
-.r_rowset
-  STY RZ_Y
-  TYA
-  AND #7
-  STA RZ_PA
-  STA RZ_PB
-  TYA
-  LSR A
-  LSR A
-  AND #&FE
-  ORA #&40
-  STA RZ_PA+1
-  INC A
-  STA RZ_PB+1
-  TYA
-  LSR A
-  LSR A
-  LSR A
-  CLC
-  ADC #HI(r_run0)
-  STA RZ_PP+1
-  STA r_jsr+2
-  RTS
-
 \ ============================================================================
 \ r_spc: the span core.  Row set up (r_rowset), RZ_COL = colour byte,
 \ X = R_XL = left pixel, R_XR = right pixel, R_XL <= R_XR.  Clobbers A, X, Y,
@@ -940,15 +1000,19 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   LDA r_v0
   STA RZ_T7
   LDA #0
-  FOR i, 1, 8
-    ASL RZ_T6
-    ROL A
-    BCS P%+6
-    CMP RZ_T7
-    BCC P%+6
-    SBC RZ_T7
-    INC RZ_T6
-  NEXT
+  LDX #8
+.lp
+  ASL RZ_T6
+  ROL A
+  BCS sb
+  CMP RZ_T7
+  BCC ns
+.sb
+  SBC RZ_T7
+  INC RZ_T6
+.ns
+  DEX
+  BNE lp
   LDX RZ_T6
   STX r_m0
   RTS
@@ -4040,56 +4104,6 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
   RTS
 }
 
-\ r_bmn: black on [r_ba, r_bb] minus [r_nL, r_nR]
-.r_bmn
-{
-  LDA r_nR
-  CMP r_nL
-  BCC whole
-  LDA r_nR
-  CMP r_ba
-  BCC whole
-  LDA r_bb
-  CMP r_nL
-  BCC whole
-  LDA r_ba
-  CMP r_nL
-  BCS b2
-  LDX r_nL
-  DEX
-  JSR r_dw
-.b2
-  LDA r_nR
-  CMP r_bb
-  BCS done
-  INC A
-  LDX r_bb
-  JMP r_dw
-.whole
-  LDA r_ba
-  LDX r_bb
-  JMP r_dw
-.done
-  RTS
-}
-
-
-\ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
-.r_dw
-{
-  STA R_XL
-  STX R_XR
-  CMP r_wmin
-  BCS w1
-  STA r_wmin
-.w1
-  CPX r_wmax
-  BCC w2
-  STX r_wmax
-.w2
-  LDX R_XL
-  JMP r_spc
-}
 
 \ ============================================================================
 \ Cold entry points: the code is in bank 7 (raster7.asm)
@@ -4574,24 +4588,6 @@ NEXT
   LDX R_XL
   JMP r_spc
 }
-
-\ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
-\ (here, after r_ypg, so that r_ypg's page has room for the code before it)
-.r_bcols
-  TYA
-  LSR A
-  BCS bc1
-  LDA R_DCE
-  STA r_cA
-  LDA R_DBE
-  STA r_cB
-  RTS
-.bc1
-  LDA R_DCO
-  STA r_cA
-  LDA R_DBO
-  STA r_cB
-  RTS
 
 .r_end
 PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end
