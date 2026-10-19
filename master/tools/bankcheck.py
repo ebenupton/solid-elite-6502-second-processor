@@ -39,7 +39,7 @@ FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm"
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
          # and its banks
          "gfx-gvars.asm": "hazel", "gfx-tramp.asm": "hazel", "gfx-hzhooks.asm": "hazel",
-         "gfx-raster_hz.asm": "hazel", "gfx-lighthz.asm": "hazel", "gfx-raster_scr.asm": "hazel",
+         "gfx-raster_hz.asm": "hazel", "gfx-raster_scr.asm": "hazel",
          "gfx-raster_vars.asm": "hazel", "elite-gfx.asm": "hazel",
          "gfx-raster.asm": "bank5", "gfx-raster7.asm": "bank7r",
          "gfx-frame.asm": "bank6", "gfx-faces.asm": "bank6", "gfx-light6.asm": "bank6",

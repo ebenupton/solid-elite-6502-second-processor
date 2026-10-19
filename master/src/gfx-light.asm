@@ -7,7 +7,7 @@
 \ for its unit normal n and L the unit vector towards the light, entry
 \ round(31 max(0, n.L)) of its hue's 32-entry ramp of 4x4 dithers (one pool
 \ of nine hue ramps shared by every ship, each from 50% to 100% of the hue's
-\ own full brightness: gfx-light6.asm, gfx-lighthz.asm).
+\ own full brightness: gfx-light6.asm).
 \
 \ Master port: in main RAM &7200-&7DFF (elite-hi.asm), so this runs in game
 \ context only (never with ACCCON X set, which hides it), with bank 6 (the

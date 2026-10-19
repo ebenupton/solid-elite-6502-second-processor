@@ -44,7 +44,6 @@ INCLUDE "src/gfx-gvars.asm"
 INCLUDE "src/gfx-tramp.asm"
 INCLUDE "src/gfx-hzhooks.asm"   \ (the other hooks are in main RAM, elite-hi.asm)
 INCLUDE "src/gfx-raster_hz.asm" \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
-INCLUDE "src/gfx-lighthz.asm"   \ (empty: the lighting ramps are all in bank 6)
 INCLUDE "src/elite-hazel.asm"   \ game code in HAZEL
 .GWARP   EQUB 0         \ bit 7: TT66 is an in-system jump's (WARP sets it,
                         \ F_DIRECT clears it)

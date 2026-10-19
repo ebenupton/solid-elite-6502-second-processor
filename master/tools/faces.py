@@ -1071,7 +1071,7 @@ def main():
     for t, s in ships:
         LR.annotate(t, s)
     n = emit(ships, os.path.join(ROOT, 'src', 'gfx-faces.asm'))
-    LR.emit_light(os.path.join(ROOT, 'src', 'gfx-light6.asm'), os.path.join(ROOT, 'src', 'gfx-lighthz.asm'))
+    LR.emit_light(os.path.join(ROOT, 'src', 'gfx-light6.asm'))
     print('\n'.join(report(ships)))
     print('gfx-faces.asm: %d bytes of tables' % n)
 
