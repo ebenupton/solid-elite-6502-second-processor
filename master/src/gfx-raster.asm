@@ -3486,65 +3486,40 @@ ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 
 
 \ ============================================================================
-\ r_wclear: R_WR[r_wt .. r_wb] = 0 (an unrolled STZ run entered at row r_wt,
-\ stopped by an RTS planted after row r_wb).  Clobbers A, RZ_T0, RZ_T1.
+\ r_wclear: R_WR[r_wt .. r_wb] = 0, in blocks of 8 rows from (r_wb OR 7) down
+\ to (r_wt AND &F8): the rows of those blocks outside r_wt..r_wb are 0
+\ already.  Clobbers A, X.
 \ ============================================================================
 .r_wclear
 {
   LDA r_wb
   CMP r_wt
   BCC none
-  INC A                   \ the RTS goes at row wb + 1 (3 bytes a row)
-  STA RZ_T0
-  STZ RZ_T1
-  ASL A
-  ROL RZ_T1
-  ADC RZ_T0
-  STA RZ_T0
-  LDA RZ_T1
-  ADC #HI(r_wcrun)
-  STA RZ_T1
-  LDA RZ_T0
-  CLC
-  ADC #LO(r_wcrun)
-  STA RZ_T0
-  BCC p1
-  INC RZ_T1
-.p1
-  LDA #&60
-  STA (RZ_T0)
-  LDA r_wt                \ enter at row wt
-  STA ent+1
-  STZ ent+2
-  ASL A
-  ROL ent+2
-  ADC r_wt
-  STA ent+1
-  LDA ent+2
-  ADC #HI(r_wcrun)
-  STA ent+2
-  LDA ent+1
-  CLC
-  ADC #LO(r_wcrun)
-  STA ent+1
-  BCC p2
-  INC ent+2
-.p2
-.ent
-  JSR &FFFF
-  LDA #&9C                \ STZ abs
-  STA (RZ_T0)
+  ORA #7
+  TAX
+  LDA r_wt
+  AND #&F8
+  STA lim+1
+.lp
+  STZ R_WR,X
+  STZ R_WR-1,X
+  STZ R_WR-2,X
+  STZ R_WR-3,X
+  STZ R_WR-4,X
+  STZ R_WR-5,X
+  STZ R_WR-6,X
+  STZ R_WR-7,X
+  TXA
+  SEC
+  SBC #8
+  BCC none
+  TAX
+.lim
+  CMP #0
+  BCS lp
 .none
   RTS
 }
-.r_wcrun
-FOR y, 0, 191
-  STZ R_WR + y
-NEXT
-  STZ r_wspare            \ row 192: where an RTS may be planted
-  RTS
-.r_wspare
-  EQUB 0
 
 \ r_dla: rows X .. A-1 with no dirty extent.  r_dlb: rows X .. A-1, any.
 .r_dla
