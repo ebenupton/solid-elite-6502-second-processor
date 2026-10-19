@@ -7,7 +7,6 @@
 \ area; j4_name jumps to name (far4j) for targets that never return.
 \ ******************************************************************************
 
-
 .j4_FRCE
  JSR far4j
  EQUW FRCE
@@ -20,59 +19,26 @@
  JSR far4
  EQUW CLYNS
 
-.x4_DASC
- JSR far4
- EQUW DASC
-
 .x4_DELAY
  JSR far4
  EQUW DELAY
-
 
 .x4_DORND
  JSR far4
  EQUW DORND
 
-
-
 .x4_MULTU
  JSR far4
  EQUW MULTU
 
-
-
-
-
-
-
-
+.x4_DASC                \ (DASC and TT26 are the same routine)
 .x4_TT26
  JSR far4
  EQUW TT26
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 .x4_MT16
  JSR far4
  EQUW MT16
-
-
-
-
-
-
 
 .x4_BOOP
  JSR far4
@@ -90,7 +56,6 @@
  JSR far4
  EQUW FLFLLS
 
-
 .x4_HLOIN3
  JSR far4
  EQUW HLOIN3
@@ -102,8 +67,6 @@
 .x4_LOIN
  JSR far4
  EQUW LOIN
-
-
 
 .x4_PIXEL
  JSR far4
@@ -129,7 +92,6 @@
  JSR far4
  EQUW WSCAN
 
-
 .x4_CHPR
  JSR far4
  EQUW CHPR
@@ -154,11 +116,9 @@
  JSR far4
  EQUW NWSHP
 
-
 .x4_RDKEY
  JSR far4
  EQUW RDKEY
-
 
 .x4_SPBLB
  JSR far4
@@ -176,8 +136,6 @@
  JSR far4
  EQUW ZINF
 
-
-
 \ (x4_RDFIRE, x4_SHIFT and x4_CTRLmc, used only by the Master Compact's code,
 \ would be here: RDFIRE, SHIFT and CTRLmc are not assembled for SNG47)
 
@@ -189,11 +147,9 @@
  JSR far4
  EQUW ADD
 
-
 .x4_CTRL
  JSR far4
  EQUW CTRL
-
 
 .x4_HALL
  JSR far4
@@ -206,7 +162,6 @@
 .x4_MAS2
  JSR far4
  EQUW MAS2
-
 
 .x4_NOISE
  JSR far4
