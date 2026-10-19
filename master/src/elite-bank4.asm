@@ -10048,8 +10048,10 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
  JSR WPSHPS             \ Wipe all the ships from the scanner and mark them all
                         \ as not being shown on-screen
 
-                        \ And fall through into SIGHT to draw the laser
-                        \ crosshairs
+ JMP SIGHT              \ Jump to SIGHT to draw the laser crosshairs, returning
+                        \ from the subroutine using a tail call (Port: the
+                        \ original falls through into SIGHT, which is in the
+                        \ high code)
 
 \ ******************************************************************************
 \
