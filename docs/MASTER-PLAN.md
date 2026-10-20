@@ -1323,3 +1323,76 @@ junked at each OSCLI, the ANDY CRC); the agentplay repros with --cand and
 its last iteration); the quick campaign, 3 sessions clean (4644 iterations compared, with a save and a load); the docked screens
 (harness/mdocked.mjs) byte for byte d23e427's apart from the title ship's
 rotation phase.
+
+## Far-call stubs inline (after the original's order, continued)
+
+The user asked for the far-call stubs to sit where each routine was carved
+out to the other side, in both directions, so that each emission reads as
+the original in its order with a stub wherever a routine lives on the other
+side (docs/MASTER-MAP.md, "The source and its emissions").
+
+**The stubs at their places.** tools/streams.py no longer writes stub files
+(build/elite-stubs7.asm in the high code, build/elite-stubs4.asm at the cold
+area's end). It writes each stub into the copy of the other side, on the
+line that defines its routine: in the hot copies `.TT22 JSR far7 : EQUW
+TT22_C` under the cold routine's own name (48, far7j for BAY, DEATH2 and
+TT170), in the cold copy `.x4_TT26 JSR far4 : EQUW TT26` (49, j4_/far4j for
+BEGIN, GOIN and FRCE). Which stubs exist is generated from the references
+as before; JMTB still names x4_DASC, x4_MT16 and x4_CLYNS, and labels at one
+place share a stub (x4_DASC is a bare label before x4_TT26's). A cold
+block's stubs go in the copy of the hot area of the nearest non-cold block
+before it (all are the run's), so a block that falls into a cold routine
+falls into its stub. The far helpers read the EQUW with the caller's bank
+still paged in and keep the caller's bank on the stack, so the stubs work
+in bank 4 and bank 7 as in main RAM; the hot ones are in the run (main RAM
+and bank 4), game context only, as before. The high code keeps QSL/QSH and
+the renderer's game-context glue.
+
+getzp's and HANGER's stubs are in the head before the font, so CODE% went
+from &1EE1 to &1ED7 to keep the font page aligned without padding (the
+shared workspace's last gap 31 to 21 bytes). Main RAM took 9 stubs and
+still ends before STARS2 (the marker did not move); bank 4 took 39.
+
+**The seams closed.** A routine that fell through into a routine now on the
+other side falls into its stub: the stub calls the body, and the body's RTS
+returns, through farret, to the falling routine's caller with the caller's
+bank back: what the fall-through did. streams.py's check allows a block to
+fall into a block of the other side whose first statement is its entry
+label (and makes that stub), and still forbids any other cross-area
+fall-through. So, as in the original:
+* RES2 (cold) falls into x4_ZINF;
+* Ze (cold) falls into x4_DORND2, and DORND2's CLC is back before DORND
+  (Ze's CLC : JMP DORND went; DORND2 was removed as unreachable before);
+* SOLAR (cold) falls into x4_NWSTARS;
+* BEGIN falls into TT170's jump stub (far7j: TT170 never returns and resets
+  the stack, as JMP TT170 into the stub did);
+* FRMIS falls into ANGRY again: both are cold and adjacent, and its JMP
+  ANGRY (with a note from when ANGRY was in ANDY) was stale.
+DELT's JMP SVE is the original's. No seam is left open.
+
+**Commits** (each gated by master/tools/grind/verify.sh): 0a9ff32 the gate
+always runs test_raster --quick (about 10 s more per gate; 1.234, 17.25);
+722ea6f the stubs inline, seams unchanged (1.234, 17.24: game state
+identical at all 10000 iterations, so the move alone is behaviour-identical);
+f61c1f4 the seams closed (1.234, 17.24).
+
+**Speed** (profile.mjs --pagex): 115978 to 115995 cycles per flight
+iteration (17.24 it/s both): instructions 115290 to 115289, page crossings
+688 to 706 (702 with the stubs inline, 706 with the seams closed; the
+candidates: MASTER-MAP, "Alignment candidates"); no padding added.
+
+**Free space** (MASTER-MAP, "Free space"): main 218 to 183 (1376 below
+&3000 as before), the shared workspace 148 to 138, high code 1077 to 1317,
+bank 4 1897 to 1704, the cold area 3693 to 3701: 7867 to 7877 outside shadow
+RAM. The diff of elite-source.asm and elite-data.asm against Mark's went
+from 8249 lines (git diff --numstat, added + deleted) to 8223.
+
+**Checks.** At each commit the gate; streams.py's checks and bankcheck at
+every build. At the end: test_raster (full); the lens flare's pixel check,
+four scenes, 704 frames (552 flared), 0 errors against the model, every
+frame byte for byte e932f77's; the agentplay repros with --cand and --csyms
+spelled out (compass, LOOK1, MSBAR clean; TTX66 as before, P+3 at its last
+iteration); the quick campaign, 3 sessions clean (4644 iterations compared,
+with a save and a load); the docked screens (harness/mdocked.mjs) byte for
+byte e932f77's apart from the title ship's rotation phase; gcreach.py: 0
+unreachable, every profiled PC matched.

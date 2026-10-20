@@ -819,8 +819,7 @@ ENDIF
                         \ uses HAZEL
 
  EQUW MESS14            \ HICODE: the high code (the quarter squares, the
- EQUB HOMEBANK, %00001001 \ renderer's stubs and hooks, the stubs into the cold
-                        \ area), main RAM &7000-&7FFF
+ EQUB HOMEBANK, %00001001 \ renderer's stubs and hooks), main RAM &7000-&7FFF
  EQUW &7000, HILEN
 
  EQUW 0
