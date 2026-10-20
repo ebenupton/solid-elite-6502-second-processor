@@ -33,6 +33,7 @@ scratch/grind/, with analyse.log, profile.log, windows.log, run_all.log).
 | `verify.sh <worktree> [base]` | the gate: rasteriser soak test if `master/src/gfx-raster*.asm` changed, then `<worktree>/master/verify.sh 10000` |
 | `test_raster.py [--quick]` | the demo's rasteriser soak test (tools/test_raster.py) pointed at master/src's rasteriser (`GRIND_TREE=<tree>` to test another tree's) |
 | `run_all.sh [root]` | analyse + profile + windows |
+| `gcreach.py [--build DIR] [--out DIR] [--profile F] [--cov F...]` | provable reachability of the code from the real entry points: the unreachable code (garbage collection, below) |
 
 ## The model (df/model.py)
 
@@ -93,6 +94,12 @@ loads it.
   the MOS's part writes &FC.
 * **MOS calls** (JSR/JMP to &E000-, where no code of ours is): read A X Y and any
   memory, may write every register and flag and I/O, write no game memory (assumption).
+* **Indexed patches of parallel code** (df/analysis.py `_smc`): an indexed store whose
+  base is inside code of its own segment also patches base + d for every d the program
+  loads into that index register as a difference of two code labels: stl_pat's
+  `STA mlb1+1,X` with `LDX #MLSA-MLSB` patches MLSA's operands too.  (Before, only the
+  base was taken, so mla1's patched `CPX #b` read as `CPX #0` and the analysis called
+  mlar unreachable: unsound.)
 * **Self-modifying code, BIT skips, hidden RTSs, entries**: as the demo (README of
   tools/grind), plus: an indexed store whose base is a few bytes below a data label its
   operand names (`STA SOFLG-1,Y`) indexes that data, not the code below it.
@@ -193,6 +200,36 @@ instruction, segment/address order; plus `far: true` on a far call's JSR, whose
 Prints `VERIFY PASS <cand/ref ratio> <cand it/s>` or `VERIFY FAIL <step>` (test_raster,
 build, compare, redock, savetest, ...); exit status 0 only on pass.  Logs in
 `<worktree>/scratch/master-verify/` and `<worktree>/scratch/grind-verify/`.
+
+## Unreachable code (gcreach.py)
+
+The range analysis is no use for finding dead code: it seeds every instruction with no
+known predecessor (an "orphan") as an entry, so a routine nobody calls looks reachable.
+`gcreach.py` reads the same build and model (run `analyse.py --no-ranges` first, 10 s) and
+computes what any execution can reach from the real entry points only:
+
+* **roots**: the loader's S% (SBANK paged) and G_INIT (build/game-addresses.asm: the
+  loader calls nothing else in the game), IRQ1, the vectors COLD installs (NEWBRK, CHPR),
+  NEWBRK from every BRK, the far-call helpers, every identifier any data statement names
+  (tables, EQUW, split LO/HI tables; a far call's own EQUW counts only with its JSR) and
+  every EQUW word equal to a code address (or one less);
+* **edges**: fall-through, branches, JMP, JSR and its return, far-call and cross-bank
+  targets (and the cross-bank stub), every identifier a reachable instruction's source line
+  names (the macro body line and the invocation: #LO/#HI, patched operands, R_TO7's
+  arguments, `STA x+1`), equates followed to the labels their definitions name (and to code
+  at their value), label+-n to that address and the next; a resolved transfer alone on its
+  line reaches only its exact target (`JSR hyp1_C+3` does not keep hyp1_C); every copy of
+  an unrolled statement when one is reached (the row-run pages, entered at computed pages
+  and offsets); an instruction with a patched opcode or an unresolved exit falls through.
+
+Outputs (scratch/gc): `dead.md`/`dead.json` (runs of unreachable instructions by region and
+routine), `weak.md` (reached only through EQUW-valued words, equate values or non-immediate
+mentions), `dataonly.md` (reached only through data tables), `dyncheck.txt`: every PC of the
+profile (`--profile`, default scratch/grind/profile.json, of the same build) and every label
+of agentplay coverage-cand.json files (`--cov`; a label's span runs to the next global label,
+so a dead fragment just before live code shows as run) must be reachable.  After the
+garbage collection (MASTER-PLAN.md, "Unreachable code removed") it finds nothing
+unreachable; the gate profile's 21581 PCs are all reachable.
 
 ## Timings and results (full-grind at c46cd31, machine shared)
 

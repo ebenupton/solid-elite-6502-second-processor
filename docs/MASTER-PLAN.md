@@ -831,3 +831,42 @@ frame byte for byte as before. The flare costs 1000-1200 cycles less per
 flared frame (frames matched by iteration: sweep -1189 mean, square -1108,
 planet line -832, leaving -1224; at most -2900, at worst +145 in one frame).
 Gate: 1.232, 17.21 it/s, unchanged (the gate's run shows no flare).
+
+## Unreachable code removed (after the lens flare)
+
+master/tools/grind/gcreach.py computes what code any execution can reach
+from the real entry points (the loader's S% and G_INIT, IRQ1, NEWBRK and
+CHPR, BRK, the far-call helpers, every data table), following every kind of
+reference: flow, JSR, far and cross-bank calls, every label a reachable
+source line or data statement names (immediates, patched operands, label±n,
+equate aliases, EQUW words), and every copy of an unrolled statement (the
+row-run pages, entered at computed offsets). Everything the gate's profile
+executes and every label the overnight campaigns ran is reachable. What was
+not went, in single-purpose gated commits, the original's routines keeping
+their headers with a `Port: removed (unreachable: ...)` note:
+
+| Commit | Class | Bytes |
+|---|---|---:|
+| R_CLEARALL, r_clrrow, r7_clearall (no caller since T_CLEARALL went); test_raster.py and replay.py clear the window themselves | port | bank 5 25, bank 7's tails 65 |
+| ZEKRTS, SFRMIS's old return | port | cold 1 |
+| MUT3 (never called in SNG47) and MUT2 (STARS1 sets (S R) itself, d4d1d4c) | original / orphaned | main 8 |
+| HLOIN22, LL28's dead tail (LL31, LL29), WA1's spare RTS | original, dead in SNG47 too | bank 4 34 |
+| DORND2's CLC (Ze does CLC : JMP x4_DORND), yetanotherrts (SFRMIS has its own RTS) | orphaned by the port | bank 4 2 |
+| TT214/TT221/TT218, DVLOIN, INCYC, SWAPPZERO; backtonormal, CLDELAY, two spare RTSs, hyp1's JSR TT111 | original, dead in SNG47 too | ANDY 59, cold 7 |
+| DEEOR's second half, DEEORS, DEEORL and the four "red herring" bytes (no copy protection) | orphaned by the port | cold 56 |
+| OTHERFILEPR (no extended token has control code 31; JMTB 31 -> x4_DASC) | original, by the token data | cold 9 |
+| SOUS9's BVC P%+3 : ASL A (NOISE clears V) | original | main below &3000 3 |
+
+269 bytes in all; gcreach.py now finds nothing unreachable. Speed: 116190 to
+116159 cycles per flight iteration with the first nine commits (all of it
+page crossings, 811 to 779; instructions 1 more), 17.21 to 17.22 it/s; over
+the whole 10000-iteration run 122485 to 122452 cycles per MLOOP with all
+ten (crossings 811 to 772). After SOUS9's commit (3 cycles fewer a NOISE,
+with interrupts off) the profile sees no TT100 entry between the MLOOPs of
+iterations 1916-1917 and 4454-4455 (the game state is identical at every
+MLOOP), so 4 approach iterations count as "other": 9833 flight iterations,
+116140 cycles each, 773 crossings. The gate: 1.232, 17.22 it/s at every
+commit; test_raster (full), the flare's pixel check (0 errors, every frame
+byte for byte as before), the compass, LOOK1 and MSBAR repros and the quick
+campaign (with a save and a load) pass; the TTX66 repro diverges at its last
+iteration (P+3) exactly as it does on b365683.
