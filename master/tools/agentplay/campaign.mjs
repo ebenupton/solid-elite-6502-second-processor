@@ -22,6 +22,19 @@ mkdirSync(OUT, { recursive: true });
 // look1 played on past the LOOK1 bug, fixed in be18285); off by default, so a regression
 // shows rather than being masked
 const W = a.workaround && a.workaround !== true ? ["--workaround", a.workaround] : [];
+// night5 and night6: 20 generated sessions from seed base on, then 4 loads from their discs
+function wave5(pre, base) {
+    const cmdrs = ["deadly", "galaxy3", "equipped", "wanted", "mission2", "debrief1", "rich", "trader"];
+    const modes = ["efficient", "curious", "keyboard", "fair"];
+    const mixes = ["all,docked,disc", "missile*4,views*3,docked", "pod*3,ghyp*3,hurt*2,disc", "dock*4,charts*2,docked,disc", "missile*3,ecm*3,bomb*2,jump*2"];
+    const out = [];
+    for (let i = 0; i < 20; i++) {
+        const seed = base + i;
+        out.push([`${pre}-${cmdrs[i % 8]}-${modes[(i * 3) % 4]}-s${seed}`, 12 + (i % 2) * 4, "--seed", String(seed), "--commander", cmdrs[i % 8], "--mode", modes[(i * 3) % 4], "--chaos", mixes[i % 5], ...(i % 5 === 2 ? ["--savediscs"] : [])]);
+    }
+    for (let i = 0; i < 4; i++) out.push([`${pre}-load-s${base + 20 + i}`, 12, "--seed", String(base + 20 + i), "--mode", "load", "--from", out[i * 5 + 2][0], "--chaos", mixes[(i + 1) % 5]]);
+    return out;
+}
 const PLANS = {
     default: [
         // elite-agent's own modes, from Jameson
@@ -136,18 +149,9 @@ const PLANS = {
         return out;
     })(),
     // the fifth wave: seeds 300-323, as night4 with other pairings
-    night5: (() => {
-        const cmdrs = ["deadly", "galaxy3", "equipped", "wanted", "mission2", "debrief1", "rich", "trader"];
-        const modes = ["efficient", "curious", "keyboard", "fair"];
-        const mixes = ["all,docked,disc", "missile*4,views*3,docked", "pod*3,ghyp*3,hurt*2,disc", "dock*4,charts*2,docked,disc", "missile*3,ecm*3,bomb*2,jump*2"];
-        const out = [];
-        for (let i = 0; i < 20; i++) {
-            const seed = 300 + i;
-            out.push([`n5-${cmdrs[i % 8]}-${modes[(i * 3) % 4]}-s${seed}`, 12 + (i % 2) * 4, "--seed", String(seed), "--commander", cmdrs[i % 8], "--mode", modes[(i * 3) % 4], "--chaos", mixes[i % 5], ...(i % 5 === 2 ? ["--savediscs"] : [])]);
-        }
-        for (let i = 0; i < 4; i++) out.push([`n5-load-s${320 + i}`, 12, "--seed", String(320 + i), "--mode", "load", "--from", out[i * 5 + 2][0], "--chaos", mixes[(i + 1) % 5]]);
-        return out;
-    })(),
+    night5: wave5("n5", 300),
+    // the sixth wave: as night5, seeds 400-423
+    night6: wave5("n6", 400),
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
