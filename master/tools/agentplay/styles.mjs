@@ -104,7 +104,8 @@ const fumble = t => rng() < 0.4 ? t.slice(0, -1) + "QZ~~" + t.slice(-1) : t;    
 const inMenu = (r, sy) => r[sy.QQ11] === 1;
 const atStatus = (r, sy) => r[sy.QQ12] && r[sy.QQ11] === 8;
 const menu = () => [{ until: inMenu, keys: [D.AT], max: 150 }, [null, 20]];
-const leave = () => [[null, 20], { pulse: D[6], until: atStatus, max: 1500 }];
+// (6, or RETURN to end a name or answer a prompt: 6 alone filled a name prompt with 6s)
+const leave = () => [[null, 20], { pulse: [D[6], D.RET], until: atStatus, max: 1500 }];
 const drive = k => [...press(k), [null, 10]];
 let saveNo = 0;
 const DISC = {
