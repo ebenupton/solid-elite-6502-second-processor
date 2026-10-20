@@ -152,6 +152,7 @@ const PLANS = {
     night5: wave5("n5", 300),
     // the sixth wave: as night5, seeds 400-423
     night6: wave5("n6", 400),
+    night7: wave5("n7", 500),
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
