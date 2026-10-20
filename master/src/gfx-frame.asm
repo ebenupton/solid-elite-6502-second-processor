@@ -2604,7 +2604,10 @@ SGOUT = 20
 \ ------------------------------------------------------------------------------
 
 MAXCV = 3               \ curves per frame
-MAXPT = 140             \ points per frame
+MAXPT = 40              \ points per frame: PLS22's step STP is at least 2
+                        \ (CIRCLE's PL89), so a crater's full ellipse has at
+                        \ most 33 points and the meridian and equator's half
+                        \ ellipses 17 each; a point past the end is dropped
 
                         \ F_NCV (curves recorded this frame) and F_NPT
                         \ (points recorded this frame) live in F_PPOINT's
@@ -3016,14 +3019,17 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
 .fsg_hi                 \ rows above the screen: the step returns to fsg_up
  LDX #LO(fsg_up)        \ (not fsg_ry) until y reaches 0 (y >= -254 here as
  STX fsg_jj+1           \ |dy| <= 255 and y1 > 0, so sg_y+1 = &FF, and Y
-.fsg_up                 \ never equals E above the screen: see fsg_bs)
+ LDX #HI(fsg_up)        \ never equals E above the screen: see fsg_bs)
+ STX fsg_jj+2
+.fsg_up
  INY
  BNE fsg_m
  INC sg_y+1             \ y = 0: back to fsg_ry from the next row
  LDX #LO(fsg_ry)        \ (and Y = 0 < E: no exit here)
  STX fsg_jj+1
+ LDX #HI(fsg_ry)
+ STX fsg_jj+2
  BRA fsg_m
- ASSERT HI(fsg_up) = HI(fsg_ry)  \ fsg_jj's high byte stays put
 .fsg_m
  LDA sg_err
  CLC
