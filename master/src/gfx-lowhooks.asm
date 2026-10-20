@@ -49,15 +49,21 @@
  RTS
 
 \ H_CHAR: CHPR (RR3) is about to draw the character in K3 at (XC-1, YC), with
-\ A = YC: record it in the text map, and in record mode return through RR4
-\ instead of drawing it (A = YC and C clear otherwise, as RR3 is entered)
+\ A = YC: record it in the text map, and in record mode, or in space mode
+\ (GMODE bit 7: the frames are running, as in the mission briefing, whose
+\ text is printed in view types 13 and 1 while LL9B draws the ship as a
+\ frame), return through RR4 instead of drawing it (A = YC and C clear
+\ otherwise, as RR3 is entered)
 
 .H_CHAR
  STA hA
  JSR G_CHAR
  LDA QQ11
  ORA GFORCE
- BNE hcd
+ BEQ hcr
+ BIT GMODE
+ BPL hcd
+.hcr
  PLA
  PLA
  LDA hA                 \ leave SC(1 0), P(3 2) and W as RR3, RREN and RRL1 do

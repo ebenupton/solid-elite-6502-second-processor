@@ -343,14 +343,12 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  STA GFRONT
  TSB &FE34              \ ACCCON D = 1: show shadow RAM (X as it is)
  CLI
- STY f_ysav
- JSR f_tmclear
+ JSR f_tmclear          \ (A = 0; X only, so Y is kept)
  LDX #23+NDSTAR         \ the stars will be re-recorded too (and F_DSS
 .fdi1                   \ after R_SS: no direct-mode stars noted)
  STA R_SS,X
  DEX
  BPL fdi1
- LDY f_ysav
  RTS
 
 \ ------------------------------------------------------------------------------

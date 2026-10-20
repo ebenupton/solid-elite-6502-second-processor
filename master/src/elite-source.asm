@@ -23656,7 +23656,8 @@ ENDMACRO
  STX INWK+30            \ Set the ship's pitch counter to a positive pitch that
                         \ doesn't dampen (a diving pitch)
 
- JSR LL9                \ Draw the ship on screen
+ JSR LL9B               \ Draw the ship on screen (Port: one frame of the
+                        \ renderer, LL9B)
 
  JSR MVEIT              \ Call MVEIT to rotate the ship in space
 
@@ -23696,7 +23697,8 @@ ENDMACRO
                         \ so the ship moves up the screen (as space coordinates
                         \ have the y-axis going up)
 
- JSR LL9                \ Draw the ship on screen
+ JSR LL9B               \ Draw the ship on screen (Port: one frame of the
+                        \ renderer, LL9B)
 
  JSR MVEIT              \ Call MVEIT to move and rotate the ship in space
 
@@ -23781,7 +23783,8 @@ ENDMACRO
  LDA #1                 \ Clear the top part of the screen, draw a border box,
  JSR TT66               \ and set the current view type in QQ11 to 1
 
- JSR LL9                \ Draw the ship on screen to redisplay it
+ JSR LL9B               \ Draw the ship on screen to redisplay it (Port: one
+                        \ frame of the renderer, LL9B)
 
                         \ Fall through into MT23 to move to row 10, switch to
                         \ white text, and switch to lower case when printing
@@ -23867,7 +23870,8 @@ ENDMACRO
  LDA #2                 \ Set z_hi = 1, so (z_hi z_lo) = 256
  STA INWK+7
 
- JSR LL9                \ Draw the ship on screen
+ JSR LL9B               \ Draw the ship on screen (Port: one frame of the
+                        \ renderer, LL9B)
 
  JSR MVEIT              \ Call MVEIT to move and rotate the ship in space
 
@@ -42576,6 +42580,46 @@ ENDMACRO
 
  JMP hframe             \ Render the frame (gfx-hooks.asm), returning from the
                         \ subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: LL9B
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: draw the mission briefing's ship with LL9, then the frame
+\
+\ ------------------------------------------------------------------------------
+\
+\ BRIEF, PAUSE and PAS1 show the Constrictor of mission 1's briefing in view
+\ types 13 and 1, which the original draws directly, erasing the last frame's
+\ lines through the ship line heap. Here the ship is one frame of the
+\ renderer, as on the title screen: QQ11 is 0 (record mode) while LL9
+\ records the ship and the frame draws it, and is then put back, so the
+\ game's state is the original's (docs/MASTER-PLAN.md, "The briefings"). The
+\ briefing's text, which is printed outside record mode, goes into the text
+\ map only once the frames are running (in space mode: H_CHAR, f_sync).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag, X, Y        As LL9 leaves them (hframe keeps them; MVEIT and MT23,
+\                       which follow LL9 in the briefing, start with LDA)
+\
+\ ******************************************************************************
+
+.LL9B
+
+ LDA QQ11               \ Set QQ11 = 0 for the frame, keeping the view type on
+ PHA                    \ the stack
+ STZ QQ11
+
+ JSR LL9F               \ Record the ship and render the frame
+
+ PLA                    \ Put the view type back
+ STA QQ11
+
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \

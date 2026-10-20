@@ -156,9 +156,14 @@
 \ (which blanks main RAM and clears both maps) and the first change made in
 \ record mode, buffer 0 shows exactly the text map: just note that here
 \ (f_dtext), and at that first record-mode change (or the first frame) copy
-\ the text map to buffer 0's shown map. Preserves X and Y.
+\ the text map to buffer 0's shown map. In space mode (GMODE bit 7: the
+\ frames are running, as in the mission briefing, whose text is printed
+\ outside record mode while LL9B draws the ship as a frame) TT26 draws
+\ nothing (H_CHAR), as in record mode. Preserves X and Y.
 
 .f_sync
+ BIT GMODE
+ BMI fsy1
  LDA QQ11
  ORA GFORCE
  BEQ fsy1
