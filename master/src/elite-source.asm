@@ -16936,12 +16936,9 @@ ENDIF
 
                         \ Port: the hangar's ships are drawn directly (GFORCE,
                         \ HALL), so LL9 writes their line heaps. The original's
-                        \ &0B00 holds the renderer's shared workspace, which LL9
-                        \ draws through, so the heap is the last page of bank 4
-                        \ instead, which LL9 (in bank 4) always sees, and no
-                        \ other code uses (asserted at the end of bank 4)
-
-HANGHEAP = &BF00
+                        \ &0B00 is in WP in the port, so the heap is HANGHEAP,
+                        \ the page after the game data in HAZEL, which LL9
+                        \ always sees and no other code uses (elite-layout.asm)
 
 .HA1
 
