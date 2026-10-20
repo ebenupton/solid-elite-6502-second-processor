@@ -45,9 +45,11 @@
 \
 \ ******************************************************************************
 
- CODE% = &1F00          \ The address where the code will be run (Port: the
+ CODE% = &1EE1          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
-                        \ docs/MASTER-MAP.md)
+                        \ docs/MASTER-MAP.md; its low byte is chosen so that the
+                        \ font, at its place after ADDK, starts a page with no
+                        \ padding: the build prints the padding, FONTPAD%)
 
  LOAD% = CODE%          \ The address where the code will be loaded
 
@@ -2046,221 +2048,6 @@ ENDIF
  ORG CODE%              \ Set the assembly address to CODE%
 
  LOAD_A% = LOAD%
-
-\ ******************************************************************************
-\
-\       Name: FONT%
-\       Type: Variable
-\   Category: Text
-\    Summary: A copy of the character definition bitmap table from the MOS ROM
-\
-\ ------------------------------------------------------------------------------
-\
-\ This is used by the TT26 routine to save time looking up the character bitmaps
-\ from the ROM. Note that FONT% contains just the high byte (i.e. the page
-\ number) of the address of this table, rather than the full address.
-\
-\ The contents of the P.FONT.bin file included here are taken straight from the
-\ following three pages in the BBC Micro OS 1.20 ROM:
-\
-\   ASCII 32-63  are defined in &C000-&C0FF (page 0)
-\   ASCII 64-95  are defined in &C100-&C1FF (page 1)
-\   ASCII 96-126 are defined in &C200-&C2F0 (page 2)
-\
-\ The code could look these values up each time (as the cassette version does),
-\ but it's quicker to use a lookup table, at the expense of three pages of
-\ memory.
-\
-\ ******************************************************************************
-
- ASSERT LO(P%) = 0      \ Port: the font must start on a page boundary, as only
-                        \ its page number is used; it is first in the main code,
-                        \ with the page-aligned log tables after it
-
- FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
-
- INCBIN "src/fonts/P.FONT.bin"
-
-\ ******************************************************************************
-\
-\       Name: log
-\       Type: Variable
-\   Category: Maths (Arithmetic)
-\    Summary: Binary logarithm table (high byte)
-\
-\ ------------------------------------------------------------------------------
-\
-\ At byte n, the table contains the high byte of:
-\
-\   &2000 * log10(n) / log10(2) = 32 * 256 * log10(n) / log10(2)
-\
-\ where log10 is the logarithm to base 10. The change-of-base formula says that:
-\
-\   log2(n) = log10(n) / log10(2)
-\
-\ so byte n contains the high byte of:
-\
-\   32 * log2(n) * 256
-\
-\ ******************************************************************************
-
-.log
-
-IF _MATCH_ORIGINAL_BINARIES
-
- EQUB &00               \ This byte appears to be unused and just contains
-                        \ random workspace noise left over from the BBC Micro
-                        \ assembly process
-
- EQUB &00, &20, &32, &40, &4A, &52, &59
- EQUB &60, &65, &6A, &6E, &72, &76, &79, &7D
- EQUB &80, &82, &85, &87, &8A, &8C, &8E, &90
- EQUB &92, &94, &96, &98, &99, &9B, &9D, &9E
- EQUB &A0, &A1, &A2, &A4, &A5, &A6, &A7, &A9
- EQUB &AA, &AB, &AC, &AD, &AE, &AF, &B0, &B1
- EQUB &B2, &B3, &B4, &B5, &B6, &B7, &B8, &B9
- EQUB &B9, &BA, &BB, &BC, &BD, &BD, &BE, &BF
- EQUB &C0, &C0, &C1, &C2, &C2, &C3, &C4, &C4
- EQUB &C5, &C6, &C6, &C7, &C7, &C8, &C9, &C9
- EQUB &CA, &CA, &CB, &CC, &CC, &CD, &CD, &CE
- EQUB &CE, &CF, &CF, &D0, &D0, &D1, &D1, &D2
- EQUB &D2, &D3, &D3, &D4, &D4, &D5, &D5, &D5
- EQUB &D6, &D6, &D7, &D7, &D8, &D8, &D9, &D9
- EQUB &D9, &DA, &DA, &DB, &DB, &DB, &DC, &DC
- EQUB &DD, &DD, &DD, &DE, &DE, &DE, &DF, &DF
- EQUB &E0, &E0, &E0, &E1, &E1, &E1, &E2, &E2
- EQUB &E2, &E3, &E3, &E3, &E4, &E4, &E4, &E5
- EQUB &E5, &E5, &E6, &E6, &E6, &E7, &E7, &E7
- EQUB &E7, &E8, &E8, &E8, &E9, &E9, &E9, &EA
- EQUB &EA, &EA, &EA, &EB, &EB, &EB, &EC, &EC
- EQUB &EC, &EC, &ED, &ED, &ED, &ED, &EE, &EE
- EQUB &EE, &EE, &EF, &EF, &EF, &EF, &F0, &F0
- EQUB &F0, &F1, &F1, &F1, &F1, &F1, &F2, &F2
- EQUB &F2, &F2, &F3, &F3, &F3, &F3, &F4, &F4
- EQUB &F4, &F4, &F5, &F5, &F5, &F5, &F5, &F6
- EQUB &F6, &F6, &F6, &F7, &F7, &F7, &F7, &F7
- EQUB &F8, &F8, &F8, &F8, &F9, &F9, &F9, &F9
- EQUB &F9, &FA, &FA, &FA, &FA, &FA, &FB, &FB
- EQUB &FB, &FB, &FB, &FC, &FC, &FC, &FC, &FC
- EQUB &FD, &FD, &FD, &FD, &FD, &FD, &FE, &FE
- EQUB &FE, &FE, &FE, &FF, &FF, &FF, &FF, &FF
-
-ELSE
-
- SKIP 1
-
- FOR I%, 1, 255
-
-  EQUB HI(INT(&2000 * LOG(I%) / LOG(2) + 0.5))
-
- NEXT
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: logL
-\       Type: Variable
-\   Category: Maths (Arithmetic)
-\    Summary: Binary logarithm table (low byte)
-\
-\ ------------------------------------------------------------------------------
-\
-\ Byte n contains the low byte of:
-\
-\   32 * log2(n) * 256
-\
-\ ******************************************************************************
-
-.logL
-
-IF _MATCH_ORIGINAL_BINARIES
-
- IF _SNG47
-
-  EQUB &60              \ This byte appears to be unused and just contains
-                        \ random workspace noise left over from the BBC Micro
-                        \ assembly process
-
- ELIF _COMPACT
-
-  EQUB &A9              \ This byte appears to be unused and just contains
-                        \ random workspace noise left over from the BBC Micro
-                        \ assembly process
-
- ENDIF
-
- EQUB &00, &00, &B8, &00, &4D, &B8, &D6
- EQUB &00, &70, &4D, &B4, &B8, &6A, &D6, &05
- EQUB &00, &CC, &70, &EF, &4D, &8E, &B4, &C1
- EQUB &B8, &9A, &6A, &28, &D6, &75, &05, &89
- EQUB &00, &6C, &CC, &23, &70, &B4, &EF, &22
- EQUB &4D, &71, &8E, &A4, &B4, &BD, &C1, &BF
- EQUB &B8, &AC, &9A, &85, &6A, &4B, &28, &01
- EQUB &D6, &A7, &75, &3F, &05, &C9, &89, &46
- EQUB &00, &B7, &6C, &1D, &CC, &79, &23, &CB
- EQUB &70, &13, &B4, &52, &EF, &8A, &22, &B9
- EQUB &4D, &E0, &71, &00, &8E, &1A, &A4, &2D
- EQUB &B4, &39, &BD, &40, &C1, &41, &BF, &3C
- EQUB &B8, &32, &AC, &24, &9A, &10, &85, &F8
- EQUB &6A, &DB, &4B, &BA, &28, &95, &01, &6C
- EQUB &D6, &3F, &A7, &0E, &75, &DA, &3F, &A2
- EQUB &05, &67, &C9, &29, &89, &E8, &46, &A3
- EQUB &00, &5C, &B7, &12, &6C, &C5, &1D, &75
- EQUB &CC, &23, &79, &CE, &23, &77, &CB, &1E
- EQUB &70, &C2, &13, &64, &B4, &03, &52, &A1
- EQUB &EF, &3D, &8A, &D6, &22, &6E, &B9, &03
- EQUB &4D, &97, &E0, &29, &71, &B9, &00, &47
- EQUB &8E, &D4, &1A, &5F, &A4, &E8, &2D, &70
- EQUB &B4, &F7, &39, &7B, &BD, &FF, &40, &81
- EQUB &C1, &01, &41, &80, &BF, &FE, &3C, &7A
- EQUB &B8, &F5, &32, &6F, &AC, &E8, &24, &5F
- EQUB &9A, &D5, &10, &4A, &85, &BE, &F8, &31
- EQUB &6A, &A3, &DB, &13, &4B, &83, &BA, &F1
- EQUB &28, &5F, &95, &CB, &01, &36, &6C, &A1
- EQUB &D6, &0A, &3F, &73, &A7, &DB, &0E, &42
- EQUB &75, &A7, &DA, &0C, &3F, &71, &A2, &D4
- EQUB &05, &36, &67, &98, &C9, &F9, &29, &59
- EQUB &89, &B8, &E8, &17, &46, &75, &A3, &D2
-
-ELSE
-
- SKIP 1
-
- FOR I%, 1, 255
-
-  EQUB LO(INT(&2000 * LOG(I%) / LOG(2) + 0.5))
-
- NEXT
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: alogh
-\       Type: Variable
-\   Category: Maths (Arithmetic)
-\    Summary: Binary antilogarithm table
-\
-\ ------------------------------------------------------------------------------
-\
-\ At byte n, the table contains:
-\
-\   2^((n / 2 + 128) / 16) / 256
-\
-\ which equals:
-\
-\   2^(n / 32 + 8) / 256
-\
-\ ******************************************************************************
-
-.alogh
-
- FOR I%, 0, 255
-
-  EQUB HI(INT(2^((I% / 2 + 128) / 16) + 0.5))
-
- NEXT
 
 \ ******************************************************************************
 \
@@ -8295,6 +8082,225 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: FONT%
+\       Type: Variable
+\   Category: Text
+\    Summary: A copy of the character definition bitmap table from the MOS ROM
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is used by the TT26 routine to save time looking up the character bitmaps
+\ from the ROM. Note that FONT% contains just the high byte (i.e. the page
+\ number) of the address of this table, rather than the full address.
+\
+\ The contents of the P.FONT.bin file included here are taken straight from the
+\ following three pages in the BBC Micro OS 1.20 ROM:
+\
+\   ASCII 32-63  are defined in &C000-&C0FF (page 0)
+\   ASCII 64-95  are defined in &C100-&C1FF (page 1)
+\   ASCII 96-126 are defined in &C200-&C2F0 (page 2)
+\
+\ The code could look these values up each time (as the cassette version does),
+\ but it's quicker to use a lookup table, at the expense of three pages of
+\ memory.
+\
+\ ******************************************************************************
+
+ FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
+
+ ALIGN &100             \ Port: the font must start on a page boundary, as only
+                        \ its page number is used (FONT%), and log must too (FMLTU
+                        \ reads it by an operand whose low byte is the argument);
+                        \ the font is three pages, so the log tables after it are
+                        \ page aligned with it
+
+ FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
+
+ INCBIN "src/fonts/P.FONT.bin"
+
+\ ******************************************************************************
+\
+\       Name: log
+\       Type: Variable
+\   Category: Maths (Arithmetic)
+\    Summary: Binary logarithm table (high byte)
+\
+\ ------------------------------------------------------------------------------
+\
+\ At byte n, the table contains the high byte of:
+\
+\   &2000 * log10(n) / log10(2) = 32 * 256 * log10(n) / log10(2)
+\
+\ where log10 is the logarithm to base 10. The change-of-base formula says that:
+\
+\   log2(n) = log10(n) / log10(2)
+\
+\ so byte n contains the high byte of:
+\
+\   32 * log2(n) * 256
+\
+\ ******************************************************************************
+
+.log
+
+IF _MATCH_ORIGINAL_BINARIES
+
+ EQUB &00               \ This byte appears to be unused and just contains
+                        \ random workspace noise left over from the BBC Micro
+                        \ assembly process
+
+ EQUB &00, &20, &32, &40, &4A, &52, &59
+ EQUB &60, &65, &6A, &6E, &72, &76, &79, &7D
+ EQUB &80, &82, &85, &87, &8A, &8C, &8E, &90
+ EQUB &92, &94, &96, &98, &99, &9B, &9D, &9E
+ EQUB &A0, &A1, &A2, &A4, &A5, &A6, &A7, &A9
+ EQUB &AA, &AB, &AC, &AD, &AE, &AF, &B0, &B1
+ EQUB &B2, &B3, &B4, &B5, &B6, &B7, &B8, &B9
+ EQUB &B9, &BA, &BB, &BC, &BD, &BD, &BE, &BF
+ EQUB &C0, &C0, &C1, &C2, &C2, &C3, &C4, &C4
+ EQUB &C5, &C6, &C6, &C7, &C7, &C8, &C9, &C9
+ EQUB &CA, &CA, &CB, &CC, &CC, &CD, &CD, &CE
+ EQUB &CE, &CF, &CF, &D0, &D0, &D1, &D1, &D2
+ EQUB &D2, &D3, &D3, &D4, &D4, &D5, &D5, &D5
+ EQUB &D6, &D6, &D7, &D7, &D8, &D8, &D9, &D9
+ EQUB &D9, &DA, &DA, &DB, &DB, &DB, &DC, &DC
+ EQUB &DD, &DD, &DD, &DE, &DE, &DE, &DF, &DF
+ EQUB &E0, &E0, &E0, &E1, &E1, &E1, &E2, &E2
+ EQUB &E2, &E3, &E3, &E3, &E4, &E4, &E4, &E5
+ EQUB &E5, &E5, &E6, &E6, &E6, &E7, &E7, &E7
+ EQUB &E7, &E8, &E8, &E8, &E9, &E9, &E9, &EA
+ EQUB &EA, &EA, &EA, &EB, &EB, &EB, &EC, &EC
+ EQUB &EC, &EC, &ED, &ED, &ED, &ED, &EE, &EE
+ EQUB &EE, &EE, &EF, &EF, &EF, &EF, &F0, &F0
+ EQUB &F0, &F1, &F1, &F1, &F1, &F1, &F2, &F2
+ EQUB &F2, &F2, &F3, &F3, &F3, &F3, &F4, &F4
+ EQUB &F4, &F4, &F5, &F5, &F5, &F5, &F5, &F6
+ EQUB &F6, &F6, &F6, &F7, &F7, &F7, &F7, &F7
+ EQUB &F8, &F8, &F8, &F8, &F9, &F9, &F9, &F9
+ EQUB &F9, &FA, &FA, &FA, &FA, &FA, &FB, &FB
+ EQUB &FB, &FB, &FB, &FC, &FC, &FC, &FC, &FC
+ EQUB &FD, &FD, &FD, &FD, &FD, &FD, &FE, &FE
+ EQUB &FE, &FE, &FE, &FF, &FF, &FF, &FF, &FF
+
+ELSE
+
+ SKIP 1
+
+ FOR I%, 1, 255
+
+  EQUB HI(INT(&2000 * LOG(I%) / LOG(2) + 0.5))
+
+ NEXT
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: logL
+\       Type: Variable
+\   Category: Maths (Arithmetic)
+\    Summary: Binary logarithm table (low byte)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Byte n contains the low byte of:
+\
+\   32 * log2(n) * 256
+\
+\ ******************************************************************************
+
+.logL
+
+IF _MATCH_ORIGINAL_BINARIES
+
+ IF _SNG47
+
+  EQUB &60              \ This byte appears to be unused and just contains
+                        \ random workspace noise left over from the BBC Micro
+                        \ assembly process
+
+ ELIF _COMPACT
+
+  EQUB &A9              \ This byte appears to be unused and just contains
+                        \ random workspace noise left over from the BBC Micro
+                        \ assembly process
+
+ ENDIF
+
+ EQUB &00, &00, &B8, &00, &4D, &B8, &D6
+ EQUB &00, &70, &4D, &B4, &B8, &6A, &D6, &05
+ EQUB &00, &CC, &70, &EF, &4D, &8E, &B4, &C1
+ EQUB &B8, &9A, &6A, &28, &D6, &75, &05, &89
+ EQUB &00, &6C, &CC, &23, &70, &B4, &EF, &22
+ EQUB &4D, &71, &8E, &A4, &B4, &BD, &C1, &BF
+ EQUB &B8, &AC, &9A, &85, &6A, &4B, &28, &01
+ EQUB &D6, &A7, &75, &3F, &05, &C9, &89, &46
+ EQUB &00, &B7, &6C, &1D, &CC, &79, &23, &CB
+ EQUB &70, &13, &B4, &52, &EF, &8A, &22, &B9
+ EQUB &4D, &E0, &71, &00, &8E, &1A, &A4, &2D
+ EQUB &B4, &39, &BD, &40, &C1, &41, &BF, &3C
+ EQUB &B8, &32, &AC, &24, &9A, &10, &85, &F8
+ EQUB &6A, &DB, &4B, &BA, &28, &95, &01, &6C
+ EQUB &D6, &3F, &A7, &0E, &75, &DA, &3F, &A2
+ EQUB &05, &67, &C9, &29, &89, &E8, &46, &A3
+ EQUB &00, &5C, &B7, &12, &6C, &C5, &1D, &75
+ EQUB &CC, &23, &79, &CE, &23, &77, &CB, &1E
+ EQUB &70, &C2, &13, &64, &B4, &03, &52, &A1
+ EQUB &EF, &3D, &8A, &D6, &22, &6E, &B9, &03
+ EQUB &4D, &97, &E0, &29, &71, &B9, &00, &47
+ EQUB &8E, &D4, &1A, &5F, &A4, &E8, &2D, &70
+ EQUB &B4, &F7, &39, &7B, &BD, &FF, &40, &81
+ EQUB &C1, &01, &41, &80, &BF, &FE, &3C, &7A
+ EQUB &B8, &F5, &32, &6F, &AC, &E8, &24, &5F
+ EQUB &9A, &D5, &10, &4A, &85, &BE, &F8, &31
+ EQUB &6A, &A3, &DB, &13, &4B, &83, &BA, &F1
+ EQUB &28, &5F, &95, &CB, &01, &36, &6C, &A1
+ EQUB &D6, &0A, &3F, &73, &A7, &DB, &0E, &42
+ EQUB &75, &A7, &DA, &0C, &3F, &71, &A2, &D4
+ EQUB &05, &36, &67, &98, &C9, &F9, &29, &59
+ EQUB &89, &B8, &E8, &17, &46, &75, &A3, &D2
+
+ELSE
+
+ SKIP 1
+
+ FOR I%, 1, 255
+
+  EQUB LO(INT(&2000 * LOG(I%) / LOG(2) + 0.5))
+
+ NEXT
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: alogh
+\       Type: Variable
+\   Category: Maths (Arithmetic)
+\    Summary: Binary antilogarithm table
+\
+\ ------------------------------------------------------------------------------
+\
+\ At byte n, the table contains:
+\
+\   2^((n / 2 + 128) / 16) / 256
+\
+\ which equals:
+\
+\   2^(n / 32 + 8) / 256
+\
+\ ******************************************************************************
+
+.alogh
+
+ FOR I%, 0, 255
+
+  EQUB HI(INT(2^((I% / 2 + 128) / 16) + 0.5))
+
+ NEXT
+
+\ ******************************************************************************
+\
 \       Name: UP
 \       Type: Workspace
 \    Address: &2C40 to &2C61
@@ -8497,7 +8503,7 @@ ENDIF
 
 .HEAD_END%
 
- PRINT "Main code below &3000: ", ~CODE%, "-", ~HEAD_END%-1, " free ", &3000-HEAD_END%
+ PRINT "Main code below &3000: ", ~CODE%, "-", ~HEAD_END%-1, " free ", &3000-HEAD_END%, " (the font's alignment: ", FONTPAD%, " bytes of padding)"
  ASSERT P% <= &3000     \ Port: everything up to here must be below &3000, as it
                         \ is used while ACCCON X = 1 (shadow RAM at &3000-&7FFF),
                         \ from interrupts or from MOS vectors with any ROM paged:

@@ -105,7 +105,7 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .R_SX       SKIP 24         \ (raster_vars.asm: the stars)
 .R_SY       SKIP 24
 .WS_GAP                     \ (free to WS_TOP)
-WS_TOP = &1F00 - 2 - 192   \ the rest ends at the main code (asserted below)
+WS_TOP = CODE% - 2 - 192   \ the rest ends at the main code (asserted below)
 ASSERT P% <= WS_TOP
 ORG WS_TOP
 .R_SN       SKIP 1          \ star count 0..24

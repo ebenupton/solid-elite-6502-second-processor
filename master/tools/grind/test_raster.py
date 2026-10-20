@@ -57,6 +57,8 @@ def gfx_constants():
     # from Elite's NOST (elite-source.asm)
     src = open(os.path.join(MS, 'elite-source.asm')).read()
     out.append('NOST = %s' % re.search(r'^\s*NOST\s*=\s*(\d+)', src, re.M).group(1))
+    # and the main code's start, where the shared workspace ends (WS_TOP)
+    out.append('CODE%% = %s' % re.search(r'^\s*CODE%\s*=\s*(&[0-9A-Fa-f]+)', src, re.M).group(1))
     out += [l for l in open(GFX).read().split('\n') if re.match(r'^NDSTAR\s*=', l)]
     return '\n'.join(out)
 
