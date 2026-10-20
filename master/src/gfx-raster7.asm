@@ -1,6 +1,6 @@
 \ ============================================================================
 \ raster7.asm -- the rasteriser's second sideways bank (R_BANK_AUX = 7): its
-\ cold code (R_INIT, R_CLEARALL, R_RESETBUF, the dirty repair outside the
+\ cold code (R_INIT, R_RESETBUF, the dirty repair outside the
 \ disc rows) and R_LINE.  INCLUDE it at &8000 in its own bank, after
 \ raster_vars.asm, raster_hz.asm and raster.asm (it uses their symbols).
 \ The caller calls R_LINE with bank 7 paged; raster.asm's other entry points
@@ -371,45 +371,6 @@ R7_RUN 12
 .c_r  SKIP 1
 R7_ENDPAGE 12
 R7_RUN 13
-\ ============================================================================
-\ R_CLEARALL (bank 7 part): black the clip window, reset the buffer's state
-\ ============================================================================
-.r7_clearall
-{
-  LDX #LO(r_clrrow)       \ each row by bank 5's span code
-  STX r_hzt5
-  LDX #HI(r_clrrow)
-  STX r_hzt5+1
-  LDY R_CT
-.row
-  STY RZ_T0
-  JSR r_call5
-  LDY RZ_T0
-  CPY R_CB
-  INY
-  BCC row
-  JSR r7_resetbuf
-  LDY R_CT                \ WL/WR: the whole window was written
-.cw
-  LDA R_CL
-  STA R_WL,Y
-  LDA R_CR
-  STA R_WR,Y
-  CPY R_CB
-  INY
-  BCC cw
-  LDA R_CT
-  CMP R_PRWT
-  BCS w1
-  STA R_PRWT
-.w1
-  LDA R_CB
-  CMP R_PRWB
-  BCC w2
-  STA R_PRWB
-.w2
-  RTS
-}
 R7_ENDPAGE 13
 R7_RUN 14
 \ ab: X = 0 / 2: |T(X), T(X+1)| -> A, C = 1 if >= 256

@@ -197,6 +197,29 @@ class Machine:
     def screen(self):
         return bytes(self.mem[SCR0:SCR1])
 
+    def clearall(self):
+        """Black the clip window of the current buffer and reset its state: the
+        rasteriser's R_CLEARALL where it has one (the demo's), else its effect done
+        here (the Master port dropped R_CLEARALL, which nothing in the game called):
+        the window blacked, R_RESETBUF, R_WL/R_WR = the window on its rows, R_PRWT /
+        R_PRWB widened to it.  Returns R_RESETBUF's (or R_CLEARALL's) cycles."""
+        if 'R_CLEARALL' in self.syms:
+            return self.call('R_CLEARALL')
+        mem = self.mem
+        cl, cr, ct, cb = (mem[ZP[k]] for k in ('R_CL', 'R_CR', 'R_CT', 'R_CB'))
+        r = Ref(self.screen(), (cl, cr, ct, cb))
+        r.blackwin()
+        self.set_screen(bytes(r.b))
+        c = self.call('R_RESETBUF')
+        for y in range(ct, cb + 1):
+            self.wr('R_WL', cl, y)
+            self.wr('R_WR', cr, y)
+        if ct < self.rd('R_PRWT'):
+            self.wr('R_PRWT', ct)
+        if cb >= self.rd('R_PRWB'):
+            self.wr('R_PRWB', cb)
+        return c
+
     def set_screen(self, b):
         self.mem[SCR0:SCR1] = list(b)
 
@@ -551,10 +574,10 @@ class Tester:
         return cyc, sp
 
     def reset_state(self, b):
-        """R_CLEARALL on buffer b; returns the reference."""
+        """clear all (R_CLEARALL or its effect) on buffer b; returns the reference."""
         m = self.m
         m.call('R_SETBUF', a=b)
-        m.call('R_CLEARALL')
+        m.clearall()
         ref = Ref(m.screen(), self.clip)
         dirt = [(255, 0)] * 192
         return ref, dirt
@@ -700,7 +723,7 @@ class Tester:
             if use_reset:
                 bufs[b] = blackreset(b)
             else:
-                m.call('R_CLEARALL')
+                m.clearall()
                 bufs[b] = m.screen()
             outside[b] = bufs[b]
         sc = scenario or rnd.choice(['none', 'sun', 'planet', 'mixed', 'jumpy'])
@@ -983,7 +1006,7 @@ def bench(m, rnd):
     m.guard = False
     out = []
     m.call('R_SETBUF', a=0)
-    m.call('R_CLEARALL')
+    m.clearall()
     # spans
     t.set_col(0x5A, 0xA5)
     for w in (1, 4, 8, 16, 32, 64, 128, 254):
@@ -1043,7 +1066,7 @@ def bench(m, rnd):
         m.wr('R_DBO', 0xCC)
         for b in range(2):
             m.call('R_SETBUF', a=b)
-            m.call('R_CLEARALL')
+            m.clearall()
         for f in range(n):
             b = f & 1
             m.call('R_SETBUF', a=b)
@@ -1097,7 +1120,7 @@ def bench(m, rnd):
     m.wr('R_NDF', 0)
     # stars
     m.call('R_SETBUF', a=0)
-    m.call('R_CLEARALL')
+    m.clearall()
     m.wr('R_SN', 24)
     for i in range(24):
         m.wr('R_SX', rnd.randrange(256), i); m.wr('R_SY', rnd.randrange(192), i); m.wr('R_SS', rnd.randrange(1, 4), i)
@@ -1112,7 +1135,8 @@ def bench(m, rnd):
         out.append('  stars of size %d: plot %4.0f, erase %3.0f cycles per star' % (sz, c / 24, e / 24))
     out.append('R_RESETBUF: %d cycles' % m.call('R_RESETBUF'))
     out.append('R_SETBUF switch: %d cycles' % m.call('R_SETBUF', a=1))
-    out.append('R_CLEARALL: %d cycles' % m.call('R_CLEARALL'))
+    if 'R_CLEARALL' in m.syms:
+        out.append('R_CLEARALL: %d cycles' % m.clearall())
     m.guard = True
     return '\n'.join(out)
 

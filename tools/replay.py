@@ -72,7 +72,7 @@ class Replayer:
             return m.call('R_' + n)
         self.setzp(d)
         if n == 'CLEARALL':
-            return m.call('R_CLEARALL')
+            return m.clearall()
         if n == 'POLY':
             v = d['verts']
             m.wr('R_PN', len(v))

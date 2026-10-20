@@ -10,7 +10,7 @@
 \ this file holds the code, tables and private state (INCLUDE it at &8000
 \ in sideways bank 5, R_BANK_MAIN; it ALIGNs itself to a page, so another
 \ start costs up to 255 bytes); raster7.asm is bank 7 (R_BANK_AUX): cold
-\ code, paged in by the stubs (R_INIT, R_CLEARALL, R_RESETBUF), and R_LINE,
+\ code, paged in by the stubs (R_INIT, R_RESETBUF), and R_LINE,
 \ which the caller calls with bank 7 paged.  The caller calls this file's
 \ entry points with bank 5 paged; they return with bank 5 paged.  It references
 \ no Elite symbol; all labels start with r_ / R_ / RZ_.  CPU 1 is selected.
@@ -25,8 +25,8 @@
 \   R_CT, R_CB      clip window y min/max (inclusive). 0 <= CT <= CB <= 191
 \   R_DCE, R_DCO    disc colour pair (R_DISCROWS)
 \   everything else in &10-&27 is internal scratch (RZ_*), clobbered by calls.
-\ The clip window should stay constant from frame to frame; R_CLEARALL (or
-\ black the window and R_RESETBUF) both buffers after changing it.
+\ The clip window should stay constant from frame to frame; black the window
+\ and R_RESETBUF both buffers after changing it.
 \
 \ ---------------------------------------------------------------- variables
 \ (raster_vars.asm; empty span: L = 255, R = 0; for R_WL/R_WR, R = 0)
@@ -60,8 +60,8 @@
 \
 \ R_INIT       once at startup: clip window = 1..254 x 1..191, R_SCOL = &FF,
 \              all per-buffer state empty, R_SETBUF 0.  Does not touch the
-\              screen: follow with R_CLEARALL (or R_RESETBUF on a black
-\              window) for each buffer.
+\              screen: follow with R_RESETBUF on a black window for each
+\              buffer.
 \ R_SETBUF     A = buffer 0/1 whose state arrays (dirty, disc, stars) the
 \              following calls use.  Call it before drawing each frame.  It
 \              self-modifies the code: ~85 operand high bytes are stored
@@ -69,7 +69,6 @@
 \ R_RESETBUF   forget the current buffer's state (no dirty, no disc, no
 \              stars) without touching the screen; the caller guarantees the
 \              buffer's clip window is black.  ~5000 cycles.  No R_INIT needed.
-\ R_CLEARALL   black the whole clip window and R_RESETBUF (~115000 cycles).
 \ R_SPAN       Y = row, fill pixels R_XL..R_XR (within the clip window, XL<=XR)
 \              with the colour pair.  Pure drawing: no state is updated.
 \              Pass R_COLE = R_COLO = 0 for black.
@@ -3479,20 +3478,8 @@ MACRO R_TO7 target
   LDX #HI(target)
   JMP r_c7x
 ENDMACRO
-\ r_clrrow: (for bank 7's R_CLEARALL) Y = row: black from CL to CR
-.r_clrrow
-  JSR r_rowset
-  STZ RZ_COL
-  LDA R_CL
-  STA R_XL
-  LDA R_CR
-  STA R_XR
-  LDX R_CL
-  JMP r_spc
 .R_INIT
   R_TO7 r7_init
-.R_CLEARALL
-  R_TO7 r7_clearall
 .R_RESETBUF
   R_TO7 r7_resetbuf
 

@@ -92,7 +92,7 @@ const S = psyms;
 // inputs per entry point
 const INPUTS = {
     T_SETBUF: () => cpu.a.toString(16).padStart(2, "0"),
-    T_RESETBUF: () => "", T_STARERASE: () => "", T_WMERGE: () => "", T_CLEARALL: () => zp(), T_INIT: () => "",
+    T_RESETBUF: () => "", T_STARERASE: () => "", T_INIT: () => "",
     T_POLY: () => zp() + rbs(S.R_PN, 65),
     T_LINE: () => zp() + rbs(S.R_X0, 8),
     T_DOT: () => zp() + [cpu.a, cpu.x, cpu.y].map(v => v.toString(16).padStart(2, "0")).join(""),
