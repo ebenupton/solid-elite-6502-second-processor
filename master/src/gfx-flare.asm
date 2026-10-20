@@ -20,85 +20,57 @@
 \ after any shape (the disc rows repainted, the rest blacked, the text and
 \ sights redrawn over it): the flare keeps no state on the screen.
 \
-\ Memory (the Master port's banks have no room for it): this file is in
-\ shadow RAM, which the loader fills from FLARE7, FLARE3 and FLARE0: &7E00-
-\ &7FFF (not displayed: the screen ends at &7DFF), &3F00-&3FFF (after the
-\ extended tokens) and &3000-&308F (below setzp's zero page save). The frame
-\ layer's f_flt (gfx-flare6.asm, bank 6) sets ACCCON X around FL_MAIN, and
-\ fl_or (bank 6 too) does the writing, as the back buffer may be main RAM
-\ (buffer 0: ACCCON X = 0 while it writes). Everything this code reads is in
-\ bank 6 (paged throughout the frame), HAZEL, the zero page, shadow RAM or
-\ main RAM below &3000.
+\ Memory: this file is in bank 5, after the rasteriser (its half-width
+\ table fl_htab and its variables are in run pages' tails in gfx-raster.asm).
+\ The frame layer's f_flt (gfx-flare6.asm, bank 6) makes the tests that need
+\ bank 6's state (the view, the sun's centre on the screen, not behind the
+\ planet: F_HW) and enters R_FLARE through T_FLARE. ACCCON X is as the frame
+\ layer has it, mapping the back buffer at &4000-&7FFF, so fl_or writes
+\ either buffer with no switching. Everything this code reads is in bank 5,
+\ HAZEL, the zero page or main RAM below &3000. (It was in shadow RAM, run
+\ with ACCCON X set, until it moved here.)
 \
 \ ******************************************************************************
 
-\ (Its zero page is defined in gfx-flare6.asm, assembled first.)
+\ Zero page: the rasteriser's scratch &10-&27, which F_FRAME saves and
+\ restores, and R_COLE, R_COLO and R_DCE (&06, &07, &0E: saved too, and set
+\ again before any use after the flare)
 
-\ ------------------------------------------------------------------------------
-\ Shadow &7E00-&7FFF: the flare's frame step, the ghosts' centres, a disc's
-\ set-up, a dotted ring
-\ ------------------------------------------------------------------------------
+fl_lq   = &06           \ a span's first byte's mask (before the row's)
+fl_rq   = &07           \ its last byte's
+fl_t    = &0E
+fl_dx   = &10           \ the sun's x - 128 (signed)
+fl_dy   = &11           \ the sun's y - 96 (signed; fl_dx + 1)
+fl_u    = &12           \ the ghost's ink
+fl_i    = &13           \ the next ghost's number
+fl_ymin = &14           \ the rows written
+fl_ymax = &15
+fl_gx   = &16           \ the ghost's centre (on the screen when the sun's
+fl_gy   = &17           \ centre is, as |k| <= 8: all 8-bit)
+fl_r    = &18           \ a disc's radius (a ring: the step, 2 or 4)
+fl_hw   = &19           \ a disc's half-width table (a ring: dx, dy)
+fl_pat  = &1B           \ the ghost's ink masks for rows y AND 3 = 0..3
+fl_d    = &1F           \ a disc's row offset d (a ring: the point's offset)
+fl_m    = &20           \ the row's mask (fl_or: the middle bytes')
+fl_sp   = &21           \ screen pointer (fl_or)
+fl_n    = &23           \ 8 * (bytes - 1) (fl_or)
+fl_ch   = &24           \ &40 + (a span's first byte's column >= 32)
+fl_cl   = &27           \ 8 x a span's first byte's column, low byte
 
-ORG &7E00
+FLNG = 8                \ ghosts
+FLHMAX = 26             \ the ring round the sun only for a sun this small
 
-\ fl_pd: X = 0: |F_SUX - F_PLX|, X = 2: |F_SUY - F_PLY| in Y, with Z = 1 if
-\ it is below 256 (Z = 0: further apart)
 
-.fl_pd
- LDA F_SUX,X
- SEC
- SBC F_PLX,X
- TAY
- LDA F_SUX+1,X
- SBC F_PLX+1,X
- BEQ fl_ret             \ 0..255
- INC A
- BNE fl_ret             \ (not -256..-1: Z = 0)
- TYA                    \ -255..-1: Y = - low byte (-256: Z = 0)
- BEQ fpq8
- EOR #&FF
- TAY
- INY
- LDA #0
-.fl_ret
- RTS
-.fpq8
- DEC A
- RTS
+\ R_FLARE: the flare over this frame (from f_flt, bank 6, through T_FLARE,
+\ when the sun's centre is on the screen in the front view and not behind the
+\ planet; fl_dx, fl_dy set), X: this buffer's R_DIRTYL page, Y: its R_DIRTYR
+\ page.
 
-\ FL_MAIN: the flare over this frame, if any (from f_flt, with ACCCON X = 1
-\ and the sun drawn this frame; fl_xb set).
-
-.FL_MAIN
- LDA VIEW               \ the front view, and the sun's centre on the
- ORA F_SUX+1            \ screen: x 1..255, y 0..191
- ORA F_SUY+1
- BNE fl_ret
- LDA F_SUX
- BEQ fl_ret
- EOR #&80
- STA fl_dx
- LDA F_SUY
- CMP #192
- BCS fl_ret
- SBC #95                \ (C = 0: - 96)
- STA fl_dy
- LDA F_PLON             \ behind the planet? (inside its disc: F_HW has the
- BEQ flm1               \ planet's half-widths, built this frame)
- LDX #2
- JSR fl_pd              \ |sy - py|
- BNE flm1
- CPY F_PLR
- BEQ P%+4
- BCS flm1
- LDA F_HW,Y
- STA fl_t
- LDX #0
- JSR fl_pd              \ |sx - px|
- BNE flm1
- CPY fl_t
- BCC fl_ret
- BEQ fl_ret
+.R_FLARE
+ STX fl_dl1+2           \ this buffer's dirty extents
+ STX fl_dl2+2
+ STY fl_dr1+2
+ STY fl_dr2+2
 .flm1
  LDA fl_dx              \ level 3 if |dx| + |dy| < 96, 2 if < 192, else 1
  JSR fl_abs
@@ -116,17 +88,6 @@ ORG &7E00
  DEX
 .flm2
  STX fl_lev
- LDA fsw_d1+2           \ this buffer's dirty extents (f_bufpatch)
- STA fl_dl1+2
- STA fl_dl2+2
- LDA fsw_d2+2
- STA fl_dr1+2
- STA fl_dr2+2
- LDA #LO(fl_or)         \ buffer 1 (shadow RAM): ACCCON X stays set while
- LDX fl_xb              \ fl_or writes
- BNE P%+4
- LDA #LO(fl_or1)
- STA fl_jor+1
  LDA #255
  STA fl_ymin
  STZ fl_ymax
@@ -162,9 +123,9 @@ ORG &7E00
  LDA #255               \ (an empty extent: only the row range grows)
  STA R_XL
  STZ R_XR
- JSR T_MARKDIRTY
+ JSR R_MARKDIRTY
  LDY fl_ymax
- JMP T_MARKDIRTY
+ JMP R_MARKDIRTY
 .fl_rts
  RTS
 
@@ -337,30 +298,8 @@ ORG &7E00
  BCC fsr1
  RTS
 
-.SH7_END
-ASSERT SH7_END <= &8000
-
-\ ------------------------------------------------------------------------------
-\ Shadow &3F00-&3FFF: the tables (tools/flare.py: GHOSTS, LADDER, BAYER,
-\ hw_table; RING and the masks in bank 6, the variables in HAZEL and the
-\ zero page) and a disc's rows
-\ ------------------------------------------------------------------------------
-
-ORG &3F00
-
-.fl_htab                \ half-widths: the widest x with x^2 + d^2 <= r^2 + r,
-MACRO FLHW r            \ d = 0..r (one page: fl_hw's high byte is fixed)
- FOR d, 0, r
-  EQUB INT(SQR(r * r + r - d * d))
- NEXT
-ENDMACRO
-.fl_h3  FLHW 3
-.fl_h4  FLHW 4
-.fl_h5  FLHW 5
-.fl_h7  FLHW 7
-.fl_h10 FLHW 10
-.fl_h18 FLHW 18
-ASSERT HI(fl_htab) = HI(P% - 1)
+\ The tables (tools/flare.py: GHOSTS, LADDER, BAYER, RING, hw_table: fl_htab
+\ is in gfx-raster.asm, in run page 19's tail, as it must be in one page)
 
                         \ the ghosts, by number (k = 8, 5, 3, -1, -3, -4, -6,
                         \ -8: centre C + k D / 8; 8: the ring round the sun):
@@ -466,17 +405,9 @@ fl_mt = P% - 4          \ row masks of densities 1, 2, 4, 6, 8 / 16 (4x4
  JMP fsd1
  RTS
 
-.SH3_END
-ASSERT SH3_END <= &4000
+\ fl_dcol: a dotted ring's column A: rows gy + dy and gy - dy
 
-\ ------------------------------------------------------------------------------
-\ Shadow &3000-&308F (below the zero page's save area at &3090, setzp):
-\ a ring's column and row, and a row's span
-\ ------------------------------------------------------------------------------
-
-ORG &3000
-
-.fl_dcol                \ column A: rows gy + dy and gy - dy
+.fl_dcol
  CMP #2
  BCC fsc9
  CMP #254
@@ -524,15 +455,15 @@ ORG &3000
 
 \ fl_row: row A (inside the clip window), if its mask (fl_pat) is not zero:
 \ extend this buffer's dirty extent for the row by R_XL..R_XR, point fl_sp
-\ at its first byte (column fl_cl / fl_ch) and OR the bytes (fl_or, bank 6,
-\ with the row's mask fl_m). Clobbers A, X, Y.
+\ at its first byte (column fl_cl / fl_ch) and OR the bytes (fl_or, with
+\ the row's mask fl_m). Clobbers A, X, Y.
 
 .fl_row
  TAY
  AND #3
  TAX
  LDA fl_pat,X
- BEQ fsr9
+ BEQ fsc9
  STA fl_m
 .fl_row1                \ (Y = row, fl_m = its mask)
  LDA R_XL
@@ -557,10 +488,42 @@ ORG &3000
  AND #&FE
  ORA fl_ch
  STA fl_sp+1
-.fl_jor
- JMP fl_or              \ (patched: past the ACCCON switch for buffer 1)              \ (bank 6)
-.fsr9
+                        \ (and on into fl_or)
+
+\ fl_or: OR the span at fl_sp into the back buffer: its last byte (offset
+\ fl_n) with fl_rq AND fl_m, then if fl_n > 0 the bytes between with fl_m and
+\ its first with fl_lq AND fl_m (fl_n = 0: the one byte, with fl_lq AND
+\ fl_m). Clobbers A, Y.
+
+.fl_or
+ LDY fl_n
+ BEQ flo9
+ LDA fl_rq
+ AND fl_m
+ ORA (fl_sp),Y
+ STA (fl_sp),Y
+ SEC
+ BRA flo3
+.flo2
+ LDA (fl_sp),Y
+ ORA fl_m
+ STA (fl_sp),Y
+.flo3
+ TYA
+ SBC #8
+ TAY
+ BNE flo2
+.flo9
+ LDA fl_lq
+ AND fl_m
+ ORA (fl_sp)
+ STA (fl_sp)
  RTS
 
-.SH0_END
-ASSERT SH0_END <= &3090
+.fl_dk  EQUB 0, 3, 2, 4, 2, 1, 2, 2 \ the k steps 8 -> 5 -> 3 -> -1 -> -3 ->
+                                    \ -4 -> -6 -> -8, by ghost
+.fl_lmt EQUB &FF, &77, &33, &11     \ pixels x AND 3..3 of a byte
+.fl_rmt EQUB &88, &CC, &EE, &FF     \ pixels 0..x AND 3
+.fl_pxm EQUB &88, &44, &22, &11     \ pixel x AND 3
+.fl_ring                \ (dx, dy) of 9 points of a quarter circle of radius 15
+ EQUB 15, 0, 15, 3, 14, 6, 12, 8, 11, 11, 8, 12, 6, 14, 3, 15, 0, 15

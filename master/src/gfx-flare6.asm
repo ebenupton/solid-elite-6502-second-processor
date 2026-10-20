@@ -1,103 +1,79 @@
 \ ******************************************************************************
 \
-\ gfx-flare6.asm - the lens flare's part in bank 6 (see gfx-flare.asm): its
-\ step in F_FRAME and the writing of a span
+\ gfx-flare6.asm - the lens flare's part in bank 6 (see gfx-flare.asm, in
+\ bank 5): its step in F_FRAME and the tests that read bank 6's state
 \
 \ ******************************************************************************
 
-\ Zero page: the rasteriser's scratch &10-&27, which F_FRAME saves and
-\ restores, and R_COLE, R_COLO and R_DCE (&06, &07, &0E: saved too, and set
-\ again before any use after the flare)
-
-fl_lq   = &06           \ a span's first byte's mask (before the row's)
-fl_rq   = &07           \ its last byte's
-fl_t    = &0E
-fl_dx   = &10           \ the sun's x - 128 (signed)
-fl_dy   = &11           \ the sun's y - 96 (signed; fl_dx + 1)
-fl_u    = &12           \ the ghost's ink
-fl_i    = &13           \ the next ghost's number
-fl_ymin = &14           \ the rows written
-fl_ymax = &15
-fl_gx   = &16           \ the ghost's centre (on the screen when the sun's
-fl_gy   = &17           \ centre is, as |k| <= 8: all 8-bit)
-fl_r    = &18           \ a disc's radius (a ring: the step, 2 or 4)
-fl_hw   = &19           \ a disc's half-width table (a ring: dx, dy)
-fl_pat  = &1B           \ the ghost's ink masks for rows y AND 3 = 0..3
-fl_d    = &1F           \ a disc's row offset d (a ring: the point's offset)
-fl_m    = &20           \ the row's mask (fl_or: the middle bytes')
-fl_sp   = &21           \ screen pointer (fl_or)
-fl_n    = &23           \ 8 * (bytes - 1) (fl_or)
-fl_ch   = &24           \ &40 + (a span's first byte's column >= 32)
-fl_cl   = &27           \ 8 x a span's first byte's column, low byte
-
-FLNG = 8                \ ghosts
-FLHMAX = 26             \ the ring round the sun only for a sun this small
+\ (Its zero page is defined in gfx-flare.asm, assembled first.)
 
 \ f_flt: F_FRAME's text step, after the flare (in place of JSR f_text2).
-\ Without the sun (GSUNON = 0) it costs a test; with it FL_MAIN, in shadow
-\ RAM, runs with ACCCON X = 1, and X goes back to this buffer's after.
+\ Without the sun (GSUNON = 0) it costs a test. With it: when the view is
+\ the front one and the sun's centre is on the screen (x 1..255, y 0..191)
+\ and not inside the planet's disc (F_HW has the planet's half-widths, built
+\ this frame), the flare (R_FLARE, bank 5, through T_FLARE) with fl_dx and
+\ fl_dy (the centre less (128, 96)) and this buffer's dirty extents' pages.
 
 .f_flt
  LDA GSUNON
  BEQ flt9
- LDA F_BACK             \ fl_xb: 4 when the back buffer is main RAM (0)
- EOR #1
- ASL A
- ASL A
- STA fl_xb
- LDA #4
- TSB &FE34
- JSR FL_MAIN            \ (in shadow RAM: ACCCON X is set; bankcheck: ok)
- LDA fl_xb
- TRB &FE34
+ LDA VIEW               \ the front view, and the sun's centre on the
+ ORA F_SUX+1            \ screen: x 1..255, y 0..191
+ ORA F_SUY+1
+ BNE flt9
+ LDA F_SUX
+ BEQ flt9
+ EOR #&80
+ STA fl_dx
+ LDA F_SUY
+ CMP #192
+ BCS flt9
+ SBC #95                \ (C = 0: - 96)
+ STA fl_dy
+ LDA F_PLON             \ behind the planet? (inside its disc)
+ BEQ flt1
+ LDX #2
+ JSR fl_pd              \ |sy - py|
+ BNE flt1
+ CPY F_PLR
+ BEQ P%+4
+ BCS flt1
+ LDA F_HW,Y
+ STA fl_t
+ LDX #0
+ JSR fl_pd              \ |sx - px|
+ BNE flt1
+ CPY fl_t
+ BCC flt9
+ BEQ flt9
+.flt1
+ LDX fsw_d1+2           \ this buffer's dirty extents (f_bufpatch)
+ LDY fsw_d2+2
+ JSR T_FLARE
 .flt9
  JMP f_text2
 
-\ fl_or: OR the span at fl_sp into the back buffer: its last byte (offset
-\ fl_n) with fl_rq AND fl_m, then if fl_n > 0 the bytes between with fl_m and
-\ its first with fl_lq AND fl_m (fl_n = 0: the one byte, with fl_lq AND
-\ fl_m), with ACCCON X cleared around it for buffer 0 (fl_xb = 4; buffer 1
-\ enters at fl_or1). Called from shadow RAM, so X is set again before
-\ returning. Clobbers A, Y.
+\ fl_pd: X = 0: |F_SUX - F_PLX|, X = 2: |F_SUY - F_PLY| in Y, with Z = 1 if
+\ it is below 256 (Z = 0: further apart)
 
-.fl_or
- LDA fl_xb
- TRB &FE34
-.fl_or1                 \ (buffer 1: X already set)
- LDY fl_n
- BEQ flo9
- LDA fl_rq
- AND fl_m
- ORA (fl_sp),Y
- STA (fl_sp),Y
+.fl_pd
+ LDA F_SUX,X
  SEC
- BRA flo3
-.flo2
- LDA (fl_sp),Y
- ORA fl_m
- STA (fl_sp),Y
-.flo3
- TYA
- SBC #8
+ SBC F_PLX,X
  TAY
- BNE flo2
-.flo9
- LDA fl_lq
- AND fl_m
- ORA (fl_sp)
- STA (fl_sp)
- LDA #4
- TSB &FE34
+ LDA F_SUX+1,X
+ SBC F_PLX+1,X
+ BEQ fl_ret             \ 0..255
+ INC A
+ BNE fl_ret             \ (not -256..-1: Z = 0)
+ TYA                    \ -255..-1: Y = - low byte (-256: Z = 0)
+ BEQ fpq8
+ EOR #&FF
+ TAY
+ INY
+ LDA #0
+.fl_ret
  RTS
-ASSERT HI(fl_or) = HI(fl_or1)
-
-\ The flare's tables, read by its code in shadow RAM (bank 6 is paged
-\ while it runs)
-
-.fl_dk  EQUB 0, 3, 2, 4, 2, 1, 2, 2 \ the k steps 8 -> 5 -> 3 -> -1 -> -3 ->
-                                    \ -4 -> -6 -> -8, by ghost
-.fl_lmt EQUB &FF, &77, &33, &11     \ pixels x AND 3..3 of a byte
-.fl_rmt EQUB &88, &CC, &EE, &FF     \ pixels 0..x AND 3
-.fl_pxm EQUB &88, &44, &22, &11     \ pixel x AND 3
-.fl_ring                \ (dx, dy) of 9 points of a quarter circle of radius 15
- EQUB 15, 0, 15, 3, 14, 6, 12, 8, 11, 11, 8, 12, 6, 14, 3, 15, 0, 15
+.fpq8
+ DEC A
+ RTS

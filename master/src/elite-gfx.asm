@@ -65,10 +65,9 @@ SAVE "build/HAZEL.bin", HZ_START, HZ_END, HZ_START
 NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 
 \ The shared workspace: the state that the rasteriser's two banks, the frame
-\ layer, the game's hooks, the IRQ handler and the lens flare (which runs
-\ with ACCCON X set) share, in one block in main RAM below the main code
-\ (CODE%) and below &3000, where all of them see it, above page &0D (off
-\ limits, docs/MASTER-MEMORY.md). Variables only (the renderer initialises
+\ layer, the game's hooks and the IRQ handler share, in one block in main
+\ RAM below the main code (CODE%) and below &3000, where all of them see it,
+\ above page &0D (off limits, docs/MASTER-MEMORY.md). Variables only (the renderer initialises
 \ them: R_INIT, F_INIT), except DFSST, which the loader fills (from &0400,
 \ as the loader itself is here). The arrays keep their low bytes from HAZEL,
 \ where their page crossings were measured: raster_vars at a fixed place
@@ -103,17 +102,11 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .R_SX       SKIP 24         \ (raster_vars.asm: the stars)
 .R_SY       SKIP 24
 .WS_GAP                     \ (free to WS_TOP)
-WS_TOP = &1F00 - 12 - 192   \ the rest ends at the main code (asserted below)
+WS_TOP = &1F00 - 2 - 192   \ the rest ends at the main code (asserted below)
 ASSERT P% <= WS_TOP
 ORG WS_TOP
 .R_SN       SKIP 1          \ star count 0..24
 .R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
-.fl_ml  SKIP 2          \ the lens flare (gfx-flare.asm): 32 D (x, y), low
-.fl_mh  SKIP 2          \ and high bytes
-.fl_sl  SKIP 2          \ the centres' sums S (x, y)
-.fl_sh  SKIP 2
-.fl_lev SKIP 1          \ the level, 1..3
-.fl_xb  SKIP 1          \ ACCCON X while writing: 4 = clear it (buffer 0)
 .R_WR       SKIP 192        \ (raster_vars.asm; whole in a page)
 .WS_END
 PRINT "Shared workspace: ", ~WS_START, "-", ~WS_END-1, " (free ", WS_START-&0E00, " below it, ", &1240-DFSIN-1, ", ", RVBASE-F_DSS-NDSTAR, " and ", WS_TOP-WS_GAP, " in it)"
@@ -123,6 +116,7 @@ ASSERT HI(R_WR) = HI(R_WR + 191)
 CLEAR &8000, &C000
 ORG &8000
 INCLUDE "src/gfx-raster.asm"
+INCLUDE "src/gfx-flare.asm"    \ the lens flare (its step in bank 6: gfx-flare6.asm)
 .B5_END
 PRINT "Bank 5: rasteriser &8000-", ~B5_END-1, " free ", &C000-B5_END
 ASSERT B5_END <= &C000
@@ -134,7 +128,7 @@ INCLUDE "src/gfx-frame.asm"
 INCLUDE "src/gfx-faces.asm"
 INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
 INCLUDE "src/gfx-frame_cold.asm"
-INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step and span writer
+INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step (the flare: gfx-flare.asm, bank 5)
 .B6_CODE_END
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
@@ -162,16 +156,3 @@ PRINT "Bank 7: rasteriser (cold) &8000-", ~R7_END-1, " free to the cold area ", 
 ASSERT R7_END <= COLD7LO
 SAVE "build/RAST7.bin", &8000, R7_END, &8000
 
-\ Shadow RAM (ACCCON X = 1): the lens flare (gfx-flare.asm), at &7E00-&7FFF
-\ after the dashboard (the screen ends at &7DFF), &3F00-&3FFF after the
-\ extended tokens (elite-data.asm, &3100-&3EFF) and &3000-&308F before
-\ setzp's zero page save. Main RAM at these addresses holds BCODE and the
-\ stubs, saved above, so these blocks come last.
-CLEAR &7E00, &8000
-CLEAR &3F00, &4000
-CLEAR &3000, &3090
-INCLUDE "src/gfx-flare.asm"
-PRINT "Shadow: lens flare &7E00-", ~SH7_END-1, " free ", &8000-SH7_END, ", &3F00-", ~SH3_END-1, " free ", &4000-SH3_END, ", &3000-", ~SH0_END-1, " free ", &3090-SH0_END
-SAVE "build/FLARE7.bin", &7E00, SH7_END, &7E00
-SAVE "build/FLARE3.bin", &3F00, SH3_END, &3F00
-SAVE "build/FLARE0.bin", &3000, SH0_END, &3000

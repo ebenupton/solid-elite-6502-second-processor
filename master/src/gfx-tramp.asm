@@ -61,6 +61,13 @@
  JSR R_SPAN
  JMP tback
 
+.T_FLARE                \ (the lens flare, gfx-flare.asm; X and Y passed)
+ LDA #RASTBANK
+ STA &F4
+ STA &FE30
+ JSR R_FLARE
+ JMP tback
+
 .T_MARKDIRTY
  STA tA
  LDA #RASTBANK
