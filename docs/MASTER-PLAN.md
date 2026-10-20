@@ -1140,3 +1140,87 @@ shared region (131 + 8) or the disc window (137). R_LINE's cold part and
 R_POLY's arithmetic in the shared region must keep using nothing of either
 window's: bankcheck now checks that. R_LINE's variables share page 16's
 tail with R_SPAN (one byte left there).
+
+## The source in the original's order (after R_LINE in the polygon window)
+
+The user asked for the cold area, and the rest, to be back in the original's
+order, so that upstream the port's source reads as Mark Moxon's
+elite-source.asm and elite-data.asm "emitted twice, once hot, once cold".
+
+**Mechanism** (docs/MASTER-MAP.md, "The source and its emissions"). Each
+routine sits once, at its original place in elite-source.asm, and its header
+names its area (`Area: cold`, `Area: bank 4`; none: the run). BeebAsm has one
+location counter and no way to tell two INCLUDEs of a file apart (no
+reassignable symbols, no INCLUDE in a FOR or a macro, no forward ORG or IF),
+and banks 4 and 7 overlap, so master/tools/streams.py writes one copy of the
+source per area with the other areas' lines blanked, and elite-layout.asm
+(the file build.sh now assembles) INCLUDEs them in turn. Considered and not
+taken: IF guards on a pass flag (the flag cannot change between INCLUDEs);
+per-routine ORG switching (needs a counter per area, i.e. reassignable
+symbols); two assemblies with exported symbols (circular: each needs the
+other's addresses, so three runs and a bootstrap list of labels); staging
+through COPYBLOCK (32K of spare assembler memory). The copies keep the
+source's line numbers, so errors, bankcheck and the grind's provenance map
+point at elite-source.asm's lines.
+
+The far-call glue is generated from the tags: the source uses the
+original's names everywhere, the cold copy renames cold labels X to X_C and
+its calls out to x4_H/j4_H, and streams.py writes the 48 + 48 stubs
+(build/elite-stubs7.asm, build/elite-stubs4.asm). Only the six routines that
+never return (BAY, DEATH2, TT170; BEGIN, GOIN, FRCE) are listed by hand, and
+JMTB names its three stubs.
+
+**Commits** (each gated by master/tools/grind/verify.sh against 9cafcd9's
+reference, all PASS at 1.234):
+1. the mechanism, with FRS1, FRMIS and FR1 as the prototype (byte-identical);
+2. elite-andy.asm's and elite-cold7.asm's routines back at their places,
+   tagged cold (1.234, 17.25);
+3. the cold area one run from &8000, the cold data first (QQ18 and the
+   tokens, build/COLDD.bin), one image COLD7 (1.234, 17.25);
+4. elite-bank4.asm's routines back: X = 1 drawing and the dashboard tagged
+   bank 4, the rest into the run; LOOK1 falls into SIGHT again; the file
+   banners at their places; main RAM ends before MLS2 (1.234, 17.24);
+5. the original's names in the cold code (1450 lines), the stubs generated
+   (byte-identical in the old stubs' order, checked; then reordered by first
+   reference) (1.234, 17.24);
+6. ZEKTRAN back at its place, notes on MULTU and stackpt (1.234, 17.24);
+7. these docs.
+
+**Seams.** Original fall-throughs that now cross an area are explicit, each
+with a `Port:` note: BEGIN into TT170 (JMP), RES2 into ZINF (JMP), Ze into
+DORND (CLC : JMP), SOLAR into NWSTARS (JMP); MLU1/MLU2/MULTU into MU11 (the
+port's MLU1 falls into MU11, MULTU joins with BRA). MT26's "fall-through"
+into the disc data is not one (its loop always branches). Every other
+routine that falls through falls into its original successor (checked
+against the pristine source) or into a port routine placed to follow it
+(pxpatd into pxpat). Fixed points kept out of order, with notes: the font
+and the log tables first (page aligned), stackpt and NEWBRK's start below
+&3000 (BRKV), the disc commands' data in main RAM (the MOS reads it),
+QSL/QSH at &7200, HANGHEAP at &BF00, the CMYK dashboard as one module
+(elite-dash.asm) at DIALS's place. The data's HAZEL wrap (Cougar, Dodo, SNE,
+ACT at &C000) is as before.
+
+**Speed** (profile.mjs --pagex): 115966 to 116044 cycles per flight
+iteration (17.25 to 17.23 it/s): instructions 115292 to 115295 (LOOK1's
+JMP SIGHT gone), page crossings 674 to 749 (MASTER-MAP's alignment
+candidates; no padding added).
+
+**Free space.** Bank 7: 3802 in one block at the cold area's end
+(&B126-&BFFF). Main RAM 63 (1784 below &3000), bank 4 2054 (2117 together,
+3 more than before). The diff against Mark's elite-source.asm went from
+54871 lines to 8279.
+
+**Checks.** At each commit the gate; streams.py's fall-through and IF
+checks and bankcheck at every build. At the end: test_raster (full) passes;
+the lens flare's pixel check, four scenes, 552 flared frames, 0 errors,
+every frame byte for byte 9cafcd9's; the agentplay repros (compass, LOOK1,
+MSBAR clean, TTX66 as before: P+3 at its last iteration), with --cand and
+--csyms spelled out; the quick campaign, 3 sessions clean (with a save and
+a load); the docked screens (harness/mdocked.mjs) byte for byte 9cafcd9's
+apart from the title ship's rotation phase.
+
+**Left out of order.** The things above with fixed places; elite-dash.asm as
+a module; the high code (QSL/QSH and the renderer's game half, which have
+no place in the original); the cold area's data before its code (the data
+is a separate assembly, elite-data.asm, so its addresses must be known
+before the code's: it starts the cold area).
