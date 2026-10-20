@@ -105,6 +105,23 @@ export function regionsFor(sy) {
     ];
 }
 
+// Pointers in the compared state to data that a relocated build moves. The
+// space station's ship line heap is LSO, in WP (NWSPS sets bytes #33-#34 of
+// its ship data block to LSO's address), so INWK(34 33) and bytes #33-#34 of
+// the K% slots may hold LSO's address. Snapshots hold the original's LSO
+// (&107E) there instead, so builds that move WP compare equal (the
+// reference's snapshots are unchanged). canonFor(sy, regions) returns the
+// function that does it to a snapshot.
+const LSO_ORIG = 0x107e;
+export function canonFor(sy, regions) {
+    const offOf = a => { let o = 0; for (const [b, n] of regions) { if (a >= b && a + 1 < b + n) return o + a - b; o += n; } return -1; };
+    const offs = [sy.INWK + 33, ...Array.from({ length: 12 }, (_, i) => sy["K%"] + 37 * i + 33)].map(offOf).filter(o => o >= 0);
+    return buf => {
+        if (sy.LSO !== LSO_ORIG) for (const o of offs) if ((buf[o] | buf[o + 1] << 8) === sy.LSO) { buf[o] = LSO_ORIG & 255; buf[o + 1] = LSO_ORIG >> 8; }
+        return buf;
+    };
+}
+
 // Addresses excluded from the comparison, by symbol: name -> [length, reason]
 export const TIMING_EXCLUDE = {
     DL: [1, "set to 30 by the vsync IRQ (LINSCN), cleared and polled by WSCAN: real time"],
@@ -173,6 +190,7 @@ export async function runElite(opts) {
     const s = await bootMaster(opts.disc);
     const cpu = s._machine.processor;
     const regions = regionsFor(sy);
+    const canon = canonFor(sy, regions);
     const rd = (a, n = 1) => { const r = new Array(n); for (let i = 0; i < n; i++) r[i] = cpu.ramRomOs[(a + i) & 0xffff]; return r; };
     const rb = a => cpu.ramRomOs[a & 0xffff];
     const wr = (a, bytes) => { for (let i = 0; i < bytes.length; i++) cpu.ramRomOs[a + i] = bytes[i] & 255; };
@@ -314,7 +332,7 @@ export async function runElite(opts) {
     function snapshot() {
         const out = [];
         for (const [a, n] of regions) out.push(...rd(a, n));
-        return Uint8Array.from(out);
+        return canon(Uint8Array.from(out));
     }
     function emuSecs() { return cpu.cycleSeconds + cpu.currentCycles / 2e6; }
     // the addresses written between the game's entry (S%) and TT170, by the game

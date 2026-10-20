@@ -23,7 +23,7 @@
 // What it watches for besides: BRKs that reach the game's BRK handler (NEWBRK) with
 // where they came from, writes by game code to page &0D (off limits on the Master),
 // and the routine labels of each poll (control flow).
-import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster } from "../../../harness/mlib.mjs";
+import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster } from "../../../harness/mlib.mjs";
 export { loadSyms, regionsFor };
 
 export const ROOT = decodeURIComponent(new URL("../../..", import.meta.url).pathname).replace(/\/$/, "") + "/";
@@ -58,6 +58,7 @@ export class EliteMachine {
         const cpu = this.cpu = this.s._machine.processor;
         const sy = this.sy;
         this.regions = regionsFor(sy);
+        this.canon = canonFor(sy, this.regions);   // (the station's line heap pointer, LSO)
         this.ram = cpu.ramRomOs;
         this._labels();
         // (a label in sideways RAM with no bank in banks.txt can't be told from whatever
@@ -254,7 +255,7 @@ export class EliteMachine {
         const parts = this.regions.map(([a, n]) => this.ram.subarray(a, a + n));
         const out = new Uint8Array(parts.reduce((s, p) => s + p.length, 0));
         let o = 0; for (const p of parts) { out.set(p, o); o += p.length; }
-        return out;
+        return this.canon(out);
     }
 
     // the per-instruction hook; true stops the machine at pc (a blocked poll)
