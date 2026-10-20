@@ -141,7 +141,7 @@ for (const [name] of plan) {
     const cfg = existsSync(`${OUT}/${name}/config.json`) ? JSON.parse(readFileSync(`${OUT}/${name}/config.json`, "utf8")) : {};
     const ev = {};
     for (const [k, v] of Object.entries(s.events || {})) { const m = /^ref:routine:(.*)$/.exec(k); if (m) { ev[m[1]] = v; cover[m[1]] = (cover[m[1]] || 0) + v; } }
-    const real = s.findings.filter(f => f.kind !== "observable");
+    const real = s.findings.filter(f => f.kind !== "observable" && f.kind !== "hang-both");
     rows.push({ name, status: real.length ? "FINDINGS" : "clean", minutes: s.gameMinutes, iters: s.compared, flight: s.flight, reads: s.reads,
         commander: cfg.commander, mode: cfg.mode || modeOf(cfg.agentEnv || {}), chaos: cfg.chaos || "", workaround: (cfg.workarounds || []).join(","),
         workaroundHits: s.workaroundHits, divergence: s.divergence ? s.divergence.iter : null, findings: s.findings.length, events: ev, notes: s.agentNotes,

@@ -294,7 +294,8 @@ export class EliteMachine {
             const code = byte(ep);
             // (DFS builds some of its errors, "Not found" among them, on the stack page and
             // BRKs there: a filing-system error too)
-            const fromRom = (paged && bank >= 8) || (brkAt >= 0x100 && brkAt < 0x200);
+            // (and a BRK in the MOS's own &E000-&FFFF, as for a bad OS command: an OS error)
+            const fromRom = (paged && bank >= 8) || (brkAt >= 0x100 && brkAt < 0x200) || brkAt >= 0xe000;
             const rec = { iter: this.iter, at: brkAt, bank: paged ? bank : "m", code, msg, polls: this.polls, label: paged && !fromRom ? this.labelOf(brkAt, bank) : !paged ? this.labelOf(brkAt) : null, fromRom };
             this.brks.push(rec);
             this.event(fromRom ? "brk-rom" : "brk", `BRK at &${brkAt.toString(16)} (bank ${rec.bank}${rec.label ? ", " + rec.label : ""}) error ${code}: ${msg}`);

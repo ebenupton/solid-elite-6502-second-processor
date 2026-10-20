@@ -107,6 +107,8 @@ const drive = k => [...press(k), [null, 10]];
 let saveNo = 0;
 const DISC = {
     dcat:   () => [...menu(), ...press(D[3]), ...drive(D[0]), [null, 250], ...press(0x62), ...leave()],
+    // (drive 1 is empty: DFS waits for the 1770 for ever, in the original too, as on a real
+    // Master with no disc, so the session ends there with hang-both. Not in "disc")
     dcat1:  () => [...menu(), ...press(D[3]), ...drive(D[1]), [null, 400], ...press(0x62), ...leave()],
     dbad:   () => [...menu(), ...press(D[rng() < 0.5 ? 3 : 1]), ...(rng() < 0.5 ? [] : [[null, 12], ...typed("BAD"), ...press(D.RET), [null, 6]]), ...drive(D[rng() < 0.5 ? 7 : 9]), [null, 30], ...leave()],
     dnoload: () => [...menu(), ...press(D[1]), [null, 12], ...typed("NOFILE"), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
@@ -128,7 +130,7 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6d2b79f5 | 0; let t = Ma
 export function makeChaos(spec, seed) {
     const r = mulberry(seed * 7919 + 17);
     const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...Object.keys(POKES)]
-        : spec === "disc" ? Object.keys(DISC) : spec.split(",");
+        : spec.split(",").flatMap(n => n === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1") : [n]);
     const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
     let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = 0;
     const done = {};

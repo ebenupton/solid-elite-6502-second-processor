@@ -39,7 +39,7 @@ export const DEFAULTS = {
     ref: `${ROOT}master/reference/elite-master-sng47.ssd`, rsyms: `${ROOT}master/reference/symbols.txt`,
     cand: `${ROOT}master/build/elite-master-sng47.ssd`, csyms: `${ROOT}master/build/symbols.txt`,
 };
-const HANG_SECS = 30;
+const HANG_SECS = +(process.env.HANG_SECS || 30);
 const sha1 = f => createHash("sha1").update(readFileSync(f)).digest("hex").slice(0, 12);
 
 export class Session {
@@ -266,9 +266,25 @@ export class Session {
         for (const m of [ref, cand]) {
             const pc = m.cpu.pc;
             if (m.started && pc < 0x200 && !m.healthBad) { m.healthBad = true; this.finding("crash", `${m.name}: PC &${pc.toString(16)} in zero page or the stack`); this.stopNow = true; }
-            if (m.started && !m.blocked && m.cyclesNow() - m.lastProgressCycles > HANG_SECS * 2e6 && !m.healthBad) {
-                m.healthBad = true;
-                this.finding("hang", `${m.name}: no input read and no main-loop iteration for ${HANG_SECS} emulated seconds (PC &${pc.toString(16)}, ${m.labelOf(pc) || "?"}, iteration ${m.iter})`);
+            // a hang: no read for HANG_SECS emulated seconds. The candidate runs ahead of the
+            // reference between reads, so its stall counts only once the reference has made a
+            // read past it (the port hangs where the original didn't), or has stalled at the
+            // same read too (both hang: the original's own behaviour, hang-both)
+            const stalled = x => x.started && !x.blocked && x.cyclesNow() - x.lastProgressCycles > HANG_SECS * 2e6 && !x.healthBad;
+            const where = x => { const c = x.cpu, recent = [...new Set(Array.from({ length: 64 }, (_, i) => c.oldPcArray[(c.oldPcIndex - i) & 0xff]))].slice(0, 24).map(y => y.toString(16)); return `PC &${c.pc.toString(16)}, ${x.labelOf(c.pc) || "?"}, iteration ${x.iter}, read ${x.polls}, ROMSEL &${c.romsel.toString(16)}, ACCCON &${c.acccon.toString(16)}; recent PCs ${recent.join(" ")}`; };
+            if (m === cand && stalled(cand)) {
+                if (stalled(ref) && ref.polls === cand.polls) {
+                    ref.healthBad = cand.healthBad = true;
+                    this.finding("hang-both", `both machines: no input read for ${HANG_SECS} emulated seconds at the same read (the original hangs here too). ref ${where(ref)}; cand ${where(cand)}`);
+                    this.stopNow = true;
+                } else if (ref.polls > cand.polls) {
+                    cand.healthBad = true;
+                    this.finding("hang", `cand: no input read and no main-loop iteration for ${HANG_SECS} emulated seconds, where the reference went on (${where(cand)})`);
+                    this.stopNow = true;
+                }
+            } else if (m === ref && stalled(ref) && !stalled(cand) && cand.blocked && cand.polls >= ref.polls) {
+                ref.healthBad = true;
+                this.finding("hang", `ref: no input read and no main-loop iteration for ${HANG_SECS} emulated seconds, where the candidate went on (${where(ref)})`);
                 this.stopNow = true;
             }
             while (m.evSeen === undefined ? (m.evSeen = 0, false) : m.evSeen < m.events.length) {

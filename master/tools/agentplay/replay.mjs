@@ -43,7 +43,7 @@ try {
     const S = new Session(cfg);
     await S.start();
     const s = await S.run();
-    const bad = s.findings.filter(f => f.kind !== "observable");
+    const bad = s.findings.filter(f => f.kind !== "observable" && f.kind !== "hang-both");
     console.log(`REPLAY ${bad.length ? "FINDINGS" : "CLEAN"} ${cfg.out}: ${s.compared} iterations compared, ${s.reads} reads, findings ${s.findings.length}${s.divergence ? `, first divergence at iteration ${s.divergence.iter}` : ""}`);
     for (const f of s.findings.slice(0, 20)) console.log(`  ${f.kind}: ${f.text}`);
     process.exit(bad.length ? 1 : 0);
