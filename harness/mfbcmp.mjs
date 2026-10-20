@@ -9,7 +9,10 @@
 // At the end of each K-th iteration's frame (hframe's return from G_FRAME),
 // hashes main RAM's and shadow RAM's &4000-&6FFF (both buffers) and records
 // them by iteration. --cmp lists the iterations whose buffers differ.
-import { runElite, loadSyms, ROOT } from "./mlib.mjs";
+// --dump N also writes iteration N's two buffers (main RAM's, then shadow RAM's
+// &4000-&6FFF) to <out>.N.raw, and bank 6 to <out>.N.b6, to see where two
+// builds differ.
+import { runElite, loadSyms, ROOT, physRead } from "./mlib.mjs";
 import { makePilot, patchCommander } from "./mpilot.mjs";
 import { readFileSync, writeFileSync } from "fs";
 import { createHash } from "crypto";
@@ -32,6 +35,10 @@ await runElite({ disc: a.disc || `${ROOT}master/build/elite-master-sng47.ssd`, s
                 const h = createHash("sha1");
                 h.update(cpu.ramRomOs.subarray(0x4000, 0x7000)); h.update(cpu.ramRomOs.subarray(0xc000, 0xf000));
                 res[cur] = h.digest("hex").slice(0, 16);
+                if (+a.dump === cur) {
+                    writeFileSync(`${a.out}.${cur}.raw`, Buffer.concat([cpu.ramRomOs.subarray(0x4000, 0x7000), cpu.ramRomOs.subarray(0xc000, 0xf000)]));
+                    writeFileSync(`${a.out}.${cur}.b6`, Buffer.from(Array.from({ length: 0x4000 }, (_, j) => physRead(cpu, 6, 0x8000 + j))));
+                }
             }
             return false;
         }); } });
