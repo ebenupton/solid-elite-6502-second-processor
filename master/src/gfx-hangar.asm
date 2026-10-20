@@ -20,9 +20,14 @@
 \ a flat 2x2 dither (HPWL, HPWH in HAZEL, gfx-hangar-hz.asm), with HANGER's
 \ lines over them in black: the floor's at y = #Y + 130 DIV Q for Q = 2 to
 \ 12, from x = 2 to 253, and the wall's every 8 pixels, x = 8 to 248, from
-\ the top to the floor's furthest line.
+\ the top to the floor's furthest line. The wall starts below the view's
+\ name (TT66's, in yellow, which the wall's tan, half yellow, swallows): a
+\ black band, rows 1 to 15, is left above it.
 \
 \ ******************************************************************************
+
+HTOP = 16               \ the wall's top row: text row 1, the view's name, is on
+                        \ black above it
 
 \ F_HANGAR: the hangar's frame (G_HANGAR, from HALL)
 
@@ -63,14 +68,14 @@ F_HANG0 = f_reset
  STZ fz_t               \ x = 0 to 254 (the clip window stops at 253)
  LDA #255
  STA fz_u
- LDX #0                 \ the wall: rows 1 to the floor's furthest line - 1
- JSR fch
- LDA #1
- LDY HFY+1
+ LDX #0                 \ the wall: from row HTOP (rows 1 to HTOP-1 stay black,
+ JSR fch                \ a band behind the view's name: its yellow is the
+ LDA #HTOP              \ wall's own) to the floor's furthest line
+ LDY HFY
  JSR fh_rect
  LDX #1                 \ the floor: from there to the bottom
  JSR fch
- LDA HFY+1
+ LDA HFY
  LDY #192
  JSR fh_rect
  LDA #FC_BLACK          \ the lines: black, solid
@@ -78,10 +83,10 @@ F_HANG0 = f_reset
  STA R_COL3
  STA R_COL2
  LDA #2                 \ the floor's lines, x = 2 to 253, near to far (rows
- STA fz_t               \ HFY[11] to HFY[1]), as one-row rectangles (R_POLY
+ STA fz_t               \ HFY[10] to HFY[0]), as one-row rectangles (R_POLY
  LDA #254               \ fills a row much faster than R_LINE steps along it)
  STA fz_u
- LDX #11
+ LDX #10
 .fhb2
  STX fz_i
  LDA HFY,X
@@ -90,14 +95,14 @@ F_HANG0 = f_reset
  JSR fh_rect
  LDX fz_i
  DEX
- BNE fhb2
- LDA #1                 \ the wall's lines, x = 248 down to 8, from row 1 to
+ BPL fhb2
+ LDA #HTOP              \ the wall's lines, x = 248 down to 8, from row HTOP to
  STA fz_u               \ the floor's furthest line (R_LINE: a thin R_POLY is
  LDA #248               \ slower)
 .fhb3
  STA fz_t
  TAX
- LDY HFY+1
+ LDY HFY
  JSR f_line8
  LDA fz_t
  SEC

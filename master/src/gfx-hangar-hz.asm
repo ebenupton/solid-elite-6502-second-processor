@@ -6,15 +6,13 @@
 \
 \ ******************************************************************************
 
-\ HFY: the wall's top row, the floor's lines far to near (#Y + 130 DIV Q, Q =
-\ 12 down to 2, as HANGER's DVID4K computed them), then the bottom
+\ HFY: the floor's lines far to near (#Y + 130 DIV Q, Q = 12 down to 2, as
+\ HANGER's DVID4K computed them); the first is the wall's foot
 
 .HFY
- EQUB 1
 FOR q, 12, 2, -1
  EQUB Y + 130 DIV q
 NEXT
- EQUB 192
 
 \ HPWL, HPWH: the wall's and the floor's colours in f_col's packed form
 \ (master/tools/hangarcols.py): the wall a darker tan, two yellow, a magenta
