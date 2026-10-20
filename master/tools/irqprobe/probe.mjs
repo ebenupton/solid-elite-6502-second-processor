@@ -148,7 +148,7 @@ export function attachProbe(cpu, sy, opts = {}) {
         if (list.length > (opts.maxEvents || 2e6)) list.shift();
     }
     const tagNow = () => opts.tagFn ? opts.tagFn() : probe.tag;
-    const hz = a => ram[a - 0x3000];                  // HAZEL, whatever ACCCON Y is
+    const hz = a => a >= 0xc000 ? ram[a - 0x3000] : ram[a];   // HAZEL whatever ACCCON Y is, or main RAM (the glue, now)
     const markTab = new Map();
     for (const [a, m, name] of opts.marks || []) { if (!markTab.has(a)) markTab.set(a, []); markTab.get(a).push([m, name]); }
     let lastMark = "-", markFrame = 0, frNmis = 0;
