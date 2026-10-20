@@ -160,13 +160,21 @@ the same session, read for read.
 |---|---|
 | `--until N` | stop after iteration N |
 | `--trace A,B` | write every labelled routine each machine enters in iterations A to B, to `trace-ref.txt` and `trace-cand.txt`, to diff |
-| `--cand`/`--csyms` | try a fixed build against the same inputs |
+| `--cand`/`--csyms` | try a fixed build against the same inputs (always the two together) |
 | `--workaround none` | turn off a workaround the session used |
 | `--cut N --save FILE` | write the log cut short after iteration N, as a minimal repro |
 
+Without `--cand`, a replay uses the discs named in the log's header, but only while they
+are still the builds the log was recorded with (their sha1s are in the header). Otherwise
+it stops with exit status 2 and asks for `--cand`/`--csyms`. The builds a run used are
+printed, and kept in `summary.json` as `builds`.
+
 `repro/` holds the input logs of the port bugs found, cut short after the divergence.
-`replay.mjs --log repro/<name>.jsonl --out DIR` shows each one again (most in under a
-minute; `msbar-carry` takes about five).
+`replay.mjs --log repro/<name>.jsonl --out DIR --cand DISC --csyms SYMS` shows each one
+again (most in under a minute; `msbar-carry` takes about five). The headers of
+`compass-stray-dot` and `look1-death` name a build from before both fixes, so they replay
+the bugs without `--cand` (while that build is left alone). `msbar-carry` and
+`ttx66-shadow-crash` were recorded on full-master's 3db0b1c^, so they need `--cand`.
 
 Two regression tests call routines directly in both machines, docked:
 `test-chpr-overflow.mjs` (CHPR's screen clear with the text off the bottom and for code 11)
@@ -200,6 +208,21 @@ starts, and every session runs that copy, so a rebuild during a campaign changes
 - Sounds aren't compared. NOISE is made deterministic by clearing SOPR, as in the gate, and
   the sound buffers are excluded.
 - Timing isn't compared. Each machine runs at its own speed.
+- Replays are deterministic: the same log and builds give the same result, byte for byte,
+  whatever the host's clock or time zone, the working directory, relative or absolute
+  paths, and other runs at the same time. This was checked on every repro, from two
+  working directories, two runs at a time, with the host clock shifted by up to years and
+  in four time zones (two for `msbar-carry`). The emulated Master's real-time clock always
+  reads 1 January 2000 (`harness/mlib.mjs` `pinRtc`), and each machine has its own CMOS
+  bytes. In jsbeeb the clock would read the host's time, but neither the MOS nor the game
+  reads it in a session. Nothing else in a replay reads the host's time, a random number
+  or a shared file.
+- What made replays look nondeterministic was the build, not the emulation. An option
+  that a tool didn't recognise used to be skipped. In zsh, `C="--cand X --csyms Y";
+  replay.mjs $C` passes one argument, so the replay quietly ran the header's build, from
+  another worktree. That build was either stale or being rebuilt. Unknown options are now
+  an error (`harness/args.mjs`, used by the gate's tools too), and so is a header build that
+  has changed since the log was recorded.
 - jsbeeb snapshots don't hold the disc controller, so repros replay from boot. Sessions
   are a few thousand iterations long, and a replay runs at about real time or better on a
   quiet machine.
