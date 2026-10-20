@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 // Whole-code coverage of the original over any number of sessions: the union of the
 // coverage-ref.json files found under the given directories (sessions or campaigns).
-// node master/tools/agentplay/coverage.mjs DIR [DIR...] [--grep RE]
+// node master/tools/agentplay/coverage.mjs DIR [DIR...] [--grep RE] [--cand]
+// (--cand: the port's coverage-cand.json instead, its labels in every bank)
 // Prints the labels reached, and the code labels (run in some session, or the target of
 // a JSR/JMP in the original's image) never run in any.
 import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 const args = process.argv.slice(2), gi = args.indexOf("--grep");
 const re = gi >= 0 ? new RegExp(args.splice(gi, 2)[1]) : null;
+const ci = args.indexOf("--cand"), FILE = ci >= 0 ? (args.splice(ci, 1), "coverage-cand.json") : "coverage-ref.json";
 const reached = new Map(), code = new Set(); let n = 0;
 function walk(d, depth = 0) {
-    const f = `${d}/coverage-ref.json`;
+    const f = `${d}/${FILE}`;
     if (existsSync(f)) {
         const c = JSON.parse(readFileSync(f, "utf8")); n++;
         for (const k of c.reached) { reached.set(k, (reached.get(k) || 0) + 1); code.add(k); }

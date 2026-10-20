@@ -70,7 +70,7 @@ export class Session {
         if (!cmdr) throw new Error(`unknown commander ${cfg.commander}`);
         const patch = cmdr.patch ? m => cmdr.patch(m) : null;
         this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true });
-        this.cand = new EliteMachine({ name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, workarounds: cfg.workarounds || [] });
+        this.cand = new EliteMachine({ name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
         await this.ref.boot();
         await this.cand.boot();
         this.cand.opts.seedFrom = this.ref;
@@ -387,6 +387,8 @@ export class Session {
         };
         const cov = ref.coverage();
         if (cov) writeFileSync(`${cfg.out}/coverage-ref.json`, JSON.stringify(cov));
+        const ccov = cand.coverage();
+        if (ccov) writeFileSync(`${cfg.out}/coverage-cand.json`, JSON.stringify(ccov));
         writeFileSync(`${cfg.out}/summary.json`, JSON.stringify(s, null, 1));
         return s;
     }
