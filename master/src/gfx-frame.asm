@@ -691,14 +691,16 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
  LDA #4                 \ CPU back to main RAM, and flip at the next vsync
  TRB &FE34
- SEI
- LDA F_BACK
- STA GPEND
+ LDA #%00000010         \ (Master port: with only the vsync interrupt masked
+ STA &FE4E              \ in IER, as H_VSYNC reads GPEND and GFLIP; the timer 1
+ LDA F_BACK             \ interrupt at the dashboard split must not be held
+ STA GPEND              \ off)
  EOR #1
  STA F_BACK
  LDA #&FF
  STA GFLIP
- CLI
+ LDA #%10000010
+ STA &FE4E
 
 .f_reset
  LDA #0                 \ empty the per-frame lists
