@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Filled ships for the Master port (from the demo port's tools/faces.py):
-parse Master Elite's 33 ship blueprints (master/build/BANK4D.bin), rebuild each
+parse Master Elite's 33 ship blueprints (master/build/HZDATA*.bin), rebuild each
 face's polygon, turn the blueprint's detail edges into filled surface details,
 fins and lines, find each ship's symmetries and give every face a fixed colour
 from two hue ramps (adjacent faces never alike, symmetric where the geometry
@@ -8,7 +8,7 @@ allows), and write master/src/gfx-faces.asm.
 
     python3 master/tools/faces.py  -> master/src/gfx-faces.asm, and a report on stdout
 """
-import os
+import os, re
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # master/
 BUILD = os.path.join(ROOT, 'build')
@@ -26,14 +26,16 @@ PATCH = {}
 
 
 def _mem():
-    """Bank 4's data (build/BANK4D.bin at &8000) and XX21's address."""
-    import re
+    """The game data in HAZEL (build/HZDATA1.bin at &C000, HZDATA2.bin at XX21) and
+    XX21's address."""
     mem = bytearray(0x10000)
-    d = open(os.path.join(BUILD, 'BANK4D.bin'), 'rb').read()
-    mem[0x8000:0x8000 + len(d)] = d
     sy = {}
     for m in re.finditer(r"'([^']+)':(\d+)", open(os.path.join(BUILD, 'symbols-data.txt')).read()):
         sy.setdefault(m.group(1), int(m.group(2)))
+    d1 = open(os.path.join(BUILD, 'HZDATA1.bin'), 'rb').read()
+    mem[0xC000:0xC000 + len(d1)] = d1
+    d2 = open(os.path.join(BUILD, 'HZDATA2.bin'), 'rb').read()
+    mem[sy['XX21']:sy['XX21'] + len(d2)] = d2
     return mem, sy['XX21']
 
 

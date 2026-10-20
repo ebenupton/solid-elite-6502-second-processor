@@ -48,7 +48,7 @@ def gfx_constants():
             break
         if re.match(r'^[A-Z_][A-Z0-9_]*\s*=', l):
             out.append(l)
-    # the &DC40 block's F_DSS is NDSTAR (elite-gfx.asm, after its first CLEAR) long,
+    # the shared workspace's F_DSS is NDSTAR (elite-gfx.asm, after its first CLEAR) long,
     # from Elite's NOST (elite-source.asm)
     src = open(os.path.join(MS, 'elite-source.asm')).read()
     out.append('NOST = %s' % re.search(r'^\s*NOST\s*=\s*(\d+)', src, re.M).group(1))

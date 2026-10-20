@@ -11,26 +11,27 @@ Built from what master/tools/grind/mkbuild.sh leaves in a build directory:
                 non-macro line (the "site"); label definitions; CLEAR / ORG / SAVE /
                 COPYBLOCK events
   tree/master/src     the sources exactly as assembled
-  tree/master/build   the SAVEd images (BCODE, LOWCODE, HICODE, BANK4, ANDY,
+  tree/master/build   the SAVEd images (BCODE, HICODE, BANK4, ANDY,
                       COLD7, HAZEL, BANK5, BANK6, RAST7) and TOKENS.bin (elite-data.asm)
   symbols.txt   beebasm -d (global symbols: labels and equates)
 
 Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers it):
 
-  main  main RAM: LOWCODE &0840-, BCODE &1300-&3FFF, HICODE &7200-&7FFF (QSL/QSH,
-        renderer stubs and hooks, the lighting's game half, the far7 stubs)
-  B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: data, then code)
+  main  main RAM: BCODE &1F00-&3FFF, HICODE &7200-&7FFF (QSL/QSH, renderer stubs and
+        hooks, the lighting's game half, the far7 stubs)
+  B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: the main code's
+        continuation, then elite-bank4.asm's code)
   ANDY  ANDY.bin, &8000-&8FFF of the cold area (ROMSEL &87)
   C7    COLD7.bin, bank 7 COLD7LO- (QQ18, the far4 stubs, the cold code; ROMSEL &87)
   R7    RAST7.bin, bank 7 &8000- below COLD7LO (the rasteriser's cold code; ROMSEL 7)
   B5    BANK5.bin (rasteriser)      B6  BANK6.bin (frame layer, faces, lighting)
-  HZ    HAZEL &C000-&DFFF (HAZEL.bin: the code at &C300-, plus scratch and state)
+  HZ    HAZEL &C000-&DFFF (HAZEL.bin: the game data, and the glue at &C300)
   SH    shadow RAM &3100- (TOKENS.bin: TKN1, RUPLA, RUGAL, RUTOK; data only, read with
         ACCCON X set; reached only by instructions that name those labels)
   RAM   workspace with no image (zero page, K%, WP ...)
 
 Only bytes inside a SAVEd image are loaded (`loaded`): anything else in a segment's
-extent (WP between LOWCODE and BCODE, HAZEL's variables, the screen) is unknown at
+extent (the renderer's shared workspace, WP, the screen) is unknown at
 start-up, never a link-time constant.
 
 An instruction starts exactly where an I record starts (macros and FOR loops expanded by
@@ -126,7 +127,7 @@ def cycles(mn, mode):
     return 2, ''
 
 
-SEGFILE = {'BCODE': 'main', 'LOWCODE': 'main', 'HICODE': 'main',
+SEGFILE = {'BCODE': 'main', 'HICODE': 'main',
            'BANK4': 'B4', 'ANDY': 'ANDY', 'COLD7': 'C7', 'RAST7': 'R7', 'BANK5': 'B5',
            'BANK6': 'B6', 'HAZEL': 'HZ',
            # the lens flare's code in shadow RAM (gfx-flare.asm), run from the frame
