@@ -969,7 +969,9 @@
  EQUW MT28_C              \ Token 28: Print mission 1 location hint (220-221)
  EQUW MT29_C              \ Token 29: Column 6, white text, lower case in words
  EQUW FILEPR_C            \ Token 30: Display currently selected media (disk/tape)
- EQUW OTHERFILEPR_C       \ Token 31: Display the non-selected media (disk/tape)
+ EQUW x4_DASC              \ Token 31: Display the non-selected media (disk/tape)
+                        \ (Port: unused, as no token has control code 31, so
+                        \ x4_DASC as for 20 and 32; OTHERFILEPR is removed)
  EQUW x4_DASC              \ Token 32: Unused
 
 \ ******************************************************************************
@@ -3626,15 +3628,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.OTHERFILEPR_C
-
- LDA #2                 \ Print extended token 2 - DISK, i.e. token 2 or 3 (as
- SEC                    \ DISK can be 0 or &FF). In other versions of the game,
- SBC DISK               \ such as the Commodore 64 version, token 2 is "disk"
- JMP DETOK_C              \ and token 3 is "tape", so this displays the other,
-                        \ non-selected media, but this system is unused in the
-                        \ Master version and tokens 2 and 3 contain different
-                        \ text
+                        \ Port: removed (unreachable: its only reference was
+                        \ JMTB's entry for control code 31, which no extended
+                        \ token contains, so this system is unused in the Master
+                        \ version)
 
 \ ******************************************************************************
 \
