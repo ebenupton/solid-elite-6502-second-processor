@@ -17730,6 +17730,29 @@ ENDIF
 
 \ ******************************************************************************
 \
+\ Port: the main code continues in main RAM at &7000 from here, after the high
+\ code (elite-hi.asm), and runs on through &8000 into bank 4
+\ (docs/MASTER-MAP.md), at a routine that nothing falls into. The part from
+\ CODE%, below screen buffer 0 (main RAM &4000-&6FFF), is saved as BCODE; the
+\ part from &7000 as HICODE and the rest, in bank 4, with the blocks tagged
+\ bank 4 after it, as BANK4 (elite-layout.asm)
+\
+\ ******************************************************************************
+
+ PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
+ ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0)
+ PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
+
+ CLEAR &7000, &C000
+ ORG &7000
+
+ INCLUDE "src/elite-hi.asm"             \ the quarter squares and the lighting
+
+.HI_RUN%
+
+\ ******************************************************************************
+\
 \       Name: TACTICS (Part 1 of 7)
 \       Type: Subroutine
 \   Category: Tactics
@@ -20407,25 +20430,6 @@ ENDIF
 .HF8
 
  RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\ Port: the main code continues in bank 4 from here (docs/MASTER-MAP.md), at a
-\ routine that nothing falls into. The part in main RAM, from CODE%, is saved
-\ as BCODE; the rest is assembled at the start of bank 4, followed by the
-\ blocks tagged bank 4 (elite-layout.asm)
-\
-\ ******************************************************************************
-
- PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
- ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0, and
-                        \ &7000-&7FFF the high code, elite-hi.asm)
- PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
-
- CLEAR &8000, &C000
- ORG &8000
-
 
 \ ******************************************************************************
 \

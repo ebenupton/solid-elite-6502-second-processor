@@ -31,3 +31,5 @@
  INCLUDE "src/gfx-gvars.asm"            \ the renderer's glue: shared variables,
  INCLUDE "src/gfx-tramp.asm"            \ the trampolines into the rasteriser,
  INCLUDE "src/gfx-lowhooks.asm"         \ the text map's and the IRQ's hooks
+ INCLUDE "src/gfx-gstubs.asm"           \ the stubs that page the frame layer in
+ INCLUDE "src/gfx-hooks.asm"            \ the hooks in Elite's drawing code

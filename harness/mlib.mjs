@@ -50,7 +50,7 @@
 // not otherwise depend on the sound buffers (only the sound routines and the
 // IRQ read them), so they are excluded from the comparison.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, appendFileSync } from "fs";
 
 export const ROOT = decodeURIComponent(new URL("..", import.meta.url).pathname);
 
@@ -194,7 +194,20 @@ export async function bootMaster(disc) {
     await s.boot(30);
     s.loadDisc(disc);
     s.keyDown(16); s.reset(true); await s.runFor(2000000); s.keyUp(16);
+    if (process.env.XTRACE) xTrace(s, process.env.XTRACE, disc);
     return s;
+}
+
+// XTRACE=<file>: record each instruction address run with ACCCON X set (shadow
+// RAM at &3000-&7FFF), with its mapping at &8000-&BFFF ("m", a bank or "A"),
+// and write them, one "<disc> <mapping>:<address>" a line, to <file> at exit (appending, so several runs
+// add up). Code that runs so must be below &3000 or in a sideways bank, never
+// in main RAM at &3000-&7FFF (docs/MASTER-MAP.md).
+function xTrace(s, file, disc) {
+    const tag = String(disc) + " ";
+    const cpu = s._machine.processor, seen = new Set();
+    cpu.debugInstruction.add(pc => { if (cpu.acccon & 4) seen.add(mapAt(cpu.romsel, pc) + ":" + pc.toString(16)); return false; });
+    process.on("exit", () => { if (seen.size) appendFileSync(file, [...seen].map(k => tag + k).join("\n") + "\n"); });
 }
 
 // Run one build under the pilot.

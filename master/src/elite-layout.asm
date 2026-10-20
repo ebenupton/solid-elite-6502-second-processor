@@ -16,8 +16,10 @@
 \ stub that reaches it, at the routine's place:
 \
 \   * the run: the configuration and the workspaces, then the main code from
-\     CODE% in main RAM (saved as BCODE), continuing in bank 4 at &8000 where
-\     main RAM ends;
+\     CODE% in main RAM (saved as BCODE) to its split, below screen buffer 0
+\     at &4000, continuing at &7000 after the high code (elite-hi.asm: the
+\     quarter squares and the lighting) and running on into bank 4 at &8000
+\     (main RAM from &7000 saved as HICODE);
 \
 \   * bank 4: the blocks that must be in bank 4, after the run;
 \
@@ -26,13 +28,18 @@
 \   * the cold area, sideways RAM bank 7: elite-source.asm's cold blocks,
 \     then elite-data.asm's (build/elite-data-cold.asm);
 \
-\ then the high code (main RAM &7000-&7FFF) and the renderer (elite-gfx.asm).
+\ then the renderer (elite-gfx.asm).
 \ elite-data.asm's blocks tagged BDATA, the dashboard image, are assembled on
 \ their own (build/elite-data-bdata.asm, by build.sh).
 \
 \ ******************************************************************************
 
  INCLUDE "build/elite-source-run.asm"
+
+ ASSERT P% >= &8000     \ (the run's part from &7000 fills main RAM to &8000)
+
+ PRINT "High code: &7000-", ~HI_RUN%-1, ", then the run from ", ~HI_RUN%, " to &7FFF"
+ SAVE "build/HICODE.bin", &7000, &8000, &7000
 
 \ ******************************************************************************
 \
@@ -83,25 +90,6 @@
                         \ filing-system names, its lasting state)
  SAVE "build/HZDATA.bin", &C000, HZDATA_END%, &C000
  SAVE "build/HAZEL.bin", HZ_START, HZ_END, HZ_START
-
-\ ******************************************************************************
-\
-\ Port: the high code, main RAM &7000-&7FFF (elite-hi.asm, docs/MASTER-MAP.md):
-\ the port's game-context glue, which has no counterpart in the original (the
-\ quarter squares, the renderer's game-context half). Saved as HICODE, which
-\ the loader copies there.
-\
-\ ******************************************************************************
-
- ORG &7000
-
- INCLUDE "src/elite-hi.asm"
-
-.HI_END%
-
- PRINT "Hi code: &7000-", ~HI_END%-1, " free ", &8000-HI_END%
- ASSERT HI_END% <= &8000
- SAVE "build/HICODE.bin", &7000, HI_END%, &7000
 
 \ ******************************************************************************
 \

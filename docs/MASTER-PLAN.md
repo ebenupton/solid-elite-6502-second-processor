@@ -1637,3 +1637,50 @@ beside the port at BRIEF's turns, its climb and every key wait of the five
 briefings and debriefings; brief1-ref.mp4, brief1-cand.mp4 and
 brief1-side.mp4, every frame from the ship's first to the status screen,
 x2); the trial disc ~/elite-full/elite-master-full-briefings.ssd.
+
+## One run from &7000 (after the briefings)
+
+The user asked for the high code's stubs and hooks to move to the low area
+and for the high code to join bank 4 (and HAZEL after it) as one long run:
+main RAM from &7000 is never on show (the dashboard is shown from shadow
+RAM) and bank 4 is paged whenever game code runs, so &7000-&BFFF is one
+stretch of code for the game, followed by the game data in HAZEL at &C000,
+as the original's BCODE is followed by BDATA.
+
+**What moved.** The G_ stubs (gfx-gstubs.asm) and the hooks in Elite's
+drawing code (gfx-hooks.asm), 826 bytes, went from the high code to the
+low area (elite-low.asm), after the text and IRQ hooks: below &3000 they
+are visible with any bank paged, which is all they need (they run in game
+context, X = 0). That left 545 bytes of the head's room below &3000.
+The quarter squares (1K) and the lighting's game half (L_SUN, L_REC and
+their tables, 1002 bytes) stay at &7000-&77E9: both must be visible with
+bank 4, 6 or 7 paged (the frame layer calls the lighting with bank 6 in,
+and the quarter squares' users run under all three), and together they do
+not fit below &3000. The run's marker moved from STARS2 to TACTICS: the
+run stops below buffer 0 at HAS1's end, continues at &77EA with TACTICS
+(ORG &7000 and the INCLUDE of elite-hi.asm are in the marker's banner),
+and runs on across &8000 into bank 4, where the blocks tagged bank 4
+follow it as before. HICODE is now main RAM &7000-&7FFF whole (the high
+code and the run's part there), BANK4 bank 4 as before.
+
+**Why TACTICS.** The marker needs a routine boundary that nothing falls
+into or branches across, at which the run before it fits below &4000.
+TACTICS's seven parts branch into one another (part 2 back into part 1,
+parts 4 and 5 forward into part 6), so it moves as a whole; with it below
+&4000, the next boundary, DOCKIT, overflows by 24 bytes. So 639 bytes are
+free at the marker, below &4000, and 2854 at the run's end in bank 4: the
+same 3493 as before (192 in main RAM, 1244 in the high code, 2057 in bank
+4), now in two places instead of three.
+
+**X = 1.** Code in main RAM at &3000-&7FFF must never run with ACCCON X
+set. The run's part below &4000 was already there; the part moving from
+bank 4 to &77EA-&7FFF (TACTICS to the start of STARS2) is untagged code,
+and only the blocks tagged bank 4 run with X set: XTRACE (harness/mlib.mjs,
+an environment variable naming a file) records every instruction address
+run with X set, and over the gate's runs (the 10000-iteration comparison,
+the redock, save and views regressions) none is in main RAM &3000-&7FFF,
+before or after the move (17920 in all, all below &3000 or in a sideways
+bank).
+
+**Checks.** The gate (VERIFY PASS 1.235, 17.25 it/s, as before; game state
+identical at all 10000 iterations); test_raster --quick; bankcheck.

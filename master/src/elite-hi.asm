@@ -1,32 +1,29 @@
 \ ******************************************************************************
 \
-\ elite-hi.asm - the high code: the port's game-context glue, main RAM
-\ &7000-&7FFF (docs/MASTER-MAP.md)
+\ elite-hi.asm - the high code: the start of the run's second part, main RAM
+\ from &7000 (docs/MASTER-MAP.md)
 \
-\ Port: none of this has a counterpart in the original; it is the glue that
-\ the port adds around the original's code, for game context only. Main RAM
-\ &7000-&7DFF would be the dashboard's, but the dashboard is in shadow RAM:
-\ the IRQ shows shadow RAM from the dashboard's first line on (timer 1 sets
-\ ACCCON D in line 191's horizontal blanking, never late), so main RAM there
-\ is never on show, and this region starts at &7000. Code here must never run
-\ with ACCCON X set (which hides main RAM at &3000-&7FFF), so what the IRQ,
-\ the MOS vectors or code running with X set use is in the low area instead
-\ (elite-low.asm); and it is not in bank 4, whose room is the main code's
-\ (the run continues there). In order:
+\ Port: none of this has a counterpart in the original. Main RAM &7000-&7DFF
+\ would be the dashboard's, but the dashboard is in shadow RAM: the IRQ shows
+\ shadow RAM from the dashboard's first line on (timer 1 sets ACCCON D in
+\ line 191's horizontal blanking, never late), so main RAM from &7000 is never
+\ on show. The main code's run continues there (elite-source.asm, at its
+\ split before TACTICS), through &8000 into bank 4, after this prefix, which
+\ must be visible whatever bank is paged (so neither in bank 4 nor in the
+\ renderer's banks) and is too big for the low area below &3000. Like the
+\ run there, it never runs with ACCCON X set (which hides main RAM at
+\ &3000-&7FFF). In order:
 \
 \   * QSL and QSH, the quarter squares that the port's multiplications (MU11,
-\     MULT1, MULTS, MLTU2, MULT3, the stardust's) and the lighting use: page
-\     aligned, first, as their users patch the operands' low bytes;
+\     MULT1, MULTS, MLTU2, MULT3, the stardust's) and the lighting use, with
+\     bank 4, 6 or 7 paged: page aligned, first, as their users patch the
+\     operands' low bytes;
 \
-\   * the renderer's game-context half: the G_ stubs that page the frame
-\     layer (bank 6) in from game code (gfx-gstubs.asm), the hooks in Elite's
-\     drawing routines (gfx-hooks.asm), and the lighting's L_SUN and L_REC
-\     (gfx-light.asm), which the frame layer calls with bank 6 paged in.
+\   * the lighting's L_SUN and L_REC (gfx-light.asm), the renderer's
+\     game-context maths, which the frame layer calls with bank 6 paged in.
 \
-\ (The stubs into the cold area are not here: each is at its routine's place
-\ in the main code, elite-source.asm's hot emission; tools/streams.py.)
-\
-\ Saved as HICODE, which the loader copies into place.
+\ Saved with the run's part in main RAM from &7000 as HICODE, which the
+\ loader copies into place.
 \
 \ ******************************************************************************
 
@@ -61,7 +58,5 @@ FOR n, 0, 511
  EQUB HI(n * n DIV 4)
 NEXT
 
- INCLUDE "src/gfx-gstubs.asm"       \ stubs that page the frame layer in
- INCLUDE "src/gfx-hooks.asm"        \ the hooks in Elite's drawing code
 
  INCLUDE "src/gfx-light.asm"        \ the ship lighting's game-context half
