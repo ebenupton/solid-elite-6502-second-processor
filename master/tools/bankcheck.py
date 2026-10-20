@@ -37,7 +37,7 @@
 import re, sys
 
 SRC = "src/"
-FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
+FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
          "elite-bank4.asm": "bank4", "elite-dash.asm": "bank4",
          "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold", "elite-cold7.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)

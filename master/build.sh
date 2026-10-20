@@ -83,7 +83,7 @@ with open("build/banks.txt", "w") as f:
     sy = {}
     for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
         sy.setdefault(m.group(1), int(m.group(2)))
-    for src in ("src/elite-source.asm", "src/elite-flight.asm"):
+    for src in ("src/elite-source.asm",):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             if 0x8000 <= sy.get(m.group(1), 0) < 0xC000:
                 f.write("%s 4\n" % m.group(1))
