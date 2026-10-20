@@ -507,6 +507,30 @@ ENDIF
  JSR OSCLI              \ Call OSCLI to run the OS command in MESS3, which
                         \ changes the disc directory to E
 
+                        \ Port: the rest of the loader runs from K% (&0400),
+                        \ where its image at LTAIL is copied now: it writes
+                        \ the renderer's shared workspace (DFSST here, G_INIT
+                        \ the rest), which is in main RAM from &0E00 up to
+                        \ the main code, where this loader is (elite-gfx.asm).
+                        \ The game sets up K% itself, as it does WP, which was
+                        \ the loader's place in the original
+
+ LDX #0
+.LTC
+ LDA LTAIL,X
+ STA LTRUN,X
+ INX
+ CPX #LTEND-LTRUN
+ BNE LTC
+ JMP LTRUN
+
+.LTAIL
+
+ ORG &0400              \ (assembled to run at &0400, its image here: COPYBLOCK
+                        \ after LTEND)
+
+.LTRUN
+
                         \ Port: that was the last disc access, so DFS is done
                         \ with HAZEL: stash DFS's and the MOS's lasting bytes,
                         \ as the game uses their places (DOSCLI puts them back
@@ -655,6 +679,14 @@ ENDIF
  RTI
 
 .NMIHEND
+
+.LTEND
+
+ ASSERT LTEND - LTRUN <= 256 AND LTEND <= &05BB    \ (one copy loop; within K%)
+
+ ORG LTAIL + LTEND - LTRUN      \ (back to the loader, after the image)
+
+ COPYBLOCK LTRUN, LTEND, LTAIL
 
 \ ******************************************************************************
 \
