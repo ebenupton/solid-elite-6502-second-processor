@@ -205,8 +205,7 @@
 
 .DTL1_C
 
- JSR TKRD_C             \ Port: A = (V),Y read from shadow RAM, where the
-                        \ extended tokens are (was LDA (V),Y): load the
+ LDA (V),Y              \ Load the
                         \ character at offset Y in the token table,
                         \ which is the next character from the token table
 
@@ -252,8 +251,7 @@
  INC V+1                \ We have just crossed into a new page, so increment
                         \ V+1 so that V points to the start of the new page
 
- JSR TKRD_C             \ Port: A = (V),Y read from shadow RAM, where the
-                        \ extended tokens are (was LDA (V),Y): load the
+ LDA (V),Y              \ Load the
                         \ character at offset Y in the token table,
                         \ which is the next character from the token we want to
                         \ print
@@ -1111,7 +1109,7 @@
 
 .PDL1_C
 
- JSR RUPRD_C            \ Fetch the Y-th byte from RUPLA-1 into A (we use
+ LDA RUPLA-1,Y          \ Fetch the Y-th byte from RUPLA-1 into A (we use
                         \ RUPLA-1 because Y is looping from 26 to 1)
 
  CMP ZZ                 \ If A doesn't match the system whose description we
@@ -1121,7 +1119,7 @@
                         \ If we get here we have found a match for this system
                         \ number in RUPLA
 
- JSR RUGRD_C            \ Fetch the Y-th byte from RUGAL-1 into A
+ LDA RUGAL-1,Y          \ Fetch the Y-th byte from RUGAL-1 into A
 
  AND #%01111111         \ Extract bits 0-6 of A
 
@@ -1129,7 +1127,7 @@
  BNE PD2_C                \ number, jump to PD2 to keep looping through the system
                         \ numbers in RUPLA
 
- JSR RUGRD_C            \ Fetch the Y-th byte from RUGAL-1 into A, once again
+ LDA RUGAL-1,Y          \ Fetch the Y-th byte from RUGAL-1 into A, once again
 
  BMI PD3_C                \ If bit 7 is set, jump to PD3 to print the extended
                         \ token in A from the second table in RUTOK
@@ -2299,57 +2297,6 @@
  EQUB LO(QQ18 + &2C8 - LO(QQ18))   \ Token 112
  EQUB LO(QQ18 + &340 - LO(QQ18))   \ Token 128
  EQUB LO(QQ18 + &397 - LO(QQ18))   \ Token 144
-
-\ ******************************************************************************
-\
-\       Name: TKRD, RUPRD, RUGRD
-\       Type: Subroutine
-\   Category: Text
-\    Summary: Port: read the extended token tables in shadow RAM
-\
-\ ------------------------------------------------------------------------------
-\
-\ The extended tokens (TKN1, RUPLA, RUGAL, RUTOK) are in shadow RAM at &3100
-\ (docs/MASTER-MAP.md), visible at &3000-&7FFF only while ACCCON X is set.
-\ These replace the original's reads: they leave A and the N and Z flags as
-\ LDA (V),Y, LDA RUPLA-1,Y and LDA RUGAL-1,Y would, and C and V unchanged.
-\ ACCCON X is set and cleared on its own (TSB/TRB), leaving the other bits
-\ alone. They are in the cold area, which stays visible while X is set.
-\
-\ ******************************************************************************
-
-.TKRD_C
-
- LDA #%00000100         \ Set ACCCON X: shadow RAM at &3000-&7FFF
- TSB VIA+&34
- LDA (V),Y              \ The token byte (bankcheck: ok)
- PHA
- LDA #%00000100         \ Clear ACCCON X: main RAM back at &3000-&7FFF
- TRB VIA+&34
- PLA                    \ A and its N and Z flags
- RTS
-
-.RUPRD_C
-
- LDA #%00000100
- TSB VIA+&34
- LDA RUPLA-1,Y          \ bankcheck: ok
- PHA
- LDA #%00000100
- TRB VIA+&34
- PLA
- RTS
-
-.RUGRD_C
-
- LDA #%00000100
- TSB VIA+&34
- LDA RUGAL-1,Y          \ bankcheck: ok
- PHA
- LDA #%00000100
- TRB VIA+&34
- PLA
- RTS
 
 \ ******************************************************************************
 \

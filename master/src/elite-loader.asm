@@ -793,10 +793,6 @@ ENDIF
  EQUB HOMEBANK, %00001111
  EQUW &7000, &0E00
 
- EQUW MESS7             \ TOKENS: the extended tokens, to shadow RAM &3100-&3EFF
- EQUB HOMEBANK, %00001111
- EQUW &3100, &0E00
-
  EQUW MESS4             \ BANK4: Elite's home bank
  EQUB HOMEBANK, %00001001
  EQUW &8000, &4000
@@ -821,8 +817,8 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
- EQUW MESS11            \ RAST7: R_LINE, bank 7 from R7START (below the cold area's
- EQUB 7, %00001001      \ second part)
+ EQUW MESS11            \ RAST7: the extended tokens and R_LINE, bank 7 from R7START
+ EQUB 7, %00001001      \ (below the cold area's second part)
  EQUW R7START, R7LEN
 
  EQUW MESS12            \ HAZEL: the game data and the renderer's glue, staged
@@ -920,11 +916,6 @@ ENDIF
 .MESS6
 
  EQUS "L.COLD7 FFFF1300"    \ Port: *LOAD COLD7 FFFF1300
- EQUB 13
-
-.MESS7
-
- EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
  EQUB 13
 
 .MESS8

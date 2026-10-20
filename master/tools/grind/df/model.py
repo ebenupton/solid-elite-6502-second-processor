@@ -12,7 +12,7 @@ Built from what master/tools/grind/mkbuild.sh leaves in a build directory:
                 COPYBLOCK events
   tree/master/src     the sources exactly as assembled
   tree/master/build   the SAVEd images (BCODE, HICODE, BANK4, ANDY,
-                      COLD7, HAZEL, BANK5, RASTA, BANK6, RAST7) and TOKENS.bin (elite-data.asm)
+                      COLD7, HAZEL, BANK5, RASTA, BANK6, RAST7: with the extended tokens)
   symbols.txt   beebasm -d (global symbols: labels and equates)
 
 Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers it):
@@ -29,8 +29,8 @@ Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers
   RA    RASTA.bin, ANDY (the rasteriser's polygon window; ROMSEL &85)
   B6    BANK6.bin (frame layer, faces, lighting)
   HZ    HAZEL &C000-&DFFF (HAZEL.bin: the game data, and the glue at &C300)
-  SH    shadow RAM &3100- (TOKENS.bin: TKN1, RUPLA, RUGAL, RUTOK; data only, read with
-        ACCCON X set; reached only by instructions that name those labels)
+  SH    shadow RAM data (once TOKENS.bin, the extended tokens at &3100; now none: the
+        tokens are in bank 7, INCBINned into RAST7.bin, read by the cold code directly)
   RAM   workspace with no image (zero page, K%, WP ...)
 
 Only bytes inside a SAVEd image are loaded (`loaded`): anything else in a segment's

@@ -33,7 +33,8 @@ MAXDT = 64              \ dots per frame
 RASTBANK = 5            \ the rasteriser: bank 5, its disc window (&8000-&8FFF) and
 RASTPOLY = &85          \ the shared region (&9000-&BFFF); ANDY over bank 5, its
                         \ polygon window
-R_BANK_AUX = 7          \ R_LINE, in bank 7 (with the cold area), from R7START
+R_BANK_AUX = 7          \ R_LINE, in bank 7 (with the cold area), after the extended
+                        \ tokens at R7START
 R7START = &9000
 GFXBANK = 6
 ELITEBANK = HOMEBANK
@@ -163,10 +164,13 @@ PRINT "Bank 6: frame layer &8000-", ~B6_CODE_END-1, ", data ", ~F_HW, "-", ~B6_E
 ASSERT B6_END <= &C000
 SAVE "build/BANK6.bin", &8000, B6_END, &8000
 
-CLEAR &8000, &C000      \ bank 7 (the cold area's bank, ROMSEL 7): R_LINE
-ORG R7START
+CLEAR &8000, &C000      \ bank 7 (the cold area's bank, ROMSEL 7): the extended
+ORG R7START             \ tokens (cold data, elite-data.asm), then R_LINE
+.R7_BEGIN
+INCBIN "build/TOKENSD.bin"
+ASSERT TKN1 = R7_BEGIN
 INCLUDE "src/gfx-raster7.asm"   \ R_LINE
 .R7_END
-PRINT "Bank 7: R_LINE &", ~R7START, "-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
+PRINT "Bank 7: tokens &", ~R7START, "-", ~r7_start-1, ", R_LINE &", ~r7_start, "-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
 ASSERT R7_END <= COLD7LO
 SAVE "build/RAST7.bin", R7START, R7_END, R7START

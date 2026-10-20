@@ -5114,9 +5114,9 @@ ENDMACRO
 
  ASSERT HZDATA1END% <= &C300    \ (the renderer's glue starts at &C300)
 
- ORG &3100              \ Port: the extended tokens (TKN1, RUPLA, RUGAL, RUTOK)
-                        \ live in shadow RAM at &3100-&3EFF, read with ACCCON X
-                        \ set (docs/MASTER-MAP.md)
+ ORG &9000              \ Port: the extended tokens (TKN1, RUPLA, RUGAL, RUTOK)
+                        \ are cold data, in bank 7 at &9000-&9DFF, below R_LINE
+                        \ (elite-gfx.asm INCBINs them; docs/MASTER-MAP.md)
 
 \ ******************************************************************************
 \
@@ -9620,6 +9620,5 @@ ENDIF
  PRINT "QQ18: ", ~QQ18, "-", ~QQ18END%-1
  SAVE "build/QQ18D.bin", QQ18, QQ18END%, QQ18
 
- PRINT "Shadow tokens: ", ~TKN1, "-", ~P%-1
- ASSERT P% <= &3F00
- SAVE "build/TOKENS.bin", TKN1, P%, TKN1
+ PRINT "Extended tokens (bank 7): ", ~TKN1, "-", ~P%-1
+ SAVE "build/TOKENSD.bin", TKN1, P%, TKN1
