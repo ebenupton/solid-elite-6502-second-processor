@@ -3115,6 +3115,48 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: stackpt
+\       Type: Variable
+\   Category: Save and load
+\    Summary: Temporary storage for the stack pointer when jumping to the break
+\             handler at NEWBRK
+\
+\ ******************************************************************************
+
+.stackpt
+
+ EQUB &FF
+
+\ ******************************************************************************
+\
+\       Name: NEWBRK
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Port: the start of the standard BRKV handler for the game
+\
+\ ------------------------------------------------------------------------------
+\
+\ The MOS enters BRKV with the ROM that raised the error paged in, so the
+\ handler starts here in main RAM below &3000 (visible whatever ACCCON X is):
+\ it resets the stack, pages Elite's home bank in and carries on at NEWBRK2,
+\ at NEWBRK's place in the main code (which may be in bank 4).
+\
+\ ******************************************************************************
+
+.NEWBRK
+
+ LDX stackpt            \ Set the stack pointer to the value that we stored in
+ TXS                    \ location stack, so that's back to the value it had
+
+ LDA #HOMEBANK          \ Port: page Elite's home bank in, as the MOS enters
+ STA &F4                \ BRKV with the ROM that raised the error paged in (the
+ STA VIA+&30            \ original's getzp did this, setting ROMSEL to bank 6)
+                        \ before we change it in the SVE routine
+
+ JMP NEWBRK2            \ Port: the rest of NEWBRK
+
+\ ******************************************************************************
+\
 \       Name: SHIFT
 \       Type: Subroutine
 \   Category: Keyboard
@@ -6848,55 +6890,12 @@ ENDIF
 
 \ ******************************************************************************
 \
-\ Port: the disc access's data and the start of the BRKV handler, moved here
-\ from later in the main code: they must be in main RAM (which the main code
-\ may continue beyond, into bank 4), as the MOS reads the OSCLI commands and
-\ OSWORD blocks, the cold area's disc routines read and write them, and the
-\ MOS enters BRKV with whatever ROM raised the error paged in
+\ Port: the disc access's data, moved here from later in the main code: it
+\ must be in main RAM (which the main code may continue beyond, into bank 4),
+\ as the MOS reads the OSCLI commands and OSWORD blocks and the cold area's
+\ disc routines read and write them
 \
 \ ******************************************************************************
-
-\ ******************************************************************************
-\
-\       Name: stackpt
-\       Type: Variable
-\   Category: Save and load
-\    Summary: Temporary storage for the stack pointer when jumping to the break
-\             handler at NEWBRK
-\
-\ ******************************************************************************
-
-.stackpt
-
- EQUB &FF
-
-\ ******************************************************************************
-\
-\       Name: NEWBRK
-\       Type: Subroutine
-\   Category: Utility routines
-\    Summary: Port: the start of the standard BRKV handler for the game
-\
-\ ------------------------------------------------------------------------------
-\
-\ The MOS enters BRKV with the ROM that raised the error paged in, so the
-\ handler starts here in main RAM: it resets the stack, pages Elite's home
-\ bank in and carries on at NEWBRK2, at NEWBRK's place in the main code (which
-\ may be in bank 4).
-\
-\ ******************************************************************************
-
-.NEWBRK
-
- LDX stackpt            \ Set the stack pointer to the value that we stored in
- TXS                    \ location stack, so that's back to the value it had
-
- LDA #HOMEBANK          \ Port: page Elite's home bank in, as the MOS enters
- STA &F4                \ BRKV with the ROM that raised the error paged in (the
- STA VIA+&30            \ original's getzp did this, setting ROMSEL to bank 6)
-                        \ before we change it in the SVE routine
-
- JMP NEWBRK2            \ Port: the rest of NEWBRK
 
 \ ******************************************************************************
 \
@@ -20511,7 +20510,7 @@ ENDIF
  RTS                    \ Return from the subroutine
 
 \ Port: stackpt and the start of NEWBRK, the BRKV handler, are in main RAM
-\ with the disc access's data (after NA%), as the MOS enters BRKV with the ROM
+\ below &3000 (after the far-call code), as the MOS enters BRKV with the ROM
 \ that raised the error paged in
 
 \ ******************************************************************************
@@ -20520,7 +20519,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: The standard BRKV handler for the game
-\             (Port: from NEWBRK2 on; its start is in main RAM, after NA%)
+\             (Port: from NEWBRK2 on; its start is in main RAM below &3000)
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20533,8 +20532,9 @@ ENDIF
 
 .NEWBRK2
 
-                        \ Port: NEWBRK (in main RAM, after NA%) has reset the
-                        \ stack and paged Elite's home bank in, and comes here
+                        \ Port: NEWBRK (in main RAM, after the far-call code)
+                        \ has reset the stack and paged Elite's home bank in,
+                        \ and comes here
 
  JSR getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000, as this will have been stored in
@@ -20628,7 +20628,7 @@ ENDIF
                         \ fell through into it; it is now in the cold area)
 
 \ Port: RLINE, thislong, oldlong, CTLI, DELI, DIRI, savosc and lodosc are in
-\ main RAM with NEWBRK's start (after NA%), as the MOS reads them
+\ main RAM (after NA%), as the MOS reads them
 
 \ ******************************************************************************
 \
