@@ -8,8 +8,8 @@
 \ Elite's game code runs with its home bank (HOMEBANK, sideways RAM bank 4)
 \ paged in at &8000-&BFFF; main RAM and bank 4 code call each other directly.
 \ The cold code (docked screens, text, charts, title, save and load, and the
-\ flight-rare routines) lives in the cold area, ANDY at &8000-&8FFF plus bank 7
-\ above &9000, which is paged in as ROMSEL = COLDBANK (&87). Every cold entry
+\ flight-rare routines) lives in the cold area, sideways RAM bank 7 (&8000-&8FFF
+\ and from COLD7LO), which is paged in as ROMSEL = COLDBANK (7). Every cold entry
 \ point that code outside the cold area calls keeps its name as a 5-byte stub
 \ outside the cold area, and its cold copy has the suffix _C:
 \

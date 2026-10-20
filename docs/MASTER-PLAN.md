@@ -947,3 +947,77 @@ contiguous with the high code at &7200 (so HICODE could start at &7000, keeping
 QSL/QSH page aligned). Main &7000-&71FF must then never hold anything that
 needs to stay readable during flight with ACCCON X set (main RAM is hidden),
 like the rest of the high code.
+
+## The rasteriser in ANDY (after the dashboard split timing)
+
+The audit (andy-audit) asked whether the rasteriser could live in ANDY and
+bank 5 with one set of row runs, freeing bank 7 for cold code and shadow RAM
+of the extended tokens. It could, with one change to the idea: R_LINE stays
+in bank 7, as it uses no runs and its 3.2K did not fit beside the rest.
+
+**Layout** (docs/MASTER-MAP.md, rules 4 and 10, the map):
+* Bank 5 &9000-&BFFF, the rasteriser's shared region (gfx-raster.asm), seen
+  whichever window is paged: the boundary arrays, R_SETBUF, r_spc, R_INIT,
+  R_RESETBUF, the per-x tables, the 24 row runs at &A000 with their tails,
+  the stars, r_lput2/r_ypg, the lens flare.
+* ANDY (ROMSEL &85, RASTPOLY), the polygon window (gfx-raster_poly.asm):
+  R_POLY and both its phases, including the 16-bit phase A that was bank
+  7's, with its variables and a copy of the 32-bit maths. Phase A's copies
+  of bank 5's helpers (the DDA loops, r_div8) are merged.
+* Bank 5 &8000-&8FFF (ROMSEL 5), the disc window (gfx-raster_disc.asm):
+  R_DISCROWS and the dirty repair (r7_crep, r7_rowrep), which now uses the
+  shared runs and bank 5's tables.
+* Bank 7 (ROMSEL 7) is the cold area's and R_LINE's: the cold area's first
+  part (elite-andy.asm, 4019 bytes) at &8000-&8FB2, the same addresses it had
+  in ANDY (COLDBANK 7); the extended tokens at &9000-&9DFF, read directly by
+  the cold code (TKRD, RUPRD and RUGRD gone, and the TOKENS file); R_LINE
+  from &9E00; the cold area's second part from COLD7LO as before.
+* No rasteriser code calls between banks: r_call5, r_call7 and r_c7x are
+  gone (71 bytes of main RAM below &3000). The T_ trampolines page RASTPOLY
+  for R_POLY, 7 for R_LINE and 5 for the rest; R_SETBUF's last part,
+  r_sbpoly, pages the polygon window in for phase B's 8 DIRTY operands and
+  bank 5 back, &F4 first each time.
+
+**Commits** (each gated by master/tools/grind/verify.sh):
+1. bank 5's runs indexed by the row (STA ...,Y, as bank 7's repair had
+   them): same bytes, cycle-identical;
+2. the tools: ROMSEL as a whole byte in test_raster (ANDY paging, each entry
+   with its trampoline's ROMSEL, &F4 checked at every ROMSEL write),
+   build/images.txt for mboot, bankcheck's windows rule, the grind model's
+   map as data (gcreach, windows, master_config read it), and an ANDY CRC
+   around every disc command in the save test;
+3. the move itself (the plan's steps 3-5 in one commit, with no bridge);
+4. the extended tokens into bank 7;
+5. these docs (and comments in the sources: no change to the binaries).
+
+**Speed** (profile.mjs --pagex, the gate's run, against c5feb02): 116155 to
+116050 cycles per flight iteration (17.22 to 17.23 it/s): page crossings
+817 to 688 (r_dla's straddle gone, main RAM's code 71 bytes lower), 24 more
+in instructions (r_sbpoly's paging, about 29 cycles a buffer change, against
+the r_call7 calls it no longer makes). The new crossings are listed in
+MASTER-MAP's alignment candidates; no padding was added.
+
+**Free space** (outside shadow RAM, against c5feb02): 3701 (+ 1066 in run
+page tails) to 5766 (+ 291): ANDY 1313 (the rasteriser's), bank 5 317 (disc
+window) and 295 (shared region; + 291 in tails), bank 7 77, 111 (between
+R_LINE and COLD7LO) and 397, main code 213. Shadow RAM holds only the
+zero-page save; its 3584 bytes of tokens are free and stay so.
+
+**Checks.** At each commit verify.sh 10000 (game state identical at all
+10000 iterations; redock, savetest with the ANDY check unchanged over 4
+disc commands, views); test_raster --quick on the rasteriser commits and
+the full test_raster at the end; the lens flare's pixel check (four scenes,
+552 flared frames, 0 errors, every frame byte for byte as before); the
+docked screens byte for byte as before (harness/mdocked.mjs, apart from
+the title ship's rotation phase); the compass, LOOK1 and MSBAR repros
+clean and TTX66 as before (P+3 at its last iteration); the quick campaign
+clean; analyse.py, gcreach.py (0 unreachable, every profiled PC matched)
+and windows.py on the new map.
+
+**Risks.** ANDY now holds code that runs every frame: a stray MOS write
+there (VDU workspace, soft keys) would break the space view at once rather
+than a rarely used cold routine. Nothing in the game writes it, and the
+save test checks it over disc commands. R_SETBUF's r_sbpoly must keep &F4
+in step with ROMSEL (test_raster checks it). Bank 7 is fuller (585 free in
+three places), so the cold area has less room to grow; the renderer has
+1925 bytes (+ 291 in tails) for speed-ups.

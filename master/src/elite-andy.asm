@@ -1,9 +1,10 @@
 \ ******************************************************************************
 \
-\ elite-andy.asm - cold code in ANDY (&8000-&8FFF)
+\ elite-andy.asm - cold code in bank 7 &8000-&8FFF (it was in ANDY, hence the
+\ name; ANDY is now the rasteriser's polygon window)
 \
 \ Port (docs/MASTER-MAP.md, master/src/elite-far.asm): the first part of the
-\ cold area, paged in as ROMSEL = &87 (ANDY over bank 7's &8000-&8FFF). Labels
+\ cold area, paged in as ROMSEL = COLDBANK (7). Labels
 \ have the suffix _C; code outside the cold area calls them through the stubs
 \ in elite-stubs7.asm, and they call out through elite-coldstubs.asm.
 \ ******************************************************************************

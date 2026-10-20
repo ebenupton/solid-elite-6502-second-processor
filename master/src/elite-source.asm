@@ -23429,10 +23429,10 @@ ENDIF
 \ ******************************************************************************
 \
 \ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
-\ (&87): ANDY at &8000-&8FFF (elite-andy.asm) and sideways RAM bank 7 from
-\ COLD7LO (QQ18 from elite-data.asm, the stubs that lead out of the cold area,
-\ then elite-cold7.asm).
-\ Bank 7 below COLD7LO is kept for the renderer's cold code.
+\ (7): sideways RAM bank 7 at &8000-&8FFF (elite-andy.asm, which was ANDY's
+\ and keeps the name) and from COLD7LO (QQ18 from elite-data.asm, the stubs
+\ that lead out of the cold area, then elite-cold7.asm). Between them bank 7
+\ holds the extended tokens and R_LINE (elite-gfx.asm, from &9000).
 \
 \ ******************************************************************************
 
@@ -23443,7 +23443,7 @@ ENDIF
 
 .ANDY_END%
 
- PRINT "ANDY: &8000-", ~ANDY_END%-1, " free ", &9000-ANDY_END%
+ PRINT "Bank 7 cold (elite-andy.asm): &8000-", ~ANDY_END%-1, " free ", &9000-ANDY_END%
  ASSERT ANDY_END% <= &9000
  SAVE "build/ANDY.bin", &8000, &9000, &8000
 

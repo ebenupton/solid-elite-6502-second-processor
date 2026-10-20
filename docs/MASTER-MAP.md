@@ -31,9 +31,13 @@ which spare RAM the port may take.
    and read each other's data directly; the main code itself continues from
    main RAM into bank 4. Every other bank is reached through a stub that pages
    it in and the caller's bank back.
-4. **ANDY** (ROMSEL bit 7) overlays &8000-&8FFF of the paged bank. The cold
-   area is ANDY plus bank 7 from COLD7LO, paged together as ROMSEL &87; &F4
-   always matches ROMSEL, bit 7 included.
+4. **ANDY** (ROMSEL bit 7) overlays &8000-&8FFF of the paged bank. It is the
+   rasteriser's polygon window, paged as ROMSEL &85 (RASTPOLY: ANDY over bank
+   5, whose &9000-&BFFF is the rasteriser's shared region); bank 5's own
+   &8000-&8FFF, paged as ROMSEL 5, is its disc window. Nothing calls between
+   the two windows. The cold area is bank 7 (ROMSEL 7: &8000-&8FFF and from
+   COLD7LO). &F4 always matches ROMSEL, bit 7 included: every write of ROMSEL
+   writes &F4 first (the far calls, the G_ and T_ stubs, R_SETBUF's r_sbpoly).
 5. **The game data is in HAZEL**, where every bank, the IRQ and code running
    with X = 1 see it; bank 4 holds code (and the dashboard's variables and the
    hangar's line heap). The blueprints keep the original's order from XX21 on,
@@ -82,15 +86,18 @@ which spare RAM the port may take.
    (one block, &0E40-&1EFF, ending where the main code starts), with DFSST;
    HAZEL holds the game data and
    the renderer's glue (its shared variables with initial values, the T_
-   trampolines, the text and IRQ hooks).
+   trampolines, the text and IRQ hooks). The rasteriser's windows share
+   their private state through its shared region (bank 5 &9000-&BFFF, paged
+   with either window): the row runs and their tails, the per-x tables, the
+   boundary arrays.
 11. **The main code reads as the original.** BCODE is one run in the
    original's source order, from &1F00 in main RAM on into bank 4, minus what
    is elsewhere for a reason: the cold routines (the cold area), Master's
    drawing, some flight code and the dashboard (elite-bank4.asm), and a few
    things moved within the run, each with a `Port:` note at its old place:
-   the font and the log tables first (page aligned), the far-call code, the
-   rasteriser's bank 5 <-> 7 stubs and NEWBRK's start below &3000 (rules 1
-   and 2), and the disc commands' data after NA% (rule 2).
+   the font and the log tables first (page aligned), the far-call code and
+   NEWBRK's start below &3000 (rules 1 and 2), and the disc commands' data
+   after NA% (rule 2).
 
 ## The map
 
@@ -100,26 +107,30 @@ which spare RAM the port may take.
 | WP | main &0841-&0CA9 | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E | 87 (&0840, &0CAA-&0CFF) |
 | Free | main &0E00-&0E3F | | 64 |
 | Shared workspace | main &0E40-&1EFF | the renderer's shared state, one block ending where the main code starts: R_NDN (&0E40), the rasteriser's per-call scratch (&0F00-&118F, R_NDISCL page aligned), DFSST and DFSIN (&1190-&1210), R_WL (&1240), R_SS and F_DSS (&1300), raster_vars at its fixed place (&1333: R_DIRTYR0 at &14B5 for f_sight2), R_SX, R_SY, R_SN, R_SCOL, R_WR (&1E40) | 115 (47, 6, 62) |
-| Main code (BCODE) | main &1F00-&3F47 | Elite's main code and data in the original's order, from the font and the log tables (page aligned) on: below &3000 (to &290A) the IRQ and sound, the far-call code, the raster stubs, NEWBRK's start, HANGFLAG, CHPR, ADDK, UP; then the main flight loop, MALW, MALC, stardust, the planet and sun, maths, NA% and the disc commands' data, DOCKIT and the tactics helpers, ... up to DVID4 | 184 (1781 below &3000) |
+| Main code (BCODE) | main &1F00-&3F2A | Elite's main code and data in the original's order, from the font and the log tables (page aligned) on: below &3000 (to &28EF) the IRQ and sound, the far-call code, NEWBRK's start, HANGFLAG, CHPR, ADDK, UP; then the main flight loop, MALW, MALC, stardust, the planet and sun, maths, NA% and the disc commands' data, DOCKIT and the tactics helpers, ... up to DVID4 | 213 (1808 below &3000) |
 | Buffer 0, dashboard copy | main &4000-&71FF | the screen (rule 6); &4000-&5FFF also HAZEL's stash during a disc command | - |
 | High code | main &7200-&7DCA | the quarter-square tables QSL/QSH (page-aligned at &7200); the renderer's game-context side (G_ stubs, hooks, the lighting's L_SUN and L_REC); the far7 stubs into the cold area | 565 |
 | Bank 4 | &8000-&B787, &BF00-&BFFF | Elite's home bank, code only: the main code from DVL9a (DVID3B's rare paths) to F% (&8000-&9480: the maths after DVID4, LASLI, DOEXP, the planet, the main game loop, WARP, DOKEY, TIDY and TIS2, FILLKL, SIGHT, the sounds, ...); then elite-bank4.asm: Master's drawing (still used by the docked screens: LOIN, HLOIN, PIXEL, PIX1, TTX66, CLYNS, ...), flight code (TACTICS, LL5, LL9F and LL9, MVEIT, MV40, LOOK1, DEATH, pl4pat), the CMYK dashboard (elite-dash.asm: DIALS, SCAN, DOT, the bulbs, MSBAR, and their variables DASHV); the hangar's line heap HANGHEAP at &BF00 | 1912 |
-| Cold area: ANDY | ANDY &8000-&8FB2 | cold code, docked and flight-rare: market, equipment, charts, system data, status, missions, pause, messages, number printing, TT66, ESCAPE, ANGRY | 77 |
-| Cold area: bank 7 | bank 7 COLD7LO (&AB00)-&BEA3 | QQ18, the x4_/j4_ stubs out of the cold area, the cold code (text and tokens, title and start-up, save and load and DOSCLI, hyperspace, launch and docking, the hangar, the market table QQ23, FRMIS, FRS1, FR1, Ze) | 348 |
-| Rasteriser | bank 5 &8000-&BFCF | the rasteriser (gfx-raster.asm): its per-x tables; the 24 row-run pages, whose 66-byte tails hold its variables, small routines and the high-byte tables R_SETBUF patches from (and the lens flare's half-width table and variables); the boundary arrays (R_BD*, both buffers, &9C00-&A57F, with r_rowset, r_dw and r_bstore in the 128 bytes between the buffers); 8-bit polygons and every polygon's phase B, discs, spans, dots, stars; then the lens flare (gfx-flare.asm: R_FLARE) | 48 (+ 278 in the tails) |
+| Cold area: bank 7 &8000- | bank 7 &8000-&8FB2 | cold code, docked and flight-rare (elite-andy.asm, which was ANDY's): market, equipment, charts, system data, status, missions, pause, messages, number printing, TT66, ESCAPE, ANGRY | 77 |
+| Extended tokens, R_LINE | bank 7 &9000-&AA90 | the extended tokens TKN1, RUPLA, RUGAL, RUTOK (&9000-&9DFF, cold data, read directly by the cold code); R_LINE (gfx-raster7.asm: its variables, tables and small routines from &9E00, then R_LINE and its loops; T_LINE pages bank 7) | 111 (to COLD7LO) |
+| Cold area: bank 7 | bank 7 COLD7LO (&AB00)-&BE72 | QQ18, the x4_/j4_ stubs out of the cold area, the cold code (text and tokens, title and start-up, save and load and DOSCLI, hyperspace, launch and docking, the hangar, the market table QQ23, FRMIS, FRS1, FR1, Ze) | 397 |
+| Rasteriser: polygon window | ANDY &8000-&8ADE (ROMSEL &85) | gfx-raster_poly.asm: r_div8, R_POLY, the 8-bit polygons' phase A (r_pf8, r_pcbd, r_e8, the DDA loops, r_dvq), every polygon's phase B; the 16-bit polygons' phase A (r7_pf16..r7_esgen, r7_e8c, its variables and its copy of the 32-bit maths) | 1313 |
+| Rasteriser: disc window | bank 5 &8000-&8EC2 (ROMSEL 5) | gfx-raster_disc.asm: R_DISCROWS and its row code (r_dbm, r_dq, r_dpe, r_dp2, r_drg ...), the dirty repair outside the disc rows (r7_crep, r7_rowrep, r7_j3) | 317 |
+| Rasteriser: shared region | bank 5 &9000-&BED8 (with either window) | gfx-raster.asm: the boundary arrays (R_BD*, both buffers, &9000-&997F, with r_rowset, r_dw and r_bstore in the 128 bytes between the buffers); R_SETBUF (and r_sbpoly, which pages the polygon window in for phase B's operands), r_spc, R_INIT, R_RESETBUF; the per-x tables (&9C00); the 24 row-run pages (&A000-&B7FF, STA ...,Y with Y = the row; their 65-byte tails hold the star records, the variables, small routines such as R_SPAN, R_DOT, R_MARKDIRTY and the disc layer's r_dp1, r_bmn, the high-byte tables R_SETBUF patches from, and the lens flare's half-width table and variables); the stars, r_lput2, r_ypg; the lens flare (gfx-flare.asm: R_FLARE) | 295 (+ 291 in the tails) |
 | Frame layer | bank 6 &8000-&ADCA code, &ADCB-&BF3C data | the frame layer (gfx-frame.asm), the faces of the 33 ships (gfx-faces.asm), the lighting tables (gfx-light6.asm), frame_cold (with f_b0new) and the flare's step (f_flt: its tests on bank 6's state, then T_FLARE); then its state: F_HW, F_HW2, F_DL, the text maps, the directly drawn stars (F_DSX, F_DSY) | 195 |
-| Rasteriser bank 7 | bank 7 &8000-&AAD4 | the rasteriser's second bank (gfx-raster7.asm): the 24 row-run pages first (they must be whole pages), their tails holding R_LINE's and the 16-bit polygons' variables and the small routines; its tables; R_LINE (all of it: T_LINE pages bank 7), the 16-bit polygons' phase A, the dirty repair, R_INIT | 43 (to COLD7LO; + 788 in the tails) |
 | HAZEL | &C000-&C2AD | the game data: the Cougar's and the Dodo's blueprints, SNE, ACT (read only: DFS writes here during a command) | 82 (to &C300) |
-| HAZEL glue | &C300-&C49E | the renderer's glue, visible whatever is paged: shared variables (gfx-gvars: GMODE, GFRONT, GFLIP, ..., GSTASH), the T_ trampolines into banks 5 and 7, the text and IRQ hooks (G_CHAR, G_DELCHAR, G_CLRTEXT, H_CHAR, H_DEL, H_VSYNC), GWARP | 42 (to XX21) |
+| HAZEL glue | &C300-&C49E | the renderer's glue, visible whatever is paged: shared variables (gfx-gvars: GMODE, GFRONT, GFLIP, ..., GSTASH), the T_ trampolines into the rasteriser (bank 5, ANDY over it for R_POLY, bank 7 for R_LINE), the text and IRQ hooks (G_CHAR, G_DELCHAR, G_CLRTEXT, H_CHAR, H_DEL, H_VSYNC), GWARP | 42 (to XX21) |
 | HAZEL | &C4C9-&DFFF | the game data: XX21 (written: &C300-&D8FF), E%, KWL%, KWH%, the missile's to the Constrictor's blueprints (from &D900 on in places DFS and the MOS overwrite during a command) | - |
-| Shadow &3000-&3FFF | &3090-&30FF, &3100-&3EFF | the zero-page save (setzp/getzp), the extended tokens (TOKENS); nothing new goes into shadow RAM | 144 (&3000-&308F), 256 (&3F00-&3FFF) |
+| Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
 | Buffer 1, dashboard | shadow &4000-&7DFF | the screen (rule 6) | - |
 | Shadow &7E00-&7FFF | | unused (not displayed) | 512 |
 
 The loader (`M128Elt`) loads each file to &1300 and copies it into place
-(FTAB): BDATA (the dashboard image), TOKENS, BANK4,
-ANDY, COLD7, BANK5, BANK6, RAST7, HAZEL (8K, staged at &4000), HICODE, BDATA
-again (the first row in main RAM); then it loads BCODE to &1F00 (its address
+(FTAB): BDATA (the dashboard image), BANK4,
+ANDY (the cold area's first part, to bank 7 &8000), COLD7, RASTA (the
+rasteriser's polygon window, to ANDY with ROMSEL &85), BANK5, BANK6, RAST7
+(the extended tokens and R_LINE, bank 7 from &9000), HAZEL (8K, staged at
+&4000), HICODE, BDATA again (the first row in main RAM); then it loads BCODE to &1F00 (its address
 from the build). The loader is at &0E00, in the shared workspace's place, so
 its last part runs from K% (&0400; the game sets K% up itself): it takes
 DFS's and the MOS's lasting bytes into DFSST after the last disc access,
@@ -129,8 +140,8 @@ workspace.
 ### Why each region holds what it holds
 
 * **Main RAM below the main code** holds the renderer's shared workspace:
-  variables that the rasteriser's two banks, the frame layer, the game's
-  hooks and the IRQ handler share.
+  variables that the rasteriser, the frame layer, the game's hooks and the
+  IRQ handler share.
   Below &3000 every one of them sees it, whatever bank is paged and whatever
   ACCCON X is; the renderer initialises it (R_INIT, F_INIT), so it needs no
   image. It is one block from &0E40 to the main code; the page &0D below it
@@ -154,20 +165,21 @@ workspace.
 * **The cold area** holds code that runs on docked screens or a few times in
   a flight: it costs a far call (about 100 cycles) to enter, so nothing that
   runs on most flight iterations is there.
-* **Banks 5, 6 and bank 7 below COLD7LO** are the renderer's: the rasteriser,
-  the frame layer and the rasteriser's second bank. They hold no game code.
-  Bank 5 has everything a frame calls often, and the private state it reads
-  in its inner loops (the boundary arrays); bank 7 the rest: what runs at
-  most once or twice a frame, or for big and clipped shapes (R_LINE, the
-  16-bit polygons' phase A, the dirty repair, start-up and resets). Each
-  bank's 24 row-run pages leave 66 bytes after each run, which hold the
-  bank's variables and its routines of under 66 bytes.
+* **Bank 5 and ANDY, and bank 6** are the renderer's: the rasteriser and the
+  frame layer. They hold no game code. The rasteriser is three 4K-12K
+  windows: bank 5 &9000-&BFFF, its shared region, is seen whichever window is
+  paged, and holds what both use (the one set of row runs, the per-x tables,
+  the boundary arrays, R_SETBUF, r_spc, the stars, the flare); ANDY (ROMSEL
+  &85) holds the polygons and bank 5's &8000-&8FFF (ROMSEL 5) the disc layer
+  and the dirty repair, which never call each other. The 24 row-run pages
+  leave 65 bytes after each run, which hold variables and routines of under
+  65 bytes. R_LINE, which uses no runs, is in bank 7 with the cold area.
 * **HAZEL** is visible whatever bank is paged, so it holds the game data
   (rule 5) and the renderer's glue (rule 10), laid out for disc commands
   (rule 8).
-* **Shadow RAM** outside the screen holds data read only with X = 1 (the
-  extended tokens, through TKRD, RUPRD and RUGRD) and the zero-page save;
-  nothing more goes there (the lens flare left it for bank 5).
+* **Shadow RAM** outside the screen holds only the zero-page save; nothing
+  more goes there (the lens flare left it for bank 5, the extended tokens
+  for bank 7).
 
 ## Calls between regions
 
@@ -179,7 +191,7 @@ through a stub; the stubs are of four kinds.
 | far7 / far7j stubs (`.TT22 JSR far7 : EQUW TT22_C`) | main: the high code | 48 | the cold area in, the caller's bank back |
 | far4 / far4j stubs (`.x4_TT26 JSR far4 : EQUW TT26`) | the cold area (elite-coldstubs.asm), and TTX66M in main | 49 | bank 4 in, the cold area back |
 | G_ stubs | main (gfx-gstubs.asm, 12) and HAZEL (G_CHAR, G_DELCHAR, G_CLRTEXT) | 15 | bank 6 in, bank 4 (or, from HAZEL, the caller's bank) back |
-| T_ trampolines; r_call7 / r_call5 | HAZEL; main below &3000 | 12; 2 | bank 5 (T_LINE: bank 7) in, bank 6 back; bank 7 <-> bank 5 |
+| T_ trampolines | HAZEL | 12 | the rasteriser in (T_POLY: ROMSEL &85, ANDY over bank 5; T_LINE: bank 7; the rest bank 5), bank 6 back |
 
 far7, far4 and their jump forms are the only far-call helpers (elite-far.asm).
 A far call costs about 100 cycles; in the gate's run the flight iterations
@@ -193,7 +205,8 @@ branches never cross areas; cold code reaches main RAM and bank 4 only through
 x4_/j4_ stubs (an address, #LO/#HI, is not a reach) and the others reach it
 only through far7 stubs; the main files' labels assembled at &8000-&BFFF are
 bank 4's; shadow data is read only by readers marked `bankcheck: ok`; the
-renderer's banks (bank5, bank6, bank7r) are entered
+renderer's banks (bank5 with its windows bank5d and bank5a, which never
+refer to each other, bank6, bank7r) are entered
 from elsewhere only through the stub files or by address, call nothing in
 another bank, read no other bank's data and read main RAM only below &3000;
 HAZEL and the shared workspace are visible to every area. Deliberate
@@ -303,7 +316,7 @@ the gate's run, 804 in all):
 | r_dla's row loop within one page (it straddles &B500: its BNEs at r_dla+17, +22, +30, +39) | 96 |
 | raster_vars' arrays read across a page (R_DIRTYL0 at &13F5: r_dmb, phase B's r_pt60/62/410/412; R_NDP at &19F8: r_dmb, r_dpe; R_DISCR0 at &1575: r_dla, r_dp2, r_dmb): raster_vars moves only by &100, so by reordering its arrays | about 90 |
 | F_HW, F_HW2 page-aligned, with f_disc's loops (fpr16 BCC fpr2 28, fsy_cp BNE fsyl 23, fpr_ld2 10, fpr_b2 8, fsyl 8, fpr_b1 7) | 89 |
-| bank 7's dirty repair (r7_rowrep) and line loops (r7_lgo) | 62 |
+| bank 7's dirty repair (r7_rowrep) and line loops (r7_lgo) (now: see "With the rasteriser in ANDY" below) | 62 |
 | branches across a page in r_dp2 (its BRA at +107 13, +166 6) and R_STARERASE (+253 12, +193 7) | 45 |
 | the frame layer's ft_sr1 10, fsg_m2 7 and fwc2 5 (new: bank 6's data moved by f_b0new's 80 bytes) | 31 |
 | STL1's SZ,Y (WP: the stardust's z) and stl_dvr, stld (the stardust loop, at a new place) | 28 |
@@ -313,6 +326,17 @@ the gate's run, 804 in all):
 | MU8, DVID3B, DVL9a, mad1's BPL add1, SOUL8/SOUL3 (the sound IRQ) | 14 |
 | new with the garbage collection (bank 4's code moved down 1-36 bytes): LL132 2.9, DOT 1.1, MV3 0.8 (it removed more crossings than it made: LL57S 10.8, r_pt416 11.5, R_STARPLOT 5.7, r_dp2 5.2, mlt3 2.5, LL69 1.9, scd2 1.4 fewer) | 5 |
 | the rest (about 400 places, each under 5) | about 174 |
+
+**With the rasteriser in ANDY** (MASTER-PLAN.md, "The rasteriser in ANDY"),
+the crossings went from 817 to 688 cycles per flight iteration (on c5feb02's
+tree). Most code moved by whole pages or kept its low bytes (phase B's
+crossings are now ANDY's), and the new places removed r_dla's straddle (96 ->
+10), r_dp2's 17 and 55 in main RAM (BCODE moved down by r_call5/r_call7's 71
+bytes: fkc, fkc1, mlb6, MVS5 ...). The new or larger crossings, the
+candidates now: r_dpe 41 (+12), the dirty repair r7_rowrep 26 (it was 31 in
+bank 7), r_dq 26 (+21), r_dp2 25, r_segw 16 (+5), r_drg 8 (+4), R_STARERASE
+10 (+3), all in bank 5 (the disc window and the shared region); in the
+polygon window nothing new (r_pf8 4).
 
 ## Free space
 
@@ -324,20 +348,20 @@ variables and routines of under 66 bytes each.
 |---|---:|---:|
 | Low code (then); WP's pages &0840-&0CFF (now: &0840, &0CAA-&0CFF) | 14 | 87 |
 | Shared workspace &0E00-&1EFF | - | 179 (64 below it; 47, 6, 62 in it) |
-| Main code (BCODE) | 72 | 184 (1781 below &3000) |
+| Main code (BCODE) | 72 | 213 (1808 below &3000) |
 | High code | 137 | 565 |
-| Bank 4 | 30 | 1912 |
-| ANDY | 5 | 77 |
-| Bank 7 cold area | 271 | 348 |
-| Bank 5 | 809 (+ 350 in tails) | 48 (+ 278 in tails) |
-| Bank 6 | 274 | 195 |
-| Bank 7 rasteriser | 43 (+ 723 in tails) | 43 (+ 788 in tails) |
+| Bank 4 | 30 | 1901 |
+| ANDY (the cold area's then; the rasteriser's polygon window now) | 5 | 1313 |
+| Bank 7 cold area (&8000-, from COLD7LO) | 271 | 77, 397 |
+| Bank 5 (now: disc window, shared region) | 809 (+ 350 in tails) | 317, 295 (+ 291 in tails) |
+| Bank 6 | 274 | 187 |
+| Bank 7 rasteriser (now: the extended tokens and R_LINE, to COLD7LO) | 43 (+ 723 in tails) | 111 |
 | HAZEL scratch (then), read-only game data zone (now) | 112 (to &C300) | 82 (&C2AE-&C2FF) |
 | HAZEL code (then), glue (now) | 48 | 42 (to XX21) |
 | HAZEL state | 1726 (to &D900) | - |
 | HAZEL &DC40 block | 289 (to &E000) | - |
-| Shadow | 7, 3, 16 | 512, 256, 144 |
-| Total | 3856 (+ 1073 in tails) | 4674 (+ 1066 in tails) |
+| Shadow | 7, 3, 16 | 512, 3840, 144 |
+| Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM |
 
 HAZEL's 2063 free bytes for lasting content went to the game data; bank 4's
 room grew from 30 bytes to 1882, 1912 now (with the hangar's line heap at &BF00 and
@@ -364,3 +388,12 @@ the code no execution can reach (master/tools/grind/gcreach.py): 269 bytes,
 main RAM 11 (3 below &3000), bank 4 36, ANDY 59, bank 7's cold area 73, bank
 5 25 and 65 of bank 7's run page tails. The figures above are after it (bank
 4's 1876 before it; the table's 1882 was an earlier build's).
+
+The rasteriser in ANDY (MASTER-PLAN.md) took the cold area's first part out
+of ANDY into bank 7 (same addresses), put the rasteriser's polygons in ANDY,
+made one set of row runs serve the whole rasteriser (bank 7's 24 went) and
+moved the extended tokens from shadow RAM into bank 7. Against c5feb02's
+build: outside shadow RAM 3701 free bytes (+ 1066 in the run pages' tails)
+became 5766 (+ 291 in tails), 1290 more in all; the rasteriser's own room
+went from 48 + 43 (+ 1066 in tails) to 1925 (+ 291), and shadow RAM's
+3584 bytes of tokens are free (and stay so).

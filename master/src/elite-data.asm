@@ -3602,7 +3602,8 @@ ENDMACRO
 
  ORG &AB00              \ Port: QQ18 is cold data, at the start of the cold
                         \ area's bank 7 part (docs/MASTER-MAP.md); bank 7 below
-                        \ COLD7LO holds the rasteriser's cold code
+                        \ COLD7LO holds the cold area's first part, the extended
+                        \ tokens and R_LINE
 
 .COLD7LO
 

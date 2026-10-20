@@ -21,9 +21,18 @@ and file contents, through jsbeeb's `toSsdOrDsd`), not only the screen output.
 
 docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
 
-* **ANDY** holds cold code (the cold area's first 4K, ROMSEL &87). The loader sets
+* **ANDY** holds the rasteriser's polygon window (R_POLY, both phases, ROMSEL &85: ANDY
+  over bank 5, whose &9000-&BFFF is the rasteriser's shared region), code that runs
+  every frame and patches its own operands. Until the ANDY move it held the cold
+  area's first 4K, which is now in bank 7 at the same addresses. The loader sets
   `*FX 225,128` and the game prints through its own WRCHV, so the MOS never reads the
-  font or soft keys there.
+  font or soft keys there, and nothing writes ANDY but the rasteriser (the MOS's VDU
+  workspace at &8800-&884F is not touched: no MODE, GCOL or PLOT through the MOS).
+  Since the cold area left it, nothing but the rasteriser pages ANDY in: DOSCLI runs
+  from bank 7 (ROMSEL 7), DFS is paged for each command, and the error path's NEWBRK
+  pages bank 4. The save test (harness/msavetest.mjs) checks a CRC of ANDY around
+  every disc command it makes (save, load, the failed load, the catalogue). A write
+  into ANDY would now break the space view at once, where it used to hit cold code.
 * **HAZEL** holds lasting data everywhere: the game data (the ship blueprints and their
   tables, 7653 bytes) and the renderer's glue (its shared variables, the T_ trampolines,
   the text and IRQ hooks, 402 bytes). It follows the "save/restore 66 bytes and
@@ -69,8 +78,8 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
   page in HAZEL (see "ROM private pages" below) that writes it during a disc command is
   undone by the stash; one that writes it on other OS calls would corrupt blueprints or
   the glue.
-* **Shadow RAM**: &3100-&3EFF the extended tokens, &3090-&30FF the zero-page save;
-  nothing else (the lens flare moved to bank 5), and nothing more goes there.
+* **Shadow RAM**: &3090-&30FF the zero-page save; nothing else (the lens flare moved
+  to bank 5, the extended tokens to bank 7), and nothing more goes there.
 * **Main RAM below &0E00**: Elite's workspace WP at &0841-&0CA9 (the original's
   &0E41-&12A9, moved by &600; in the MOS's sound, printer, RS423, cassette and speech
   buffers and the unused &0B00-&0CFF), with the commander file buffer at &087E: DFS
