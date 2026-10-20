@@ -170,7 +170,7 @@ RZ_T5   = &25
 RZ_T6   = &26
 RZ_T7   = &27
 
-r_opSTA = &9D           \ STA abs,X
+r_opSTA = &99           \ STA abs,Y (the row runs are indexed by the row, as bank 7's)
 r_opRTS = &60
 
 \ ============================================================================
@@ -201,12 +201,13 @@ FOR x, 0, 255
 NEXT
 
 \ ============================================================================
-\ The store runs: one page per character row r (24), STA &4000+&200r+8c,X for
+\ The store runs: one page per character row r (24), STA &4000+&200r+8c-8r,Y (Y =
+\ the row: the same form as bank 7's r7_rrun) for
 \ c = 1..63 then RTS (190 bytes).  The 66 bytes after each run hold variables.
 \ ============================================================================
 MACRO R_RUN r
   FOR c, 1, 63
-    STA &4000 + r * &200 + c * 8, X
+    STA &4000 + r * &200 + c * 8 - r * 8, Y
   NEXT
   RTS
   EQUB 0                  \ spare: the 'nothing planted' target (offset 190)
@@ -889,7 +890,7 @@ r_bdx3 = R_BDX30
   STA r_jsr+1             \ whole byte lies between: the JSR hits the RTS)
   LDA #r_opRTS
   STA (RZ_PP)
-  LDX RZ_PA
+  LDY RZ_Y                \ (the run is indexed by the row)
   LDA RZ_COL
 .^r_jsr
   JSR &FFFF
@@ -1600,7 +1601,7 @@ r_bdx3 = R_BDX30
   CMP RZ_PP
   BNE pb_plant_e
 .pb_go_e
-  LDX RZ_PA
+  LDY RZ_Y                \ (the run is indexed by the row)
   LDA RZ_CE
 .r_jsr2_e
   JSR &FFFF
@@ -1664,7 +1665,7 @@ r_bdx3 = R_BDX30
   CMP RZ_PP
   BNE pb_plant_o
 .pb_go_o
-  LDX RZ_PA
+  LDY RZ_Y                \ (the run is indexed by the row)
   LDA RZ_CO
 .r_jsr2_o
   JSR &FFFF
