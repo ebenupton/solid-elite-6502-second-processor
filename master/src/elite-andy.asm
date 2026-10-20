@@ -888,41 +888,8 @@
 \
 \ ******************************************************************************
 
-.TT214_C
-
-\.TT214                 \ These instructions are commented out in the original
-\                       \ source
-\PHA
-\JSR TT162
-\PLA
-
-.TT221_C
-
- JSR TT27_C               \ Print the text token in A
-
- LDA #206               \ Print extended token 206 ("{all caps}(Y/N)?")
- JSR DETOK_C
-
- JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
-                        \ the key's ASCII code in A and X
-
- ORA #%00100000         \ Set bit 5 in the value of the key pressed, which
-                        \ converts it to lower case
-
- CMP #'y'               \ If "y" was pressed, jump to TT218
- BEQ TT218_C
-
- LDA #'n'               \ Otherwise jump to TT26 to print "n" and return from
- JMP x4_TT26               \ the subroutine using a tail call (so all other
-                        \ responses apart from "y" indicate a no)
-
-.TT218_C
-
- JSR x4_TT26               \ Print the character in A, i.e. print "y"
-
- SEC                    \ Set the C flag to indicate a "yes" response
-
- RTS                    \ Return from the subroutine
+                        \ Port: removed (unreachable: TT214, TT221 and TT218
+                        \ have no caller in SNG47)
 
 \ ******************************************************************************
 \
@@ -2905,15 +2872,8 @@
 \
 \ ******************************************************************************
 
-.DVLOIN_C
-
- STA X1                 \ Draw a vertical line from (A, GCYT) to (A, GCYB)
- STA X2
- LDA #GCYT
- STA Y1
- LDA #GCYB
- STA Y2
- JMP x4_LOIN
+                        \ Port: removed (unreachable: DVLOIN has no caller in
+                        \ SNG47)
 
 \ ******************************************************************************
 \
@@ -2966,11 +2926,8 @@
 \
 \ ******************************************************************************
 
-.INCYC_C
-
- INC YC                 \ Move the text cursor to the next row
-
- RTS                    \ Return from the subroutine
+                        \ Port: removed (unreachable: INCYC has no caller in
+                        \ SNG47)
 
 \ ******************************************************************************
 \
@@ -6348,23 +6305,8 @@
 \
 \ ******************************************************************************
 
-.SWAPPZERO_C
-
- LDX #K3+1              \ This routine starts copying zero page from the byte
-                        \ after K3 and up, using X as an index
-
-.SWPZL_C
-
- LDA ZP,X               \ These instructions have no effect, as they simply swap
- LDY ZP,X               \ a byte with itself
- STA ZP,X
- STY ZP,X
-
- INX                    \ Increment the loop counter
-
- BNE SWPZL_C              \ Loop back for the next byte
-
- RTS                    \ Return from the subroutine
+                        \ Port: removed (unreachable: SWAPPZERO has no caller in
+                        \ SNG47)
 
 \ ******************************************************************************
 \

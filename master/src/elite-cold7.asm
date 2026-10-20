@@ -4324,11 +4324,8 @@ ENDIF
 \
 \ ******************************************************************************
 
-.backtonormal_C
-
- RTS                    \ Return from the subroutine, as backtonormal does
-                        \ nothing in this version of Elite (it is left over from
-                        \ the 6502 Second Processor version)
+                        \ Port: removed (unreachable: backtonormal has no caller
+                        \ in SNG47)
 
 \ ******************************************************************************
 \
@@ -4344,11 +4341,8 @@ ENDIF
 \
 \ ******************************************************************************
 
-.CLDELAY_C
-
- RTS                    \ Return from the subroutine, as CLDELAY does nothing in
-                        \ this version of Elite (it is left over from the 6502
-                        \ Second Processor version)
+                        \ Port: removed (unreachable: CLDELAY has no caller in
+                        \ SNG47)
 
 \ ******************************************************************************
 \
@@ -4626,8 +4620,8 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
- RTS                    \ This instruction has no effect as we already returned
-                        \ from the subroutine
+                        \ Port: the RTS that followed is removed (unreachable:
+                        \ "This instruction has no effect")
 
 \ ******************************************************************************
 \
@@ -5561,8 +5555,8 @@ ENDIF
 
 .hyp1_C
 
- JSR TT111_C              \ Select the system closest to galactic coordinates
-                        \ (QQ9, QQ10)
+                        \ Port: JSR TT111 removed (unreachable: hyp1 is only
+                        \ ever called as hyp1+3, now hyp1_C)
 
  JSR jmp_C                \ Set the current system to the selected system
 
@@ -5958,8 +5952,9 @@ ENDIF
                         \ (QQ9, QQ10), but we don't need to do this as the
                         \ crosshairs will already be on a system by this point
 
- JSR hyp1_C+3             \ Jump straight to the system at (QQ9, QQ10) without
-                        \ first calculating which system is closest
+ JSR hyp1_C             \ Jump straight to the system at (QQ9, QQ10) without
+                        \ first calculating which system is closest (Port:
+                        \ hyp1+3 in the original, as hyp1's JSR TT111 is gone)
 
  JSR RES2_C               \ Reset a number of flight variables and workspaces
 
@@ -6288,9 +6283,8 @@ ENDIF
 \
 \ ******************************************************************************
 
- RTS                    \ This byte appears to be unused, but it might be a
-                        \ hangover from the cassette version, where this byte is
-                        \ used for a checksum
+                        \ Port: the RTS here is removed (unreachable: "This
+                        \ byte appears to be unused")
 
 .S%
 
