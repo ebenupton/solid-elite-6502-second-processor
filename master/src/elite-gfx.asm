@@ -127,7 +127,7 @@ ORG &8000
 INCLUDE "src/gfx-raster_disc.asm"
 .B5LO_END
 ASSERT B5LO_END <= &9000
-PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", &9000-B5LO_END, "), shared &9000-", ~B5_END-1, " free ", &C000-B5_END
+PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", &9000-B5LO_END, "), shared &9000-", ~B5_END-1, " free ", &C000-B5_END, " (+ ", r_tables-r_tfree, " at ", ~r_tfree, ")"
 SAVE "build/BANK5.bin", &8000, B5_END, &8000
 
 CLEAR &8000, &9000      \ ANDY (ROMSEL &85): the rasteriser's polygon window

@@ -8,10 +8,10 @@
 \ shared workspace in main RAM, which every bank sees).  The code, tables and
 \ private state are in three windows of sideways RAM (docs/MASTER-MAP.md):
 \   this file, the shared region: bank 5 &9000-&BFFF (the per-x tables, the
-\     boundary arrays, R_SETBUF, r_spc, R_INIT, R_RESETBUF, the 24 row runs
-\     and their tails, the stars), seen with either window below;
+\     boundary arrays, R_SETBUF, r_spc, the 24 row runs and their tails, the
+\     stars), seen with either window below;
 \   raster_disc.asm, the disc window: bank 5 &8000-&8FFF, paged with ROMSEL 5
-\     (RASTBANK): R_DISCROWS and the dirty repair;
+\     (RASTBANK): R_DISCROWS, the dirty repair, R_INIT and R_RESETBUF;
 \   raster_poly.asm, the polygon window: ANDY, paged with ROMSEL &85
 \     (RASTPOLY, ANDY over bank 5): R_POLY;
 \ and raster7.asm, R_LINE, in bank 7 (R_BANK_AUX) with the cold area.  The
@@ -522,106 +522,8 @@ r_bdx3 = R_BDX30
   RTS
 
 
-\ ============================================================================
-\ R_INIT
-\ ============================================================================
-.R_INIT
-{
-  LDA #1
-  STA R_CL
-  STA R_CT
-  LDA #254
-  STA R_CR
-  LDA #191
-  STA R_CB
-  LDA #&FF
-  STA R_SCOL
-  STA R_NDT
-  STZ R_NDB
-  STZ R_NDF
-  STZ R_SN
-  STZ R_PN
-  LDA #1                  \ R_SETBUF 0 (forcing the patch)
-  STA R_PRBUF
-  LDA #0
-  JSR R_SETBUF
-  LDY #191
-.il
-  LDA #&FF
-  STA R_DIRTYL0,Y
-  STA R_DISCL0,Y
-  STA R_DIRTYL1,Y
-  STA R_DISCL1,Y
-  STA R_WL,Y
-  LDA #0
-  STA R_DIRTYR0,Y
-  STA R_DISCR0,Y
-  STA R_DIRTYR1,Y
-  STA R_DISCR1,Y
-  STA R_WR,Y
-  DEY
-  CPY #&FF
-  BNE il
-  LDX #1
-.ib
-  JSR r7_reset1
-  DEX
-  BPL ib
-  LDA #&FF
-  STA R_PRWT
-  STZ R_PRWB
-  RTS
-}
-
-
-
-
-
-
-\ ============================================================================
-\ R_RESETBUF: the current buffer's state, not the screen
-\ ============================================================================
-.R_RESETBUF
-{
-  LDY #191
-  LDX R_PRBUF
-  BNE b1
-.c0
-  LDA #&FF
-  STA R_DIRTYL0,Y
-  STA R_DISCL0,Y
-  LDA #0
-  STA R_DIRTYR0,Y
-  STA R_DISCR0,Y
-  DEY
-  CPY #&FF
-  BNE c0
-  BRA done
-.b1
-  LDA #&FF
-  STA R_DIRTYL1,Y
-  STA R_DISCL1,Y
-  LDA #0
-  STA R_DIRTYR1,Y
-  STA R_DISCR1,Y
-  DEY
-  CPY #&FF
-  BNE b1
-.done
-  JMP r7_reset1
-}
-\ r7_reset1: buffer X's scalars (keeps X)
-.r7_reset1
-  LDA #&FF
-  STA R_PRDYT,X
-  STA R_PRDST,X
-  STZ R_PRDYB,X
-  STZ R_PRDSB,X
-  STZ R_PRSCNT,X
-  STZ R_PRECNT,X
-  STZ R_PRBMODE,X
-  RTS
-
+\ (free to the per-x tables)
+.r_tfree
 
 \ ============================================================================
 \ Page-aligned per-x tables

@@ -1,9 +1,9 @@
 \ ============================================================================
 \ raster_disc.asm -- the rasteriser's disc window: R_DISCROWS and the dirty
-\ repair outside the disc rows (r7_crep, from bank 7), in bank 5's
-\ &8000-&8FFF (ROMSEL 5; bank 5's &9000-&BFFF, the shared region
-\ gfx-raster.asm, is the rest of the bank).  The frame layer's T_DISCROWS
-\ pages it in.  INCLUDE it at &8000 in bank 5's assembly, after
+\ repair outside the disc rows (r7_crep, from bank 7), then R_INIT and
+\ R_RESETBUF, in bank 5's &8000-&8FFF (ROMSEL 5; bank 5's &9000-&BFFF, the
+\ shared region gfx-raster.asm, is the rest of the bank).  The frame layer's
+\ T_DISCROWS, T_INIT and T_RESETBUF page it in.  INCLUDE it at &8000 in bank 5's assembly, after
 \ gfx-raster.asm.
 \ ============================================================================
 
@@ -2023,3 +2023,104 @@ c_BB  = &25
 FOR k, 0, 63
   EQUB LO(3 * (k - 1))
 NEXT
+
+
+\ ============================================================================
+\ R_INIT
+\ ============================================================================
+.R_INIT
+{
+  LDA #1
+  STA R_CL
+  STA R_CT
+  LDA #254
+  STA R_CR
+  LDA #191
+  STA R_CB
+  LDA #&FF
+  STA R_SCOL
+  STA R_NDT
+  STZ R_NDB
+  STZ R_NDF
+  STZ R_SN
+  STZ R_PN
+  LDA #1                  \ R_SETBUF 0 (forcing the patch)
+  STA R_PRBUF
+  LDA #0
+  JSR R_SETBUF
+  LDY #191
+.il
+  LDA #&FF
+  STA R_DIRTYL0,Y
+  STA R_DISCL0,Y
+  STA R_DIRTYL1,Y
+  STA R_DISCL1,Y
+  STA R_WL,Y
+  LDA #0
+  STA R_DIRTYR0,Y
+  STA R_DISCR0,Y
+  STA R_DIRTYR1,Y
+  STA R_DISCR1,Y
+  STA R_WR,Y
+  DEY
+  CPY #&FF
+  BNE il
+  LDX #1
+.ib
+  JSR r7_reset1
+  DEX
+  BPL ib
+  LDA #&FF
+  STA R_PRWT
+  STZ R_PRWB
+  RTS
+}
+
+
+
+
+
+
+\ ============================================================================
+\ R_RESETBUF: the current buffer's state, not the screen
+\ ============================================================================
+.R_RESETBUF
+{
+  LDY #191
+  LDX R_PRBUF
+  BNE b1
+.c0
+  LDA #&FF
+  STA R_DIRTYL0,Y
+  STA R_DISCL0,Y
+  LDA #0
+  STA R_DIRTYR0,Y
+  STA R_DISCR0,Y
+  DEY
+  CPY #&FF
+  BNE c0
+  BRA done
+.b1
+  LDA #&FF
+  STA R_DIRTYL1,Y
+  STA R_DISCL1,Y
+  LDA #0
+  STA R_DIRTYR1,Y
+  STA R_DISCR1,Y
+  DEY
+  CPY #&FF
+  BNE b1
+.done
+  JMP r7_reset1
+}
+\ r7_reset1: buffer X's scalars (keeps X)
+.r7_reset1
+  LDA #&FF
+  STA R_PRDYT,X
+  STA R_PRDST,X
+  STZ R_PRDYB,X
+  STZ R_PRDSB,X
+  STZ R_PRSCNT,X
+  STZ R_PRECNT,X
+  STZ R_PRBMODE,X
+  RTS
