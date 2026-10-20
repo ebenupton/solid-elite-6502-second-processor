@@ -2660,8 +2660,10 @@ ENDIF
 
  LDA SFXFQ,Y            \ Set A = SFXFQ+Y
 
- BVC P%+3               \ If the V flag is set, double the value in A
- ASL A
+                        \ Port: BVC P%+3 : ASL A (if the V flag is set, double
+                        \ the value in A) removed (unreachable: NOISE clears V
+                        \ and nothing on the way here sets it; SOUS9's other
+                        \ callers are commented out in the original)
 
  STA SOFRQ,X            \ Store A in SOFRQ+X
 
