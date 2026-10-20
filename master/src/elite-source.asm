@@ -12491,15 +12491,8 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.MUT3
-
- LDX ALP1               \ Set P = ALP1, though this gets overwritten by the
- STX P                  \ following, so this has no effect
-
-                        \ Fall through into MUT2 to do the following:
-                        \
-                        \   (S R) = XX(1 0)
-                        \   (A P) = Q * A
+                        \ Port: removed (unreachable: never called in SNG47;
+                        \ its fall-through into MUT2 went with MUT2)
 
 \ ******************************************************************************
 \
@@ -12517,15 +12510,8 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.MUT2
-
- LDX XX+1               \ Set S = XX+1
- STX S
-
-                        \ Fall through into MUT1 to do the following:
-                        \
-                        \   R = XX
-                        \   (A P) = Q * A
+                        \ Port: removed (unreachable: its only caller, STARS1's
+                        \ JSR MUT2, sets (S R) itself in the port, d4d1d4c)
 
 \ ******************************************************************************
 \
