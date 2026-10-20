@@ -28,6 +28,28 @@
 # the run INCLUDEs the low copy at the end of its head, so every label is
 # defined exactly once and every block is assembled once.
 #
+# Each emission is the original in its order, with a stub wherever a routine
+# lives on the other side. The hot side is the run, the low area and bank 4;
+# the cold side the cold area. In a hot copy, the line that defines a cold
+# label X that the hot side refers to holds X's stub, under X's own name:
+#
+#   .TT22 JSR far7 : EQUW TT22_C        (TT22_C: the body, in the cold copy)
+#
+# and in the cold copy, the line that defines a hot label H that cold code
+# calls or jumps to holds H's stub, under the name the cold copy's calls are
+# renamed to:
+#
+#   .x4_TT26 JSR far4 : EQUW TT26
+#
+# (far7j and j4_ / far4j for the targets that never return, NORETURN below).
+# A cold block's stubs go in the copy of the hot area of the nearest block
+# before it that is not cold (the run's for the low area), so the stubs sit
+# where the routine was carved out of that emission, and a block that falls
+# through into a routine of the other side falls into its stub: the stub
+# calls the body and returns to the falling routine's caller with the
+# caller's bank back, which is what the fall-through did in the original (a
+# jump stub, for a target that never returns, just jumps).
+#
 # The data source, src/elite-data.asm, is the original's too, and is emitted
 # the same way (build/elite-data-<area>.asm): its blocks are hot data (no
 # Area field: HAZEL, which elite-layout.asm fills from &C000 in the source's
@@ -43,7 +65,14 @@
 #     take half of a conditional with it);
 #   * a block whose code can fall through its end is followed, in the source,
 #     by a block of the same area (each area is assembled in the source's
-#     order, so a block falls into the next block of its own area).
+#     order, so a block falls into the next block of its own area), or by a
+#     block of the other side whose first statement is its entry label, so
+#     that the falling block falls into that label's stub (run or bank 4 into
+#     cold, cold into run, low or bank 4); any other fall-through across areas
+#     (between the run, the low area and bank 4, or from the low area into
+#     the cold area) is an error;
+#   * every stub's line is blank in its copy, and every target is defined in
+#     elite-source.asm (a stub has a place only there).
 import re, sys
 
 SRC = "src/elite-source.asm"
@@ -160,6 +189,20 @@ def last_statement(lines, s, e):
     return None
 
 
+def entry_label(lines, s, e, macros):
+    """the label at the start of lines[s:e] (its first statement that is
+    assembled), or None if the block starts with anything else"""
+    for i in range(s, e):
+        if ACTIVE and not ACTIVE[i]:
+            continue
+        c = code_part(lines[i])
+        if not c or re.match(r"^(IF|ELIF|ELSE|ENDIF)\b", c, re.I) or not assembles(c, macros):
+            continue
+        m = re.match(r"^\.([A-Za-z_][A-Za-z0-9_]*)", c)
+        return m.group(1) if m else None
+    return None
+
+
 def assembles(c, macros):
     """whether the statement c assembles bytes or moves the address (an
     instruction, data, a label, ORG ...), not just comments, PRINTs, SAVEs,
@@ -191,27 +234,26 @@ def falls_through(stmt, macros):
 #
 # The source uses the original's names throughout. The cold copy is assembled
 # with each cold label X renamed X_C (its definition and every reference in the
-# cold copy), and with each JSR or JMP from cold code to a label of the run or
-# bank 4 (H) going through a stub, x4_H (JSR far4: call H with bank 4 paged in,
-# then page the cold area back) or, for the targets in NORETURN, j4_H (JSR
-# far4j: jump to H). Every other file keeps the names as they are, so a
-# reference from outside the cold area to a cold label X reaches its stub, .X
-# (JSR far7 : EQUW X_C, or far7j for the targets in NORETURN), in the high
-# code. The stubs are written to build/elite-stubs7.asm (into the cold area:
-# one for each cold label that a file outside the cold area refers to) and
-# build/elite-stubs4.asm (out of the cold area: one for each label that cold
-# code calls or jumps to), in the order of their first reference in the
-# source; labels that are one place (defined one after another, with nothing
-# assembled between them) share a stub. Labels ending in % keep their names
-# (the cold area's S% is the loader's entry point, by address). Cold code that
-# needs a stub's address (a jump table: JMTB) names the stub itself, x4_H.
+# cold copy), and with each JSR or JMP from cold code to a label of the run,
+# the low area or bank 4 (H) going through a stub, x4_H (JSR far4: call H with
+# bank 4 paged in, then page the cold area back) or, for the targets in
+# NORETURN, j4_H (JSR far4j: jump to H). Every other file keeps the names as
+# they are, so a reference from outside the cold area to a cold label X
+# reaches its stub, .X (JSR far7 : EQUW X_C, or far7j for the targets in
+# NORETURN). Each stub is at its target's place in the other side's copy
+# (above); there is one for each cold label that a file outside the cold area
+# refers to and for each hot label that cold code calls or jumps to, and one
+# for each routine that a block of the other side falls into. Labels that are
+# one place (defined one after another, with nothing assembled between them)
+# share a stub: the earlier ones are bare labels at their lines. Labels ending
+# in % keep their names (the cold area's S% is the loader's entry point, by
+# address). Cold code that needs a stub's address (a jump table: JMTB) names
+# the stub itself, x4_H.
 #
 # NORETURN: the targets that never return to their caller, so that their
 # stubs jump (far7j, far4j) and leave no far-call frame on the stack.
 
 NORETURN = {"BAY", "DEATH2", "TT170", "FRCE", "GOIN", "BEGIN"}
-STUBS7 = "build/elite-stubs7.asm"
-STUBS4 = "build/elite-stubs4.asm"
 # the files outside elite-source.asm whose references to cold labels need
 # stubs (everything else that elite-layout.asm assembles)
 OTHERS = ("src/elite-layout.asm", "src/elite-low.asm",
@@ -314,7 +356,7 @@ def read_file(path, seen=None):
     return out
 
 
-def glue(copies, errors):
+def glue(copies, errors, lines, bl, falls):
     macros = set()
     for l in copies["run"]:
         m = re.match(r"^\s*MACRO\s+(\w+)", l)
@@ -410,31 +452,104 @@ def glue(copies, errors):
                 if name not in seen7:
                     seen7.add(name)
                     out7.append(name)
-    # one stub per place
-    with open(STUBS7, "w") as f:
-        f.write("\\ Generated by tools/streams.py: the stubs into the cold area (far7, far7j)\n")
-        done = {}
-        n7 = 0
-        for name in out7:
-            place = alias.get(name, name)
-            if place in done:
-                f.write("%s = %s\n" % (name, done[place]))
+    # the stubs that the fall-through seams land on: a block that falls
+    # through its end into a block of the other side falls into the stub at
+    # that block's entry label
+    for side, entry in falls:
+        if side == "hot":                  # (hot code falls into a cold routine)
+            if entry not in seen7:
+                seen7.add(entry)
+                out7.append(entry)
+        else:                              # (cold code falls into a hot routine)
+            place = alias.get(entry, entry)
+            kind = "j4_" if place in NORETURN or entry in NORETURN else "x4_"
+            if kind + entry not in seen4:
+                seen4[kind + entry] = place
+                out4.append((kind + entry, entry, place, kind))
+    # where each label is defined in the source (its first line that the
+    # build's flags assemble), and the area of that line's block
+    barea = [None] * len(lines)
+    for k, (s0, e0, name, area) in enumerate(bl):
+        for i in range(s0, e0):
+            barea[i] = k
+    where = {}
+    for n, i in defined(lines):
+        if ACTIVE[i]:
+            where.setdefault(n, i)
+    macros_ = macros
+
+    def host(i):
+        """the hot area whose emission holds the stubs at line i of a cold
+        block: that of the nearest block before it, in the source, that is not
+        cold and holds code (the low area's blocks: the run's), so that a block
+        that falls through into the cold block falls into its stubs"""
+        for k in range(barea[i] - 1, -1, -1):
+            s0, e0, name, area = bl[k]
+            if area == "cold":
                 continue
-            done[place] = name
-            n7 += 1
-            far = "far7j" if place in NORETURN or name in NORETURN else "far7"
-            f.write("\n.%s\n JSR %s\n EQUW %s_C\n" % (name, far, name))
-    with open(STUBS4, "w") as f:
-        f.write("\\ Generated by tools/streams.py: the stubs out of the cold area (far4, far4j)\n")
-        done = {}
-        n4 = 0
-        for stub, h, place, kind in out4:
-            if (kind, place) in done:
-                f.write("%s = %s\n" % (stub, done[(kind, place)]))
-                continue
-            done[(kind, place)] = stub
-            n4 += 1
-            f.write("\n.%s\n JSR %s\n EQUW %s\n" % (stub, "far4j" if kind == "j4_" else "far4", h))
+            if any(ACTIVE[j] and assembles(code_part(lines[j]), macros_) for j in range(s0, e0)):
+                return "run" if area == "low" else area
+        return "run"
+
+    def place_stubs(groups, ok_area, side):
+        """groups: [(far helper, [(stub label, target label)])], each group one
+        place; each stub goes at the line of its target's definition, in the
+        copy of the area that hosts it, and the labels of a place share the
+        stub at the last of them"""
+        n = 0
+        for far, members in groups:
+            at = []
+            for stub, target in members:
+                i = where.get(target)
+                if i is None or bl[barea[i]][3] not in ok_area:
+                    errors.append("%s: no place in the source for the stub %s (%s is not defined "
+                                  "in elite-source.asm's %s blocks)" % (SRC, stub, target, side))
+                    continue
+                at.append((i, stub, target))
+            at.sort()
+            for k, (i, stub, target) in enumerate(at):
+                a = host(i) if side == "cold" else "cold"
+                text = ".%s" % stub
+                # (a label shares the next one's stub only if nothing is
+                # assembled between them in this copy)
+                if k == len(at) - 1 or any(assembles(code_part(copies[a][j]), macros_)
+                                           for j in range(i + 1, at[k + 1][0])):
+                    text += " JSR %s : EQUW %s" % (far, target + "_C" if side == "cold" else target)
+                    n += 1
+                cur = copies[a][i]
+                if (a, i) in placed:
+                    copies[a][i] = cur + " : " + text      # (two stubs at one line)
+                elif code_part(cur):
+                    errors.append("%s:%d: the stub %s's line is not blank in the %s copy"
+                                  % (SRC, i + 1, stub, a))
+                else:
+                    copies[a][i] = text
+                    placed.add((a, i))
+        return n
+
+    placed = set()
+
+    # the stubs into the cold area, in the hot copies at the cold labels' places
+    groups, done = [], {}
+    for name in out7:
+        place = alias.get(name, name)
+        far = "far7j" if place in NORETURN or name in NORETURN else "far7"
+        if place not in done:
+            done[place] = len(groups)
+            groups.append((far, []))
+        elif groups[done[place]][0] != far:
+            errors.append("%s: %s and %s are one place but not both NORETURN" % (SRC, name, place))
+        groups[done[place]][1].append((name, name))
+    n7 = place_stubs(groups, ("cold",), "cold")
+    # the stubs out of the cold area, in the cold copy at the hot labels' places
+    groups, done = [], {}
+    for stub, h, place, kind in out4:
+        key = (kind, place)
+        if key not in done:
+            done[key] = len(groups)
+            groups.append(("far4j" if kind == "j4_" else "far4", []))
+        groups[done[key]][1].append((stub, h))
+    n4 = place_stubs(groups, ("run", "low", "bank4"), "hot")
     return n7, n4
 
 
@@ -483,7 +598,11 @@ def main():
         if depth and area != "run":
             errors.append("%s:%d: %s: IF ... ENDIF not balanced in an area's block" % (SRC, s + 1, name))
     # fall-through: each block that can fall through its end must be followed,
-    # in the source, by a block of its own area that holds code
+    # in the source, by a block of its own area that holds code, or by a block
+    # of the other side (hot: the run or bank 4; cold) whose first statement is
+    # its entry label, as that label's stub is then the next thing in the
+    # falling block's emission
+    falls = []
     for k, (s, e, name, area) in enumerate(bl):
         st = last_statement(lines, s, e)
         if not falls_through(st, macros):
@@ -495,15 +614,22 @@ def main():
                 errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s, which moves the address"
                               % (SRC, e, name, area, st, name2))
             elif area2 != area:
-                errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s)"
-                              % (SRC, e, name, area, st, name2, area2))
+                entry = entry_label(lines, s2, e2, macros)
+                side = "hot" if area in ("run", "bank4") and area2 == "cold" else \
+                       "cold" if area == "cold" else None
+                if side and entry:
+                    falls.append((side, entry))
+                else:
+                    errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s)%s"
+                                  % (SRC, e, name, area, st, name2, area2,
+                                     "" if side else ", and no stub of %s is in %s's emission" % (name2, area)))
             break
     copies = {}
     for a in AREAS:
         copies[a] = []
         for s, e, name, area in bl:
             copies[a] += [lines[i] if area == a else "" for i in range(s, e)]
-    nstubs = glue(copies, errors)
+    nstubs = glue(copies, errors, lines, bl, falls)
     nd = data(errors)
     for a in AREAS:
         with open(OUT % a, "w", encoding="latin-1") as f:

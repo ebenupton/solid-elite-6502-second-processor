@@ -11,7 +11,9 @@
 \ other areas' lines blanked (build/elite-source-run.asm, -bank4.asm,
 \ -cold.asm; the line numbers are the source's), and this file assembles
 \ them one after the other, each at its own address. Every label is defined
-\ once, in its own area's copy, and every block is assembled once:
+\ once, in its own area's copy, and every block is assembled once; where a
+\ routine lives on the other side (hot or cold), each copy holds the far-call
+\ stub that reaches it, at the routine's place:
 \
 \   * the run: the configuration and the workspaces, then the main code from
 \     CODE% in main RAM (saved as BCODE), continuing in bank 4 at &8000 where
@@ -89,8 +91,8 @@
 \
 \ Port: the high code, main RAM &7000-&7FFF (elite-hi.asm, docs/MASTER-MAP.md):
 \ the port's game-context glue, which has no counterpart in the original (the
-\ quarter squares, the renderer's game-context half, the stubs into the cold
-\ area). Saved as HICODE, which the loader copies there.
+\ quarter squares, the renderer's game-context half). Saved as HICODE, which
+\ the loader copies there.
 \
 \ ******************************************************************************
 
@@ -108,9 +110,10 @@
 \
 \ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
 \ (7): sideways RAM bank 7 from &8000, the original's cold code and data in
-\ the original's order: the blocks of elite-source.asm tagged cold, then
-\ those of elite-data.asm (QQ18 and the extended tokens TKN1, RUPLA, RUGAL
-\ and RUTOK), then the stubs that lead out of the cold area. Saved as COLD7.
+\ the original's order: the blocks of elite-source.asm tagged cold, with the
+\ stubs that lead out of the cold area at their targets' places, then those
+\ of elite-data.asm (QQ18 and the extended tokens TKN1, RUPLA, RUGAL and
+\ RUTOK). Saved as COLD7.
 \
 \ ******************************************************************************
 
@@ -122,9 +125,6 @@
  INCLUDE "build/elite-source-cold.asm"
 
  INCLUDE "build/elite-data-cold.asm"    \ QQ18 and the extended tokens
-
- INCLUDE "build/elite-stubs4.asm"   \ stubs out of the cold area (far4, far4j),
-                                    \ which tools/streams.py writes
 
 .COLD_END%
 

@@ -10,21 +10,25 @@
 \ The cold code (docked screens, text, charts, title, save and load, and the
 \ flight-rare routines) lives in the cold area, sideways RAM bank 7, which is
 \ paged in as ROMSEL = COLDBANK (7). The source calls everything by the
-\ original's names; the build (tools/streams.py) gives each cold label the
-\ suffix _C in the cold area's copy of the source, and writes a 5-byte stub
-\ with the original name, outside the cold area, for every cold entry point
-\ that code outside the cold area refers to (build/elite-stubs7.asm, in the
-\ high code):
+\ original's names, and each side's emission of it (tools/streams.py) holds,
+\ at the place of each routine that lives on the other side and that this
+\ side calls, jumps to or falls into, a 5-byte stub. In the main code, under
+\ the cold routine's own name (its body is name_C in the cold area):
 \
 \   .TT22 JSR far7 : EQUW TT22_C        call (A, X, Y, flags pass both ways)
 \   .TT170 JSR far7j : EQUW TT170_C     jump (the target never returns)
 \
-\ and cold code reaches what is outside the cold area through stubs of its
-\ own, in the cold area, which its calls and jumps are renamed to
-\ (build/elite-stubs4.asm):
+\ and in the cold area, under the name the cold code's calls and jumps are
+\ renamed to:
 \
 \   .x4_TT26 JSR far4 : EQUW TT26       call, then page the cold area back in
 \   .j4_BEGIN JSR far4j : EQUW BEGIN    jump (the target never returns here)
+\
+\ A routine that fell through into a routine now on the other side falls
+\ into its stub: the stub calls the body, which returns to the falling
+\ routine's caller with the caller's bank back, as the fall-through did.
+\ The helpers read the EQUW while the caller's bank is still paged in, so a
+\ stub works the same in main RAM, bank 4 or bank 7.
 \
 \ far7 / far4 page the target's bank in and call it, then page the caller's
 \ bank (&F4 at the call) back in. So far4 also works from code that runs with

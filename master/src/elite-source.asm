@@ -45,7 +45,7 @@
 \
 \ ******************************************************************************
 
- CODE% = &1EE1          \ The address where the code will be run (Port: the
+ CODE% = &1ED7          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; its low byte is chosen so that the
                         \ font, at its place after ADDK, starts a page with no

@@ -21,10 +21,10 @@
 \   * the renderer's game-context half: the G_ stubs that page the frame
 \     layer (bank 6) in from game code (gfx-gstubs.asm), the hooks in Elite's
 \     drawing routines (gfx-hooks.asm), and the lighting's L_SUN and L_REC
-\     (gfx-light.asm), which the frame layer calls with bank 6 paged in;
+\     (gfx-light.asm), which the frame layer calls with bank 6 paged in.
 \
-\   * the stubs into the cold area (far7, far7j), which tools/streams.py
-\     generates from elite-source.asm's tags (build/elite-stubs7.asm).
+\ (The stubs into the cold area are not here: each is at its routine's place
+\ in the main code, elite-source.asm's hot emission; tools/streams.py.)
 \
 \ Saved as HICODE, which the loader copies into place.
 \
@@ -65,6 +65,3 @@ NEXT
  INCLUDE "src/gfx-hooks.asm"        \ the hooks in Elite's drawing code
 
  INCLUDE "src/gfx-light.asm"        \ the ship lighting's game-context half
-
- INCLUDE "build/elite-stubs7.asm"   \ the stubs into the cold area (far7,
-                                    \ far7j), which tools/streams.py writes
