@@ -62,12 +62,18 @@ def blocks(lines):
         if STAR.match(l):
             if inh:
                 inh = False
+                if (i + 2 < len(lines) and lines[i + 1].rstrip() == "\\"
+                        and lines[i + 2].startswith("\\       Name:")):
+                    out.append([i, None, None, "run"])     # (a banner's closing line
+                    inh = True                             # opens the next header)
             elif i + 1 < len(lines) and lines[i + 1].rstrip() == "\\":
                 out.append([i, None, None, "run"])
                 inh = True
             else:
                 out.append([i, None, None, "run"])
         elif inh:
+            if not l.startswith("\\"):
+                sys.exit("%s:%d: a header that is not closed" % (SRC, i + 1))
             m = re.match(r"^\\       Name: (.*)$", l)
             if m:
                 out[-1][2] = m.group(1).strip()
@@ -83,35 +89,37 @@ def blocks(lines):
 
 
 def last_statement(lines, s, e):
-    """the last assembled statement of lines[s:e] (None if none)"""
+    """the last statement of lines[s:e] (None if none), passing over the
+    lines of conditional assembly (IF, ELIF, ELSE, ENDIF)"""
     for i in range(e - 1, s - 1, -1):
         c = code_part(lines[i])
-        if c:
-            return c.split(":")[-1].strip() if not c.upper().startswith(("EQU", "IF", "ELIF", "ELSE", "ENDIF")) else c
+        if c and not re.match(r"^(IF|ELIF|ELSE|ENDIF)\b", c, re.I):
+            return c if c.upper().startswith("EQU") else c.split(" : ")[-1].strip()
     return None
 
 
-def falls_through(stmt):
+def falls_through(stmt, macros):
     if stmt is None:
         return False
     w = stmt.split()
     if not w:
         return False
     op = w[0].upper()
+    if w[0] in macros:
+        return False                   # (a macro: the original's data macros)
     if op in NOFALL:
         return False
     if re.match(r"^(EQU[BWDS]|SKIP|INCBIN|FOR|NEXT|PRINT|SAVE|ASSERT|ORG|CLEAR|GUARD|MACRO|ENDMACRO|INCLUDE|CPU|COPYBLOCK|ALIGN)\b", op):
         return False                   # (data and directives: nothing to fall from)
     if re.match(r"^[A-Za-z_][\w%]*\s*=", stmt) or stmt.startswith("."):
         return False                   # (a constant, or a label alone)
-    if op in ("ENDIF", "ELSE", "ELIF", "IF"):
-        return True                    # (conservative: check by hand)
     return True
 
 
 def main():
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
+    macros = set(m.group(1) for m in (re.match(r"^\s*MACRO\s+(\w+)", l) for l in lines) if m)
     errors = []
     for s, e, name, area in bl:
         depth = 0
@@ -127,12 +135,15 @@ def main():
     # in the source, by a block of its own area that holds code
     for k, (s, e, name, area) in enumerate(bl):
         st = last_statement(lines, s, e)
-        if not falls_through(st):
+        if not falls_through(st, macros):
             continue
         for s2, e2, name2, area2 in bl[k + 1:]:
             if last_statement(lines, s2, e2) is None:
                 continue               # (comments only)
-            if area2 != area:
+            if any(re.match(r"^(ORG|CLEAR|SKIPTO)\b", code_part(lines[i]), re.I) for i in range(s2, e2)):
+                errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s, which moves the address"
+                              % (SRC, e, name, area, st, name2))
+            elif area2 != area:
                 errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s)"
                               % (SRC, e, name, area, st, name2, area2))
             break

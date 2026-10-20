@@ -74,8 +74,7 @@ import re
 with open("build/banks.txt", "w") as f:
     for src, bank in (("src/elite-bank4.asm", "4"), ("build/elite-source-bank4.asm", "4"),
                       ("build/elite-source-cold.asm", "7"),
-                      ("src/elite-andy.asm", "7"), ("src/elite-coldstubs.asm", "7"),
-                      ("src/elite-cold7.asm", "7"),
+                      ("src/elite-coldstubs.asm", "7"),
                       ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"),
                       ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-flare.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"),

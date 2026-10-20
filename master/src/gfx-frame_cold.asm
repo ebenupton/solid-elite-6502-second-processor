@@ -193,7 +193,7 @@
 .f_dtext EQUB 0
 
 \ f_b0new: a disc command has used buffer 0 (main RAM &4000-&5FFF) to stash
-\ HAZEL (DOSCLI, elite-cold7.asm), so it no longer holds the last frame of
+\ HAZEL (DOSCLI, elite-source.asm), so it no longer holds the last frame of
 \ the previous space-mode session that its rasteriser state, disc colour and
 \ shown-text map describe: clear it and forget that state, as F_INIT leaves
 \ it, for f_enter to carry on from (it then copies the border across)

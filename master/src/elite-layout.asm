@@ -70,24 +70,14 @@
 \ ******************************************************************************
 \
 \ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
-\ (7): sideways RAM bank 7 at &8000-&8FFF (elite-andy.asm, which was ANDY's
-\ and keeps the name) and from COLD7LO (QQ18 from elite-data.asm, the stubs
-\ that lead out of the cold area, then elite-cold7.asm and the blocks of
-\ elite-source.asm in the cold area). Between them bank 7 holds the extended
-\ tokens (elite-gfx.asm, from &9000), then free space.
+\ (7): sideways RAM bank 7, from &8000, with the blocks of elite-source.asm
+\ tagged cold in the original's order. Bank 7 also holds the extended tokens
+\ (elite-gfx.asm, from &9000 to below COLD7LO), so the cold blocks go
+\ round them: from &8000 to the marker in elite-source.asm, and from
+\ COLD7HI on, after QQ18 (elite-data.asm) and the stubs that lead out of the
+\ cold area. Saved as ANDY (&8000-&8FFF) and COLD7 (from COLD7LO).
 \
 \ ******************************************************************************
-
- CLEAR &8000, &C000
- ORG &8000
-
- INCLUDE "src/elite-andy.asm"
-
-.ANDY_END%
-
- PRINT "Bank 7 cold (elite-andy.asm): &8000-", ~ANDY_END%-1, " free ", &9000-ANDY_END%
- ASSERT ANDY_END% <= &9000
- SAVE "build/ANDY.bin", &8000, &9000, &8000
 
  CLEAR &8000, &C000
  ORG COLD7LO
@@ -98,13 +88,19 @@
 
  INCLUDE "src/elite-coldstubs.asm"  \ stubs out of the cold area (far4, far4j)
 
- INCLUDE "src/elite-cold7.asm"
+.COLD7HI                            \ (the cold blocks after the marker)
+
+ ORG &8000
+
+.COLD_START%
 
  INCLUDE "build/elite-source-cold.asm"
 
 .COLD7_END%
 
- PRINT "Bank 7 cold: ", ~COLD7LO, "-", ~COLD7_END%-1, " free ", &C000-COLD7_END%
+ PRINT "Bank 7 cold: &8000-", ~COLD_END1%-1, " (free ", &9000-COLD_END1%, "), ", ~COLD7LO, "-", ~COLD7_END%-1, " (free ", &C000-COLD7_END%, ")"
+ ASSERT COLD7_END% <= &C000
+ SAVE "build/ANDY.bin", &8000, &9000, &8000
  SAVE "build/COLD7.bin", COLD7LO, &C000, COLD7LO
 
  PRINT "Addresses for the scramble routines in elite-checksum.py"

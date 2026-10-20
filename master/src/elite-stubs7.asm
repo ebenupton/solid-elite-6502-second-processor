@@ -177,7 +177,7 @@
  EQUW t_C
 
 .DOSNMI                 \ Port: the minimal NMI handler back after a disc error
- JSR far7               \ (NEWBRK; elite-cold7.asm)
+ JSR far7               \ (NEWBRK; the cold area)
  EQUW DOSNMI_C
 
 .HANGER
@@ -188,8 +188,8 @@
  JSR far7
  EQUW Ze_C
 
-.FRMIS                  \ (FRS1, FRMIS, ANGRY and FR1 are in the cold area:
- JSR far7               \ elite-cold7.asm, ANGRY in elite-andy.asm)
+.FRMIS
+ JSR far7
  EQUW FRMIS_C
 
 .ANGRY
