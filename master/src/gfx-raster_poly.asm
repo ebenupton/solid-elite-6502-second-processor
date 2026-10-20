@@ -2,40 +2,12 @@
 \ raster_poly.asm -- the rasteriser's polygon window: R_POLY (both phases;
 \ phase A for 16-bit coordinates, r7_pf16, came from bank 7), in ANDY
 \ (ROMSEL &85: ANDY over bank 5's &8000-&8FFF; bank 5's &9000-&BFFF, the
-\ shared region gfx-raster.asm, stays visible).  The frame layer's T_POLY
+\ shared region gfx-raster.asm, stays visible: its arithmetic, r_div8,
+\ r_dvq, rp_mul16 and rp_div32, is there).  The frame layer's T_POLY
 \ pages it in.  R_SETBUF (shared) pages it in to patch phase B's DIRTY
 \ operands.  INCLUDE it at &8000 in an assembly of its own (ANDY), after
 \ gfx-raster.asm.
 \ ============================================================================
-
-\ ============================================================================
-\ r_div8: A / r_v0 -> r_m0 quotient, A remainder (clobbers X).
-\ ============================================================================
-.r_div8
-{
-  STA RZ_T6               \ dividend, becoming the quotient
-  LDA r_v0
-  STA RZ_T7
-  LDA #0
-  LDX #8
-.lp
-  ASL RZ_T6
-  ROL A
-  BCS sb
-  CMP RZ_T7
-  BCC ns
-.sb
-  SBC RZ_T7
-  INC RZ_T6
-.ns
-  DEX
-  BNE lp
-  LDX RZ_T6
-  STX r_m0
-  RTS
-}
-
-
 
 \ ============================================================================
 \ R_POLY
@@ -489,59 +461,6 @@
 }
 
 
-\ r_dvq: A / RZ_T1 (A >= RZ_T1 >= 1) -> r_m0 quotient, A remainder.
-\ Repeated subtraction when the quotient is small (divisor >= 16).
-.r_dvq
-{
-  LDX RZ_T1
-  CPX #16
-  BCC small
-  LDX #&FF                \ divisor >= 16: quotient < 16
-  SEC
-.lp
-  INX
-  SBC RZ_T1
-  BCS lp
-  ADC RZ_T1
-  STX r_m0
-  RTS
-.small
-  STA RZ_T6               \ divisor < 16: quotient < 16 unless A >= 16 * d
-  TXA
-  ASL A
-  ASL A
-  STA RZ_T7               \ 4d
-  ASL A
-  ASL A                   \ 16d (< 256)
-  CMP RZ_T6
-  BEQ long
-  BCC long
-  LDA RZ_T6
-  LDX #&FC
-  SEC
-.l4
-  INX
-  INX
-  INX
-  INX
-  SBC RZ_T7
-  BCS l4
-  ADC RZ_T7
-  DEX
-.l1
-  INX
-  SBC RZ_T1
-  BCS l1
-  ADC RZ_T1
-  STX r_m0
-  RTS
-.long
-  LDA RZ_T6
-  LDX RZ_T1
-  STX r_v0
-  JMP r_div8
-}
-
 \ ----------------------------------------------------------------------------
 \ Phase B: rows RZ_Y.., RZ_SA of them; left table r_pbl1, right (exclusive)
 \ r_pbr1/r_pbr2.  Row pointers, run page (RZ_PP+1, r_jsr2+2), RZ_CE/RZ_CO
@@ -801,70 +720,9 @@
   JMP r_pbx_e
 
 
-\ R_POLY's phase A for 16-bit coordinates: its variables and maths (copies of
-\ R_LINE's in bank 7, which is not paged in here)
+\ R_POLY's phase A for 16-bit coordinates: its variables (its 32-bit maths,
+\ rp_mul16 and rp_div32, are in the shared region, gfx-raster.asm)
 .rp_ov SKIP 17          \ phase A's edge set-up (r7_edy .. r7_eb)
-.rp_m0 EQUB 0           \ 32-bit dividend / product; quotient m0,m1
-.rp_m1 EQUB 0
-.rp_m2 EQUB 0           \ remainder m2,m3
-.rp_m3 EQUB 0
-.rp_v0 EQUB 0           \ divisor
-.rp_v1 EQUB 0
-.rp_ma EQUW 0           \ multiplicand
-.rp_mb EQUW 0           \ multiplier
-.rp_mul16
-{
-  LDA #0
-  STA rp_m2
-  STA rp_m3
-  LDX #16
-.lp
-  LSR rp_mb+1
-  ROR rp_mb
-  BCC ns
-  CLC
-  LDA rp_m2
-  ADC rp_ma
-  STA rp_m2
-  LDA rp_m3
-  ADC rp_ma+1
-  STA rp_m3
-.ns
-  ROR rp_m3
-  ROR rp_m2
-  ROR rp_m1
-  ROR rp_m0
-  DEX
-  BNE lp
-  RTS
-}
-.rp_div32
-{
-  LDX #16
-.lp
-  ASL rp_m0
-  ROL rp_m1
-  ROL rp_m2
-  ROL rp_m3
-  BCS sb
-  LDA rp_m2
-  CMP rp_v0
-  LDA rp_m3
-  SBC rp_v1
-  BCC ns
-.sb
-  LDA rp_m2
-  SBC rp_v0
-  STA rp_m2
-  LDA rp_m3
-  SBC rp_v1
-  STA rp_m3
-  INC rp_m0
-.ns
-  DEX
-  BNE lp
-  RTS
-}
 .r7_n EQUB 0            \ R_POLY's phase A (16-bit): vertices, top vertex,
 .r7_top EQUB 0          \ y range, chain count, edge, side
 .r7_yminL EQUB 0
