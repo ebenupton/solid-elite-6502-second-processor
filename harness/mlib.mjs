@@ -59,8 +59,8 @@ export function loadSyms(path) {
     for (const m of readFileSync(path, "utf8").matchAll(/'([^']+)':(\d+)L?/g)) if (!(m[1] in syms)) syms[m[1]] = +m[2];
     // Labels in sideways RAM: build/banks.txt next to the symbols, "label bank" per
     // line with the ROMSEL value of the code's bank in hex (4: Elite's home bank,
-    // 7: the cold area and R_LINE, 85: the rasteriser's polygon window, ANDY over
-    // bank 5). Kept non-enumerable so
+    // 7: the cold area, 85: the rasteriser's polygon window, ANDY over bank 5).
+    // Kept non-enumerable so
     // that code iterating over the symbols sees only addresses.
     const bank = {};
     const bp = path.replace(/symbols\.txt$/, "banks.txt");

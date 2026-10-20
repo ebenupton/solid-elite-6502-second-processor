@@ -22,12 +22,12 @@
 #  * a line with the comment "bankcheck: ok" is exempt (reviewed by hand).
 #  * the renderer's banks (bank5: gfx-raster.asm, the rasteriser's shared region,
 #    with its disc window bank5d, gfx-raster_disc.asm, and its polygon window
-#    bank5a, gfx-raster_poly.asm, in ANDY, which never refer to each other;
-#    the shared region, which runs with either window paged in, refers to
-#    neither (but for lines marked bankcheck: ok);
+#    bank5a, gfx-raster_poly.asm and gfx-raster_line.asm, in ANDY, which never
+#    refer to each other; the shared region, which runs with either window
+#    paged in, refers to neither (but for lines marked bankcheck: ok);
 #    bank6: the frame layer, the
 #    faces, the lighting tables, frame_cold and the flare's bank 6 part,
-#    bank5 also the lens flare, bank7r: gfx-raster7.asm) are reached
+#    bank5 also the lens flare and R_LINE's cold part, gfx-raster_lcold.asm) are reached
 #    from other areas only through the stubs in GLUE files (G_ stubs, T_
 #    trampolines, raster_hz, the HAZEL hooks) or as addresses (#LO/#HI); their
 #    code calls main RAM and HAZEL code directly but nothing in another bank,
@@ -50,17 +50,17 @@ FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm"
          "gfx-raster_scr.asm": "hazel",
          "gfx-raster_vars.asm": "hazel", "elite-gfx.asm": "hazel",
          "gfx-raster.asm": "bank5", "gfx-raster_disc.asm": "bank5d", "gfx-raster_poly.asm": "bank5a",
-         "gfx-raster7.asm": "bank7r",
+         "gfx-raster_line.asm": "bank5a", "gfx-raster_lcold.asm": "bank5",
          "gfx-frame.asm": "bank6", "gfx-faces.asm": "bank6", "gfx-light6.asm": "bank6",
          "gfx-frame_cold.asm": "bank6", "gfx-flare6.asm": "bank6", "gfx-flare.asm": "bank5"}
-RENDER = ("bank5", "bank5d", "bank5a", "bank6", "bank7r")
+RENDER = ("bank5", "bank5d", "bank5a", "bank6")
 # the rasteriser's bank 5: its shared region (bank5, &9000-&BFFF) is seen with
 # either window, the disc window (bank5d, ROMSEL 5) or the polygon window
 # (bank5a, ANDY, ROMSEL &85), which are never paged in together
 RAST5 = ("bank5", "bank5d", "bank5a")
 # the files that hold the cross-bank stubs into the renderer's banks (the G_
 # stubs page bank 6 in from game code, the T_ trampolines bank 5 (ANDY over it
-# for R_POLY, bank 7 for R_LINE) from bank 6, the HAZEL hooks bank 6 from any bank)
+# for R_POLY and R_LINE) from bank 6, the HAZEL hooks bank 6 from any bank)
 GLUE = ("gfx-gstubs.asm", "gfx-tramp.asm", "gfx-hzhooks.asm")
 MNEM = set(("ADC AND ASL BCC BCS BEQ BIT BMI BNE BPL BRA BRK BVC BVS CLC CLD CLI CLV CMP CPX CPY "
             "DEC DEX DEY EOR INC INX INY JMP JSR LDA LDX LDY LSR NOP ORA PHA PHP PHX PHY PLA PLP PLX "

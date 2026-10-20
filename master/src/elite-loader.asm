@@ -802,7 +802,7 @@ ENDIF
  EQUW &8000, &1000
 
  EQUW MESS6             \ COLD7: the cold area's second part, bank 7 from COLD7LO
- EQUB 7, %00001001      \ (above R_LINE)
+ EQUB 7, %00001001      \ (above the extended tokens)
  EQUW COLD7LO, &C000-COLD7LO
 
  EQUW MESS8             \ RASTA: the rasteriser's polygon window, ANDY
@@ -817,7 +817,7 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
- EQUW MESS11            \ RAST7: the extended tokens and R_LINE, bank 7 from R7START
+ EQUW MESS11            \ RAST7: the extended tokens, bank 7 from R7START
  EQUB 7, %00001001      \ (below the cold area's second part)
  EQUW R7START, R7LEN
 

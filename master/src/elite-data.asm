@@ -3602,8 +3602,8 @@ ENDMACRO
 
  ORG &AB00              \ Port: QQ18 is cold data, at the start of the cold
                         \ area's bank 7 part (docs/MASTER-MAP.md); bank 7 below
-                        \ COLD7LO holds the cold area's first part, the extended
-                        \ tokens and R_LINE
+                        \ COLD7LO holds the cold area's first part and the
+                        \ extended tokens
 
 .COLD7LO
 
@@ -5116,8 +5116,8 @@ ENDMACRO
  ASSERT HZDATA1END% <= &C300    \ (the renderer's glue starts at &C300)
 
  ORG &9000              \ Port: the extended tokens (TKN1, RUPLA, RUGAL, RUTOK)
-                        \ are cold data, in bank 7 at &9000-&9DFF, below R_LINE
-                        \ (elite-gfx.asm INCBINs them; docs/MASTER-MAP.md)
+                        \ are cold data, in bank 7 at &9000-&9DFF (elite-gfx.asm
+                        \ INCBINs them; docs/MASTER-MAP.md)
 
 \ ******************************************************************************
 \

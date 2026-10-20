@@ -24,9 +24,10 @@ Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers
   C7A   ANDY.bin, bank 7 &8000-&8FFF: the cold area's first part (ROMSEL 7; the
         file keeps the name of ANDY, where it was)
   C7    COLD7.bin, bank 7 COLD7LO- (QQ18, the far4 stubs, the cold code; ROMSEL 7)
-  R7    RAST7.bin, bank 7 between them (R_LINE; ROMSEL 7)
+  R7    RAST7.bin, bank 7 between them (the extended tokens: cold data, read
+        directly by the cold code; R_LINE was here until it moved to ANDY)
   B5    BANK5.bin (the rasteriser's shared region and disc window; ROMSEL 5)
-  RA    RASTA.bin, ANDY (the rasteriser's polygon window; ROMSEL &85)
+  RA    RASTA.bin, ANDY (the rasteriser's polygon window: R_POLY, R_LINE; ROMSEL &85)
   B6    BANK6.bin (frame layer, faces, lighting)
   HZ    HAZEL &C000-&DFFF (HAZEL.bin: the game data, and the glue at &C300)
   SH    shadow RAM data (once TOKENS.bin, the extended tokens at &3100; now none: the
@@ -42,8 +43,8 @@ the assembler); every other byte is data.  No disassembly guesses.
 
 Which bank a reference to &8000-&BFFF reaches (bank_at): the segment of the label the
 operand names in the source, when it names one (JSR F_FRAME in a G_ stub reaches bank 6);
-else what the referencing segment sees paged: main and B4 code bank 4; the cold code and
-R_LINE (C7A, C7, R7: ROMSEL 7) bank 7; B5 bank 5; RA ANDY over bank 5; B6 itself;
+else what the referencing segment sees paged: main and B4 code bank 4; the cold code
+(C7A, C7: ROMSEL 7) bank 7; B5 bank 5; RA ANDY over bank 5; B6 itself;
 HAZEL code any bank (unknown).
 """
 import os, re, collections, bisect

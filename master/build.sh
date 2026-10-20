@@ -73,9 +73,9 @@ with open("build/banks.txt", "w") as f:
                       ("src/elite-andy.asm", "7"), ("src/elite-coldstubs.asm", "7"),
                       ("src/elite-cold7.asm", "7"),
                       ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"),
+                      ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-flare.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"),
-                      ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
-                      ("src/gfx-raster7.asm", "7")):
+                      ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
     # the main code continues into bank 4: the labels of the main files that are
@@ -117,7 +117,7 @@ with open("build/images.txt", "w") as f:
     for img, rs, at, v in (("BANK4.bin", "4", 0x8000, "v"), ("ANDY.bin", "7", 0x8000, ""),
                            ("COLD7.bin", "7", sy["COLD7_START%"], ""),
                            ("BANK5.bin", "5", 0x8000, "v"), ("RASTA.bin", "85", 0x8000, "v"),
-                           ("BANK6.bin", "6", 0x8000, "v"), ("RAST7.bin", "7", sy["R7_BEGIN"], "v"),
+                           ("BANK6.bin", "6", 0x8000, "v"), ("RAST7.bin", "7", sy["R7_BEGIN"], ""),
                            ("HAZEL.bin", "hazel", sy["HZ_START"], "v"), ("HICODE.bin", "main", 0x7200, "v")):
         f.write("%s %s %04X %s\n" % (img, rs, at, v))
 PY

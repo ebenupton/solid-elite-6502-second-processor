@@ -23432,7 +23432,7 @@ ENDIF
 \ (7): sideways RAM bank 7 at &8000-&8FFF (elite-andy.asm, which was ANDY's
 \ and keeps the name) and from COLD7LO (QQ18 from elite-data.asm, the stubs
 \ that lead out of the cold area, then elite-cold7.asm). Between them bank 7
-\ holds the extended tokens and R_LINE (elite-gfx.asm, from &9000).
+\ holds the extended tokens (elite-gfx.asm, from &9000), then free space.
 \
 \ ******************************************************************************
 

@@ -86,9 +86,9 @@
  JSR R_POLY
  JMP tback
 
-.T_LINE                 \ (R_LINE is in the rasteriser's bank 7)
+.T_LINE                 \ (R_LINE is in the polygon window, ANDY, too)
  STA tA
- LDA #R_BANK_AUX
+ LDA #RASTPOLY
  STA &F4
  STA &FE30
  LDA tA

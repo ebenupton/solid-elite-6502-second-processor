@@ -9,10 +9,11 @@ reference, py65 65C02, the write guard and every test), pointed at the Master fi
     per-call scratch, with R_NDISCL page aligned; gfx-raster_vars.asm at its fixed base, as the
     laser-sight rows must not cross a page; R_WL, R_WR, R_NDN, the stars), and the
     rasteriser as elite-gfx.asm does: bank 5 (gfx-raster.asm, the shared region, at
-    &9000; gfx-raster_disc.asm, the disc window, at &8000), ANDY (gfx-raster_poly.asm,
-    the polygon window) and bank 7 (gfx-raster7.asm, R_LINE, at R7START), or, while
-    there are no windows, bank 5 from &8000, the stubs gfx-raster_hz.asm at &DF00
-    and bank 7 from &8000; the machine
+    &9000, then R_LINE's cold part gfx-raster_lcold.asm; gfx-raster_disc.asm, the disc
+    window, at &8000) and ANDY (gfx-raster_poly.asm and gfx-raster_line.asm, the
+    polygon window); while R_LINE was in bank 7 (gfx-raster7.asm), also bank 7 at
+    R7START, and while there were no windows, bank 5 from &8000, the stubs
+    gfx-raster_hz.asm at &DF00 and bank 7 from &8000; the machine
     pages as the Master does (ROMSEL bits 0-3 the bank, bit 7 ANDY), each entry point
     is called with its T_ trampoline's ROMSEL, and &F4 must match each ROMSEL write;
   * the write guard allows exactly those areas (plus the renderer's zero page, the
@@ -76,8 +77,14 @@ def ws_block():
 def raster_files():
     """the rasteriser's bank 5 / ANDY sources (those that exist): the shared region
     and its two windows"""
-    return [p for p in (os.path.join(MS, f) for f in ('gfx-raster.asm', 'gfx-raster_disc.asm', 'gfx-raster_poly.asm'))
+    return [p for p in (os.path.join(MS, f) for f in ('gfx-raster.asm', 'gfx-raster_lcold.asm', 'gfx-raster_disc.asm',
+                                                      'gfx-raster_poly.asm', 'gfx-raster_line.asm'))
             if os.path.exists(p)]
+
+
+LINEA = os.path.join(MS, 'gfx-raster_line.asm')    # R_LINE in the polygon window (ANDY) ...
+LINE5 = os.path.join(MS, 'gfx-raster_lcold.asm')   # ... and its cold part in the shared region
+LINE7 = not os.path.exists(LINEA)                  # (before: R_LINE in bank 7, gfx-raster7.asm)
 
 
 SRCH = os.path.join(MS, 'gfx-raster_hz.asm')       # (the bank 5 <-> 7 stubs, while they exist)
@@ -101,8 +108,9 @@ def check_patch_sites():
 
 def assemble(org):
     """as elite-gfx.asm lays the rasteriser out: bank 5 (the shared region from
-    &9000, the disc window at &8000), ANDY (the polygon window at &8000),
-    bank 7 (R_LINE from R7START).  (org is ignored: the layout is fixed.)"""
+    &9000 with R_LINE's cold part, the disc window at &8000), ANDY (the polygon
+    window at &8000: R_POLY, R_LINE), or, before, bank 7 for R_LINE (from
+    R7START).  (org is ignored: the layout is fixed.)"""
     base = os.path.join(REPO, 'scratch', 'raster')
     os.makedirs(base, exist_ok=True)
     d = tempfile.mkdtemp(prefix='mraster_', dir=base)
@@ -112,10 +120,21 @@ def assemble(org):
         f.write(ws_block() + '\n')
         if WINDOWS:
             f.write('ORG &%X\n.r_hz_end\n' % tr.HZ)
-            f.write('CLEAR &8000, &C000\nORG &9000\nINCLUDE "%s"\n.t_b5end\n' % tr.SRC)
+            f.write('CLEAR &8000, &C000\nORG &9000\nINCLUDE "%s"\n' % tr.SRC)
+            if not LINE7:
+                f.write('INCLUDE "%s"\n' % LINE5)
+            f.write('.t_b5end\n')
             f.write('ORG &8000\nINCLUDE "%s"\nSAVE "r.bin", &8000, t_b5end\n' % os.path.join(MS, 'gfx-raster_disc.asm'))
-            f.write('CLEAR &8000, &9000\nORG &8000\nINCLUDE "%s"\nSAVE "ra.bin", &8000, P%%\n' % os.path.join(MS, 'gfx-raster_poly.asm'))
-            f.write('CLEAR &8000, &C000\nORG R7START\nINCLUDE "%s"\nSAVE "r7.bin", R7START, P%%\n' % tr.SRC7)
+            f.write('CLEAR &8000, &9000\nORG &8000\nINCLUDE "%s"\n' % os.path.join(MS, 'gfx-raster_poly.asm'))
+            if not LINE7:
+                f.write('INCLUDE "%s"\n' % LINEA)
+            f.write('SAVE "ra.bin", &8000, P%\n')
+            f.write('CLEAR &8000, &C000\nORG R7START\n')
+            if LINE7:
+                f.write('INCLUDE "%s"\n' % tr.SRC7)
+            else:
+                f.write('NOP\n')
+            f.write('SAVE "r7.bin", R7START, P%\n')
         else:                               # (bank 5 from &8000, the stubs, bank 7 from &8000)
             f.write('ORG &%X\nINCLUDE "%s"\n.r_hz_end\n' % (tr.HZ, SRCH))
             f.write('ORG &8000\nINCLUDE "%s"\nSAVE "r.bin", &8000, P%%\n' % tr.SRC)
@@ -138,10 +157,10 @@ def assemble(org):
 
 
 # the bank (ROMSEL) each entry point is called with: the frame layer's T_
-# trampolines page bank 5 in (RASTBANK), ANDY over it for R_POLY (T_POLY:
-# RASTPOLY, once there is a polygon window), bank 7 for R_LINE (T_LINE)
+# trampolines page bank 5 in (RASTBANK), ANDY over it for R_POLY and R_LINE
+# (T_POLY, T_LINE: RASTPOLY; before, bank 7 for R_LINE)
 _C = dict(re.findall(r'^(RASTPOLY|RASTBANK)\s*=\s*&?([0-9A-Fa-f]+)', open(GFX).read(), re.M))
-ENTRY_BANK = {'R_POLY': int(_C.get('RASTPOLY', '5'), 16), 'R_LINE': 7}
+ENTRY_BANK = {'R_POLY': int(_C.get('RASTPOLY', '5'), 16), 'R_LINE': 7 if LINE7 else int(_C.get('RASTPOLY', '5'), 16)}
 
 
 class Machine(tr.Machine):
@@ -258,7 +277,7 @@ def draw_line(self, x0, y0, x1, y1, ce, co, entry='R_LINE'):
         m.wr(nm, v & 0xFF)
         m.wr(nm, (v >> 8) & 0xFF, 1)
     self.set_col(ce, co)
-    return m.call(entry)                  # (T_LINE: bank 7)
+    return m.call(entry)                  # (with T_LINE's ROMSEL)
 
 
 _demo_test_lines = tr.Tester.test_lines

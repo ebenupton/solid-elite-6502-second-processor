@@ -10,8 +10,8 @@ ISR_EXTRA_WRITES = (0xFC,)
 ISR_DATA_POINTERS = ()
 INLINE_HELPERS = {}
 SCREEN_POINTERS = ('SC',)           # Elite's screen pointer (SC, SCH)
-# (the rasteriser makes no calls between banks: its bank 5 and ANDY parts call
-# each other directly, R_LINE in bank 7 calls nothing outside it)
+# (the rasteriser makes no calls between banks: its bank 5 and ANDY parts,
+# R_LINE's included, call each other directly)
 CROSS_CALLS = {}
 CROSS_SCRATCH = ()
 # the far calls between the home bank and the cold area (elite-far.asm):

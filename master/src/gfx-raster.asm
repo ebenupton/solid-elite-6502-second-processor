@@ -12,11 +12,11 @@
 \     stars), seen with either window below;
 \   raster_disc.asm, the disc window: bank 5 &8000-&8FFF, paged with ROMSEL 5
 \     (RASTBANK): R_DISCROWS, the dirty repair, R_INIT and R_RESETBUF;
-\   raster_poly.asm, the polygon window: ANDY, paged with ROMSEL &85
-\     (RASTPOLY, ANDY over bank 5): R_POLY;
-\ and raster7.asm, R_LINE, in bank 7 (R_BANK_AUX) with the cold area.  The
-\ caller (the frame layer's T_ trampolines) pages ROMSEL &85 for R_POLY, 7
-\ for R_LINE and 5 for the rest; each returns with what it was entered with.
+\   raster_poly.asm and raster_line.asm, the polygon window: ANDY, paged with
+\     ROMSEL &85 (RASTPOLY, ANDY over bank 5): R_POLY and R_LINE (R_LINE's
+\     cold part, raster_lcold.asm, and R_POLY's arithmetic are here, for room).
+\ The caller (the frame layer's T_ trampolines) pages ROMSEL &85 for R_POLY
+\ and R_LINE and 5 for the rest; each returns with what it was entered with.
 \ R_SETBUF pages the polygon window in for its operands there and 5 back.
 \ Nothing calls between the two windows.  INCLUDE this file at &9000 (its
 \ runs must start at a page whose number is a multiple of 32: asserted).  It
@@ -177,6 +177,18 @@ RZ_T4   = &24
 RZ_T5   = &25
 RZ_T6   = &26
 RZ_T7   = &27
+\ R_LINE's (gfx-raster_line.asm; here, as gfx-raster_lcold.asm uses them too)
+l_x0 = &18              \ (rl_gen's pixel-by-pixel loop: x, y, as l_x0,X)
+l_y0 = &19
+l_x1 = &1A
+l_y1 = &1B
+l_e  = &1C
+l_m  = &1D
+l_n  = &1E
+l_a  = &1F
+l_b  = &20
+l_x  = &21
+l_k  = &22              \ kind (0..3)
 
 r_opSTA = &99           \ STA abs,Y (the row runs are indexed by the row, as bank 7's)
 r_opRTS = &60
@@ -949,6 +961,28 @@ R_ENDPAGE 15
 .out
   RTS
 }
+\ R_LINE's variables (gfx-raster_line.asm, gfx-raster_lcold.asm)
+.rl_lct SKIP 8          \ R_LINE: colour byte by row AND 7
+.rl_lbuf EQUB &FF       \ buffer R_LINE's DIRTY operands are patched for
+\ rl_gen's variables (16-bit: lo, hi)
+.rl_dx SKIP 2            \ P1 - P0: x, y (rl_dx + 2)
+.rl_dy SKIP 2
+.rl_ax SKIP 2            \ |dx|, |dy| (rl_ax + 2)
+.rl_ay SKIP 2
+.rl_d  SKIP 2            \ |d major|
+.rl_a  SKIP 2            \ |d minor|
+.rl_h  SKIP 2            \ d DIV 2
+.rl_m0 SKIP 2            \ the left / top end: major, minor
+.rl_n0 SKIP 2
+.rl_i  SKIP 2            \ the first pixel inside, the last (i)
+.rl_j  SKIP 2
+.rl_t  SKIP 2            \ rl_mdq's signed addend
+.rl_mo SKIP 1            \ major axis: 0 = x, 2 = y (an offset into R_X0.., R_CL..)
+.rl_s  SKIP 1            \ bit 7: the minor coordinate decreases
+.rl_lo SKIP 1            \ major window lo, hi; minor window lo, hi
+.rl_hi SKIP 1
+.rl_nl SKIP 1
+.rl_nh SKIP 1
 R_ENDPAGE 16
 .r_run17 R_RUN 17
 .R_DOT

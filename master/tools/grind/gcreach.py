@@ -302,7 +302,7 @@ def region(P, i):
             return 'BCODE >=&3000'
         return 'high code'
     return {'B4': 'bank 4', 'ANDY': 'ANDY', 'C7A': 'bank 7 cold (&8000-)', 'C7': 'bank 7 cold',
-            'R7': 'bank 7 rasteriser', 'B5': 'bank 5', 'RA': 'ANDY (rasteriser)', 'B6': 'bank 6', 'HZ': 'HAZEL', 'SHF': 'shadow (flare)'}.get(s, s)
+            'R7': 'bank 7 tokens', 'B5': 'bank 5', 'RA': 'ANDY (rasteriser)', 'B6': 'bank 6', 'HZ': 'HAZEL', 'SHF': 'shadow (flare)'}.get(s, s)
 
 
 def main():

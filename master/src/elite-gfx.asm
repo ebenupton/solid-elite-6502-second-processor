@@ -1,7 +1,8 @@
 \ ******************************************************************************
 \
 \ elite-gfx.asm - the filled renderer's memory: its shared workspace in main
-\ RAM, its glue in HAZEL, banks 5 and 6, bank 7 below the cold area
+\ RAM, its glue in HAZEL, banks 5 and 6 and ANDY, and the extended tokens in
+\ bank 7 below the cold area
 \ (docs/MASTER-MAP.md)
 \
 \ INCLUDEd at the end of elite-source.asm (after the game's code, so that the
@@ -18,11 +19,15 @@
 \
 \   build/HAZEL.bin  HAZEL &C000-&DFFF: the game data and the glue, which the
 \                    loader copies into place after its last disc access
-\   build/BANK5.bin  sideways RAM bank 5: the rasteriser (gfx-raster.asm)
+\   build/BANK5.bin  sideways RAM bank 5: the rasteriser's shared region and
+\                    disc window (gfx-raster.asm, gfx-flare.asm,
+\                    gfx-raster_lcold.asm; gfx-raster_disc.asm)
+\   build/RASTA.bin  ANDY: the rasteriser's polygon window (gfx-raster_poly.asm,
+\                    gfx-raster_line.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (gfx-frame.asm),
 \                    the ship faces and colours (gfx-faces.asm) and its state
-\   build/RAST7.bin  sideways RAM bank 7 from &8000: the rasteriser's cold
-\                    code (gfx-raster7.asm), below the cold area at COLD7LO
+\   build/RAST7.bin  sideways RAM bank 7 from R7START: the extended tokens,
+\                    below the cold area at COLD7LO
 \
 \ ******************************************************************************
 
@@ -33,9 +38,8 @@ MAXDT = 64              \ dots per frame
 RASTBANK = 5            \ the rasteriser: bank 5, its disc window (&8000-&8FFF) and
 RASTPOLY = &85          \ the shared region (&9000-&BFFF); ANDY over bank 5, its
                         \ polygon window
-R_BANK_AUX = 7          \ R_LINE, in bank 7 (with the cold area), after the extended
-                        \ tokens at R7START
-R7START = &9000
+R7START = &9000         \ the extended tokens in bank 7 (the cold area's), below
+                        \ COLD7LO
 GFXBANK = 6
 ELITEBANK = HOMEBANK
 
@@ -121,6 +125,7 @@ CLEAR &8000, &C000      \ bank 5: the shared region from &9000 (the per-x tables
 ORG &9000               \ the row runs, the boundary arrays, the stars, the lens
 INCLUDE "src/gfx-raster.asm"   \ flare ...), then the disc window at &8000
 INCLUDE "src/gfx-flare.asm"    \ the lens flare (its step in bank 6: gfx-flare6.asm)
+INCLUDE "src/gfx-raster_lcold.asm"   \ R_LINE's cold part
 .B5_END
 ASSERT B5_END <= &C000
 ORG &8000
@@ -133,6 +138,7 @@ SAVE "build/BANK5.bin", &8000, B5_END, &8000
 CLEAR &8000, &9000      \ ANDY (ROMSEL &85): the rasteriser's polygon window
 ORG &8000
 INCLUDE "src/gfx-raster_poly.asm"
+INCLUDE "src/gfx-raster_line.asm"   \ R_LINE
 .RA_END
 ASSERT RA_END <= &9000
 PRINT "ANDY: rasteriser polygon window &8000-", ~RA_END-1, " free ", &9000-RA_END
@@ -165,12 +171,11 @@ ASSERT B6_END <= &C000
 SAVE "build/BANK6.bin", &8000, B6_END, &8000
 
 CLEAR &8000, &C000      \ bank 7 (the cold area's bank, ROMSEL 7): the extended
-ORG R7START             \ tokens (cold data, elite-data.asm), then R_LINE
+ORG R7START             \ tokens (cold data, elite-data.asm)
 .R7_BEGIN
 INCBIN "build/TOKENSD.bin"
 ASSERT TKN1 = R7_BEGIN
-INCLUDE "src/gfx-raster7.asm"   \ R_LINE
 .R7_END
-PRINT "Bank 7: tokens &", ~R7START, "-", ~r7_start-1, ", R_LINE &", ~r7_start, "-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
+PRINT "Bank 7: tokens &", ~R7START, "-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
 ASSERT R7_END <= COLD7LO
 SAVE "build/RAST7.bin", R7START, R7_END, R7START
