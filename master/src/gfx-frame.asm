@@ -3167,10 +3167,11 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
  BCS fbh8
  LDA (fz_dl),Y
  BNE fbh2
- LDY #0                 \ skip this face's list entry (n, 2 colour bytes,
- LDA (fz_p),Y           \ n offsets)
+ LDY #0                 \ skip this face's list entry (n + 16 * its hue ramp,
+ LDA (fz_p),Y           \ its normal, n offsets: n + 4 bytes)
+ AND #15
  CLC
- ADC #3
+ ADC #4
  ADC fz_p
  STA fz_p
  BCC P%+4
@@ -3178,7 +3179,7 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
  INC f_f
  JMP fbh1
 .fbh2
- LDY #3                 \ XX3 offset of the vertex
+ LDY #4                 \ XX3 offset of the vertex
  LDA (fz_p),Y
  TAY
  LDA (fz_v3),Y          \ dx = x - planet x (16-bit)
