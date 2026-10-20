@@ -8489,17 +8489,13 @@ ENDIF
 
 \ ******************************************************************************
 \
-\ Port: the end of the main code's head, which is in main RAM below &3000
-\ (docs/MASTER-MAP.md): the low area, the blocks of this source tagged low
-\ (build/elite-source-low.asm, which tools/streams.py writes), whose original
-\ places are later, and the port's own code that must be low: the far calls
-\ (elite-far.asm)
+\ Port: the end of the main code's head, which is in main RAM below &3000: the
+\ low area (elite-low.asm, docs/MASTER-MAP.md), the blocks of this source
+\ tagged low and the port's own code and variables that must be low
 \
 \ ******************************************************************************
 
- INCLUDE "build/elite-source-low.asm"   \ the blocks tagged low
-
- INCLUDE "src/elite-far.asm"            \ far calls to and from the cold area
+ INCLUDE "src/elite-low.asm"
 
 .HEAD_END%
 
@@ -8509,7 +8505,8 @@ ENDIF
                         \ from interrupts or from MOS vectors with any ROM paged:
                         \ the IRQ and sound code, CHPR and its font, the log
                         \ tables (LOINQ), HANGFLAG (HANGER), ADDK (DIALS, PIX1),
-                        \ UP (CATF, FLH, COMC), NEWBRK (BRKV) and the far calls
+                        \ UP (CATF, FLH, COMC) and the low area (NEWBRK, the far
+                        \ calls, the renderer's glue)
 
 \ ******************************************************************************
 \
@@ -19636,6 +19633,25 @@ HANGHEAP = &BF00
 
 \ ******************************************************************************
 \
+\ Port: the main code continues in bank 4 from here (docs/MASTER-MAP.md), at a
+\ routine that nothing falls into. The part in main RAM, from CODE%, is saved
+\ as BCODE; the rest is assembled at the start of bank 4, followed by the
+\ blocks tagged bank 4 (elite-layout.asm)
+\
+\ ******************************************************************************
+
+ PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
+ ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0, and
+                        \ &7000-&71FF the dashboard's first row)
+ PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
+
+ CLEAR &8000, &C000
+ ORG &8000
+
+
+\ ******************************************************************************
+\
 \       Name: STARS2
 \       Type: Subroutine
 \   Category: Stardust
@@ -20241,25 +20257,6 @@ ENDMACRO
  LDA QSH+256,X
  SBC QSH,Y
  BRA mlt3e2
-
-
-\ ******************************************************************************
-\
-\ Port: the main code continues in bank 4 from here (docs/MASTER-MAP.md), at a
-\ routine that nothing falls into. The part in main RAM, from CODE%, is saved
-\ as BCODE; the rest is assembled at the start of bank 4, followed by the
-\ blocks tagged bank 4 (elite-layout.asm)
-\
-\ ******************************************************************************
-
- PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
- ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0, and
-                        \ &7000-&71FF the dashboard's first row)
- PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
-
- CLEAR &8000, &C000
- ORG &8000
 
 
 \ ******************************************************************************

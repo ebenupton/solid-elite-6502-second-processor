@@ -1,8 +1,10 @@
 \ ******************************************************************************
 \
-\ tramp.asm - trampolines from the frame layer (bank GFXBANK) into the
-\ rasteriser (bank RASTBANK, and ANDY over it, RASTPOLY, for R_POLY). Lives in HAZEL (&C000-&DFFF), visible whichever
-\ bank is paged. A, X, Y are passed through; nothing is returned.
+\ gfx-tramp.asm - trampolines from the frame layer (bank GFXBANK) into the
+\ rasteriser (bank RASTBANK, and ANDY over it, RASTPOLY, for R_POLY and
+\ R_LINE). Lives in the low area (main RAM below &3000, elite-low.asm),
+\ visible whichever bank is paged and whatever ACCCON X is. A, X, Y are
+\ passed through; nothing is returned.
 \
 \ ******************************************************************************
 

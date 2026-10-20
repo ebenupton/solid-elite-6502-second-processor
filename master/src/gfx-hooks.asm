@@ -5,7 +5,7 @@
 \
 \ Master port: these run in game context only, with ACCCON X clear, so they
 \ live in main RAM at &7200 (elite-hi.asm); the hooks that run with X set or
-\ from the IRQ are in HAZEL (gfx-hzhooks.asm). Elite's drawing routines call
+\ from the IRQ are in the low area, below &3000 (gfx-lowhooks.asm). Elite's drawing routines call
 \ these with a single JSR at their start. "Record mode" is QQ11 = 0 (a view that draws ships) and GFORCE = 0:
 \ drawing is then recorded for FRAME instead of being done. A hook that takes
 \ over pulls its return address (PLA : PLA) so its RTS returns from the hooked

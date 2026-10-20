@@ -9,15 +9,14 @@
 \ demo-final, src/gfx-build.asm), with the memory laid out for the full
 \ game. The state that more than one bank, the IRQ handler or code running
 \ with ACCCON X set reads is in main RAM below &3000 (the shared workspace,
-\ below the main code), which every bank sees whatever ACCCON X is. HAZEL
-\ holds the game data (the ship blueprints, elite-data.asm) and the glue
-\ (the cross-bank stubs and hooks, the shared variables with initial
-\ values), at &C300 on, which disc commands leave alone: the IRQ and text
-\ hooks run during them (DOSCLI stashes the rest of HAZEL in screen buffer
-\ 0 for the command, docs/MASTER-MEMORY.md). Produces:
+\ below the main code), which every bank sees whatever ACCCON X is; so is
+\ the glue (the cross-bank trampolines and hooks, the shared variables with
+\ initial values), in the main code's low area (elite-low.asm), as the IRQ
+\ and text hooks run during disc commands too. HAZEL holds the game data
+\ (the ship blueprints, elite-data.asm). Produces:
 \
-\   build/HAZEL.bin  HAZEL &C000-&DFFF: the game data and the glue, which the
-\                    loader copies into place after its last disc access
+\   build/HAZEL.bin  HAZEL &C000-&DFFF: the game data, which the loader
+\                    copies into place after its last disc access
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser's shared region and
 \                    disc window (gfx-raster.asm, gfx-flare.asm,
 \                    gfx-raster_lcold.asm; gfx-raster_disc.asm)
@@ -39,26 +38,16 @@ GFXBANK = 6
 ELITEBANK = HOMEBANK
 
 \ HAZEL: the Cougar's and the Dodo's blueprints, SNE and ACT (elite-data.asm),
-\ the glue at &C300 (the shared variables with initial values, the T_
-\ trampolines, the text and IRQ hooks), then XX21 and the other blueprints to
-\ the end of HAZEL (elite-data.asm, "Blueprints in HAZEL" in
-\ docs/MASTER-PLAN.md)
+\ then XX21 and the other blueprints to the end of HAZEL (elite-data.asm,
+\ "Blueprints in HAZEL" in docs/MASTER-PLAN.md). The renderer's glue is in
+\ main RAM below &3000 (elite-low.asm)
 
 CLEAR &C000, &E000
 ORG &C000
 .HZ_START
 INCBIN "build/HZDATA1.bin"
-ORG &C300
-.HZ_GLUE
-INCLUDE "src/gfx-gvars.asm"
-INCLUDE "src/gfx-tramp.asm"
-INCLUDE "src/gfx-hzhooks.asm"   \ (the other hooks are in main RAM, elite-hi.asm)
-.GWARP   EQUB 0         \ bit 7: TT66 is an in-system jump's (WARP sets it,
-                        \ F_DIRECT clears it)
-.HZ_GLUE_END
-PRINT "HAZEL: game data &C000-", ~HZDATA1END%-1, ", glue &C300-", ~HZ_GLUE_END-1, " (", XX21-HZ_GLUE_END, " free), game data ", ~XX21, "-&DFFF"
-ASSERT HZ_GLUE_END <= XX21
-ASSERT HZDATA1END% <= &C300
+PRINT "HAZEL: game data &C000-", ~HZDATA1END%-1, ", ", ~XX21, "-&DFFF (", XX21-HZDATA1END%, " free)"
+ASSERT HZDATA1END% <= XX21
 ORG XX21
 INCBIN "build/HZDATA2.bin"
 .HZ_END

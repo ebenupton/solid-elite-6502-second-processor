@@ -1,8 +1,9 @@
 \ ******************************************************************************
 \
-\ gfx-hzhooks.asm - the hooks that must live in HAZEL: the text map's (CHPR
-\ runs with ACCCON X set, so main RAM above &3000 is hidden) and the IRQ's
-\ (H_VSYNC); split from gfx-hooks.asm
+\ gfx-lowhooks.asm - the hooks that must live in main RAM below &3000 (the
+\ low area, elite-low.asm): the text map's (CHPR runs as WRCHV with any ROM
+\ paged and with ACCCON X set, which hides main RAM above &3000) and the
+\ IRQ's (H_VSYNC); split from gfx-hooks.asm
 \
 \ ******************************************************************************
 
@@ -13,7 +14,7 @@
 \ in every mode (so a screen that carries on in record mode without a TT66
 \ still has its text), and draw on the screen only outside record mode. These
 \ stubs page bank 6 in and the caller's bank (&F4, ANDY included) back, and
-\ live in HAZEL as CHPR runs with ACCCON X set. A, X, Y are not kept (F_CHAR
+\ live below &3000 as CHPR runs with ACCCON X set. A, X, Y are not kept (F_CHAR
 \ and F_DELCHAR keep Y, F_CLRTEXT X and Y)
 
 .G_CHAR

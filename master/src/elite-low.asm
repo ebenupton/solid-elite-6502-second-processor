@@ -1,0 +1,33 @@
+\ ******************************************************************************
+\
+\ elite-low.asm - the low area, at the end of the main code's head, in main
+\ RAM below &3000 (docs/MASTER-MAP.md)
+\
+\ Port: INCLUDEd by elite-source.asm after UP, before HEAD_END%. What is here
+\ is visible whatever is paged at &8000-&BFFF and whatever ACCCON X is, so
+\ the IRQ handler, the MOS vectors (entered with any ROM paged) and code that
+\ runs with ACCCON X set can use it:
+\
+\   * the blocks of elite-source.asm tagged low (build/elite-source-low.asm,
+\     which tools/streams.py writes): stackpt and NEWBRK, which the MOS enters
+\     through BRKV with the ROM that raised the error paged in, and whose
+\     original place is later in the run (in bank 4);
+\
+\   * the far calls between Elite's home bank and the cold area
+\     (elite-far.asm), which page the banks;
+\
+\   * the renderer's glue: the variables that the game, the IRQ handler and
+\     the renderer's banks share, with their initial values (gfx-gvars.asm),
+\     the trampolines from the frame layer into the rasteriser
+\     (gfx-tramp.asm), and the hooks that CHPR (WRCHV: any ROM paged, ACCCON X
+\     set) and IRQ1 call (gfx-lowhooks.asm).
+\
+\ ******************************************************************************
+
+ INCLUDE "build/elite-source-low.asm"   \ the blocks tagged low
+
+ INCLUDE "src/elite-far.asm"            \ far calls to and from the cold area
+
+ INCLUDE "src/gfx-gvars.asm"            \ the renderer's glue: shared variables,
+ INCLUDE "src/gfx-tramp.asm"            \ the trampolines into the rasteriser,
+ INCLUDE "src/gfx-lowhooks.asm"         \ the text map's and the IRQ's hooks

@@ -33,14 +33,15 @@
 #    faces, the lighting tables, frame_cold and the flare's bank 6 part,
 #    bank5 also the lens flare and R_LINE's cold part, gfx-raster_lcold.asm) are reached
 #    from other areas only through the stubs in GLUE files (G_ stubs, T_
-#    trampolines, raster_hz, the HAZEL hooks) or as addresses (#LO/#HI); their
+#    trampolines, the low area's hooks) or as addresses (#LO/#HI); their
 #    code calls main RAM and HAZEL code directly but nothing in another bank,
 #    reads no other bank's data, and reads main RAM data only below &3000 (the frame layer may run with ACCCON
 #    X set, which hides main RAM above);
 #  * "hazel" is visible to every area: HAZEL (the game data that
-#    build/data-addresses.asm marks hazel, the renderer's glue) and the
-#    renderer's shared workspace in main RAM below &3000 (elite-gfx.asm,
-#    gfx-raster_scr.asm, gfx-raster_vars.asm).
+#    build/data-addresses.asm marks hazel) and the renderer's shared
+#    workspace in main RAM below &3000 (elite-gfx.asm, gfx-raster_scr.asm,
+#    gfx-raster_vars.asm); the renderer's glue is main RAM below &3000 (the
+#    low area), which every area sees too.
 # Exit status 1 if any rule is broken.
 import re, sys
 
@@ -51,7 +52,8 @@ FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm
          "../build/elite-stubs4.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
          # and its banks
-         "gfx-gvars.asm": "hazel", "gfx-tramp.asm": "hazel", "gfx-hzhooks.asm": "hazel",
+         "elite-low.asm": "main",
+         "gfx-gvars.asm": "main", "gfx-tramp.asm": "main", "gfx-lowhooks.asm": "main",
          "gfx-raster_scr.asm": "hazel",
          "gfx-raster_vars.asm": "hazel", "elite-gfx.asm": "hazel",
          "gfx-raster.asm": "bank5", "gfx-raster_disc.asm": "bank5d", "gfx-raster_poly.asm": "bank5a",
@@ -68,8 +70,8 @@ RENDER = ("bank5", "bank5d", "bank5a", "bank6")
 RAST5 = ("bank5", "bank5d", "bank5a")
 # the files that hold the cross-bank stubs into the renderer's banks (the G_
 # stubs page bank 6 in from game code, the T_ trampolines bank 5 (ANDY over it
-# for R_POLY and R_LINE) from bank 6, the HAZEL hooks bank 6 from any bank)
-GLUE = ("gfx-gstubs.asm", "gfx-tramp.asm", "gfx-hzhooks.asm")
+# for R_POLY and R_LINE) from bank 6, the low area's hooks bank 6 from any bank)
+GLUE = ("gfx-gstubs.asm", "gfx-tramp.asm", "gfx-lowhooks.asm")
 MNEM = set(("ADC AND ASL BCC BCS BEQ BIT BMI BNE BPL BRA BRK BVC BVS CLC CLD CLI CLV CMP CPX CPY "
             "DEC DEX DEY EOR INC INX INY JMP JSR LDA LDX LDY LSR NOP ORA PHA PHP PHX PHY PLA PLP PLX "
             "PLY ROL ROR RTI RTS SBC SEC SED SEI STA STX STY STZ TAX TAY TRB TSB TSX TXA TXS TYA").split())

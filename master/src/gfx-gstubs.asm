@@ -6,8 +6,8 @@
 \ GFXBANK; Elite's own bank (ELITEBANK) is paged back in afterwards. Master
 \ port: in the high code (elite-hi.asm), as they are only ever called from
 \ game code, with ACCCON X clear (the frame sets X itself, inside F_FRAME);
-\ the variables shared with the IRQ and the frame are in HAZEL
-\ (gfx-gvars.asm).
+\ the variables shared with the IRQ and the frame are in the low area
+\ (gfx-gvars.asm, elite-low.asm).
 \
 \ ******************************************************************************
 

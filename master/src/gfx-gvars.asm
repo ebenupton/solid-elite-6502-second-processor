@@ -1,7 +1,8 @@
 \ ******************************************************************************
 \
 \ gfx-gvars.asm - the variables shared between Elite, the IRQ handler and the
-\ graphics bank
+\ graphics bank, with their initial values (in the low area, main RAM below
+\ &3000: elite-low.asm)
 \
 \ ******************************************************************************
 
@@ -25,3 +26,5 @@
 .GSUNR   EQUB 0         \ the sun's radius this frame
 .GSTASH  EQUB 0         \ bit 7: a disc command has stashed HAZEL in buffer 0
                         \ (DOSCLI), which the next space-mode frame clears
+.GWARP   EQUB 0         \ bit 7: TT66 is an in-system jump's (WARP sets it,
+                        \ F_DIRECT clears it)

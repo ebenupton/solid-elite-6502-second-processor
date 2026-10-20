@@ -200,7 +200,7 @@ STUBS7 = "build/elite-stubs7.asm"
 STUBS4 = "build/elite-stubs4.asm"
 # the files outside elite-source.asm whose references to cold labels need
 # stubs (everything else that elite-layout.asm assembles)
-OTHERS = ("src/elite-layout.asm", "src/elite-far.asm", "src/elite-dash.asm",
+OTHERS = ("src/elite-layout.asm", "src/elite-low.asm", "src/elite-dash.asm",
           "src/elite-hi.asm", "src/elite-gfx.asm")
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*%?")
 
