@@ -108,6 +108,19 @@ const PLANS = {
         ["load-s94", 20, "--seed", "94", "--mode", "load", "--from", "allchaos-s88", "--chaos", "all,docked,disc"],
         ["load-s95", 20, "--seed", "95", "--mode", "load", "--from", "long-s90", "--chaos", "docked,disc,pod*2"],
     ],
+    // the third wave: generated, seeds 100-131 over every commander, mode and chaos mix
+    night3: (() => {
+        const cmdrs = ["jameson", "trader", "equipped", "rich", "deadly", "mission2", "wanted", "galaxy3", "debrief1", "debrief2"];
+        const modes = ["efficient", "curious", "fair", "keyboard", "efficient", "nomission"];
+        const mixes = ["docked,disc", "all,docked,disc", "views*3,dock*3,docked", "pod*4,ghyp*4,hurt*2,disc", "ecm*3,missile*3,bomb*2,docked", "hurt*6,heat*2,fuel*2,docked,disc", "jump*3,charts*3,spin*2,docked", "all"];
+        const out = [];
+        for (let i = 0; i < 32; i++) {
+            const seed = 100 + i, c = cmdrs[i % cmdrs.length], m = modes[(i * 7) % modes.length], x = mixes[(i * 3) % mixes.length];
+            out.push([`n3-${c}-${m}-s${seed}`, 12 + (i % 3) * 4, "--seed", String(seed), "--commander", c, "--mode", m, "--chaos", x, ...(i % 4 === 0 ? ["--savediscs"] : [])]);
+        }
+        for (let i = 0; i < 8; i++) out.push([`n3-load-s${140 + i}`, 15, "--seed", String(140 + i), "--mode", i % 2 ? "load,curious" : "load", "--from", out[i * 4][0], "--chaos", mixes[(i * 5) % mixes.length]]);
+        return out;
+    })(),
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
