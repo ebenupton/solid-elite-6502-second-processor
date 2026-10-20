@@ -5,11 +5,19 @@
 \ 5 (gfx-raster.asm, gfx-raster_poly.asm, gfx-raster_disc.asm); R_LINE uses
 \ only the shared workspace (main RAM) and its own code, tables and variables
 \ here.  INCLUDE it after them (it uses their symbols).
+\
+\ The line from P0 to P1 is Bresenham's along its major axis (x when |dx| >=
+\ |dy|) from its left or top end: with d = |d major|, a = |d minor| and h = d
+\ DIV 2, pixel i = 0..d is at major m0 + i, minor n0 +- (i * a + h) DIV d.
+\ Its pixels inside the clip window are one run (x and y are monotonic).  A
+\ line with both ends inside (8-bit) goes straight to the line loops (r7_line);
+\ any other is clipped exactly (rl_gen: the first and last pixels inside, from
+\ the window's four sides), then drawn by the same loops from the first pixel
+\ when d <= 255, or pixel by pixel with a 16-bit error term when d > 255.
 \ ============================================================================
 
-\ R_LINE's zero page (r7_line's loops; here, before the code in the run
-\ pages' tails that uses it)
-l_x0 = &18
+\ R_LINE's zero page (the line loops')
+l_x0 = &18              \ (rl_gen's pixel-by-pixel loop: x, y, as l_x0,X)
 l_y0 = &19
 l_x1 = &1A
 l_y1 = &1B
@@ -20,7 +28,6 @@ l_a  = &1F
 l_b  = &20
 l_x  = &21
 l_k  = &22              \ kind (0..3)
-l_c  = &23              \ 0: inside, 8: clipped
 
 \ (The bank starts on a page boundary: the runs need whole pages.)
 .r7_start
@@ -29,8 +36,6 @@ l_c  = &23              \ 0: inside, 8: clipped
 .r7_ldl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
 .r7_ldr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 .r7_lbuf EQUB &FF       \ buffer R_LINE's DIRTY operands are patched for
-.r7_cr1 EQUB 0          \ CR + 1
-.r7_cb1 EQUB 0          \ CB + 1
 .r7_pm EQUB &88, &44, &22, &11  \ pixel x AND 3 of a byte
 .r7_m0 EQUB 0           \ 32-bit dividend / product; quotient m0,m1
 .r7_m1 EQUB 0
@@ -40,7 +45,25 @@ l_c  = &23              \ 0: inside, 8: clipped
 .r7_v1 EQUB 0
 .r7_ma EQUW 0           \ multiplicand
 .r7_mb EQUW 0           \ multiplier
-.r7_ov SKIP 28          \ R_LINE's variables (r7_lc16's, the long path's)
+\ rl_gen's variables (16-bit: lo, hi)
+.c_dx SKIP 2            \ P1 - P0: x, y (c_dx + 2)
+.c_dy SKIP 2
+.c_ax SKIP 2            \ |dx|, |dy| (c_ax + 2)
+.c_ay SKIP 2
+.c_d  SKIP 2            \ |d major|
+.c_a  SKIP 2            \ |d minor|
+.c_h  SKIP 2            \ d DIV 2
+.c_m0 SKIP 2            \ the left / top end: major, minor
+.c_n0 SKIP 2
+.c_i  SKIP 2            \ the first pixel inside, the last (i)
+.c_j  SKIP 2
+.c_t  SKIP 2            \ rl_mdq's signed addend
+.c_mo SKIP 1            \ major axis: 0 = x, 2 = y (an offset into R_X0.., R_CL..)
+.c_s  SKIP 1            \ bit 7: the minor coordinate decreases
+.c_lo SKIP 1            \ major window lo, hi; minor window lo, hi
+.c_hi SKIP 1
+.c_nl SKIP 1
+.c_nh SKIP 1
 .r7_mul16
 {
   LDA #0
@@ -94,35 +117,6 @@ l_c  = &23              \ 0: inside, 8: clipped
   BNE lp
   RTS
 }
-.r7_pclip                 \ X = x, Y = y: r7_pset (and the row range) if inside
-{                         \ the clip window
-  CPX R_CL
-  BCC out
-  CPX R_CR
-  BEQ ok1
-  BCS out
-.ok1
-  CPY R_CT
-  BCC out
-  CPY R_CB
-  BEQ ok2
-  BCS out
-.ok2
-  TYA                     \ extend the buffer's row range by row Y
-  LDY R_PRBUF
-  CMP R_PRDYT,Y
-  BCS n3
-  STA R_PRDYT,Y
-.n3
-  CMP R_PRDYB,Y
-  BCC n4
-  STA R_PRDYB,Y
-.n4
-  TAY
-  JMP r7_pset
-.out
-  RTS
-}
 .r7_pset                  \ X = x, Y = y (inside the window): the pixel in the
 {                         \ colour pair's dither, DIRTY[y] extended (keeps X, Y)
   TYA
@@ -167,120 +161,34 @@ l_c  = &23              \ 0: inside, 8: clipped
   TAX
   RTS
 }
-\ r7_lc16's variables
-.c_m0 SKIP 2            \ major start
-.c_n0 SKIP 2            \ minor start
-.c_d  SKIP 1
-.c_a  SKIP 1
-.c_s  SKIP 1            \ bit 7: minor decreases
-.c_k  SKIP 1            \ kind
-.c_i  SKIP 2            \ first index
-.c_t  SKIP 2
-.c_lo SKIP 1            \ major window lo, hi, minor lo, hi
-.c_hi SKIP 1
-.c_nl SKIP 1
-.c_nh SKIP 1
-.c_m0w SKIP 2           \ mul / div: 16-bit value, 8-bit operand, remainder
-.c_op SKIP 1
-.c_r  SKIP 1
-\ ab: X = 0 / 2: |T(X), T(X+1)| -> A, C = 1 if >= 256
-.r7_cab
+\ rl_mdq: (r7_ma * r7_mb + c_t) DIV / MOD r7_v -> quotient r7_m0,m1,
+\ remainder r7_m2,m3 (c_t signed; the quotient must fit 16 bits).  Clobbers
+\ r7_mb.
+.rl_mdq
 {
-  LDA RZ_T1,X
-  BMI n
-  BNE n9
-  LDA RZ_T0,X
+  JSR r7_mul16
   CLC
-  RTS
-.n
-  CMP #&FF
-  BNE n9
-  LDA RZ_T0,X
-  BEQ n9                 \ (-256)
-  EOR #&FF
-  INC A
-  CLC
-  RTS
-.n9
-  SEC
-  RTS
-}
-\ swap: r7_lc16's ends exchanged
-.r7_cswap
-{
-  LDX #3
-.l1
-  LDA R_X0,X
-  LDY R_X1,X
-  STA R_X1,X
-  TYA
-  STA R_X0,X
-  DEX
-  BPL l1
-  LDX #2                  \ the differences change sign
-.l2
-  SEC
-  LDA #0
-  SBC RZ_T0,X
-  STA RZ_T0,X
-  LDA #0
-  SBC RZ_T1,X
-  STA RZ_T1,X
-  DEX
-  DEX
-  BPL l2
-  RTS
-}
-\ mul: c_m0w = A * X
-.r7_cmul
-{
-  STA c_op
-  STX c_t+1
-  STZ c_m0w
-  STZ c_m0w+1
-  LDX #8
-.l1
-  ASL c_m0w
-  ROL c_m0w+1
-  ASL c_op
-  BCC l2
+  LDA r7_m0
+  ADC c_t
+  STA r7_m0
+  LDA r7_m1
+  ADC c_t+1
+  STA r7_m1
+  LDX #0                  \ c_t's sign, extended
   LDA c_t+1
-  CLC
-  ADC c_m0w
-  STA c_m0w
-  BCC l2
-  INC c_m0w+1
-.l2
+  BPL p
   DEX
-  BNE l1
-  RTS
-}
-\ div: c_m0w = c_m0w DIV A, c_r = MOD (A >= 1)
-.r7_cdiv
-{
-  STA c_op
-  STZ c_r
-  LDX #16
-.l1
-  ASL c_m0w
-  ROL c_m0w+1
-  ROL c_r
-  BCS l2
-  LDA c_r
-  CMP c_op
-  BCC l3
-.l2
-  LDA c_r
-  SBC c_op
-  STA c_r
-  INC c_m0w
-.l3
-  DEX
-  BNE l1
-  RTS
+.p
+  TXA
+  ADC r7_m2
+  STA r7_m2
+  TXA
+  ADC r7_m3
+  STA r7_m3
+  JMP r7_div32
 }
 \ r7_lstart: A = steps: l_n = A, l_e = (A DIV 2) - l_b, l_x = x0, the buffer's
-\ dirty rows += y0..y1 (in the window)
+\ dirty rows += y0..y1 (both inside the window)
 .r7_lstart
 {
   STA l_n
@@ -298,19 +206,11 @@ l_c  = &23              \ 0: inside, 8: clipped
   TAY
   LDA l_y1
 .t0
-  CMP R_CT                \ A = top, Y = bottom (clamped to the window)
-  BCS t1
-  LDA R_CT
-.t1
-  CMP R_PRDYT,X
+  CMP R_PRDYT,X           \ A = top, Y = bottom
   BCS t2
   STA R_PRDYT,X
 .t2
   TYA
-  CMP R_CB
-  BCC t3
-  LDA R_CB
-.t3
   CMP R_PRDYB,X
   BCC t4
   STA R_PRDYB,X
@@ -337,76 +237,59 @@ FOR x, 0, 3
   EQUB ((&F0 << (3 - x)) AND &F0) OR ((&0F << (3 - x)) AND &0F)
 NEXT
 
-
-
-
-\ R_LINE's variables (r7_ov): the long path's
-r_lxm = r7_ov + 0
-r_maj0 = r7_ov + 1
-r_min0 = r7_ov + 3
-r_dmaj = r7_ov + 5
-r_admin = r7_ov + 7
-r_smin = r7_ov + 9
-r_wlo = r7_ov + 10
-r_whi = r7_ov + 11
-r_vlo = r7_ov + 12
-r_vhi = r7_ov + 13
-r_ilo = r7_ov + 14
-r_ihi = r7_ov + 16
-r_err = r7_ov + 18
-r_e2maj = r7_ov + 20
-r_e2min = r7_ov + 22
-r_cmaj = r7_ov + 24
-r_cmin = r7_ov + 25
-r_lcnt = r7_ov + 27
-
 \ ============================================================================
 \ R_LINE (the frame layer's T_LINE pages bank 7 and calls it)
 \ ============================================================================
 .R_LINE
 {
-  LDA R_X0+1              \ both ends in the window: the fast path
+  LDA R_X0+1              \ both ends in the window: the line loops
   ORA R_X1+1
   ORA R_Y0+1
   ORA R_Y1+1
-  BNE slow0
+  BNE gen
   LDA R_X0
   CMP R_CL
-  BCC slow0
+  BCC gen
   CMP R_CR
   BEQ f1
-  BCS slow0
+  BCS gen
 .f1
   LDA R_X1
   CMP R_CL
-  BCC slow0
+  BCC gen
   CMP R_CR
   BEQ f2
-  BCS slow0
+  BCS gen
 .f2
   LDA R_Y0
   CMP R_CT
-  BCC slow0
+  BCC gen
   CMP R_CB
   BEQ f3
-  BCS slow0
+  BCS gen
 .f3
   LDA R_Y1
   CMP R_CT
-  BCC slow0
+  BCC gen
   CMP R_CB
   BEQ f4
-  BCS slow0
+  BCS gen
 .f4
   JMP r7_line
-.slow0
-  LDA R_X0+1              \ 8-bit end points: bank 7 (clipped)
-  ORA R_X1+1
-  ORA R_Y0+1
-  ORA R_Y1+1
-  BNE slow1
-  JMP r7_linec
-.slow1
+.gen
+}
+\ ----------------------------------------------------------------------------
+\ rl_gen: R_LINE clipped: the rows min(y0, y1)..max(y0, y1) inside the
+\ window join the buffer's row range; then the first pixel inside the window
+\ (i = c_i) and the last (c_j) are found exactly, and the pixels between them
+\ drawn.  From the left / top end (major m0, minor n0, s the minor's sign):
+\   c_i = max(0, lo - m0, ceil((k * d - h) / a)) with k = nl - n0 (s > 0) or
+\         n0 - nh (s < 0), the last term only if k > 0 (none inside if k > a)
+\   c_j = min(d, hi - m0, ((K + 1) * d - h - 1) DIV a) with K = nh - n0 (s >
+\         0) or n0 - nl (s < 0), the last term only if K < a (none if K < 0)
+\ ----------------------------------------------------------------------------
+.rl_gen
+{
   LDA R_Y0                \ rows touched -> this buffer's row range
   CMP R_Y1
   LDA R_Y0+1
@@ -453,324 +336,363 @@ r_lcnt = r7_ov + 27
   BCS yno
   STA R_PRDYT,X
 .yno
-  JSR r7_lc16             \ short lines: clipped exactly, and drawn
-  BNE yn1
-  RTS
-.yn1
-  LDX R_PRBUF             \ r7_pset's DIRTY operands
+  LDX R_PRBUF             \ the DIRTY operands for this buffer
   CPX r7_lbuf
-  BEQ yn2
+  BEQ pd
   JSR r7_lpat
-.yn2
-  LDX #2                  \ d = P1 - P0 -> T0,T1 (x) T2,T3 (y); |d| -> T4..T7
+.pd
+  LDX #2                  \ d = P1 - P0 -> c_dx (x), c_dy (y); |d| -> c_ax, c_ay
 .dl
   SEC
   LDA R_X1,X
   SBC R_X0,X
-  STA RZ_T0,X
-  STA RZ_T4,X
+  STA c_dx,X
+  STA c_ax,X
   LDA R_X1+1,X
   SBC R_X0+1,X
-  STA RZ_T1,X
-  STA RZ_T5,X
+  STA c_dx+1,X
+  STA c_ax+1,X
   BPL dp
   SEC
   LDA #0
-  SBC RZ_T0,X
-  STA RZ_T4,X
+  SBC c_dx,X
+  STA c_ax,X
   LDA #0
-  SBC RZ_T1,X
-  STA RZ_T5,X
+  SBC c_dx+1,X
+  STA c_ax+1,X
 .dp
   DEX
   DEX
   BPL dl
-  LDX #0                  \ X = major axis offset (0 = x, 2 = y)
-  LDY #2                  \ Y = minor
-  LDA RZ_T4
-  CMP RZ_T6
-  LDA RZ_T5
-  SBC RZ_T7
+  LDX #0                  \ X = major axis offset (0 = x, 2 = y), Y = minor
+  LDY #2
+  LDA c_ax
+  CMP c_ay
+  LDA c_ax+1
+  SBC c_ay+1
   BCS mx
   LDX #2
   LDY #0
 .mx
-  STX RZ_PA               \ major axis offset
-  STY RZ_PA+1             \ minor axis offset
+  STX c_mo
+  LDA c_dx+1,Y            \ minor sign: d minor's, negated when the ends swap
+  EOR c_dx+1,X
+  STA c_s
+  LDA c_ax,X
+  STA c_d
+  LDA c_ax+1,X
+  STA c_d+1
+  LSR A
+  STA c_h+1
+  LDA c_d
+  ROR A
+  STA c_h
+  LDA c_ax,Y
+  STA c_a
+  LDA c_ax+1,Y
+  STA c_a+1
   LDA R_CL,X
-  STA r_wlo
+  STA c_lo
   LDA R_CR,X
-  STA r_whi
+  STA c_hi
   LDA R_CL,Y
-  STA r_vlo
+  STA c_nl
   LDA R_CR,Y
-  STA r_vhi
-  LDA RZ_T4,X
-  STA r_dmaj
-  LDA RZ_T5,X
-  STA r_dmaj+1
-  LDA RZ_T4,Y
-  STA r_admin
-  LDA RZ_T5,Y
-  STA r_admin+1
-  STZ r_smin              \ minor step: sign(d minor), negated if swapped
-  ORA RZ_T4,Y
-  BEQ sdone
-  LDA RZ_T1,Y
-  EOR RZ_T1,X
-  BMI sneg
-  LDA #1
-  BRA sst
-.sneg
-  LDA #&FF
-.sst
-  STA r_smin
-.sdone
-  LDA #0                  \ start at P1 when d major < 0
-  BIT RZ_T1,X
-  BPL ns
+  STA c_nh
+  LDA #0                  \ from P1 when d major < 0
+  BIT c_dx+1,X
+  BPL p0
   LDA #4
-.ns
-  STA RZ_PB
-  CLC
-  ADC RZ_PA
-  TAY
-  LDA R_X0,Y
-  STA r_maj0
-  LDA R_X0+1,Y
-  STA r_maj0+1
-  LDA RZ_PB
-  CLC
-  ADC RZ_PA+1
-  TAY
-  LDA R_X0,Y
-  STA r_min0
-  LDA R_X0+1,Y
-  STA r_min0+1
-  LDA RZ_PA
+.p0
+  ORA c_mo
+  TAX
+  LDA R_X0,X
+  STA c_m0
+  LDA R_X0+1,X
+  STA c_m0+1
+  TXA
   EOR #2
-  STA r_lxm               \ non-zero: x major
-.mdone
-  LDA r_dmaj
-  ORA r_dmaj+1
-  BNE nz
-  LDA r_maj0+1            \ a single point
-  ORA r_min0+1
-  BNE out1
-  LDX r_maj0
-  LDY r_min0
-  LDA r_lxm
-  BNE pt
-  LDX r_min0
-  LDY r_maj0
-.pt
-  JMP r7_pclip
-.out1
-  RTS
-.nz
-  SEC                     \ ilo = max(0, wlo - maj0)
-  LDA r_wlo
-  SBC r_maj0
-  STA r_ilo
+  TAX
+  LDA R_X0,X
+  STA c_n0
+  LDA R_X0+1,X
+  STA c_n0+1
+  LDA c_mo                \ kind: 2 + (y increases) for x major, 0 + (x
+  EOR #2                  \ increases) for y major
+  BIT c_s
+  BMI kd
+  ORA #1
+.kd
+  STA l_k
+  SEC                     \ c_i = max(0, lo - m0)
+  LDA c_lo
+  SBC c_m0
+  STA c_i
   LDA #0
-  SBC r_maj0+1
-  STA r_ilo+1
-  BPL il1
-  STZ r_ilo
-  STZ r_ilo+1
-.il1
-  SEC                     \ ihi = min(dmaj, whi - maj0)
-  LDA r_whi
-  SBC r_maj0
-  STA r_ihi
-  LDA #0
-  SBC r_maj0+1
-  STA r_ihi+1
-  BMI out1
-  LDA r_dmaj
-  CMP r_ihi
-  LDA r_dmaj+1
-  SBC r_ihi+1
-  BCS ih1
-  LDA r_dmaj
-  STA r_ihi
-  LDA r_dmaj+1
-  STA r_ihi+1
-.ih1
-  LDA r_ihi
-  CMP r_ilo
-  LDA r_ihi+1
-  SBC r_ilo+1
-  BCC out1
+  SBC c_m0+1
+  STA c_i+1
+  BPL i1
+  STZ c_i
+  STZ c_i+1
+.i1
+  BIT c_s                 \ k -> r7_ma
+  BMI ed
   SEC
-  LDA r_ihi
-  SBC r_ilo
-  INC A
-  STA r_lcnt
-  CLC
-  LDA r_maj0
-  ADC r_ilo
-  STA r_cmaj
-  LDA r_dmaj
-  ASL A
-  STA r_e2maj
-  STA r7_v0
-  LDA r_dmaj+1
-  ROL A
-  STA r_e2maj+1
-  STA r7_v1
-  LDA r_admin
-  ASL A
-  STA r_e2min
-  LDA r_admin+1
-  ROL A
-  STA r_e2min+1
-  LDA r_ilo
-  ORA r_ilo+1
-  BNE fullq
-  STZ r7_m0                \ starts in the window: q = 0, r = dmaj
-  STZ r7_m1
-  LDA r_dmaj
-  STA r7_m2
-  LDA r_dmaj+1
-  STA r7_m3
-  BRA qdone
-.fullq
-  \ q, r = (2*ilo*admin + dmaj) / (2*dmaj)
-  LDA r_ilo
+  LDA c_nl
+  SBC c_n0
   STA r7_ma
-  LDA r_ilo+1
-  STA r7_ma+1
-  LDA r_admin
-  STA r7_mb
-  LDA r_admin+1
-  STA r7_mb+1
-  JSR r7_mul16
-  ASL r7_m0
-  ROL r7_m1
-  ROL r7_m2
-  ROL r7_m3
-  CLC
-  LDA r7_m0
-  ADC r_dmaj
-  STA r7_m0
-  LDA r7_m1
-  ADC r_dmaj+1
-  STA r7_m1
-  BCC a1
-  INC r7_m2
-  BNE a1
-  INC r7_m3
-.a1
-  JSR r7_div32
-.qdone
-  LDA r7_m2
-  STA r_err
-  LDA r7_m3
-  STA r_err+1
-  LDA r_smin
-  BMI qneg
-  CLC
-  LDA r_min0
-  ADC r7_m0
-  STA r_cmin
-  LDA r_min0+1
-  ADC r7_m1
-  STA r_cmin+1
-  BRA lp
-.qneg
+  LDA #0
+  SBC c_n0+1
+  BRA ek
+.ed
   SEC
-  LDA r_min0
-  SBC r7_m0
-  STA r_cmin
-  LDA r_min0+1
-  SBC r7_m1
-  STA r_cmin+1
-.lp
-  LDA r_cmin+1
-  BMI lowside
-  BNE highside
-  LDA r_cmin
-  CMP r_vlo
-  BCC lowside
-  CMP r_vhi
-  BEQ inwin
-  BCS highside
-.inwin
-  LDA r_lxm
-  BEQ pym
-  LDX r_cmaj
-  LDY r_cmin
-  JSR r7_pset
-  BRA step
-.pym
-  LDX r_cmin
-  LDY r_cmaj
-  JSR r7_pset
-  BRA step
-.lowside
-  LDA r_smin
-  BEQ out
-  BMI out
-  BRA step
-.highside
-  LDA r_smin
-  BEQ out
-  BPL out
-.step
-  DEC r_lcnt
-  BEQ out
-  INC r_cmaj
+  LDA c_n0
+  SBC c_nh
+  STA r7_ma
+  LDA c_n0+1
+  SBC #0
+.ek
+  STA r7_ma+1
+  BMI e0                  \ k <= 0: inside from the start on the minor axis
+  ORA r7_ma
+  BEQ e0
+  LDA c_a                 \ k > a: never inside
+  CMP r7_ma
+  LDA c_a+1
+  SBC r7_ma+1
+  BCS P%+5
+.none1
+  JMP none
+  CLC                     \ c_t = a - h - 1 = a + NOT h
+  LDA c_h
+  EOR #&FF
+  ADC c_a
+  STA c_t
+  LDA c_h+1
+  EOR #&FF
+  ADC c_a+1
+  STA c_t+1
+  JSR rl_mdqa             \ (k * d + a - h - 1) DIV a
+  LDA r7_m0               \ c_i = max(c_i, that)
+  CMP c_i
+  LDA r7_m1
+  SBC c_i+1
+  BCC e0
+  LDA r7_m0
+  STA c_i
+  LDA r7_m1
+  STA c_i+1
+.e0
+  SEC                     \ c_j = hi - m0 (none if < 0) ...
+  LDA c_hi
+  SBC c_m0
+  STA c_j
+  LDA #0
+  SBC c_m0+1
+  STA c_j+1
+  BMI none1
+  LDA c_d                 \ ... at most d
+  CMP c_j
+  LDA c_d+1
+  SBC c_j+1
+  BCS j1
+  LDA c_d
+  STA c_j
+  LDA c_d+1
+  STA c_j+1
+.j1
+  BIT c_s                 \ K -> r7_ma
+  BMI xd
+  SEC
+  LDA c_nh
+  SBC c_n0
+  STA r7_ma
+  LDA #0
+  SBC c_n0+1
+  BRA xk
+.xd
+  SEC
+  LDA c_n0
+  SBC c_nl
+  STA r7_ma
+  LDA c_n0+1
+  SBC #0
+.xk
+  STA r7_ma+1
+  BPL P%+5                \ K < 0: never inside
+  JMP none
+  LDA r7_ma               \ K >= a: inside to the end on the minor axis
+  CMP c_a
+  LDA r7_ma+1
+  SBC c_a+1
+  BCS x0
+  INC r7_ma               \ K + 1
+  BNE P%+5
+  INC r7_ma+1
+  LDA c_h                 \ c_t = -h - 1 = NOT h
+  EOR #&FF
+  STA c_t
+  LDA c_h+1
+  EOR #&FF
+  STA c_t+1
+  JSR rl_mdqa             \ ((K + 1) * d - h - 1) DIV a
+  LDA r7_m0               \ c_j = min(c_j, that)
+  CMP c_j
+  LDA r7_m1
+  SBC c_j+1
+  BCS x0
+  LDA r7_m0
+  STA c_j
+  LDA r7_m1
+  STA c_j+1
+.x0
+  LDA c_j                 \ c_i > c_j: none inside
+  CMP c_i
+  LDA c_j+1
+  SBC c_i+1
+  BCC none
+  LDA c_i                 \ q, r = (c_i * a + h) DIV / MOD d
+  ORA c_i+1
+  BNE fq
+  STZ r7_m0
+  STZ r7_m1
+  LDA c_h
+  STA r7_m2
+  LDA c_h+1
+  STA r7_m3
+  BRA qd
+.none
+  RTS
+.fq
+  LDA c_i
+  STA r7_ma
+  LDA c_i+1
+  STA r7_ma+1
+  LDA c_a
+  STA r7_mb
+  LDA c_a+1
+  STA r7_mb+1
+  LDA c_h
+  STA c_t
+  LDA c_h+1
+  STA c_t+1
+  LDA c_d
+  STA r7_v0
+  LDA c_d+1
+  STA r7_v1
+  JSR rl_mdq
+.qd
+  SEC                     \ pixels: c_j - c_i + 1
+  LDA c_j
+  SBC c_i
+  INC A
+  STA l_n
+  CLC                     \ the first pixel: major m0 + c_i ...
+  LDA c_m0
+  ADC c_i
+  TAY
+  BIT c_s                 \ ... minor n0 +- q
+  BMI qn
   CLC
-  LDA r_err
-  ADC r_e2min
-  STA r_err
-  LDA r_err+1
-  ADC r_e2min+1
-  STA r_err+1
-  BCS sb
-  LDA r_err
-  CMP r_e2maj
-  LDA r_err+1
-  SBC r_e2maj+1
-  BCS sb
-  JMP lp
-.sb
-  LDA r_err
-  SBC r_e2maj
-  STA r_err
-  LDA r_err+1
-  SBC r_e2maj+1
-  STA r_err+1
-  LDA r_smin
-  BMI dm
-  INC r_cmin
-  BNE back
-  INC r_cmin+1
-  BRA back
-.dm
-  LDA r_cmin
-  BNE d1
-  DEC r_cmin+1
-.d1
-  DEC r_cmin
-  BRA back
-.back
-  JMP lp
-.out
+  LDA c_n0
+  ADC r7_m0
+  BRA qs
+.qn
+  SEC
+  LDA c_n0
+  SBC r7_m0
+.qs
+  LDX c_mo                \ A = minor, Y = major -> l_x0, l_y0
+  BEQ qx
+  STA l_x0
+  STY l_y0
+  BRA qe
+.qx
+  STA l_y0
+  STY l_x0
+.qe
+  SEC                     \ e = r - d
+  LDA r7_m2
+  SBC c_d
+  STA l_e
+  LDA r7_m3
+  SBC c_d+1
+  LDX c_d+1
+  BNE long
+  LDA l_x0                \ d <= 255: the line loops from there
+  STA l_x
+  LDA c_a
+  STA l_a
+  LDA c_d
+  STA l_b
+  JMP r7_lgo
+.long                     \ d > 255: pixel by pixel, e 16-bit
+  STA c_t+1               \ (c_t: e)
+  LDA l_e
+  STA c_t
+  LDA c_mo                \ X = the major axis (0 = x, 1 = y: l_x0,X)
+  LSR A
+  TAX
+.lp
+  PHX
+  LDX l_x0
+  LDY l_y0
+  JSR r7_pset
+  PLX
+  DEC l_n
+  BEQ done
+  INC l_x0,X              \ major step
+  CLC                     \ e += a
+  LDA c_t
+  ADC c_a
+  STA c_t
+  LDA c_t+1
+  ADC c_a+1
+  STA c_t+1
+  BMI lp
+  SEC                     \ e >= 0: e -= d, minor step
+  LDA c_t
+  SBC c_d
+  STA c_t
+  LDA c_t+1
+  SBC c_d+1
+  STA c_t+1
+  TXA
+  EOR #1
+  TAX
+  BIT c_s
+  BMI md
+  INC l_x0,X
+  BRA mn
+.md
+  DEC l_x0,X
+.mn
+  TXA
+  EOR #1
+  TAX
+  BRA lp
+.done
   RTS
 }
+\ rl_mdqa: rl_mdq with r7_mb = d and r7_v = a (rl_gen's c_i and c_j bounds)
+.rl_mdqa
+  LDA c_d
+  STA r7_mb
+  LDA c_d+1
+  STA r7_mb+1
+  LDA c_a
+  STA r7_v0
+  LDA c_a+1
+  STA r7_v1
+  JMP rl_mdq
 
 \ ============================================================================
-\ r7_line: R_LINE for 8-bit end points (0..255), R_LINE's pixels (Bresenham
-\ along the major axis from the left / top end).  Pointer RZ_PP (+ Y = row
-\ AND 7), pixel mask l_m, colour by row AND 7 (r7_lct); X = row; DIRTY[b][row]
-\ extended per pixel; the buffer's row range per line.  r7_line: both ends
-\ inside the window.  r7_linec: otherwise; the pixels before the first one
-\ inside the window are stepped over, and the loops stop at the first one
-\ past it (the pixels inside are one run: x and y are monotonic).
+\ The line loops: Bresenham along the major axis from the left / top end, a
+\ pixel per step.  Pointer RZ_PP (+ Y = row AND 7), pixel mask l_m, colour
+\ by row AND 7 (r7_lct); X = row; DIRTY[b][row] extended per pixel (the
+\ buffer's row range is the caller's).  l_n pixels (0: 256), all inside the
+\ window.
 \ ============================================================================
-
 
 \ r7_lpat: X = buffer: patch R_LINE's DIRTY operands for it
 .r7_lpat
@@ -784,14 +706,6 @@ r_lcnt = r7_ov + 27
   STA lxu_p1+2
   STA lxd_p0+2
   STA lxd_p1+2
-  STA lylc_p0+2
-  STA lylc_p1+2
-  STA lyrc_p0+2
-  STA lyrc_p1+2
-  STA lxuc_p0+2
-  STA lxuc_p1+2
-  STA lxdc_p0+2
-  STA lxdc_p1+2
   STA r7_ps0+2
   STA r7_ps1+2
   LDA r7_ldr,X
@@ -803,57 +717,20 @@ r_lcnt = r7_ov + 27
   STA lxu_p3+2
   STA lxd_p2+2
   STA lxd_p3+2
-  STA lylc_p2+2
-  STA lylc_p3+2
-  STA lyrc_p2+2
-  STA lyrc_p3+2
-  STA lxuc_p2+2
-  STA lxuc_p3+2
-  STA lxdc_p2+2
-  STA lxdc_p3+2
   STA r7_ps2+2
   STA r7_ps3+2
   RTS
 
-.r7_lines                 \ prepared by r7_lc16 (l_x, l_y0, l_e, l_a, l_b, l_n, l_k)
-  LDA #&10
-  BRA r7_lgo
-.r7_linec
-  LDA #8
-  BRA r7_lgo
+\ r7_line: R_LINE with both ends inside the window (8-bit); r7_lgo: a line
+\ prepared by rl_gen (l_x0 = l_x, l_y0, l_e, l_a, l_b, l_n, l_k; the DIRTY
+\ operands patched)
 .r7_line
-  LDA #0
-.r7_lgo
 {
-  STA l_c
   LDX R_PRBUF
   CPX r7_lbuf
   BEQ pd
   JSR r7_lpat
 .pd
-  LDY #6
-.ct
-  LDA R_COLE
-  STA r7_lct,Y
-  LDA R_COLO
-  STA r7_lct+1,Y
-  DEY
-  DEY
-  BPL ct
-  LDA l_c
-  CMP #&10
-  BNE nprep
-  LDA #8                  \ prepared: clipped loops from the given pixel
-  STA l_c
-  LDA R_CR
-  INC A
-  STA r7_cr1
-  LDA R_CB
-  INC A
-  STA r7_cb1
-  LDX l_y0
-  JMP in
-.nprep
   LDA R_X0
   STA l_x0
   LDA R_Y0
@@ -912,13 +789,19 @@ r_lcnt = r7_ov + 27
 .go
   STA l_k
   INC l_n                 \ pixels = steps + 1 (0: 256)
+}
+.r7_lgo
+{
+  LDY #6
+.ct
+  LDA R_COLE
+  STA r7_lct,Y
+  LDA R_COLO
+  STA r7_lct+1,Y
+  DEY
+  DEY
+  BPL ct
   LDX l_y0                \ X = row, l_x = x
-  LDA l_c
-  BEQ in
-  JSR clip                \ clipped: to the first pixel inside (C = 1: none)
-  BCC in
-  RTS
-.in
   LDA l_y0                \ the byte of (l_x, row X): RZ_PP + Y
   LSR A
   LSR A
@@ -939,7 +822,6 @@ r_lcnt = r7_ov + 27
   AND r7_rm,Y
   STA l_m
   LDA l_k
-  ORA l_c
   ASL A
   TAY
   LDA tab,Y
@@ -952,71 +834,7 @@ r_lcnt = r7_ov + 27
 .jp
   JMP &FFFF
 .tab
-  EQUW lyl, lyr, lxu, lxd, 0, 0, 0, 0, lylc, lyrc, lxuc, lxdc
-\ clip: step from pixel 0 (l_x, row X) over the pixels outside the window
-\ (l_n counting down, l_e as the loops); C = 1 if none is inside.  Then
-\ l_y0 = the row.  Bounds for the loops: r7_cr1, r7_cb1.
-.clip
-  LDA R_CR
-  INC A
-  STA r7_cr1
-  LDA R_CB
-  INC A
-  STA r7_cb1
-.cl
-  CPX R_CT                \ inside?
-  BCC out
-  CPX r7_cb1
-  BCS out
-  LDA l_x
-  CMP R_CL
-  BCC out
-  CMP r7_cr1
-  BCS out
-  STX l_y0
-  CLC
-  RTS
-.out
-  DEC l_n
-  BNE step
-  SEC
-  RTS
-.step
-  LDA l_k                 \ major step, then minor if the error carries
-  CMP #2
-  BCS sx
-  INX                     \ y major: y + 1
-  LDA l_e
-  CLC
-  ADC l_a
-  STA l_e
-  BCC cl
-  SBC l_b
-  STA l_e
-  LDA l_k
-  BEQ sxl
-  INC l_x
-  BRA cl
-.sxl
-  DEC l_x
-  BRA cl
-.sx
-  INC l_x                 \ x major: x + 1
-  LDA l_e
-  CLC
-  ADC l_a
-  STA l_e
-  BCC cl
-  SBC l_b
-  STA l_e
-  LDA l_k
-  CMP #3
-  BEQ syd
-  DEX
-  BRA cl
-.syd
-  INX
-  BRA cl
+  EQUW lyl, lyr, lxu, lxd
 .lyl
   LDA (RZ_PP),Y
   EOR r7_lct,Y
@@ -1203,505 +1021,6 @@ r_lcnt = r7_ov + 27
   INC RZ_PP+1
   BRA lxd
 .lxd_d
-  RTS
-.lylc
-  LDA (RZ_PP),Y
-  EOR r7_lct,Y
-  AND l_m
-  EOR (RZ_PP),Y
-  STA (RZ_PP),Y
-  LDA l_x
-.^lylc_p0 CMP R_DIRTYL0,X
-  BCS lylc_1
-.^lylc_p1 STA R_DIRTYL0,X
-.lylc_1
-.^lylc_p2 CMP R_DIRTYR0,X
-  BCC lylc_2
-.^lylc_p3 STA R_DIRTYR0,X
-.lylc_2
-  DEC l_n
-  BEQ lylc_d
-  INX
-  CPX r7_cb1
-  BCS lylc_d
-  INY
-  CPY #8
-  BNE lylc_y
-  LDY #0
-  LDA RZ_PP+1
-  ADC #1
-  STA RZ_PP+1
-.lylc_y
-  LDA l_e
-  CLC
-  ADC l_a
-  STA l_e
-  BCC lylc
-  SBC l_b
-  STA l_e
-  DEC l_x
-  LDA l_x
-  CMP R_CL
-  BCC lylc_d
-  ASL l_m
-  BCC lylc
-  LDA #&11
-  STA l_m
-  LDA RZ_PP
-  SEC
-  SBC #8
-  STA RZ_PP
-  BCS lylc
-  DEC RZ_PP+1
-  BRA lylc
-.lylc_d
-  RTS
-.lyrc
-  LDA (RZ_PP),Y
-  EOR r7_lct,Y
-  AND l_m
-  EOR (RZ_PP),Y
-  STA (RZ_PP),Y
-  LDA l_x
-.^lyrc_p0 CMP R_DIRTYL0,X
-  BCS lyrc_1
-.^lyrc_p1 STA R_DIRTYL0,X
-.lyrc_1
-.^lyrc_p2 CMP R_DIRTYR0,X
-  BCC lyrc_2
-.^lyrc_p3 STA R_DIRTYR0,X
-.lyrc_2
-  DEC l_n
-  BEQ lyrc_d
-  INX
-  CPX r7_cb1
-  BCS lyrc_d
-  INY
-  CPY #8
-  BNE lyrc_y
-  LDY #0
-  LDA RZ_PP+1
-  ADC #1
-  STA RZ_PP+1
-.lyrc_y
-  LDA l_e
-  CLC
-  ADC l_a
-  STA l_e
-  BCC lyrc
-  SBC l_b
-  STA l_e
-  INC l_x
-  LDA l_x
-  CMP r7_cr1
-  BCS lyrc_d
-  LSR l_m
-  BCC lyrc
-  LDA #&88
-  STA l_m
-  LDA RZ_PP
-  ADC #7
-  STA RZ_PP
-  BCC lyrc
-  INC RZ_PP+1
-  BRA lyrc
-.lyrc_d
-  RTS
-.lxuc
-  LDA (RZ_PP),Y
-  EOR r7_lct,Y
-  AND l_m
-  EOR (RZ_PP),Y
-  STA (RZ_PP),Y
-  LDA l_x
-.^lxuc_p0 CMP R_DIRTYL0,X
-  BCS lxuc_1
-.^lxuc_p1 STA R_DIRTYL0,X
-.lxuc_1
-.^lxuc_p2 CMP R_DIRTYR0,X
-  BCC lxuc_2
-.^lxuc_p3 STA R_DIRTYR0,X
-.lxuc_2
-  DEC l_n
-  BEQ lxuc_d
-  LDA l_e
-  CLC
-  ADC l_a
-  STA l_e
-  BCC lxuc_x
-  SBC l_b
-  STA l_e
-  DEX
-  CPX R_CT
-  BCC lxuc_d
-  DEY
-  BPL lxuc_y
-  LDY #7
-  LDA RZ_PP+1
-  SEC
-  SBC #2
-  STA RZ_PP+1
-.lxuc_y
-.lxuc_x
-  INC l_x
-  LDA l_x
-  CMP r7_cr1
-  BCS lxuc_d
-  LSR l_m
-  BCC lxuc
-  LDA #&88
-  STA l_m
-  LDA RZ_PP
-  ADC #7
-  STA RZ_PP
-  BCC lxuc
-  INC RZ_PP+1
-  BRA lxuc
-.lxuc_d
-  RTS
-.lxdc
-  LDA (RZ_PP),Y
-  EOR r7_lct,Y
-  AND l_m
-  EOR (RZ_PP),Y
-  STA (RZ_PP),Y
-  LDA l_x
-.^lxdc_p0 CMP R_DIRTYL0,X
-  BCS lxdc_1
-.^lxdc_p1 STA R_DIRTYL0,X
-.lxdc_1
-.^lxdc_p2 CMP R_DIRTYR0,X
-  BCC lxdc_2
-.^lxdc_p3 STA R_DIRTYR0,X
-.lxdc_2
-  DEC l_n
-  BEQ lxdc_d
-  LDA l_e
-  CLC
-  ADC l_a
-  STA l_e
-  BCC lxdc_x
-  SBC l_b
-  STA l_e
-  INX
-  CPX r7_cb1
-  BCS lxdc_d
-  INY
-  CPY #8
-  BNE lxdc_y
-  LDY #0
-  LDA RZ_PP+1
-  ADC #1
-  STA RZ_PP+1
-.lxdc_y
-.lxdc_x
-  INC l_x
-  LDA l_x
-  CMP r7_cr1
-  BCS lxdc_d
-  LSR l_m
-  BCC lxdc
-  LDA #&88
-  STA l_m
-  LDA RZ_PP
-  ADC #7
-  STA RZ_PP
-  BCC lxdc
-  INC RZ_PP+1
-  BRA lxdc
-.lxdc_d
-  RTS
-}
-
-
-\ ----------------------------------------------------------------------------
-\ r7_lc16: R_LINE with 16-bit end points and both |dx|, |dy| <= 255: the
-\ first pixel inside the window found exactly (pixel i along the major axis
-\ from the left / top end has minor offset s * floor((i * a + h) / d), h =
-\ d DIV 2), then bank 7's clipped loops from there (r7_lines: they stop at
-\ the first pixel past the window).  A <> 0: not handled (the general path), else A = 0.
-\ ----------------------------------------------------------------------------
-.r7_lc16
-{
-  SEC                     \ dx -> T0,T1; dy -> T2,T3
-  LDA R_X1
-  SBC R_X0
-  STA RZ_T0
-  LDA R_X1+1
-  SBC R_X0+1
-  STA RZ_T1
-  SEC
-  LDA R_Y1
-  SBC R_Y0
-  STA RZ_T2
-  LDA R_Y1+1
-  SBC R_Y0+1
-  STA RZ_T3
-  LDX #0                  \ |dx| -> T4, |dy| -> T5 (both must be < 256)
-  JSR r7_cab
-  BCS no
-  STA RZ_T4
-  LDX #2
-  JSR r7_cab
-  BCS no
-  STA RZ_T5
-  CMP RZ_T4
-  BCC xm
-  BEQ xm
-  LDA RZ_T3               \ y major: from the top end
-  BPL y1
-  JSR r7_cswap
-.y1
-  LDA R_Y0
-  STA c_m0
-  LDA R_Y0+1
-  STA c_m0+1
-  LDA R_X0
-  STA c_n0
-  LDA R_X0+1
-  STA c_n0+1
-  LDA RZ_T5
-  STA c_d
-  LDA RZ_T4
-  STA c_a
-  LDA RZ_T1               \ minor sign: dx's
-  STA c_s
-  ROL A                   \ kind 0: x decreases, 1: increases
-  LDA #0
-  ROL A
-  EOR #1
-  STA c_k
-  LDA R_CT
-  STA c_lo
-  LDA R_CB
-  STA c_hi
-  LDA R_CL
-  STA c_nl
-  LDA R_CR
-  STA c_nh
-  BRA go
-.no
-  LDA #1
-  RTS
-
-.xm
-  LDA RZ_T1               \ x major: from the left end
-  BPL x1
-  JSR r7_cswap
-.x1
-  LDA R_X0
-  STA c_m0
-  LDA R_X0+1
-  STA c_m0+1
-  LDA R_Y0
-  STA c_n0
-  LDA R_Y0+1
-  STA c_n0+1
-  LDA RZ_T4
-  STA c_d
-  LDA RZ_T5
-  STA c_a
-  LDA RZ_T3               \ minor sign: dy's
-  STA c_s
-  ROL A                   \ kind 2: y decreases, 3: increases
-  LDA #0
-  ROL A
-  EOR #3
-  STA c_k
-  LDA R_CL
-  STA c_lo
-  LDA R_CR
-  STA c_hi
-  LDA R_CT
-  STA c_nl
-  LDA R_CB
-  STA c_nh
-.go
-  \ i = max(0, lo - m0)
-  SEC
-  LDA c_lo
-  SBC c_m0
-  STA c_i
-  LDA #0
-  SBC c_m0+1
-  STA c_i+1
-  BPL g1
-  STZ c_i
-  STZ c_i+1
-.g1
-  \ the minor bound it must reach: k = nl - n0 (increasing) / n0 - nh
-  BIT c_s
-  BMI dec
-  SEC
-  LDA c_nl
-  SBC c_n0
-  STA c_t
-  LDA #0
-  SBC c_n0+1
-  STA c_t+1
-  BRA kk
-.dec
-  SEC
-  LDA c_n0
-  SBC c_nh
-  STA c_t
-  LDA c_n0+1
-  SBC #0
-  STA c_t+1
-.kk
-  LDA c_t+1               \ k <= 0: from the start
-  BMI k0
-  ORA c_t
-  BEQ k0
-  LDA c_t+1               \ k > a: never
-  BEQ P%+5
-  JMP none
-  LDA c_a
-  CMP c_t
-  BCS P%+5
-  JMP none
-  LDA c_t                 \ i >= ceil((k * d - h) / a) = (k*d - h + a - 1) DIV a
-  LDX c_d
-  JSR r7_cmul
-  LDA c_d
-  LSR A
-  STA c_t
-  SEC
-  LDA c_m0w
-  SBC c_t
-  STA c_m0w
-  LDA c_m0w+1
-  SBC #0
-  STA c_m0w+1
-  LDA c_a
-  CLC
-  SBC #0                  \ (a - 1)
-  CLC
-  ADC c_m0w
-  STA c_m0w
-  BCC k1
-  INC c_m0w+1
-.k1
-  LDA c_a
-  JSR r7_cdiv
-  LDA c_m0w+1             \ i = max(i, that)
-  CMP c_i+1
-  BCC k0
-  BNE k2
-  LDA c_m0w
-  CMP c_i
-  BCC k0
-.k2
-  LDA c_m0w
-  STA c_i
-  LDA c_m0w+1
-  STA c_i+1
-.k0
-  LDA c_i+1               \ i <= d?
-  BEQ P%+5
-  JMP none
-  LDA c_d
-  CMP c_i
-  BCS P%+5
-  JMP none
-  \ q, r = (h + i * a) DIV / MOD d
-  LDA c_i
-  LDX c_a
-  JSR r7_cmul
-  LDA c_d
-  LSR A
-  CLC
-  ADC c_m0w
-  STA c_m0w
-  BCC q1
-  INC c_m0w+1
-.q1
-  LDA c_d
-  BNE q2
-  STZ c_m0w               \ (d = 0: one pixel)
-  STZ c_m0w+1
-  STZ c_r
-  BRA q3
-.q2
-  JSR r7_cdiv
-.q3
-  \ start: major m0 + i, minor n0 +/- q: inside the window?
-  CLC
-  LDA c_m0
-  ADC c_i
-  STA c_t
-  LDA c_m0+1
-  ADC #0
-  BEQ P%+5
-  JMP none
-  LDA c_t
-  CMP c_lo
-  BCS P%+5
-  JMP none
-  CMP c_hi
-  BEQ s1
-  BCC P%+5
-  JMP none
-.s1
-  BIT c_s
-  BMI sd
-  CLC
-  LDA c_n0
-  ADC c_m0w
-  STA c_t+1
-  LDA c_n0+1
-  ADC c_m0w+1
-  BRA s2
-.none
-  LDA #0                  \ (nothing inside the window: done)
-  RTS
-.sd
-  SEC
-  LDA c_n0
-  SBC c_m0w
-  STA c_t+1
-  LDA c_n0+1
-  SBC c_m0w+1
-.s2
-  BEQ P%+5
-  JMP none
-  LDA c_t+1
-  CMP c_nl
-  BCS P%+5
-  JMP none
-  CMP c_nh
-  BEQ s3
-  BCC P%+5
-  JMP none
-.s3
-  \ hand over: x, y, e = r - d, a, b = d, n = d - i + 1, kind
-  LDX c_k
-  CPX #2
-  BCS sx
-  STA l_x                 \ y major: minor = x
-  LDA c_t
-  STA l_y0
-  BRA s4
-.sx
-  STA l_y0
-  LDA c_t
-  STA l_x
-.s4
-  LDA c_r
-  SEC
-  SBC c_d
-  STA l_e
-  LDA c_a
-  STA l_a
-  LDA c_d
-  STA l_b
-  SEC
-  SBC c_i
-  INC A
-  STA l_n
-  STX l_k
-  JSR r7_lines
-  LDA #0
   RTS
 }
 

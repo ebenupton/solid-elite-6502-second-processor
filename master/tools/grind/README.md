@@ -123,7 +123,7 @@ loads it.
 
 * Routines whose summary is unknown (stack games: SQUA, MULTU, the H_ hooks' `PLA:PLA`,
   LL120/LL123, CLIP, tnpr, DETOK2/3, TT151; TXS/TSX: FRCE, TT170, DEATH2, SVE/LOD/DELT;
-  unresolved exits: rj/r7_lines's patched `JMP`, f_plrows/f_sunrows/f_seg16's patched
+  unresolved exits: rj/r7_lgo's patched `JMP`, f_plrows/f_sunrows/f_seg16's patched
   opcodes, fjmp's `JMP (ft)`) make every caller assume they read and clobber everything;
   summary.md lists them.
 * Unresolved exits: `JMP (ft)` in fjmp/fpj (their callers are resolved), `JMP
