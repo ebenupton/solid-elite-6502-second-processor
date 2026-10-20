@@ -164,9 +164,8 @@
 \
 \ ******************************************************************************
 
-.HLOIN22
-
- JMP HLOIN3             \ This instruction doesn't appear to be used anywhere
+                        \ Port: HLOIN22 (JMP HLOIN3) removed (unreachable: "This
+                        \ instruction doesn't appear to be used anywhere")
 
                         \ In the BBC Micro cassette and disc versions of Elite,
                         \ LL30 and LOIN are synonyms for the same routine,
@@ -5119,51 +5118,11 @@ INCLUDE "src/elite-dash.asm"    \ Port: the MODE 1 CMYK dashboard
 \.LL28                  \ These instructions are commented out in the original
 \CMP Q                  \ source
 
- BCS LL2                \ If the subtraction fitted into one byte and didn't
-                        \ underflow, then log(A) - log(Q) < 256, so we jump to
-                        \ LL2 to return a result of 255
-
- LDX #254               \ Otherwise set the result in R to 254
- STX R
-
-.LL31
-
- ASL A                  \ Shift A to the left
-
- BCS LL29               \ If bit 7 of A was set, then jump straight to the
-                        \ subtraction
-
- CMP Q                  \ If A < Q, skip the following subtraction
- BCC P%+4
-
- SBC Q                  \ A >= Q, so set A = A - Q
-
- ROL R                  \ Rotate the counter in R to the left, and catch the
-                        \ result bit into bit 0 (which will be a 0 if we didn't
-                        \ do the subtraction, or 1 if we did)
-
- BCS LL31               \ If we still have set bits in R, loop back to LL31 to
-                        \ do the next iteration of 7
-
- RTS                    \ R left with remainder of division
-
-.LL29
-
- SBC Q                  \ A >= Q, so set A = A - Q
-
- SEC                    \ Set the C flag to rotate into the result in R
-
- ROL R                  \ Rotate the counter in R to the left, and catch the
-                        \ result bit into bit 0 (which will be a 0 if we didn't
-                        \ do the subtraction, or 1 if we did)
-
- BCS LL31               \ If we still have set bits in R, loop back to LL31 to
-                        \ do the next iteration of 7
-
- LDA R                  \ Set A to the remainder in R
-
- RTS                    \ Return from the subroutine with R containing the
-                        \ remainder of the division
+                        \ Port: removed (unreachable in SNG47 too): the old
+                        \ shift-and-subtract division left after LLfix's RTS,
+                        \ BCS LL2 : LDX #254 : STX R, LL31 and LL29 (the "other
+                        \ entry point" LL31 above is only ever inlined, as in
+                        \ DVID3B2's LL31 copy, never called)
 
 .LL2
 

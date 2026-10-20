@@ -21120,8 +21120,8 @@ ENDMACRO
  JMP BOOP               \ Call the BOOP routine to make a long, low beep, and
                         \ return from the subroutine using a tail call
 
- RTS                    \ This instruction has no effect as we already returned
-                        \ from the subroutine
+                        \ Port: the RTS that followed is removed (unreachable:
+                        \ "This instruction has no effect")
 
 \ ******************************************************************************
 \
