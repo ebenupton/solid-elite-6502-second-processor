@@ -289,7 +289,7 @@ export class EliteMachine {
             // active at the last BRK" (&24A); a DFS error (bank 9 up) is expected, a
             // BRK in Elite's banks (4-7) or main RAM is not
             const paged = brkAt >= 0x8000 && brkAt < 0xc000, bank = this.rb(0x24a) & 15;
-            const byte = a => paged ? physRead(cpu, bank, a) : this.rb(a);
+            const byte = a => paged ? physRead(cpu, bank, a) : brkAt >= 0xe000 ? cpu.ramRomOs[cpu.osOffset + (a & 0x3fff)] : this.rb(a);
             let msg = ""; for (let i = 1; i < 40; i++) { const ch = byte((ep + i) & 0xffff); if (!ch) break; msg += ch >= 32 && ch < 127 ? String.fromCharCode(ch) : "."; }
             const code = byte(ep);
             // (DFS builds some of its errors, "Not found" among them, on the stack page and
