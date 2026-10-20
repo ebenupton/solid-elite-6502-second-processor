@@ -3,7 +3,7 @@
 // time, then one table of what they covered and every finding, grouped.
 //
 // node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|quick]
-//      [--only name,name] [--scale 1.0] [--summarise]
+//      [--only name,name] [--scale 1.0] [--summarise] [--workaround look1]
 // Each session runs as agentplay.mjs in DIR/<name>/; a session already finished there
 // (summary.json) is not run again, so a campaign can be resumed. --scale multiplies every
 // session's length. --summarise only rewrites the summary (DIR/campaign.json, DIR/campaign.md).
@@ -18,8 +18,10 @@ const OUT = a.out, JOBS = +(a.jobs || 3), SCALE = +(a.scale || 1);
 const HERE = decodeURIComponent(new URL(".", import.meta.url).pathname);
 mkdirSync(OUT, { recursive: true });
 
-// name, minutes, then agentplay options. W: play on past the LOOK1 bug (--workaround look1)
-const W = ["--workaround", "look1"];
+// name, minutes, then agentplay options. W: a workaround only when asked for (--workaround
+// look1 played on past the LOOK1 bug, fixed in be18285); off by default, so a regression
+// shows rather than being masked
+const W = a.workaround && a.workaround !== true ? ["--workaround", a.workaround] : [];
 const PLANS = {
     default: [
         // elite-agent's own modes, from Jameson
