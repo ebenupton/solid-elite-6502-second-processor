@@ -99,12 +99,13 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .fl_xb  SKIP 1          \ ACCCON X while writing: 4 = clear it (buffer 0)
 .WS_HI_END
 ASSERT P% <= &1F00
-ORG &1F00
+ORG &0840               \ (the MOS's sound, printer, RS423, cassette and speech
+                        \ buffers, and &0B00-&0CFF, which the Master does not use,
+                        \ docs/MASTER-MEMORY.md)
 .WS_LO
-INCLUDE "src/gfx-raster_scr.asm"
-ASSERT LO(R_NDISCL) = 0
 .R_NDN      SKIP 192        \ (raster_vars.asm: boundaries per disc row, 0..4)
-.R_WL       SKIP 192        \ this frame's written extents (empty: R=0)
+INCLUDE "src/gfx-raster_scr.asm"
+ASSERT R_NDISCL = &0900
 .DFSST  SKIP 128        \ DFS's and the MOS's lasting bytes in HAZEL, &C2C0-&C2FF
                         \ and &DFC0-&DFFF (the MOS's FSCV copy at &DFDA-&DFDB, the
                         \ ACCCON its error path puts back at &DFDC-&DFDD), while
@@ -112,9 +113,13 @@ ASSERT LO(R_NDISCL) = 0
                         \ command (DOSCLI; the loader takes them first)
 .DFSIN  SKIP 1          \ bit 7: a disc command is under way (DOSCLI, DOSNMI)
 ASSERT DFSIN = DFSST + 128      \ (the loader clears it)
+ASSERT P% <= &0C40
+ORG &0C40
+.R_WL       SKIP 192        \ this frame's written extents (empty: R=0)
+ASSERT P% <= &0D00      \ (page &0D is off limits, docs/MASTER-MEMORY.md)
 .WS_END
-PRINT "Shared workspace: &1300-", ~WS_END-1, " free to the main code ", CODE%-WS_END
-ASSERT WS_END <= CODE%
+PRINT "Shared workspace: &0840-", ~WS_END-1, " (free ", &0C40-DFSIN-1, "), &1300-", ~WS_HI_END-1, " (free to the main code ", CODE%-WS_HI_END, ")"
+ASSERT WS_HI_END <= CODE%
 
 CLEAR &8000, &C000
 ORG &8000

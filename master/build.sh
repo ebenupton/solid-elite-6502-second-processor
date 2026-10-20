@@ -5,7 +5,7 @@
 #   build/M128Elt.bin (loader), build/README.txt,
 #   build/BANK4.bin (Elite's home bank: the data and bank 4 code),
 #   build/ANDY.bin, build/COLD7.bin (the cold area: ANDY, bank 7 from COLD7LO),
-#   build/LOWCODE.bin, HICODE.bin (main RAM &0840-&0CFF, &7200-&7FFF),
+#   build/HICODE.bin (main RAM &7200-&7FFF),
 #   build/TOKENS.bin (shadow &3100),
 #   build/symbols.txt (beebasm -d symbol dump of elite-source.asm; zero page,
 #   workspaces, main code and banked code), build/banks.txt (the banked
@@ -83,7 +83,7 @@ with open("build/banks.txt", "w") as f:
     sy = {}
     for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
         sy.setdefault(m.group(1), int(m.group(2)))
-    for src in ("src/elite-source.asm", "src/elite-low.asm", "src/elite-flight.asm"):
+    for src in ("src/elite-source.asm", "src/elite-flight.asm"):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             if 0x8000 <= sy.get(m.group(1), 0) < 0xC000:
                 f.write("%s 4\n" % m.group(1))
@@ -108,7 +108,6 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" B5LEN = &%04X\n B6LEN = &%04X\n R7LEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["R7_END"] - 0x8000))
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" COLD7LO = &%04X\n" % sy["COLD7_START%"])
-    f.write(" LOWLEN = &%04X\n" % (sy["LOW_END%"] - 0x0840))
     f.write(" HILEN = &%04X\n" % (sy["HI_END%"] - 0x7200))
     # the lens flare's shadow RAM blocks (gfx-flare.asm)
     f.write(" FL7LEN = &%04X\n FL3LEN = &%04X\n FL0LEN = &%04X\n" % (sy["SH7_END"] - 0x7E00, sy["SH3_END"] - 0x3F00, sy["SH0_END"] - 0x3000))

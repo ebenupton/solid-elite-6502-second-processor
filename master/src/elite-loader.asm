@@ -543,26 +543,7 @@ ENDIF
  DEY
  BNE HZC
 
- ASSERT LOWLEN <= &0D00 - &0840 \ (never into page &0D)
- ASSERT HZLEN <= &2000 AND LO(HZ_START) = 0  \ (HAZEL's staging copy at &4000
-                        \ must not reach the low code's at &6000)
-
-.LWC                    \ Port: and the low code from &6000 to &0840, exactly
-                        \ LOWLEN bytes (page &0D is off limits)
- LDA &6000              \ (both addresses patched as the copy goes)
- STA &0840
- INC LWC+1
- BNE P%+5
- INC LWC+2
- INC LWC+4
- BNE P%+5
- INC LWC+5
- LDA LWC+4
- CMP #LO(&0840+LOWLEN)
- BNE LWC
- LDA LWC+5
- CMP #HI(&0840+LOWLEN)
- BNE LWC
+ ASSERT HZLEN <= &2000 AND LO(HZ_START) = 0  \ (HAZEL's staging copy at &4000)
 
                         \ Port: make the 1770 quiet and replace the DFS's NMI
                         \ handler at &0D00 with a minimal one (from the demo
@@ -834,10 +815,6 @@ ENDIF
  EQUB HOMEBANK, %00001001 \ main RAM too (&7000-&71FF), for a late split
  EQUW &7000, &0200
 
- EQUW MESS13            \ LOWCODE: game code for main RAM &0840-&0CFF, staged
- EQUB HOMEBANK, %00001001 \ at &6000 and copied into place with HAZEL (LDEND)
- EQUW &6000, LOWLEN
-
  EQUW 0
 
 \ ******************************************************************************
@@ -944,11 +921,6 @@ ENDIF
 .MESS12
 
  EQUS "L.HAZEL FFFF1300"    \ Port: *LOAD HAZEL FFFF1300
- EQUB 13
-
-.MESS13
-
- EQUS "L.LOWCODE FFFF1300"  \ Port: *LOAD LOWCODE FFFF1300
  EQUB 13
 
 .MESS14

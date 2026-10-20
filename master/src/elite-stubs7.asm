@@ -196,3 +196,14 @@
  JSR far7
  EQUW Ze_C
 
+.FRMIS                  \ (FRS1, FRMIS, ANGRY and FR1 are in the cold area:
+ JSR far7               \ elite-cold7.asm, ANGRY in elite-andy.asm)
+ EQUW FRMIS_C
+
+.ANGRY
+ JSR far7
+ EQUW ANGRY_C
+
+.fq1
+ JSR far7
+ EQUW fq1_C
