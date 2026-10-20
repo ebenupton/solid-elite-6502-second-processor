@@ -178,7 +178,7 @@ export class EliteMachine {
         for (const k of [...new Set(keys)].filter(k => k >= 16 && k < 128).sort((a, b) => a - b)) {
             ram[sy.KL] = k;
             for (;;) {
-                const ik = this.rb(sy.IKNS + x);
+                const ik = physRead(this.cpu, mapOfLabel(sy, "IKNS"), sy.IKNS + x);     // (IKNS may be in bank 4)
                 if (k < ik) break;
                 if (k === ik) { ram[sy.KY17 + x] = (this.rb(sy.KY17 + x) - 1) & 255; x++; break; }
                 x++;
@@ -230,7 +230,8 @@ export class EliteMachine {
             for (let i = 0; i < 3; i++) this.ram[sy.SOPR + i] = 0;
         } else if (this._at(H.LL5, pc)) {
             const ret = (this.rb(0x101 + cpu.s) | this.rb(0x102 + cpu.s) << 8) + 1;
-            if (this.rb(ret) === 0xa5 && this.rb(ret + 1) === sy.Q && this.rb(ret + 2) === 0x8d && (this.rb(ret + 3) | this.rb(ret + 4) << 8) === sy.ALTIT)
+            const rc = a => cpu.readmem(a & 0xffff);     // (the caller's code, as paged: it may be in bank 4)
+            if (rc(ret) === 0xa5 && rc(ret + 1) === sy.Q && rc(ret + 2) === 0x8d && (rc(ret + 3) | rc(ret + 4) << 8) === sy.ALTIT)
                 this.ram[sy.Q] = 0;
         } else if (this._at(H.MLOOP, pc) && this.started) {
             // harness pokes (styles.mjs chaos), at an iteration boundary in both machines

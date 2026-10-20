@@ -4,8 +4,7 @@
 #
 # Areas: "main" (elite-source.asm and the files it INCLUDEs in main RAM:
 # elite-far.asm, elite-stubs7.asm; their labels assembled at &8000-&BFFF, where
-# the main code continues, are in bank 4), "bank4" (elite-bank4.asm, and the game data that
-# build/data-addresses.asm marks bank4), "cold" (elite-andy.asm,
+# the main code continues, are in bank 4), "bank4" (elite-bank4.asm), "cold" (elite-andy.asm,
 # elite-coldstubs.asm, elite-cold7.asm: ROMSEL &87, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
 #
@@ -13,7 +12,8 @@
 # another:
 #  * branches never cross areas;
 #  * cold code reaches main or bank 4 code only through stubs (x4_name,
-#    j4_name: JSR far4 / far4j : EQUW name), and never reads bank 4 data;
+#    j4_name: JSR far4 / far4j : EQUW name), and never reads bank 4 data
+#    (it may take an address: #LO/#HI);
 #  * main and bank 4 code reach cold code only through stubs (JSR far7 /
 #    far7j : EQUW name_C), and never read cold data;
 #  * data in shadow RAM ("shadow": the extended tokens) is only read with
@@ -29,12 +29,15 @@
 #    reads no other bank's data (the flare's code runs with bank 6 paged), and
 #    reads main RAM data only below &3000 (the frame layer may run with ACCCON
 #    X set, which hides main RAM above);
-#  * HAZEL ("hazel": the renderer's glue and state) is visible to every area.
+#  * "hazel" is visible to every area: HAZEL (the game data that
+#    build/data-addresses.asm marks hazel, the renderer's glue) and the
+#    renderer's shared workspace in main RAM below &3000 (elite-gfx.asm,
+#    gfx-raster_scr.asm, gfx-raster_vars.asm).
 # Exit status 1 if any rule is broken.
 import re, sys
 
 SRC = "src/"
-FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-low.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main", "elite-hazel.asm": "main",
+FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "elite-low.asm": "main", "elite-flight.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
          "elite-bank4.asm": "bank4", "elite-dash.asm": "bank4",
          "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold", "elite-cold7.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
@@ -166,6 +169,8 @@ for f, a in FILES.items():
                     continue
                 errors.append("%s: %s refers to %s label %s (use a stub)" % (where, a, b, x))
             elif a == "cold":
+                if op.strip().startswith("#"):
+                    continue               # (an address, not a read)
                 if b in ("bank4", "cold"):
                     errors.append("%s: %s code refers to %s label %s" % (where, a, b, x))
                 elif mn in ("JSR", "JMP"):

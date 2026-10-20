@@ -1,22 +1,23 @@
 \ ******************************************************************************
 \
-\ elite-gfx.asm - the filled renderer's memory: HAZEL, banks 5 and 6, bank 7
-\ below the cold area (docs/MASTER-MAP.md)
+\ elite-gfx.asm - the filled renderer's memory: its shared workspace in main
+\ RAM, its glue in HAZEL, banks 5 and 6, bank 7 below the cold area
+\ (docs/MASTER-MAP.md)
 \
 \ INCLUDEd at the end of elite-source.asm (after the game's code, so that the
 \ layer can use Elite's symbols). From the Demonstration Disc port (tag
-\ demo-final, src/gfx-build.asm), with the HAZEL layout changed for disc
-\ access (docs/MASTER-MEMORY.md): DFS overwrites &C000-&C2FF, &DC00 up to
-\ the end of an OSCLI command and &DF00-&DFFF, and writes its own and
-\ ADFS's private pages &D900-&DAFF. So &C000-&C2FF holds only the
-\ rasteriser's scratch variables (no call reads what an earlier one left
-\ there; DOSCLI puts DFS's lasting bytes &C2C0-&C2FF back for each disc
-\ command), the code and the lasting state are at &C300-&D8FF, and
-\ &DC40-&DFFF holds only state rebuilt on re-entering flight. Produces:
+\ demo-final, src/gfx-build.asm), with the memory laid out for the full
+\ game. The state that more than one bank, the IRQ handler or code running
+\ with ACCCON X set reads is in main RAM below &3000 (the shared workspace,
+\ below the main code), which every bank sees whatever ACCCON X is. HAZEL
+\ holds the game data (the ship blueprints, elite-data.asm) and the glue
+\ (the cross-bank stubs and hooks, the shared variables with initial
+\ values), at &C300 on, which disc commands leave alone: the IRQ and text
+\ hooks run during them (DOSCLI stashes the rest of HAZEL in screen buffer
+\ 0 for the command, docs/MASTER-MEMORY.md). Produces:
 \
-\   build/HAZEL.bin  HAZEL &C300 to the end of the code (and the variables
-\                    with initial values), which the loader copies into place
-\                    after its last disc access
+\   build/HAZEL.bin  HAZEL &C000-&DFFF: the game data and the glue, which the
+\                    loader copies into place after its last disc access
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser (gfx-raster.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (gfx-frame.asm),
 \                    the ship faces and colours (gfx-faces.asm) and its state
@@ -33,103 +34,87 @@ RASTBANK = 5
 GFXBANK = 6
 ELITEBANK = HOMEBANK
 
+\ HAZEL: the Cougar's and the Dodo's blueprints, SNE and ACT (elite-data.asm),
+\ the glue at &C300 (the shared variables with initial values, the T_
+\ trampolines, the text and IRQ hooks), then XX21 and the other blueprints to
+\ the end of HAZEL (elite-data.asm, "Blueprints in HAZEL" in
+\ docs/MASTER-PLAN.md). The rasteriser's bank 5 <-> 7 stubs (gfx-raster_hz.asm)
+\ are in the main code below &3000, for want of room here
+
 CLEAR &C000, &E000
 ORG &C000
-
-INCLUDE "src/gfx-raster_scr.asm"
-.HZ_SCR_END
-ASSERT HZ_SCR_END <= &C300      \ (DFS's &C2C0-&C2FF: stashed in DFSST)
-
-ORG &C300
 .HZ_START
+INCBIN "build/HZDATA1.bin"
+ORG &C300
+.HZ_GLUE
 INCLUDE "src/gfx-gvars.asm"
 INCLUDE "src/gfx-tramp.asm"
 INCLUDE "src/gfx-hzhooks.asm"   \ (the other hooks are in main RAM, elite-hi.asm)
-INCLUDE "src/gfx-raster_hz.asm" \ the rasteriser's cross-bank stubs (bank 5 <-> 7)
-INCLUDE "src/elite-hazel.asm"   \ game code in HAZEL
 .GWARP   EQUB 0         \ bit 7: TT66 is an in-system jump's (WARP sets it,
                         \ F_DIRECT clears it)
-.HZ_CODE_END
+.HZ_GLUE_END
+PRINT "HAZEL: game data &C000-", ~HZDATA1END%-1, ", glue &C300-", ~HZ_GLUE_END-1, " (", XX21-HZ_GLUE_END, " free), game data ", ~XX21, "-&DFFF"
+ASSERT HZ_GLUE_END <= XX21
+ASSERT HZDATA1END% <= &C300
+ORG XX21
+INCBIN "build/HZDATA2.bin"
+.HZ_END
+ASSERT HZ_END = &E000
+SAVE "build/HAZEL.bin", HZ_START, HZ_END, HZ_START
 
-\ raster_vars at a fixed place, whatever the size of the code above: the
-\ rows of the laser sights' scan in R_DIRTYR0/1 must not cross a page
-\ (gfx-frame.asm's f_sight2 asserts it), and the code is free to grow up
-\ to here
+NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
+
+\ The shared workspace: the state that the rasteriser's two banks, the frame
+\ layer, the game's hooks, the IRQ handler and the lens flare (which runs
+\ with ACCCON X set) share, in main RAM below the main code (CODE%) and below
+\ &3000, where all of them see it. Variables only (the renderer initialises
+\ them: R_INIT, F_INIT), except DFSST, which the loader fills. The arrays
+\ keep their low bytes from HAZEL, where their page crossings were measured:
+\ raster_vars at a fixed place (the rows of the laser sights' scan in
+\ R_DIRTYR0/1 must not cross a page, gfx-frame.asm's f_sight2), R_NDISCL page
+\ aligned (gfx-raster_scr.asm)
+
+ORG &1300               \ (from here to WS_END: test_raster.py assembles it too)
+.WS_START
+.R_SS       SKIP 24         \ star size 1..3 (raster_vars.asm: the stars)
+.F_DSS      SKIP NDSTAR     \ the directly drawn stars' sizes (0 = none; see
+                            \ F_DSX): cleared with R_SS (F_INIT, f_direct0)
+ASSERT F_DSS = R_SS + 24
 RVOFF = &182            \ R_DIRTYR0's offset in raster_vars (asserted below)
-RVBASE = &C8B5 - RVOFF
+RVBASE = &14B5 - RVOFF
 ASSERT P% <= RVBASE
 SKIP RVBASE - P%
 INCLUDE "src/gfx-raster_vars.asm"
 ASSERT R_DIRTYR0 = RVBASE + RVOFF
-\ The CMYK dashboard's scalar variables (elite-dash.asm; the dashboard
-\ routines run with ACCCON X set, so not main RAM above &3000)
-.DASHV
-.dpE    SKIP 1          \ the current colour pair (even, odd lines)
-.dpO    SKIP 1
-.dmk    SKIP 1          \ the current byte mask
-.dlo    SKIP 1          \ DSEG: byte range [dlo, dhi) of the indicator
-.dhi    SKIP 1
-.dsS    SKIP 1          \ DSEG: the segment [dsS, dsE) in pixels
-.dsE    SKIP 1
-.dl0    SKIP 1          \ DSEG: the first line and the number of lines
-.dln    SKIP 1
-.dcol   SKIP 1          \ DIL: the colour number
-.dtmp   SKIP 1
-.ddn    SKIP 1          \ ddot: lines to go
-.deq    SKIP 1          \ DSEG: the segment's end byte, pixels in it
-.der    SKIP 1
-.dsq    SKIP 1          \ DSEG: the segment's start byte, pixels from it on
-.dsr    SKIP 1
-.dme    SKIP 1          \ DSEG: the masked even-line byte, even EOR odd
-.dmx    SKIP 1
-.dsx    SKIP 1
-.dtv    SKIP 1
-.dK     SKIP 1          \ DIL: colour numbers for values >= dT and < dT
-.dK1    SKIP 1
-.dT     SKIP 1          \ DIL: the colour threshold (pixels)
-.dbank  SKIP 4 \ the energy banks' bar lengths (32 per bank)
-.dX1    SKIP 1          \ the dot's x-coordinate (SCAN, DOT)
-.dlen   SKIP 1          \ SCAN: the stick's length (signed)
-.dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
-NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
+.R_SX       SKIP 24         \ (raster_vars.asm: the stars)
+.R_SY       SKIP 24
+.R_WR       SKIP 192        \ (raster_vars.asm)
+.R_SN       SKIP 1          \ star count 0..24
+.R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
 .fl_ml  SKIP 2          \ the lens flare (gfx-flare.asm): 32 D (x, y), low
 .fl_mh  SKIP 2          \ and high bytes
 .fl_sl  SKIP 2          \ the centres' sums S (x, y)
 .fl_sh  SKIP 2
 .fl_lev SKIP 1          \ the level, 1..3
 .fl_xb  SKIP 1          \ ACCCON X while writing: 4 = clear it (buffer 0)
-.DFSST  SKIP 66         \ DFS's and the MOS's lasting bytes in HAZEL, &C2C0-&C2FF
-                        \ and &DFDA-&DFDB, while the game uses those places: put
-                        \ back for each disc command (DOSCLI; the loader takes
-                        \ them first)
+.WS_HI_END
+ASSERT P% <= &1F00
+ORG &1F00
+.WS_LO
+INCLUDE "src/gfx-raster_scr.asm"
+ASSERT LO(R_NDISCL) = 0
+.R_NDN      SKIP 192        \ (raster_vars.asm: boundaries per disc row, 0..4)
+.R_WL       SKIP 192        \ this frame's written extents (empty: R=0)
+.DFSST  SKIP 128        \ DFS's and the MOS's lasting bytes in HAZEL, &C2C0-&C2FF
+                        \ and &DFC0-&DFFF (the MOS's FSCV copy at &DFDA-&DFDB, the
+                        \ ACCCON its error path puts back at &DFDC-&DFDD), while
+                        \ the game uses those places: put back for each disc
+                        \ command (DOSCLI; the loader takes them first)
 .DFSIN  SKIP 1          \ bit 7: a disc command is under way (DOSCLI, DOSNMI)
-ASSERT DFSIN = DFSST + 66       \ (the loader clears it)
-.HZ_END
-PRINT "HAZEL: scratch &C000-", ~HZ_SCR_END-1, ", code ", ~HZ_START, "-", ~HZ_CODE_END-1, " (", RVBASE-HZ_CODE_END, " free), data ", ~RVBASE, "-", ~HZ_END-1, " (", &D900-HZ_END, " free to &D900)"
-ASSERT HZ_END <= &D900          \ (&D900-&DAFF: the ADFS and DFS private pages,
-                                \ written by disc commands)
-
-
-ORG &DC40                       \ (after the longest OSCLI command the game
-                                \ issues, see SVE and friends)
-.R_NDN    SKIP 192       \ (raster_vars.asm: boundaries per disc row, 0..4)
-.R_WL    SKIP 192       \ this frame's written extents (empty: R=0)
-\ (raster_vars.asm: the stars, R_SS after R_WR)
-.R_SN       SKIP 1          \ star count 0..24
-.R_SX       SKIP 24
-.R_SY       SKIP 24
-.R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
-.R_WR    SKIP 192       \ (raster_vars.asm)
-.R_SS       SKIP 24         \ star size 1..3
-.F_DSS      SKIP NDSTAR     \ the directly drawn stars' sizes (0 = none; see
-                            \ F_DSX): cleared with R_SS (F_INIT, f_direct0)
-ASSERT F_DSS = R_SS + 24
-.HZ_END2
-PRINT "HAZEL: data &DC40-", ~HZ_END2-1, " free to &E000 ", &E000-HZ_END2
-ASSERT HZ_END2 <= &E000         \ (&DF00-&DFFF: the MOS's filing system workspace
-                                \ during disc commands; DOSCLI's stash has its
-                                \ lasting bytes)
-SAVE "build/HAZEL.bin", HZ_START, HZ_CODE_END, HZ_START
+ASSERT DFSIN = DFSST + 128      \ (the loader clears it)
+.WS_END
+PRINT "Shared workspace: &1300-", ~WS_END-1, " free to the main code ", CODE%-WS_END
+ASSERT WS_END <= CODE%
 
 CLEAR &8000, &C000
 ORG &8000
@@ -158,8 +143,8 @@ INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step and span writer
 .F_SHR0 SKIP 24
 .F_SHR1 SKIP 24
 .F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm's F_DSTAR,
-.F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, in HAZEL after
-                        \ R_SS, cleared with it)
+.F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, in the
+                        \ shared workspace after R_SS, cleared with it)
 .B6_END
 PRINT "Bank 6: frame layer &8000-", ~B6_CODE_END-1, ", data ", ~F_HW, "-", ~B6_END-1, " free ", &C000-B6_END
 ASSERT B6_END <= &C000

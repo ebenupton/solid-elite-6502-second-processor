@@ -4,10 +4,10 @@
 A thin adapter over the demo port's tools/test_raster.py (its pixel-exact Python
 reference, py65 65C02, the write guard and every test), pointed at the Master files:
 
-  * the wrapper assembles gfx-raster_scr.asm at &C000 (the per-call scratch: vertices,
-    line ends, R_COL2/R_COL3, the edge tables), gfx-raster_vars.asm at its real base
-    (RVBASE, &C8B5 - &182: the laser-sight rows must not cross a page), the HAZEL
-    &DC40 block that elite-gfx.asm defines (R_WL, R_WR, R_NDN, the stars), the
+  * the wrapper assembles the renderer's shared workspace as elite-gfx.asm lays it
+    out in main RAM (from its `ORG &1300` to WS_END: gfx-raster_scr.asm, the per-call
+    scratch, with R_NDISCL page aligned; gfx-raster_vars.asm at its fixed base, as the
+    laser-sight rows must not cross a page; R_WL, R_WR, R_NDN, the stars), the
     cross-bank stubs gfx-raster_hz.asm at &DF00, gfx-raster.asm at --org (bank 5) and
     gfx-raster7.asm at &8000 (bank 7);
   * the write guard allows exactly those areas (plus the renderer's zero page, the
@@ -36,10 +36,7 @@ tr.SRC = os.path.join(MS, 'gfx-raster.asm')
 tr.SRCV = os.path.join(MS, 'gfx-raster_vars.asm')
 tr.SRCH = os.path.join(MS, 'gfx-raster_hz.asm')
 tr.SRC7 = os.path.join(MS, 'gfx-raster7.asm')
-SRCS = os.path.join(MS, 'gfx-raster_scr.asm')
 GFX = os.path.join(MS, 'elite-gfx.asm')
-SCR = 0xC000
-tr.VARS = 0xC8B5 - 0x182
 tr.HZ = 0xDF00
 
 
@@ -59,15 +56,17 @@ def gfx_constants():
     return '\n'.join(out)
 
 
-def dc40_block():
-    """elite-gfx.asm's `ORG &DC40` block (the rasteriser's HAZEL state there), as text"""
+def ws_block():
+    """elite-gfx.asm's shared workspace (after `NDSTAR =`, from its first ORG to
+    .WS_END: two parts, WS_START..WS_HI_END and WS_LO..WS_END), as text, with its
+    INCLUDEs made absolute"""
     t = open(GFX).read().split('\n')
-    i = next(n for n, l in enumerate(t) if re.match(r'\s*ORG\s+&DC40', l))
+    i = next(n for n, l in enumerate(t) if re.match(r'^NDSTAR\s*=', l)) + 1
     out = []
     for l in t[i:]:
-        if l.startswith('.HZ_END2'):
+        out.append(l.replace('"src/', '"%s/' % MS))
+        if l.startswith('.WS_END'):
             break
-        out.append(l)
     return '\n'.join(out)
 
 
@@ -78,9 +77,7 @@ def assemble(org):
     w = os.path.join(d, 'w.asm')
     with open(w, 'w') as f:
         f.write(gfx_constants() + '\n')
-        f.write('ORG &%X\nINCLUDE "%s"\n.r_scr_end\n' % (SCR, SRCS))
-        f.write('ORG &%X\nINCLUDE "%s"\n.r_vars_end\n' % (tr.VARS, tr.SRCV))
-        f.write(dc40_block() + '\n.r_dc_end\n')
+        f.write(ws_block() + '\n')
         f.write('ORG &%X\nINCLUDE "%s"\n.r_hz_end\n' % (tr.HZ, tr.SRCH))
         f.write('ORG &%X\nINCLUDE "%s"\n' % (org, tr.SRC))
         f.write('SAVE "r.bin", &%X, P%%\n' % org)
@@ -106,8 +103,7 @@ class Machine(tr.Machine):
         mem, s = self.mem, self.syms
         allowed = sorted([(0x06, 0x28), (tr.ROMSELCOPY, tr.ROMSELCOPY + 1), (0x100, 0x200),
                           (tr.SCR0, tr.SCR1), (self.lo, self.hi),
-                          (SCR, s['r_scr_end']), (tr.VARS, s['r_vars_end']),
-                          (0xDC40, s['r_dc_end']), (tr.HZ, s['r_hz_end']),
+                          (s['WS_START'], s['WS_HI_END']), (s['WS_LO'], s['WS_END']), (tr.HZ, s['r_hz_end']),
                           (tr.ROMSEL, tr.ROMSEL + 1)])
         a0 = 0
         for lo, hi in allowed + [(0x10000, 0x10000)]:

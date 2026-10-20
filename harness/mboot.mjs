@@ -1,6 +1,5 @@
 // Boot BBC Master Elite (master/build.sh's disc) on the emulated BBC Master and
-// check that it reaches the title screen with its data in Elite's home bank
-// (sideways RAM bank 4; bank 6 in the original).
+// check that it reaches the title screen with its code and data in place.
 //
 // node harness/mboot.mjs [--disc master/build/elite-master-sng47.ssd]
 //                        [--syms master/build/symbols.txt] [--out dir] [--polls N]
@@ -41,10 +40,10 @@ const cpu = s._machine.processor;
 // from Stage B) has been entered: TITLE's key loop calls RDKEY repeatedly
 let titleCalls = 0, done = false, inTitle = false;
 const tName = syms.TITLE_C !== undefined ? "TITLE_C" : "TITLE";
-const tAddr = syms[tName], tMap = mapOfLabel(syms, tName);
+const tAddr = syms[tName], tMap = mapOfLabel(syms, tName), rMap = mapOfLabel(syms, "RDKEY");
 const h = pc => {
     if (pc === tAddr && (tMap === "m" || tMap === mapAt(cpu.romsel, pc))) inTitle = true;
-    if (pc === syms.RDKEY && inTitle && ++titleCalls >= (+args.polls || 8)) done = true;
+    if (pc === syms.RDKEY && (rMap === "m" || rMap === mapAt(cpu.romsel, pc)) && inTitle && ++titleCalls >= (+args.polls || 8)) done = true;
     return done;
 };
 cpu.debugInstruction.add(h);
@@ -58,11 +57,11 @@ console.log(`sideways RAM banks in this model: ${cpu.model.swram.map((v, i) => v
 
 // The banked images against the build: [file, ROMSEL or "shadow", start]
 // (ROMSEL bit 7: ANDY at &8000-&8FFF). The game writes XX21+2/3 (the station's
-// blueprint) in bank 4 and patches DETOK's JSR at DTM (DTM_C in the cold area).
+// blueprint, in HAZEL) and patches DETOK's JSR at DTM (DTM_C in the cold area).
 const images = [["BANK4.bin", 4, 0x8000], ["ANDY.bin", 0x87, 0x8000], ["COLD7.bin", 7, syms["COLD7_START%"] ?? 0xac40], ["TOKENS.bin", "shadow", 0x3100],
     ["BANK5.bin", 5, 0x8000], ["BANK6.bin", 6, 0x8000], ["RAST7.bin", 7, 0x8000], ["HAZEL.bin", "hazel", syms.HZ_START], ["LOWCODE.bin", "main", 0x0840], ["HICODE.bin", "main", 0x7200],
     ["FLARE7.bin", "shadow", 0x7e00], ["FLARE3.bin", "shadow", 0x3f00], ["FLARE0.bin", "shadow", 0x3000]];
-const xx21 = syms.XX21;
+const xx21 = parseInt(readFileSync(SYMS.replace(/symbols\.txt$/, "data-addresses.asm"), "utf8").match(/XX21 = &([0-9A-F]+)/)[1], 16);
 let diffs = [];
 for (const [f, rs, start] of images) {
     let img;
@@ -71,15 +70,16 @@ for (const [f, rs, start] of images) {
     for (let i = 0; i < img.length; i++) {
         const a = start + i;
         const phys = rs === "main" ? a : rs === "shadow" ? a + 0x8000 : rs === "hazel" ? a - 0xc000 + 0x9000 : rs & 0x80 && a < 0x9000 ? a : cpu.romOffset + (rs & 15) * 16384 + a - 0x8000;
-        if (rs === 4 && (a === xx21 + 2 || a === xx21 + 3)) continue;
+        if (a === xx21 + 2 || a === xx21 + 3) continue;
         if (syms.DTM_C !== undefined && (rs & 15) === 7 && (a === syms.DTM_C + 1 || a === syms.DTM_C + 2)) continue;
         if (cpu.ramRomOs[phys] !== img[i]) d.push(a);
     }
     console.log(`${f} (${rs === "shadow" ? "shadow RAM" : rs === "main" ? "main RAM" : rs === "hazel" ? "HAZEL" : "ROMSEL &" + rs.toString(16)}, &${start.toString(16)}-&${(start + img.length - 1).toString(16)}): ${d.length} differing bytes` +
         (d.length ? ` (first &${d[0].toString(16)}, last &${d.at(-1).toString(16)})` : ""));
-    // the renderer's banks and code hold variables and self-modified code:
-    // their differences are reported but not failures
-    if (!["BANK5.bin", "BANK6.bin", "RAST7.bin", "HAZEL.bin", "HICODE.bin"].includes(f)) diffs = diffs.concat(d);
+    // the renderer's banks and code, and bank 4 (where the main code continues),
+    // hold variables and self-modified code: their differences are reported but
+    // not failures
+    if (!["BANK4.bin", "BANK5.bin", "BANK6.bin", "RAST7.bin", "HAZEL.bin", "HICODE.bin"].includes(f)) diffs = diffs.concat(d);
 }
 writeFileSync(`${OUT}/title.png`, await s.screenshotActive({ scale: 1 }));
 console.log(`screenshot: ${OUT}/title.png`);

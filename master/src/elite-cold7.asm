@@ -6645,9 +6645,11 @@ ENDIF
 \ page of HAZEL too. So the whole of HAZEL is stashed in screen buffer 0
 \ (main RAM &4000-&5FFF, not on show while docked) for the command and copied
 \ back afterwards, and GSTASH tells the renderer that buffer 0 no longer
-\ holds a frame (the next space-mode frame clears it, f_b0new). DFS's
-\ lasting bytes live in DFSST while the game runs (the loader takes them
-\ after its last disc access): they go back before the command and are
+\ holds a frame (the next space-mode frame clears it, f_b0new). DFS's and
+\ the MOS's lasting bytes (&C2C0-&C2FF, and &DFC0-&DFFF: the MOS's FSCV copy
+\ at &DFDA-&DFDB, and the ACCCON its error path puts back from &DFDC when
+\ &DFDD is non-zero) live in DFSST while the game runs (the loader takes
+\ them after its last disc access): they go back before the command and are
 \ stashed again after it (or after its error, through DOSNMI), as *DIR and
 \ *DRIVE change them. Before the command the catalogue cache is invalidated
 \ too (&FF to &C282, &C287 and &C28B-&C28E: re-read the catalogue, restore
@@ -6675,16 +6677,14 @@ ENDIF
  JSR dosmv
  PLY
 
- LDX #63                \ Put back DFS's lasting bytes
+ LDX #63                \ Put back DFS's and the MOS's lasting bytes
 .dosc1
  LDA DFSST,X
  STA &C2C0,X
+ LDA DFSST+64,X
+ STA &DFC0,X
  DEX
  BPL dosc1
- LDA DFSST+64
- STA &DFDA
- LDA DFSST+65
- STA &DFDB
  PLX
 
  LDA #&FF               \ Invalidate DFS's catalogue cache and drive state
@@ -6743,12 +6743,10 @@ ENDIF
 .dosn2
  LDA &C2C0,X
  STA DFSST,X
+ LDA &DFC0,X
+ STA DFSST+64,X
  DEX
  BPL dosn2
- LDA &DFDA
- STA DFSST+64
- LDA &DFDB
- STA DFSST+65
  LDX #&40
  LDY #&C0
  JSR dosmv

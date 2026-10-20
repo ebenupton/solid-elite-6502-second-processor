@@ -43,7 +43,36 @@ DCN_MARK = 6            \ roll / pitch marker
 .dlmt                   \ the left n pixels of a byte, n = 0..3
  EQUB &00, &88, &CC, &EE
 
-\ (The routines' scalar variables are in HAZEL, elite-gfx.asm: DASHV)
+\ The routines' scalar variables (in bank 4 with them, which they run in)
+
+.DASHV
+.dpE    SKIP 1          \ the current colour pair (even, odd lines)
+.dpO    SKIP 1
+.dmk    SKIP 1          \ the current byte mask
+.dlo    SKIP 1          \ DSEG: byte range [dlo, dhi) of the indicator
+.dhi    SKIP 1
+.dsS    SKIP 1          \ DSEG: the segment [dsS, dsE) in pixels
+.dsE    SKIP 1
+.dl0    SKIP 1          \ DSEG: the first line and the number of lines
+.dln    SKIP 1
+.dcol   SKIP 1          \ DIL: the colour number
+.dtmp   SKIP 1
+.ddn    SKIP 1          \ ddot: lines to go
+.deq    SKIP 1          \ DSEG: the segment's end byte, pixels in it
+.der    SKIP 1
+.dsq    SKIP 1          \ DSEG: the segment's start byte, pixels from it on
+.dsr    SKIP 1
+.dme    SKIP 1          \ DSEG: the masked even-line byte, even EOR odd
+.dmx    SKIP 1
+.dsx    SKIP 1
+.dtv    SKIP 1
+.dK     SKIP 1          \ DIL: colour numbers for values >= dT and < dT
+.dK1    SKIP 1
+.dT     SKIP 1          \ DIL: the colour threshold (pixels)
+.dbank  SKIP 4          \ the energy banks' bar lengths (32 per bank)
+.dX1    SKIP 1          \ the dot's x-coordinate (SCAN, DOT)
+.dlen   SKIP 1          \ SCAN: the stick's length (signed)
+.dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
 
 
 \ ------------------------------------------------------------------------------

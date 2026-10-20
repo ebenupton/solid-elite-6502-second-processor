@@ -508,16 +508,29 @@ ENDIF
                         \ changes the disc directory to E
 
                         \ Port: that was the last disc access, so DFS is done
-                        \ with HAZEL's &C000-&C2FF and &DC00 onwards: copy the
-                        \ renderer's HAZEL code from its staging copy at &4000
-                        \ to HZ_START (&C300 on, clear of DFS's workspace;
-                        \ ACCCON Y = 1 maps HAZEL at &C000-&DFFF)
+                        \ with HAZEL: stash DFS's and the MOS's lasting bytes,
+                        \ as the game uses their places (DOSCLI puts them back
+                        \ for each disc command): &C2C0-&C2FF and &DFC0-&DFFF
+                        \ (ACCCON Y = 1 maps HAZEL at &C000-&DFFF), then copy
+                        \ HAZEL's contents (the game data and the renderer's
+                        \ glue) from their staging copy at &4000 into place
 
  SEI
  LDA #%00001001
  STA VIA+&34
+
+ LDX #63
+.DFST
+ LDA &C2C0,X
+ STA DFSST,X
+ LDA &DFC0,X
+ STA DFSST+64,X
+ DEX
+ BPL DFST
+ STZ DFSST+128          \ (DFSIN: no disc command under way)
+
  LDX #0
- LDY #HI(HZLEN+255)     \ (whole pages: the bytes after the code are not in use)
+ LDY #HI(HZLEN+255)     \ (whole pages)
 
 .HZC
 
@@ -530,24 +543,13 @@ ENDIF
  DEY
  BNE HZC
 
- LDX #63                \ Port: and stash DFS's lasting bytes in HAZEL, which
-.DFST                   \ the game uses (DOSCLI puts them back for each disc
- LDA &C2C0,X            \ command): &C2C0-&C2FF and the MOS's copy of FSCV at
- STA DFSST,X            \ &DFDA-&DFDB
- DEX
- BPL DFST
- LDA &DFDA
- STA DFSST+64
- LDA &DFDB
- STA DFSST+65
- STZ DFSST+66           \ (DFSIN: no disc command under way)
-
  ASSERT LOWLEN <= &0D00 - &0840 \ (never into page &0D)
- ASSERT HZLEN <= &0800  \ (HAZEL's staging copy at &4000 must not reach &4800)
+ ASSERT HZLEN <= &2000 AND LO(HZ_START) = 0  \ (HAZEL's staging copy at &4000
+                        \ must not reach the low code's at &6000)
 
-.LWC                    \ Port: and the low code from &4800 to &0840, exactly
+.LWC                    \ Port: and the low code from &6000 to &0840, exactly
                         \ LOWLEN bytes (page &0D is off limits)
- LDA &4800              \ (both addresses patched as the copy goes)
+ LDA &6000              \ (both addresses patched as the copy goes)
  STA &0840
  INC LWC+1
  BNE P%+5
@@ -818,10 +820,10 @@ ENDIF
  EQUB 7, %00001001      \ (below the cold area)
  EQUW &8000, R7LEN
 
- EQUW MESS12            \ HAZEL: the renderer's code in HAZEL, staged in main
- EQUB HOMEBANK, %00001001 \ RAM at &4000 (screen buffer A) and copied to HAZEL
- EQUW &4000, HZLEN      \ after the last disc access (see LDEND), as DFS uses
-                        \ HAZEL
+ EQUW MESS12            \ HAZEL: the game data and the renderer's glue, staged
+ EQUB HOMEBANK, %00001001 \ in main RAM at &4000 (screen buffer 0) and copied to
+ EQUW &4000, HZLEN      \ HAZEL after the last disc access (see LDEND), as DFS
+                        \ uses HAZEL
 
  EQUW MESS14            \ HICODE: the high code (the quarter squares, the
  EQUB HOMEBANK, %00001001 \ renderer's stubs and hooks, the stubs into the cold
@@ -833,8 +835,8 @@ ENDIF
  EQUW &7000, &0200
 
  EQUW MESS13            \ LOWCODE: game code for main RAM &0840-&0CFF, staged
- EQUB HOMEBANK, %00001001 \ at &4800 and copied into place with HAZEL (LDEND)
- EQUW &4800, LOWLEN
+ EQUB HOMEBANK, %00001001 \ at &6000 and copied into place with HAZEL (LDEND)
+ EQUW &6000, LOWLEN
 
  EQUW 0
 
@@ -880,8 +882,8 @@ ENDIF
 
 IF _SNG47
 
- EQUS "L.BCODE FFFF1300"    \ This is short for "*LOAD BCODE FFFF1300"
- EQUB 13
+ EQUS "L.BCODE FFFF", STR$~(BCODEAT)   \ This is short for "*LOAD BCODE
+ EQUB 13                \ FFFF1300" (Port: BCODE's address, from the build)
 
 ELIF _COMPACT
 

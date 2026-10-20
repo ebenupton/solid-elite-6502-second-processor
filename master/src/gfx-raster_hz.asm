@@ -1,7 +1,7 @@
 \ ============================================================================
 \ raster_hz.asm -- the rasteriser's cross-bank call stubs.  Code: assemble it
-\ in HAZEL (&C000-&DFFF) inside the region the loader copies (it must be
-\ visible whichever sideways bank is paged).  ~60 bytes.
+\ where it is visible whichever sideways bank is paged and whatever ACCCON X
+\ is (Master port: in the main code below &3000; HAZEL would do).  ~60 bytes.
 \
 \ The rasteriser lives in two sideways RAM banks: R_BANK_MAIN (5: everything
 \ the caller calls) and R_BANK_AUX (7: R_MESH and cold code).  r_call7 is

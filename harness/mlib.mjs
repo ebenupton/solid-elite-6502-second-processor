@@ -221,6 +221,7 @@ export async function runElite(opts) {
     let started = false, done = false, armPatch = false, iter = 0, tt100 = 0, checked = false;
     const ctxBase = { rb, rd, sy, iterOf: () => iter, tt100Of: () => tt100 };
 
+    const ikm = mapOfLabel(sy, "IKNS");
     function fillkl(keys) {
         // as FILLKL: ZEKTRAN clears JSTY+1..JSTY+17, then each pressed key in increasing
         // internal number sets KL and, if it is in IKNS, decrements its logger byte
@@ -229,7 +230,7 @@ export async function runElite(opts) {
         for (const k of [...new Set(keys)].filter(k => k >= 16 && k < 128).sort((a, b) => a - b)) {
             cpu.ramRomOs[sy.KL] = k;
             for (;;) {
-                const ik = rb(sy.IKNS + x);
+                const ik = physRead(cpu, ikm, sy.IKNS + x);     // (IKNS may be in bank 4)
                 if (k < ik) break;
                 if (k === ik) { cpu.ramRomOs[sy.KY17 + x] = (rb(sy.KY17 + x) - 1) & 255; x++; break; }
                 x++;
@@ -270,7 +271,8 @@ export async function runElite(opts) {
             // by one (and with R = 0, Q = 0 decides a crash). At that call
             // (LL5 returning to LDA Q : STA ALTIT) Q is set to 0 in both runs.
             const ret = (rb(0x101 + cpu.s) | rb(0x102 + cpu.s) << 8) + 1;
-            if (rb(ret) === 0xa5 && rb(ret + 1) === sy.Q && rb(ret + 2) === 0x8d && (rb(ret + 3) | rb(ret + 4) << 8) === sy.ALTIT)
+            const rc = a => cpu.readmem(a & 0xffff);     // (the caller's code, as paged: it may be in bank 4)
+            if (rc(ret) === 0xa5 && rc(ret + 1) === sy.Q && rc(ret + 2) === 0x8d && (rc(ret + 3) | rc(ret + 4) << 8) === sy.ALTIT)
                 cpu.ramRomOs[sy.Q] = 0;
         } else if (at(H_MLOOP, pc) && started) {
             res.snaps.push(snapshot());

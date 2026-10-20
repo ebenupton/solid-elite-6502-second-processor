@@ -42,7 +42,8 @@
  _SNG47                 = (_VARIANT = 1)
  _COMPACT               = (_VARIANT = 2)
 
- GUARD &C000            \ Guard against assembling over MOS memory
+ GUARD &E000            \ Guard against assembling over MOS memory (Port: the
+                        \ game data is in HAZEL, &C000-&DFFF)
 
 \ ******************************************************************************
 \
@@ -105,6 +106,29 @@
  SKIP 256               \ These bytes appear to be unused, but they get moved to
                         \ &7F00-&7FFF along with the ship blueprints and text
                         \ tokens
+
+\ ******************************************************************************
+\
+\ Port: the game data (the ship blueprints and their tables, SNE and ACT) is
+\ in HAZEL, which is visible whatever bank is paged (docs/MASTER-MAP.md,
+\ "Blueprints in HAZEL"). DOSCLI stashes HAZEL in screen buffer 0 for each
+\ disc command, so the data may go anywhere in it, except that what is
+\ written must be in &C300-&D8FF, which disc commands leave alone (the
+\ renderer's glue, whose IRQ and text hooks run during a command, is there
+\ too): XX21 is written (NWSPS stores the station's blueprint in XX21+2/3).
+\ The blueprints keep the original's order from XX21 on, as code reads past
+\ the tables (NWSHP's E%-1,Y for the planet and the sun reads the missile's
+\ blueprint): XX21 to the Constrictor end at the end of HAZEL, from HZDATA2,
+\ and the Cougar, the Dodo, SNE and ACT fill &C000-&C2FF; the renderer's glue
+\ is in between, from &C300 (elite-gfx.asm). The build saves the two parts as
+\ HZDATA2.bin and HZDATA1.bin, which elite-gfx.asm puts in HAZEL.bin.
+\
+\ ******************************************************************************
+
+ HZDATA2 = &C4C9        \ (XX21 to the end of the Constrictor: 6967 bytes,
+                        \ which end at &DFFF, asserted below)
+
+ ORG HZDATA2
 
 \ ******************************************************************************
 \
@@ -3340,6 +3364,14 @@ ENDMACRO
  FACE        0,      -27,        0,         31      \ Face 9
 
 \ ******************************************************************************
+
+.HZDATA2END%            \ Port: XX21 to the Constrictor end at the end of HAZEL;
+                        \ the Cougar and the Dodo are at &C000, followed by SNE
+ ASSERT HZDATA2END% = &E000     \ and ACT
+
+ ORG &C000
+
+\ ******************************************************************************
 \
 \       Name: SHIP_COUGAR
 \       Type: Variable
@@ -3564,9 +3596,9 @@ ENDMACRO
 \
 \ ******************************************************************************
 
- B4DATA% = P%           \ Port: the bank 4 data so far ends here (SNE and ACT
-                        \ follow below, after QQ18); the padding that put QQ18 at
-                        \ &A000 in the original is gone
+ HZD1% = P%             \ Port: the blueprints end here (SNE and ACT follow
+                        \ in HAZEL, below, after QQ18); the padding that put
+                        \ QQ18 at &A000 in the original is gone
 
  ORG &AB00              \ Port: QQ18 is cold data, at the start of the cold
                         \ area's bank 7 part (docs/MASTER-MAP.md); bank 7 below
@@ -4970,7 +5002,7 @@ ENDMACRO
 
  QQ18END% = P%
 
- ORG B4DATA%            \ Port: back to bank 4 for SNE and ACT
+ ORG HZD1%              \ Port: back to HAZEL, after the Dodo, for SNE and ACT
 
 \ ******************************************************************************
 \
@@ -5078,7 +5110,9 @@ ENDMACRO
 
  NEXT
 
- B4END% = P%
+.HZDATA1END%
+
+ ASSERT HZDATA1END% <= &C300    \ (the renderer's glue starts at &C300)
 
  ORG &3100              \ Port: the extended tokens (TKN1, RUPLA, RUGAL, RUTOK)
                         \ live in shadow RAM at &3100-&3EFF, read with ACCCON X
@@ -9573,14 +9607,15 @@ ENDIF
 \ ******************************************************************************
 
 \ Port: the dashboard image (&7000-&7EFF) is BDATA, which the loader copies to
-\ shadow RAM; the game data from XX21 on is build/BANK4D.bin, which
-\ elite-source.asm puts at the start of Elite's home bank (bank 4)
+\ shadow RAM; the game data is build/HZDATA1.bin (&C000 on) and HZDATA2.bin
+\ (XX21 on), which elite-gfx.asm puts in HAZEL
 
- PRINT "S.BDATA ", ~CODE%, " ", ~XX21-&100, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BDATA.unprot.bin", CODE%, XX21-&100, LOAD%
+ PRINT "S.BDATA ", ~CODE%, " ", ~CODE%+&F00, " ", ~LOAD%, " ", ~LOAD%
+ SAVE "build/BDATA.unprot.bin", CODE%, CODE%+&F00, LOAD%
 
- PRINT "Bank 4 data: &8000-", ~B4END%-1
- SAVE "build/BANK4D.bin", XX21, B4END%, XX21
+ PRINT "HAZEL data: &C000-", ~HZDATA1END%-1, ", ", ~XX21, "-", ~HZDATA2END%-1
+ SAVE "build/HZDATA1.bin", &C000, HZDATA1END%, &C000
+ SAVE "build/HZDATA2.bin", XX21, HZDATA2END%, XX21
 
  PRINT "QQ18: ", ~QQ18, "-", ~QQ18END%-1
  SAVE "build/QQ18D.bin", QQ18, QQ18END%, QQ18
