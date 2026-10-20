@@ -6293,6 +6293,59 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: MALC
+\       Type: Subroutine
+\   Category: Main loop
+\    Summary: GINF and the copy of a ship's data block into INWK, unrolled for
+\             slots 0-5 (Port: the demo port's CPYIN, 8a7e690, 9bb50a9 w_0367)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Entered by JMP from MAL1 with X = the slot. Sets INF as GINF does, and for
+\ slots 0-5 (whose blocks start at most 185 bytes into K%, so K% + i + Y
+\ never crosses a page) copies the 37 bytes with LDA K%+i,Y / STA INWK+i and
+\ rejoins MAL1 at MAL2e with Y = &FF, as the loop leaves it; other slots
+\ rejoin at MAL1g to run the loop.
+\
+\ ******************************************************************************
+
+.MALC
+
+ TXA                    \ Set INF to the address of the slot's data block, as
+ ASL A                  \ GINF does
+ TAY
+ LDA UNIV,Y
+ STA INF
+ LDA UNIV+1,Y
+ STA INF+1
+
+ LDY malct,X            \ Set Y = NI% * X, the block's offset in K%, or
+ BPL P%+5               \ &FF for slots 6 and up, which use the loop in MAL1
+ JMP MAL1g
+
+ FOR i, 0, NI% - 1
+  LDA K%+i,Y            \ Copy byte i of the block into INWK
+  STA INWK+i
+ NEXT
+
+ LDY #&FF               \ Y = &FF, as MAL2's loop leaves it
+
+ JMP MAL2e              \ Rejoin MAL1
+
+.malct
+
+ FOR i, 0, NOSH
+  IF i < 6
+   EQUB i * NI%         \ NI% * slot for slots 0-5
+  ELSE
+   EQUB &FF             \ and &FF for the others
+  ENDIF
+ NEXT
+
+ ASSERT 5 * NI% + NI% - 1 < 256 AND LO(K%) = 0
+
+\ ******************************************************************************
+\
 \       Name: BOMBOFF
 \       Type: Subroutine
 \   Category: Drawing lines
@@ -13157,6 +13210,23 @@ ENDMACRO
 
 \ ******************************************************************************
 \
+\ Port: the main code continues in bank 4 from here (docs/MASTER-MAP.md). The
+\ part in main RAM, from CODE%, is saved as BCODE; the rest is assembled at
+\ the start of bank 4, followed by the game code of elite-bank4.asm
+\
+\ ******************************************************************************
+
+ PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
+ ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0, and
+                        \ &7000-&71FF the dashboard's first row)
+ PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
+
+ CLEAR &8000, &C000
+ ORG &8000
+
+\ ******************************************************************************
+\
 \       Name: cntr
 \       Type: Subroutine
 \   Category: Dashboard
@@ -13686,23 +13756,6 @@ ENDMACRO
 
  PRINT "S.ELTD ", ~CODE_D%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_D%
 \SAVE "build/ELTD.bin", CODE_D%, P%, LOAD%
-
-\ ******************************************************************************
-\
-\ Port: the main code continues in bank 4 from here (docs/MASTER-MAP.md). The
-\ part in main RAM, from CODE%, is saved as BCODE; the rest is assembled at
-\ the start of bank 4, followed by the game code of elite-bank4.asm
-\
-\ ******************************************************************************
-
- PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
- ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0, and
-                        \ &7000-&71FF the dashboard's first row)
- PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
-
- CLEAR &8000, &C000
- ORG &8000
 
 \ ******************************************************************************
 \
@@ -14728,7 +14781,107 @@ ENDIF
  JMP DOT                \ Jump to DOT to draw the dot on the compass and return
                         \ from the subroutine using a tail call
 
-\ Port: OOPS moved to the high code (main RAM)
+\ ******************************************************************************
+\
+\       Name: OOPS
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Take some damage
+\
+\ ------------------------------------------------------------------------------
+\
+\ We just took some damage, so reduce the shields if we have any, or reduce the
+\ energy levels and potentially take some damage to the cargo if we don't.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   A                   The amount of damage to take
+\
+\   INF                 The address of the ship block for the ship that attacked
+\                       us, or the ship that we just ran into
+\
+\ ******************************************************************************
+
+.OOPS
+
+ STA T                  \ Store the amount of damage in T
+
+ LDX #0                 \ Fetch byte #8 (z_sign) for the ship attacking us, and
+ LDY #8                 \ set X = 0
+ LDA (INF),Y
+
+ BMI OO1                \ If A is negative, then we got hit in the rear, so jump
+                        \ to OO1 to process damage to the aft shield
+
+ LDA FSH                \ Otherwise the forward shield was damaged, so fetch the
+ SBC T                  \ shield strength from FSH and subtract the damage in T
+
+ BCC OO2                \ If the C flag is clear then this amount of damage was
+                        \ too much for the shields, so jump to OO2 to set the
+                        \ shield level to 0 and start taking damage directly
+                        \ from the energy banks
+
+ STA FSH                \ Store the new value of the forward shield in FSH
+
+ RTS                    \ Return from the subroutine
+
+.OO2
+
+ LDX #0                 \ Set the forward shield to 0
+ STX FSH
+
+ BCC OO3                \ Jump to OO3 to start taking damage directly from the
+                        \ energy banks (this BCC is effectively a JMP as the C
+                        \ flag is clear, as we jumped to OO2 with a BCC)
+
+.OO1
+
+ LDA ASH                \ The aft shield was damaged, so fetch the shield
+ SBC T                  \ strength from ASH and subtract the damage in T
+
+ BCC OO5                \ If the C flag is clear then this amount of damage was
+                        \ too much for the shields, so jump to OO5 to set the
+                        \ shield level to 0 and start taking damage directly
+                        \ from the energy banks
+
+ STA ASH                \ Store the new value of the aft shield in ASH
+
+ RTS                    \ Return from the subroutine
+
+.OO5
+
+ LDX #0                 \ Set the forward shield to 0
+ STX ASH
+
+.OO3
+
+ ADC ENERGY             \ A is negative and contains the amount by which the
+ STA ENERGY             \ damage overwhelmed the shields, so this drains the
+                        \ energy banks by that amount (and because the energy
+                        \ banks are shown over four indicators rather than one,
+                        \ but with the same value range of 0-255, energy will
+                        \ appear to drain away four times faster than the
+                        \ shields did)
+
+ BEQ P%+4               \ If we have just run out of energy, skip the next
+                        \ instruction to jump straight to our death
+
+ BCS P%+5               \ If the C flag is set, then subtracting the damage from
+                        \ the energy banks didn't underflow, so we had enough
+                        \ energy to survive, and we can skip the next
+                        \ instruction to make a sound and take some damage
+
+ JMP DEATH              \ Otherwise our energy levels are either 0 or negative,
+                        \ and in either case that means we jump to our DEATH,
+                        \ returning from the subroutine using a tail call
+
+ JSR EXNO3              \ We didn't die, so call EXNO3 to make the sound of a
+                        \ collision
+
+ JMP OUCH               \ And jump to OUCH to take damage and return from the
+                        \ subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -18629,6 +18782,55 @@ ENDIF
                         \ that needs shuffling down (this BEQ is effectively a
                         \ JMP as A will always be zero)
 
+\ ******************************************************************************
+\
+\       Name: THERE
+\       Type: Subroutine
+\   Category: Missions
+\    Summary: Check whether we are in the Constrictor's system in mission 1
+\
+\ ------------------------------------------------------------------------------
+\
+\ The stolen Constrictor is the target of mission 1. We finally track it down to
+\ the Orarra system in the second galaxy, which is at galactic coordinates
+\ (144, 33). This routine checks whether we are in this system and sets the C
+\ flag accordingly.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              Set if we are in the Constrictor system, otherwise clear
+\
+\ ******************************************************************************
+
+.THERE
+
+ LDX GCNT               \ Set X = GCNT - 1
+ DEX
+
+ BNE THEX               \ If X is non-zero (i.e. GCNT is not 1, so we are not in
+                        \ the second galaxy), then jump to THEX
+
+ LDA QQ0                \ Set A = the current system's galactic x-coordinate
+
+ CMP #144               \ If A <> 144 then jump to THEX
+ BNE THEX
+
+ LDA QQ1                \ Set A = the current system's galactic y-coordinate
+
+ CMP #33                \ If A = 33 then set the C flag
+
+ BEQ THEX+1             \ If A = 33 then jump to THEX+1, so we return from the
+                        \ subroutine with the C flag set (otherwise we clear the
+                        \ C flag with the next instruction)
+
+.THEX
+
+ CLC                    \ Clear the C flag
+
+ RTS                    \ Return from the subroutine
+
 \ Port: NUMBOR (with DIDGIT and DIDGIT2) removed: nothing calls it
 
 \ ******************************************************************************
@@ -18694,7 +18896,51 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: msblob moved to the high code (main RAM)
+\ ******************************************************************************
+\
+\       Name: msblob
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Display the dashboard's missile indicators in green
+\
+\ ------------------------------------------------------------------------------
+\
+\ Display the dashboard's missile indicators, with all the missiles reset to
+\ green (i.e. not armed or locked).
+\
+\ ******************************************************************************
+
+.msblob
+
+ LDX #4                 \ Set up a loop counter in X to count through all four
+                        \ missile indicators
+
+.ss
+
+ CPX NOMSL              \ If the counter is equal to the number of missiles,
+ BEQ SAL8               \ jump down to SAL8 to draw the remaining missiles, as
+                        \ the rest of them are present and should be drawn in
+                        \ green
+
+ LDY #0                 \ Draw the missile indicator at position X in black
+ JSR MSBAR
+
+ DEX                    \ Decrement the counter to point to the next missile
+
+ BNE ss                 \ Loop back to ss if we still have missiles to draw
+
+ RTS                    \ Return from the subroutine
+
+.SAL8
+
+ LDY #GREEN2            \ Draw the missile indicator at position X in green
+ JSR MSBAR
+
+ DEX                    \ Decrement the counter to point to the next missile
+
+ BNE SAL8               \ Loop back to SAL8 if we still have missiles to draw
+
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
@@ -21268,6 +21514,94 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: SIGHT
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Draw the laser crosshairs
+\
+\ ******************************************************************************
+
+.SIGHT
+
+ LDY VIEW               \ Fetch the laser power for our new view
+ LDA LASER,Y
+
+ BEQ SIG2               \ If it is zero (i.e. there is no laser fitted to this
+                        \ view), jump to SIG2 to return from the subroutine (as
+                        \ SIG2 contains an RTS)
+
+ LDY #0                 \ Set Y to 0, to represent a pulse laser
+
+ CMP #POW               \ If the laser power in A is equal to a pulse laser,
+ BEQ SIG1               \ jump to SIG1 with Y = 0
+
+ INY                    \ Increment Y to 1, to represent a beam laser
+
+ CMP #POW+128           \ If the laser power in A is equal to a beam laser,
+ BEQ SIG1               \ jump to SIG1 with Y = 1
+
+ INY                    \ Increment Y to 2, to represent a military laser
+
+ CMP #Armlas            \ If the laser power in A is equal to a military laser,
+ BEQ SIG1               \ jump to SIG1 with Y = 2
+
+ INY                    \ Increment Y to 3, to represent a mining laser
+
+.SIG1
+
+ LDA sightcol,Y         \ Set the colour from the sightcol table
+ STA COL
+
+ LDA #128               \ Set QQ19 to the x-coordinate of the centre of the
+ STA QQ19               \ screen
+
+ LDA #Y-24              \ Set QQ19+1 to the y-coordinate of the centre of the
+ STA QQ19+1             \ screen, minus 24 (because TT15 will add 24 to the
+                        \ coordinate when it draws the crosshairs)
+
+ LDA #20                \ Set QQ19+2 to size 20 for the crosshairs size
+ STA QQ19+2
+
+ JSR H_SIGHT            \ Port: in record mode the renderer draws the sights
+                        \ (gfx-hooks.asm)
+
+ JSR TT15               \ Call TT15 to draw crosshairs of size 20 just to the
+                        \ left of the middle of the screen
+
+ LDA #10                \ Set QQ19+2 to size 10 for the crosshairs size
+ STA QQ19+2
+
+ JMP TT15               \ Call TT15 to draw crosshairs of size 10 at the same
+                        \ location, which will remove the centre part from the
+                        \ laser crosshairs, leaving a gap in the middle, and
+                        \ return from the subroutine using a tail call
+
+.SIG2
+
+ RTS                    \ Return from the subroutine (no laser on this view)
+
+\ ******************************************************************************
+\
+\       Name: sightcol
+\       Type: Variable
+\   Category: Drawing lines
+\    Summary: Colours for the crosshair sights on the different laser types
+\             (Port: the unused beamcol table that followed it is gone)
+\
+\ ******************************************************************************
+
+.sightcol
+
+ EQUB YELLOW            \ Pulse lasers have yellow sights
+
+ EQUB CYAN              \ Beam lasers have cyan sights
+
+ EQUB CYAN              \ Military lasers have cyan sights
+
+ EQUB YELLOW            \ Mining lasers have yellow sights
+
+\ ******************************************************************************
+\
 \       Name: TRTB%
 \       Type: Variable
 \   Category: Keyboard
@@ -22157,6 +22491,59 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: ECMOF
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Switch off the E.C.M. and turn off the dashboard bulb
+\
+\ ******************************************************************************
+
+.ECMOF
+
+ LDA #0                 \ Set ECMA and ECMP to 0 to indicate that no E.C.M. is
+ STA ECMA               \ currently running
+ STA ECMP
+
+ JMP ECBLB              \ Update the E.C.M. indicator bulb on the dashboard and
+                        \ return from the subroutine using a tail call
+
+\ ******************************************************************************
+\
+\       Name: SFRMIS
+\       Type: Subroutine
+\   Category: Tactics
+\    Summary: Add an enemy missile to our local bubble of universe
+\
+\ ------------------------------------------------------------------------------
+\
+\ An enemy has fired a missile, so add the missile to our universe if there is
+\ room, and if there is, make the appropriate warnings and noises.
+\
+\ ******************************************************************************
+
+.SFRMIS
+
+ LDX #MSL               \ Set X to the ship type of a missile, and call SFS1-2
+ JSR SFS1-2             \ to add a missile to our universe that has AI (bit 7
+                        \ set), is hostile (bit 6 set) and has been launched
+                        \ (bit 0 clear); the target slot number is set to 31,
+                        \ but this is ignored as the hostile flags means we
+                        \ are the target
+
+ BCS P%+3               \ The C flag will be set if the call to SFS1-2 was a
+ RTS                    \ success, so if it's clear, return from the
+                        \ subroutine (Port: the original branches to an RTS
+                        \ elsewhere)
+
+ LDA #120               \ Print recursive token 120 ("INCOMING MISSILE") as an
+ JSR MESS               \ in-flight message
+
+ LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
+ JMP NOISE              \ of the missile being launched and return from the
+                        \ subroutine using a tail call
+
+\ ******************************************************************************
+\
 \       Name: EXNO2
 \       Type: Subroutine
 \   Category: Status
@@ -22333,10 +22720,10 @@ ENDIF
 \ ******************************************************************************
 \
 \ Port: the high code, main RAM &7200-&7FFF (docs/MASTER-MAP.md): the
-\ quarter-square tables, the renderer's game-context side (elite-hi.asm), the
-\ stubs into the cold area (elite-stubs7.asm), then the routines below. Code
-\ here runs only in game context, never while ACCCON X is set (which hides
-\ main RAM at &3000-&7FFF). Saved as HICODE, which the loader copies there.
+\ quarter-square tables, the renderer's game-context side (elite-hi.asm) and
+\ the stubs into the cold area (elite-stubs7.asm). Code here runs only in game
+\ context, never while ACCCON X is set (which hides main RAM at &3000-&7FFF).
+\ Saved as HICODE, which the loader copies there.
 \
 \ ******************************************************************************
 
@@ -22345,426 +22732,6 @@ ENDIF
  INCLUDE "src/elite-hi.asm"         \ quarter squares, renderer stubs and hooks
 
  INCLUDE "src/elite-stubs7.asm"     \ stubs into the cold area (far7, far7j)
-
-\ ******************************************************************************
-\
-\       Name: SIGHT
-\       Type: Subroutine
-\   Category: Flight
-\    Summary: Draw the laser crosshairs
-\             (Port: in the high code, main RAM; called only by LOOK1 on a
-\             change of view)
-\
-\ ******************************************************************************
-
-.SIGHT
-
- LDY VIEW               \ Fetch the laser power for our new view
- LDA LASER,Y
-
- BEQ SIG2               \ If it is zero (i.e. there is no laser fitted to this
-                        \ view), jump to SIG2 to return from the subroutine (as
-                        \ SIG2 contains an RTS)
-
- LDY #0                 \ Set Y to 0, to represent a pulse laser
-
- CMP #POW               \ If the laser power in A is equal to a pulse laser,
- BEQ SIG1               \ jump to SIG1 with Y = 0
-
- INY                    \ Increment Y to 1, to represent a beam laser
-
- CMP #POW+128           \ If the laser power in A is equal to a beam laser,
- BEQ SIG1               \ jump to SIG1 with Y = 1
-
- INY                    \ Increment Y to 2, to represent a military laser
-
- CMP #Armlas            \ If the laser power in A is equal to a military laser,
- BEQ SIG1               \ jump to SIG1 with Y = 2
-
- INY                    \ Increment Y to 3, to represent a mining laser
-
-.SIG1
-
- LDA sightcol,Y         \ Set the colour from the sightcol table
- STA COL
-
- LDA #128               \ Set QQ19 to the x-coordinate of the centre of the
- STA QQ19               \ screen
-
- LDA #Y-24              \ Set QQ19+1 to the y-coordinate of the centre of the
- STA QQ19+1             \ screen, minus 24 (because TT15 will add 24 to the
-                        \ coordinate when it draws the crosshairs)
-
- LDA #20                \ Set QQ19+2 to size 20 for the crosshairs size
- STA QQ19+2
-
- JSR H_SIGHT            \ Port: in record mode the renderer draws the sights
-                        \ (gfx-hooks.asm)
-
- JSR TT15               \ Call TT15 to draw crosshairs of size 20 just to the
-                        \ left of the middle of the screen
-
- LDA #10                \ Set QQ19+2 to size 10 for the crosshairs size
- STA QQ19+2
-
- JMP TT15               \ Call TT15 to draw crosshairs of size 10 at the same
-                        \ location, which will remove the centre part from the
-                        \ laser crosshairs, leaving a gap in the middle, and
-                        \ return from the subroutine using a tail call
-
-.SIG2
-
- RTS                    \ Return from the subroutine (no laser on this view)
-
-\ ******************************************************************************
-\
-\       Name: DEATHT
-\       Type: Subroutine
-\   Category: Start and end
-\    Summary: The end of DEATH: run the exploding canister scene, then restart
-\             (Port: in the high code, main RAM; reached only by DEATH's JMP
-\             DEATHT)
-\
-\ ******************************************************************************
-
-.DEATHT
-
- LDA #0                 \ Set our speed in DELTA to 0, as we aren't going
- STA DELTA              \ anywhere any more
-
- JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
-                        \ then the frame (Port: the renderer, gfx-hooks.asm),
-                        \ which will display our exploding canister scene and
-                        \ move everything about, as well as decrementing the
-                        \ value in LASCT
-
-\JSR NOSPRITES          \ This instruction is commented out in the original
-                        \ source
-
-.D2
-
- JSR H_MFRAME           \ Call the M% routine to do the main flight loop once,
-                        \ then the frame (Port: the renderer, gfx-hooks.asm),
-                        \ which will display our exploding canister scene and
-                        \ move everything about, as well as decrementing the
-                        \ value in LASCT
-
- DEC LASCT              \ Decrement the counter in LASCT, which we set above,
-                        \ so for each loop around D2, we decrement LASCT by 5
-                        \ (the main loop decrements it by 4, and this one makes
-                        \ it 5)
-
- BNE D2                 \ Loop back to call the main flight loop again, until we
-                        \ have called it 127 times
-
- LDX #31                \ Set the screen to show all 31 text rows, which shows
- JSR DET1               \ the dashboard
-
- JMP DEATH2             \ Jump to DEATH2 to reset and restart the game
-
-
-\ ******************************************************************************
-\
-\       Name: OOPS
-\       Type: Subroutine
-\   Category: Flight
-\    Summary: Take some damage
-\
-\ ------------------------------------------------------------------------------
-\
-\ We just took some damage, so reduce the shields if we have any, or reduce the
-\ energy levels and potentially take some damage to the cargo if we don't.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Arguments:
-\
-\   A                   The amount of damage to take
-\
-\   INF                 The address of the ship block for the ship that attacked
-\                       us, or the ship that we just ran into
-\
-\ ******************************************************************************
-
-.OOPS
-
- STA T                  \ Store the amount of damage in T
-
- LDX #0                 \ Fetch byte #8 (z_sign) for the ship attacking us, and
- LDY #8                 \ set X = 0
- LDA (INF),Y
-
- BMI OO1                \ If A is negative, then we got hit in the rear, so jump
-                        \ to OO1 to process damage to the aft shield
-
- LDA FSH                \ Otherwise the forward shield was damaged, so fetch the
- SBC T                  \ shield strength from FSH and subtract the damage in T
-
- BCC OO2                \ If the C flag is clear then this amount of damage was
-                        \ too much for the shields, so jump to OO2 to set the
-                        \ shield level to 0 and start taking damage directly
-                        \ from the energy banks
-
- STA FSH                \ Store the new value of the forward shield in FSH
-
- RTS                    \ Return from the subroutine
-
-.OO2
-
- LDX #0                 \ Set the forward shield to 0
- STX FSH
-
- BCC OO3                \ Jump to OO3 to start taking damage directly from the
-                        \ energy banks (this BCC is effectively a JMP as the C
-                        \ flag is clear, as we jumped to OO2 with a BCC)
-
-.OO1
-
- LDA ASH                \ The aft shield was damaged, so fetch the shield
- SBC T                  \ strength from ASH and subtract the damage in T
-
- BCC OO5                \ If the C flag is clear then this amount of damage was
-                        \ too much for the shields, so jump to OO5 to set the
-                        \ shield level to 0 and start taking damage directly
-                        \ from the energy banks
-
- STA ASH                \ Store the new value of the aft shield in ASH
-
- RTS                    \ Return from the subroutine
-
-.OO5
-
- LDX #0                 \ Set the forward shield to 0
- STX ASH
-
-.OO3
-
- ADC ENERGY             \ A is negative and contains the amount by which the
- STA ENERGY             \ damage overwhelmed the shields, so this drains the
-                        \ energy banks by that amount (and because the energy
-                        \ banks are shown over four indicators rather than one,
-                        \ but with the same value range of 0-255, energy will
-                        \ appear to drain away four times faster than the
-                        \ shields did)
-
- BEQ P%+4               \ If we have just run out of energy, skip the next
-                        \ instruction to jump straight to our death
-
- BCS P%+5               \ If the C flag is set, then subtracting the damage from
-                        \ the energy banks didn't underflow, so we had enough
-                        \ energy to survive, and we can skip the next
-                        \ instruction to make a sound and take some damage
-
- JMP DEATH              \ Otherwise our energy levels are either 0 or negative,
-                        \ and in either case that means we jump to our DEATH,
-                        \ returning from the subroutine using a tail call
-
- JSR EXNO3              \ We didn't die, so call EXNO3 to make the sound of a
-                        \ collision
-
- JMP OUCH               \ And jump to OUCH to take damage and return from the
-                        \ subroutine using a tail call
-
-\ ******************************************************************************
-\
-\       Name: SFRMIS
-\       Type: Subroutine
-\   Category: Tactics
-\    Summary: Add an enemy missile to our local bubble of universe
-\
-\ ------------------------------------------------------------------------------
-\
-\ An enemy has fired a missile, so add the missile to our universe if there is
-\ room, and if there is, make the appropriate warnings and noises.
-\
-\ ******************************************************************************
-
-.SFRMIS
-
- LDX #MSL               \ Set X to the ship type of a missile, and call SFS1-2
- JSR SFS1-2             \ to add a missile to our universe that has AI (bit 7
-                        \ set), is hostile (bit 6 set) and has been launched
-                        \ (bit 0 clear); the target slot number is set to 31,
-                        \ but this is ignored as the hostile flags means we
-                        \ are the target
-
- BCS P%+3               \ The C flag will be set if the call to SFS1-2 was a
- RTS                    \ success, so if it's clear, return from the
-                        \ subroutine (Port: the original branches to an RTS
-                        \ elsewhere)
-
- LDA #120               \ Print recursive token 120 ("INCOMING MISSILE") as an
- JSR MESS               \ in-flight message
-
- LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
- JMP NOISE              \ of the missile being launched and return from the
-                        \ subroutine using a tail call
-
-\ ******************************************************************************
-\
-\       Name: ECMOF
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Switch off the E.C.M. and turn off the dashboard bulb
-\
-\ ******************************************************************************
-
-.ECMOF
-
- LDA #0                 \ Set ECMA and ECMP to 0 to indicate that no E.C.M. is
- STA ECMA               \ currently running
- STA ECMP
-
- JMP ECBLB              \ Update the E.C.M. indicator bulb on the dashboard and
-                        \ return from the subroutine using a tail call
-
-\ ******************************************************************************
-\
-\       Name: THERE
-\       Type: Subroutine
-\   Category: Missions
-\    Summary: Check whether we are in the Constrictor's system in mission 1
-\
-\ ------------------------------------------------------------------------------
-\
-\ The stolen Constrictor is the target of mission 1. We finally track it down to
-\ the Orarra system in the second galaxy, which is at galactic coordinates
-\ (144, 33). This routine checks whether we are in this system and sets the C
-\ flag accordingly.
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   C flag              Set if we are in the Constrictor system, otherwise clear
-\
-\ ******************************************************************************
-
-.THERE
-
- LDX GCNT               \ Set X = GCNT - 1
- DEX
-
- BNE THEX               \ If X is non-zero (i.e. GCNT is not 1, so we are not in
-                        \ the second galaxy), then jump to THEX
-
- LDA QQ0                \ Set A = the current system's galactic x-coordinate
-
- CMP #144               \ If A <> 144 then jump to THEX
- BNE THEX
-
- LDA QQ1                \ Set A = the current system's galactic y-coordinate
-
- CMP #33                \ If A = 33 then set the C flag
-
- BEQ THEX+1             \ If A = 33 then jump to THEX+1, so we return from the
-                        \ subroutine with the C flag set (otherwise we clear the
-                        \ C flag with the next instruction)
-
-.THEX
-
- CLC                    \ Clear the C flag
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: msblob
-\       Type: Subroutine
-\   Category: Dashboard
-\    Summary: Display the dashboard's missile indicators in green
-\
-\ ------------------------------------------------------------------------------
-\
-\ Display the dashboard's missile indicators, with all the missiles reset to
-\ green (i.e. not armed or locked).
-\
-\ ******************************************************************************
-
-.msblob
-
- LDX #4                 \ Set up a loop counter in X to count through all four
-                        \ missile indicators
-
-.ss
-
- CPX NOMSL              \ If the counter is equal to the number of missiles,
- BEQ SAL8               \ jump down to SAL8 to draw the remaining missiles, as
-                        \ the rest of them are present and should be drawn in
-                        \ green
-
- LDY #0                 \ Draw the missile indicator at position X in black
- JSR MSBAR
-
- DEX                    \ Decrement the counter to point to the next missile
-
- BNE ss                 \ Loop back to ss if we still have missiles to draw
-
- RTS                    \ Return from the subroutine
-
-.SAL8
-
- LDY #GREEN2            \ Draw the missile indicator at position X in green
- JSR MSBAR
-
- DEX                    \ Decrement the counter to point to the next missile
-
- BNE SAL8               \ Loop back to SAL8 if we still have missiles to draw
-
- RTS                    \ Return from the subroutine
-
-\ ******************************************************************************
-\
-\       Name: MALC
-\       Type: Subroutine
-\   Category: Main loop
-\    Summary: GINF and the copy of a ship's data block into INWK, unrolled for
-\             slots 0-5 (Port: the demo port's CPYIN, 8a7e690, 9bb50a9 w_0367)
-\
-\ ------------------------------------------------------------------------------
-\
-\ Entered by JMP from MAL1 with X = the slot. Sets INF as GINF does, and for
-\ slots 0-5 (whose blocks start at most 185 bytes into K%, so K% + i + Y
-\ never crosses a page) copies the 37 bytes with LDA K%+i,Y / STA INWK+i and
-\ rejoins MAL1 at MAL2e with Y = &FF, as the loop leaves it; other slots
-\ rejoin at MAL1g to run the loop.
-\
-\ ******************************************************************************
-
-.MALC
-
- TXA                    \ Set INF to the address of the slot's data block, as
- ASL A                  \ GINF does
- TAY
- LDA UNIV,Y
- STA INF
- LDA UNIV+1,Y
- STA INF+1
-
- LDY malct,X            \ Set Y = NI% * X, the block's offset in K%, or
- BPL P%+5               \ &FF for slots 6 and up, which use the loop in MAL1
- JMP MAL1g
-
- FOR i, 0, NI% - 1
-  LDA K%+i,Y            \ Copy byte i of the block into INWK
-  STA INWK+i
- NEXT
-
- LDY #&FF               \ Y = &FF, as MAL2's loop leaves it
-
- JMP MAL2e              \ Rejoin MAL1
-
-.malct
-
- FOR i, 0, NOSH
-  IF i < 6
-   EQUB i * NI%         \ NI% * slot for slots 0-5
-  ELSE
-   EQUB &FF             \ and &FF for the others
-  ENDIF
- NEXT
-
- ASSERT 5 * NI% + NI% - 1 < 256 AND LO(K%) = 0
 
 .HI_END%
 

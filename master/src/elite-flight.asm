@@ -260,26 +260,6 @@
 
 \ ******************************************************************************
 \
-\       Name: sightcol
-\       Type: Variable
-\   Category: Drawing lines
-\    Summary: Colours for the crosshair sights on the different laser types
-\             (Port: the unused beamcol table that followed it is gone)
-\
-\ ******************************************************************************
-
-.sightcol
-
- EQUB YELLOW            \ Pulse lasers have yellow sights
-
- EQUB CYAN              \ Beam lasers have cyan sights
-
- EQUB CYAN              \ Military lasers have cyan sights
-
- EQUB YELLOW            \ Mining lasers have yellow sights
-
-\ ******************************************************************************
-\
 \       Name: LL9F
 \       Type: Subroutine
 \   Category: Drawing ships
