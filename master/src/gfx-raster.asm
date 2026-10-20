@@ -507,15 +507,15 @@ r_bdx3 = R_BDX30
   STA &F4
   STA &FE30
   LDA r_sbh_dl,X          \ group r_dl
-  STA r_pt60+2
-  STA r_pt410+2
-  STA r_pt61+2
-  STA r_pt411+2
+  STA r_pt60+2            \ bankcheck: ok (paged in above)
+  STA r_pt410+2           \ bankcheck: ok (paged in above)
+  STA r_pt61+2            \ bankcheck: ok (paged in above)
+  STA r_pt411+2           \ bankcheck: ok (paged in above)
   LDA r_sbh_dr,X          \ group r_dr
-  STA r_pt62+2
-  STA r_pt412+2
-  STA r_pt63+2
-  STA r_pt413+2
+  STA r_pt62+2            \ bankcheck: ok (paged in above)
+  STA r_pt412+2           \ bankcheck: ok (paged in above)
+  STA r_pt63+2            \ bankcheck: ok (paged in above)
+  STA r_pt413+2           \ bankcheck: ok (paged in above)
   LDA #RASTBANK
   STA &F4
   STA &FE30
@@ -1110,7 +1110,7 @@ R_ENDPAGE 22
   LDA r_dyz
   CMP r_dya
   BCC c4                  \ (no dirty rows)
-  JSR r7_crep
+  JSR r7_crep             \ bankcheck: ok (only R_DISCROWS calls r_crep5)
 .c4
   LDX r_buf
   RTS

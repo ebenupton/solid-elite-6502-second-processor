@@ -23,6 +23,8 @@
 #  * the renderer's banks (bank5: gfx-raster.asm, the rasteriser's shared region,
 #    with its disc window bank5d, gfx-raster_disc.asm, and its polygon window
 #    bank5a, gfx-raster_poly.asm, in ANDY, which never refer to each other;
+#    the shared region, which runs with either window paged in, refers to
+#    neither (but for lines marked bankcheck: ok);
 #    bank6: the frame layer, the
 #    faces, the lighting tables, frame_cold and the flare's bank 6 part,
 #    bank5 also the lens flare, bank7r: gfx-raster7.asm) are reached
@@ -164,6 +166,8 @@ for f, a in FILES.items():
             if a in RAST5 and b in RAST5:
                 if {a, b} == {"bank5d", "bank5a"} and not op.strip().startswith("#"):
                     errors.append("%s: %s refers to %s label %s (the disc and polygon windows are never paged in together)" % (where, a, b, x))
+                elif a == "bank5" and not op.strip().startswith("#"):
+                    errors.append("%s: the shared region refers to %s label %s (it runs with either window paged in)" % (where, b, x))
                 continue
             if mn in BRANCH:
                 errors.append("%s: branch from %s to %s %s" % (where, a, b, x))
