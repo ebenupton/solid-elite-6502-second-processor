@@ -174,16 +174,10 @@
  BEQ fsy9
  STZ f_dtext
  PHX
- LDX #0                 \ (Master port: the direct-mode buffer is 1, shadow)
-.fsy2
- LDA F_TM,X
- STA F_SH1,X
- LDA F_TM+256,X
- STA F_SH1+256,X
- LDA F_TM+512,X
- STA F_SH1+512,X
- INX
- BNE fsy2
+ LDA #5*F_STM           \ (Master port: the direct-mode buffer is 1, shadow)
+ LDX #0                 \ buffer 1 shows the text map: N1 and M1 where the
+ LDY #2*F_STM+2*F_STN   \ cell is not empty
+ JSR f_stset
  LDX #23
 .fsy3
  LDA F_TMR,X
@@ -225,14 +219,8 @@
  LDA #0                 \ its rasteriser state: empty
  JSR T_SETBUF
  JSR T_RESETBUF
- LDA #0                 \ and its shown-text map: empty
- TAX
-.fbn2
- STA F_SH0,X
- STA F_SH0+256,X
- STA F_SH0+512,X
- INX
- BNE fbn2
+ LDA #10*F_STM          \ and its shown text: none
+ JSR f_stand
  LDX #23
 .fbn3
  STA F_SHR0,X

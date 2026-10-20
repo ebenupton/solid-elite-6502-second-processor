@@ -90,72 +90,48 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 .F_CPE
  EQUB &00, &FF, &F0, &0F, &FF, &0F, &FF
-.F_CPO
- EQUB &00, &FF, &F0, &0F, &FF, &0F, &FF
+F_CPO = F_CPE           \ (the odd rows' bytes are the even rows')
+
+\ F_INIT: one-off initialisation (called by the loader / startup) is in F_DL
+\ (elite-gfx.asm), which it leaves to the ship records.
 
 \ ------------------------------------------------------------------------------
-\ F_INIT: one-off initialisation (called by the loader / startup)
+\ Text map: 24 rows x 32 columns of desired characters (F_TM), and for each
+\ cell what each buffer shows (F_ST, at F_TM + &300). A cell of F_TM is its
+\ character (&20-&7F), or 0, or, once cleared, &80 + the character it had
+\ (empty, remembering the character). For buffer b, bit b+2 of F_ST (F_STN)
+\ says it shows a character in the cell, and bit b (F_STM) that this is the
+\ cell's character, or the one it remembers: so a cell cleared and given
+\ its character back (TT66 and a view's title) is shown as it was, as with
+\ the original's shown maps. The text steps erase a cell where a buffer shows
+\ a character that is not the cell's (N, and not M or the cell empty), and
+\ draw a non-empty cell where it shows none (not N). F_TMR counts the
+\ non-empty cells of each text map row, F_SHR0/F_SHR1 those each buffer
+\ shows, so empty rows cost nothing.
 \ ------------------------------------------------------------------------------
 
-.F_INIT
- LDX #&21               \ R_INIT uses &06-&27: keep Elite's values (in F_DL,
-.fin0                   \ the ship records, unused until the first frame)
- LDA &06,X
- STA F_DL,X
- DEX
- BPL fin0
- JSR T_INIT
- LDX #&21
-.fin4
- LDA F_DL,X
- STA &06,X
- DEX
- BPL fin4
- LDA #4                 \ Master port: clear main RAM's screen (buffer 0);
- TRB &FE34              \ shadow RAM's (buffer 1, Master's direct-mode screen,
- LDA #&40               \ on show) is cleared by TTX66
- STA fin3+2
- LDA #0
- TAX
-.fin3
- STA &4000,X
- INX
- BNE fin3
- INC fin3+2
- LDY fin3+2
- CPY #&70
- BNE fin3
- LDA #0
- STA F_NSHIP
- STA F_NLINE
- STA F_NDOT
- STA F_PLON
- LDX #23+NDSTAR         \ (and F_DSS after it: no direct-mode stars noted)
-.fin1
- STA R_SS,X
- DEX
- BPL fin1
- JSR f_tmclear
- RTS
+F_STM = 1               \ F_ST: buffer 0 shows the cell's character
+F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
 
-\ ------------------------------------------------------------------------------
-\ Text map: 24 rows x 32 columns of desired characters (F_TM), and what each
-\ buffer actually shows (F_SH0, F_SH1). F_TMR/F_SHR0/F_SHR1 count the non-zero
-\ cells in each row so empty rows cost nothing.
-\ ------------------------------------------------------------------------------
-
-.f_tmclear              \ clear the text map and buffer 1's shown map (Master
- LDA #0                 \ port: buffer 1, shadow RAM, is the direct-mode screen,
- TAX                    \ which TTX66 blanks; buffer 0 keeps its own: it still
-.ftc1                   \ holds that picture)
+.f_tmclear              \ clear the text map and buffer 1's shown cells (Master
+ LDX #0                 \ port: buffer 1, shadow RAM, is the direct-mode screen,
+.ftc1                   \ which TTX66 blanks; buffer 0 keeps its own: it still
+ LDA F_TM,X             \ holds that picture)
+ BEQ P%+7
+ ORA #&80
  STA F_TM,X
+ LDA F_TM+256,X
+ BEQ P%+7
+ ORA #&80
  STA F_TM+256,X
+ LDA F_TM+512,X
+ BEQ P%+7
+ ORA #&80
  STA F_TM+512,X
- STA F_SH1,X
- STA F_SH1+256,X
- STA F_SH1+512,X
  INX
  BNE ftc1
+ LDA #5*F_STM           \ buffer 1 shows nothing
+ JSR f_stand
  LDX #23
 .ftc2
  STA F_TMR,X
@@ -164,9 +140,77 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  BPL ftc2
  JMP f_tchall
 
+\ f_stand: every cell's F_ST AND A: a buffer's shown cells cleared (f_tmclear,
+\ f_enter, f_b0new). Returns A = 0
+
+.f_stand
+ STA fsa1+1
+ STA fsa2+1
+ STA fsa3+1
+ LDX #0
+.fsa0
+ LDA F_ST,X
+.fsa1
+ AND #0                 \ patched
+ STA F_ST,X
+ LDA F_ST+256,X
+.fsa2
+ AND #0                 \ patched
+ STA F_ST+256,X
+ LDA F_ST+512,X
+.fsa3
+ AND #0                 \ patched
+ STA F_ST+512,X
+ INX
+ BNE fsa0
+ TXA
+ RTS
+
+\ f_stset: every cell's F_ST = (F_ST AND A) OR (X if the text map's cell is
+\ empty, Y if not): buffer 1's shown cells set from the text map (f_sync)
+
+.f_stset
+ STA fss_k+1
+ STX fss_z+1
+ STY fss_n+1
+ LDA #HI(F_TM)
+ STA fss_t+2
+ LDA #HI(F_ST)
+ STA fss_s+2
+ STA fss_d+2
+ LDX #0
+.fss_t
+ LDA F_TM,X             \ patched
+ BEQ fss_z
+ BMI fss_z
+.fss_n
+ LDA #0                 \ patched
+ BRA fst2
+.fss_z
+ LDA #0                 \ patched
+.fst2
+ STA fss_o+1
+.fss_s
+ LDA F_ST,X             \ patched
+.fss_k
+ AND #0                 \ patched
+.fss_o
+ ORA #0                 \ patched
+.fss_d
+ STA F_ST,X             \ patched
+ INX
+ BNE fss_t
+ INC fss_t+2
+ INC fss_s+2
+ INC fss_d+2
+ LDA fss_t+2
+ CMP #HI(F_TM)+3
+ BNE fss_t
+ RTS
+
 \ f_cell: X = column, Y = row -> f_ptr = row*32 + column (offset into a map)
-\ Returns the offset in f_off (2 bytes) and also patches the three map
-\ accessors f_tmld/f_tmst.
+\ Returns the offset in f_off (2 bytes) and also patches the map accessors
+\ f_tmld/f_tmst and f_stld/f_stst.
 
 .f_cell
  TYA
@@ -188,17 +232,22 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  ADC #LO(F_TM)
  STA f_tmld+1
  STA f_tmst+1
+ STA f_stld+1
+ STA f_stst+1
  LDA f_off+1
  ADC #HI(F_TM)
  STA f_tmld+2
  STA f_tmst+2
+ ADC #3                 \ (C = 0) F_ST = F_TM + &300
+ STA f_stld+2
+ STA f_stst+2
  RTS
 
 .f_off  EQUW 0
 .f_row  EQUB 0
 .F_TCH  SKIP 24         \ per text row: bit b set = buffer b's shown row may
                         \ differ from the text map (f_text1/f_text2 scan it whole)
-.f_tbit EQUB 0          \ this frame's buffer bit (1 or 2)
+.f_tbit EQUB 0          \ this frame's buffer bit (1 or 2): its M bit in F_ST
 
 .f_tchall               \ every row changed, for both buffers (keeps X; A = 0)
  PHX
@@ -230,6 +279,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  PLA
  JSR f_tmget            \ X = current content
  BEQ fch1               \ empty: store the character
+ BMI fch1
  STA f_tmp
  CPX f_tmp
  BEQ fch2               \ same character: remove it
@@ -241,8 +291,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  INC F_TMR,X
  JMP fch8
 .fch2
- LDA #0
- JSR f_tmstore
+ JSR f_tmclr
  LDX f_row
  DEC F_TMR,X
 .fch8
@@ -256,14 +305,32 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  LDY f_ysav
  RTS
 
-.f_tmstore
+.f_tmstore              \ A = the new character, X = the cell's content (not
+ STA f_tmp              \ A): if it is not A's, or A's remembered, neither
+ TXA                    \ buffer shows the cell's character now (M = 0)
+ AND #&7F
+ CMP f_tmp
+ BEQ fts1
+.f_stld
+ LDA F_ST               \ patched
+ AND #3*F_STN
+.f_stst
+ STA F_ST               \ patched
+.fts1
+ LDA f_tmp
 .f_tmst
  STA F_TM               \ patched
  RTS
 
+.f_tmclr                \ the cell (not empty) cleared: it remembers its
+ JSR f_tmget            \ character, which each buffer shows or not as before
+ TXA
+ ORA #&80
+ BNE f_tmst             \ (always)
+
 .f_tmget
 .f_tmld
- LDX F_TM               \ patched; sets Z on the content
+ LDX F_TM               \ patched; sets Z and N on the content
  RTS
 
 .f_ysav EQUB 0
@@ -282,8 +349,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR f_cell
  JSR f_tmget
  BEQ fdc9
- LDA #0
- JSR f_tmstore
+ BMI fdc9
+ JSR f_tmclr
  LDX f_row
  DEC F_TMR,X
  LDA #3
@@ -293,30 +360,40 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  RTS
 
 \ f_clrtext0 (F_CLRTEXT, frame_cold.asm): clear text map rows X to Y inclusive
+\ (each cell remembers its character; F_ST is unchanged)
 
 .f_clrtext0
  STY f_ysav
  STY f_tmp
 .fct1
  STX f_row
+ LDA F_TMR,X            \ (an empty row is clear already)
+ BEQ fct6
  LDY f_row
  LDX #0
  JSR f_cell             \ f_tmst -> start of row
  LDA f_tmst+1
  STA fct3+1
+ STA fct4+1
  LDA f_tmst+2
  STA fct3+2
- LDA #0
+ STA fct4+2
  LDY #31
 .fct3
+ LDA F_TM,Y             \ patched
+ BEQ fct5
+ ORA #&80
+.fct4
  STA F_TM,Y             \ patched
+.fct5
  DEY
  BPL fct3
+ LDA #0
  LDX f_row
  STA F_TMR,X
+.fct6
  LDA #3
  STA F_TCH,X
- LDA #0
  INX
  CPX #24
  BCS fct9
@@ -810,14 +887,8 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR T_RESETBUF
  LDA #&FF
  STA F_DCOL+1
- LDA #0
- TAX
-.fen4
- STA F_SH1,X
- STA F_SH1+256,X
- STA F_SH1+512,X
- INX
- BNE fen4
+ LDA #5*F_STM           \ buffer 1 shows nothing
+ JSR f_stand
  LDX #23
 .fen9
  STA F_SHR1,X
@@ -2069,7 +2140,7 @@ ASSERT LT_HL1 = LT_HL0 + 17 AND LT_HL2 = LT_HL0 + 34 AND LT_HL3 = LT_HL0 + 51
 
 F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 
-\ f_rowptr: X = text row -> fz_p = F_TM + 32*row, fz_q = shown map + 32*row
+\ f_rowptr: X = text row -> fz_p = F_TM + 32*row, fz_q = F_ST + 32*row
 
 .f_rowptr
  TXA
@@ -2083,32 +2154,14 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  ASL A
  ASL A
  ASL A
- STA fz_p
- STA fz_q
- LDA fz_p+1
- STA fz_q+1
- LDA fz_p
  CLC
  ADC #LO(F_TM)
  STA fz_p
+ STA fz_q
  LDA fz_p+1
  ADC #HI(F_TM)
  STA fz_p+1
- LDA F_BACK
- BNE frp1
- LDA fz_q
- CLC
- ADC #LO(F_SH0)
- STA fz_q
- LDA fz_q+1
- ADC #HI(F_SH0)
- STA fz_q+1
- RTS
-.frp1
- LDA fz_p               \ F_SH1 = F_TM + 1536 (gfx-build.asm), and LO(F_TM)+32*row never carries
- STA fz_q
- LDA fz_p+1
- ADC #HI(F_SH1-F_TM)    \ C=0 here (from the ADC #HI(F_TM) above)
+ ADC #3                 \ (C = 0) F_ST = F_TM + &300
  STA fz_q+1
  RTS
 
@@ -2116,9 +2169,19 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 \ background by marking them dirty before R_DISCROWS repaints
 
 .f_text1
- LDA F_BACK             \ this buffer's bit in F_TCH
- INC A
+ LDA F_BACK             \ this buffer's bit in F_TCH, and its M bit in F_ST
+ INC A                  \ (into the text steps' masks)
  STA f_tbit
+ STA ft_e1+1
+ ASL A                  \ its N bit
+ ASL A
+ STA ft_n2+1
+ ORA f_tbit             \ both
+ STA ft_n1+1
+ STA ft_m1+1
+ STA ft_b2+1
+ EOR #&FF               \ neither
+ STA ft_c1+1
  LDX #23                \ rows 23..0 (each row is independent)
 .ft11
 .ft_sr1
@@ -2131,16 +2194,24 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  JSR f_rowptr
  LDY #31
 .ft12
- LDA (fz_q),Y
+ LDA (fz_q),Y           \ a character shown (N) that is not the cell's (not
+.ft_n1                  \ M), or the cell is empty (M is never set without N)
+ AND #0                 \ patched: N and M
  BEQ ft17a
- CMP (fz_p),Y
+.ft_m1
+ CMP #0                 \ patched: N and M
  BNE ft15
+ LDA (fz_p),Y
+ BEQ ft15
+ BMI ft15
 .ft17a
  DEY
  BPL ft12
  BMI ft18
 .ft15
- LDA #0                 \ this cell goes: forget it, mark it dirty
+ LDA (fz_q),Y           \ this cell goes: it shows nothing, and is marked
+.ft_c1                  \ dirty
+ AND #0                 \ patched: neither N nor M
  STA (fz_q),Y
  LDX fz_i
 .ft_sr2
@@ -2292,8 +2363,11 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 .ft27
  LDA (fz_p),Y
  BEQ ft28
- CMP (fz_q),Y
- BNE ft2d               \ not shown yet
+ BMI ft28
+ LDA (fz_q),Y
+.ft_e1
+ AND #0                 \ patched: M (f_text1 has erased the other characters,
+ BEQ ft2d               \ so M = N here): not shown yet
  CPY f_wl
  BCC ft28
  CPY f_wr
@@ -2301,13 +2375,18 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  BCS ft28
 .ft2d
  LDA (fz_q),Y
+.ft_n2
+ AND #0                 \ patched: N
  BNE ft2e
  LDX fz_i
 .ft_sr3
  INC F_SHR0,X           \ patched
 .ft2e
- LDA (fz_p),Y
+ LDA (fz_q),Y           \ shown now
+.ft_b2
+ ORA #0                 \ patched: E and N
  STA (fz_q),Y
+ LDA (fz_p),Y
  STY fz_u
  JSR f_glyph
  LDY fz_u
@@ -2612,7 +2691,6 @@ MAXPT = 40              \ points per frame: PLS22's step STP is at least 2
                         \ F_NCV (curves recorded this frame) and F_NPT
                         \ (points recorded this frame) live in F_PPOINT's
                         \ LDA #/LDY # operands
- EQUW 0                 \ pad (were F_NCV, F_NPT): keeps F_CVS onward in place
 .F_CVS SKIP MAXCV       \ first point of each curve
 .F_CVE SKIP MAXCV       \ one past its last point
 .F_CVT SKIP MAXCV       \ TGT: 31 (half ellipse) or 64 (full)
@@ -2657,7 +2735,6 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
 .fpp9
  JMP gback              \ (G_PPOINT tail-jumps here: page Elite's bank back in
                         \ and return to BLINE)
- EQUW 0                 \ pad (was PHY, PLY): keeps what follows in place
 
 \ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
 
@@ -2690,7 +2767,6 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
  BNE fnb1
 .fnb9
  RTS
- EQUB 0, 0              \ pad: keeps what follows (f_bounds onward) in place
 
 \ f_bounds: the planet's curves -> R_NDN/R_NDX0-3/R_NDP for rows
 \ R_NDT..R_NDB (which f_plrows has just set), and colour B

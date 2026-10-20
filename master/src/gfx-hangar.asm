@@ -43,9 +43,20 @@ HTOP = 16               \ the wall's top row: text row 1, the view's name, is on
  STY ff_lin+2
  RTS
 
-\ F_HANG0: before the hangar's ships are recorded (G_HANG0): empty the lists
+\ F_HANG0: before the hangar's ships are recorded (G_HANG0): the hangar's
+\ light (LLT, gfx-light.asm: towards the top right and the viewer, as the
+\ title's), and the frame's lists emptied
 
-F_HANG0 = f_reset
+.F_HANG0
+ LDX #2
+.fhg0
+ LDA fhlt,X
+ STA LLT,X
+ DEX
+ BPL fhg0
+ JMP f_reset
+
+.fhlt EQUB 24, 24, &E8
 
 \ f_hback: the background, in place of f_lines's call (F_FRAME's ff_lin),
 \ then the lines recorded (none: f_lines is the frame's own)

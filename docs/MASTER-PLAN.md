@@ -1684,3 +1684,68 @@ bank).
 
 **Checks.** The gate (VERIFY PASS 1.235, 17.25 it/s, as before; game state
 identical at all 10000 iterations); test_raster --quick; bankcheck.
+
+## The lighting in bank 6 (after one run from &7000)
+
+The user asked for room in bank 6 (the frame layer, 5 bytes free) so that
+the lighting's game half (gfx-light.asm: L_SUN, L_REC and their tables and
+variables, 1002 bytes), which the frame layer calls, could move there from
+the high code, leaving the high code the quarter squares only. A survey of
+bank 6 ranked the candidates; the user ruled out merging the planet's and
+the sun's half-width tables (F_HW, F_HW2). What was done:
+
+* **The planet's curve points** (MAXPT 140 to 40, 400 bytes): PLS22's step
+  STP is at least 2 (CIRCLE's PL89), so a crater's full ellipse has at most
+  33 points and the meridian and equator's half ellipses 17 each (the
+  gate's peak is 33); a point past the end is dropped, as before.
+  f_segment's fsg_up and fsg_ry are no longer in one page, so fsg_jj's
+  patch writes both bytes of its target (10 bytes).
+* **The shown text maps.** F_SH0 and F_SH1 (768 bytes each: the character
+  each buffer shows in each cell) became F_ST (768: a state byte per cell,
+  at F_TM + &300). For buffer b, bit b+2 (N) says it shows a character in
+  the cell, bit b (M) that this is the cell's character; and a cleared cell
+  of F_TM (f_clrtext0, f_delchar0, f_char0's second print, f_tmclear) keeps
+  its character as &80 + it, so M still says whether a buffer shows it.
+  f_text1 erases where a buffer shows a character that is not the cell's
+  (N, and not M or the cell empty), f_text2 draws a non-empty cell where it
+  shows none; a cell given a new character (f_tmstore) clears M unless it is
+  the one the cell has or remembers. So a cell cleared and given its
+  character back, as TT66 and a view's title do, is left alone, as the
+  original's shown maps left it: a first version, with a bit for "shows the
+  text map's character" only, redrew the title after every view change
+  (179 erases in 3000 iterations against 48) and cost 255 cycles an
+  iteration. f_stset (f_sync) and f_stand (f_tmclear, f_enter, f_b0new) set
+  or clear a buffer's bits for the whole map; f_clrtext0 skips the rows
+  that are empty, and only marks the others' cells. The characters are
+  &20-&7F (CHPR's, the font's), so bit 7 is free.
+* **F_INIT in F_DL** (gfx-finit.asm, 79 bytes): it runs once, from the
+  loader, before the first frame, and keeps Elite's &06-&27 in F_DL's first
+  34 bytes, so it is assembled after them; from the first frame on F_DL
+  holds the ship records.
+* **Three keep-in-place pads** (6 bytes) and F_CPO, the same bytes as F_CPE
+  (7), now an alias.
+* **The lighting** is INCLUDEd after the lighting tables; its eight reads of
+  QSL/QSH are marked "bankcheck: ok" (L_SUN runs before F_FRAME sets ACCCON
+  X, L_REC from F_SHIP in game context). F_HANG0 sets the hangar's light
+  (LLT, now in bank 6) that G_HANG0 used to set.
+
+Bank 6 has 71 bytes free, bank 4 3856 (the run starts at &7400, after the
+quarter squares), the main code 653: 1082 bytes more outside shadow RAM.
+
+**Cost.** 57 cycles a flight iteration (115987 against 115930, profile.mjs:
+17.24 it/s against 17.25), well inside the exchange rate for 600 bytes:
+the text steps' masks, patched each frame (about 38), and f_text1's row
+loop, whose two branches now cross a page (about 46, an alignment
+candidate), less what f_stand saves on view changes, with the page
+crossings in the run's code, which moved by 1K, about even (657 cycles an
+iteration against 656). Entering a docked
+screen's text (f_tmclear's 768 cells) takes 10 to 20 ms longer.
+
+**Checks.** The gate (VERIFY PASS 1.234, 17.24 it/s; game state identical
+at all 10000 iterations); XTRACE: nothing run with X set in main RAM
+&3000-&7FFF; mfbcmp over the gate's run, 3000 iterations, every fifth
+frame's buffers byte for byte 5b7b91e's (587 frames; it caught a bug the
+gate cannot see, as the text map is not game state: f_clrtext0's new code
+used f_tmp, which holds its last row, and cleared rows past it); mbrief,
+every briefing's and debriefing's key-wait and end screens identical to
+5b7b91e's.

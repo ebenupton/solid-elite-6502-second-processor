@@ -164,14 +164,14 @@ with `.x4_TT26 JSR far4 : EQUW TT26` where TT26 was. The emissions:
   original's order (the font and the log tables at their place after ADDK,
   page aligned there), then the low area (elite-low.asm: the blocks tagged
   low, then the port's far calls and renderer glue), then the rest of the
-  main code, to TACTICS, where it continues in main RAM at &77EA, after the
-  high code (the quarter squares and the lighting, &7000-&77E9), and runs on
+  main code, to TACTICS, where it continues in main RAM at &7400, after the
+  high code (the quarter squares, &7000-&73FF), and runs on
   through &8000 into bank 4, to F%; the
   blocks tagged bank 4 after it; and in HAZEL from &C000, the hot data in
   elite-data.asm's order: XX21, E%, KWL%, KWH%, the blueprints from the
   missile's to the Dodo's, SNE and ACT. The stubs into the cold area are at
   their routines' places: 5 in main RAM below &4000 (2 in the head,
-  getzp's before the font), 3 in the run's part from &77EA, 39 in its part
+  getzp's before the font), 27 in the run's part from &7400, 15 in its part
   in bank 4;
 * **cold**: bank 7 from &8000, one run: the cold blocks of
   elite-source.asm in its order, with the stubs out of the cold area at
@@ -189,7 +189,7 @@ INCLUDEs the high code, elite-hi.asm), and from there it is one run, through
 as BANK4). It ASSERTs that main RAM's part fits, so a change that overflows
 it says to move the marker to an earlier routine. TACTICS is the latest
 place that fits: its seven parts branch into one another, so it moves as a
-whole, and with it below &4000, DOCKIT would overflow by 24 bytes. So 639
+whole, and with it below &4000, DOCKIT would overflow by 10 bytes. So 653
 bytes are free below &4000, at the marker, for the run before it to grow
 into.
 CODE%'s low byte is chosen so that the font starts a page with no padding
@@ -247,15 +247,15 @@ names. The harness finds cold routines by their _C names (DOSCLI_C, TITLE_C
 | WP | main &0841-&0CCE | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E; then the CMYK dashboard's variables DASHV (&0CAA-&0CCE, after JOPOS: the dashboard runs with ACCCON X set) | 50 (&0840, &0CCF-&0CFF) |
 | Free | main &0E00-&0E3F | | 64 |
 | Shared workspace | main &0E40-&1EDB | the renderer's shared state, one block ending where the main code starts: R_NDN (&0E40), the rasteriser's per-call scratch (&0F00-&118F, R_NDISCL page aligned), DFSST and DFSIN (&1190-&1210), R_WL (&1240), R_SS and F_DSS (&1300), raster_vars at its fixed place (&1333: R_DIRTYR0 at &14B5 for f_sight2), R_SX, R_SY, R_SN, R_SCOL, R_WR (&1E1A-&1EDB, whole in a page) | 79 (47, 6, 26) |
-| Main code (BCODE) | main &1EDC-&3D80 | the run's first part, with the stubs of the cold routines whose places are in it (5: 2 in the head, getzp's before the font). The head, below &3000 (to &2DDE, HEAD_END%): the original's VEC to UP in its order (the IRQ and sound, DOVDU19, pxpatd and pxpat, HANGFLAG, CHPR, ZES1, ZES2, ADDK, the font FONT% at &2200 and the log tables log, logL, alogh, page aligned at their place, UP), then the low area (elite-low.asm, &2822-&2DDE): the blocks tagged low (stackpt, NEWBRK), the far calls (elite-far.asm), the renderer's glue (gfx-gvars.asm with GWARP, the T_ trampolines, the text and IRQ hooks G_CHAR, G_DELCHAR, G_CLRTEXT, H_CHAR, H_DEL, H_VSYNC, then the G_ stubs, gfx-gstubs.asm, and the hooks in Elite's drawing code, gfx-hooks.asm). Then the main flight loop, MALW, MALC, stardust, NA%, shpcol and scacol, the hangar's HATB, HALL and HAS1 (HALL ends with G_HANGAR: the renderer draws the hangar, docs/MASTER-PLAN.md, "The hangar"), to the marker before TACTICS | 639 (545 below &3000) |
+| Main code (BCODE) | main &1EDC-&3D72 | the run's first part, with the stubs of the cold routines whose places are in it (5: 2 in the head, getzp's before the font). The head, below &3000 (to &2DD0, HEAD_END%): the original's VEC to UP in its order (the IRQ and sound, DOVDU19, pxpatd and pxpat, HANGFLAG, CHPR, ZES1, ZES2, ADDK, the font FONT% at &2200 and the log tables log, logL, alogh, page aligned at their place, UP), then the low area (elite-low.asm, &2822-&2DD0): the blocks tagged low (stackpt, NEWBRK), the far calls (elite-far.asm), the renderer's glue (gfx-gvars.asm with GWARP, the T_ trampolines, the text and IRQ hooks G_CHAR, G_DELCHAR, G_CLRTEXT, H_CHAR, H_DEL, H_VSYNC, then the G_ stubs, gfx-gstubs.asm, and the hooks in Elite's drawing code, gfx-hooks.asm). Then the main flight loop, MALW, MALC, stardust, NA%, shpcol and scacol, the hangar's HATB, HALL and HAS1 (HALL ends with G_HANGAR: the renderer draws the hangar, docs/MASTER-PLAN.md, "The hangar"), to the marker before TACTICS | 653 (559 below &3000) |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
-| High code, then the run | main &7000-&7FFF | the high code (elite-hi.asm, &7000-&77E9), with no counterpart in the original: the quarter-square tables QSL/QSH (page aligned at &7000) and the lighting's L_SUN and L_REC (which the frame layer calls with bank 6 paged in); then the run's second part from &77EA (with 3 stubs of cold routines): TACTICS, DOCKIT and the tactics helpers, SESCP, SFS1, SFS2, STARS2, ..., running on into bank 4 | - (the run's free space is at its end, in bank 4) |
-| Bank 4 | &8000-&B4D9 | Elite's home bank, code only: the run's continuation from main RAM, with the stubs of the cold routines whose places are in it (39), to F% (&8000-&A4A5: the end of STARS2, MU5, MULT3, the maths from MLS2 to DVID4, DVID3B2 and its rare paths, LASLI, DOEXP, the planet and the sun, the main game loop, DEATH, WARP, DOKEY, TIDY and TIS2, SHPPT, LL5 to LL9 (recording only: its line drawing, LSPUT and LSCLR's erase are removed), LL9F and LL9B (the title's and the briefing's frames), MVEIT to PLUT, LOOK1, SIGHT, FILLKL, ZEKTRAN, the sounds, ...); then the blocks tagged bank 4 (&A4A6-&B4D9: Master's drawing, now for the docked screens' text and lines only, and the CMYK dashboard), in the original's order: ylookup, SCAN, LOIN, TWOS, TWOS2, LOINQ, HLOIN, TWFL, TWFR, orange, PIX1, PIXEL2, PIXEL, PXCL, DOT, ddot (at CPIXK's place), ECBLB2, ECBLB, SPBLB, SPBT, ECBT, MSBAR, TTX66, CLYNS, DIALS, PZW2, PZW, DIL (at DILX's place), DIL2, DILI, DSEG | 2854 |
+| High code, then the run | main &7000-&7FFF | the high code (elite-hi.asm, &7000-&73FF), with no counterpart in the original: the quarter-square tables QSL/QSH (page aligned at &7000); then the run's second part from &7400 (with 27 stubs of cold routines): TACTICS, DOCKIT and the tactics helpers, SESCP, SFS1, SFS2, STARS2, MU5, MULT3, the maths from MLS2, ..., running on into bank 4 | - (the run's free space is at its end, in bank 4) |
+| Bank 4 | &8000-&B0EF | Elite's home bank, code only: the run's continuation from main RAM, with the stubs of the cold routines whose places are in it (15), to F% (&8000-&A0BB: the maths to DVID4, DVID3B2 and its rare paths, LASLI, DOEXP, the planet and the sun, the main game loop, DEATH, WARP, DOKEY, TIDY and TIS2, SHPPT, LL5 to LL9 (recording only: its line drawing, LSPUT and LSCLR's erase are removed), LL9F and LL9B (the title's and the briefing's frames), MVEIT to PLUT, LOOK1, SIGHT, FILLKL, ZEKTRAN, the sounds, ...); then the blocks tagged bank 4 (&A0BC-&B0EF: Master's drawing, now for the docked screens' text and lines only, and the CMYK dashboard), in the original's order: ylookup, SCAN, LOIN, TWOS, TWOS2, LOINQ, HLOIN, TWFL, TWFR, orange, PIX1, PIXEL2, PIXEL, PXCL, DOT, ddot (at CPIXK's place), ECBLB2, ECBLB, SPBLB, SPBT, ECBT, MSBAR, TTX66, CLYNS, DIALS, PZW2, PZW, DIL (at DILX's place), DIL2, DILI, DSEG | 3856 |
 | Cold area | bank 7 &8000-&B08F | the cold emission ("The source and its emissions"), one run: the cold routines in the original's order, with the stubs out of the cold area (49) at their routines' places among them (&8000: the zero-page save, the start-up, DOENTRY, the extended token printing, the number printing, STATUS, ESCAPE, HME2, FRS1, FRMIS, ANGRY, FR1, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, the market table QQ23, equipment, the text printing (TT27 ...), SOLAR, YESNO, RESET and RES2, Ze, BAD, the title and start-up (TT170 ...), save and load (SVE, LOD, CATS, DELT ..., with RLINE, thislong, oldlong and the commands' strings CTLI, DELI, savosc, lodosc at their places), DKS3, MESS, OUCH, TT66, COLD, DOSCLI); then the cold data in the original's order: QQ18 (&9FCB), the extended tokens TKN1, RUPLA, RUGAL, RUTOK (to &B08F) | 3952 |
 | Rasteriser: polygon window | ANDY &8000-&8FD9 (ROMSEL &85) | gfx-raster_poly.asm: R_POLY, the 8-bit polygons' phase A (r_pf8, r_pcbd, r_e8, the DDA loops), every polygon's phase B; the 16-bit polygons' phase A (r7_pf16..r7_esgen, r7_e8c, its variables); then gfx-raster_line.asm: R_LINE (its fast path, rl_gen's exact clipping, the line loops, rl_lpat) | 38 |
 | Rasteriser: disc window | bank 5 &8000-&8F76 (ROMSEL 5) | gfx-raster_disc.asm: R_DISCROWS and its row code (r_dbm, r_dq, r_dpe, r_dp2, r_drg ...), the dirty repair outside the disc rows (r7_crep, r7_rowrep, r7_j3); R_INIT, R_RESETBUF, r7_reset1 | 137 |
 | Rasteriser: shared region | bank 5 &9000-&BF7C (with either window) | gfx-raster.asm: the boundary arrays (R_BD*, both buffers, &9000-&997F, with r_rowset, r_dw and r_bstore in the 128 bytes between the buffers); R_SETBUF (and r_sbpoly, which pages the polygon window in for phase B's operands), r_spc; the polygon window's arithmetic (r_div8, r_dvq, rp_mul16, rp_div32 and their variables, &9B19-&9BF7); the per-x tables (&9C00); the 24 row-run pages (&A000-&B7FF, STA ...,Y with Y = the row; their 65-byte tails hold the star records, the variables, small routines such as R_SPAN, R_DOT, R_MARKDIRTY and the disc layer's r_dp1, r_bmn, the high-byte tables R_SETBUF patches from, R_LINE's variables (page 16), and the lens flare's half-width table and variables); the stars, r_lput2, r_ypg; the lens flare (gfx-flare.asm: R_FLARE); R_LINE's cold part (gfx-raster_lcold.asm: rl_mdq, rl_mdqa, rl_long, &BED9-&BF7C) | 131 (+ 8 at &9BF8; + 252 in the tails) |
-| Frame layer | bank 6 &8000-&AE88 code, &AE89-&BFFA data | the frame layer (gfx-frame.asm), the faces of the 33 ships (gfx-faces.asm), the lighting tables (gfx-light6.asm), frame_cold (with f_b0new), the flare's step (f_flt: its tests on bank 6's state, then T_FLARE) and the hangar's frame (gfx-hangar.asm: F_HANGAR, f_hback); then its state: F_HW, F_HW2, F_DL, the text maps, the directly drawn stars (F_DSX, F_DSY) | 5 |
+| Frame layer | bank 6 &8000-&B146 code, &B147-&BFB8 data | the frame layer (gfx-frame.asm), the faces of the 33 ships (gfx-faces.asm), the lighting tables (gfx-light6.asm) and the lighting's L_SUN and L_REC (gfx-light.asm, which the frame layer calls in game context: they multiply with the quarter squares at &7000), frame_cold (with f_b0new), the flare's step (f_flt: its tests on bank 6's state, then T_FLARE) and the hangar's frame (gfx-hangar.asm: F_HANG0, F_HANGAR, f_hback); then its state: F_HW, F_HW2, F_DL (with F_INIT, gfx-finit.asm, run once before the first frame, after its first 34 bytes), the text map F_TM and the shown cells' states F_ST (one byte a cell for both buffers), the directly drawn stars (F_DSX, F_DSY) | 71 |
 | HAZEL | &C000-&DDF3 | the game data, the hot emission of elite-data.asm in its order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Constrictor's, the Cougar's and the Dodo's, SNE, ACT (to &DDE4); then the hangar's tables (gfx-hangar-hz.asm, &DDE5-&DDF3: HFY, HPWL, HPWH); HAZEL.bin ends there | 268 (&DDF4-&DEFF), 256 (&DF00-&DFFF: not for the game's data, which the loader would copy over the MOS's: its FS numbers and filing-system names are at &DF00-&DF47, its lasting state at &DFC0-&DFFF) |
 | Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
 | Buffer 1, dashboard | shadow &4000-&7DFF | the screen (rule 6) | - |
@@ -302,9 +302,8 @@ workspace.
   &3000-&7FFF over the gate's runs).
 * **The high code**, at &7000 before the run's second part, is what must be
   visible whatever bank is paged and cannot fit below &3000: the quarter
-  squares (read with bank 4, 6 or 7 paged) and the lighting's game half
-  (called by the frame layer with bank 6 paged). Neither has a place in the
-  original. (The stubs into the cold area do have places, their routines',
+  squares (read with bank 4, 6 or 7 paged: the maths, and the lighting in
+  bank 6). They have no place in the original. (The stubs into the cold area do have places, their routines',
   so they are in the run, in main RAM or bank 4: game context only.)
 * **Bank 4** is paged whenever game code runs, so it holds the run's
   continuation and, after it, the code tagged bank 4: Master's drawing
@@ -342,7 +341,7 @@ through a stub; the stubs are of four kinds.
 
 | Kind | Where | Count | Pages |
 |---|---|---:|---|
-| far7 / far7j stubs (`.TT22 JSR far7 : EQUW TT22_C`), generated into the hot copies | the run, each at its cold routine's place (main RAM 8: 5 below &4000, 3 from &77EA; bank 4 39) | 47 | the cold area in, the caller's bank back |
+| far7 / far7j stubs (`.TT22 JSR far7 : EQUW TT22_C`), generated into the hot copies | the run, each at its cold routine's place (main RAM 32: 5 below &4000, 27 from &7400; bank 4 15) | 47 | the cold area in, the caller's bank back |
 | far4 / far4j stubs (`.x4_TT26 JSR far4 : EQUW TT26`), generated into the cold copy | the cold area, each at its hot routine's place | 49 | bank 4 in, the cold area back |
 | G_ stubs | main: the low area (gfx-gstubs.asm, 12; G_CHAR, G_DELCHAR, G_CLRTEXT in gfx-lowhooks.asm) | 15 | bank 6 in, bank 4 (or, for the text stubs, the caller's bank) back |
 | T_ trampolines | main: the low area (gfx-tramp.asm) | 12 | the rasteriser in (T_POLY, T_LINE: ROMSEL &85, ANDY over bank 5; the rest bank 5), bank 6 back |
@@ -415,8 +414,8 @@ What remains out of that order, each with a `Port:` note where it applies:
 * **Port additions outside the source**, in their own files with headers
   saying why: the far calls and the renderer's glue (the low area,
   elite-low.asm, with the G_ stubs and the hooks), the high code
-  (elite-hi.asm: QSL/QSH and the lighting's game half, at &7000 before the
-  run's second part), the renderer (elite-gfx.asm, with the hangar's frame,
+  (elite-hi.asm: QSL/QSH, at &7000 before the run's second part), the
+  renderer (elite-gfx.asm, with the hangar's frame,
   gfx-hangar.asm), the hangar's tables (gfx-hangar-hz.asm, after the game
   data in HAZEL, elite-layout.asm), the CMYK
   dashboard's tables (generated, build/dashtab-*.asm, each INCLUDEd in its
@@ -550,6 +549,7 @@ the gate's run, 804 in all):
 | phase B's reads of r_tb (R_PTB at &10CB: r_pbr1/r_pbr2) | 20 |
 | r_bstore's stores to R_BDX1, R_BDX2, R_BDX3 (low bytes &C0, &80, &C0 in the boundary block) | 17 |
 | MU8, DVID3B, DVL9a, mad1's BPL add1, SOUL8/SOUL3 (the sound IRQ) | 14 |
+| new with the lighting in bank 6 (bank 6's code moved): f_text1's row loop, its BEQ ft18x and BPL ft11 across a page (about 23 each), and the run's code from &7400 and in bank 4 moved by 1K (MLTU2c, MAD, PLL4F, DVL9l: about 70) | about 115 |
 | new with the garbage collection (bank 4's code moved down 1-36 bytes): LL132 2.9, DOT 1.1, MV3 0.8 (it removed more crossings than it made: LL57S 10.8, r_pt416 11.5, R_STARPLOT 5.7, r_dp2 5.2, mlt3 2.5, LL69 1.9, scd2 1.4 fewer) | 5 |
 | the rest (about 400 places, each under 5) | about 174 |
 
@@ -622,29 +622,39 @@ exceptions chased down (e932f77), with the far-call stubs at their
 routines' places (0bd6fc4, MASTER-PLAN.md, "Far-call stubs inline"), with
 the hangar drawn by the renderer (b583ecc, MASTER-PLAN.md, "The hangar"),
 with the briefing's ship drawn by the renderer and the direct drawing of
-ships removed (7e822e5, MASTER-PLAN.md, "The briefings") and now, with the
-run continuing from &7000 into bank 4 (MASTER-PLAN.md, "One run from
-&7000"). The renderer's banks also have room in their run pages' tails, for
+ships removed (7e822e5, MASTER-PLAN.md, "The briefings"), with the run
+continuing from &7000 into bank 4 (5b7b91e, MASTER-PLAN.md, "One run from
+&7000") and now, with the lighting in bank 6 (MASTER-PLAN.md, "The lighting
+in bank 6"). The renderer's banks also have room in their run pages' tails, for
 variables and routines of under 66 bytes each.
 
-| Region | At d090015 | At cb2c8e5 | At 9cafcd9 | At d23e427 | At e932f77 | At 0bd6fc4 | At b583ecc | At 7e822e5 | Now |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Low code (then); WP's pages &0840-&0CFF (now: &0840, &0CAA-&0CFF) | 14 | 87 | 87 | 87 | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) |
-| Shared workspace &0E00-&1EFF | - | 179 (64 below it; 47, 6, 62 in it) | 179 | 179 | 148 (64; 47, 6, 31: it ends at &1EE0) | 138 (64; 47, 6, 21: it ends at &1ED6) | 143 (64; 47, 6, 26: it ends at &1EDB) | 143 (64; 47, 6, 26) | 143 (64; 47, 6, 26) |
-| Main code (BCODE) | 72 | 213 (1808 below &3000) | 213 | 63 (1784 below &3000) | 218 (1376 below &3000; from &1EE1) | 183 (1376 below &3000; from &1ED7) | 188 (1376 below &3000; from &1EDC) | 192 (1371 below &3000; the briefing's H_CHAR test 5, HAS1's heap pointer 9 back) | 639 (545 below &3000: the G_ stubs and the hooks, 826, in the low area; the run split before TACTICS) |
-| High code | 137 | 565 | 565 | 565 | 1077 (from &7000) | 1317 (from &7000; the far7 stubs left) | 1196 (the hangar's G_HANG0, G_HLL9 and HSUB, G_HANGAR) | 1244 (H_EE31's test, H_LSCLR and H_SHPPT gone) | - (&7000-&77E9: the quarter squares and the lighting; then the run) |
-| Bank 4 | 30 | 1901 | 1901 | 2054 | 1897 (to &C000: HANGHEAP left) | 1704 | 1704 | 2057 (LL9's line drawing, LSPUT, LSCLR's erase and Shpt gone; LL9B) | 2854 (the run from &77EA: the main code's and the high code's free space with it) |
-| ANDY (the cold area's then; the rasteriser's polygon window now) | 5 | 1313 | 38 | 38 | 38 | 38 | 38 | 38 | 38 |
-| Bank 7 cold area (&8000-, from COLD7LO) | 271 | 77, 397 | 77, 397 | 3802 (one run from &8000) | 3693 | 3701 | 3952 (the wireframe hangar left) | 3952 | 3952 |
-| Bank 5 (now: disc window, shared region) | 809 (+ 350 in tails) | 317, 295 (+ 291 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) |
-| Bank 6 | 274 | 187 | 187 | 187 | 187 | 187 | 4 (185 at 9905a11; the hangar's frame) | 5 (f_direct0's Y, f_sync's test) | 5 (f_direct0's Y, f_sync's test) |
-| Bank 7 rasteriser (then: R_LINE and bank 7's other rasteriser code; at cb2c8e5 the extended tokens and R_LINE; now the extended tokens), to COLD7LO | 43 (+ 723 in tails) | 111 | 3328 | - (in the cold area's run) | - | - | - | - | - |
-| HAZEL scratch (then), read-only game data zone (d23e427), free (now) | 112 (to &C300) | 82 (&C2AE-&C2FF) | 82 | 82 | 283 (&DDE5-&DDFF, &DF00-&DFFF) | 283 (&DDE5-&DDFF, &DF00-&DFFF) | 268 (&DDF4-&DDFF: the hangar's tables before it; &DF00-&DFFF, the MOS's, see the map) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) |
-| HAZEL code (then), glue (now) | 48 | 42 (to XX21) | 42 | 42 | - (the glue is in the low area) | - | - | - | - |
-| HAZEL state | 1726 (to &D900) | - | - | - | - | - | - | - | - |
-| HAZEL &DC40 block | 289 (to &E000) | - | - | - | - | - | - | - | - |
-| Shadow | 7, 3, 16 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 |
-| Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM | 11868 (+ 252 in tails); 7372 outside shadow RAM | 11871 (+ 252 in tails); 7375 outside shadow RAM | 12363 (+ 252 in tails); 7867 outside shadow RAM | 12373 (+ 252 in tails); 7877 outside shadow RAM | 12315 (+ 252 in tails); 7819 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM |
+| Region | At d090015 | At cb2c8e5 | At 9cafcd9 | At d23e427 | At e932f77 | At 0bd6fc4 | At b583ecc | At 7e822e5 | At 5b7b91e | Now |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Low code (then); WP's pages &0840-&0CFF (now: &0840, &0CAA-&0CFF) | 14 | 87 | 87 | 87 | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) |
+| Shared workspace &0E00-&1EFF | - | 179 (64 below it; 47, 6, 62 in it) | 179 | 179 | 148 (64; 47, 6, 31: it ends at &1EE0) | 138 (64; 47, 6, 21: it ends at &1ED6) | 143 (64; 47, 6, 26: it ends at &1EDB) | 143 (64; 47, 6, 26) | 143 (64; 47, 6, 26) | 143 (64; 47, 6, 26) |
+| Main code (BCODE) | 72 | 213 (1808 below &3000) | 213 | 63 (1784 below &3000) | 218 (1376 below &3000; from &1EE1) | 183 (1376 below &3000; from &1ED7) | 188 (1376 below &3000; from &1EDC) | 192 (1371 below &3000; the briefing's H_CHAR test 5, HAS1's heap pointer 9 back) | 639 (545 below &3000: the G_ stubs and the hooks, 826, in the low area; the run split before TACTICS) | 653 (559 below &3000: G_HANG0 lost the hangar's light) |
+| High code | 137 | 565 | 565 | 565 | 1077 (from &7000) | 1317 (from &7000; the far7 stubs left) | 1196 (the hangar's G_HANG0, G_HLL9 and HSUB, G_HANGAR) | 1244 (H_EE31's test, H_LSCLR and H_SHPPT gone) | - (&7000-&77E9: the quarter squares and the lighting; then the run) | - (&7000-&73FF: the quarter squares; then the run) |
+| Bank 4 | 30 | 1901 | 1901 | 2054 | 1897 (to &C000: HANGHEAP left) | 1704 | 1704 | 2057 (LL9's line drawing, LSPUT, LSCLR's erase and Shpt gone; LL9B) | 2854 (the run from &77EA: the main code's and the high code's free space with it) | 3856 (the lighting gone from main RAM: the run starts at &7400) |
+| ANDY (the cold area's then; the rasteriser's polygon window now) | 5 | 1313 | 38 | 38 | 38 | 38 | 38 | 38 | 38 | 38 |
+| Bank 7 cold area (&8000-, from COLD7LO) | 271 | 77, 397 | 77, 397 | 3802 (one run from &8000) | 3693 | 3701 | 3952 (the wireframe hangar left) | 3952 | 3952 | 3952 |
+| Bank 5 (now: disc window, shared region) | 809 (+ 350 in tails) | 317, 295 (+ 291 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) |
+| Bank 6 | 274 | 187 | 187 | 187 | 187 | 187 | 4 (185 at 9905a11; the hangar's frame) | 5 (f_direct0's Y, f_sync's test) | 5 (f_direct0's Y, f_sync's test) | 71 (MAXPT 40, F_ST, F_INIT in F_DL, three pads and F_CPO gone; the lighting, 1002, and F_HANG0's light in) |
+| Bank 7 rasteriser (then: R_LINE and bank 7's other rasteriser code; at cb2c8e5 the extended tokens and R_LINE; now the extended tokens), to COLD7LO | 43 (+ 723 in tails) | 111 | 3328 | - (in the cold area's run) | - | - | - | - | - | - |
+| HAZEL scratch (then), read-only game data zone (d23e427), free (now) | 112 (to &C300) | 82 (&C2AE-&C2FF) | 82 | 82 | 283 (&DDE5-&DDFF, &DF00-&DFFF) | 283 (&DDE5-&DDFF, &DF00-&DFFF) | 268 (&DDF4-&DDFF: the hangar's tables before it; &DF00-&DFFF, the MOS's, see the map) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) |
+| HAZEL code (then), glue (now) | 48 | 42 (to XX21) | 42 | 42 | - (the glue is in the low area) | - | - | - | - | - |
+| HAZEL state | 1726 (to &D900) | - | - | - | - | - | - | - | - | - |
+| HAZEL &DC40 block | 289 (to &E000) | - | - | - | - | - | - | - | - | - |
+| Shadow | 7, 3, 16 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 |
+| Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM | 11868 (+ 252 in tails); 7372 outside shadow RAM | 11871 (+ 252 in tails); 7375 outside shadow RAM | 12363 (+ 252 in tails); 7867 outside shadow RAM | 12373 (+ 252 in tails); 7877 outside shadow RAM | 12315 (+ 252 in tails); 7819 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 13803 (+ 252 in tails); 9307 outside shadow RAM |
+
+The lighting in bank 6 (MASTER-PLAN.md, "The lighting in bank 6") gained
+1082 bytes outside shadow RAM against 5b7b91e: bank 6 found 1082 (the
+planet's curve points 390, 400 less fsg_jj's high byte; the shown text maps
+600, their 1536 bytes for 768 of state bytes, less the code that keeps
+those; F_INIT in F_DL 79; three pads 6; F_CPO 7) and took the lighting,
+1002, and F_HANG0's light, 14, for 66; the lighting left main
+RAM, so the run starts at &7400 and bank 4 gained 1002; G_HANG0 lost the
+light, 14, in the low area.
 
 The run continuing from &7000 (MASTER-PLAN.md, "One run from &7000")
 moved bytes without gaining or losing any: the G_ stubs and the hooks (826

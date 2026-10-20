@@ -114,17 +114,21 @@ ORG &8000
 INCLUDE "src/gfx-frame.asm"
 INCLUDE "src/gfx-faces.asm"
 INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
+INCLUDE "src/gfx-light.asm"    \ the lighting's L_SUN and L_REC
 INCLUDE "src/gfx-frame_cold.asm"
 INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step (the flare: gfx-flare.asm, bank 5)
 INCLUDE "src/gfx-hangar.asm"   \ the hangar's frame (HALL; its tables are in HAZEL)
 .B6_CODE_END
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
-.F_DL   SKIP 1536       \ ship records: XX2 then XX3 copies
+.F_DL                   \ ship records: XX2 then XX3 copies (1536 bytes)
+ SKIP &22
+ INCLUDE "src/gfx-finit.asm"   \ F_INIT, run once before the first frame
+ SKIP F_DL + 1536 - P%
 .F_DLEND
 .F_TM   SKIP 768        \ text map: desired characters, 24 rows of 32
-.F_SH0  SKIP 768        \ what buffer 0 shows
-.F_SH1  SKIP 768        \ what buffer 1 shows
+.F_ST   SKIP 768        \ what each buffer shows in each cell (gfx-frame.asm)
+ASSERT F_ST = F_TM + &300
 .F_TMR  SKIP 24         \ non-empty cells per row
 .F_SHR0 SKIP 24
 .F_SHR1 SKIP 24

@@ -17747,7 +17747,7 @@ ENDIF
  CLEAR &7000, &C000
  ORG &7000
 
- INCLUDE "src/elite-hi.asm"             \ the quarter squares and the lighting
+ INCLUDE "src/elite-hi.asm"             \ the quarter squares
 
 .HI_RUN%
 

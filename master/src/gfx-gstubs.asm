@@ -141,24 +141,15 @@
 
 
 \ The hangar (gfx-hangar.asm), from HALL and HAS1. G_HANG0, before the ships are
-\ recorded: the hangar's light (LLT, gfx-light.asm: towards the top right and
-\ the viewer, as the title's), and the frame's lists emptied. G_HANGAR: the
-\ frame, with the hangar's background under the ships
+\ recorded: the hangar's light and the frame's lists emptied (F_HANG0).
+\ G_HANGAR: the frame, with the hangar's background under the ships
 
 .G_HANG0
- LDX #2
-.ghg0
- LDA ghlt,X
- STA LLT,X
- DEX
- BPL ghg0
  LDA #GFXBANK
  STA &F4
  STA &FE30
  JSR F_HANG0
  JMP gback
-
-.ghlt EQUB 24, 24, &E8
 
 \ G_HLL9: HAS1's LL9, with TYPE set while LL9 records the ship (H_EE31
 \ takes the ship's faces from TYPE; HAS1 sets only XX0): the type whose XX21

@@ -9,9 +9,12 @@
 \ of nine hue ramps shared by every ship, each from 50% to 100% of the hue's
 \ own full brightness: gfx-light6.asm).
 \
-\ Master port: in main RAM &7000-&7FFF (elite-hi.asm), so this runs in game
-\ context only (never with ACCCON X set, which hides it), with bank 6 (the
-\ frame layer) paged in; it multiplies with the quarter squares QSL/QSH.
+\ Master port: in bank 6, with the frame layer, which calls it (F_FRAME, F_SHIP)
+\ in game context only (never with ACCCON X set, which would hide the
+\ quarter squares QSL/QSH, main RAM at &7000, that it multiplies with).
+\ Its reads of QSL/QSH are marked "bankcheck: ok": the frame layer reads main
+\ RAM above &3000 nowhere else, as it may run with X set, but these run before
+\ F_FRAME sets X (L_SUN) or from F_SHIP, in game context (L_REC).
 \ The frame layer's f_col (gfx-frame.asm) turns a level into the four row
 \ bytes at drawing time.
 \
@@ -151,11 +154,11 @@
  LDX #6
 .lsq
  LDY lv_w+2,X
- LDA QSL,Y
+ LDA QSL,Y              \ bankcheck: ok
  CLC
  ADC l7_t
  STA l7_t
- LDA QSH,Y
+ LDA QSH,Y              \ bankcheck: ok
  ADC l7_s
  STA l7_s
  DEX
@@ -169,9 +172,9 @@
  LDA lv_l
  ORA lv_m
  TAX
- LDA QSL,X              \ QS(n) - S
+ LDA QSL,X              \ QS(n) - S (bankcheck: ok)
  CMP l7_t
- LDA QSH,X
+ LDA QSH,X              \ bankcheck: ok
  SBC l7_s
  BCS P%+5
  STX lv_l
@@ -519,10 +522,10 @@
  TAY
  LDA lr_sl
  CLC
- ADC QSL,Y
+ ADC QSL,Y              \ bankcheck: ok
  STA lr_sl
  LDA lr_sh
- ADC QSH,Y
+ ADC QSH,Y              \ bankcheck: ok
  STA lr_sh
  LDA lr_a,X
  SEC
@@ -533,10 +536,10 @@
  TAY
  LDA lr_sl
  SEC
- SBC QSL,Y
+ SBC QSL,Y              \ bankcheck: ok
  STA lr_sl
  LDA lr_sh
- SBC QSH,Y
+ SBC QSH,Y              \ bankcheck: ok
  STA lr_sh
  DEX
  BPL ld1
