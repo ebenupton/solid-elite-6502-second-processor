@@ -130,8 +130,9 @@ Pixels are never compared.
 
 All of this goes through the input log, so every session replays exactly.
 
-**Workarounds.** `--workaround look1` gets past the first port bug this found. LOOK1 falls
-through into DEATH, so any change of space view kills the commander. With the workaround,
+**Workarounds.** `--workaround look1` got past the first port bug this found (fixed in
+be18285, so no longer needed). LOOK1 fell through into DEATH, so any change of space view
+killed the commander. With the workaround,
 the candidate is sent to SIGHT instead, as in the original, so a session can play on and
 look for more. This is done at run time, in the harness. The port's source is not changed.
 Each use is logged as a `workaround` event, and summary.json counts them.
