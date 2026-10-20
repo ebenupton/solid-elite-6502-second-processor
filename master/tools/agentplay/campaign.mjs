@@ -109,8 +109,10 @@ if (!a.summarise) {
 
 // ---- the summary
 const rows = [], groups = new Map();
-const cover = {};
+const cover = {}, reached = new Set(), codeLabels = new Set();
 for (const [name] of plan) {
+    const cf = `${OUT}/${name}/coverage-ref.json`;
+    if (existsSync(cf)) { const c = JSON.parse(readFileSync(cf, "utf8")); for (const k of c.reached) { reached.add(k); codeLabels.add(k); } for (const k of c.unreached) codeLabels.add(k); }
     const f = `${OUT}/${name}/summary.json`;
     if (!existsSync(f)) { rows.push({ name, status: "not run" }); continue; }
     const s = JSON.parse(readFileSync(f, "utf8"));
@@ -154,6 +156,10 @@ md.push(`# agentplay campaign: ${OUT}`, "", `${rows.length} sessions, ${tot.minu
 md.push("| session | commander | mode | chaos | min | iterations | status | first divergence | findings | LOOK1 workaround hits |", "|---|---|---|---|---|---|---|---|---|---|");
 for (const r of rows) md.push(`| ${r.name} | ${r.commander || ""} | ${r.mode || ""} | ${r.chaos || ""} | ${r.minutes ?? ""} | ${r.iters ?? ""} | ${r.status} | ${r.divergence ?? ""} | ${r.findings ?? ""} | ${r.workaround ? r.workaroundHits : "off"} |`);
 md.push("", "Coverage (reference machine, routine entries over all sessions):", "", Object.entries(cover).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", "), "");
+if (codeLabels.size) {
+    const un = [...codeLabels].filter(k => !reached.has(k));
+    md.push(`Whole-code coverage (reference machine): ${reached.size} labels with code run; ${un.length} code labels (run in a session, or a JSR/JMP target) never run:`, "", un.join(" "), "");
+}
 md.push("Findings, grouped:", "");
 for (const g of groups.values()) md.push(`- **${g.key}** in ${g.sessions.length} session(s) (${g.sessions.join(", ")})${g.iterations ? `, ${g.iterations} iterations` : ""}; first: ${g.first.session} ${g.first.iter !== undefined ? "iteration " + g.first.iter : ""} ${g.first.text || JSON.stringify(g.first.example || "")}`.slice(0, 1200));
 writeFileSync(`${OUT}/campaign.md`, md.join("\n") + "\n");

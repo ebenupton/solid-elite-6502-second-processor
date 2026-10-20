@@ -112,8 +112,10 @@ export class EliteMachine {
             const smaller = Math.min(this.targetCycles, this.currentCycles) & 0xfffffffe;
             if (smaller >= 2 * 1000 * 1000) { this.targetCycles -= 2 * 1000 * 1000; this.currentCycles -= 2 * 1000 * 1000; this.cycleSeconds++; }
             let first = true;
+            const vis = self.vis;
             while (!this.halted && this.currentCycles < this.targetCycles) {
                 const pc = this.pc;
+                if (vis && pc < 0x8000) vis[pc] = 1;
                 this.oldPcIndex = (this.oldPcIndex + 1) & 0xff;
                 this.oldPcArray[this.oldPcIndex] = pc;
                 this.memStatOffset = this.memStatOffsetByIFetchBank & (1 << (pc >>> 12)) ? 256 : 0;
@@ -130,6 +132,23 @@ export class EliteMachine {
             }
             return !this.halted;
         };
+    }
+    // whole-code coverage (opts.cover, main RAM only, as the original's code is): every
+    // label whose span (to the next label) had an instruction run, and the labels that
+    // look like code (run, or the target of a JSR/JMP in the image) but were never run
+    coverage() {
+        if (!this.vis) return null;
+        const labs = Object.entries(this.sy).filter(([k, v]) => v >= 0x0800 && v < 0x8000 && !/^(CODE|LOAD)/.test(k)).sort((a, b) => a[1] - b[1]);
+        const targets = new Set();
+        for (let a = 0x0800; a < 0x7ffd; a++) if (this.ram[a] === 0x20 || this.ram[a] === 0x4c) targets.add(this.ram[a + 1] | this.ram[a + 2] << 8);
+        const reached = [], unreached = [];
+        for (let i = 0; i < labs.length; i++) {
+            const [k, v] = labs[i], end = i + 1 < labs.length ? Math.max(v + 1, labs[i + 1][1]) : v + 1;
+            let hit = false;
+            for (let a = v; a < end && !hit; a++) hit = this.vis[a] === 1;
+            if (hit) reached.push(k); else if (targets.has(v)) unreached.push(k);
+        }
+        return { reached, unreached };
     }
     emuSecs() { return this.cpu.cycleSeconds + this.cpu.currentCycles / 2e6; }
     rb(a) { return this.ram[a & 0xffff]; }
@@ -249,6 +268,7 @@ export class EliteMachine {
             if (!this.patched && this.opts.patch) { this.patched = true; this.opts.patch(this); this.event("patch", "commander patched at QU5"); }
         } else if (this._at(H.S, pc) && !this.inGame) {
             this.inGame = true;
+            if (this.opts.cover) this.vis = new Uint8Array(0x8000);     // (whole-code coverage, from the game's start)
             if (this.onEntry) this.onEntry(this);
         } else if (this._at(H.TT170, pc) && !this.started) {
             if (this.opts.seedFrom && !this.opts.seedFrom.init) return this._block({ kind: "tt170" });
