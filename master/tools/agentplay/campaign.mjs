@@ -121,6 +121,20 @@ const PLANS = {
         for (let i = 0; i < 8; i++) out.push([`n3-load-s${140 + i}`, 15, "--seed", String(140 + i), "--mode", i % 2 ? "load,curious" : "load", "--from", out[i * 4][0], "--chaos", mixes[(i * 5) % mixes.length]]);
         return out;
     })(),
+    // the fourth wave: seeds 200-239, missiles and fights (MSBAR's path) with the docked
+    // screens and the disc menu, every commander and mode
+    night4: (() => {
+        const cmdrs = ["equipped", "deadly", "wanted", "mission2", "galaxy3", "trader", "jameson", "rich", "debrief1", "debrief2"];
+        const modes = ["curious", "efficient", "keyboard", "fair", "nomission"];
+        const mixes = ["missile*4,unarm*2,ecm*2,docked,disc", "all,docked,disc", "missile*3,views*3,hurt*2", "missile*3,bomb*2,pod*2,ghyp*2,docked", "views*4,charts*2,dock*2,disc", "missile*4,jump*3,spin*2,docked"];
+        const out = [];
+        for (let i = 0; i < 32; i++) {
+            const seed = 200 + i, c = cmdrs[(i * 3) % cmdrs.length], m = modes[i % modes.length], x = mixes[(i * 5) % mixes.length];
+            out.push([`n4-${c}-${m}-s${seed}`, 12 + (i % 4) * 3, "--seed", String(seed), "--commander", c, "--mode", m, "--chaos", x, ...(i % 4 === 1 ? ["--savediscs"] : [])]);
+        }
+        for (let i = 0; i < 8; i++) out.push([`n4-load-s${240 + i}`, 15, "--seed", String(240 + i), "--mode", i % 2 ? "load,curious" : "load", "--from", out[i * 4 + 1][0], "--chaos", mixes[(i * 7) % mixes.length]]);
+        return out;
+    })(),
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
