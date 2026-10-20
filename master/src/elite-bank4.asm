@@ -3131,6 +3131,16 @@
 
 .TTX66
 
+ LDA #4                 \ Port: clear bit 2 (X) of the Access Control Register,
+ TRB VIA+&34            \ so main RAM is at &3000-&7FFF for G_DIRECT's stub
+                        \ there. CHPR calls TTX66 (through TTX66M) with X set,
+                        \ to clear the screen when the text runs off the bottom
+                        \ (a long disc catalogue, or a prompt printed past row
+                        \ 23) or for control code 11: the CPU then fetched
+                        \ G_DIRECT from shadow RAM and crashed. The original's
+                        \ TTX66 is below &3000, so X did not matter there; this
+                        \ TTX66 sets the whole register itself below
+
  JSR G_DIRECT           \ Port: the renderer stops recording until the first
                         \ frame after the screen is cleared (gfx-frame.asm)
 
