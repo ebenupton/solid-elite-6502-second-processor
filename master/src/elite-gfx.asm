@@ -102,7 +102,10 @@ INCLUDE "src/gfx-raster_vars.asm"
 ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .R_SX       SKIP 24         \ (raster_vars.asm: the stars)
 .R_SY       SKIP 24
-.R_WR       SKIP 192        \ (raster_vars.asm)
+.WS_GAP                     \ (free to WS_TOP)
+WS_TOP = &1F00 - 12 - 192   \ the rest ends at the main code (asserted below)
+ASSERT P% <= WS_TOP
+ORG WS_TOP
 .R_SN       SKIP 1          \ star count 0..24
 .R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
 .fl_ml  SKIP 2          \ the lens flare (gfx-flare.asm): 32 D (x, y), low
@@ -111,9 +114,11 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .fl_sh  SKIP 2
 .fl_lev SKIP 1          \ the level, 1..3
 .fl_xb  SKIP 1          \ ACCCON X while writing: 4 = clear it (buffer 0)
+.R_WR       SKIP 192        \ (raster_vars.asm; whole in a page)
 .WS_END
-PRINT "Shared workspace: ", ~WS_START, "-", ~WS_END-1, " (free ", &1240-DFSIN-1, " and ", CODE%-WS_END, " to the main code)"
-ASSERT WS_START >= &0E00 AND WS_END <= CODE%
+PRINT "Shared workspace: ", ~WS_START, "-", ~WS_END-1, " (free ", WS_START-&0E00, " below it, ", &1240-DFSIN-1, ", ", RVBASE-F_DSS-NDSTAR, " and ", WS_TOP-WS_GAP, " in it)"
+ASSERT WS_START >= &0E00 AND WS_END = CODE%    \ (one block, ending where the main code starts)
+ASSERT HI(R_WR) = HI(R_WR + 191)
 
 CLEAR &8000, &C000
 ORG &8000
