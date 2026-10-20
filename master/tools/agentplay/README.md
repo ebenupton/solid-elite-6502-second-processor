@@ -87,10 +87,19 @@ Pixels are never compared.
 
 **Other checks:**
 
-- **BRKs:** every BRK that reaches the game's NEWBRK is logged with its bank. A disc error
-  from the DFS ROM is expected. A BRK from game code is a finding.
+- **BRKs:** every BRK that reaches the game's NEWBRK is logged with its bank. A
+  filing-system or OS error is expected: a BRK in a ROM bank, on the stack page (DFS builds
+  some errors there, "Not found" among them) or in the MOS's &E000-&FFFF. Such errors must
+  come in both machines at the same read (else `brk-mismatch`). A BRK from game code is a
+  finding; the same one 20 times is a `brk-loop`, which ends the session.
 - **Page &0D writes:** the candidate's game code must not write page &0D.
-- **Hangs:** a machine that makes no read and no iteration for 30 emulated seconds.
+- **Hangs:** a machine that makes no read and no iteration for 30 emulated seconds
+  (`HANG_SECS` in the environment). The candidate runs ahead of the reference between
+  reads, so its stall counts only once the reference has made a read past it; if both
+  stall at the same read it is `hang-both`, the original's own behaviour (DFS waiting for
+  ever on an empty drive), which ends the session but is not a port finding.
+- **HAZEL:** the port's read-only game data in HAZEL (the blueprints and their tables, but
+  for XX21's station entry) must keep its values; checked every 16 iterations (`hazel`).
 - **Crashes:** a machine with its PC in page 0 or 1.
 - **Save files:** after every disc access, once both machines are past the next MLOOP (SVE
   returns before it), and at the end, the commander files in directory E on the two discs
@@ -111,7 +120,12 @@ Pixels are never compared.
   its own. It covers E.C.M., the energy bomb, the escape pod, the views, missiles, the
   galactic hyperdrive, hyperspace, in-system jumps, the docking computer and the charts.
   Pokes drain the shields and energy, heat the cabin or empty the tank, at an iteration
-  boundary in both machines.
+  boundary in both machines. Docked, from the Status screen (up to three a dock, the agent's
+  keys held back meanwhile): `disc` is the disc menu (`dcat`, `dnoload`, `dnodel`, `dsave`,
+  `ddel`, `dbad`, `dname`, `ddefault`, `dexit`; `dcat1`, an empty drive, and `dnameesc`, a
+  name abandoned with ESCAPE, only by name), and `docked` the screens the agent never visits
+  or gets wrong (`dmarket`, `dchart`, `dequip`, `dsell`). `all`, `disc` and `docked` can be
+  items of a list.
 - `--seed`: sets RAND at TT170. It also seeds the chaos overlay.
 
 All of this goes through the input log, so every session replays exactly.
@@ -130,7 +144,8 @@ Each use is logged as a `workaround` event, and summary.json counts them.
 | `inputs.jsonl` | the input log. A header, then every read with a key down (`p` the read number, `t` r/d, `s` the routine, `k` the keys), every stick change (`j`, `w`, `v`), chaos actions and pokes, and an `end` record |
 | `agent.log`, `journal.jsonl` | elite-agent's log and its journal of events |
 | `events.jsonl` | machine events (BRKs, workarounds, page &0D) and findings |
-| `summary.json` | iterations compared, the first divergence with every differing field, findings, routine counts for each machine (coverage), the observables, save-file checks and the final state |
+| `summary.json` | iterations compared, the first divergence with every differing field (and with `--keepgoing`, how long it lasted: `divergence.after`), findings, routine counts for each machine, the observables, save-file checks and the final state |
+| `coverage-ref.json`, `coverage-cand.json` | whole-code coverage: the labels with code run, and the code labels never run (by bank for the port) |
 | `*-ref.png`, `*-cand.png` | screenshots of both machines: at a divergence, at a finding, at the end, and with `--shots N` every N iterations |
 | `ref-disc.ssd`, `cand-disc.ssd` | with `--savediscs`, both discs as the game left them |
 
@@ -149,7 +164,15 @@ the same session, read for read.
 | `--cut N --save FILE` | write the log cut short after iteration N, as a minimal repro |
 
 `repro/` holds the input logs of the port bugs found, cut short after the divergence.
-`replay.mjs --log repro/<name>.jsonl --out DIR` shows each one again in under a minute.
+`replay.mjs --log repro/<name>.jsonl --out DIR` shows each one again (most in under a
+minute; `msbar-carry` takes about five).
+
+Two regression tests call routines directly in both machines, docked:
+`test-chpr-overflow.mjs` (CHPR's screen clear with the text off the bottom and for code 11)
+and `test-exit-flags.mjs` (the dashboard routines' registers and flags at return).
+
+`coverage.mjs DIR...` (`--cand` for the port) unions the coverage files under any
+directories: what was reached, and the code labels no session ran.
 
 ## Campaigns
 
@@ -157,11 +180,16 @@ the same session, read for read.
 writes `campaign.json` and `campaign.md`, which give:
 
 - each session's settings and result;
-- coverage, as the original's routine entries summed over the campaign;
+- coverage, as the original's routine entries summed over the campaign, and the original's
+  whole-code coverage;
 - every finding, grouped across sessions.
 
 Plans are lists in campaign.mjs: `default` (22 sessions), `extra` (12 more: the missions'
-later stages, deaths, pods, a long career) and `quick`.
+later stages, deaths, pods, a long career), `night`, `night2` (the disc menu and docked
+screens), `night3`, `night4` (40 generated sessions each) and `quick`. No workaround is
+used unless `--workaround` asks for one. The candidate (master/build's disc, symbols and
+banks, or `--cand`/`--csyms`) is copied into `DIR/cand-build` when the campaign first
+starts, and every session runs that copy, so a rebuild during a campaign changes nothing.
 
 ## Limits
 
