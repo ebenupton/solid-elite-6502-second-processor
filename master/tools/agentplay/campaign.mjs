@@ -3,7 +3,7 @@
 // time, then one table of what they covered and every finding, grouped.
 //
 // node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|quick]
-//      [--only name,name] [--scale 1.0] [--summarise] [--workaround look1]
+//      [--only name,name] [--scale 1.0] [--summarise] [--workaround look1] [--cand disc --csyms syms]
 // Each session runs as agentplay.mjs in DIR/<name>/; a session already finished there
 // (summary.json) is not run again, so a campaign can be resumed. --scale multiplies every
 // session's length. --summarise only rewrites the summary (DIR/campaign.json, DIR/campaign.md).
@@ -127,6 +127,22 @@ const PLANS = {
         ["q-load", 2, "--seed", "3", "--mode", "load", "--from", "q-eff", ...W],
     ],
 };
+// The candidate is copied into DIR/cand-build/ when the campaign first starts (disc,
+// symbols.txt, banks.txt), and every session runs that copy: a rebuild of master/build
+// while a campaign runs would otherwise give later sessions another build, or a disc and
+// symbols from different builds (phase 2 loads a phase 1 disc, whose game is that copy).
+// --cand DISC --csyms SYMS choose another build to copy.
+import { copyFileSync } from "fs";
+const CB = `${OUT}/cand-build`;
+if (!existsSync(`${CB}/symbols.txt`)) {
+    mkdirSync(CB, { recursive: true });
+    const ROOTD = decodeURIComponent(new URL("../../..", import.meta.url).pathname);
+    const disc = a.cand || `${ROOTD}master/build/elite-master-sng47.ssd`, syms = a.csyms || `${ROOTD}master/build/symbols.txt`;
+    copyFileSync(disc, `${CB}/elite-master-sng47.ssd`);
+    copyFileSync(syms, `${CB}/symbols.txt`);
+    const banks = syms.replace(/symbols\.txt$/, "banks.txt");
+    if (existsSync(banks)) copyFileSync(banks, `${CB}/banks.txt`);
+}
 const plan = PLANS[a.plan || "default"].filter(([n]) => !a.only || a.only.split(",").includes(n));
 
 function runOne([name, minutes, ...opts]) {
@@ -137,6 +153,8 @@ function runOne([name, minutes, ...opts]) {
         if (opts[i] === "--from") { const f = `${OUT}/${opts[++i]}`; args.push("--ref", `${f}/ref-disc.ssd`, "--cand", `${f}/cand-disc.ssd`); }
         else args.push(opts[i]);
     }
+    if (!args.includes("--cand")) args.push("--cand", `${CB}/elite-master-sng47.ssd`);
+    args.push("--csyms", `${CB}/symbols.txt`);
     mkdirSync(dir, { recursive: true });
     console.log(`${name}: start (${args.slice(1).join(" ")})`);
     return new Promise(res => {
