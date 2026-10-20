@@ -2969,7 +2969,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.SETINTS_C
+.SETINTS
 
  SEI                    \ Disable interrupts
 
@@ -3298,11 +3298,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.setzp_C
+.setzp
 
 IF _COMPACT
 
- JSR NMICLAIM_C           \ Claim the NMI workspace (&00A0 to &00A7) from the MOS
+ JSR NMICLAIM           \ Claim the NMI workspace (&00A0 to &00A7) from the MOS
                         \ so the game can use it
 
 ENDIF
@@ -3313,14 +3313,14 @@ ENDIF
  LDX #&90               \ We want to save zero page from &0090 and up, so set an
                         \ index in X, starting from &90
 
-.sz1_C
+.sz1
 
  LDA ZP,X               \ Copy the X-th byte of ZP to the X-th byte of &3000
  STA &3000,X
 
  INX                    \ Increment the loop counter
 
- BNE sz1_C                \ Loop back until we have copied the last byte of zero
+ BNE sz1                \ Loop back until we have copied the last byte of zero
                         \ page
 
  LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
@@ -3341,9 +3341,9 @@ ENDIF
 
 IF _COMPACT
 
-.NMIRELEASE_C
+.NMIRELEASE
 
- JSR getzp_C+3            \ Call getzp+3 to restore the top part of zero page
+ JSR getzp+3            \ Call getzp+3 to restore the top part of zero page
                         \ from the buffer at &3000, but without first claiming
                         \ the NMI workspace (as it's already been claimed by
                         \ this point)
@@ -3374,11 +3374,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.getzp_C
+.getzp
 
 IF _COMPACT
 
- JSR NMICLAIM_C           \ Claim the NMI workspace (&00A0 to &00A7) from the MOS
+ JSR NMICLAIM           \ Claim the NMI workspace (&00A0 to &00A7) from the MOS
                         \ so the game can use it
 
 ENDIF
@@ -3389,7 +3389,7 @@ ENDIF
  LDX #&90               \ We want to swap zero page from &0090 and up, so set an
                         \ index in X, starting from &90
 
-.sz2_C
+.sz2
 
  LDA ZP,X               \ Swap the X-th byte of ZP with the X-th byte of &3000
  LDY &3000,X
@@ -3399,7 +3399,7 @@ ENDIF
  INX                    \ Increment the loop counter
 
  CPX #&F0               \ Loop back until we have swapped up to location &00EF
- BNE sz2_C
+ BNE sz2
 
  LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
  STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
@@ -3426,7 +3426,7 @@ ENDIF
 
 IF _COMPACT
 
-.NMICLAIM_C
+.NMICLAIM
 
  LDA #143               \ Call OSBYTE 143 to issue a paged ROM service call of
  LDX #&C                \ type &C with argument &FF, which is the "NMI claim"
@@ -6782,7 +6782,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.HANGER_C
+.HANGER
 
                         \ We start by drawing the floor
 
@@ -8584,7 +8584,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TGINT_C
+.TGINT
 
  EQUB 1                 \ The configuration keys in the same order as their
  EQUS "AXFYJKUT"        \ configuration bytes (starting from DAMP). The 1 is
@@ -8609,14 +8609,14 @@ ENDIF
 
  CLD                    \ Clear the D flag to make sure we are in binary mode
 
- JSR DEEOR_C              \ Call DEEOR to unscramble the main code
+ JSR DEEOR              \ Call DEEOR to unscramble the main code
 
- JSR COLD_C               \ Call COLD to set up the break handler
+ JSR COLD               \ Call COLD to set up the break handler
 
 \JSR Checksum           \ This instruction is commented out in the original
                         \ source
 
- JMP j4_BEGIN              \ Jump to BEGIN to start the game
+ JMP BEGIN              \ Jump to BEGIN to start the game
 
 \ ******************************************************************************
 \
@@ -8637,7 +8637,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DEEOR_C
+.DEEOR
 
  LDA #LO(G%-1)          \ Set FRIN(1 0) = G%-1 as the low address of the
  STA FRIN               \ decryption block, so we decrypt from the start of the
@@ -8712,11 +8712,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DOENTRY_C
+.DOENTRY
 
- JSR RES2_C               \ Reset a number of flight variables and workspaces
+ JSR RES2               \ Reset a number of flight variables and workspaces
 
- JSR LAUN_C               \ Show the space station docking tunnel
+ JSR LAUN               \ Show the space station docking tunnel
 
  LDA #0                 \ Reduce the speed to 0
  STA DELTA
@@ -8731,45 +8731,45 @@ ENDIF
 
  STA ENERGY             \ Recharge the energy banks
 
- JSR x4_HALL               \ Show the ship hangar
+ JSR HALL               \ Show the ship hangar
 
  LDY #44                \ Wait for 44/50 of a second (0.88 seconds)
- JSR x4_DELAY
+ JSR DELAY
 
  LDA TP                 \ Fetch bits 0 and 1 of TP, and if they are non-zero
  AND #%00000011         \ (i.e. mission 1 is either in progress or has been
- BNE EN1_C                \ completed), skip to EN1
+ BNE EN1                \ completed), skip to EN1
 
  LDA TALLY+1            \ If the high byte of TALLY is zero (so we have a combat
- BEQ EN4_C                \ rank below Competent, or we are Competent but have not
+ BEQ EN4                \ rank below Competent, or we are Competent but have not
                         \ yet earned a grand total of at least 256 kill points),
                         \ jump to EN4 as we are not yet good enough to qualify
                         \ for a mission
 
  LDA GCNT               \ Fetch the galaxy number into A, and if any of bits 1-7
  LSR A                  \ are set (i.e. A > 1), jump to EN4 as mission 1 can
- BNE EN4_C                \ only be triggered in the first two galaxies
+ BNE EN4                \ only be triggered in the first two galaxies
 
- JMP BRIEF_C              \ If we get here then mission 1 hasn't started, we have
+ JMP BRIEF              \ If we get here then mission 1 hasn't started, we have
                         \ reached a combat rank of at least Competent plus 128
                         \ kill points, and we are in galaxy 0 or 1 (shown
                         \ in-game as galaxy 1 or 2), so it's time to start
                         \ mission 1 by calling BRIEF
 
-.EN1_C
+.EN1
 
                         \ If we get here then mission 1 is either in progress or
                         \ has been completed
 
  CMP #%00000011         \ If bits 0 and 1 are not both set, then jump to EN2
- BNE EN2_C
+ BNE EN2
 
- JMP DEBRIEF_C            \ Bits 0 and 1 are both set, so mission 1 is both in
+ JMP DEBRIEF            \ Bits 0 and 1 are both set, so mission 1 is both in
                         \ progress and has been completed, which means we have
                         \ only just completed it, so jump to DEBRIEF to end the
                         \ mission get our reward
 
-.EN2_C
+.EN2
 
                         \ Mission 1 has been completed, so now to check for
                         \ mission 2
@@ -8777,33 +8777,33 @@ ENDIF
  LDA GCNT               \ Fetch the galaxy number into A
 
  CMP #2                 \ If this is not galaxy 2 (shown in-game as galaxy 3),
- BNE EN4_C                \ jump to EN4 as we can only start mission 2 in the
+ BNE EN4                \ jump to EN4 as we can only start mission 2 in the
                         \ third galaxy
 
  LDA TP                 \ Extract bits 0-3 of TP into A
  AND #%00001111
 
  CMP #%00000010         \ If mission 1 is complete and no longer in progress,
- BNE EN3_C                \ and mission 2 is not yet started, then bits 0-3 of TP
+ BNE EN3                \ and mission 2 is not yet started, then bits 0-3 of TP
                         \ will be %0010, so this jumps to EN3 if this is not the
                         \ case
 
  LDA TALLY+1            \ If the high byte of TALLY is < 5 (so we have a combat
  CMP #5                 \ rank that is less than 3/8 of the way from Dangerous
- BCC EN4_C                \ to Deadly), jump to EN4 as our rank isn't high enough
+ BCC EN4                \ to Deadly), jump to EN4 as our rank isn't high enough
                         \ for mission 2
 
- JMP BRIEF2_C             \ If we get here, mission 1 is complete and no longer in
+ JMP BRIEF2             \ If we get here, mission 1 is complete and no longer in
                         \ progress, mission 2 hasn't started, we have reached a
                         \ combat rank of 3/8 of the way from Dangerous to
                         \ Deadly, and we are in galaxy 2 (shown in-game as
                         \ galaxy 3), so it's time to start mission 2 by calling
                         \ BRIEF2
 
-.EN3_C
+.EN3
 
  CMP #%00000110         \ If mission 1 is complete and no longer in progress,
- BNE EN5_C                \ and mission 2 has started but we have not yet been
+ BNE EN5                \ and mission 2 has started but we have not yet been
                         \ briefed and picked up the plans, then bits 0-3 of TP
                         \ will be %0110, so this jumps to EN5 if this is not the
                         \ case
@@ -8811,44 +8811,44 @@ ENDIF
  LDA QQ0                \ Set A = the current system's galactic x-coordinate
 
  CMP #215               \ If A <> 215 then jump to EN4
- BNE EN4_C
+ BNE EN4
 
  LDA QQ1                \ Set A = the current system's galactic y-coordinate
 
  CMP #84                \ If A <> 84 then jump to EN4
- BNE EN4_C
+ BNE EN4
 
- JMP BRIEF3_C             \ If we get here, mission 1 is complete and no longer in
+ JMP BRIEF3             \ If we get here, mission 1 is complete and no longer in
                         \ progress, mission 2 has started but we have not yet
                         \ picked up the plans, and we have just arrived at
                         \ Ceerdi at galactic coordinates (215, 84), so we jump
                         \ to BRIEF3 to get a mission brief and pick up the plans
                         \ that we need to carry to Birera
 
-.EN5_C
+.EN5
 
  CMP #%00001010         \ If mission 1 is complete and no longer in progress,
- BNE EN4_C                \ and mission 2 has started and we have picked up the
+ BNE EN4                \ and mission 2 has started and we have picked up the
                         \ plans, then bits 0-3 of TP will be %1010, so this
                         \ jumps to EN5 if this is not the case
 
  LDA QQ0                \ Set A = the current system's galactic x-coordinate
 
  CMP #63                \ If A <> 63 then jump to EN4
- BNE EN4_C
+ BNE EN4
 
  LDA QQ1                \ Set A = the current system's galactic y-coordinate
 
  CMP #72                \ If A <> 72 then jump to EN4
- BNE EN4_C
+ BNE EN4
 
- JMP DEBRIEF2_C           \ If we get here, mission 1 is complete and no longer in
+ JMP DEBRIEF2           \ If we get here, mission 1 is complete and no longer in
                         \ progress, mission 2 has started and we have picked up
                         \ the plans, and we have just arrived at Birera at
                         \ galactic coordinates (63, 72), so we jump to DEBRIEF2
                         \ to end the mission and get our reward
 
-.EN4_C
+.EN4
 
 \LDA CASH+2             \ These instructions are commented out in the original
 \CMP #&C4               \ source
@@ -8862,7 +8862,7 @@ ENDIF
 \
 \.EN6
 
- JMP BAY_C                \ If we get here them we didn't start or any missions,
+ JMP BAY                \ If we get here them we didn't start or any missions,
                         \ so jump to BAY to go to the docking bay (i.e. show the
                         \ Status Mode screen)
 
@@ -11143,7 +11143,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT27_C
+.MT27
 
  LDA #217               \ Set A = 217, so when we fall through into MT28, the
                         \ 217 gets added to the current galaxy number, so the
@@ -11180,13 +11180,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT28_C
+.MT28
 
  LDA #220               \ Set A = galaxy number in GCNT + 220, which is in the
  CLC                    \ range 220-221, as this is only called in galaxies 0
  ADC GCNT               \ and 1
 
- BNE DETOK_C              \ Jump to DETOK to print extended token 220-221,
+ BNE DETOK              \ Jump to DETOK to print extended token 220-221,
                         \ returning from the subroutine using a tail call (this
                         \ BNE is effectively a JMP as A is never zero)
 
@@ -11218,7 +11218,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DETOK3_C
+.DETOK3
 
  PHA                    \ Store A on the stack, so we can retrieve it later
 
@@ -11237,7 +11237,7 @@ ENDIF
 
  LDA #HI(RUTOK)         \ Set A to the high byte of RUTOK
 
- BNE DTEN_C               \ Call DTEN to print token number X from the RUTOK
+ BNE DTEN               \ Call DTEN to print token number X from the RUTOK
                         \ table and restore the values of A, Y and V(1 0) from
                         \ the stack, returning from the subroutine using a tail
                         \ call (this BNE is effectively a JMP as A is never
@@ -11278,7 +11278,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DETOK_C
+.DETOK
 
  PHA                    \ Store A on the stack, so we can retrieve it later
 
@@ -11299,7 +11299,7 @@ ENDIF
                         \ through into DTEN, V(1 0) gets set to the address of
                         \ the TKN1 token table
 
-.DTEN_C
+.DTEN
 
  STA V+1                \ Set the high byte of V(1 0) to A, so V(1 0) now points
                         \ to the start of the token table to use
@@ -11313,7 +11313,7 @@ ENDIF
                         \ set a counter Y to point to the character offset as we
                         \ scan through the table
 
-.DTL1_C
+.DTL1
 
  LDA (V),Y              \ Load the
                         \ character at offset Y in the token table,
@@ -11323,32 +11323,32 @@ ENDIF
                         \ #VE, so we repeat the EOR to get the actual character
                         \ in this token
 
- BNE DT1_C                \ If the result is non-zero, then this is a character
+ BNE DT1                \ If the result is non-zero, then this is a character
                         \ in a token rather than the delimiter (which is #VE),
                         \ so jump to DT1
 
  DEX                    \ We have just scanned the end of a token, so decrement
                         \ X, which contains the token number we are looking for
 
- BEQ DTL2_C               \ If X has now reached zero then we have found the token
+ BEQ DTL2               \ If X has now reached zero then we have found the token
                         \ we are looking for, so jump down to DTL2 to print it
 
-.DT1_C
+.DT1
 
  INY                    \ Otherwise this isn't the token we are looking for, so
                         \ increment the character pointer
 
- BNE DTL1_C               \ If Y hasn't just wrapped around to 0, loop back to
+ BNE DTL1               \ If Y hasn't just wrapped around to 0, loop back to
                         \ DTL1 to process the next character
 
  INC V+1                \ We have just crossed into a new page, so increment
                         \ V+1 so that V points to the start of the new page
 
- BNE DTL1_C               \ Jump back to DTL1 to process the next character (this
+ BNE DTL1               \ Jump back to DTL1 to process the next character (this
                         \ BNE is effectively a JMP as V+1 won't reach zero
                         \ before we reach the end of the token table)
 
-.DTL2_C
+.DTL2
 
  INY                    \ We just detected the delimiter byte before the token
                         \ that we want to print, so increment the character
@@ -11370,16 +11370,16 @@ ENDIF
                         \ #VE, so we repeat the EOR to get the actual character
                         \ in this token
 
- BEQ DTEX_C               \ If the result is zero, then this is the delimiter at
+ BEQ DTEX               \ If the result is zero, then this is the delimiter at
                         \ the end of the token to print (which is #VE), so jump
                         \ to DTEX to return from the subroutine, as we are done
                         \ printing
 
- JSR DETOK2_C             \ Otherwise call DETOK2 to print this part of the token
+ JSR DETOK2             \ Otherwise call DETOK2 to print this part of the token
 
- JMP DTL2_C               \ Jump back to DTL2 to process the next character
+ JMP DTL2               \ Jump back to DTL2 to process the next character
 
-.DTEX_C
+.DTEX
 
  PLA                    \ Restore V(1 0) from the stack, so it is preserved
  STA V+1                \ through calls to this routine
@@ -11427,13 +11427,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DETOK2_C
+.DETOK2
 
  CMP #32                \ If A < 32 then this is a jump token, so skip to DT3 to
- BCC DT3_C                \ process it
+ BCC DT3                \ process it
 
  BIT DTW3               \ If bit 7 of DTW3 is clear, then extended tokens are
- BPL DT8_C                \ enabled, so jump to DT8 to process them
+ BPL DT8                \ enabled, so jump to DT8 to process them
 
                         \ If we get there then this is not a jump token and
                         \ extended tokens are not enabled, so we can call the
@@ -11451,25 +11451,25 @@ ENDIF
 
  TXA                    \ Copy the token number from X back into A
 
- JSR TT27_C               \ Call TT27 to print the text token
+ JSR TT27               \ Call TT27 to print the text token
 
- JMP DT7_C                \ Jump to DT7 to restore V(1 0) and Y from the stack and
+ JMP DT7                \ Jump to DT7 to restore V(1 0) and Y from the stack and
                         \ return from the subroutine
 
-.DT8_C
+.DT8
 
                         \ If we get here then this is not a jump token and
                         \ extended tokens are enabled
 
  CMP #'['               \ If A < ASCII "[" (i.e. A <= ASCII "Z", or 90) then
- BCC DTS_C                \ this is a printable ASCII character, so jump down to
+ BCC DTS                \ this is a printable ASCII character, so jump down to
                         \ DTS to print it
 
  CMP #129               \ If A < 129, so A is in the range 91-128, jump down to
- BCC DT6_C                \ DT6 to print a randomised token from the MTIN table
+ BCC DT6                \ DT6 to print a randomised token from the MTIN table
 
  CMP #215               \ If A < 215, so A is in the range 129-214, jump to
- BCC DETOK_C              \ DETOK as this is a recursive token, returning from the
+ BCC DETOK              \ DETOK as this is a recursive token, returning from the
                         \ subroutine using a tail call
 
                         \ If we get here then A >= 215, so this is a two-letter
@@ -11486,47 +11486,47 @@ ENDIF
                         \ second letter below
 
  TAX                    \ Fetch the first letter of the two-letter token from
- LDA TKN2_C,X             \ TKN2, which is at TKN2 + X
+ LDA TKN2,X             \ TKN2, which is at TKN2 + X
 
- JSR DTS_C                \ Call DTS to print it
+ JSR DTS                \ Call DTS to print it
 
  PLA                    \ Restore A from the stack and transfer it into X
  TAX
 
- LDA TKN2_C+1,X           \ Fetch the second letter of the two-letter token from
+ LDA TKN2+1,X           \ Fetch the second letter of the two-letter token from
                         \ TKN2, which is at TKN2 + X + 1, and fall through into
                         \ DTS to print it
 
-.DTS_C
+.DTS
 
  CMP #'A'               \ If A < ASCII "A", jump to DT9 to print this as ASCII
- BCC DT9_C
+ BCC DT9
 
  BIT DTW6               \ If bit 7 of DTW6 is set, then lower case has been
- BMI DT10_C               \ enabled by jump token 13, {lower case}, so jump to
+ BMI DT10               \ enabled by jump token 13, {lower case}, so jump to
                         \ DT10 to apply the lower case and single cap masks
 
  BIT DTW2               \ If bit 7 of DTW2 is set, then we are not currently
- BMI DT5_C                \ printing a word, so jump to DT5 so we skip the setting
+ BMI DT5                \ printing a word, so jump to DT5 so we skip the setting
                         \ of lower case in Sentence Case (which we only want to
                         \ do when we are already printing a word)
 
-.DT10_C
+.DT10
 
  ORA DTW1               \ Convert the character to lower case if DTW1 is
                         \ %00100000 (i.e. if we are in {sentence case} mode)
 
-.DT5_C
+.DT5
 
  AND DTW8               \ Convert the character to upper case if DTW8 is
                         \ %11011111 (i.e. after a {single cap} token)
 
-.DT9_C
+.DT9
 
- JMP x4_DASC               \ Jump to DASC to print the ASCII character in A,
+ JMP DASC               \ Jump to DASC to print the ASCII character in A,
                         \ returning from the routine using a tail call
 
-.DT3_C
+.DT3
 
                         \ If we get here then the token number in A is in the
                         \ range 1 to 32, so this is a jump token that should
@@ -11553,22 +11553,22 @@ ENDIF
 
  TAX                    \ Copy the doubled token number from A into X
 
- LDA JMTB_C-2,X           \ Set DTM(2 1) to the X-th address from the table at
- STA DTM_C+1              \ JTM-2, which modifies the JSR DASC instruction at
- LDA JMTB_C-1,X           \ label DTM below so that it calls the subroutine at the
- STA DTM_C+2              \ relevant address from the JMTB table
+ LDA JMTB-2,X           \ Set DTM(2 1) to the X-th address from the table at
+ STA DTM+1              \ JTM-2, which modifies the JSR DASC instruction at
+ LDA JMTB-1,X           \ label DTM below so that it calls the subroutine at the
+ STA DTM+2              \ relevant address from the JMTB table
 
  TXA                    \ Copy the doubled token number from X back into A
 
  LSR A                  \ Halve A to get the original token number
 
-.DTM_C
+.DTM
 
- JSR x4_DASC               \ Call the relevant JMTB subroutine, as this instruction
+ JSR DASC               \ Call the relevant JMTB subroutine, as this instruction
                         \ will have been modified by the above to point to the
                         \ relevant address
 
-.DT7_C
+.DT7
 
  PLA                    \ Restore V(1 0) from the stack, so it is preserved
  STA V+1                \ through calls to this routine
@@ -11580,7 +11580,7 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-.DT6_C
+.DT6
 
                         \ If we get here then the token number in A is in the
                         \ range 91-128, which means we print a randomly picked
@@ -11597,7 +11597,7 @@ ENDIF
  LDA V+1
  PHA
 
- JSR x4_DORND              \ Set X to a random number
+ JSR DORND              \ Set X to a random number
  TAX
 
  LDA #0                 \ Set A to 0, so we can build a random number from 0 to
@@ -11618,12 +11618,12 @@ ENDIF
  LDX SC                 \ Fetch the token number from SC into X, so X is now in
                         \ the range 91-128
 
- ADC MTIN_C-91,X          \ Set A = MTIN-91 + token number (91-128) + random (0-4)
+ ADC MTIN-91,X          \ Set A = MTIN-91 + token number (91-128) + random (0-4)
                         \       = MTIN + token number (0-37) + random (0-4)
 
- JSR DETOK_C              \ Call DETOK to print the extended recursive token in A
+ JSR DETOK              \ Call DETOK to print the extended recursive token in A
 
- JMP DT7_C                \ Jump to DT7 to restore V(1 0) and Y from the stack and
+ JMP DT7                \ Jump to DT7 to restore V(1 0) and Y from the stack and
                         \ return from the subroutine using a tail call
 
 \ ******************************************************************************
@@ -11645,7 +11645,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT1_C
+.MT1
 
  LDA #%00000000         \ Set A = %00000000, so when we fall through into MT2,
                         \ both DTW1 and DTW6 get set to %00000000
@@ -11673,7 +11673,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT2_C
+.MT2
 
  LDA #%00100000         \ Set DTW1 = %00100000
  STA DTW1
@@ -11702,10 +11702,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT8_C
+.MT8
 
  LDA #6                 \ Move the text cursor to column 6
- JSR DOXC_C
+ JSR DOXC
 
  LDA #%11111111         \ Set all the bits in DTW2
  STA DTW2
@@ -11731,12 +11731,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT9_C
+.MT9
 
  LDA #1                 \ Move the text cursor to column 1
  STA XC
 
- JMP TT66_C               \ Jump to TT66 to clear the screen and set the current
+ JMP TT66               \ Jump to TT66 to clear the screen and set the current
                         \ view type to 1, returning from the subroutine using a
                         \ tail call
 
@@ -11759,7 +11759,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT13_C
+.MT13
 
  LDA #%10000000         \ Set DTW6 = %10000000
  STA DTW6
@@ -11788,7 +11788,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT6_C
+.MT6
 
  LDA #%10000000         \ Set bit 7 of QQ17 to switch standard tokens to
  STA QQ17               \ Sentence Case
@@ -11818,7 +11818,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT5_C
+.MT5
 
  LDA #%00000000         \ Set DTW3 = %00000000, so that calls to DETOK print
  STA DTW3               \ extended tokens
@@ -11844,7 +11844,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT14_C
+.MT14
 
  LDA #%10000000         \ Set A = %10000000, so when we fall through into MT15,
                         \ DTW4 gets set to %10000000
@@ -11872,7 +11872,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT15_C
+.MT15
 
  LDA #0                 \ Set DTW4 = %00000000
  STA DTW4
@@ -11907,33 +11907,33 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT17_C
+.MT17
 
  LDA QQ17               \ Set QQ17 = %10111111 to switch to Sentence Case
  AND #%10111111
  STA QQ17
 
  LDA #3                 \ Print control code 3 (selected system name) into the
- JSR TT27_C               \ line buffer
+ JSR TT27               \ line buffer
 
  LDX DTW5               \ Load the last character of the line buffer BUF into A
  LDA BUF-1,X            \ (as DTW5 contains the buffer size, so character DTW5-1
                         \ is the last character in the buffer BUF)
 
- JSR VOWEL_C              \ Test whether the character is a vowel, in which case
+ JSR VOWEL              \ Test whether the character is a vowel, in which case
                         \ this will set the C flag
 
- BCC MT171_C              \ If the character is not a vowel, skip the following
+ BCC MT171              \ If the character is not a vowel, skip the following
                         \ instruction
 
  DEC DTW5               \ The character is a vowel, so decrement DTW5, which
                         \ removes the last character from the line buffer (i.e.
                         \ it removes the trailing vowel from the system name)
 
-.MT171_C
+.MT171
 
  LDA #153               \ Print extended token 153 ("IAN"), returning from the
- JMP DETOK_C              \ subroutine using a tail call
+ JMP DETOK              \ subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -11946,20 +11946,20 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT18_C
+.MT18
 
- JSR MT19_C               \ Call MT19 to capitalise the next letter (i.e. set
+ JSR MT19               \ Call MT19 to capitalise the next letter (i.e. set
                         \ Sentence Case for this word only)
 
- JSR x4_DORND              \ Set A and X to random numbers and reduce A to a
+ JSR DORND              \ Set A and X to random numbers and reduce A to a
  AND #3                 \ random number in the range 0-3
 
  TAY                    \ Copy the random number into Y, so we can use Y as a
                         \ loop counter to print 1-4 words (i.e. Y+1 words)
 
-.MT18L_C
+.MT18L
 
- JSR x4_DORND              \ Set A and X to random numbers and reduce A to an even
+ JSR DORND              \ Set A and X to random numbers and reduce A to an even
  AND #62                \ random number in the range 0-62 (as bit 0 of 62 is 0)
 
  TAX                    \ Copy the random number into X, so X contains the table
@@ -11968,15 +11968,15 @@ ENDIF
                         \ tables at TKN2+2 and QQ16 (we intentionally exclude
                         \ the first token in TKN2, which contains a newline)
 
- LDA TKN2_C+2,X           \ Print the first letter of the token at TKN2+2 + X
- JSR DTS_C
+ LDA TKN2+2,X           \ Print the first letter of the token at TKN2+2 + X
+ JSR DTS
 
- LDA TKN2_C+3,X           \ Print the second letter of the token at TKN2+2 + X
- JSR DTS_C
+ LDA TKN2+3,X           \ Print the second letter of the token at TKN2+2 + X
+ JSR DTS
 
  DEY                    \ Decrement the loop counter
 
- BPL MT18L_C              \ Loop back to MT18L to print another two-letter token
+ BPL MT18L              \ Loop back to MT18L to print another two-letter token
                         \ until we have printed Y+1 of them
 
  RTS                    \ Return from the subroutine
@@ -11998,7 +11998,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT19_C
+.MT19
 
  LDA #%11011111         \ Set DTW8 = %11011111
  STA DTW8
@@ -12028,24 +12028,24 @@ ENDIF
 \
 \ ******************************************************************************
 
-.VOWEL_C
+.VOWEL
 
  ORA #%00100000         \ Set bit 5 of the character to make it lower case
 
  CMP #'a'               \ If the letter is a vowel, jump to VRTS to return from
- BEQ VRTS_C               \ the subroutine with the C flag set (as the CMP will
+ BEQ VRTS               \ the subroutine with the C flag set (as the CMP will
  CMP #'e'               \ set the C flag if the comparison is equal)
- BEQ VRTS_C
+ BEQ VRTS
  CMP #'i'
- BEQ VRTS_C
+ BEQ VRTS
  CMP #'o'
- BEQ VRTS_C
+ BEQ VRTS
  CMP #'u'
- BEQ VRTS_C
+ BEQ VRTS
 
  CLC                    \ The character is not a vowel, so clear the C flag
 
-.VRTS_C
+.VRTS
 
  RTS                    \ Return from the subroutine
 
@@ -12058,44 +12058,50 @@ ENDIF
 \  Deep dive: Extended text tokens
 \       Area: cold
 \
+\ ------------------------------------------------------------------------------
+\
+\ Port: DETOK jumps to these routines from the cold area, so those outside it
+\ are entered through their stubs (x4_name, which tools/streams.py generates:
+\ elite-layout.asm).
+\
 \ ******************************************************************************
 
-.JMTB_C
+.JMTB
 
- EQUW MT1_C               \ Token  1: Switch to ALL CAPS
- EQUW MT2_C               \ Token  2: Switch to Sentence Case
- EQUW TT27_C              \ Token  3: Print the selected system name
- EQUW TT27_C              \ Token  4: Print the commander's name
- EQUW MT5_C               \ Token  5: Switch to extended tokens
- EQUW MT6_C               \ Token  6: Switch to standard tokens, in Sentence Case
- EQUW x4_DASC              \ Token  7: Beep
- EQUW MT8_C               \ Token  8: Tab to column 6
- EQUW MT9_C               \ Token  9: Clear screen, tab to column 1, view type = 1
- EQUW x4_DASC              \ Token 10: Line feed
- EQUW NLIN4_C             \ Token 11: Draw box around title (line at pixel row 19)
- EQUW x4_DASC              \ Token 12: Carriage return
- EQUW MT13_C              \ Token 13: Switch to lower case
- EQUW MT14_C              \ Token 14: Switch to justified text
- EQUW MT15_C              \ Token 15: Switch to left-aligned text
- EQUW x4_MT16              \ Token 16: Print the character in DTW7 (drive number)
- EQUW MT17_C              \ Token 17: Print system name adjective in Sentence Case
- EQUW MT18_C              \ Token 18: Randomly print 1 to 4 two-letter tokens
- EQUW MT19_C              \ Token 19: Capitalise first letter of next word only
- EQUW x4_DASC              \ Token 20: Unused
- EQUW x4_CLYNS             \ Token 21: Clear the bottom few lines of the space view
- EQUW PAUSE_C             \ Token 22: Display ship and wait for key press
- EQUW MT23_C              \ Token 23: Move to row 10, white text, set lower case
- EQUW PAUSE2_C            \ Token 24: Wait for a key press
- EQUW BRIS_C              \ Token 25: Show incoming message screen, wait 2 seconds
- EQUW MT26_C              \ Token 26: Fetch line input from keyboard (filename)
- EQUW MT27_C              \ Token 27: Print mission captain's name (217-219)
- EQUW MT28_C              \ Token 28: Print mission 1 location hint (220-221)
- EQUW MT29_C              \ Token 29: Column 6, white text, lower case in words
- EQUW FILEPR_C            \ Token 30: Display currently selected media (disk/tape)
- EQUW x4_DASC              \ Token 31: Display the non-selected media (disk/tape)
+ EQUW MT1               \ Token  1: Switch to ALL CAPS
+ EQUW MT2               \ Token  2: Switch to Sentence Case
+ EQUW TT27              \ Token  3: Print the selected system name
+ EQUW TT27              \ Token  4: Print the commander's name
+ EQUW MT5               \ Token  5: Switch to extended tokens
+ EQUW MT6               \ Token  6: Switch to standard tokens, in Sentence Case
+ EQUW x4_DASC           \ Token  7: Beep
+ EQUW MT8               \ Token  8: Tab to column 6
+ EQUW MT9               \ Token  9: Clear screen, tab to column 1, view type = 1
+ EQUW x4_DASC           \ Token 10: Line feed
+ EQUW NLIN4             \ Token 11: Draw box around title (line at pixel row 19)
+ EQUW x4_DASC           \ Token 12: Carriage return
+ EQUW MT13              \ Token 13: Switch to lower case
+ EQUW MT14              \ Token 14: Switch to justified text
+ EQUW MT15              \ Token 15: Switch to left-aligned text
+ EQUW x4_MT16           \ Token 16: Print the character in DTW7 (drive number)
+ EQUW MT17              \ Token 17: Print system name adjective in Sentence Case
+ EQUW MT18              \ Token 18: Randomly print 1 to 4 two-letter tokens
+ EQUW MT19              \ Token 19: Capitalise first letter of next word only
+ EQUW x4_DASC           \ Token 20: Unused
+ EQUW x4_CLYNS          \ Token 21: Clear the bottom few lines of the space view
+ EQUW PAUSE             \ Token 22: Display ship and wait for key press
+ EQUW MT23              \ Token 23: Move to row 10, white text, set lower case
+ EQUW PAUSE2            \ Token 24: Wait for a key press
+ EQUW BRIS              \ Token 25: Show incoming message screen, wait 2 seconds
+ EQUW MT26              \ Token 26: Fetch line input from keyboard (filename)
+ EQUW MT27              \ Token 27: Print mission captain's name (217-219)
+ EQUW MT28              \ Token 28: Print mission 1 location hint (220-221)
+ EQUW MT29              \ Token 29: Column 6, white text, lower case in words
+ EQUW FILEPR            \ Token 30: Display currently selected media (disk/tape)
+ EQUW x4_DASC           \ Token 31: Display the non-selected media (disk/tape)
                         \ (Port: unused, as no token has control code 31, so
-                        \ x4_DASC as for 20 and 32; OTHERFILEPR is removed)
- EQUW x4_DASC              \ Token 32: Unused
+                        \ DASC as for 20 and 32; OTHERFILEPR is removed)
+ EQUW x4_DASC           \ Token 32: Unused
 
 \ ******************************************************************************
 \
@@ -12112,7 +12118,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TKN2_C
+.TKN2
 
  EQUB 12, 10            \ Token 215 = {crlf}
  EQUS "AB"              \ Token 216
@@ -12148,7 +12154,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.QQ16_C
+.QQ16
 
  EQUS "AL"              \ Token 128
  EQUS "LE"              \ Token 129
@@ -12800,7 +12806,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.FLKB_C
+.FLKB
 
  RTS                    \ Return from the subroutine
 
@@ -12820,9 +12826,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.NLIN3_C
+.NLIN3
 
- JSR TT27_C               \ Print the text token in A
+ JSR TT27               \ Print the text token in A
 
                         \ Fall through into NLIN4 to draw a horizontal line at
                         \ pixel row 19
@@ -12842,10 +12848,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.NLIN4_C
+.NLIN4
 
  LDA #19                \ Jump to NLIN2 to draw a horizontal line at pixel row
- BNE NLIN2_C              \ 19, returning from the subroutine with using a tail
+ BNE NLIN2              \ 19, returning from the subroutine with using a tail
                         \ call (this BNE is effectively a JMP as A will never
                         \ be zero)
 
@@ -12871,12 +12877,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.NLIN_C
+.NLIN
 
  LDA #23                \ Set A = 23 so NLIN2 below draws a horizontal line at
                         \ pixel row 23
 
-.NLIN5_C
+.NLIN5
 
  INC YC                 \ Move the text cursor down one line
 
@@ -12904,7 +12910,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.NLIN2_C
+.NLIN2
 
  STA Y1                 \ Set Y1 = A
 
@@ -12917,7 +12923,7 @@ ENDIF
  LDX #254               \ Set X2 = 254, so (X2, Y2) = (254, A)
  STX X2
 
- JSR x4_HLOIN3             \ Call HLOIN3 to draw a line from (2, A) to (254, A)
+ JSR HLOIN3             \ Call HLOIN3 to draw a line from (2, A) to (254, A)
 
  LDA #CYAN              \ Switch to colour 3, which is cyan or white
  STA COL
@@ -14583,19 +14589,19 @@ ENDIF
 \
 \ ******************************************************************************
 
-.wearedocked_C
+.wearedocked
 
                         \ We call this from STATUS below if we are docked
 
  LDA #205               \ Print extended token 205 ("DOCKED") and return from
- JSR DETOK_C              \ the subroutine using a tail call
+ JSR DETOK              \ the subroutine using a tail call
 
- JSR x4_TT67K              \ Print a newline
+ JSR TT67K              \ Print a newline
 
- JMP st6_C+3              \ Jump down to st6+3, to print recursive token 125 and
+ JMP st6+3              \ Jump down to st6+3, to print recursive token 125 and
                         \ continue to the rest of the Status Mode screen
 
-.st4_C
+.st4
 
                         \ We call this from st5 below with the high byte of the
                         \ kill tally in A, which is non-zero, and want to return
@@ -14617,38 +14623,38 @@ ENDIF
  LDX #9                 \ Set X to 9 for an Elite rating
 
  CMP #25                \ If A >= 25, jump to st3 to print out our rating, as we
- BCS st3_C                \ are Elite
+ BCS st3                \ are Elite
 
  DEX                    \ Decrement X to 8 for a Deadly rating
 
  CMP #10                \ If A >= 10, jump to st3 to print out our rating, as we
- BCS st3_C                \ are Deadly
+ BCS st3                \ are Deadly
 
  DEX                    \ Decrement X to 7 for a Dangerous rating
 
  CMP #2                 \ If A >= 2, jump to st3 to print out our rating, as we
- BCS st3_C                \ are Dangerous
+ BCS st3                \ are Dangerous
 
  DEX                    \ Decrement X to 6 for a Competent rating
 
- BNE st3_C                \ Jump to st3 to print out our rating, as we are
+ BNE st3                \ Jump to st3 to print out our rating, as we are
                         \ Competent (this BNE is effectively a JMP as A will
                         \ never be zero)
 
-.STATUS_C
+.STATUS
 
  LDA #8                 \ Clear the top part of the screen, draw a border box,
- JSR TRADEMODE_C          \ and set up a trading screen with a view type in QQ11
+ JSR TRADEMODE          \ and set up a trading screen with a view type in QQ11
                         \ of 8 (Status Mode screen)
 
- JSR TT111_C              \ Select the system closest to galactic coordinates
+ JSR TT111              \ Select the system closest to galactic coordinates
                         \ (QQ9, QQ10)
 
  LDA #7                 \ Move the text cursor to column 7
  STA XC
 
  LDA #126               \ Print recursive token 126, which prints the top
- JSR NLIN3_C              \ four lines of the Status Mode screen:
+ JSR NLIN3              \ four lines of the Status Mode screen:
                         \
                         \         COMMANDER {commander name}
                         \
@@ -14666,7 +14672,7 @@ ENDIF
                         \ as the "DOCKED" text is now an extended token
 
  LDY QQ12               \ Fetch the docked status from QQ12, and if we are
- BNE wearedocked_C        \ docked, jump to wearedocked
+ BNE wearedocked        \ docked, jump to wearedocked
 
  LDA #230               \ Otherwise we are in space, so start off by setting A
                         \ to token 70 ("GREEN")
@@ -14681,7 +14687,7 @@ ENDIF
                         \ empty (i.e. is non-zero), then that means the number
                         \ of non-asteroids in the vicinity is at least 1
 
- BEQ st6_C                \ So if X = 0, there are no ships in the vicinity, so
+ BEQ st6                \ So if X = 0, there are no ships in the vicinity, so
                         \ jump to st6 to print "Green" for our ship's condition
 
  LDY ENERGY             \ Otherwise we have ships in the vicinity, so we load
@@ -14695,13 +14701,13 @@ ENDIF
                         \ and if C is set (i.e. we have healthy energy levels)
                         \ then A is set to token 232 ("YELLOW")
 
-.st6_C
+.st6
 
- JSR plf_C                \ Print the text token in A (which contains our ship's
+ JSR plf                \ Print the text token in A (which contains our ship's
                         \ condition) followed by a newline
 
  LDA #125               \ Print recursive token 125, which prints the next
- JSR spc_C                \ three lines of the Status Mode screen:
+ JSR spc                \ three lines of the Status Mode screen:
                         \
                         \   Fuel: {fuel level} Light Years
                         \   Cash: {cash} Cr
@@ -14712,7 +14718,7 @@ ENDIF
  LDA #19                \ Set A to token 133 ("CLEAN")
 
  LDY FIST               \ Fetch our legal status, and if it is 0, we are clean,
- BEQ st5_C                \ so jump to st5 to print "Clean"
+ BEQ st5                \ so jump to st5 to print "Clean"
 
  CPY #50                \ Set the C flag if Y >= 50, so C is set if we have
                         \ a legal status of 50+ (i.e. we are a fugitive)
@@ -14723,16 +14729,16 @@ ENDIF
                         \ legal status of 50+) then A is set to token 135
                         \ ("FUGITIVE")
 
-.st5_C
+.st5
 
- JSR plf_C                \ Print the text token in A (which contains our legal
+ JSR plf                \ Print the text token in A (which contains our legal
                         \ status) followed by a newline
 
  LDA #16                \ Print recursive token 130 ("RATING:") followed by a
- JSR spc_C                \ space
+ JSR spc                \ space
 
  LDA TALLY+1            \ Fetch the high byte of the kill tally, and if it is
- BNE st4_C                \ not zero, then we have more than 256 kill points, so
+ BNE st4                \ not zero, then we have more than 256 kill points, so
                         \ jump to st4 to work out whether we are Competent,
                         \ Dangerous, Deadly or Elite
 
@@ -14777,17 +14783,17 @@ ENDIF
                         \ instruction) until A = 0, which means there are no set
                         \ bits left in A
 
-.st3_C
+.st3
 
  TXA                    \ A now contains our rating as a value of 1 to 9, so
                         \ transfer X to A, so we can print it out
 
  CLC                    \ Print recursive token 135 + A, which will be in the
  ADC #21                \ range 136 ("HARMLESS") to 144 ("---- E L I T E ----")
- JSR plf_C                \ followed by a newline
+ JSR plf                \ followed by a newline
 
  LDA #18                \ Print recursive token 132, which prints the next bit
- JSR plf2_C               \ of the Status Mode screen:
+ JSR plf2               \ of the Status Mode screen:
                         \
                         \   EQUIPMENT:
                         \
@@ -14797,21 +14803,21 @@ ENDIF
  BEQ P%+7               \ zero), skip the following two instructions
 
  LDA #112               \ We do have an escape pod fitted, so print recursive
- JSR plf2_C               \ token 112 ("ESCAPE POD"), followed by a newline and an
+ JSR plf2               \ token 112 ("ESCAPE POD"), followed by a newline and an
                         \ indent of 6 characters
 
  LDA BST                \ If we don't have fuel scoops fitted, skip the
  BEQ P%+7               \ following two instructions
 
  LDA #111               \ We do have fuel scoops fitted, so print recursive
- JSR plf2_C               \ token 111 ("FUEL SCOOPS"), followed by a newline and
+ JSR plf2               \ token 111 ("FUEL SCOOPS"), followed by a newline and
                         \ an indent of 6 characters
 
  LDA ECM                \ If we don't have an E.C.M. fitted, skip the following
  BEQ P%+7               \ two instructions
 
  LDA #108               \ We do have an E.C.M. fitted, so print recursive token
- JSR plf2_C               \ 108 ("E.C.M.SYSTEM"), followed by a newline and an
+ JSR plf2               \ 108 ("E.C.M.SYSTEM"), followed by a newline and an
                         \ indent of 6 characters
 
  LDA #113               \ We now cover the four pieces of equipment whose flags
@@ -14827,7 +14833,7 @@ ENDIF
                         \ 113 as a counter (and we also set A as well, to pass
                         \ through to plf2)
 
-.stqv_C
+.stqv
 
  TAY                    \ Fetch byte BOMB+0 through BOMB+4 for values of XX4
  LDX BOMB-113,Y         \ from 113 through 117
@@ -14835,7 +14841,7 @@ ENDIF
  BEQ P%+5               \ If it is zero then we do not own that piece of
                         \ equipment, so skip the next instruction
 
- JSR plf2_C               \ Print the recursive token in A from 113 ("ENERGY
+ JSR plf2               \ Print the recursive token in A from 113 ("ENERGY
                         \ BOMB") through 116 ("GALACTIC HYPERSPACE "), followed
                         \ by a newline and an indent of 6 characters
 
@@ -14843,24 +14849,24 @@ ENDIF
  LDA XX4
 
  CMP #117               \ If A < 117, loop back up to stqv to print the next
- BCC stqv_C               \ piece of equipment
+ BCC stqv               \ piece of equipment
 
  LDX #0                 \ Now to print our ship's lasers, so set a counter in X
                         \ to count through the four views (0 = front, 1 = rear,
                         \ 2 = left, 3 = right)
 
-.st_C
+.st
 
  STX CNT                \ Store the view number in CNT
 
  LDY LASER,X            \ Fetch the laser power for view X, and if we do not
- BEQ st1_C                \ have a laser fitted to that view, jump to st1 to move
+ BEQ st1                \ have a laser fitted to that view, jump to st1 to move
                         \ on to the next one
 
  TXA                    \ Print recursive token 96 + X, which will print from 96
  CLC                    \ ("FRONT") through to 99 ("RIGHT"), followed by a space
  ADC #96
- JSR spc_C
+ JSR spc
 
  LDA #103               \ Set A to token 103 ("PULSE LASER")
 
@@ -14886,17 +14892,17 @@ ENDIF
  LDA #118               \ This sets A = 118 if the laser in view X is a mining
                         \ laser (token 118 is "MINING  LASER")
 
- JSR plf2_C               \ Print the text token in A (which contains the laser
+ JSR plf2               \ Print the text token in A (which contains the laser
                         \ type) followed by a newline and an indent of 6
                         \ characters
 
-.st1_C
+.st1
 
  LDX CNT                \ Increment the counter in X and CNT to point to the
  INX                    \ next view
 
  CPX #4                 \ If this isn't the last of the four views, jump back up
- BCC st_C                 \ to st to print out the next one
+ BCC st                 \ to st to print out the next one
 
  RTS                    \ Return from the subroutine
 
@@ -14921,9 +14927,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.plf2_C
+.plf2
 
- JSR plf_C                \ Print the text token in A followed by a newline
+ JSR plf                \ Print the text token in A followed by a newline
 
  LDA #6                 \ Move the text cursor to column 6
  STA XC
@@ -15451,7 +15457,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TENS_C
+.TENS
 
  EQUD &00E87648
 
@@ -15485,7 +15491,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.pr2_C
+.pr2
 
  LDA #3                 \ Set A to the number of digits (3)
 
@@ -15522,7 +15528,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT11_C
+.TT11
 
  STA U                  \ We are going to use the BPRNT routine (below) to
                         \ print this number, so we store the number of digits
@@ -15579,7 +15585,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.BPRNT_C
+.BPRNT
 
  LDX #11                \ Set T to the maximum number of digits allowed (11
  STX T                  \ characters, which is the number of digits in 10
@@ -15589,14 +15595,14 @@ ENDIF
  PHP                    \ Make a copy of the status register (in particular
                         \ the C flag) so we can retrieve it later
 
- BCC TT30_C               \ If the C flag is clear, we do not want to print a
+ BCC TT30               \ If the C flag is clear, we do not want to print a
                         \ decimal point, so skip the next two instructions
 
  DEC T                  \ As we are going to show a decimal point, decrement
  DEC U                  \ both the number of characters and the number of
                         \ digits (as one of them is now a decimal point)
 
-.TT30_C
+.TT30
 
  LDA #11                \ Set A to 11, the maximum number of digits allowed
 
@@ -15621,10 +15627,10 @@ ENDIF
                         \ 8-bit overflow for the 32-bit calculations, so
                         \ we need to set this to 0 before joining the loop
 
- JMP TT36_C               \ Jump to TT36 to start the process of printing this
+ JMP TT36               \ Jump to TT36 to start the process of printing this
                         \ number's digits
 
-.TT35_C
+.TT35
 
                         \ This subroutine multiplies K(S 0 1 2 3) by 10 and
                         \ stores the result back in K(S 0 1 2 3), using the fact
@@ -15642,7 +15648,7 @@ ENDIF
                         \ four bytes, starting with the last byte in memory
                         \ (i.e. the least significant)
 
-.tt35_C
+.tt35
 
  LDA K,X                \ Copy the X-th byte of K(0 1 2 3) to the X-th byte of
  STA XX15,X             \ XX15(0 1 2 3), so that XX15 will contain a copy of
@@ -15650,7 +15656,7 @@ ENDIF
 
  DEX                    \ Decrement the loop counter
 
- BPL tt35_C               \ Loop back to copy the next byte until we have copied
+ BPL tt35               \ Loop back to copy the next byte until we have copied
                         \ all four
 
  LDA S                  \ Store the value of location S, our overflow byte, in
@@ -15680,7 +15686,7 @@ ENDIF
                         \ with the last byte in memory (i.e. the least
                         \ significant)
 
-.tt36_C
+.tt36
 
  LDA K,X                \ Fetch the X-th byte of K into A
 
@@ -15690,7 +15696,7 @@ ENDIF
 
  DEX                    \ Decrement the loop counter
 
- BPL tt36_C               \ Loop back to add the next byte, moving from the least
+ BPL tt36               \ Loop back to add the next byte, moving from the least
                         \ significant byte to the most significant, until we
                         \ have added all four
 
@@ -15709,7 +15715,7 @@ ENDIF
                         \ digit, so set this to zero so we can rejoin the main
                         \ loop for another subtraction process
 
-.TT36_C
+.TT36
 
                         \ This is the main loop of our digit-printing routine.
                         \ In the following loop, we are going to count the
@@ -15722,20 +15728,20 @@ ENDIF
  SEC                    \ Set the C flag so we can do subtraction without the
                         \ C flag affecting the result
 
-.tt37_C
+.tt37
 
                         \ We now loop through each byte in turn to do this:
                         \
                         \   XX15(4 0 1 2 3) = K(S 0 1 2 3) - 100,000,000,000
 
  LDA K,X                \ Subtract the X-th byte of TENS (i.e. 10 billion) from
- SBC TENS_C,X             \ the X-th byte of K
+ SBC TENS,X             \ the X-th byte of K
 
  STA XX15,X             \ Store the result in the X-th byte of XX15
 
  DEX                    \ Decrement the loop counter
 
- BPL tt37_C               \ Loop back to subtract the next byte, moving from the
+ BPL tt37               \ Loop back to subtract the next byte, moving from the
                         \ least significant byte to the most significant, until
                         \ we have subtracted all four
 
@@ -15744,14 +15750,14 @@ ENDIF
 
  STA XX15+4             \ Store the result in the overflow byte of XX15
 
- BCC TT37_C               \ If subtracting 10 billion took us below zero, jump to
+ BCC TT37               \ If subtracting 10 billion took us below zero, jump to
                         \ TT37 to print out this digit, which is now in Y
 
  LDX #3                 \ We now want to copy XX15(4 0 1 2 3) back into
                         \ K(S 0 1 2 3), so we can loop back up to do the next
                         \ subtraction, so set up a counter for a four-byte loop
 
-.tt38_C
+.tt38
 
  LDA XX15,X             \ Copy the X-th byte of XX15(0 1 2 3) to the X-th byte
  STA K,X                \ of K(0 1 2 3), so that K(0 1 2 3) will contain a copy
@@ -15759,7 +15765,7 @@ ENDIF
 
  DEX                    \ Decrement the loop counter
 
- BPL tt38_C               \ Loop back to copy the next byte, until we have copied
+ BPL tt38               \ Loop back to copy the next byte, until we have copied
                         \ all four
 
  LDA XX15+4             \ Store the value of location XX15+4, our overflow
@@ -15770,15 +15776,15 @@ ENDIF
                         \ number, so increment Y, which is where we are keeping
                         \ a count of the number of subtractions so far
 
- JMP TT36_C               \ Jump back to TT36 to subtract the next 10 billion
+ JMP TT36               \ Jump back to TT36 to subtract the next 10 billion
 
-.TT37_C
+.TT37
 
  TYA                    \ If we get here then Y contains the digit that we want
                         \ to print (as Y has now counted the total number of
                         \ subtractions of 10 billion), so transfer Y into A
 
- BNE TT32_C               \ If the digit is non-zero, jump to TT32 to print it
+ BNE TT32               \ If the digit is non-zero, jump to TT32 to print it
 
  LDA T                  \ Otherwise the digit is zero. If we are already
                         \ printing the number then we will want to print a 0,
@@ -15800,24 +15806,24 @@ ENDIF
                         \ decimal point, so the first time we enter the digit
                         \ printing routine at TT37, it is definitely non-zero
 
- BEQ TT32_C               \ If T = 0, jump straight to the print routine at TT32,
+ BEQ TT32               \ If T = 0, jump straight to the print routine at TT32,
                         \ as we have already started printing the number, so we
                         \ definitely want to print this digit too
 
  DEC U                  \ We initially set U to the number of digits we want to
- BPL TT34_C               \ skip before starting to print the number. If we get
+ BPL TT34               \ skip before starting to print the number. If we get
                         \ here then we haven't printed any digits yet, so
                         \ decrement U to see if we have reached the point where
                         \ we should start printing the number, and if not, jump
                         \ to TT34 to set up things for the next digit
 
  LDA #' '               \ We haven't started printing any digits yet, but we
- BNE tt34_C               \ have reached the point where we should start printing
+ BNE tt34               \ have reached the point where we should start printing
                         \ our number, so call TT26 (via tt34) to print a space
                         \ so that the number is left-padded with spaces (this
                         \ BNE is effectively a JMP as A will never be zero)
 
-.TT32_C
+.TT32
 
  LDY #0                 \ We are printing an actual digit, so first set T to 0,
  STY T                  \ to denote that we have now started printing digits as
@@ -15826,12 +15832,12 @@ ENDIF
  CLC                    \ The digit value is in A, so add ASCII "0" to get the
  ADC #'0'               \ ASCII character number to print
 
-.tt34_C
+.tt34
 
- JSR x4_TT26               \ Call TT26 to print the character in A and fall through
+ JSR TT26               \ Call TT26 to print the character in A and fall through
                         \ into TT34 to get things ready for the next digit
 
-.TT34_C
+.TT34
 
  DEC T                  \ Decrement T but keep T >= 0 (by incrementing it
  BPL P%+4               \ again if the above decrement made T negative)
@@ -15840,7 +15846,7 @@ ENDIF
  DEC XX17               \ Decrement the total number of characters left to
                         \ print, which we stored in XX17
 
- BMI rT10_C               \ If the result is negative, we have printed all the
+ BMI rT10               \ If the result is negative, we have printed all the
                         \ characters, so jump down to rT10 to return from the
                         \ subroutine
 
@@ -15858,11 +15864,11 @@ ENDIF
                         \ below) to print the next digit
 
  LDA #'.'               \ Otherwise the C flag is set, so print the decimal
- JSR x4_TT26               \ point
+ JSR TT26               \ point
 
- JMP TT35_C               \ Loop back to TT35 to print the next digit
+ JMP TT35               \ Loop back to TT35 to print the next digit
 
-.rT10_C
+.rT10
 
  RTS                    \ Return from the subroutine
 
@@ -16517,24 +16523,24 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ESCAPE_C
+.ESCAPE
 
- JSR RES2_C               \ Reset a number of flight variables and workspaces
+ JSR RES2               \ Reset a number of flight variables and workspaces
 
  LDX #CYL               \ Set the current ship type to a Cobra Mk III, so we
  STX TYPE               \ can show our ship disappear into the distance when we
                         \ eject in our pod
 
- JSR FRS1_C                \ Call FRS1 to launch the Cobra Mk III straight ahead,
+ JSR FRS1               \ Call FRS1 to launch the Cobra Mk III straight ahead,
                         \ like a missile launch, but with our ship instead
 
- BCS ES1_C                \ If the Cobra was successfully added to the local
+ BCS ES1                \ If the Cobra was successfully added to the local
                         \ bubble, jump to ES1 to skip the following instructions
 
  LDX #CYL2              \ The Cobra wasn't added to the local bubble for some
- JSR FRS1_C                \ reason, so try launching a pirate Cobra Mk III instead
+ JSR FRS1               \ reason, so try launching a pirate Cobra Mk III instead
 
-.ES1_C
+.ES1
 
  LDA #8                 \ Set the Cobra's byte #27 (speed) to 8
  STA INWK+27
@@ -16546,23 +16552,23 @@ ENDIF
  STA INWK+32            \ has no AI, and we can use this value as a counter to
                         \ do the following loop 97 times
 
-.ESL1_C
+.ESL1
 
- JSR x4_MVEIT              \ Call MVEIT to move the Cobra in space
+ JSR MVEIT              \ Call MVEIT to move the Cobra in space
 
  LDA QQ11               \ If either of QQ11 or VIEW is non-zero (i.e. this is
  ORA VIEW               \ not the front space view), skip the following
  BNE P%+5               \ instruction
 
- JSR x4_LL9F               \ Call LL9 to draw the Cobra on-screen, then render
+ JSR LL9F               \ Call LL9 to draw the Cobra on-screen, then render
                         \ the frame (Port: LL9F)
 
  DEC INWK+32            \ Decrement the counter in byte #32
 
- BNE ESL1_C               \ Loop back to keep moving the Cobra until the AI flag
+ BNE ESL1               \ Loop back to keep moving the Cobra until the AI flag
                         \ is 0, which gives it time to drift away from our pod
 
- JSR x4_SCAN               \ Call SCAN to remove the Cobra from the scanner (by
+ JSR SCAN               \ Call SCAN to remove the Cobra from the scanner (by
                         \ redrawing it)
 
  LDA #0                 \ Set A = 0 so we can use it to zero the contents of
@@ -16572,14 +16578,14 @@ ENDIF
                         \ up a counter in X so we can zero the 17 cargo slots
                         \ in QQ20
 
-.ESL2_C
+.ESL2
 
  STA QQ20,X             \ Set the X-th byte of QQ20 to zero, so we no longer
                         \ have any of item type X in the cargo hold
 
  DEX                    \ Decrement the counter
 
- BPL ESL2_C               \ Loop back to ESL2 until we have emptied the entire
+ BPL ESL2               \ Loop back to ESL2 until we have emptied the entire
                         \ cargo hold
 
  STA FIST               \ Launching an escape pod also clears our criminal
@@ -16605,7 +16611,7 @@ ENDIF
  STA QQ14               \ fuel, so set the current fuel level in QQ14 to 70, or
                         \ 7.0 light years
 
- JMP j4_GOIN               \ Go to the docking bay (i.e. show the ship hangar
+ JMP GOIN               \ Go to the docking bay (i.e. show the ship hangar
                         \ screen) and return from the subroutine with a tail
                         \ call
 
@@ -16619,20 +16625,20 @@ ENDIF
 \
 \ ******************************************************************************
 
-.HME2_C
+.HME2
 
  LDA #CYAN              \ Switch to colour 3, which is white in the chart view
  STA COL
 
  LDA #14                \ Print extended token 14 ("{clear bottom of screen}
- JSR DETOK_C              \ PLANET NAME?{fetch line input from keyboard}"). The
+ JSR DETOK              \ PLANET NAME?{fetch line input from keyboard}"). The
                         \ last token calls MT26, which puts the entered search
                         \ term in INWK+5 and the term length in Y
 
- JSR TT103_C              \ Draw small crosshairs at coordinates (QQ9, QQ10),
+ JSR TT103              \ Draw small crosshairs at coordinates (QQ9, QQ10),
                         \ which will erase the crosshairs currently there
 
- JSR TT81_C               \ Set the seeds in QQ15 (the selected system) to those
+ JSR TT81               \ Set the seeds in QQ15 (the selected system) to those
                         \ of system 0 in the current galaxy (i.e. copy the seeds
                         \ from QQ21 to QQ15)
 
@@ -16640,14 +16646,14 @@ ENDIF
  STA XX20               \ until we find a match, so set XX20 to act as a system
                         \ counter, starting with system 0
 
-.HME3_C
+.HME3
 
- JSR MT14_C               \ Switch to justified text when printing extended
+ JSR MT14               \ Switch to justified text when printing extended
                         \ tokens, so the call to cpl prints into the justified
                         \ text buffer at BUF instead of the screen, and DTW5
                         \ gets set to the length of the system name
 
- JSR cpl_C                \ Print the selected system name into the justified text
+ JSR cpl                \ Print the selected system name into the justified text
                         \ buffer
 
  LDX DTW5               \ Fetch DTW5 into X, so X is now equal to the length of
@@ -16656,11 +16662,11 @@ ENDIF
  LDA INWK+5,X           \ Fetch the X-th character from the entered search term
 
  CMP #13                \ If the X-th character is not a carriage return, then
- BNE HME6_C               \ the selected system name and the entered search term
+ BNE HME6               \ the selected system name and the entered search term
                         \ are different lengths, so jump to HME6 to move on to
                         \ the next system
 
-.HME4_C
+.HME4
 
  DEX                    \ Decrement X so it points to the last letter of the
                         \ selected system name (and, when we loop back here, it
@@ -16671,47 +16677,47 @@ ENDIF
  ORA #%00100000         \ Set bit 5 of the character to make it lower case
 
  CMP BUF,X              \ If the character in A matches the X-th character of
- BEQ HME4_C               \ the selected system name in BUF, loop back to HME4 to
+ BEQ HME4               \ the selected system name in BUF, loop back to HME4 to
                         \ check the next letter to the left
 
  TXA                    \ The last comparison didn't match, so copy the letter
- BMI HME5_C               \ number into A, and if it's negative, that means we
+ BMI HME5               \ number into A, and if it's negative, that means we
                         \ managed to go past the first letters of each term
                         \ before we failed to get a match, so the terms are the
                         \ same, so jump to HME5 to process a successful search
 
-.HME6_C
+.HME6
 
                         \ If we get here then the selected system name and the
                         \ entered search term did not match
 
- JSR TT20_C               \ We want to move on to the next system, so call TT20
+ JSR TT20               \ We want to move on to the next system, so call TT20
                         \ to twist the three 16-bit seeds in QQ15
 
  INC XX20               \ Increment the system counter in XX20
 
- BNE HME3_C               \ If we haven't yet checked all 256 systems in the
+ BNE HME3               \ If we haven't yet checked all 256 systems in the
                         \ current galaxy, loop back to HME3 to check the next
                         \ system
 
                         \ If we get here then the entered search term did not
                         \ match any systems in the current galaxy
 
- JSR TT111_C              \ Select the system closest to galactic coordinates
+ JSR TT111              \ Select the system closest to galactic coordinates
                         \ (QQ9, QQ10), so we can put the crosshairs back where
                         \ they were before the search
 
- JSR TT103_C              \ Draw small crosshairs at coordinates (QQ9, QQ10)
+ JSR TT103              \ Draw small crosshairs at coordinates (QQ9, QQ10)
 
- JSR x4_BOOP               \ Call the BOOP routine to make a low, long beep to
+ JSR BOOP               \ Call the BOOP routine to make a low, long beep to
                         \ indicate a failed search
 
  LDA #215               \ Print extended token 215 ("{left align} UNKNOWN
- JMP DETOK_C              \ PLANET"), which will print on-screen as the left align
+ JMP DETOK              \ PLANET"), which will print on-screen as the left align
                         \ code disables justified text, and return from the
                         \ subroutine using a tail call
 
-.HME5_C
+.HME5
 
                         \ If we get here then we have found a match for the
                         \ entered search
@@ -16724,16 +16730,16 @@ ENDIF
  STA QQ10               \ in QQ15 is in QQ15+1 (s0_hi), so we copy this to QQ10
                         \ as the y-coordinate of the search result
 
- JSR TT111_C              \ Select the system closest to galactic coordinates
+ JSR TT111              \ Select the system closest to galactic coordinates
                         \ (QQ9, QQ10)
 
- JSR TT103_C              \ Draw small crosshairs at coordinates (QQ9, QQ10)
+ JSR TT103              \ Draw small crosshairs at coordinates (QQ9, QQ10)
 
- JSR MT15_C               \ Switch to left-aligned text when printing extended
+ JSR MT15               \ Switch to left-aligned text when printing extended
                         \ tokens so future tokens will print to the screen (as
                         \ this disables justified text)
 
- JMP x4_T95                \ Jump to T95 to print the distance to the selected
+ JMP T95                \ Jump to T95 to print the distance to the selected
                         \ system and return from the subroutine using a tail
                         \ call
 
@@ -19177,9 +19183,9 @@ HANGHEAP = &BF00
 \
 \ ******************************************************************************
 
-.FRS1_C
+.FRS1
 
- JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace
+ JSR ZINF               \ Call ZINF to reset the INWK ship workspace
 
  LDA #28                \ Set y_lo = 28
  STA INWK+3
@@ -19203,7 +19209,7 @@ HANGHEAP = &BF00
                         \ from the subroutine back to the ESCAPE routine that
                         \ called FRS1 in the first place
 
-.fq1_C
+.fq1
 
  LDA #&60               \ Set byte #14 (nosev_z_hi) to 1 (&60), so the launched
  STA INWK+14            \ ship is pointing away from us
@@ -19220,7 +19226,7 @@ HANGHEAP = &BF00
  STA INWK+27
 
  TXA                    \ Add a new ship of type X to our local bubble of
- JMP x4_NWSHP              \ universe and return from the subroutine using a tail
+ JMP NWSHP              \ universe and return from the subroutine using a tail
                         \ call
 
 \ ******************************************************************************
@@ -19238,36 +19244,36 @@ HANGHEAP = &BF00
 \
 \ ******************************************************************************
 
-.FRMIS_C
+.FRMIS
 
  LDX #MSL               \ Call FRS1 to launch a missile straight ahead of us
- JSR FRS1_C
+ JSR FRS1
 
- BCC FR1_C                \ If FRS1 returns with the C flag clear, then there
+ BCC FR1                \ If FRS1 returns with the C flag clear, then there
                         \ isn't room in the universe for our missile, so jump
                         \ down to FR1 to display a "missile jammed" message
 
  LDX MSTG               \ Fetch the slot number of the missile's target
 
- JSR x4_GINF               \ Get the address of the data block for the target ship
+ JSR GINF               \ Get the address of the data block for the target ship
                         \ and store it in INF
 
  LDA FRIN,X             \ Fetch the ship type of the missile's target into A
 
- JSR ANGRY_C              \ Call ANGRY to make the target ship or station hostile,
+ JSR ANGRY              \ Call ANGRY to make the target ship or station hostile,
                         \ and if this is a ship, wake up its AI and give it a
                         \ kick of speed
 
  LDY #0                 \ We have just launched a missile, so we need to remove
- JSR x4_ABORT              \ missile lock and hide the leftmost indicator on the
+ JSR ABORT              \ missile lock and hide the leftmost indicator on the
                         \ dashboard by setting it to black (Y = 0)
 
  DEC NOMSL              \ Reduce the number of missiles we have by 1
 
  LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
- JSR x4_NOISE              \ of a missile launch
+ JSR NOISE              \ of a missile launch
 
- JMP ANGRY_C            \ (Port: FRMIS fell through into ANGRY, now in ANDY)
+ JMP ANGRY              \ (Port: FRMIS fell through into ANGRY, now in ANDY)
 
                         \ Fall through into ANGRY to make the missile target
                         \ angry, though as we already did this above, I'm not
@@ -19301,7 +19307,7 @@ HANGHEAP = &BF00
 \
 \ ******************************************************************************
 
-.ANGRY_C
+.ANGRY
 
  CMP #SST               \ If this is the space station, jump to AN2 to make the
  BEQ AN2                \ space station hostile
@@ -19379,10 +19385,10 @@ HANGHEAP = &BF00
 \
 \ ******************************************************************************
 
-.FR1_C
+.FR1
 
  LDA #201               \ Print recursive token 41 ("MISSILE JAMMED") as an
- JMP MESS_C               \ in-flight message and return from the subroutine using
+ JMP MESS               \ in-flight message and return from the subroutine using
                         \ a tail call
 
 \ ******************************************************************************
@@ -19685,13 +19691,13 @@ HANGHEAP = &BF00
 \
 \ ******************************************************************************
 
-.LL164_C
+.LL164
 
  LDY #sohyp             \ Call the NOISE routine with Y = 10 to make the first
- JSR x4_NOISE              \ sound of the hyperspace drive being engaged
+ JSR NOISE              \ sound of the hyperspace drive being engaged
 
  LDY #sohyp2            \ Call the NOISE routine with Y = 11 to make the second
- JSR x4_NOISE              \ sound of the hyperspace drive being engaged
+ JSR NOISE              \ sound of the hyperspace drive being engaged
 
  LDA #4                 \ Set the step size for the hyperspace rings to 4, so
                         \ there are more sections in the rings and they are
@@ -19703,7 +19709,7 @@ HANGHEAP = &BF00
                         \ multi-coloured and all zig-zaggy (see the IRQ1 routine
                         \ for details)
 
- JSR HFS2_C               \ Call HFS2 to draw the hyperspace tunnel rings
+ JSR HFS2               \ Call HFS2 to draw the hyperspace tunnel rings
 
  STZ HFX                \ Set HFX back to 0, so we switch back to the normal
                         \ split-screen mode
@@ -19724,10 +19730,10 @@ HANGHEAP = &BF00
 \
 \ ******************************************************************************
 
-.LAUN_C
+.LAUN
 
  LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
- JSR x4_NOISE              \ of the ship launching from the station
+ JSR NOISE              \ of the ship launching from the station
 
  LDA #8                 \ Set the step size for the launch tunnel rings to 8, so
                         \ there are fewer sections in the rings and they are
@@ -19776,7 +19782,7 @@ HANGHEAP = &BF00
 \
 \ ******************************************************************************
 
-.HFS2_C
+.HFS2
 
  STA STP                \ Store the step size in A
 
@@ -19784,13 +19790,13 @@ HANGHEAP = &BF00
  PHA
 
  LDA #0                 \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 0 (the space
+ JSR TT66               \ and set the current view type in QQ11 to 0 (the space
                         \ view)
 
  PLA                    \ Restore the view type from the stack
  STA QQ11
 
-.HFS1_C
+.HFS1
 
  LDX #&FF               \ Port: the rings are drawn directly, even in record
  STX GFORCE             \ mode (GFORCE, gfx-gvars.asm)
@@ -19809,9 +19815,9 @@ HANGHEAP = &BF00
  STX K3+1               \ Set the high bytes of K3(1 0) and K4(1 0) to 0
  STX K4+1
 
-.HFL5_C
+.HFL5
 
- JSR HFL1_C               \ Call HFL1 below to draw a set of rings, with each one
+ JSR HFL1               \ Call HFL1 below to draw a set of rings, with each one
                         \ twice the radius of the previous one, until they won't
                         \ fit on-screen
 
@@ -19819,13 +19825,13 @@ HANGHEAP = &BF00
  LDX XX4
 
  CPX #8                 \ If we haven't drawn 8 sets of rings yet, loop back to
- BNE HFL5_C               \ HFL5 to draw the next ring
+ BNE HFL5               \ HFL5 to draw the next ring
 
  STZ GFORCE             \ Port: back to recording (flags kept)
 
  RTS                    \ Return from the subroutine
 
-.HFL1_C
+.HFL1
 
  LDA XX4                \ Set K to the ring number in XX4 (0-7) + 8, so K has
  AND #7                 \ a value of 8 to 15, which we will use as the starting
@@ -19833,26 +19839,26 @@ HANGHEAP = &BF00
  ADC #8
  STA K
 
-.HFL2_C
+.HFL2
 
  LDA #1                 \ Set LSP = 1 to reset the ball line heap
  STA LSP
 
- JSR x4_CIRCLE2            \ Call CIRCLE2 to draw a circle with the centre at
+ JSR CIRCLE2            \ Call CIRCLE2 to draw a circle with the centre at
                         \ (K3(1 0), K4(1 0)) and radius K
 
  ASL K                  \ Double the radius in K
 
- BCS HF8_C                \ If the radius had a 1 in bit 7 before the above shift,
+ BCS HF8                \ If the radius had a 1 in bit 7 before the above shift,
                         \ then doubling K will means the circle will no longer
                         \ fit on the screen (which is width 256), so jump to
                         \ HF8 to stop drawing circles
 
  LDA K                  \ If the radius in K <= 160, loop back to HFL2 to draw
  CMP #160               \ another one
- BCC HFL2_C
+ BCC HFL2
 
-.HF8_C
+.HF8
 
  RTS                    \ Return from the subroutine
 
@@ -22728,15 +22734,15 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.PDESC_C
+.PDESC
 
  LDA QQ8                \ If either byte in QQ18(1 0) is non-zero, meaning that
  ORA QQ8+1              \ the distance from the current system to the selected
- BNE PD1_C                \ is non-zero, jump to PD1 to show the standard "goat
+ BNE PD1                \ is non-zero, jump to PD1 to show the standard "goat
                         \ soup" description
 
  LDA QQ12               \ If QQ12 does not have bit 7 set, which means we are
- BPL PD1_C                \ not docked, jump to PD1 to show the standard "goat
+ BPL PD1                \ not docked, jump to PD1 to show the standard "goat
                         \ soup" description
 
                         \ If we get here, then the current system is the same as
@@ -22749,13 +22755,13 @@ ENDMACRO
                         \ the number of entries in RUPLA, 26) and working our
                         \ way down to 1
 
-.PDL1_C
+.PDL1
 
  LDA RUPLA-1,Y          \ Fetch the Y-th byte from RUPLA-1 into A (we use
                         \ RUPLA-1 because Y is looping from 26 to 1)
 
  CMP ZZ                 \ If A doesn't match the system whose description we
- BNE PD2_C                \ are printing (in ZZ), jump to PD2 to keep looping
+ BNE PD2                \ are printing (in ZZ), jump to PD2 to keep looping
                         \ through the system numbers in RUPLA
 
                         \ If we get here we have found a match for this system
@@ -22766,22 +22772,22 @@ ENDMACRO
  AND #%01111111         \ Extract bits 0-6 of A
 
  CMP GCNT               \ If the result does not equal the current galaxy
- BNE PD2_C                \ number, jump to PD2 to keep looping through the system
+ BNE PD2                \ number, jump to PD2 to keep looping through the system
                         \ numbers in RUPLA
 
  LDA RUGAL-1,Y          \ Fetch the Y-th byte from RUGAL-1 into A, once again
 
- BMI PD3_C                \ If bit 7 is set, jump to PD3 to print the extended
+ BMI PD3                \ If bit 7 is set, jump to PD3 to print the extended
                         \ token in A from the second table in RUTOK
 
  LDA TP                 \ Fetch bit 0 of TP into the C flag, and skip to PD1 if
  LSR A                  \ it is clear (i.e. if mission 1 is not in progress) to
- BCC PD1_C                \ print the "goat soup" extended description
+ BCC PD1                \ print the "goat soup" extended description
 
                         \ If we get here then mission 1 is in progress, so we
                         \ print out the corresponding token from RUTOK
 
- JSR MT14_C               \ Call MT14 to switch to justified text
+ JSR MT14               \ Call MT14 to switch to justified text
 
  LDA #1                 \ Set A = 1 so that extended token 1 (an empty string)
                         \ gets printed below instead of token 176, followed by
@@ -22791,30 +22797,30 @@ ENDMACRO
                         \ &2C &A9 &B0, or BIT &B0A9, which does nothing apart
                         \ from affect the flags
 
-.PD3_C
+.PD3
 
  LDA #176               \ Print extended token 176 ("{lower case}{justify}
- JSR DETOK2_C             \ {single cap}")
+ JSR DETOK2             \ {single cap}")
 
  TYA                    \ Print the extended token in Y from the second table
- JSR DETOK3_C             \ in RUTOK
+ JSR DETOK3             \ in RUTOK
 
  LDA #177               \ Set A = 177 so when we jump to PD4 in the next
                         \ instruction, we print token 177 (".{cr}{left align}")
 
- BNE PD4_C                \ Jump to PD4 to print the extended token in A and
+ BNE PD4                \ Jump to PD4 to print the extended token in A and
                         \ return from the subroutine using a tail call
 
-.PD2_C
+.PD2
 
  DEY                    \ Decrement the byte counter in Y
 
- BNE PDL1_C               \ Loop back to check the next byte in RUPLA until we
+ BNE PDL1               \ Loop back to check the next byte in RUPLA until we
                         \ either find a match for the system in ZZ, or we fall
                         \ through into the "goat soup" extended description
                         \ routine
 
-.PD1_C
+.PD1
 
                         \ We now print the "goat soup" extended description
 
@@ -22824,7 +22830,7 @@ ENDMACRO
                         \ every time we call PDESC, so set a counter in X for
                         \ copying 4 bytes
 
-.PDL1K_C                  \ This label is a duplicate of the label above
+.PDL1K                  \ This label is a duplicate of the label above
                         \
                         \ In the original source this label is PDL1, but
                         \ because BeebAsm doesn't allow us to redefine labels,
@@ -22835,15 +22841,15 @@ ENDMACRO
 
  DEX                    \ Decrement the loop counter
 
- BPL PDL1K_C              \ Loop back to PDL1K until we have copied all
+ BPL PDL1K              \ Loop back to PDL1K until we have copied all
 
  LDA #5                 \ Set A = 5, so we print extended token 5 in the next
                         \ instruction ("{lower case}{justify}{single cap}[86-90]
                         \ IS [140-144].{cr}{left align}"
 
-.PD4_C
+.PD4
 
- JMP DETOK_C              \ Print the extended token given in A, and return from
+ JMP DETOK              \ Print the extended token given in A, and return from
                         \ the subroutine using a tail call
 
 \ ******************************************************************************
@@ -22857,7 +22863,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.BRIEF2_C
+.BRIEF2
 
  LDA TP                 \ Set bit 2 of TP to indicate mission 2 is in progress
  ORA #%00000100         \ but plans have not yet been picked up
@@ -22886,16 +22892,16 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.BRP_C
+.BRP
 
  LDX #CYAN              \ Switch to colour 3, which is white or cyan
  STX COL
 
- JSR DETOK_C              \ Print the extended token in A
+ JSR DETOK              \ Print the extended token in A
 
-.BAYSTEP_C
+.BAYSTEP
 
- JMP BAY_C                \ Jump to BAY to go to the docking bay (i.e. show the
+ JMP BAY                \ Jump to BAY to go to the docking bay (i.e. show the
                         \ Status Mode screen) and return from the subroutine
                         \ using a tail call
 
@@ -22910,7 +22916,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.BRIEF3_C
+.BRIEF3
 
  LDA TP                 \ Set bits 1 and 3 of TP to indicate that mission 1 is
  AND #%11110000         \ complete, and mission 2 is in progress and the plans
@@ -22921,7 +22927,7 @@ ENDMACRO
                         \ 222 (the briefing for mission 2 where we pick up the
                         \ plans we need to take to Birera)
 
- BNE BRP_C                \ Jump to BRP to print the extended token in A and show
+ BNE BRP                \ Jump to BRP to print the extended token in A and show
                         \ the Status Mode screen), returning from the subroutine
                         \ using a tail call (this BNE is effectively a JMP as A
                         \ is never zero)
@@ -22937,7 +22943,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.DEBRIEF2_C
+.DEBRIEF2
 
  LDA TP                 \ Set bit 2 of TP to indicate mission 2 is complete (so
  ORA #%00000100         \ both bits 2 and 3 are now set)
@@ -22954,7 +22960,7 @@ ENDMACRO
  LDA #223               \ Set A = 223 so the call to BRP prints extended token
                         \ 223 (the thank you message at the end of mission 2)
 
- BNE BRP_C                \ Jump to BRP to print the extended token in A and show
+ BNE BRP                \ Jump to BRP to print the extended token in A and show
                         \ the Status Mode screen), returning from the subroutine
                         \ using a tail call (this BNE is effectively a JMP as A
                         \ is never zero)
@@ -22977,7 +22983,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.DEBRIEF_C
+.DEBRIEF
 
  LSR TP                 \ Clear bit 0 of TP to indicate that mission 1 is no
  ASL TP                 \ longer in progress, as we have completed it
@@ -22987,14 +22993,14 @@ ENDMACRO
 
  LDX #LO(50000)         \ Increase our cash reserves by the generous mission
  LDY #HI(50000)         \ reward of 5,000 CR
- JSR MCASH_C
+ JSR MCASH
 
  LDA #15                \ Set A = 15 so the call to BRP prints extended token 15
                         \ (the thank you message at the end of mission 1)
 
-.BRPS_C
+.BRPS
 
- BNE BRP_C                \ Jump to BRP to print the extended token in A and show
+ BNE BRP                \ Jump to BRP to print the extended token in A and show
                         \ the Status Mode screen, returning from the subroutine
                         \ using a tail call (this BNE is effectively a JMP as A
                         \ is never zero)
@@ -23059,37 +23065,37 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.BRIEF_C
+.BRIEF
 
  LSR TP                 \ Set bit 0 of TP to indicate that mission 1 is now in
  SEC                    \ progress
  ROL TP
 
- JSR BRIS_C               \ Call BRIS to clear the screen, display "INCOMING
+ JSR BRIS               \ Call BRIS to clear the screen, display "INCOMING
                         \ MESSAGE" and wait for 2 seconds
 
- JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace
+ JSR ZINF               \ Call ZINF to reset the INWK ship workspace
 
  LDA #CON               \ Set the ship type in TYPE to the Constrictor
  STA TYPE
 
- JSR x4_NWSHP              \ Add a new Constrictor to the local bubble (in this
+ JSR NWSHP              \ Add a new Constrictor to the local bubble (in this
                         \ case, the briefing screen)
 
  LDA #1                 \ Move the text cursor to column 1
- JSR DOXC_C
+ JSR DOXC
 
  STA INWK+7             \ Set z_hi = 1, the distance at which we show the
                         \ rotating ship
 
  LDA #13                \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 13 (rotating
+ JSR TT66               \ and set the current view type in QQ11 to 13 (rotating
                         \ ship view)
 
  LDA #64                \ Set the main loop counter to 64, so the ship rotates
  STA MCNT               \ for 64 iterations through MVEIT
 
-.BRL1_C
+.BRL1
 
  LDX #%01111111         \ Set the ship's roll counter to a positive roll that
  STX INWK+29            \ doesn't dampen (a clockwise roll)
@@ -23097,28 +23103,28 @@ ENDMACRO
  STX INWK+30            \ Set the ship's pitch counter to a positive pitch that
                         \ doesn't dampen (a diving pitch)
 
- JSR x4_LL9                \ Draw the ship on screen
+ JSR LL9                \ Draw the ship on screen
 
- JSR x4_MVEIT              \ Call MVEIT to rotate the ship in space
+ JSR MVEIT              \ Call MVEIT to rotate the ship in space
 
  DEC MCNT               \ Decrease the counter in MCNT
 
- BNE BRL1_C               \ Loop back to keep moving the ship until we have done
+ BNE BRL1               \ Loop back to keep moving the ship until we have done
                         \ all 64 iterations
 
-.BRL2_C
+.BRL2
 
  LSR INWK               \ Halve x_lo so the Constrictor moves towards the centre
 
  INC INWK+6             \ Increment z_lo so the Constrictor moves away from us
 
- BEQ BR2_C                \ If z_lo = 0 (i.e. it just went past 255), jump to BR2
+ BEQ BR2                \ If z_lo = 0 (i.e. it just went past 255), jump to BR2
                         \ to show the briefing
 
  INC INWK+6             \ Increment z_lo so the Constrictor moves a bit further
                         \ away from us
 
- BEQ BR2_C                \ If z_lo = 0 (i.e. it just went past 255), jump out of
+ BEQ BR2                \ If z_lo = 0 (i.e. it just went past 255), jump out of
                         \ the loop to BR2 to stop moving the ship up the screen
                         \ and show the briefing
 
@@ -23137,21 +23143,21 @@ ENDMACRO
                         \ so the ship moves up the screen (as space coordinates
                         \ have the y-axis going up)
 
- JSR x4_LL9                \ Draw the ship on screen
+ JSR LL9                \ Draw the ship on screen
 
- JSR x4_MVEIT              \ Call MVEIT to move and rotate the ship in space
+ JSR MVEIT              \ Call MVEIT to move and rotate the ship in space
 
  DEC MCNT               \ Decrease the counter in MCNT
 
- JMP BRL2_C               \ Loop back to keep moving the ship up the screen and
+ JMP BRL2               \ Loop back to keep moving the ship up the screen and
                         \ away from us
 
-.BR2_C
+.BR2
 
  INC INWK+7             \ Increment z_hi, to keep the ship at the same distance
                         \ as we just incremented z_lo past 255
 
- JSR PAS1_C               \ Call PAS1 to display the rotating ship at space
+ JSR PAS1               \ Call PAS1 to display the rotating ship at space
                         \ coordinates (0, 112, 256) and scan the keyboard,
                         \ returning the ASCII code of the key in X (or 0 for no
                         \ key press)
@@ -23160,7 +23166,7 @@ ENDMACRO
                         \ (the briefing for mission 1 where we find out all
                         \ about the stolen Constrictor)
 
- BNE BRPS_C               \ Jump to BRP via BRPS to print the extended token in A
+ BNE BRPS               \ Jump to BRP via BRPS to print the extended token in A
                         \ and show the Status Mode screen, returning from the
                         \ subroutine using a tail call (this BNE is effectively
                         \ a JMP as A is never zero)
@@ -23176,14 +23182,14 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.BRIS_C
+.BRIS
 
  LDA #216               \ Print extended token 216 ("{clear screen}{tab 6}{move
- JSR DETOK_C              \ to row 10, white, lower case}{white}{all caps}INCOMING
+ JSR DETOK              \ to row 10, white, lower case}{white}{all caps}INCOMING
                         \ MESSAGE"
 
  LDY #100               \ Wait for 100/50 of a second (2 seconds) and return
- JMP x4_DELAY              \ from the subroutine using a tail call
+ JMP DELAY              \ from the subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -23196,33 +23202,33 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.PAUSE_C
+.PAUSE
 
- JSR PAS1_C               \ Call PAS1 to display the rotating ship at space
+ JSR PAS1               \ Call PAS1 to display the rotating ship at space
                         \ coordinates (0, 112, 256) and scan the keyboard,
                         \ returning the internal key number in X (or 0 for no
                         \ key press)
 
- BNE PAUSE_C              \ If a key was already being held down when we entered
+ BNE PAUSE              \ If a key was already being held down when we entered
                         \ this routine, keep looping back up to PAUSE, until
                         \ the key is released
 
-.PAL1_C
+.PAL1
 
- JSR PAS1_C               \ Call PAS1 to display the rotating ship at space
+ JSR PAS1               \ Call PAS1 to display the rotating ship at space
                         \ coordinates (0, 112, 256) and scan the keyboard,
                         \ returning the internal key number in X (or 0 for no
                         \ key press)
 
- BEQ PAL1_C               \ Keep looping up to PAL1 until a key is pressed
+ BEQ PAL1               \ Keep looping up to PAL1 until a key is pressed
 
  LDA #0                 \ Set the ship's AI flag to 0 (no AI) so it doesn't get
  STA INWK+31            \ any ideas of its own
 
  LDA #1                 \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 1
+ JSR TT66               \ and set the current view type in QQ11 to 1
 
- JSR x4_LL9                \ Draw the ship on screen to redisplay it
+ JSR LL9                \ Draw the ship on screen to redisplay it
 
                         \ Fall through into MT23 to move to row 10, switch to
                         \ white text, and switch to lower case when printing
@@ -23240,7 +23246,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.MT23_C
+.MT23
 
  LDA #10                \ Set A = 10, so when we fall through into MT29, the
                         \ text cursor gets moved to row 10
@@ -23264,7 +23270,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.MT29_C
+.MT29
 
  LDA #6                 \ Move the text cursor to row 6
  STA YC
@@ -23272,7 +23278,7 @@ ENDMACRO
  LDA #CYAN              \ Set white text
  STA COL
 
- JMP MT13_C               \ Jump to MT13 to set bit 7 of DTW6 and bit 5 of DTW1,
+ JMP MT13               \ Jump to MT13 to set bit 7 of DTW6 and bit 5 of DTW1,
                         \ returning from the subroutine using a tail call
 
 \ ******************************************************************************
@@ -23295,7 +23301,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.PAS1_C
+.PAS1
 
  LDA #120               \ Set y_lo = 120
  STA INWK+3
@@ -23308,11 +23314,11 @@ ENDMACRO
  LDA #2                 \ Set z_hi = 1, so (z_hi z_lo) = 256
  STA INWK+7
 
- JSR x4_LL9                \ Draw the ship on screen
+ JSR LL9                \ Draw the ship on screen
 
- JSR x4_MVEIT              \ Call MVEIT to move and rotate the ship in space
+ JSR MVEIT              \ Call MVEIT to move and rotate the ship in space
 
- JMP x4_RDKEY              \ Scan the keyboard for a key press and return the
+ JMP RDKEY              \ Scan the keyboard for a key press and return the
                         \ ASCII code of the key pressed in X (or 0 for no key
                         \ press), returning from the subroutine using a tail
                         \ call
@@ -23333,24 +23339,24 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.PAUSE2_C
+.PAUSE2
 
- JSR x4_RDKEY              \ Scan the keyboard for a key press and return the ASCII
+ JSR RDKEY              \ Scan the keyboard for a key press and return the ASCII
                         \ code of the key pressed in A and X (or 0 for no key
                         \ press)
 
- BNE PAUSE2_C             \ If a key was already being held down when we entered
+ BNE PAUSE2             \ If a key was already being held down when we entered
                         \ this routine, keep looping back up to PAUSE2, until
                         \ the key is released
 
- JSR x4_RDKEY              \ Any pre-existing key press is now gone, so we can
+ JSR RDKEY              \ Any pre-existing key press is now gone, so we can
                         \ start scanning the keyboard again, returning the
                         \ ASCII code of the key pressed in X (or 0 for no key
                         \ press)
 
- BEQ PAUSE2_C             \ Keep looping up to PAUSE2 until a key is pressed
+ BEQ PAUSE2             \ Keep looping up to PAUSE2 until a key is pressed
 
-.newyearseve_C
+.newyearseve
 
  RTS                    \ Return from the subroutine
 
@@ -23400,14 +23406,14 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.ping_C
+.ping
 
  LDX #1                 \ We want to copy the X- and Y-coordinates of the
                         \ current system in (QQ0, QQ1) to the selected system's
                         \ coordinates in (QQ9, QQ10), so set up a counter to
                         \ copy two bytes
 
-.pl1_C
+.pl1
 
  LDA QQ0,X              \ Load byte X from the current system in QQ0/QQ1
 
@@ -23415,7 +23421,7 @@ ENDMACRO
 
  DEX                    \ Decrement the loop counter
 
- BPL pl1_C                \ Loop back for the next byte to copy
+ BPL pl1                \ Loop back for the next byte to copy
 
  RTS                    \ Return from the subroutine
 
@@ -23441,7 +23447,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.MTIN_C
+.MTIN
 
  EQUB 16                \ Token  0: a random extended token between 16 and 20
  EQUB 21                \ Token  1: a random extended token between 21 and 25
@@ -23531,7 +23537,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.SCALEY_C
+.SCALEY
 
  LSR A                  \ Halve the value in A
 
@@ -23563,7 +23569,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.SCALEY2_C
+.SCALEY2
 
  RTS                    \ Return from the subroutine
 
@@ -23590,7 +23596,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.SCALEX_C
+.SCALEX
 
  RTS                    \ Return from the subroutine
 
@@ -23653,7 +23659,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.tnpr1_C
+.tnpr1
 
  STA QQ29               \ Store the type of market item in QQ29
 
@@ -23706,16 +23712,16 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.tnpr_C
+.tnpr
 
  PHA                    \ Store A on the stack
 
  LDX #12                \ If QQ29 > 12 then jump to kg below, as this cargo
  CPX QQ29               \ type is gold, platinum, gem-stones or alien items,
- BCC kg_C                 \ and they have different cargo limits to the standard
+ BCC kg                 \ and they have different cargo limits to the standard
                         \ tonne canisters
 
-.Tml_C
+.Tml
 
                         \ Here we count the tonne canisters we have in the hold
                         \ and add to A to see if we have enough room for A more
@@ -23731,7 +23737,7 @@ ENDMACRO
 
  DEX                    \ Decrement the loop counter
 
- BPL Tml_C                \ Loop back to add in the next market item in the hold,
+ BPL Tml                \ Loop back to add in the next market item in the hold,
                         \ until we have added up all market items from 12
                         \ (minerals) down to 0 (food)
 
@@ -23761,7 +23767,7 @@ ENDMACRO
 
  RTS                    \ Return from the subroutine
 
-.kg_C
+.kg
 
                         \ Here we count the number of items of this type that
                         \ we already have in the hold, and add to A to see if
@@ -23800,7 +23806,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.DOXC_C
+.DOXC
 
  STA XC                 \ Store the new text column in XC
 
@@ -23822,7 +23828,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.DOYC_C
+.DOYC
 
  STA YC                 \ Store the new text row in YC
 
@@ -23870,17 +23876,17 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TRADEMODE_C
+.TRADEMODE
 
- JSR TT66_C               \ Clear the top part of the screen, draw a border box,
+ JSR TT66               \ Clear the top part of the screen, draw a border box,
                         \ and set the current view type in QQ11 to A
 
- JSR FLKB_C               \ Call FLKB to flush the keyboard buffer
+ JSR FLKB               \ Call FLKB to flush the keyboard buffer
 
-.TRADEMODE2_C
+.TRADEMODE2
 
  LDA #48                \ Switch to the mode 1 palette for trading screens,
- JSR x4_DOVDU19            \ which is yellow (colour 1), magenta (colour 2) and
+ JSR DOVDU19            \ which is yellow (colour 1), magenta (colour 2) and
                         \ white (colour 3)
 
  LDA #CYAN              \ Switch to colour 3, which is white in the trade view
@@ -23905,7 +23911,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT20_C
+.TT20
 
  JSR P%+3               \ This line calls the line below as a subroutine, which
                         \ does two twists before returning here, and then we
@@ -23953,7 +23959,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT54_C
+.TT54
 
  LDA QQ15               \ X = tmp_lo = s0_lo + s1_lo
  CLC
@@ -24006,20 +24012,20 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT146_C
+.TT146
 
  LDA QQ8                \ Take the two bytes of the 16-bit value in QQ8 and
  ORA QQ8+1              \ OR them together to check whether there are any
- BNE TT63_C               \ non-zero bits, and if so, jump to TT63 to print the
+ BNE TT63               \ non-zero bits, and if so, jump to TT63 to print the
                         \ distance
 
  INC YC                 \ The distance is zero, so we just move the text cursor
  RTS                    \ in YC down by one line and return from the subroutine
 
-.TT63_C
+.TT63
 
  LDA #191               \ Print recursive token 31 ("DISTANCE") followed by
- JSR TT68_C               \ a colon
+ JSR TT68               \ a colon
 
  LDX QQ8                \ Load (Y X) from QQ8, which contains the 16-bit
  LDY QQ8+1              \ distance we want to show
@@ -24027,7 +24033,7 @@ ENDMACRO
  SEC                    \ Set the C flag so that the call to pr5 will include a
                         \ decimal point, and display the value as (Y X) / 10
 
- JSR pr5_C                \ Print (Y X) to 5 digits, including a decimal point
+ JSR pr5                \ Print (Y X) to 5 digits, including a decimal point
 
  LDA #195               \ Set A to the recursive token 35 (" LIGHT YEARS") and
                         \ fall through into TT60 to print the token followed
@@ -24056,9 +24062,9 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT60_C
+.TT60
 
- JSR TT27_C               \ Print the text token in A and fall through into TTX69
+ JSR TT27               \ Print the text token in A and fall through into TTX69
                         \ to print the paragraph break
 
 \ ******************************************************************************
@@ -24076,7 +24082,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TTX69_C
+.TTX69
 
  INC YC                 \ Move the text cursor down a line
 
@@ -24093,7 +24099,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT69_C
+.TT69
 
  LDA #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case
  STA QQ17
@@ -24110,14 +24116,14 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT67_C
+.TT67
 
 \INC YC                 \ This instruction is commented out in the original
                         \ source
 
  LDA #12                \ Load a newline character into A
 
- JMP TT27_C               \ Print the text token in A and return from the
+ JMP TT27               \ Print the text token in A and return from the
                         \ subroutine using a tail call
 
 \ ******************************************************************************
@@ -24134,12 +24140,12 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT70_C
+.TT70
 
  LDA #173               \ Print recursive token 13 ("MAINLY ")
- JSR TT27_C
+ JSR TT27
 
- JMP TT72_C               \ Jump to TT72 to continue printing system data as part
+ JMP TT72               \ Jump to TT72 to continue printing system data as part
                         \ of routine TT25
 
 \ ******************************************************************************
@@ -24163,11 +24169,11 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.spc_C
+.spc
 
- JSR TT27_C               \ Print the text token in A
+ JSR TT27               \ Print the text token in A
 
- JMP TT162_C              \ Print a space and return from the subroutine using a
+ JMP TT162              \ Print a space and return from the subroutine using a
                         \ tail call
 
 \ ******************************************************************************
@@ -24189,28 +24195,28 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT25_C
+.TT25
 
  LDA #1                 \ Clear the top part of the screen, draw a border box,
- JSR TRADEMODE_C          \ and set up a trading screen with a view type in QQ11
+ JSR TRADEMODE          \ and set up a trading screen with a view type in QQ11
                         \ of 1
 
  LDA #9                 \ Move the text cursor to column 9
  STA XC
 
  LDA #163               \ Print recursive token 3 ("DATA ON {selected system
- JSR NLIN3_C              \ name}" and draw a horizontal line at pixel row 19
+ JSR NLIN3              \ name}" and draw a horizontal line at pixel row 19
                         \ to box in the title
 
- JSR TTX69_C              \ Print a paragraph break and set Sentence Case
+ JSR TTX69              \ Print a paragraph break and set Sentence Case
 
- JSR TT146_C              \ If the distance to this system is non-zero, print
+ JSR TT146              \ If the distance to this system is non-zero, print
                         \ "DISTANCE", then the distance, "LIGHT YEARS" and a
                         \ paragraph break, otherwise just move the cursor down
                         \ a line
 
  LDA #194               \ Print recursive token 34 ("ECONOMY") followed by
- JSR TT68_C               \ a colon
+ JSR TT68               \ a colon
 
  LDA QQ3                \ The system economy is determined by the value in QQ3,
                         \ so fetch it into A. First we work out the system's
@@ -24225,26 +24231,26 @@ ENDMACRO
  ADC #1                 \ (3 or 4), then call TT70, which prints "MAINLY " and
  LSR A                  \ jumps down to TT72 to print the type of economy
  CMP #%00000010
- BEQ TT70_C
+ BEQ TT70
 
  LDA QQ3                \ If (QQ3 + 1) >> 1 < %10, i.e. if QQ3 = %000, %001 or
- BCC TT71_C               \ %010 (0, 1 or 2), then jump to TT71 with A set to the
+ BCC TT71               \ %010 (0, 1 or 2), then jump to TT71 with A set to the
                         \ original value of QQ3
 
  SBC #5                 \ Here QQ3 = %101, %110 or %111 (5, 6 or 7), so subtract
  CLC                    \ 5 to bring it down to 0, 1 or 2 (the C flag is already
                         \ set so the SBC will be correct)
 
-.TT71_C
+.TT71
 
  ADC #170               \ A is now 0, 1 or 2, so print recursive token 10 + A.
- JSR TT27_C               \ This means that:
+ JSR TT27               \ This means that:
                         \
                         \   QQ3 = 0 or 5 prints token 10 ("RICH ")
                         \   QQ3 = 1 or 6 prints token 11 ("AVERAGE ")
                         \   QQ3 = 2 or 7 prints token 12 ("POOR ")
 
-.TT72_C
+.TT72
 
  LDA QQ3                \ Now to work out the type of economy, which is
  LSR A                  \ determined by bit 2 of QQ3, as follows:
@@ -24258,19 +24264,19 @@ ENDMACRO
 
  CLC                    \ Print recursive token 8 + A, followed by a paragraph
  ADC #168               \ break and Sentence Case, so:
- JSR TT60_C               \
+ JSR TT60               \
                         \   QQ3 bit 2 = 0 prints token 8 ("INDUSTRIAL")
                         \   QQ3 bit 2 = 1 prints token 9 ("AGRICULTURAL")
 
  LDA #162               \ Print recursive token 2 ("GOVERNMENT") followed by
- JSR TT68_C               \ a colon
+ JSR TT68               \ a colon
 
  LDA QQ4                \ The system's government is determined by the value in
                         \ QQ4, so fetch it into A
 
  CLC                    \ Print recursive token 17 + A, followed by a paragraph
  ADC #177               \ break and Sentence Case, so:
- JSR TT60_C               \
+ JSR TT60               \
                         \   QQ4 = 0 prints token 17 ("ANARCHY")
                         \   QQ4 = 1 prints token 18 ("FEUDAL")
                         \   QQ4 = 2 prints token 19 ("MULTI-GOVERNMENT")
@@ -24281,42 +24287,42 @@ ENDMACRO
                         \   QQ4 = 7 prints token 24 ("CORPORATE STATE")
 
  LDA #196               \ Print recursive token 36 ("TECH.LEVEL") followed by a
- JSR TT68_C               \ colon
+ JSR TT68               \ colon
 
  LDX QQ5                \ Fetch the tech level from QQ5 and increment it, as it
  INX                    \ is stored in the range 0-14 but the displayed range
                         \ should be 1-15
 
  CLC                    \ Call pr2 to print the technology level as a
- JSR pr2_C                \ three-digit number without a decimal point (by
+ JSR pr2                \ three-digit number without a decimal point (by
                         \ clearing the C flag)
 
- JSR TTX69_C              \ Print a paragraph break and set Sentence Case
+ JSR TTX69              \ Print a paragraph break and set Sentence Case
 
  LDA #192               \ Print recursive token 32 ("POPULATION") followed by a
- JSR TT68_C               \ colon
+ JSR TT68               \ colon
 
  SEC                    \ Call pr2 to print the population as a three-digit
  LDX QQ6                \ number with a decimal point (by setting the C flag),
- JSR pr2_C                \ so the number printed will be population / 10
+ JSR pr2                \ so the number printed will be population / 10
 
  LDA #198               \ Print recursive token 38 (" BILLION"), followed by a
- JSR TT60_C               \ paragraph break and Sentence Case
+ JSR TT60               \ paragraph break and Sentence Case
 
  LDA #'('               \ Print an opening bracket
- JSR TT27_C
+ JSR TT27
 
  LDA QQ15+4             \ Now to calculate the species, so first check bit 7 of
- BMI TT75_C               \ s2_lo, and if it is set, jump to TT75 as this is an
+ BMI TT75               \ s2_lo, and if it is set, jump to TT75 as this is an
                         \ alien species
 
  LDA #188               \ Bit 7 of s2_lo is clear, so print recursive token 28
- JSR TT27_C               \ ("HUMAN COLONIAL")
+ JSR TT27               \ ("HUMAN COLONIAL")
 
- JMP TT76_C               \ Jump to TT76 to print "S)" and a paragraph break, so
+ JMP TT76               \ Jump to TT76 to print "S)" and a paragraph break, so
                         \ the whole species string is "(HUMAN COLONIALS)"
 
-.TT75_C
+.TT75
 
  LDA QQ15+5             \ This is an alien species, and we start with the first
  LSR A                  \ adjective, so fetch bits 2-7 of s2_hi into A and push
@@ -24326,16 +24332,16 @@ ENDMACRO
  AND #%00000111         \ Set A = bits 0-2 of A (so that's bits 2-4 of s2_hi)
 
  CMP #3                 \ If A >= 3, jump to TT205 to skip the first adjective,
- BCS TT205_C
+ BCS TT205
 
  ADC #227               \ Otherwise A = 0, 1 or 2, so print recursive token
- JSR spc_C                \ 67 + A, followed by a space, so:
+ JSR spc                \ 67 + A, followed by a space, so:
                         \
                         \   A = 0 prints token 67 ("LARGE") and a space
                         \   A = 1 prints token 68 ("FIERCE") and a space
                         \   A = 2 prints token 69 ("SMALL") and a space
 
-.TT205_C
+.TT205
 
  PLA                    \ Now for the second adjective, so restore A to bits
  LSR A                  \ 2-7 of s2_hi, and throw away bits 2-4 to leave
@@ -24343,10 +24349,10 @@ ENDMACRO
  LSR A
 
  CMP #6                 \ If A >= 6, jump to TT206 to skip the second adjective
- BCS TT206_C
+ BCS TT206
 
  ADC #230               \ Otherwise A = 0 to 5, so print recursive token
- JSR spc_C                \ 70 + A, followed by a space, so:
+ JSR spc                \ 70 + A, followed by a space, so:
                         \
                         \   A = 0 prints token 70 ("GREEN") and a space
                         \   A = 1 prints token 71 ("RED") and a space
@@ -24355,7 +24361,7 @@ ENDMACRO
                         \   A = 4 prints token 74 ("BLACK") and a space
                         \   A = 5 prints token 75 ("HARMLESS") and a space
 
-.TT206_C
+.TT206
 
  LDA QQ15+3             \ Now for the third adjective, so EOR the high bytes of
  EOR QQ15+1             \ s0 and s1 and extract bits 0-2 of the result:
@@ -24365,10 +24371,10 @@ ENDMACRO
                         \ storing the result in QQ19 so we can use it later
 
  CMP #6                 \ If A >= 6, jump to TT207 to skip the third adjective
- BCS TT207_C
+ BCS TT207
 
  ADC #236               \ Otherwise A = 0 to 5, so print recursive token
- JSR spc_C                \ 76 + A, followed by a space, so:
+ JSR spc                \ 76 + A, followed by a space, so:
                         \
                         \   A = 0 prints token 76 ("SLIMY") and a space
                         \   A = 1 prints token 77 ("BUG-EYED") and a space
@@ -24377,7 +24383,7 @@ ENDMACRO
                         \   A = 4 prints token 80 ("FAT") and a space
                         \   A = 5 prints token 81 ("FURRY") and a space
 
-.TT207_C
+.TT207
 
  LDA QQ15+5             \ Now for the actual species, so take bits 0-1 of
  AND #%00000011         \ s2_hi, add this to the value of A that we used for
@@ -24386,7 +24392,7 @@ ENDMACRO
  AND #%00000111
 
  ADC #242               \ A = 0 to 7, so print recursive token 82 + A, so:
- JSR TT27_C               \
+ JSR TT27               \
                         \   A = 0 prints token 82 ("RODENT")
                         \   A = 1 prints token 83 ("FROG")
                         \   A = 2 prints token 84 ("LIZARD")
@@ -24396,35 +24402,35 @@ ENDMACRO
                         \   A = 6 prints token 88 ("FELINE")
                         \   A = 7 prints token 89 ("INSECT")
 
-.TT76_C
+.TT76
 
  LDA #'S'               \ Print an "S" to pluralise the species
- JSR TT27_C
+ JSR TT27
 
  LDA #')'               \ And finally, print a closing bracket, followed by a
- JSR TT60_C               \ paragraph break and Sentence Case, to end the species
+ JSR TT60               \ paragraph break and Sentence Case, to end the species
                         \ section
 
  LDA #193               \ Print recursive token 33 ("GROSS PRODUCTIVITY"),
- JSR TT68_C               \ followed by a colon
+ JSR TT68               \ followed by a colon
 
  LDX QQ7                \ Fetch the 16-bit productivity value from QQ7 into
  LDY QQ7+1              \ (Y X)
 
- JSR pr6_C                \ Print (Y X) to 5 digits with no decimal point
+ JSR pr6                \ Print (Y X) to 5 digits with no decimal point
 
- JSR TT162_C              \ Print a space
+ JSR TT162              \ Print a space
 
  STZ QQ17               \ Set QQ17 = 0 to switch to ALL CAPS
 
  LDA #'M'               \ Print "M"
- JSR TT27_C
+ JSR TT27
 
  LDA #226               \ Print recursive token 66 (" CR"), followed by a
- JSR TT60_C               \ paragraph break and Sentence Case
+ JSR TT60               \ paragraph break and Sentence Case
 
  LDA #250               \ Print recursive token 90 ("AVERAGE RADIUS"), followed
- JSR TT68_C               \ by a colon
+ JSR TT68               \ by a colon
 
                         \ The average radius is calculated like this:
                         \
@@ -24454,25 +24460,25 @@ ENDMACRO
  ADC #11
  TAY
 
- JSR pr5_C                \ Print (Y X) to 5 digits, not including a decimal
+ JSR pr5                \ Print (Y X) to 5 digits, not including a decimal
                         \ point, as the C flag will be clear (as the maximum
                         \ radius will always fit into 16 bits)
 
- JSR TT162_C              \ Print a space
+ JSR TT162              \ Print a space
 
  LDA #'k'               \ Print "km"
- JSR x4_TT26
+ JSR TT26
  LDA #'m'
- JSR x4_TT26
+ JSR TT26
 
- JSR TTX69_C              \ Print a paragraph break and set Sentence Case
+ JSR TTX69              \ Print a paragraph break and set Sentence Case
 
                         \ By this point, ZZ contains the current system number
                         \ which PDESC requires. It gets put there in the TT102
                         \ routine, which calls TT111 to populate ZZ before
                         \ calling TT25 (this routine)
 
- JMP PDESC_C              \ Jump to PDESC to print the system's extended
+ JMP PDESC              \ Jump to PDESC to print the system's extended
                         \ description, returning from the subroutine using a
                         \ tail call
 
@@ -24504,7 +24510,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT24_C
+.TT24
 
  LDA QQ15+1             \ Fetch s0_hi and extract bits 0-2 to determine the
  AND #%00000111         \ system's economy, and store in QQ3
@@ -24518,14 +24524,14 @@ ENDMACRO
  STA QQ4
 
  LSR A                  \ If government isn't anarchy or feudal, skip to TT77,
- BNE TT77_C               \ as we need to fix the economy of anarchy and feudal
+ BNE TT77               \ as we need to fix the economy of anarchy and feudal
                         \ systems so they can't be rich
 
  LDA QQ3                \ Set bit 1 of the economy in QQ3 to fix the economy
  ORA #%00000010         \ for anarchy and feudal governments
  STA QQ3
 
-.TT77_C
+.TT77
 
  LDA QQ3                \ Now to work out the tech level, which we do like this:
  EOR #%00000111         \
@@ -24562,7 +24568,7 @@ ENDMACRO
  LDA QQ4                \                        * 8
  ADC #4                 \
  STA Q                  \ or, in terms of memory locations:
- JSR x4_MULTU              \
+ JSR MULTU              \
                         \   QQ7 = (QQ3 EOR %111 + 3) * (QQ4 + 4) * QQ6 * 8
                         \
                         \ We do the first step by setting P to the first
@@ -24577,7 +24583,7 @@ ENDMACRO
 
  LDA QQ6                \ We now take the result in P and multiply by the
  STA Q                  \ population to get the productivity, by setting Q to
- JSR x4_MULTU              \ the population from QQ6 and calling MULTU again, so
+ JSR MULTU              \ the population from QQ6 and calling MULTU again, so
                         \ now we have:
                         \
                         \   (A P) = P * population
@@ -24606,14 +24612,14 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT22_C
+.TT22
 
  LDA #64                \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 32 (Long-
+ JSR TT66               \ and set the current view type in QQ11 to 32 (Long-
                         \ range Chart)
 
  LDA #16                \ Switch to the mode 1 palette for the trade view, which
- JSR x4_DOVDU19            \ is yellow (colour 1), magenta (colour 2) and white
+ JSR DOVDU19            \ is yellow (colour 1), magenta (colour 2) and white
                         \ (colour 3)
 
  LDA #CYAN              \ Switch to colour 3, which is white in the chart view
@@ -24622,30 +24628,30 @@ ENDMACRO
  LDA #7                 \ Move the text cursor to column 7
  STA XC
 
- JSR TT81_C               \ Set the seeds in QQ15 to those of system 0 in the
+ JSR TT81               \ Set the seeds in QQ15 to those of system 0 in the
                         \ current galaxy (i.e. copy the seeds from QQ21 to QQ15)
 
  LDA #199               \ Print recursive token 39 ("GALACTIC CHART{galaxy
- JSR TT27_C               \ number right-aligned to width 3}")
+ JSR TT27               \ number right-aligned to width 3}")
 
- JSR NLIN_C               \ Draw a horizontal line at pixel row 23 to box in the
+ JSR NLIN               \ Draw a horizontal line at pixel row 23 to box in the
                         \ title and act as the top frame of the chart, and move
                         \ the text cursor down one line
 
  LDA #GCYB+1            \ Move the text cursor down one line and draw a
- JSR NLIN5_C              \ screen-wide horizontal line at pixel row GCYB+1 (153)
+ JSR NLIN5              \ screen-wide horizontal line at pixel row GCYB+1 (153)
                         \ for the bottom edge of the chart, so the chart itself
                         \ is 128 pixels high, starting on row 24 and ending on
                         \ row 153
 
- JSR TT14_C               \ Call TT14 to draw a circle with crosshairs at the
+ JSR TT14               \ Call TT14 to draw a circle with crosshairs at the
                         \ current system's galactic coordinates
 
  LDX #0                 \ We're now going to plot each of the galaxy's systems,
                         \ so set up a counter in X for each system, starting at
                         \ 0 and looping through to 255
 
-.TT83_C
+.TT83
 
  STX XSAV               \ Store the counter in XSAV
 
@@ -24665,7 +24671,7 @@ ENDMACRO
  LDA QQ15+1             \ Fetch the s0_hi seed into A, which gives us the
                         \ galactic y-coordinate of this system
 
- JSR SCALEY_C             \ We halve the y-coordinate because the galaxy in
+ JSR SCALEY             \ We halve the y-coordinate because the galaxy in
                         \ in Elite is rectangular rather than square, and is
                         \ twice as wide (x-axis) as it is high (y-axis), so the
                         \ chart is 256 pixels wide and 128 high
@@ -24681,24 +24687,24 @@ ENDMACRO
  ADC #GCYT              \ of the chart is on pixel row GCYT, just below the line
                         \ we drew on row 23 above)
 
- JSR x4_PIXEL              \ Call PIXEL to draw a point at (X, A), with the size of
+ JSR PIXEL              \ Call PIXEL to draw a point at (X, A), with the size of
                         \ the point dependent on the distance specified in ZZ
                         \ (so a high value of ZZ will produce a one-pixel point,
                         \ a medium value will produce a two-pixel dash, and a
                         \ small value will produce a four-pixel square)
 
- JSR TT20_C               \ We want to move on to the next system, so call TT20
+ JSR TT20               \ We want to move on to the next system, so call TT20
                         \ to twist the three 16-bit seeds in QQ15
 
  LDX XSAV               \ Restore the loop counter from XSAV
 
  INX                    \ Increment the counter
 
- BNE TT83_C               \ If X > 0 then we haven't done all 256 systems yet, so
+ BNE TT83               \ If X > 0 then we haven't done all 256 systems yet, so
                         \ loop back up to TT83
 
  LDA QQ9                \ Set QQ19 to the selected system's x-coordinate
- JSR SCALEX_C             \
+ JSR SCALEX             \
  STA QQ19               \ The call to SCALEX has no effect as it only contains
                         \ an RTS, but having this call instruction here would
                         \ enable different scaling to be applied by altering
@@ -24708,7 +24714,7 @@ ENDMACRO
                         \ where the scale factor is different
 
  LDA QQ10               \ Set QQ19+1 to the selected system's y-coordinate,
- JSR SCALEY_C             \ halved to fit it into the chart
+ JSR SCALEY             \ halved to fit it into the chart
  STA QQ19+1             \
                         \ The call to SCALEY simply does an LSR A, but having
                         \ this call instruction here would enable different
@@ -24751,20 +24757,20 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT15_C
+.TT15
 
  LDA #GCYT              \ Set A to GCYT, which we will use as the minimum
                         \ screen indent for the crosshairs (i.e. the minimum
                         \ distance from the top-left corner of the screen)
 
  LDX QQ11               \ If the current view is not the Short-range Chart,
- BPL TT178_C              \ which is the only view with bit 7 set, then jump to
+ BPL TT178              \ which is the only view with bit 7 set, then jump to
                         \ TT178 to skip the following instruction
 
  LDA #0                 \ This is the Short-range Chart, so set A to 0, so the
                         \ crosshairs can go right up against the screen edges
 
-.TT178_C
+.TT178
 
  STA QQ19+5             \ Set QQ19+5 to A, which now contains the correct indent
                         \ for this view
@@ -24774,21 +24780,21 @@ ENDMACRO
  SBC QQ19+2             \ crosshairs
 
  BIT QQ11               \ If bit 7 of QQ11 is set, then this this is the
- BMI TT84_C               \ Short-range Chart, so jump to TT84
+ BMI TT84               \ Short-range Chart, so jump to TT84
 
- BCC botchfix13_C         \ If the above subtraction underflowed, then A is
+ BCC botchfix13         \ If the above subtraction underflowed, then A is
                         \ positive, so skip the next two instructions
 
  CMP #2                 \ If A >= 2, skip the next instruction
- BCS TT84_C
+ BCS TT84
 
-.botchfix13_C
+.botchfix13
 
  LDA #2                 \ The subtraction underflowed or A < 2, so set A to 2
                         \ so the crosshairs don't spill out of the left of the
                         \ screen
 
-.TT84_C
+.TT84
 
  STA X1                 \ Set X1 = A (the x-coordinate of the left edge of the
                         \ crosshairs)
@@ -24800,18 +24806,18 @@ ENDMACRO
 \BIT QQ11               \ These instructions are commented out in the original
 \BMI TT85               \ source
 
- BCS botchfix12_C         \ If the above addition overflowed, skip the following
+ BCS botchfix12         \ If the above addition overflowed, skip the following
                         \ two instructions to set A = 254
 
  CMP #254               \ The addition didn't overflow, so if A < 254, jump to
- BCC TT85_C               \ TT85
+ BCC TT85               \ TT85
 
-.botchfix12_C
+.botchfix12
 
  LDA #254               \ Set A = 254, so the crosshairs don't spill out of the
                         \ right of the screen
 
-.TT85_C
+.TT85
 
  STA X2                 \ Set X2 = A (the x-coordinate of the right edge of the
                         \ crosshairs)
@@ -24821,19 +24827,19 @@ ENDMACRO
  ADC QQ19+5
  STA Y1
 
- JSR x4_HLOIN3             \ Call HLOIN3 to draw a line from (X1, Y1) to (X2, Y1)
+ JSR HLOIN3             \ Call HLOIN3 to draw a line from (X1, Y1) to (X2, Y1)
 
  LDA QQ19+1             \ Set A = crosshairs y-coordinate - crosshairs size
  SEC                    \ to get the y-coordinate of the top edge of the
  SBC QQ19+2             \ crosshairs
 
- BCS TT86_C               \ If the above subtraction didn't underflow, then A is
+ BCS TT86               \ If the above subtraction didn't underflow, then A is
                         \ correct, so skip the next instruction
 
  LDA #0                 \ The subtraction underflowed, so set A to 0 so the
                         \ crosshairs don't spill out of the top of the screen
 
-.TT86_C
+.TT86
 
  CLC                    \ Set Y1 = A + indent to get the y-coordinate of the top
  ADC QQ19+5             \ edge of the indented crosshairs
@@ -24845,18 +24851,18 @@ ENDMACRO
  ADC QQ19+5
 
  CMP #GCYB              \ If A < GCYB then skip the following, as the crosshairs
- BCC TT87_C               \ won't spill out of the bottom of the screen
+ BCC TT87               \ won't spill out of the bottom of the screen
 
  LDX QQ11               \ A >= 152, so we need to check whether this will fit in
                         \ this view, so fetch the view type
 
- BMI TT87_C               \ If this is the Short-range Chart then the y-coordinate
+ BMI TT87               \ If this is the Short-range Chart then the y-coordinate
                         \ is fine, so skip to TT87
 
  LDA #GCYB              \ Otherwise this is the Long-range Chart, so we need to
                         \ clip the crosshairs at a maximum y-coordinate of GCYB
 
-.TT87_C
+.TT87
 
  STA Y2                 \ Set Y2 = A (the y-coordinate of the bottom edge of the
                         \ crosshairs)
@@ -24867,7 +24873,7 @@ ENDMACRO
  STA X2                 \ Set X2 = the x-coordinate of the centre of the
                         \ crosshairs
 
- JMP x4_LOIN               \ Draw a vertical line from (X1, Y1) to (X2, Y2), which
+ JMP LOIN               \ Draw a vertical line from (X1, Y1) to (X2, Y2), which
                         \ will draw from the top edge of the crosshairs to the
                         \ bottom edge, through the centre of the crosshairs,
                         \ and returning from the subroutine using a tail call
@@ -24886,7 +24892,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT126_C
+.TT126
 
  LDA #104               \ Set QQ19 = 104, for the x-coordinate of the centre of
  STA QQ19               \ the fixed circle on the Short-range Chart
@@ -24900,11 +24906,11 @@ ENDMACRO
  LDA #GREEN             \ Switch to stripe 3-1-3-1, which is white/yellow in the
  STA COL                \ chart view
 
- JSR TT15_C               \ Draw the set of crosshairs defined in QQ19, at the
+ JSR TT15               \ Draw the set of crosshairs defined in QQ19, at the
                         \ exact coordinates as this is the Short-range Chart
 
  LDA QQ14               \ Set K to the fuel level from QQ14, so this can act as
- JSR SCALEY2_C            \ the circle's radius (70 being a full tank)
+ JSR SCALEY2            \ the circle's radius (70 being a full tank)
  STA K                  \
                         \ The call to SCALEY2 has no effect as it only contains
                         \ an RTS, but having this call instruction here would
@@ -24914,15 +24920,15 @@ ENDMACRO
                         \ This code is left over from the Apple II version,
                         \ where the scale factor is different
 
- JMP TT128_C              \ Jump to TT128 to draw a circle with the centre at the
+ JMP TT128              \ Jump to TT128 to draw a circle with the centre at the
                         \ same coordinates as the crosshairs, (QQ19, QQ19+1),
                         \ and radius K that reflects the current fuel levels,
                         \ returning from the subroutine using a tail call
 
-.TT14_C
+.TT14
 
  LDA QQ11               \ If the current view is the Short-range Chart, which
- BMI TT126_C              \ is the only view with bit 7 set, then jump up to TT126
+ BMI TT126              \ is the only view with bit 7 set, then jump up to TT126
                         \ to draw the crosshairs and circle for that view
 
                         \ Otherwise this is the Long-range Chart, so we draw the
@@ -24930,7 +24936,7 @@ ENDMACRO
 
  LDA QQ14               \ Set K to the fuel level from QQ14 divided by 4, so
  LSR A                  \ this can act as the circle's radius (70 being a full
- JSR SCALEY_C             \ tank, which divides down to a radius of 17)
+ JSR SCALEY             \ tank, which divides down to a radius of 17)
  STA K                  \
                         \ The call to SCALEY simply does an LSR A, but having
                         \ this call instruction here would enable different
@@ -24940,7 +24946,7 @@ ENDMACRO
                         \ where the scale factor is different
 
  LDA QQ0                \ Set QQ19 to the x-coordinate of the current system,
- JSR SCALEX_C             \ which will be the centre of the circle and crosshairs
+ JSR SCALEX             \ which will be the centre of the circle and crosshairs
  STA QQ19               \ we draw
                         \
                         \ The call to SCALEX has no effect as it only contains
@@ -24952,7 +24958,7 @@ ENDMACRO
                         \ where the scale factor is different
 
  LDA QQ1                \ Set QQ19+1 to the y-coordinate of the current system,
- JSR SCALEY_C             \ halved because the galactic chart is half as high as
+ JSR SCALEY             \ halved because the galactic chart is half as high as
  STA QQ19+1             \ it is wide, which will again be the centre of the
                         \ circle and crosshairs we draw
                         \
@@ -24965,7 +24971,7 @@ ENDMACRO
  LDA #CYAN              \ Switch to colour 3, which is white in the chart view
  STA COL
 
- JSR TT15_C               \ Draw the set of crosshairs defined in QQ19, which will
+ JSR TT15               \ Draw the set of crosshairs defined in QQ19, which will
                         \ be drawn 24 pixels to the right of QQ19+1
 
  LDA QQ19+1             \ Add GCYT to the y-coordinate of the crosshairs in
@@ -25003,7 +25009,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT128_C
+.TT128
 
  LDA QQ19               \ Set K3 = the x-coordinate of the centre
  STA K3
@@ -25023,7 +25029,7 @@ ENDMACRO
  LDA #RED               \ Switch to colour 2, which is red in the chart view
  STA COL
 
- JMP x4_CIRCLE2            \ Jump to CIRCLE2 to draw a circle with the centre at
+ JMP CIRCLE2            \ Jump to CIRCLE2 to draw a circle with the centre at
                         \ (K3(1 0), K4(1 0)) and radius K, returning from the
                         \ subroutine using a tail call
 
@@ -25045,13 +25051,13 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT219_C
+.TT219
 
  LDA #2                 \ Clear the top part of the screen, draw a border box,
- JSR TRADEMODE_C          \ and set up a trading screen with a view type in QQ11
+ JSR TRADEMODE          \ and set up a trading screen with a view type in QQ11
                         \ of 2 (Buy Cargo screen)
 
- JSR TT163_C              \ Print the column headers for the prices table
+ JSR TT163              \ Print the column headers for the prices table
 
  LDA #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case, with the
  STA QQ17               \ next letter in capitals
@@ -25060,67 +25066,67 @@ ENDMACRO
  STA QQ29               \ items, so we set up a counter in QQ29 to denote the
                         \ current item and start it at 0
 
-.TT220_C
+.TT220
 
- JSR TT151_C              \ Call TT151 to print the item name, market price and
+ JSR TT151              \ Call TT151 to print the item name, market price and
                         \ availability of the current item, and set QQ24 to the
                         \ item's price / 4, QQ25 to the quantity available and
                         \ QQ19+1 to byte #1 from the market prices table for
                         \ this item
 
  LDA QQ25               \ If there are some of the current item available, jump
- BNE TT224_C              \ to TT224 below to see if we want to buy any
+ BNE TT224              \ to TT224 below to see if we want to buy any
 
- JMP TT222_C              \ Otherwise there are none available, so jump down to
+ JMP TT222              \ Otherwise there are none available, so jump down to
                         \ TT222 to skip this item
 
-.TQ4_C
+.TQ4
 
  LDY #176               \ Set Y to the recursive token 16 ("QUANTITY")
 
-.Tc_C
+.Tc
 
- JSR TT162_C              \ Print a space
+ JSR TT162              \ Print a space
 
  TYA                    \ Print the recursive token in Y followed by a question
- JSR prq_C                \ mark
+ JSR prq                \ mark
 
-.TTX224_C
+.TTX224
 
- JSR dn2_C                \ Call dn2 to make a short, high beep and delay for 1
+ JSR dn2                \ Call dn2 to make a short, high beep and delay for 1
                         \ second
 
-.TT224_C
+.TT224
 
- JSR x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+ JSR CLYNS              \ Clear the bottom three text rows of the upper screen,
                         \ and move the text cursor to the first cleared row
 
  LDA #204               \ Print recursive token 44 ("QUANTITY OF ")
- JSR TT27_C
+ JSR TT27
 
  LDA QQ29               \ Print recursive token 48 + QQ29, which will be in the
  CLC                    \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
  ADC #208               \ prints the current item's name
- JSR TT27_C
+ JSR TT27
 
  LDA #'/'               \ Print "/"
- JSR TT27_C
+ JSR TT27
 
- JSR TT152_C              \ Print the unit ("t", "kg" or "g") for the current item
+ JSR TT152              \ Print the unit ("t", "kg" or "g") for the current item
                         \ (as the call to TT151 above set QQ19+1 with the
                         \ appropriate value)
 
  LDA #'?'               \ Print "?"
- JSR TT27_C
+ JSR TT27
 
- JSR TT67_C               \ Print a newline
+ JSR TT67               \ Print a newline
 
  LDX #0                 \ These instructions have no effect, as they are
  STX R                  \ repeated at the start of gnum, which we call next.
  LDX #12                \ Perhaps they were left behind when code was moved from
  STX T1                 \ here into gnum, and weren't deleted?
 
-.TT223K_C                 \ This label is a duplicate of a label in the gnum
+.TT223K                 \ This label is a duplicate of a label in the gnum
                         \ routine, so this could also be a remnant from code
                         \ that got moved into the gnum subroutine
                         \
@@ -25128,11 +25134,11 @@ ENDMACRO
                         \ because BeebAsm doesn't allow us to redefine labels,
                         \ I have renamed it to TT223K
 
- JSR gnum_C               \ Call gnum to get a number from the keyboard, which
+ JSR gnum               \ Call gnum to get a number from the keyboard, which
                         \ will be the quantity of this item we want to purchase,
                         \ returning the number entered in A and R
 
- BCS TQ4_C                \ If gnum set the C flag, the number entered is greater
+ BCS TQ4                \ If gnum set the C flag, the number entered is greater
                         \ than the quantity available, so jump up to TQ4 to
                         \ display a "Quantity?" error, beep, clear the number
                         \ and try again
@@ -25140,7 +25146,7 @@ ENDMACRO
  STA P                  \ Otherwise we have a valid purchase quantity entered,
                         \ so store the amount we want to purchase in P
 
- JSR tnpr_C               \ Call tnpr to work out whether there is room in the
+ JSR tnpr               \ Call tnpr to work out whether there is room in the
                         \ cargo hold for this item
 
  LDY #206               \ Set Y to recursive token 46 (" CARGO{sentence case}")
@@ -25149,7 +25155,7 @@ ENDMACRO
  LDA R                  \ If R = 0, then we didn't enter a number above, so skip
  BEQ P%+4               \ the following instruction
 
- BCS Tc_C                 \ If the C flag is set, then there is no room in the
+ BCS Tc                 \ If the C flag is set, then there is no room in the
                         \ cargo hold, jump up to Tc to print a "Cargo?" error,
                         \ beep, clear the number and try again
 
@@ -25158,7 +25164,7 @@ ENDMACRO
                         \ price / 4, which was returned in QQ24 by the call
                         \ to TT151 above and store it in Q
 
- JSR GCASH_C              \ Call GCASH to calculate:
+ JSR GCASH              \ Call GCASH to calculate:
                         \
                         \   (Y X) = P * Q * 4
                         \
@@ -25166,10 +25172,10 @@ ENDMACRO
                         \ (as P contains the purchase quantity and Q contains
                         \ the item's price / 4)
 
- JSR LCASH_C              \ Subtract (Y X) cash from the cash pot in CASH
+ JSR LCASH              \ Subtract (Y X) cash from the cash pot in CASH
 
  LDY #197               \ If the C flag is clear, we didn't have enough cash,
- BCC Tc_C                 \ so set Y to the recursive token 37 ("CASH") and jump
+ BCC Tc                 \ so set Y to the recursive token 37 ("CASH") and jump
                         \ up to Tc to print a "Cash?" error, beep, clear the
                         \ number and try again
 
@@ -25192,39 +25198,39 @@ ENDMACRO
 
  PLA                    \ Restore the quantity just purchased
 
- BEQ TT222_C              \ If we didn't buy anything, jump to TT222 to skip the
+ BEQ TT222              \ If we didn't buy anything, jump to TT222 to skip the
                         \ following instruction
 
- JSR dn_C                 \ Call dn to print the amount of cash left in the cash
+ JSR dn                 \ Call dn to print the amount of cash left in the cash
                         \ pot, then make a short, high beep to confirm the
                         \ purchase, and delay for 1 second
 
-.TT222_C
+.TT222
 
  LDA QQ29               \ Move the text cursor to row QQ29 + 5 (where QQ29 is
  CLC                    \ the item number, starting from 0)
  ADC #5
- JSR DOYC_C
+ JSR DOYC
 
  LDA #0                 \ Move the text cursor to column 0
- JSR DOXC_C
+ JSR DOXC
 
  INC QQ29               \ Increment QQ29 to point to the next item
 
  LDA QQ29               \ If QQ29 >= 17 then jump to BAY2 as we have done the
  CMP #17                \ last item
- BCS BAY2_C
+ BCS BAY2
 
- JMP TT220_C              \ Otherwise loop back to TT220 to print the next market
+ JMP TT220              \ Otherwise loop back to TT220 to print the next market
                         \ item
 
-.BAY2_C
+.BAY2
 
 \LDA #&10               \ These instructions are commented out in the original
 \STA COL2               \ source
 
  LDA #f9                \ Jump into the main loop at FRCE, setting the key
- JMP j4_FRCE               \ "pressed" to red key f9 (so we show the Inventory
+ JMP FRCE               \ "pressed" to red key f9 (so we show the Inventory
                         \ screen)
 
 \ ******************************************************************************
@@ -25273,7 +25279,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.gnum_C
+.gnum
 
  LDA #MAGENTA           \ Switch to colour 2, which is magenta in the trade view
  STA COL
@@ -25284,34 +25290,34 @@ ENDMACRO
  LDX #12                \ We will check for up to 12 key presses, so set a
  STX T1                 \ counter in T1
 
-.TT223_C
+.TT223
 
- JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
+ JSR TT217              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A (and X)
 
  LDX R                  \ If R is non-zero then skip to NWDAV2, as we are
- BNE NWDAV2_C             \ already building a number
+ BNE NWDAV2             \ already building a number
 
  CMP #'Y'               \ If "Y" was pressed, jump to NWDAV1 to return the
- BEQ NWDAV1_C             \ maximum number allowed (i.e. buy/sell the whole stock)
+ BEQ NWDAV1             \ maximum number allowed (i.e. buy/sell the whole stock)
 
  CMP #'N'               \ If "N" was pressed, jump to NWDAV3 to return from the
- BEQ NWDAV3_C             \ subroutine with a result of 0 (i.e. abort transaction)
+ BEQ NWDAV3             \ subroutine with a result of 0 (i.e. abort transaction)
 
-.NWDAV2_C
+.NWDAV2
 
  STA Q                  \ Store the key pressed in Q
 
  SEC                    \ Subtract ASCII "0" from the key pressed, to leave the
  SBC #'0'               \ numeric value of the key in A (if it was a number key)
 
- BCC OUT_C                \ If A < 0, jump to OUT to load the current number and
+ BCC OUT                \ If A < 0, jump to OUT to load the current number and
                         \ return from the subroutine, as the key pressed was
                         \ RETURN (or some other character with a value less than
                         \ ASCII "0")
 
  CMP #10                \ If A >= 10, jump to BAY2 to display the Inventory
- BCS BAY2_C               \ screen, as the key pressed was a letter or other
+ BCS BAY2               \ screen, as the key pressed was a letter or other
                         \ non-digit and is greater than ASCII "9"
 
  STA S                  \ Store the numeric value of the key pressed in S
@@ -25322,7 +25328,7 @@ ENDMACRO
                         \ source, and has a comment "tribs"
 
  CMP #26                \ If A >= 26, where A is the number entered so far, then
- BCS OUTK_C               \ adding a further digit will make it bigger than 256,
+ BCS OUTK               \ adding a further digit will make it bigger than 256,
                         \ so jump to OUTK to print the key that was just pressed
                         \ before jumping to OUT below with the C flag still set
 
@@ -25334,7 +25340,7 @@ ENDMACRO
 
  ADC S                  \ Add the pressed digit to A
 
- BCS OUTK_C               \ If the addition overflowed, then jump to OUTK to print
+ BCS OUTK               \ If the addition overflowed, then jump to OUTK to print
                         \ the key that was just pressed before jumping to OUT
                         \ below with the C flag still set
 
@@ -25343,24 +25349,24 @@ ENDMACRO
                         \ the end
 
  CMP QQ25               \ If the result in R = the maximum allowed in QQ25, jump
- BEQ TT226_C              \ to TT226 to print the key press and keep looping (the
+ BEQ TT226              \ to TT226 to print the key press and keep looping (the
                         \ BEQ is needed because the BCS below would jump to OUT
                         \ if R >= QQ25, which we don't want)
 
- BCS OUTK_C               \ If the result in R > QQ25, jump to OUTK to print
+ BCS OUTK               \ If the result in R > QQ25, jump to OUTK to print
                         \ the key that was just pressed before jumping to OUT
                         \ below with the C flag still set
 
-.TT226_C
+.TT226
 
  LDA Q                  \ Print the character in Q (i.e. the key that was
- JSR x4_TT26               \ pressed, as we stored the ASCII value in Q earlier)
+ JSR TT26               \ pressed, as we stored the ASCII value in Q earlier)
 
  DEC T1                 \ Decrement the loop counter
 
- BNE TT223_C              \ Loop back to TT223 until we have checked for 12 digits
+ BNE TT223              \ Loop back to TT223 until we have checked for 12 digits
 
-.OUT_C
+.OUT
 
  LDA #CYAN              \ Switch to colour 3, which is white in the trade view
  STA COL
@@ -25369,27 +25375,27 @@ ENDMACRO
 
  RTS                    \ Return from the subroutine
 
-.NWDAV1_C
+.NWDAV1
 
                         \ If we get here then "Y" was pressed, so we return the
                         \ maximum number allowed, which is in QQ25
 
- JSR x4_TT26               \ Print the character for the key that was pressed
+ JSR TT26               \ Print the character for the key that was pressed
 
  LDA QQ25               \ Set R = QQ25, so we return the maximum value allowed
  STA R
 
- JMP OUT_C                \ Jump to OUT to return from the subroutine
+ JMP OUT                \ Jump to OUT to return from the subroutine
 
-.NWDAV3_C
+.NWDAV3
 
                         \ If we get here then "N" was pressed, so we return 0
 
- JSR x4_TT26               \ Print the character for the key that was pressed
+ JSR TT26               \ Print the character for the key that was pressed
 
  STZ R                  \ Set R = 0, so we return 0
 
- JMP OUT_C                \ Jump to OUT to return from the subroutine
+ JMP OUT                \ Jump to OUT to return from the subroutine
 
 \ ******************************************************************************
 \
@@ -25401,19 +25407,19 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.NWDAV4_C
+.NWDAV4
 
- JSR TT67_C               \ Print a newline
+ JSR TT67               \ Print a newline
 
  LDA #176               \ Print recursive token 127 ("ITEM") followed by a
- JSR prq_C                \ question mark
+ JSR prq                \ question mark
 
- JSR dn2_C                \ Call dn2 to make a short, high beep and delay for 1
+ JSR dn2                \ Call dn2 to make a short, high beep and delay for 1
                         \ second
 
  LDY QQ29               \ Fetch the item number we are selling from QQ29
 
- JMP NWDAVxx_C            \ Jump back into the TT210 routine that called NWDAV4
+ JMP NWDAVxx            \ Jump back into the TT210 routine that called NWDAV4
 
 \ ******************************************************************************
 \
@@ -25425,15 +25431,15 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.OUTK_C
+.OUTK
 
  LDA Q                  \ Print the character in Q, which is the key that was
- JSR x4_DASC               \ just pressed in the gnum routine
+ JSR DASC               \ just pressed in the gnum routine
 
  SEC                    \ Set the C flag, as this routine is only called if the
                         \ key pressed makes the number too high
 
- JMP OUT_C                \ Jump back into the gnum routine to return the number
+ JMP OUT                \ Jump back into the gnum routine to return the number
                         \ that has been built
 
 \ ******************************************************************************
@@ -25446,23 +25452,23 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT208_C
+.TT208
 
  LDA #4                 \ Clear the top part of the screen, draw a border box,
- JSR TRADEMODE_C          \ and set up a trading screen with a view type in QQ11
+ JSR TRADEMODE          \ and set up a trading screen with a view type in QQ11
                         \ of 4 (Sell Cargo screen)
 
  LDA #10                \ Move the text cursor to column 10
  STA XC
 
  LDA #205               \ Print recursive token 45 ("SELL")
- JSR TT27_C
+ JSR TT27
 
  LDA #206               \ Print recursive token 46 (" CARGO{sentence case}")
- JSR NLIN3_C              \ draw a horizontal line at pixel row 19 to box in the
+ JSR NLIN3              \ draw a horizontal line at pixel row 19 to box in the
                         \ title
 
- JSR TT67_C               \ Print a newline
+ JSR TT67               \ Print a newline
 
                         \ Fall through into TT210 to show the Inventory screen
                         \ with the option to sell
@@ -25499,7 +25505,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT210_C
+.TT210
 
  LDY #0                 \ We're going to loop through all the available market
                         \ items and check whether we have any in the hold (and,
@@ -25507,14 +25513,14 @@ ENDMACRO
                         \ to sell any items), so we set up a counter in Y to
                         \ denote the current item and start it at 0
 
-.TT211_C
+.TT211
 
  STY QQ29               \ Store the current item number in QQ29
 
-.NWDAVxx_C
+.NWDAVxx
 
  LDX QQ20,Y             \ Fetch into X the amount of the current item that we
- BEQ TT212_C              \ have in our cargo hold, which is stored in QQ20+Y,
+ BEQ TT212              \ have in our cargo hold, which is stored in QQ20+Y,
                         \ and if there are no items of this type in the hold,
                         \ jump down to TT212 to skip to the next item
 
@@ -25530,15 +25536,15 @@ ENDMACRO
  TXA                    \ Store the amount of item in the hold (in X) on the
  PHA                    \ stack
 
- JSR TT69_C               \ Call TT69 to set Sentence Case and print a newline
+ JSR TT69               \ Call TT69 to set Sentence Case and print a newline
 
  CLC                    \ Print recursive token 48 + QQ29, which will be in the
  LDA QQ29               \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
  ADC #208               \ prints the current item's name
- JSR TT27_C
+ JSR TT27
 
  LDA #14                \ Move the text cursor to column 14, for the item's
- JSR DOXC_C               \ quantity
+ JSR DOXC               \ quantity
 
  PLA                    \ Restore the amount of item in the hold into X
  TAX
@@ -25546,35 +25552,35 @@ ENDMACRO
  STA QQ25               \ Store the amount of this item in the hold in QQ25
 
  CLC                    \ Print the 8-bit number in X to 3 digits, without a
- JSR pr2_C                \ decimal point
+ JSR pr2                \ decimal point
 
- JSR TT152_C              \ Print the unit ("t", "kg" or "g") for the market item
+ JSR TT152              \ Print the unit ("t", "kg" or "g") for the market item
                         \ whose byte #1 from the market prices table is in
                         \ QQ19+1 (which we set up above)
 
  LDA QQ11               \ If the current view type in QQ11 is not 4 (Sell Cargo
  CMP #4                 \ screen), jump to TT212 to skip the option to sell
- BNE TT212_C              \ items
+ BNE TT212              \ items
 
 \JSR TT162              \ This instruction is commented out in the original
                         \ source
 
  LDA #205               \ Print recursive token 45 ("SELL")
- JSR TT27_C
+ JSR TT27
 
  LDA #206               \ Print extended token 206 ("{all caps}(Y/N)?")
- JSR DETOK_C
+ JSR DETOK
 
- JSR gnum_C               \ Call gnum to get a number from the keyboard, which
+ JSR gnum               \ Call gnum to get a number from the keyboard, which
                         \ will be the number of the item we want to sell,
                         \ returning the number entered in A and R, and setting
                         \ the C flag if the number is bigger than the available
                         \ amount of this item in QQ25
 
- BEQ TT212_C              \ If no number was entered, jump to TT212 to move on to
+ BEQ TT212              \ If no number was entered, jump to TT212 to move on to
                         \ the next item
 
- BCS NWDAV4_C             \ If the number entered was too big, jump to NWDAV4 to
+ BCS NWDAV4             \ If the number entered was too big, jump to NWDAV4 to
                         \ print an "ITEM?" error, make a beep and rejoin the
                         \ routine at NWDAVxx above
 
@@ -25584,7 +25590,7 @@ ENDMACRO
  LDX #255               \ Set QQ17 = 255 to disable printing
  STX QQ17
 
- JSR TT151_C              \ Call TT151 to set QQ24 to the item's price / 4 (the
+ JSR TT151              \ Call TT151 to set QQ24 to the item's price / 4 (the
                         \ routine doesn't print the item details, as we just
                         \ disabled printing)
 
@@ -25600,7 +25606,7 @@ ENDMACRO
  LDA QQ24               \ Set Q to the item's price / 4
  STA Q
 
- JSR GCASH_C              \ Call GCASH to calculate
+ JSR GCASH              \ Call GCASH to calculate
                         \
                         \   (Y X) = P * Q * 4
                         \
@@ -25608,39 +25614,39 @@ ENDMACRO
                         \ (as P contains the quantity we're selling and Q
                         \ contains the item's price / 4)
 
- JSR MCASH_C              \ Add (Y X) cash to the cash pot in CASH
+ JSR MCASH              \ Add (Y X) cash to the cash pot in CASH
 
  LDA #0                 \ We've made the sale, so set the amount
 
  STA QQ17               \ Set QQ17 = 0, which enables printing again
 
-.TT212_C
+.TT212
 
  LDY QQ29               \ Fetch the item number from QQ29 into Y, and increment
  INY                    \ Y to point to the next item
 
  CPY #17                \ Loop back to TT211 to print the next item in the hold
- BCC TT211_C              \ until Y = 17 (at which point we have done the last
+ BCC TT211              \ until Y = 17 (at which point we have done the last
                         \ item)
 
  LDA QQ11               \ If the current view type in QQ11 is not 4 (Sell Cargo
  CMP #4                 \ screen), skip the next two instructions and move on to
  BNE P%+8               \ printing the number of Trumbles
 
- JSR dn2_C                \ This is the Sell Cargo screen, so call dn2 to make a
+ JSR dn2                \ This is the Sell Cargo screen, so call dn2 to make a
                         \ short, high beep and delay for 1 second
 
- JMP BAY2_C               \ And then jump to BAY2 to display the Inventory
+ JMP BAY2               \ And then jump to BAY2 to display the Inventory
                         \ screen, as we have finished selling cargo
 
- JSR TT69_C               \ Call TT69 to set Sentence Case and print a newline
+ JSR TT69               \ Call TT69 to set Sentence Case and print a newline
 
  LDA TRIBBLE            \ If there are any Trumbles in the hold, skip the
  ORA TRIBBLE+1          \ following RTS and continue on (in the Master version,
  BNE P%+3               \ there are never any Trumbles, so this value will
                         \ always be zero)
 
-.zebra_C
+.zebra
 
  RTS                    \ There are no Trumbles in the hold, so return from the
                         \ subroutine
@@ -25658,30 +25664,30 @@ ENDMACRO
  LDX TRIBBLE            \ Fetch the number of Trumbles into (Y X)
  LDY TRIBBLE+1
 
- JSR TT11_C               \ Call TT11 to print the number of Trumbles in (Y X),
+ JSR TT11               \ Call TT11 to print the number of Trumbles in (Y X),
                         \ with no decimal point
 
- JSR x4_DORND              \ Print out a random extended token from 111 to 114, all
+ JSR DORND              \ Print out a random extended token from 111 to 114, all
  AND #3                 \ of which are blank in this version of Elite
  CLC
  ADC #111
- JSR DETOK_C
+ JSR DETOK
 
  LDA #198               \ Print extended token 198, which is blank, but would
- JSR DETOK_C              \ contain the text "LITTLE TRUMBLE" if the Trumbles
+ JSR DETOK              \ contain the text "LITTLE TRUMBLE" if the Trumbles
                         \ mission was enabled
 
  LDA TRIBBLE+1          \ If we have more than 256 Trumbles, skip to DOANS
- BNE DOANS_C
+ BNE DOANS
 
  LDX TRIBBLE            \ If we have exactly one Trumble, return from the
  DEX                    \ subroutine (as zebra contains an RTS)
- BEQ zebra_C
+ BEQ zebra
 
-.DOANS_C
+.DOANS
 
  LDA #'s'               \ We have more than one Trumble, so print an 's' and
- JMP x4_DASC               \ return from the subroutine using a tail call
+ JMP DASC               \ return from the subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -25693,24 +25699,24 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT213_C
+.TT213
 
  LDA #8                 \ Clear the top part of the screen, draw a border box,
- JSR TRADEMODE_C          \ and set up a trading screen with a view type in QQ11
+ JSR TRADEMODE          \ and set up a trading screen with a view type in QQ11
                         \ of 4 (Inventory screen)
 
  LDA #11                \ Move the text cursor to column 11 to print the screen
  STA XC                 \ title
 
  LDA #164               \ Print recursive token 4 ("INVENTORY{crlf}") followed
- JSR TT60_C               \ by a paragraph break and Sentence Case
+ JSR TT60               \ by a paragraph break and Sentence Case
 
- JSR NLIN4_C              \ Draw a horizontal line at pixel row 19 to box in the
+ JSR NLIN4              \ Draw a horizontal line at pixel row 19 to box in the
                         \ title. The authors could have used a call to NLIN3
                         \ instead and saved the above call to TT60, but you
                         \ just can't optimise everything
 
- JSR fwl_C                \ Call fwl to print the fuel and cash levels on two
+ JSR fwl                \ Call fwl to print the fuel and cash levels on two
                         \ separate lines
 
  LDA CRGO               \ If our ship's cargo capacity is < 26 (i.e. we do not
@@ -25718,9 +25724,9 @@ ENDMACRO
  BCC P%+7               \ instructions
 
  LDA #107               \ We do have a cargo bay extension, so print recursive
- JSR TT27_C               \ token 107 ("LARGE CARGO{sentence case} BAY")
+ JSR TT27               \ token 107 ("LARGE CARGO{sentence case} BAY")
 
- JMP TT210_C              \ Jump to TT210 to print the contents of our cargo bay
+ JMP TT210              \ Jump to TT210 to print the contents of our cargo bay
                         \ and return from the subroutine using a tail call
 
 \ ******************************************************************************
@@ -25770,7 +25776,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT16_C
+.TT16
 
  TXA                    \ Push the change in X onto the stack (let's call this
  PHA                    \ the x-delta)
@@ -25780,18 +25786,18 @@ ENDMACRO
  EOR #&FF
  PHA
 
- JSR x4_WSCAN              \ Call WSCAN to wait for the vertical sync, so the whole
+ JSR WSCAN              \ Call WSCAN to wait for the vertical sync, so the whole
                         \ screen gets drawn and we can move the crosshairs with
                         \ no screen flicker
 
- JSR TT103_C              \ Draw small crosshairs at coordinates (QQ9, QQ10),
+ JSR TT103              \ Draw small crosshairs at coordinates (QQ9, QQ10),
                         \ which will erase the crosshairs currently there
 
  PLA                    \ Store the y-delta in QQ19+3 and fetch the current
  STA QQ19+3             \ y-coordinate of the crosshairs from QQ10 into A, ready
  LDA QQ10               \ for the call to TT123
 
- JSR TT123_C              \ Call TT123 to move the selected system's galactic
+ JSR TT123              \ Call TT123 to move the selected system's galactic
                         \ y-coordinate by the y-delta, putting the new value in
                         \ QQ19+4
 
@@ -25805,7 +25811,7 @@ ENDMACRO
  STA QQ19+3             \ x-coordinate of the crosshairs from QQ10 into A, ready
  LDA QQ9                \ for the call to TT123
 
- JSR TT123_C              \ Call TT123 to move the selected system's galactic
+ JSR TT123              \ Call TT123 to move the selected system's galactic
                         \ x-coordinate by the x-delta, putting the new value in
                         \ QQ19+4
 
@@ -25834,17 +25840,17 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT103_C
+.TT103
 
  LDA #GREEN             \ Switch to stripe 3-1-3-1, which is white/yellow in the
  STA COL                \ chart view
 
  LDA QQ11               \ Fetch the current view type into A
 
- BMI TT105_C              \ If this is the Short-range Chart screen, jump to TT105
+ BMI TT105              \ If this is the Short-range Chart screen, jump to TT105
 
  LDA QQ9                \ Store the crosshairs x-coordinate in QQ19
- JSR SCALEX_C             \
+ JSR SCALEX             \
  STA QQ19               \ The call to SCALEX has no effect as it only contains
                         \ an RTS, but having this call instruction here would
                         \ enable different scaling to be applied by altering
@@ -25854,7 +25860,7 @@ ENDMACRO
                         \ where the scale factor is different
 
  LDA QQ10               \ Halve the crosshairs y-coordinate and store it in QQ19
- JSR SCALEY_C             \ (we halve it because the Long-range Chart is half as
+ JSR SCALEY             \ (we halve it because the Long-range Chart is half as
  STA QQ19+1             \ high as it is wide)
                         \
                         \ The call to SCALEY simply does an LSR A, but having
@@ -25867,7 +25873,7 @@ ENDMACRO
  LDA #4                 \ Set QQ19+2 to 4 denote crosshairs of size 4
  STA QQ19+2
 
- JMP TT15_C               \ Jump to TT15 to draw crosshairs of size 4 at the
+ JMP TT15               \ Jump to TT15 to draw crosshairs of size 4 at the
                         \ crosshairs coordinates, returning from the subroutine
                         \ using a tail call
 
@@ -25909,7 +25915,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT123_C
+.TT123
 
  STA QQ19+4             \ Store the original coordinate in temporary storage at
                         \ QQ19+4
@@ -25918,27 +25924,27 @@ ENDMACRO
  ADC QQ19+3             \ coordinate, moved by the delta
 
  LDX QQ19+3             \ If the delta is negative, jump to TT124
- BMI TT124_C
+ BMI TT124
 
- BCC TT125_C              \ If the C flag is clear, then the above addition didn't
+ BCC TT125              \ If the C flag is clear, then the above addition didn't
                         \ overflow, so jump to TT125 to return the updated value
 
  RTS                    \ Otherwise the C flag is set and the above addition
                         \ overflowed, so do not update the return value
 
-.TT124_C
+.TT124
 
- BCC TT180_C              \ If the C flag is clear, then because the delta is
+ BCC TT180              \ If the C flag is clear, then because the delta is
                         \ negative, this indicates the addition (which is
                         \ effectively a subtraction) underflowed, so jump to
                         \ TT180 to return from the subroutine without updating
                         \ the return value
 
-.TT125_C
+.TT125
 
  STA QQ19+4             \ Store the updated coordinate in QQ19+4
 
-.TT180_C
+.TT180
 
  RTS                    \ Return from the subroutine
 
@@ -25957,7 +25963,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT105_C
+.TT105
 
  LDA QQ9                \ Set A = QQ9 - QQ0, the horizontal distance between the
  SEC                    \ crosshairs (QQ9) and the current system (QQ0)
@@ -25971,7 +25977,7 @@ ENDMACRO
                         \ A = |QQ9 - QQ0|, the absolute horizontal distance
 
  CMP #29                \ If the absolute horizontal distance in A >= 29, then
- BCS TT180_C              \ the crosshairs are too far from the current system to
+ BCS TT180              \ the crosshairs are too far from the current system to
                         \ appear in the Short-range Chart, so jump to TT180 to
                         \ return from the subroutine (as TT180 contains an RTS)
 
@@ -25979,21 +25985,21 @@ ENDMACRO
  SEC                    \ crosshairs (QQ9) and the current system (QQ0)
  SBC QQ0
 
- BPL TT179_C              \ If the horizontal distance in A is positive, then skip
+ BPL TT179              \ If the horizontal distance in A is positive, then skip
                         \ the next two instructions
 
  CMP #233               \ If the horizontal distance in A < -23, then the
- BCC TT180_C              \ crosshairs are too far from the current system to
+ BCC TT180              \ crosshairs are too far from the current system to
                         \ appear in the Short-range Chart, so jump to TT180 to
                         \ return from the subroutine (as TT180 contains an RTS)
 
-.TT179_C
+.TT179
 
  ASL A                  \ Set QQ19 = 104 + A * 4
  ASL A                  \
  CLC                    \ 104 is the x-coordinate of the centre of the chart,
  ADC #104               \ so this sets QQ19 to the screen pixel x-coordinate
- JSR SCALEY2_C            \
+ JSR SCALEY2            \
  STA QQ19               \ The call to SCALEY2 has no effect as it only contains
                         \ an RTS, but having this call instruction here would
                         \ enable different scaling to be applied by altering
@@ -26014,7 +26020,7 @@ ENDMACRO
                         \ A = |QQ10 - QQ0|, the absolute vertical distance
 
  CMP #35                \ If the absolute vertical distance in A >= 35, then
- BCS TT180_C              \ the crosshairs are too far from the current system to
+ BCS TT180              \ the crosshairs are too far from the current system to
                         \ appear in the Short-range Chart, so jump to TT180 to
                         \ return from the subroutine (as TT180 contains an RTS)
 
@@ -26025,7 +26031,7 @@ ENDMACRO
  ASL A                  \ Set QQ19+1 = 90 + A * 2
  CLC                    \
  ADC #90                \ 90 is the y-coordinate of the centre of the chart,
- JSR SCALEY2_C            \ so this sets QQ19+1 to the screen pixel x-coordinate
+ JSR SCALEY2            \ so this sets QQ19+1 to the screen pixel x-coordinate
  STA QQ19+1             \ of the crosshairs
                         \
                         \ The call to SCALEY2 has no effect as it only contains
@@ -26042,7 +26048,7 @@ ENDMACRO
  LDA #GREEN             \ Switch to stripe 3-1-3-1, which is white/yellow in the
  STA COL                \ chart view
 
- JMP TT15_C               \ Jump to TT15 to draw crosshairs of size 8 at the
+ JMP TT15               \ Jump to TT15 to draw crosshairs of size 8 at the
                         \ crosshairs coordinates, returning from the subroutine
                         \ using a tail call
 
@@ -26056,14 +26062,14 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT23_C
+.TT23
 
  LDA #128               \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 128 (Short-
+ JSR TT66               \ and set the current view type in QQ11 to 128 (Short-
                         \ range Chart)
 
  LDA #16                \ Switch to the mode 1 palette for the trade view, which
- JSR x4_DOVDU19            \ is yellow (colour 1), magenta (colour 2) and white
+ JSR DOVDU19            \ is yellow (colour 1), magenta (colour 2) and white
                         \ (colour 3)
 
  LDA #CYAN              \ Switch to colour 3, which is white in the chart view
@@ -26073,16 +26079,16 @@ ENDMACRO
  STA XC
 
  LDA #190               \ Print recursive token 30 ("SHORT RANGE CHART") and
- JSR NLIN3_C              \ draw a horizontal line at pixel row 19 to box in the
+ JSR NLIN3              \ draw a horizontal line at pixel row 19 to box in the
                         \ title
 
- JSR TT14_C               \ Call TT14 to draw a circle with crosshairs at the
+ JSR TT14               \ Call TT14 to draw a circle with crosshairs at the
                         \ current system's galactic coordinates
 
- JSR TT103_C              \ Draw small crosshairs at coordinates (QQ9, QQ10),
+ JSR TT103              \ Draw small crosshairs at coordinates (QQ9, QQ10),
                         \ i.e. at the selected system
 
- JSR TT81_C               \ Set the seeds in QQ15 to those of system 0 in the
+ JSR TT81               \ Set the seeds in QQ15 to those of system 0 in the
                         \ current galaxy (i.e. copy the seeds from QQ21 to QQ15)
 
  LDA #CYAN              \ Switch to colour 3, which is white in the chart view
@@ -26099,13 +26105,13 @@ ENDMACRO
                         \ INWK so we can use them to work out which systems have
                         \ room for a label, so set a counter in X for 25 bytes
 
-.EE3_C
+.EE3
 
  STA INWK,X             \ Set the X-th byte of INWK to zero
 
  DEX                    \ Decrement the counter
 
- BPL EE3_C                \ Loop back to EE3 for the next byte until we've zeroed
+ BPL EE3                \ Loop back to EE3 for the next byte until we've zeroed
                         \ all 25 bytes
 
                         \ We now loop through every single system in the galaxy
@@ -26121,23 +26127,23 @@ ENDMACRO
                         \ galaxy in turn and calculates the distance between
                         \ (QQ0, QQ1) and (s1_hi, s0_hi) to find the closest one
 
-.TT182_C
+.TT182
 
  LDA QQ15+3             \ Set A = s1_hi - QQ0, the horizontal distance between
  SEC                    \ (s1_hi, s0_hi) and (QQ0, QQ1)
  SBC QQ0
 
- BCS TT184_C              \ If a borrow didn't occur, i.e. s1_hi >= QQ0, then the
+ BCS TT184              \ If a borrow didn't occur, i.e. s1_hi >= QQ0, then the
                         \ result is positive, so jump to TT184 and skip the
                         \ following two instructions
 
  EOR #&FF               \ Otherwise negate the result in A, so A is always
  ADC #1                 \ positive (i.e. A = |s1_hi - QQ0|)
 
-.TT184_C
+.TT184
 
  CMP #29                \ If the horizontal distance in A is >= 29, then this
- BCS TT187s_C             \ system is too far away from the current system to
+ BCS TT187s             \ system is too far away from the current system to
                         \ appear in the Short-range Chart, so jump to TT187 via
                         \ TT187s to move on to the next system
 
@@ -26145,17 +26151,17 @@ ENDMACRO
  SEC                    \ (s1_hi, s0_hi) and (QQ0, QQ1)
  SBC QQ1
 
- BCS TT186_C              \ If a borrow didn't occur, i.e. s0_hi >= QQ1, then the
+ BCS TT186              \ If a borrow didn't occur, i.e. s0_hi >= QQ1, then the
                         \ result is positive, so jump to TT186 and skip the
                         \ following two instructions
 
  EOR #&FF               \ Otherwise negate the result in A, so A is always
  ADC #1                 \ positive (i.e. A = |s0_hi - QQ1|)
 
-.TT186_C
+.TT186
 
  CMP #40                \ If the vertical distance in A is >= 40, then this
- BCS TT187s_C             \ system is too far away from the current system to
+ BCS TT187s             \ system is too far away from the current system to
                         \ appear in the Short-range Chart, so jump to TT187 via
                         \ TT187s to move on to the next system
 
@@ -26176,7 +26182,7 @@ ENDMACRO
  ASL A                  \ Set XX12 = 104 + x-delta * 4
  ASL A                  \
  ADC #104               \ 104 is the x-coordinate of the centre of the chart,
- JSR SCALEY2_C            \ so this sets XX12 to the centre 104 +/- 76, the pixel
+ JSR SCALEY2            \ so this sets XX12 to the centre 104 +/- 76, the pixel
  STA XX12               \ x-coordinate of this system
                         \
                         \ The call to SCALEY2 has no effect as it only contains
@@ -26203,7 +26209,7 @@ ENDMACRO
 
  ASL A                  \ Set K4 = 90 + y-delta * 2
  ADC #90                \
- JSR SCALEY2_C            \ 90 is the y-coordinate of the centre of the chart,
+ JSR SCALEY2            \ 90 is the y-coordinate of the centre of the chart,
  STA K4                 \ so this sets K4 to the centre 90 +/- 74, the pixel
                         \ y-coordinate of this system
                         \
@@ -26231,33 +26237,33 @@ ENDMACRO
                         \ up and don't print a label for this system
 
  LDX INWK,Y             \ If the value in INWK+Y is 0 (i.e. the text row
- BEQ EE4_C                \ containing this system does not already have another
+ BEQ EE4                \ containing this system does not already have another
                         \ system's label on it), jump to EE4 to store this
                         \ system's label on this row
 
  INY                    \ If the value in INWK+Y+1 is 0 (i.e. the text row below
  LDX INWK,Y             \ the one containing this system does not already have
- BEQ EE4_C                \ another system's label on it), jump to EE4 to store
+ BEQ EE4                \ another system's label on it), jump to EE4 to store
                         \ this system's label on this row
 
  DEY                    \ If the value in INWK+Y-1 is 0 (i.e. the text row above
  DEY                    \ the one containing this system does not already have
  LDX INWK,Y             \ another system's label on it), fall through into to
- BNE ee1_C                \ EE4 to store this system's label on this row,
+ BNE ee1                \ EE4 to store this system's label on this row,
                         \ otherwise jump to ee1 to skip printing a label for
                         \ this system (as there simply isn't room)
 
-.EE4_C
+.EE4
 
  STY YC                 \ Now to print the label, so move the text cursor to row
                         \ Y (which contains the row where we can print this
                         \ system's label)
 
  CPY #3                 \ If Y < 3, then the system would clash with the chart
- BCC TT187_C              \ title, so jump to TT187 to skip showing the system
+ BCC TT187              \ title, so jump to TT187 to skip showing the system
 
  CPY #21                \ If Y > 21, then the label will be off the bottom of
- BCS TT187_C              \ the chart, so jump to TT187 to skip showing the system
+ BCS TT187              \ the chart, so jump to TT187 to skip showing the system
 
  TYA                    \ Store Y on the stack so it can be preserved across the
  PHA                    \ call to readdistnce
@@ -26265,7 +26271,7 @@ ENDMACRO
  LDA QQ15+3             \ Set A = s1_hi, so A contains the galactic x-coordinate
                         \ of the system we are displaying on the chart
 
- JSR readdistnce_C        \ Call readdistnce to calculate the distance between the
+ JSR readdistnce        \ Call readdistnce to calculate the distance between the
                         \ system with galactic coordinates (A, QQ15+1) - i.e.
                         \ the system we are displaying - and the current system
                         \ at (QQ0, QQ1), returning the result in QQ8(1 0)
@@ -26274,16 +26280,16 @@ ENDMACRO
  TAY
 
  LDA QQ8+1              \ If the high byte of the distance in QQ8(1 0) is
- BNE TT187_C              \ non-zero, jump to TT187 to skip showing the system as
+ BNE TT187              \ non-zero, jump to TT187 to skip showing the system as
                         \ it is too far away from the current system
 
  LDA QQ8                \ If the low byte of the distance in QQ8(1 0) is >= 70,
  CMP #70                \ jump to TT187 to skip showing the system as it is too
                         \ far away from the current system
 
-.TT187s_C
+.TT187s
 
- BCS TT187_C              \ If we get here from the instruction above, we jump to
+ BCS TT187              \ If we get here from the instruction above, we jump to
                         \ TT187 if QQ8(1 0) >= 70, so we only show systems that
                         \ are within distance 70 (i.e. 7 light years) of the
                         \ current system
@@ -26298,11 +26304,11 @@ ENDMACRO
  LDA #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case
  STA QQ17
 
- JSR cpl_C                \ Call cpl to print out the system name for the seeds
+ JSR cpl                \ Call cpl to print out the system name for the seeds
                         \ in QQ15 (which now contains the seeds for the current
                         \ system)
 
-.ee1_C
+.ee1
 
  LDA #0                 \ Now to plot the star, so set the high bytes of K, K3
  STA K3+1               \ and K4 to 0
@@ -26332,19 +26338,19 @@ ENDMACRO
                         \ which we can now pass to the SUN routine to draw a
                         \ small "sun" on the Short-range Chart for this system
 
- JSR x4_FLFLLS             \ Call FLFLLS to reset the LSO block
+ JSR FLFLLS             \ Call FLFLLS to reset the LSO block
 
- JSR x4_SUN                \ Call SUN to plot a sun with radius K at pixel
+ JSR SUN                \ Call SUN to plot a sun with radius K at pixel
                         \ coordinate (K3, K4)
 
- JSR x4_FLFLLS             \ Call FLFLLS to reset the LSO block
+ JSR FLFLLS             \ Call FLFLLS to reset the LSO block
 
  LDA #CYAN              \ Switch to colour 3, which is white in the chart view
  STA COL
 
-.TT187_C
+.TT187
 
- JSR TT20_C               \ We want to move on to the next system, so call TT20
+ JSR TT20               \ We want to move on to the next system, so call TT20
                         \ to twist the three 16-bit seeds in QQ15
 
  INC XX20               \ Increment the counter
@@ -26352,7 +26358,7 @@ ENDMACRO
  BEQ P%+5               \ If X = 0 then we have done all 256 systems, so skip
                         \ the next instruction to return from the subroutine
 
- JMP TT182_C              \ Otherwise jump back up to TT182 to process the next
+ JMP TT182              \ Otherwise jump back up to TT182 to process the next
                         \ system
 
 \LDA #0                 \ These instructions are commented out in the original
@@ -26379,7 +26385,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT81_C
+.TT81
 
  LDX #5                 \ Set up a counter in X to copy six bytes (for three
                         \ 16-bit numbers)
@@ -26389,7 +26395,7 @@ ENDMACRO
 
  DEX                    \ Decrement the counter
 
- BPL TT81_C+2             \ Loop back up to the LDA instruction if we still have
+ BPL TT81+2             \ Loop back up to the LDA instruction if we still have
                         \ more bytes to copy
 
  RTS                    \ Return from the subroutine
@@ -26445,9 +26451,9 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT111_C
+.TT111
 
- JSR TT81_C               \ Set the seeds in QQ15 to those of system 0 in the
+ JSR TT81               \ Set the seeds in QQ15 to those of system 0 in the
                         \ current galaxy (i.e. copy the seeds from QQ21 to QQ15)
 
                         \ We now loop through every single system in the galaxy
@@ -26471,20 +26477,20 @@ ENDMACRO
  STA U                  \ the current galaxy, which we start at system 0 and
                         \ loop through to 255, the last system
 
-.TT130_C
+.TT130
 
  LDA QQ15+3             \ Set A = s1_hi - QQ9, the horizontal distance between
  SEC                    \ (s1_hi, s0_hi) and (QQ9, QQ10)
  SBC QQ9
 
- BCS TT132_C              \ If a borrow didn't occur, i.e. s1_hi >= QQ9, then the
+ BCS TT132              \ If a borrow didn't occur, i.e. s1_hi >= QQ9, then the
                         \ result is positive, so jump to TT132 and skip the
                         \ following two instructions
 
  EOR #&FF               \ Otherwise negate the result in A, so A is always
  ADC #1                 \ positive (i.e. A = |s1_hi - QQ9|)
 
-.TT132_C
+.TT132
 
  LSR A                  \ Set S = A / 2
  STA S                  \       = |s1_hi - QQ9| / 2
@@ -26493,14 +26499,14 @@ ENDMACRO
  SEC                    \ (s1_hi, s0_hi) and (QQ9, QQ10)
  SBC QQ10
 
- BCS TT134_C              \ If a borrow didn't occur, i.e. s0_hi >= QQ10, then the
+ BCS TT134              \ If a borrow didn't occur, i.e. s0_hi >= QQ10, then the
                         \ result is positive, so jump to TT134 and skip the
                         \ following two instructions
 
  EOR #&FF               \ Otherwise negate the result in A, so A is always
  ADC #1                 \ positive (i.e. A = |s0_hi - QQ10|)
 
-.TT134_C
+.TT134
 
  LSR A                  \ Set A = S + A / 2
  CLC                    \       = |s1_hi - QQ9| / 2 + |s0_hi - QQ10| / 2
@@ -26512,7 +26518,7 @@ ENDMACRO
                         \ enough approximation to use for comparing distances
 
  CMP T                  \ If A >= T, then this system's distance is bigger than
- BCS TT135_C              \ our "minimum distance so far" stored in T, so it's no
+ BCS TT135              \ our "minimum distance so far" stored in T, so it's no
                         \ closer than the systems we have already found, so
                         \ skip to TT135 to move on to the next system
 
@@ -26524,7 +26530,7 @@ ENDMACRO
                         \ being the closest of all, so we set up a counter in X
                         \ to copy six bytes (for three 16-bit numbers)
 
-.TT136_C
+.TT136
 
  LDA QQ15,X             \ Copy the X-th byte in QQ15 to the X-th byte in QQ19,
  STA QQ19,X             \ where QQ15 contains the seeds for the system we just
@@ -26533,21 +26539,21 @@ ENDMACRO
 
  DEX                    \ Decrement the counter
 
- BPL TT136_C              \ Loop back to TT136 if we still have more bytes to
+ BPL TT136              \ Loop back to TT136 if we still have more bytes to
                         \ copy
 
  LDA U                  \ Store the system number U in ZZ, so when we are done
  STA ZZ                 \ looping through all the candidates, the winner's
                         \ number will be in ZZ
 
-.TT135_C
+.TT135
 
- JSR TT20_C               \ We want to move on to the next system, so call TT20
+ JSR TT20               \ We want to move on to the next system, so call TT20
                         \ to twist the three 16-bit seeds in QQ15
 
  INC U                  \ Increment the system counter in U
 
- BNE TT130_C              \ If U > 0 then we haven't done all 256 systems yet, so
+ BNE TT130              \ If U > 0 then we haven't done all 256 systems yet, so
                         \ loop back up to TT130
 
                         \ We have now finished checking all the systems in the
@@ -26558,14 +26564,14 @@ ENDMACRO
  LDX #5                 \ So we set up a counter in X to copy six bytes (for
                         \ three 16-bit numbers)
 
-.TT137_C
+.TT137
 
  LDA QQ19,X             \ Copy the X-th byte in QQ19 to the X-th byte in QQ15
  STA QQ15,X
 
  DEX                    \ Decrement the counter
 
- BPL TT137_C              \ Loop back to TT137 if we still have more bytes to
+ BPL TT137              \ Loop back to TT137 if we still have more bytes to
                         \ copy
 
  LDA QQ15+1             \ The y-coordinate of the system described by the seeds
@@ -26583,13 +26589,13 @@ ENDMACRO
                         \ need to work out the distance between the selected
                         \ system and the current system
 
-.readdistnce_C
+.readdistnce
 
  SEC                    \ Set A = QQ9 - QQ0, the horizontal distance between
  SBC QQ0                \ the selected system's x-coordinate (QQ9) and the
                         \ current system's x-coordinate (QQ0)
 
- BCS TT139_C              \ If a borrow didn't occur, i.e. QQ9 >= QQ0, then the
+ BCS TT139              \ If a borrow didn't occur, i.e. QQ9 >= QQ0, then the
                         \ result is positive, so jump to TT139 and skip the
                         \ following two instructions
 
@@ -26601,9 +26607,9 @@ ENDMACRO
                         \ will refer to this as the x-delta ("delta" means
                         \ change or difference in maths)
 
-.TT139_C
+.TT139
 
- JSR x4_SQUA2              \ Set (A P) = A * A
+ JSR SQUA2              \ Set (A P) = A * A
                         \           = |QQ9 - QQ0| ^ 2
                         \           = x_delta ^ 2
 
@@ -26618,14 +26624,14 @@ ENDMACRO
                         \ The LDA instruction is commented out in the original
                         \ source
 
- BCS TT141_C              \ If a borrow didn't occur, i.e. QQ10 >= QQ1, then the
+ BCS TT141              \ If a borrow didn't occur, i.e. QQ10 >= QQ1, then the
                         \ result is positive, so jump to TT141 and skip the
                         \ following two instructions
 
  EOR #&FF               \ Otherwise negate the result in A, so A is always
  ADC #1                 \ positive (i.e. A = |QQ10 - QQ1|)
 
-.TT141_C
+.TT141
 
  LSR A                  \ Set A = A / 2
 
@@ -26639,7 +26645,7 @@ ENDMACRO
                         \ distance between the vertical y-coordinates. We will
                         \ refer to this as the y-delta
 
- JSR x4_SQUA2              \ Set (A P) = A * A
+ JSR SQUA2              \ Set (A P) = A * A
                         \           = (|QQ10 - QQ1| / 2) ^ 2
                         \           = y_delta ^ 2
 
@@ -26674,7 +26680,7 @@ ENDMACRO
                         \   (R Q) = K(1 0) + (A P)
                         \         = (x_delta ^ 2) + (y_delta ^ 2)
 
- JSR x4_LL5                \ Set Q = SQRT(R Q), so Q now contains the distance
+ JSR LL5                \ Set Q = SQRT(R Q), so Q now contains the distance
                         \ between the two systems, in terms of coordinates
 
                         \ We now store the distance to the selected system * 4
@@ -26696,7 +26702,7 @@ ENDMACRO
                         \ 256 in coordinate terms, the width of the galaxy
                         \ would be 1024 in the units we store in QQ8
 
- JMP TT24_C               \ Call TT24 to calculate system data from the seeds in
+ JMP TT24               \ Call TT24 to calculate system data from the seeds in
                         \ QQ15 and store them in the relevant locations, so our
                         \ new selected system is fully set up, and return from
                         \ the subroutine using a tail call
@@ -26717,9 +26723,9 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.dockEd_C
+.dockEd
 
- JSR x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+ JSR CLYNS              \ Clear the bottom three text rows of the upper screen,
                         \ and move the text cursor to the first cleared row
 
  LDA #15                \ Move the text cursor to column 15 (the middle of the
@@ -26730,7 +26736,7 @@ ENDMACRO
  STA COL                \ or red in the chart view
 
  LDA #205               \ Print extended token 205 ("DOCKED") and return from
- JMP DETOK_C              \ the subroutine using a tail call
+ JMP DETOK              \ the subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -26766,10 +26772,10 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.hyp_C
+.hyp
 
  LDA QQ12               \ If we are docked (QQ12 = &FF) then jump to dockEd to
- BNE dockEd_C             \ print an error message and return from the subroutine
+ BNE dockEd             \ print an error message and return from the subroutine
                         \ using a tail call (as we can't hyperspace when docked)
 
  LDA QQ22+1             \ Fetch QQ22+1, which contains the number that's shown
@@ -26784,19 +26790,19 @@ ENDMACRO
 
 IF _SNG47
 
- JSR x4_CTRL               \ Scan the keyboard to see if CTRL is currently pressed
+ JSR CTRL               \ Scan the keyboard to see if CTRL is currently pressed
 
 ELIF _COMPACT
 
- JSR x4_CTRLmc             \ Scan the keyboard to see if CTRL is currently pressed
+ JSR CTRLmc             \ Scan the keyboard to see if CTRL is currently pressed
 
 ENDIF
 
- BMI Ghy_C                \ If it is, then the galactic hyperdrive has been
+ BMI Ghy                \ If it is, then the galactic hyperdrive has been
                         \ activated, so jump to Ghy to process it
 
  LDA QQ11               \ If the current view is 0 (i.e. the space view) then
- BEQ TTX110_C             \ jump to TTX110, which calls TT111 to set the current
+ BEQ TTX110             \ jump to TTX110, which calls TT111 to set the current
                         \ system to the nearest system to (QQ9, QQ10), and jumps
                         \ back into this routine at TTX111 below
 
@@ -26807,10 +26813,10 @@ ENDIF
  RTS                    \ This is not a chart view, so return from the
                         \ subroutine
 
- JSR hm_C                 \ This is a chart view, so call hm to redraw the chart
+ JSR hm                 \ This is a chart view, so call hm to redraw the chart
                         \ crosshairs
 
-.TTX111_C
+.TTX111
 
                         \ If we get here then the current view is either the
                         \ space view or a chart
@@ -26825,14 +26831,14 @@ ENDIF
  LDX #5                 \ We now want to copy those seeds into safehouse, so we
                         \ so set a counter in X to copy 6 bytes
 
-.sob_C
+.sob
 
  LDA QQ15,X             \ Copy the X-th byte of QQ15 into the X-th byte of
  STA safehouse,X        \ safehouse
 
  DEX                    \ Decrement the loop counter
 
- BPL sob_C                \ Loop back to copy the next byte until we have copied
+ BPL sob                \ Loop back to copy the next byte until we have copied
                         \ all six seed bytes
 
  LDA #7                 \ Move the text cursor to column 7, row 22 (in the
@@ -26844,10 +26850,10 @@ ENDIF
  STA QQ17
 
  LDA #189               \ Print recursive token 29 ("HYPERSPACE ")
- JSR TT27_C
+ JSR TT27
 
  LDA QQ8+1              \ If the high byte of the distance to the selected
- BNE goTT147_C            \ system in QQ8 is > 0, then it is definitely too far to
+ BNE goTT147            \ system in QQ8 is > 0, then it is definitely too far to
                         \ jump (as our maximum range is 7.0 light years, or a
                         \ value of 70 in QQ8(1 0)), so jump to TT147 via goTT147
                         \ to print "RANGE?" and return from the subroutine using
@@ -26860,16 +26866,16 @@ ENDIF
                         \ fuel for this jump, so skip the following instruction
                         \ to start the hyperspace countdown
 
-.goTT147_C
+.goTT147
 
- JMP TT147_C              \ We don't have enough fuel to reach the destination, so
+ JMP TT147              \ We don't have enough fuel to reach the destination, so
                         \ jump to TT147 to print "RANGE?" and return from the
                         \ subroutine using a tail call
 
  LDA #'-'               \ Print a hyphen
- JSR TT27_C
+ JSR TT27
 
- JSR cpl_C                \ Call cpl to print the name of the selected system
+ JSR cpl                \ Call cpl to print the name of the selected system
 
                         \ Fall through into wW to start the hyperspace countdown
 
@@ -26895,12 +26901,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.wW_C
+.wW
 
  LDA #15                \ The hyperspace countdown starts from 15, so set A to
                         \ 15 so we can set the two hyperspace counters
 
-.wW2_C
+.wW2
 
  STA QQ22+1             \ Set the number in QQ22+1 to A, which is the number
                         \ that's shown on-screen during the hyperspace countdown
@@ -26913,7 +26919,7 @@ ENDIF
                         \ of the hyperspace counter longer than subsequent ticks
 
  TAX                    \ Print the 8-bit number in X (i.e. 15) at text location
- JMP ee3_C                \ (0, 1), padded to 5 digits, so it appears in the top
+ JMP ee3                \ (0, 1), padded to 5 digits, so it appears in the top
                         \ left corner of the screen, and return from the
                         \ subroutine using a tail call
 
@@ -26927,16 +26933,16 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TTX110_C
+.TTX110
 
                         \ This routine is only called from the hyp routine, and
                         \ it jumps back into hyp at label TTX111
 
- JSR TT111_C              \ Call TT111 to set the current system to the nearest
+ JSR TT111              \ Call TT111 to set the current system to the nearest
                         \ system to (QQ9, QQ10), and put the seeds of the
                         \ nearest system into QQ15 to QQ15+5
 
- JMP TTX111_C             \ Return to TTX111 in the hyp routine
+ JMP TTX111             \ Return to TTX111 in the hyp routine
 
 \ ******************************************************************************
 \
@@ -26973,10 +26979,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.Ghy_C
+.Ghy
 
  LDX GHYP               \ Fetch GHYP, which tells us whether we own a galactic
- BEQ zZ_C+1               \ hyperdrive, and if it is zero, which means we don't,
+ BEQ zZ+1               \ hyperdrive, and if it is zero, which means we don't,
                         \ return from the subroutine (as zZ+1 contains an RTS)
 
  INX                    \ We own a galactic hyperdrive, so X is &FF, so this
@@ -26992,7 +26998,7 @@ ENDIF
                         \ set our legal status in FIST to 0 ("clean")
 
  LDA #2                 \ Call wW2 with A = 2 to start the hyperspace countdown,
- JSR wW2_C                \ but starting the countdown from 2
+ JSR wW2                \ but starting the countdown from 2
 
  LDX #5                 \ To move galaxy, we rotate the galaxy's seeds left, so
                         \ set a counter in X for the 6 seed bytes
@@ -27010,7 +27016,7 @@ ENDIF
                         \ system description override, so something is going on
                         \ here...)
 
-.G1_C
+.G1
 
  LDA QQ21,X             \ Load the X-th seed byte into A
 
@@ -27021,7 +27027,7 @@ ENDIF
 
  DEX                    \ Decrement the counter
 
- BPL G1_C                 \ Loop back for the next seed byte, until we have
+ BPL G1                 \ Loop back for the next seed byte, until we have
                         \ rotated them all
 
 \JSR DORND              \ This instruction is commented out in the original
@@ -27029,15 +27035,15 @@ ENDIF
                         \ perhaps the original plan was to arrive in each new
                         \ galaxy in a random place?
 
-.zZ_C
+.zZ
 
  LDA #96                \ Set (QQ9, QQ10) to (96, 96), which is where we always
  STA QQ9                \ arrive in a new galaxy (the selected system will be
  STA QQ10               \ set to the nearest actual system later on)
 
- JSR TT110_C              \ Call TT110 to show the front space view
+ JSR TT110              \ Call TT110 to show the front space view
 
- JSR TT111_C              \ Call TT111 to set the current system to the nearest
+ JSR TT111              \ Call TT111 to set the current system to the nearest
                         \ system to (QQ9, QQ10), and put the seeds of the
                         \ nearest system into QQ15 to QQ15+5
                         \
@@ -27054,14 +27060,14 @@ ENDIF
  LDX #5                 \ We now want to copy those seeds into safehouse, so we
                         \ so set a counter in X to copy 6 bytes
 
-.dumdeedum_C
+.dumdeedum
 
  LDA QQ15,X             \ Copy the X-th byte of QQ15 into the X-th byte of
  STA safehouse,X        \ safehouse
 
  DEX                    \ Decrement the loop counter
 
- BPL dumdeedum_C          \ Loop back to copy the next byte until we have copied
+ BPL dumdeedum          \ Loop back to copy the next byte until we have copied
                         \ all six seed bytes
 
  LDX #0                 \ Set the distance to the selected system in QQ8(1 0)
@@ -27069,7 +27075,7 @@ ENDIF
  STX QQ8+1
 
  LDA #116               \ Print recursive token 116 (GALACTIC HYPERSPACE ")
- JSR MESS_C               \ as an in-flight message
+ JSR MESS               \ as an in-flight message
 
                         \ Fall through into jmp to set the system to the
                         \ current system and return from the subroutine there
@@ -27096,7 +27102,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.jmp_C
+.jmp
 
  LDA QQ9                \ Set the current system's galactic x-coordinate to the
  STA QQ0                \ x-coordinate of the selected system
@@ -27104,7 +27110,7 @@ ENDIF
  LDA QQ10               \ Set the current system's galactic y-coordinate to the
  STA QQ1                \ y-coordinate of the selected system
 
-.hy5_C
+.hy5
 
  RTS                    \ Return from the subroutine
 
@@ -27129,7 +27135,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ee3_C
+.ee3
 
  LDA #RED               \ Switch to colour 2, which is red in the space view
  STA COL
@@ -27143,7 +27149,7 @@ ENDIF
 
  CLC                    \ Call TT11 to print X to 3 digits with no decimal point
  LDA #3                 \ and return from the subroutine using a tail call
- JMP TT11_C
+ JMP TT11
 
 \ ******************************************************************************
 \
@@ -27169,7 +27175,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.pr6_C
+.pr6
 
  CLC                    \ Do not display a decimal point when printing
 
@@ -27201,11 +27207,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.pr5_C
+.pr5
 
  LDA #5                 \ Set the number of digits to print to 5
 
- JMP TT11_C               \ Call TT11 to print (Y X) to 5 digits and return from
+ JMP TT11               \ Call TT11 to print (Y X) to 5 digits and return from
                         \ the subroutine using a tail call
 
 \ ******************************************************************************
@@ -27222,7 +27228,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT147_C
+.TT147
 
  LDA #202               \ Load A with token 42 ("RANGE") and fall through into
                         \ prq to print it, followed by a question mark
@@ -27249,12 +27255,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.prq_C
+.prq
 
- JSR TT27_C               \ Print the text token in A
+ JSR TT27               \ Print the text token in A
 
  LDA #'?'               \ Print a question mark and return from the
- JMP TT27_C               \ subroutine using a tail call
+ JMP TT27               \ subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -27285,7 +27291,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT151q_C
+.TT151q
 
                         \ We jump here from below if we are in witchspace
 
@@ -27293,7 +27299,7 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-.TT151_C
+.TT151
 
  PHA                    \ Store the item number on the stack and in QQ19+4
  STA QQ19+4
@@ -27303,15 +27309,15 @@ ENDIF
  STA QQ19               \ item (as there are four bytes per item in the table)
 
  LDA MJ                 \ If we are in witchspace, we can't trade items, so jump
- BNE TT151q_C             \ up to TT151q to return from the subroutine
+ BNE TT151q             \ up to TT151q to return from the subroutine
 
  LDA #1                 \ Move the text cursor to column 1, for the item's name
- JSR DOXC_C
+ JSR DOXC
 
  PLA                    \ Restore the item number
 
  ADC #208               \ Print recursive token 48 + A, which will be in the
- JSR TT27_C               \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
+ JSR TT27               \ range 48 ("FOOD") to 64 ("ALIEN ITEMS"), so this
                         \ prints the item's name
 
  LDA #14                \ Move the text cursor to column 14, for the price
@@ -27332,14 +27338,14 @@ ENDIF
  STA QQ24               \
                         \   A = base_price + (random AND mask)
 
- JSR TT152_C              \ Call TT152 to print the item's unit ("t", "kg" or
+ JSR TT152              \ Call TT152 to print the item's unit ("t", "kg" or
                         \ "g"), padded to a width of two characters
 
- JSR var_C                \ Call var to set QQ19+3 = economy * |economic_factor|
+ JSR var                \ Call var to set QQ19+3 = economy * |economic_factor|
                         \ (and set the availability of alien items to 0)
 
  LDA QQ19+1             \ Fetch the byte #1 that we stored above and jump to
- BMI TT155_C              \ TT155 if it is negative (i.e. if the economic_factor
+ BMI TT155              \ TT155 if it is negative (i.e. if the economic_factor
                         \ is negative)
 
  LDA QQ24               \ Set A = QQ24 + QQ19+3
@@ -27350,9 +27356,9 @@ ENDIF
                         \ which is the result we want, as the economic_factor
                         \ is positive
 
- JMP TT156_C              \ Jump to TT156 to multiply the result by 4
+ JMP TT156              \ Jump to TT156 to multiply the result by 4
 
-.TT155_C
+.TT155
 
  LDA QQ24               \ Set A = QQ24 - QQ19+3
  SEC                    \
@@ -27362,16 +27368,16 @@ ENDIF
                         \ which is the result we want, as economic_factor
                         \ is negative
 
-.TT156_C
+.TT156
 
  STA QQ24               \ Store the result in QQ24 and P
  STA P
 
  LDA #0                 \ Set A = 0 and call GC2 to calculate (Y X) = (A P) * 4,
- JSR GC2_C                \ which is the same as (Y X) = P * 4 because A = 0
+ JSR GC2                \ which is the same as (Y X) = P * 4 because A = 0
 
  SEC                    \ We now have our final price, * 10, so we can call pr5
- JSR pr5_C                \ to print (Y X) to 5 digits, including a decimal
+ JSR pr5                \ to print (Y X) to 5 digits, including a decimal
                         \ point, as the C flag is set
 
  LDY QQ19+4             \ We now move on to availability, so fetch the market
@@ -27387,27 +27393,27 @@ ENDIF
 
  CLC                    \ Clear the C flag
 
- BEQ TT172_C              \ If none are available, jump to TT172 to print a tab
+ BEQ TT172              \ If none are available, jump to TT172 to print a tab
                         \ and a "-"
 
- JSR pr2_C+2              \ Otherwise print the 8-bit number in X to 5 digits,
+ JSR pr2+2              \ Otherwise print the 8-bit number in X to 5 digits,
                         \ right-aligned with spaces. This works because we set
                         \ A to 5 above, and we jump into the pr2 routine just
                         \ after the first instruction, which would normally
                         \ set the number of digits to 3
 
- JMP TT152_C              \ Print the unit ("t", "kg" or "g") for the market item,
+ JMP TT152              \ Print the unit ("t", "kg" or "g") for the market item,
                         \ with a following space if required to make it two
                         \ characters long, and return from the subroutine using
                         \ a tail call
 
-.TT172_C
+.TT172
 
  LDA #25                \ Move the text cursor to column 25
- JSR DOXC_C
+ JSR DOXC
 
  LDA #'-'               \ Print a "-" character by jumping to TT162+2, which
- BNE TT162_C+2            \ contains JMP TT27 (this BNE is effectively a JMP as A
+ BNE TT162+2            \ contains JMP TT27 (this BNE is effectively a JMP as A
                         \ will never be zero), and return from the subroutine
                         \ using a tail call
 
@@ -27427,19 +27433,19 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT152_C
+.TT152
 
  LDA QQ19+1             \ Fetch the economic_factor from QQ19+1
 
  AND #96                \ If bits 5 and 6 are both clear, jump to TT160 to
- BEQ TT160_C              \ print "t" for tonne, followed by a space, and return
+ BEQ TT160              \ print "t" for tonne, followed by a space, and return
                         \ from the subroutine using a tail call
 
  CMP #32                \ If bit 5 is set, jump to TT161 to print "kg" for
- BEQ TT161_C              \ kilograms, and return from the subroutine using a tail
+ BEQ TT161              \ kilograms, and return from the subroutine using a tail
                         \ call
 
- JSR TT16a_C              \ Otherwise call TT16a to print "g" for grams, and fall
+ JSR TT16a              \ Otherwise call TT16a to print "g" for grams, and fall
                         \ through into TT162 to print a space and return from
                         \ the subroutine
 
@@ -27459,11 +27465,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT162_C
+.TT162
 
  LDA #' '               \ Load a space character into A
 
- JMP TT27_C               \ Print the text token in A and return from the
+ JMP TT27               \ Print the text token in A and return from the
                         \ subroutine using a tail call
 
 \ ******************************************************************************
@@ -27476,14 +27482,14 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT160_C
+.TT160
 
  LDA #'t'               \ Load a "t" character into A
 
- JSR x4_TT26               \ Print the character, using TT216 so that it doesn't
+ JSR TT26               \ Print the character, using TT216 so that it doesn't
                         \ change the character case
 
- BCC TT162_C              \ Jump to TT162 to print a space and return from the
+ BCC TT162              \ Jump to TT162 to print a space and return from the
                         \ subroutine using a tail call (this BCC is effectively
                         \ a JMP as the C flag is cleared by TT26)
 
@@ -27497,11 +27503,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT161_C
+.TT161
 
  LDA #'k'               \ Load a "k" character into A
 
- JSR x4_TT26               \ Print the character, using TT216 so that it doesn't
+ JSR TT26               \ Print the character, using TT216 so that it doesn't
                         \ change the character case, and fall through into
                         \ TT16a to print a "g" character
 
@@ -27515,11 +27521,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT16a_C
+.TT16a
 
  LDA #'g'               \ Load a "g" character into A
 
- JMP x4_TT26               \ Print the character, using TT216 so that it doesn't
+ JMP TT26               \ Print the character, using TT216 so that it doesn't
                         \ change the character case, and return from the
                         \ subroutine using a tail call
 
@@ -27538,13 +27544,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT163_C
+.TT163
 
  LDA #17                \ Move the text cursor in XC to column 17
- JSR DOXC_C
+ JSR DOXC
 
  LDA #255               \ Print recursive token 95 token ("UNIT  QUANTITY
- BNE TT162_C+2            \ {crlf} PRODUCT   UNIT PRICE FOR SALE{crlf}{lf}") by
+ BNE TT162+2            \ {crlf} PRODUCT   UNIT PRICE FOR SALE{crlf}{lf}") by
                         \ jumping to TT162+2, which contains JMP TT27 (this BNE
                         \ is effectively a JMP as A will never be zero), and
                         \ return from the subroutine using a tail call
@@ -27559,23 +27565,23 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT167_C
+.TT167
 
  LDA #16                \ Clear the top part of the screen, draw a border box,
- JSR TRADEMODE_C          \ and set up a trading screen with a view type in QQ11
+ JSR TRADEMODE          \ and set up a trading screen with a view type in QQ11
                         \ of 32 (Market Price screen)
 
  LDA #5                 \ Move the text cursor to column 5
  STA XC
 
  LDA #167               \ Print recursive token 7 ("{current system name} MARKET
- JSR NLIN3_C              \ PRICES") and draw a horizontal line at pixel row 19
+ JSR NLIN3              \ PRICES") and draw a horizontal line at pixel row 19
                         \ to box in the title
 
  LDA #3                 \ Move the text cursor to row 3
  STA YC
 
- JSR TT163_C              \ Print the column headers for the prices table
+ JSR TT163              \ Print the column headers for the prices table
 
  LDA #6                 \ Move the text cursor to row 6
  STA YC
@@ -27584,12 +27590,12 @@ ENDIF
  STA QQ29               \ items, so we set up a counter in QQ29 to denote the
                         \ current item and start it at 0
 
-.TT168_C
+.TT168
 
  LDX #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case, with the
  STX QQ17               \ next letter in capitals
 
- JSR TT151_C              \ Call TT151 to print the item name, market price and
+ JSR TT151              \ Call TT151 to print the item name, market price and
                         \ availability of the current item, and set QQ24 to the
                         \ item's price / 4, QQ25 to the quantity available and
                         \ QQ19+1 to byte #1 from the market prices table for
@@ -27601,7 +27607,7 @@ ENDIF
 
  LDA QQ29               \ If QQ29 >= 17 then jump to TT168 as we have done the
  CMP #17                \ last item
- BCC TT168_C
+ BCC TT168
 
  RTS                    \ Return from the subroutine
 
@@ -27631,7 +27637,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.var_C
+.var
 
  LDA QQ19+1             \ Extract bits 0-5 from QQ19+1 into A, to get the
  AND #31                \ economic_factor without its sign, in other words:
@@ -27647,7 +27653,7 @@ ENDIF
  LDA #0                 \ Set AVL+16 (availability of alien items) to 0,
  STA AVL+16             \ setting A to 0 in the process
 
-.TT153_C
+.TT153
 
                         \ We now do the multiplication by doing a series of
                         \ additions in a loop, building the result in A. Each
@@ -27658,13 +27664,13 @@ ENDIF
                         \   A = economy * |economic_factor|
 
  DEY                    \ Decrement the economy in Y, exiting the loop when it
- BMI TT154_C              \ becomes negative
+ BMI TT154              \ becomes negative
 
  ADC QQ19+2             \ Add QQ19+2 to A
 
- JMP TT153_C              \ Loop back to TT153 to do another addition
+ JMP TT153              \ Loop back to TT153 to do another addition
 
-.TT154_C
+.TT154
 
  STA QQ19+3             \ Store the result in QQ19+3
 
@@ -27709,26 +27715,26 @@ ENDIF
 \
 \ ******************************************************************************
 
-.hyp1_C
+.hyp1
 
                         \ Port: JSR TT111 removed (unreachable: hyp1 is only
-                        \ ever called as hyp1+3, now hyp1_C)
+                        \ ever called as hyp1+3)
 
- JSR jmp_C                \ Set the current system to the selected system
+ JSR jmp                \ Set the current system to the selected system
 
  LDX #5                 \ We now want to copy the seeds for the selected system
                         \ in QQ15 into QQ2, where we store the seeds for the
                         \ current system, so set up a counter in X for copying
                         \ 6 bytes (for three 16-bit seeds)
 
-.TT112_C
+.TT112
 
  LDA safehouse,X        \ Copy the X-th byte in safehouse to the X-th byte in
  STA QQ2,X              \ QQ2
 
  DEX                    \ Decrement the counter
 
- BPL TT112_C              \ Loop back to TT112 if we still have more bytes to
+ BPL TT112              \ Loop back to TT112 if we still have more bytes to
                         \ copy
 
  INX                    \ Set X = 0 (as we ended the above loop with X = &FF)
@@ -27772,9 +27778,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.GVL_C
+.GVL
 
- JSR x4_DORND              \ Set A and X to random numbers
+ JSR DORND              \ Set A and X to random numbers
 
  STA QQ26               \ Set QQ26 to the random byte that's used in the market
                         \ calculations
@@ -27783,13 +27789,13 @@ ENDIF
  STX XX4                \ availability table in AVL, so set a counter in XX4
                         \ (and X) for the market item number, starting with 0
 
-.hy9_C
+.hy9
 
  LDA QQ23+1,X           \ Fetch byte #1 from the market prices table (units and
  STA QQ19+1             \ economic_factor) for item number X and store it in
                         \ QQ19+1
 
- JSR var_C                \ Call var to set QQ19+3 = economy * |economic_factor|
+ JSR var                \ Call var to set QQ19+3 = economy * |economic_factor|
                         \ (and set the availability of alien items to 0)
 
  LDA QQ23+3,X           \ Fetch byte #3 from the market prices table (mask) and
@@ -27804,7 +27810,7 @@ ENDIF
                         \   A = base_quantity + (random AND mask)
 
  LDY QQ19+1             \ Fetch the byte #1 that we stored above and jump to
- BMI TT157_C              \ TT157 if it is negative (i.e. if the economic_factor
+ BMI TT157              \ TT157 if it is negative (i.e. if the economic_factor
                         \ is negative)
 
  SEC                    \ Set A = A - QQ19+3
@@ -27815,9 +27821,9 @@ ENDIF
                         \ which is the result we want, as the economic_factor
                         \ is positive
 
- JMP TT158_C              \ Jump to TT158 to skip TT157
+ JMP TT158              \ Jump to TT158 to skip TT157
 
-.TT157_C
+.TT157
 
  CLC                    \ Set A = A + QQ19+3
  ADC QQ19+3             \
@@ -27827,12 +27833,12 @@ ENDIF
                         \ which is the result we want, as the economic_factor
                         \ is negative
 
-.TT158_C
+.TT158
 
- BPL TT159_C              \ If A < 0, then set A = 0, so we don't have negative
+ BPL TT159              \ If A < 0, then set A = 0, so we don't have negative
  LDA #0                 \ availability
 
-.TT159_C
+.TT159
 
  LDY XX4                \ Fetch the counter (the market item number) into Y
 
@@ -27849,9 +27855,9 @@ ENDIF
  TAX                    \ ready for the next loop
 
  CMP #63                \ If A < 63, jump back up to hy9 to set the availability
- BCC hy9_C                \ for the next market item
+ BCC hy9                \ for the next market item
 
-.hyR_C
+.hyR
 
  RTS                    \ Return from the subroutine
 
@@ -27867,9 +27873,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.GTHG_C
+.GTHG
 
- JSR Ze_C                 \ Call Ze to initialise INWK to a fairly aggressive
+ JSR Ze                 \ Call Ze to initialise INWK to a fairly aggressive
                         \ ship (though we increase this below)
                         \
                         \ Note that because Ze uses the value of X returned by
@@ -27881,10 +27887,10 @@ ENDIF
  STA INWK+32            \ an aggression level of 63 out of 63, and E.C.M.
 
  LDA #THG               \ Call NWSHP to add a new Thargoid ship to our local
- JSR x4_NWSHP              \ bubble of universe
+ JSR NWSHP              \ bubble of universe
 
  LDA #TGL               \ Call NWSHP to add a new Thargon ship to our local
- JMP x4_NWSHP              \ bubble of universe, and return from the subroutine
+ JMP NWSHP              \ bubble of universe, and return from the subroutine
                         \ using a tail call
 
 \ ******************************************************************************
@@ -27917,45 +27923,45 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ptg_C
+.ptg
 
  LSR COK                \ Set bit 0 of the competition flags in COK, so that the
  SEC                    \ competition code will include the fact that we have
  ROL COK                \ manually forced a mis-jump into witchspace
 
-.MJP_C
+.MJP
 
 \JSR CATLOD             \ This instruction is commented out in the original
                         \ source
 
  LDA #3                 \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 3
+ JSR TT66               \ and set the current view type in QQ11 to 3
 
- JSR LL164_C              \ Call LL164 to show the hyperspace tunnel and make the
+ JSR LL164              \ Call LL164 to show the hyperspace tunnel and make the
                         \ hyperspace sound for a second time (as we already
                         \ called LL164 in TT18)
 
- JSR RES2_C               \ Reset a number of flight variables and workspaces, as
+ JSR RES2               \ Reset a number of flight variables and workspaces, as
                         \ well as setting Y to &FF
 
  STY MJ                 \ Set the mis-jump flag in MJ to &FF, to indicate that
                         \ we are now in witchspace
 
-.MJP1_C
+.MJP1
 
- JSR GTHG_C               \ Call GTHG to spawn a Thargoid ship and a Thargon
+ JSR GTHG               \ Call GTHG to spawn a Thargoid ship and a Thargon
                         \ companion
 
  LDA #2                 \ Fetch the number of Thargoid ships from MANY+THG, and
  CMP MANY+THG           \ if it is less than or equal to 2, loop back to MJP1 to
- BCS MJP1_C               \ spawn another one, until we have three Thargoids
+ BCS MJP1               \ spawn another one, until we have three Thargoids
 
  STA NOSTM              \ Set NOSTM (the maximum number of stardust particles)
                         \ to 3, so there are fewer bits of stardust in
                         \ witchspace (normal space has a maximum of 18)
 
  LDX #0                 \ Initialise the front space view
- JSR x4_LOOK1
+ JSR LOOK1
 
  LDA QQ1                \ Fetch the current system's galactic y-coordinate in
  EOR #%00011111         \ QQ1 and flip bits 0-5, so we end up somewhere in the
@@ -27964,7 +27970,7 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-.RTS111_C
+.RTS111
 
  RTS                    \ Return from the subroutine
 
@@ -27983,7 +27989,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT18_C
+.TT18
 
  LDA QQ14               \ Subtract the distance to the selected system (in QQ8)
  SEC                    \ from the amount of fuel in our tank (in QQ14) into A
@@ -27998,25 +28004,25 @@ ENDIF
  STA QQ14               \ Store the updated fuel amount in QQ14
 
  LDA QQ11               \ If the current view is not a space view, jump to ee5
- BNE ee5_C                \ to skip the following
+ BNE ee5                \ to skip the following
 
- JSR TT66_C               \ Clear the top part of the screen, draw a border box,
+ JSR TT66               \ Clear the top part of the screen, draw a border box,
                         \ and set the current view type in QQ11 to 0 (space
                         \ view)
 
- JSR LL164_C              \ Call LL164 to show the hyperspace tunnel and make the
+ JSR LL164              \ Call LL164 to show the hyperspace tunnel and make the
                         \ hyperspace sound
 
-.ee5_C
+.ee5
 
 IF _SNG47
 
- JSR x4_CTRL               \ Scan the keyboard to see if CTRL is currently pressed,
+ JSR CTRL               \ Scan the keyboard to see if CTRL is currently pressed,
                         \ returning a negative value in A if it is
 
 ELIF _COMPACT
 
- JSR x4_CTRLmc             \ Scan the keyboard to see if CTRL is currently pressed,
+ JSR CTRLmc             \ Scan the keyboard to see if CTRL is currently pressed,
                         \ returning a negative value in A if it is
 
 ENDIF
@@ -28025,7 +28031,7 @@ ENDIF
                         \ on the start-up screen, then PATG will contain &FF,
                         \ otherwise it will be 0
 
- BMI ptg_C                \ By now, A will be negative if we are holding down CTRL
+ BMI ptg                \ By now, A will be negative if we are holding down CTRL
                         \ and author names are configured, which is what we have
                         \ to do in order to trigger a manual mis-jump, so jump
                         \ to ptg to do a mis-jump (ptg not only mis-jumps, but
@@ -28033,23 +28039,23 @@ ENDIF
                         \ from the competition code whether this feature had
                         \ been used)
 
- JSR x4_DORND              \ Set A and X to random numbers
+ JSR DORND              \ Set A and X to random numbers
 
  CMP #253               \ If A >= 253 (0.78% chance) then jump to MJP to trigger
- BCS MJP_C                \ a mis-jump into witchspace
+ BCS MJP                \ a mis-jump into witchspace
 
 \JSR TT111              \ This instruction is commented out in the original
                         \ source. It finds the closest system to coordinates
                         \ (QQ9, QQ10), but we don't need to do this as the
                         \ crosshairs will already be on a system by this point
 
- JSR hyp1_C             \ Jump straight to the system at (QQ9, QQ10) without
+ JSR hyp1               \ Jump straight to the system at (QQ9, QQ10) without
                         \ first calculating which system is closest (Port:
                         \ hyp1+3 in the original, as hyp1's JSR TT111 is gone)
 
- JSR RES2_C               \ Reset a number of flight variables and workspaces
+ JSR RES2               \ Reset a number of flight variables and workspaces
 
- JSR SOLAR_C              \ Halve our legal status, update the missile indicators,
+ JSR SOLAR              \ Halve our legal status, update the missile indicators,
                         \ and set up data blocks and slots for the planet and
                         \ sun
 
@@ -28059,12 +28065,12 @@ ENDIF
 
  LDA QQ11               \ If the current view in QQ11 is not a space view (0) or
  AND #%00111111         \ one of the charts (64 or 128), return from the
- BNE RTS111_C             \ subroutine (as RTS111 contains an RTS)
+ BNE RTS111             \ subroutine (as RTS111 contains an RTS)
 
- JSR x4_TTX66              \ Otherwise clear the screen and draw a border box
+ JSR TTX66              \ Otherwise clear the screen and draw a border box
 
  LDA QQ11               \ If the current view is one of the charts, jump to
- BNE TT114_C              \ TT114 (from which we jump to the correct routine to
+ BNE TT114              \ TT114 (from which we jump to the correct routine to
                         \ display the chart)
 
  INC QQ11               \ This is a space view, so increment QQ11 to 1
@@ -28089,23 +28095,23 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT110_C
+.TT110
 
  LDX QQ12               \ If we are not docked (QQ12 = 0) then jump to NLUNCH
- BEQ NLUNCH_C             \ to skip the launch tunnel and setup process
+ BEQ NLUNCH             \ to skip the launch tunnel and setup process
 
- JSR LAUN_C               \ Show the space station launch tunnel
+ JSR LAUN               \ Show the space station launch tunnel
 
- JSR RES2_C               \ Reset a number of flight variables and workspaces
+ JSR RES2               \ Reset a number of flight variables and workspaces
 
- JSR TT111_C              \ Select the system closest to galactic coordinates
+ JSR TT111              \ Select the system closest to galactic coordinates
                         \ (QQ9, QQ10)
 
  INC INWK+8             \ Increment z_sign ready for the call to SOS, so the
                         \ planet appears at a z_sign of 1 in front of us when
                         \ we launch
 
- JSR SOS1_C               \ Call SOS1 to set up the planet's data block and add it
+ JSR SOS1               \ Call SOS1 to set up the planet's data block and add it
                         \ to FRIN, where it will get put in the first slot as
                         \ it's the first one to be added to our local bubble of
                         \ universe following the call to RES2 above
@@ -28115,13 +28121,13 @@ ENDIF
 
  INC INWK+7             \ And increment z_hi, so it's only just behind us
 
- JSR x4_NWSPS              \ Add a new space station to our local bubble of
+ JSR NWSPS              \ Add a new space station to our local bubble of
                         \ universe
 
  LDA #12                \ Set our launch speed in DELTA to 12
  STA DELTA
 
- JSR BAD_C                \ Call BAD to work out how much illegal contraband we
+ JSR BAD                \ Call BAD to work out how much illegal contraband we
                         \ are carrying in our hold (A is up to 40 for a
                         \ standard hold crammed with contraband, up to 70 for
                         \ an extended cargo hold full of narcotics and slaves)
@@ -28136,15 +28142,15 @@ ENDIF
  LDA #255               \ Set the view type in QQ11 to 255
  STA QQ11
 
- JSR HFS1_C               \ Call HFS1 to draw 8 concentric rings to remove the
+ JSR HFS1               \ Call HFS1 to draw 8 concentric rings to remove the
                         \ launch tunnel that we drew above
 
-.NLUNCH_C
+.NLUNCH
 
  LDX #0                 \ Set QQ12 to 0 to indicate we are not docked
  STX QQ12
 
- JMP x4_LOOK1              \ Jump to LOOK1 to switch to the front view (X = 0),
+ JMP LOOK1              \ Jump to LOOK1 to switch to the front view (X = 0),
                         \ returning from the subroutine using a tail call
 
 \ ******************************************************************************
@@ -28169,18 +28175,18 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT114_C
+.TT114
 
- BMI TT115_C              \ If bit 7 of the current view is set (i.e. the view is
+ BMI TT115              \ If bit 7 of the current view is set (i.e. the view is
                         \ the Short-range Chart, 128), skip to TT115 below to
                         \ jump to TT23 to display the chart
 
- JMP TT22_C               \ Otherwise the current view is the Long-range Chart, so
+ JMP TT22               \ Otherwise the current view is the Long-range Chart, so
                         \ jump to TT22 to display it
 
-.TT115_C
+.TT115
 
- JMP TT23_C               \ Jump to TT23 to display the Short-range Chart
+ JMP TT23               \ Jump to TT23 to display the Short-range Chart
 
 \ ******************************************************************************
 \
@@ -28208,7 +28214,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.LCASH_C
+.LCASH
 
  STX T1                 \ Subtract the least significant bytes:
  LDA CASH+3             \
@@ -28229,7 +28235,7 @@ ENDIF
  SBC #0                 \
  STA CASH               \   CASH = CASH - 0
 
- BCS TT113_C              \ If the C flag is set then the subtraction didn't
+ BCS TT113              \ If the C flag is set then the subtraction didn't
                         \ underflow, so the value in CASH is correct and we can
                         \ jump to TT113 to return from the subroutine with the
                         \ C flag set to indicate success (as TT113 contains an
@@ -28263,7 +28269,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MCASH_C
+.MCASH
 
  TXA                    \ Add the least significant bytes:
  CLC                    \
@@ -28286,7 +28292,7 @@ ENDIF
                         \ a failed LCASH call, the C flag correctly indicates
                         \ failure
 
-.TT113_C
+.TT113
 
  RTS                    \ Return from the subroutine
 
@@ -28306,9 +28312,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.GCASH_C
+.GCASH
 
- JSR x4_MULTU              \ Call MULTU to calculate (A P) = P * Q
+ JSR MULTU              \ Call MULTU to calculate (A P) = P * Q
 
 \ ******************************************************************************
 \
@@ -28326,7 +28332,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.GC2_C
+.GC2
 
  ASL P                  \ Set (A P) = (A P) * 4
  ROL A
@@ -28361,25 +28367,25 @@ ENDIF
 \
 \ ******************************************************************************
 
-.bay_C
+.bay
 
- JMP BAY_C                \ Go to the docking bay (i.e. show the Status Mode
+ JMP BAY                \ Go to the docking bay (i.e. show the Status Mode
                         \ screen)
 
-.EQSHP_C
+.EQSHP
 
  LDA #32                \ Clear the top part of the screen, draw a border box,
- JSR TRADEMODE_C          \ and set up a printable trading screen with a view type
+ JSR TRADEMODE          \ and set up a printable trading screen with a view type
                         \ in QQ11 of 32 (Equip Ship screen)
 
  LDA #12                \ Move the text cursor to column 12
  STA XC
 
  LDA #207               \ Print recursive token 47 ("EQUIP") followed by a space
- JSR spc_C
+ JSR spc
 
  LDA #185               \ Print recursive token 25 ("SHIP") and draw a
- JSR NLIN3_C              \ horizontal line at pixel row 19 to box in the title
+ JSR NLIN3              \ horizontal line at pixel row 19 to box in the title
 
  LDA #%10000000         \ Set bit 7 of QQ17 to switch to Sentence Case, with the
  STA QQ17               \ next letter in capitals
@@ -28407,7 +28413,7 @@ ENDIF
  SBC QQ14               \ of fuel we need to fill 'er up (in light years * 10)
 
  ASL A                  \ The price of fuel is always 2 Cr per light year, so we
- STA PRXS_C               \ double A and store it in PRXS, as the first price in
+ STA PRXS               \ double A and store it in PRXS, as the first price in
                         \ the price list (which is reserved for fuel), and
                         \ because the table contains prices as price * 10, it's
                         \ in the right format (so tank containing 7.0 light
@@ -28420,25 +28426,25 @@ ENDIF
                         \ starting at 1, to hold the number of the current item
                         \ plus 1 (so the item number in X loops through 1-13)
 
-.EQL1_C
+.EQL1
 
  STX XX13               \ Store the current item number + 1 in XX13
 
- JSR TT67_C               \ Print a newline
+ JSR TT67               \ Print a newline
 
  LDX XX13               \ Print the current item number + 1 to 3 digits, left-
  CLC                    \ padding with spaces, and with no decimal point, so the
- JSR pr2_C                \ items are numbered from 1
+ JSR pr2                \ items are numbered from 1
 
- JSR TT162_C              \ Print a space
+ JSR TT162              \ Print a space
 
  LDA XX13               \ Print recursive token 104 + XX13, which will be in the
  CLC                    \ range 105 ("FUEL") to 116 ("GALACTIC HYPERSPACE ")
  ADC #104               \ so this prints the current item's name
- JSR TT27_C
+ JSR TT27
 
  LDA XX13               \ Call prx-3 to set (Y X) to the price of the item with
- JSR prx_C-3              \ number XX13 - 1 (as XX13 contains the item number + 1)
+ JSR prx-3              \ number XX13 - 1 (as XX13 contains the item number + 1)
 
  SEC                    \ Set the C flag so we will print a decimal point when
                         \ we print the price
@@ -28447,7 +28453,7 @@ ENDIF
  STA XC
 
  LDA #6                 \ Print the number in (Y X) to 6 digits, left-padding
- JSR TT11_C               \ with spaces and including a decimal point, which will
+ JSR TT11               \ with spaces and including a decimal point, which will
                         \ be the correct price for this item as (Y X) contains
                         \ the price * 10, so the trailing zero will go after the
                         \ decimal point (i.e. 5250 will be printed as 525.0)
@@ -28456,24 +28462,24 @@ ENDIF
  INX
 
  CPX Q                  \ If X < Q, loop back up to print the next item on the
- BCC EQL1_C               \ list of equipment available at this station
+ BCC EQL1               \ list of equipment available at this station
 
- JSR x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+ JSR CLYNS              \ Clear the bottom three text rows of the upper screen,
                         \ and move the text cursor to the first cleared row
 
  LDA #127               \ Print recursive token 127 ("ITEM") followed by a
- JSR prq_C                \ question mark
+ JSR prq                \ question mark
 
- JSR gnum_C               \ Call gnum to get a number from the keyboard, which
+ JSR gnum               \ Call gnum to get a number from the keyboard, which
                         \ will be the number of the item we want to purchase,
                         \ returning the number entered in A and R, and setting
                         \ the C flag if the number is bigger than the highest
                         \ item number in QQ25
 
- BEQ bay_C                \ If no number was entered, jump up to bay to go to the
+ BEQ bay                \ If no number was entered, jump up to bay to go to the
                         \ docking bay (i.e. show the Status Mode screen)
 
- BCS bay_C                \ If the number entered was too big, jump up to bay to
+ BCS bay                \ If the number entered was too big, jump up to bay to
                         \ go to the docking bay (i.e. show the Status Mode
                         \ screen)
 
@@ -28492,21 +28498,21 @@ ENDIF
  PLA                    \ Restore A from the stack
 
  PHA                    \ While preserving the value in A, call eq to subtract
- JSR eq_C                 \ the price of the item we want to buy (which is in A)
+ JSR eq                 \ the price of the item we want to buy (which is in A)
  PLA                    \ from our cash pot, but only if we have enough cash in
                         \ the pot. If we don't have enough cash, exit to the
                         \ docking bay (i.e. show the Status Mode screen)
 
- BNE et0_C                \ If A is not 0 (i.e. the item we've just bought is not
+ BNE et0                \ If A is not 0 (i.e. the item we've just bought is not
                         \ fuel), skip to et0
 
  LDX #70                \ Set the current fuel level * 10 in QQ14 to 70, or 7.0
  STX QQ14               \ light years (a full tank)
 
-.et0_C
+.et0
 
  CMP #1                 \ If A is not 1 (i.e. the item we've just bought is not
- BNE et1_C                \ a missile), skip to et1
+ BNE et1                \ a missile), skip to et1
 
  LDX NOMSL              \ Fetch the current number of missiles from NOMSL into X
 
@@ -28515,14 +28521,14 @@ ENDIF
  LDY #124               \ Set Y to recursive token 124 ("ALL")
 
  CPX #5                 \ If buying this missile would give us 5 missiles, this
- BCS pres_C               \ is more than the maximum of 4 missiles that we can
+ BCS pres               \ is more than the maximum of 4 missiles that we can
                         \ fit, so jump to pres to show the error "All Present",
                         \ beep and exit to the docking bay (i.e. show the Status
                         \ Mode screen)
 
  STX NOMSL              \ Otherwise update the number of missiles in NOMSL
 
- JSR x4_msblob             \ Reset the dashboard's missile indicators so none of
+ JSR msblob             \ Reset the dashboard's missile indicators so none of
                         \ them are targeted
 
  LDA #1                 \ Set A to 1 as the call to msblob will have overwritten
@@ -28530,32 +28536,32 @@ ENDIF
                         \ correctly so we can continue through the conditional
                         \ statements for all the other equipment
 
-.et1_C
+.et1
 
  LDY #107               \ Set Y to recursive token 107 ("LARGE CARGO{sentence
                         \ case} BAY")
 
  CMP #2                 \ If A is not 2 (i.e. the item we've just bought is not
- BNE et2_C                \ a large cargo bay), skip to et2
+ BNE et2                \ a large cargo bay), skip to et2
 
  LDX #37                \ If our current cargo capacity in CRGO is 37, then we
  CPX CRGO               \ already have a large cargo bay fitted, so jump to pres
- BEQ pres_C               \ to show the error "Large Cargo Bay Present", beep and
+ BEQ pres               \ to show the error "Large Cargo Bay Present", beep and
                         \ exit to the docking bay (i.e. show the Status Mode
                         \ screen)
 
  STX CRGO               \ Otherwise we just scored ourselves a large cargo bay,
                         \ so update our current cargo capacity in CRGO to 37
 
-.et2_C
+.et2
 
  CMP #3                 \ If A is not 3 (i.e. the item we've just bought is not
- BNE et3_C                \ an E.C.M. system), skip to et3
+ BNE et3                \ an E.C.M. system), skip to et3
 
  INY                    \ Increment Y to recursive token 108 ("E.C.M.SYSTEM")
 
  LDX ECM                \ If we already have an E.C.M. fitted (i.e. ECM is
- BNE pres_C               \ non-zero), jump to pres to show the error "E.C.M.
+ BNE pres               \ non-zero), jump to pres to show the error "E.C.M.
                         \ System Present", beep and exit to the docking bay
                         \ (i.e. show the Status Mode screen)
 
@@ -28563,17 +28569,17 @@ ENDIF
                         \ system, so set ECM to &FF (as ECM was 0 before the DEC
                         \ instruction)
 
-.et3_C
+.et3
 
  CMP #4                 \ If A is not 4 (i.e. the item we've just bought is not
- BNE et4_C                \ an extra pulse laser), skip to et4
+ BNE et4                \ an extra pulse laser), skip to et4
 
- JSR qv_C                 \ Print a menu listing the four views, with a "View ?"
+ JSR qv                 \ Print a menu listing the four views, with a "View ?"
                         \ prompt, and ask for a view number, which is returned
                         \ in X (which now contains 0-3)
 
  LDA #POW               \ Call refund with A set to the power of the new pulse
- JSR refund_C             \ laser to install the new laser and process a refund if
+ JSR refund             \ laser to install the new laser and process a refund if
                         \ we already have a laser fitted to this view
 
  LDA #4                 \ Set A to 4 as we just overwrote the original value,
@@ -28581,33 +28587,33 @@ ENDIF
                         \ through the conditional statements for all the other
                         \ equipment
 
-.et4_C
+.et4
 
  CMP #5                 \ If A is not 5 (i.e. the item we've just bought is not
- BNE et5_C                \ an extra beam laser), skip to et5
+ BNE et5                \ an extra beam laser), skip to et5
 
- JSR qv_C                 \ Print a menu listing the four views, with a "View ?"
+ JSR qv                 \ Print a menu listing the four views, with a "View ?"
                         \ prompt, and ask for a view number, which is returned
                         \ in X (which now contains 0-3)
 
  LDA #POW+128           \ Call refund with A set to the power of the new beam
- JSR refund_C             \ laser to install the new laser and process a refund if
+ JSR refund             \ laser to install the new laser and process a refund if
                         \ we already have a laser fitted to this view
 
-.et5_C
+.et5
 
  LDY #111               \ Set Y to recursive token 111 ("FUEL SCOOPS")
 
  CMP #6                 \ If A is not 6 (i.e. the item we've just bought is not
- BNE et6_C                \ a fuel scoop), skip to et6
+ BNE et6                \ a fuel scoop), skip to et6
 
  LDX BST                \ If we already have fuel scoops fitted (i.e. BST is
- BEQ ed9_C                \ zero), jump to ed9, otherwise fall through into pres
+ BEQ ed9                \ zero), jump to ed9, otherwise fall through into pres
                         \ to show the error "Fuel Scoops Present", beep and
                         \ exit to the docking bay (i.e. show the Status Mode
                         \ screen)
 
-.pres_C
+.pres
 
                         \ If we get here we need to show an error to say that
                         \ the item whose name is in recursive token Y is already
@@ -28616,88 +28622,88 @@ ENDIF
 
  STY K                  \ Store the item's name in K
 
- JSR prx_C                \ Call prx to set (Y X) to the price of equipment item
+ JSR prx                \ Call prx to set (Y X) to the price of equipment item
                         \ number A
 
- JSR MCASH_C              \ Add (Y X) cash to the cash pot in CASH, as the station
+ JSR MCASH              \ Add (Y X) cash to the cash pot in CASH, as the station
                         \ already took the money for this item in the JSR eq
                         \ instruction above, but we can't fit the item, so need
                         \ our money back
 
  LDA K                  \ Print the recursive token in K (the item's name)
- JSR spc_C                \ followed by a space
+ JSR spc                \ followed by a space
 
  LDA #31                \ Print recursive token 145 ("PRESENT")
- JSR TT27_C
+ JSR TT27
 
-.err_C
+.err
 
- JSR dn2_C                \ Call dn2 to make a short, high beep and delay for 1
+ JSR dn2                \ Call dn2 to make a short, high beep and delay for 1
                         \ second
 
- JMP BAY_C                \ Jump to BAY to go to the docking bay (i.e. show the
+ JMP BAY                \ Jump to BAY to go to the docking bay (i.e. show the
                         \ Status Mode screen)
 
-.ed9_C
+.ed9
 
  DEC BST                \ We just bought a shiny new fuel scoop, so set BST to
                         \ &FF (as BST was 0 before the jump to ed9 above)
 
-.et6_C
+.et6
 
  INY                    \ Increment Y to recursive token 112 ("E.C.M.SYSTEM")
 
  CMP #7                 \ If A is not 7 (i.e. the item we've just bought is not
- BNE et7_C                \ an escape pod), skip to et7
+ BNE et7                \ an escape pod), skip to et7
 
  LDX ESCP               \ If we already have an escape pod fitted (i.e. ESCP is
- BNE pres_C               \ non-zero), jump to pres to show the error "Escape Pod
+ BNE pres               \ non-zero), jump to pres to show the error "Escape Pod
                         \ Present", beep and exit to the docking bay (i.e. show
                         \ the Status Mode screen)
 
  DEC ESCP               \ Otherwise we just bought an escape pod, so set ESCP
                         \ to &FF (as ESCP was 0 before the DEC instruction)
 
-.et7_C
+.et7
 
  INY                    \ Increment Y to recursive token 113 ("ENERGY BOMB")
 
  CMP #8                 \ If A is not 8 (i.e. the item we've just bought is not
- BNE et8_C                \ an energy bomb), skip to et8
+ BNE et8                \ an energy bomb), skip to et8
 
  LDX BOMB               \ If we already have an energy bomb fitted (i.e. BOMB
- BNE pres_C               \ is non-zero), jump to pres to show the error "Energy
+ BNE pres               \ is non-zero), jump to pres to show the error "Energy
                         \ Bomb Present", beep and exit to the docking bay (i.e.
                         \ show the Status Mode screen)
 
  LDX #&7F               \ Otherwise we just bought an energy bomb, so set BOMB
  STX BOMB               \ to &7F
 
-.et8_C
+.et8
 
  INY                    \ Increment Y to recursive token 114 ("ENERGY UNIT")
 
  CMP #9                 \ If A is not 9 (i.e. the item we've just bought is not
- BNE etA_C                \ an energy unit), skip to etA
+ BNE etA                \ an energy unit), skip to etA
 
  LDX ENGY               \ If we already have an energy unit fitted (i.e. ENGY is
- BNE pres_C               \ non-zero), jump to pres to show the error "Energy Unit
+ BNE pres               \ non-zero), jump to pres to show the error "Energy Unit
                         \ Present", beep and exit to the docking bay (i.e. show
                         \ the Status Mode screen)
 
  INC ENGY               \ Otherwise we just picked up an energy unit, so set
                         \ ENGY to 1 (as ENGY was 0 before the INC instruction)
 
-.etA_C
+.etA
 
  INY                    \ Increment Y to recursive token 115 ("DOCKING
                         \ COMPUTERS")
 
  CMP #10                \ If A is not 10 (i.e. the item we've just bought is not
- BNE etB_C                \ a docking computer), skip to etB
+ BNE etB                \ a docking computer), skip to etB
 
  LDX DKCMP              \ If we already have a docking computer fitted (i.e.
- BNE pres_C               \ DKCMP is non-zero), jump to pres to show the error
+ BNE pres               \ DKCMP is non-zero), jump to pres to show the error
                         \ "Docking Computer Present", beep and exit to the
                         \ docking bay (i.e. show the Status Mode screen)
 
@@ -28705,16 +28711,16 @@ ENDIF
                         \ set DKCMP to &FF (as DKCMP was 0 before the DEC
                         \ instruction)
 
-.etB_C
+.etB
 
  INY                    \ Increment Y to recursive token 116 ("GALACTIC
                         \ HYPERSPACE ")
 
  CMP #11                \ If A is not 11 (i.e. the item we've just bought is not
- BNE et9_C                \ a galactic hyperdrive), skip to et9
+ BNE et9                \ a galactic hyperdrive), skip to et9
 
  LDX GHYP               \ If we already have a galactic hyperdrive fitted (i.e.
- BNE pres_C               \ GHYP is non-zero), jump to pres to show the error
+ BNE pres               \ GHYP is non-zero), jump to pres to show the error
                         \ "Galactic Hyperspace Present", beep and exit to the
                         \ docking bay (i.e. show the Status Mode screen)
 
@@ -28722,43 +28728,43 @@ ENDIF
                         \ hyperdrive, so set GHYP to &FF (as GHYP was 0 before
                         \ the DEC instruction)
 
-.et9_C
+.et9
 
  INY                    \ Increment Y to recursive token 117 ("MILITARY  LASER")
 
  CMP #12                \ If A is not 12 (i.e. the item we've just bought is not
- BNE et10_C               \ a military laser), skip to et10
+ BNE et10               \ a military laser), skip to et10
 
- JSR qv_C                 \ Print a menu listing the four views, with a "View ?"
+ JSR qv                 \ Print a menu listing the four views, with a "View ?"
                         \ prompt, and ask for a view number, which is returned
                         \ in X (which now contains 0-3)
 
  LDA #Armlas            \ Call refund with A set to the power of the new
- JSR refund_C             \ military laser to install the new laser and process a
+ JSR refund             \ military laser to install the new laser and process a
                         \ refund if we already have a laser fitted to this view
 
-.et10_C
+.et10
 
  INY                    \ Increment Y to recursive token 118 ("MINING  LASER")
 
  CMP #13                \ If A is not 13 (i.e. the item we've just bought is not
- BNE et11_C               \ a mining laser), skip to et11
+ BNE et11               \ a mining laser), skip to et11
 
- JSR qv_C                 \ Print a menu listing the four views, with a "View ?"
+ JSR qv                 \ Print a menu listing the four views, with a "View ?"
                         \ prompt, and ask for a view number, which is returned
                         \ in X (which now contains 0-3)
 
  LDA #Mlas              \ Call refund with A set to the power of the new mining
- JSR refund_C             \ laser to install the new laser and process a refund if
+ JSR refund             \ laser to install the new laser and process a refund if
                         \ we already have a laser fitted to this view
 
-.et11_C
+.et11
 
- JSR dn_C                 \ We are done buying equipment, so print the amount of
+ JSR dn                 \ We are done buying equipment, so print the amount of
                         \ cash left in the cash pot, then make a short, high
                         \ beep to confirm the purchase, and delay for 1 second
 
- JMP EQSHP_C              \ Jump back up to EQSHP to show the Equip Ship screen
+ JMP EQSHP              \ Jump back up to EQSHP to show the Equip Ship screen
                         \ again and see if we can't track down another bargain
 
 \ ******************************************************************************
@@ -28772,12 +28778,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.dn_C
+.dn
 
- JSR TT162_C              \ Print a space
+ JSR TT162              \ Print a space
 
  LDA #119               \ Print recursive token 119 ("CASH:{cash} CR{crlf}")
- JSR spc_C                \ followed by a space
+ JSR spc                \ followed by a space
 
                         \ Fall through into dn2 to make a beep and delay for
                         \ 1 second before returning from the subroutine
@@ -28792,12 +28798,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.dn2_C
+.dn2
 
- JSR x4_BEEP               \ Call the BEEP subroutine to make a short, high beep
+ JSR BEEP               \ Call the BEEP subroutine to make a short, high beep
 
  LDY #25                \ Wait for 25/50 of a second (0.5 second) and return
- JMP x4_DELAY              \ from the subroutine using a tail call
+ JMP DELAY              \ from the subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -28822,23 +28828,23 @@ ENDIF
 \
 \ ******************************************************************************
 
-.eq_C
+.eq
 
- JSR prx_C                \ Call prx to set (Y X) to the price of equipment item
+ JSR prx                \ Call prx to set (Y X) to the price of equipment item
                         \ number A
 
- JSR LCASH_C              \ Subtract (Y X) cash from the cash pot, but only if
+ JSR LCASH              \ Subtract (Y X) cash from the cash pot, but only if
                         \ we have enough cash
 
- BCS c_C                  \ If the C flag is set then we did have enough cash for
+ BCS c                  \ If the C flag is set then we did have enough cash for
                         \ the transaction, so jump to c to return from the
                         \ subroutine (as c contains an RTS)
 
  LDA #197               \ Otherwise we don't have enough cash to buy this piece
- JSR prq_C                \ of equipment, so print recursive token 37 ("CASH")
+ JSR prq                \ of equipment, so print recursive token 37 ("CASH")
                         \ followed by a question mark
 
- JMP err_C                \ Jump to err to beep, pause and go to the docking bay
+ JMP err                \ Jump to err to beep, pause and go to the docking bay
                         \ (i.e. show the Status Mode screen)
 
 \ ******************************************************************************
@@ -28879,17 +28885,17 @@ ENDIF
  SEC                    \ Decrement A (for when this routine is called via
  SBC #1                 \ prx-3)
 
-.prx_C
+.prx
 
  ASL A                  \ Set Y = A * 2, so it can act as an index into the
  TAY                    \ PRXS table, which has two bytes per entry
 
- LDX PRXS_C,Y             \ Fetch the low byte of the price into X
+ LDX PRXS,Y             \ Fetch the low byte of the price into X
 
- LDA PRXS_C+1,Y           \ Fetch the high byte of the price into A and transfer
+ LDA PRXS+1,Y           \ Fetch the high byte of the price into A and transfer
  TAY                    \ it to X, so the price is now in (Y X)
 
-.c_C
+.c
 
  RTS                    \ Return from the subroutine
 
@@ -28922,7 +28928,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.qv_C
+.qv
 
  LDA tek                \ If the current system's tech level is less than 8,
  CMP #8                 \ skip the next two instructions, otherwise we clear the
@@ -28930,14 +28936,14 @@ ENDIF
                         \ longer equipment menu available in higher tech systems
 
  LDA #32                \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 32 (Equip
+ JSR TT66               \ and set the current view type in QQ11 to 32 (Equip
                         \ Ship screen)
 
  LDA #16                \ Move the text cursor to row 16, and at the same time
  TAY                    \ set Y to a counter going from 16 to 19 in the loop
  STA YC                 \ below
 
-.qv1_C
+.qv1
 
  LDA #12                \ Move the text cursor to column 12
  STA XC
@@ -28946,12 +28952,12 @@ ENDIF
 
  CLC                    \ Print ASCII character "0" - 16 + A, so as A goes from
  ADC #'0'-16            \ 16 to 19, this prints "0" through "3" followed by a
- JSR spc_C                \ space
+ JSR spc                \ space
 
  LDA YC                 \ Print recursive text token 80 + YC, so as YC goes from
  CLC                    \ 16 to 19, this prints "FRONT", "REAR", "LEFT" and
  ADC #80                \ "RIGHT"
- JSR TT27_C
+ JSR TT27
 
  INC YC                 \ Move the text cursor down a row, and increment the
                         \ counter in YC at the same time
@@ -28959,32 +28965,32 @@ ENDIF
  LDY YC                 \ Update Y with the incremented counter in YC
 
  CPY #20                \ If Y < 20 then loop back up to qv1 to print the next
- BCC qv1_C                \ view in the menu
+ BCC qv1                \ view in the menu
 
- JSR x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+ JSR CLYNS              \ Clear the bottom three text rows of the upper screen,
                         \ and move the text cursor to the first cleared row
 
-.qv2_C
+.qv2
 
  LDA #175               \ Print recursive text token 15 ("VIEW ") followed by
- JSR prq_C                \ a question mark
+ JSR prq                \ a question mark
 
- JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
+ JSR TT217              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A (and X)
 
  SEC                    \ Subtract ASCII "0" from the key pressed, to leave the
  SBC #'0'               \ numeric value of the key in A (if it was a number key)
 
  CMP #4                 \ If the number entered in A < 4, then it is a valid
- BCC qv3_C                \ view number, so jump down to qv3 as we are done
+ BCC qv3                \ view number, so jump down to qv3 as we are done
 
- JSR x4_CLYNS              \ Otherwise we didn't get a valid view number, so clear
+ JSR CLYNS              \ Otherwise we didn't get a valid view number, so clear
                         \ the bottom three text rows of the upper screen, and
                         \ move the text cursor to column 1 on row 21
 
- JMP qv2_C                \ Jump back to qv2 to try again
+ JMP qv2                \ Jump back to qv2 to try again
 
-.qv3_C
+.qv3
 
  TAX                    \ We have a valid view number, so transfer it to X
 
@@ -29007,19 +29013,19 @@ ENDIF
 \
 \ ******************************************************************************
 
-.hm_C
+.hm
 
- JSR TT103_C              \ Draw small crosshairs at coordinates (QQ9, QQ10),
+ JSR TT103              \ Draw small crosshairs at coordinates (QQ9, QQ10),
                         \ which will erase the crosshairs currently there
 
- JSR TT111_C              \ Select the system closest to galactic coordinates
+ JSR TT111              \ Select the system closest to galactic coordinates
                         \ (QQ9, QQ10)
 
- JSR TT103_C              \ Draw small crosshairs at coordinates (QQ9, QQ10),
+ JSR TT103              \ Draw small crosshairs at coordinates (QQ9, QQ10),
                         \ which will draw the crosshairs at our current home
                         \ system
 
- JMP x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+ JMP CLYNS              \ Clear the bottom three text rows of the upper screen,
                         \ move the text cursor to the first cleared row, and
                         \ return from the subroutine using a tail call
 
@@ -29065,12 +29071,12 @@ ENDIF
                         \ reflects the authors' strong feelings on the refund
                         \ bug
 
-.refund_C
+.refund
 
  STA T1                 \ Store A in T1 so we can retrieve it later
 
  LDA LASER,X            \ If there is no laser in view X (i.e. the laser power
- BEQ ref3_C               \ is zero), jump to ref3 to skip the refund code
+ BEQ ref3               \ is zero), jump to ref3 to skip the refund code
 
 \CMP T1                 \ These instructions are commented out in the original
 \BEQ ref2               \ source, but they would jump to ref2 above if we were
@@ -29081,21 +29087,21 @@ ENDIF
 
  LDY #4                 \ If the current laser has power #POW (pulse laser),
  CMP #POW               \ jump to ref1 with Y = 4 (the item number of a pulse
- BEQ ref1_C               \ laser in the table at PRXS)
+ BEQ ref1               \ laser in the table at PRXS)
 
  LDY #5                 \ If the current laser has power #POW+128 (beam laser),
  CMP #POW+128           \ jump to ref1 with Y = 5 (the item number of a beam
- BEQ ref1_C               \ laser in the table at PRXS)
+ BEQ ref1               \ laser in the table at PRXS)
 
  LDY #12                \ If the current laser has power #Armlas (military
  CMP #Armlas            \ laser), jump to ref1 with Y = 12 (the item number of a
- BEQ ref1_C               \ military laser in the table at PRXS)
+ BEQ ref1               \ military laser in the table at PRXS)
 
  LDY #13                \ Otherwise this is a mining laser, so fall through into
                         \ ref1 with Y = 13 (the item number of a mining laser in
                         \ the table at PRXS)
 
-.ref1_C
+.ref1
 
                         \ We now want to refund the laser of type Y that we are
                         \ exchanging for the new laser
@@ -29105,14 +29111,14 @@ ENDIF
 
  TYA                    \ Copy the laser type to be refunded from Y to A
 
- JSR prx_C                \ Call prx to set (Y X) to the price of equipment item
+ JSR prx                \ Call prx to set (Y X) to the price of equipment item
                         \ number A
 
- JSR MCASH_C              \ Call MCASH to add (Y X) to the cash pot
+ JSR MCASH              \ Call MCASH to add (Y X) to the cash pot
 
  LDX ZZ                 \ Retrieve the view number from ZZ
 
-.ref3_C
+.ref3
 
                         \ Finally, we install the new laser
 
@@ -29137,7 +29143,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.PRXS_C
+.PRXS
 
  EQUW 1                 \ 0  Fuel, calculated in EQSHP  140.0 Cr (full tank)
  EQUW 300               \ 1  Missile                     30.0 Cr
@@ -29197,20 +29203,20 @@ ENDIF
 \
 \ ******************************************************************************
 
-.cpl_C
+.cpl
 
  LDX #5                 \ First we need to back up the seeds in QQ15, so set up
                         \ a counter in X to cover three 16-bit seeds (i.e.
                         \ 6 bytes)
 
-.TT53_C
+.TT53
 
  LDA QQ15,X             \ Copy byte X from QQ15 to QQ19
  STA QQ19,X
 
  DEX                    \ Decrement the loop counter
 
- BPL TT53_C               \ Loop back for the next byte to back up
+ BPL TT53               \ Loop back for the next byte to back up
 
  LDY #3                 \ Step 1: Now that the seeds are backed up, we can
                         \ start the name-generation process. We will either
@@ -29226,7 +29232,7 @@ ENDIF
 
  STY T                  \ Store the loop counter in T
 
-.TT55_C
+.TT55
 
  LDA QQ15+5             \ Step 2: Load s2_hi, which is stored in QQ15+5, and
  AND #%00011111         \ extract bits 0-4 by AND'ing with %11111
@@ -29239,27 +29245,27 @@ ENDIF
                         \ need to add 128 (or set bit 7) to get a range of
                         \ 129-159
 
- JSR TT27_C               \ Print the two-letter token in A
+ JSR TT27               \ Print the two-letter token in A
 
- JSR TT54_C               \ Step 3: twist the seeds in QQ15
+ JSR TT54               \ Step 3: twist the seeds in QQ15
 
  DEC T                  \ Decrement the loop counter
 
- BPL TT55_C               \ Loop back for the next two letters
+ BPL TT55               \ Loop back for the next two letters
 
  LDX #5                 \ We have printed the system name, so we can now
                         \ restore the seeds we backed up earlier. Set up a
                         \ counter in X to cover three 16-bit seeds (i.e. 6
                         \ bytes)
 
-.TT56_C
+.TT56
 
  LDA QQ19,X             \ Copy byte X from QQ19 to QQ15
  STA QQ15,X
 
  DEX                    \ Decrement the loop counter
 
- BPL TT56_C               \ Loop back for the next byte to restore
+ BPL TT56               \ Loop back for the next byte to restore
 
  RTS                    \ Once all the seeds are restored, return from the
                         \ subroutine
@@ -29284,23 +29290,23 @@ ENDIF
 \
 \ ******************************************************************************
 
-.cmn_C
+.cmn
 
  LDY #0                 \ Set up a counter in Y, starting from 0
 
-.QUL4_C
+.QUL4
 
  LDA NAME,Y             \ The commander's name is stored at NAME, so load the
                         \ Y-th character from NAME
 
  CMP #13                \ If we have reached the end of the name, return from
- BEQ ypl_C-1              \ the subroutine (ypl-1 points to the RTS below)
+ BEQ ypl-1              \ the subroutine (ypl-1 points to the RTS below)
 
- JSR x4_TT26               \ Print the character we just loaded
+ JSR TT26               \ Print the character we just loaded
 
  INY                    \ Increment the loop counter
 
- BNE QUL4_C               \ Loop back for the next character
+ BNE QUL4               \ Loop back for the next character
 
  RTS                    \ Return from the subroutine
 
@@ -29324,19 +29330,19 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ypl_C
+.ypl
 
  BIT MJ                 \ Check the mis-jump flag at MJ, and if bit 7 is set
- BMI ypl16_C              \ then we are in witchspace, and witchspace doesn't have
+ BMI ypl16              \ then we are in witchspace, and witchspace doesn't have
                         \ a system name, so jump to ypl16 to return from the
                         \ subroutine
 
- JSR TT62_C               \ Call TT62 below to swap the three 16-bit seeds in
+ JSR TT62               \ Call TT62 below to swap the three 16-bit seeds in
                         \ QQ2 and QQ15 (before the swap, QQ2 contains the seeds
                         \ for the current system, while QQ15 contains the seeds
                         \ for the selected system)
 
- JSR cpl_C                \ Call cpl to print out the system name for the seeds
+ JSR cpl                \ Call cpl to print out the system name for the seeds
                         \ in QQ15 (which now contains the seeds for the current
                         \ system)
 
@@ -29345,12 +29351,12 @@ ENDIF
                         \ back into the right place, and the RTS at the end of
                         \ TT62 will return from the subroutine
 
-.TT62_C
+.TT62
 
  LDX #5                 \ Set up a counter in X for the three 16-bit seeds we
                         \ want to swap (i.e. 6 bytes)
 
-.TT78_C
+.TT78
 
  LDA QQ15,X             \ Swap byte X between QQ2 and QQ15
  LDY QQ2,X
@@ -29359,9 +29365,9 @@ ENDIF
 
  DEX                    \ Decrement the loop counter
 
- BPL TT78_C               \ Loop back for the next byte to swap
+ BPL TT78               \ Loop back for the next byte to swap
 
-.ypl16_C
+.ypl16
 
  RTS                    \ Once all bytes are swapped, return from the
                         \ subroutine
@@ -29380,7 +29386,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.tal_C
+.tal
 
  CLC                    \ We don't want to print the galaxy number with a
                         \ decimal point, so clear the C flag for pr2 to take as
@@ -29392,7 +29398,7 @@ ENDIF
                         \ are 0-7 internally, but we want to display them as
                         \ galaxy 1 through 8
 
- JMP pr2_C                \ Jump to pr2, which prints the number in X to a width
+ JMP pr2                \ Jump to pr2, which prints the number in X to a width
                         \ of 3 figures, left-padding with spaces to a width of
                         \ 3, and return from the subroutine using a tail call
 
@@ -29411,27 +29417,27 @@ ENDIF
 \
 \ ******************************************************************************
 
-.fwl_C
+.fwl
 
  LDA #105               \ Print recursive token 105 ("FUEL") followed by a
- JSR TT68_C               \ colon
+ JSR TT68               \ colon
 
  LDX QQ14               \ Load the current fuel level from QQ14
 
  SEC                    \ We want to print the fuel level with a decimal point,
                         \ so set the C flag for pr2 to take as an argument
 
- JSR pr2_C                \ Call pr2, which prints the number in X to a width of
+ JSR pr2                \ Call pr2, which prints the number in X to a width of
                         \ 3 figures (i.e. in the format x.x, which will always
                         \ be exactly 3 characters as the maximum fuel is 7.0)
 
  LDA #195               \ Print recursive token 35 ("LIGHT YEARS") followed by
- JSR plf_C                \ a newline
+ JSR plf                \ a newline
 
-.PCASH_C
+.PCASH
 
  LDA #119               \ Print recursive token 119 ("CASH:" then control code
- BNE TT27_C               \ 0, which prints cash levels, then " CR" and newline)
+ BNE TT27               \ 0, which prints cash levels, then " CR" and newline)
 
 \ ******************************************************************************
 \
@@ -29448,7 +29454,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.csh_C
+.csh
 
  LDX #3                 \ We are going to use the BPRNT routine to print out
                         \ the current amount of cash, which is stored as a
@@ -29457,14 +29463,14 @@ ENDIF
                         \ BPRNT, we need to copy the four bytes from CASH into
                         \ K, so first we set up a counter in X for the 4 bytes
 
-.pc1_C
+.pc1
 
  LDA CASH,X             \ Copy byte X from CASH to K
  STA K,X
 
  DEX                    \ Decrement the loop counter
 
- BPL pc1_C                \ Loop back for the next byte to copy
+ BPL pc1                \ Loop back for the next byte to copy
 
  LDA #9                 \ We want to print the cash amount using up to 9 digits
  STA U                  \ (including the decimal point), so store this in U
@@ -29473,7 +29479,7 @@ ENDIF
  SEC                    \ We want to print the cash amount with a decimal point,
                         \ so set the C flag for BRPNT to take as an argument
 
- JSR BPRNT_C              \ Print the amount of cash to 9 digits with a decimal
+ JSR BPRNT              \ Print the amount of cash to 9 digits with a decimal
                         \ point
 
  LDA #226               \ Print recursive token 66 (" CR") followed by a
@@ -29495,11 +29501,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.plf_C
+.plf
 
- JSR TT27_C               \ Print the text token in A
+ JSR TT27               \ Print the text token in A
 
- JMP TT67_C               \ Jump to TT67 to print a newline and return from the
+ JMP TT67               \ Jump to TT67 to print a newline and return from the
                         \ subroutine using a tail call
 
 \ ******************************************************************************
@@ -29518,9 +29524,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT68_C
+.TT68
 
- JSR TT27_C               \ Print the text token in A and fall through into TT73
+ JSR TT27               \ Print the text token in A and fall through into TT73
                         \ to print a colon
 
 \ ******************************************************************************
@@ -29533,7 +29539,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT73_C
+.TT73
 
  LDA #':'               \ Set A to ASCII ":" and fall through into TT27 to
                         \ actually print the colon
@@ -29560,7 +29566,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT27_C
+.TT27
 
  TAX                    \ Copy the token number from A to X. We can then keep
                         \ decrementing X and testing it against zero, while
@@ -29568,36 +29574,36 @@ ENDIF
                         \ effectively implements a switch statement on the
                         \ value of the token
 
- BEQ csh_C                \ If token = 0, this is control code 0 (current amount
+ BEQ csh                \ If token = 0, this is control code 0 (current amount
                         \ of cash and newline), so jump to csh to print the
                         \ amount of cash and return from the subroutine using
                         \ a tail call
 
- BMI TT43_C               \ If token > 127, this is either a two-letter token
+ BMI TT43               \ If token > 127, this is either a two-letter token
                         \ (128-159) or a recursive token (160-255), so jump
                         \ to TT43 to process tokens
 
  DEX                    \ If token = 1, this is control code 1 (current galaxy
- BEQ tal_C                \ number), so jump to tal to print the galaxy number and
+ BEQ tal                \ number), so jump to tal to print the galaxy number and
                         \ return from the subroutine using a tail call
 
  DEX                    \ If token = 2, this is control code 2 (current system
- BEQ ypl_C                \ name), so jump to ypl to print the current system name
+ BEQ ypl                \ name), so jump to ypl to print the current system name
                         \ and return from the subroutine using a tail call
 
  DEX                    \ If token > 3, skip the following instruction
  BNE P%+5
 
- JMP cpl_C                \ This token is control code 3 (selected system name)
+ JMP cpl                \ This token is control code 3 (selected system name)
                         \ so jump to cpl to print the selected system name
                         \ and return from the subroutine using a tail call
 
  DEX                    \ If token = 4, this is control code 4 (commander
- BEQ cmn_C                \ name), so jump to cmn to print the commander name
+ BEQ cmn                \ name), so jump to cmn to print the commander name
                         \ and return from the subroutine using a tail call
 
  DEX                    \ If token = 5, this is control code 5 (fuel, newline,
- BEQ fwl_C                \ cash, newline), so jump to fwl to print the fuel level
+ BEQ fwl                \ cash, newline), so jump to fwl to print the fuel level
                         \ and return from the subroutine using a tail call
 
  DEX                    \ If token > 6, skip the following three instructions
@@ -29616,10 +29622,10 @@ ENDIF
                         \ the subroutine as we are done
 
  DEX                    \ If token = 9, this is control code 9 (tab to column
- BEQ crlf_C               \ 21 and print a colon), so jump to crlf
+ BEQ crlf               \ 21 and print a colon), so jump to crlf
 
  CMP #96                \ By this point, token is either 7, or in 10-127.
- BCS ex_C                 \ Check token number in A and if token >= 96, then the
+ BCS ex                 \ Check token number in A and if token >= 96, then the
                         \ token is in 96-127, which is a recursive token, so
                         \ jump to ex, which prints recursive tokens in this
                         \ range (i.e. where the recursive token number is
@@ -29629,7 +29635,7 @@ ENDIF
  BCC P%+6
 
  CMP #32                \ If token < 32, then this means token is in 14-31, so
- BCC qw_C                 \ this is a recursive token that needs 114 adding to it
+ BCC qw                 \ this is a recursive token that needs 114 adding to it
                         \ to get the recursive token number, so jump to qw
                         \ which will do this
 
@@ -29639,16 +29645,16 @@ ENDIF
 
  LDX QQ17               \ Fetch QQ17, which controls letter case, into X
 
- BEQ TT74_C               \ If QQ17 = 0, then ALL CAPS is set, so jump to TT74
+ BEQ TT74               \ If QQ17 = 0, then ALL CAPS is set, so jump to TT74
                         \ to print this character as is (i.e. as a capital)
 
- BMI TT41_C               \ If QQ17 has bit 7 set, then we are using Sentence
+ BMI TT41               \ If QQ17 has bit 7 set, then we are using Sentence
                         \ Case, so jump to TT41, which will print the
                         \ character in upper or lower case, depending on
                         \ whether this is the first letter in a word
 
  BIT QQ17               \ If we get here, QQ17 is not 0 and bit 7 is clear, so
- BVS TT46_C               \ either it is bit 6 that is set, or some other flag in
+ BVS TT46               \ either it is bit 6 that is set, or some other flag in
                         \ QQ17 is set (bits 0-5). So check whether bit 6 is set.
                         \ If it is, then ALL CAPS has been set (as bit 7 is
                         \ clear) but bit 6 is still indicating that the next
@@ -29696,23 +29702,23 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT42_C
+.TT42
 
  CMP #'A'               \ If A < ASCII "A", then this is punctuation, so jump
- BCC TT44_C               \ to TT26 (via TT44) to print the character as is, as
+ BCC TT44               \ to TT26 (via TT44) to print the character as is, as
                         \ we don't care about the character's case
 
  CMP #'Z'+1             \ If A >= (ASCII "Z" + 1), then this is also
- BCS TT44_C               \ punctuation, so jump to TT26 (via TT44) to print the
+ BCS TT44               \ punctuation, so jump to TT26 (via TT44) to print the
                         \ character as is, as we don't care about the
                         \ character's case
 
  ADC #32                \ Add 32 to the character, to convert it from upper to
                         \ lower case
 
-.TT44_C
+.TT44
 
- JMP x4_TT26               \ Print the character in A
+ JMP TT26               \ Print the character in A
 
 \ ******************************************************************************
 \
@@ -29754,20 +29760,20 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT41_C
+.TT41
 
                         \ If we get here, then QQ17 has bit 7 set, so we are in
                         \ Sentence Case
 
  BIT QQ17               \ If QQ17 also has bit 6 set, jump to TT45 to print
- BVS TT45_C               \ this character in lower case
+ BVS TT45               \ this character in lower case
 
                         \ If we get here, then QQ17 has bit 6 clear and bit 7
                         \ set, so we are in Sentence Case and we need to print
                         \ the next letter in upper case
 
  CMP #'A'               \ If A < ASCII "A", then this is punctuation, so jump
- BCC TT74_C               \ to TT26 (via TT44) to print the character as is, as
+ BCC TT74               \ to TT26 (via TT44) to print the character as is, as
                         \ we don't care about the character's case
 
  PHA                    \ Otherwise this is a letter, so store the token number
@@ -29778,7 +29784,7 @@ ENDIF
 
  PLA                    \ Restore the token number into A
 
- BNE TT44_C               \ Jump to TT26 (via TT44) to print the character in A
+ BNE TT44               \ Jump to TT26 (via TT44) to print the character in A
                         \ (this BNE is effectively a JMP as A will never be
                         \ zero)
 
@@ -29804,10 +29810,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.qw_C
+.qw
 
  ADC #114               \ This is a recursive token in the range 0-95, so add
- BNE ex_C                 \ 114 to the argument to get the token number 128-145
+ BNE ex                 \ 114 to the argument to get the token number 128-145
                         \ and jump to ex to print it
 
 \ ******************************************************************************
@@ -29826,12 +29832,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.crlf_C
+.crlf
 
  LDA #21                \ Set the X-column in XC to 21
- JSR DOXC_C
+ JSR DOXC
 
- JMP TT73_C               \ Jump to TT73, which prints a colon (this BNE is
+ JMP TT73               \ Jump to TT73, which prints a colon (this BNE is
                         \ effectively a JMP as A will never be zero)
 
 \ ******************************************************************************
@@ -29872,17 +29878,17 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT45_C
+.TT45
 
                         \ If we get here, then QQ17 has bit 6 and 7 set, so we
                         \ are in Sentence Case and we need to print the next
                         \ letter in lower case
 
  CPX #255               \ If QQ17 = 255 then printing is disabled, so return
- BEQ TT48_C               \ from the subroutine (as TT48 contains an RTS)
+ BEQ TT48               \ from the subroutine (as TT48 contains an RTS)
 
  CMP #'A'               \ If A >= ASCII "A", then jump to TT42, which will
- BCS TT42_C               \ print the letter in lowercase
+ BCS TT42               \ print the letter in lowercase
 
                         \ Otherwise this is not a letter, it's punctuation, so
                         \ this is effectively a word break. We therefore fall
@@ -29922,7 +29928,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT46_C
+.TT46
 
  PHA                    \ Store the token number
 
@@ -29950,9 +29956,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT74_C
+.TT74
 
- JMP x4_TT26               \ Print the character in A
+ JMP TT26               \ Print the character in A
 
 \ ******************************************************************************
 \
@@ -29980,10 +29986,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT43_C
+.TT43
 
  CMP #160               \ If token >= 160, then this is a recursive token, so
- BCS TT47_C               \ jump to TT47 below to process it
+ BCS TT47               \ jump to TT47 below to process it
 
  AND #127               \ This is a two-letter token with number 128-159. The
  ASL A                  \ set of two-letter tokens is stored in a lookup table
@@ -29995,37 +30001,37 @@ ENDIF
  TAY                    \ Transfer the token's position into Y so we can look
                         \ up the token using absolute indexed mode
 
- LDA QQ16_C,Y             \ Get the first letter of the token and print it
- JSR TT27_C
+ LDA QQ16,Y             \ Get the first letter of the token and print it
+ JSR TT27
 
- LDA QQ16_C+1,Y           \ Get the second letter of the token
+ LDA QQ16+1,Y           \ Get the second letter of the token
 
  CMP #'?'               \ If the second letter of the token is a question mark
- BEQ TT48_C               \ then this is a one-letter token, so just return from
+ BEQ TT48               \ then this is a one-letter token, so just return from
                         \ the subroutine without printing (as TT48 contains an
                         \ RTS)
 
- JMP TT27_C               \ Print the second letter and return from the
+ JMP TT27               \ Print the second letter and return from the
                         \ subroutine
 
-.TT51w_C
+.TT51w
 
                         \ Port: TT51w and TT49w are here, out of the way, so
                         \ that the scan loop in ex below stays in one page
 
  INC V+1                \ We have just crossed into a new page, so increment
- INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
- BNE TT51_C             \ start of the new page, and keep scanning (this BNE
+ INC TT51+2             \ V+1 (and the LDA operand) so that V points to the
+ BNE TT51               \ start of the new page, and keep scanning (this BNE
                         \ is always taken)
 
-.TT49w_C
+.TT49w
 
  INC V+1                \ We have just crossed into a new page, so increment
- INC TT51_C+2           \ V+1 (and the LDA operand) so that V points to the
- BNE TT59_C             \ start of the new page, and go on to count the token
+ INC TT51+2             \ V+1 (and the LDA operand) so that V points to the
+ BNE TT59               \ start of the new page, and go on to count the token
                         \ (this BNE is always taken)
 
-.TT47_C
+.TT47
 
  SBC #160               \ This is a recursive token in the range 160-255, so
                         \ subtract 160 from the argument to get the token
@@ -30065,7 +30071,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ex_C
+.ex
 
  TAX                    \ Copy the token number into X
 
@@ -30074,19 +30080,19 @@ ENDIF
 
  PHP                    \ Port: rather than scan from token 0, start at token
  TXA                    \ 16*k (k = token DIV 16, 0-9), whose page and offset
- LSR A                  \ are in QQ18IX_C, and skip only the remaining 0-15
+ LSR A                  \ are in QQ18IX, and skip only the remaining 0-15
  LSR A                  \ tokens; V(1 0), Y and the LDA operand below end up
  LSR A                  \ as the full scan from QQ18 leaves them (the flags
  LSR A                  \ are saved around the shifts, so C and V are kept)
  TAY
 
- LDA QQ18IX_C,Y         \ Set V+1 to the page of token 16*k
+ LDA QQ18IX,Y           \ Set V+1 to the page of token 16*k
  STA V+1
- STA TT51_C+2           \ Port: the scan below reads with LDA abs,Y, whose
+ STA TT51+2             \ Port: the scan below reads with LDA abs,Y, whose
                         \ operand (low byte LO(QQ18), high byte patched here and
                         \ incremented alongside V+1) always equals V(1 0)
 
- LDA QQ18IX_C+10,Y      \ Set Y to the offset of token 16*k within that page
+ LDA QQ18IX+10,Y        \ Set Y to the offset of token 16*k within that page
  TAY
 
  PLP                    \ Restore the flags
@@ -30095,46 +30101,46 @@ ENDIF
  AND #15                \ token number mod 16
  TAX
 
- BEQ TT50_C               \ If there are none, then we have already found the
+ BEQ TT50               \ If there are none, then we have already found the
                         \ token we are looking for, so jump to TT50, otherwise
                         \ work our way through the null-terminated token table
                         \ until we have skipped X more tokens
 
-.TT51_C
+.TT51
 
  LDA QQ18,Y             \ Fetch the Y-th character from the token table page
                         \ we are currently scanning (the operand's high byte is
                         \ self-modified to track V+1, so this is LDA (V),Y)
 
- BEQ TT49_C               \ If the character is null, we've reached the end of
+ BEQ TT49               \ If the character is null, we've reached the end of
                         \ this token, so jump to TT49
 
  INY                    \ Increment character pointer and loop back around for
- BNE TT51_C               \ the next character in this token, assuming Y hasn't
+ BNE TT51               \ the next character in this token, assuming Y hasn't
                         \ yet wrapped around to 0
 
- BEQ TT51w_C            \ Y has wrapped round to 0, so jump to TT51w to move to
+ BEQ TT51w              \ Y has wrapped round to 0, so jump to TT51w to move to
                         \ the next page (this BEQ is always taken)
 
-.TT49_C
+.TT49
 
  INY                    \ Increment the character pointer
 
- BEQ TT49w_C            \ If Y has just wrapped around to 0, jump to TT49w to
+ BEQ TT49w              \ If Y has just wrapped around to 0, jump to TT49w to
                         \ move to the next page
 
-.TT59_C
+.TT59
 
  DEX                    \ We have just reached a new token, so decrement the
                         \ token number we are looking for
 
- BNE TT51_C               \ Assuming we haven't yet reached the token number in
+ BNE TT51               \ Assuming we haven't yet reached the token number in
                         \ X, look back up to keep fetching characters
 
                         \ Otherwise we have found the token, so fall through
                         \ into TT50 to print it
 
-.TT50_C
+.TT50
 
                         \ We have now reached the correct token in the token
                         \ table, with Y pointing to the start of the token as
@@ -30160,7 +30166,7 @@ ENDIF
                         \ except for NES, where RE is 62 - so we repeat the
                         \ EOR to get the actual character to print
 
- JSR TT27_C               \ Print the text token in A, which could be a letter,
+ JSR TT27               \ Print the text token in A, which could be a letter,
                         \ number, control code, two-letter token or another
                         \ recursive token
 
@@ -30179,17 +30185,17 @@ ENDIF
 
  LDA (V),Y              \ Load the next character we want to print into A
 
- BNE TT50_C               \ If this is not the null character at the end of the
+ BNE TT50               \ If this is not the null character at the end of the
                         \ token, jump back up to TT50 to print the next
                         \ character, otherwise we are done printing
 
-.TT48_C
+.TT48
 
  RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
-\       Name: QQ18IX_C
+\       Name: QQ18IX
 \       Type: Variable
 \   Category: Text
 \    Summary: Port: where every 16th recursive token starts in QQ18, for ex
@@ -30204,7 +30210,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.QQ18IX_C
+.QQ18IX
 
  EQUB HI(QQ18 + &000 - LO(QQ18))   \ Token 0
  EQUB HI(QQ18 + &069 - LO(QQ18))   \ Token 16
@@ -30731,9 +30737,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.SOS1_C
+.SOS1
 
- JSR x4_msblob              \ Reset the dashboard's missile indicators so none of
+ JSR msblob             \ Reset the dashboard's missile indicators so none of
                         \ them are targeted
 
  LDA #127               \ Set the pitch and roll counters to 127, so that's a
@@ -30744,7 +30750,7 @@ ENDIF
  AND #%00000010         \ tech level in tek
  ORA #%10000000
 
- JMP x4_NWSHP              \ Add a new planet to our local bubble of universe,
+ JMP NWSHP              \ Add a new planet to our local bubble of universe,
                         \ with the planet type defined by A (128 is a planet
                         \ with an equator and meridian, 130 is a planet with
                         \ a crater)
@@ -30765,10 +30771,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.SOLAR_C
+.SOLAR
 
  LDA TRIBBLE            \ If we have no Trumbles in the hold, skip to nobirths
- BEQ nobirths_C
+ BEQ nobirths
 
                         \ If we get here then we have Trumbles in the hold, so
                         \ this is where they breed (though we never get here in
@@ -30779,7 +30785,7 @@ ENDIF
  STA QQ20               \ journey, so zero the amount of food and narcotics in
  STA QQ20+6             \ the hold
 
- JSR x4_DORND              \ Take the number of Trumbles from TRIBBLE(1 0), add a
+ JSR DORND              \ Take the number of Trumbles from TRIBBLE(1 0), add a
  AND #15                \ random number between 4 and 15, and double the result,
  ADC TRIBBLE            \ storing the resulting number in TRIBBLE(1 0)
  ORA #4                 \
@@ -30792,14 +30798,14 @@ ENDIF
  ROR TRIBBLE+1          \ byte back to the right, so the number of Trumbles is
                         \ always positive
 
-.nobirths_C
+.nobirths
 
  LSR FIST               \ Halve our legal status in FIST, making us less bad,
                         \ and moving bit 0 into the C flag (so every time we
                         \ arrive in a new system, our legal status improves a
                         \ bit)
 
- JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace, which
+ JSR ZINF               \ Call ZINF to reset the INWK ship workspace, which
                         \ doesn't affect the C flag
 
  LDA QQ15+1             \ Fetch s0_hi
@@ -30816,7 +30822,7 @@ ENDIF
  STA INWK+2             \ store in both x_sign and y_sign, moving the planet to
  STA INWK+5             \ the upper right
 
- JSR SOS1_C               \ Call SOS1 to set up the planet's data block and add it
+ JSR SOS1               \ Call SOS1 to set up the planet's data block and add it
                         \ to FRIN, where it will get put in the first slot as
                         \ it's the first one to be added to our local bubble of
                         \ this new system's universe
@@ -30837,12 +30843,12 @@ ENDIF
 
  LDA #129               \ Set A = 129, the ship type for the sun
 
- JSR x4_NWSHP              \ Call NWSHP to set up the sun's data block and add it
+ JSR NWSHP              \ Call NWSHP to set up the sun's data block and add it
                         \ to FRIN, where it will get put in the second slot as
                         \ it's the second one to be added to our local bubble
                         \ of this new system's universe
 
- JMP x4_NWSTARS            \ Port: set up the stardust and return (the original
+ JMP NWSTARS            \ Port: set up the stardust and return (the original
                         \ fell through into NWSTARS)
 
 \ ******************************************************************************
@@ -34694,9 +34700,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.YESNO_C
+.YESNO
 
- JSR t_C                  \ Scan the keyboard until a key is pressed, returning
+ JSR t                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  CMP #'Y'               \ If "Y" was pressed, return from the subroutine with
@@ -34704,7 +34710,7 @@ ENDIF
  RTS                    \ original branched to the RTS at PL6, in PLANET)
 
  CMP #'N'               \ If "N" was not pressed, loop back to keep scanning
- BNE YESNO_C              \ for key presses
+ BNE YESNO              \ for key presses
 
  CLC                    \ Clear the C flag
 
@@ -35576,20 +35582,20 @@ ENDIF
 \
 \ ******************************************************************************
 
-.RESET_C
+.RESET
 
- JSR ZERO_C               \ Reset the ship slots for the local bubble of universe,
+ JSR ZERO               \ Reset the ship slots for the local bubble of universe,
                         \ and various flight and ship status variables
 
  LDX #6                 \ Set up a counter for zeroing BETA through BETA+6
 
-.SAL3_C
+.SAL3
 
  STA BETA,X             \ Zero the X-th byte after BETA
 
  DEX                    \ Decrement the loop counter
 
- BPL SAL3_C               \ Loop back for the next byte to zero
+ BPL SAL3               \ Loop back for the next byte to zero
 
  STX JSTGY              \ X is now negative - i.e. &FF - so this sets JSTGY to
                         \ &FF to set the joystick Y-channel to the default
@@ -35603,14 +35609,14 @@ ENDIF
                         \ ASH (FSH+1) and ENERGY (FSH+2), so set a loop counter
                         \ in X for 3 bytes
 
-.REL5_C
+.REL5
 
  STA FSH,X              \ Set the X-th byte of FSH to &FF to charge up that
                         \ shield/bank
 
  DEX                    \ Decrement the loop counter
 
- BPL REL5_C               \ Loop back to REL5 until we have recharged both shields
+ BPL REL5               \ Loop back to REL5 until we have recharged both shields
                         \ and the energy bank
 
                         \ Fall through into RES2 to reset the stardust and ship
@@ -35638,7 +35644,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.RES2_C
+.RES2
 
 \JSR stopbd             \ This instruction is commented out in the original
                         \ source
@@ -35693,18 +35699,18 @@ ENDIF
  LDA SSPR               \ Fetch the "space station present" flag, and if we are
  BEQ P%+5               \ not inside the safe zone, skip the next instruction
 
- JSR x4_SPBLB              \ Light up the space station bulb on the dashboard
+ JSR SPBLB              \ Light up the space station bulb on the dashboard
 
  LDA ECMA               \ Fetch the E.C.M. status flag, and if E.C.M. is off,
- BEQ yu_C                 \ skip the next instruction
+ BEQ yu                 \ skip the next instruction
 
- JSR x4_ECMOF              \ Turn off the E.C.M. sound
+ JSR ECMOF              \ Turn off the E.C.M. sound
 
-.yu_C
+.yu
 
- JSR x4_WPSHPS             \ Wipe all ships from the scanner
+ JSR WPSHPS             \ Wipe all ships from the scanner
 
- JSR ZERO_C               \ Reset the ship slots for the local bubble of universe,
+ JSR ZERO               \ Reset the ship slots for the local bubble of universe,
                         \ and various flight and ship status variables
 
  LDA #LO(LS%)           \ We have reset the ship line heap, so we now point
@@ -35712,7 +35718,7 @@ ENDIF
  LDA #HI(LS%)           \ to indicate that the heap is empty
  STA SLSP+1
 
- JMP x4_ZINF            \ Finally, reset the INWK ship workspace with ZINF and
+ JMP ZINF               \ Finally, reset the INWK ship workspace with ZINF and
                         \ return (Port: the original fell through into ZINF)
 
 \ ******************************************************************************
@@ -35886,11 +35892,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.Ze_C
+.Ze
 
- JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace
+ JSR ZINF               \ Call ZINF to reset the INWK ship workspace
 
- JSR x4_DORND              \ Set A and X to random numbers
+ JSR DORND              \ Set A and X to random numbers
 
  STA T1                 \ Store A in T1
 
@@ -35922,7 +35928,7 @@ ENDIF
                         \ RAM, so do the CLC here and jump to DORND)
 
  CLC
- JMP x4_DORND
+ JMP DORND
 
 \ ******************************************************************************
 \
@@ -35955,7 +35961,7 @@ ENDIF
 
                         \ Port: DORND2 (CLC) removed (unreachable: its only
                         \ way in was Ze's fall-through, and Ze, in the cold
-                        \ area, does CLC : JMP x4_DORND itself; the explosion
+                        \ area, does CLC : JMP DORND itself; the explosion
                         \ code's DORND2 copies are inline)
 
 .DORND
@@ -37058,7 +37064,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.BAD_C
+.BAD
 
  LDA QQ20+3             \ Set A to the number of tonnes of slaves in the hold
 
@@ -37484,13 +37490,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT170_C
+.TT170
 
  LDX #&FF               \ Set the stack pointer to &01FF, which is the standard
  TXS                    \ location for the 6502 stack, so this instruction
                         \ effectively resets the stack
 
- JSR RESET_C              \ Call RESET to initialise most of the game variables
+ JSR RESET              \ Call RESET to initialise most of the game variables
 
                         \ Fall through into DEATH2 to start the game
 
@@ -37509,13 +37515,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DEATH2_C
+.DEATH2
 
  LDX #&FF               \ Set the stack pointer to &01FF, which is the standard
  TXS                    \ location for the 6502 stack, so this instruction
                         \ effectively resets the stack
 
- JSR RES2_C               \ Reset a number of flight variables and workspaces
+ JSR RES2               \ Reset a number of flight variables and workspaces
                         \ and fall through into the entry code for the game
                         \ to restart from the title screen
 
@@ -37540,9 +37546,9 @@ ENDIF
 \
 \ ******************************************************************************
 
-.BR1_C
+.BR1
 
- JSR x4_ZEKTRAN            \ Call ZEKTRAN to clear the key logger
+ JSR ZEKTRAN            \ Call ZEKTRAN to clear the key logger
 
  LDA #3                 \ Set XC = 3 (set text cursor to column 3)
  STA XC
@@ -37553,27 +37559,27 @@ ENDIF
  LDX #CYL               \ Call TITLE to show a rotating Cobra Mk III (#CYL) and
  LDA #6                 \ token 6 ("LOAD NEW {single cap}COMMANDER {all caps}
  LDY #200               \ (Y/N)?{sentence case}{cr}{cr}"), with the ship at a
- JSR TITLE_C              \ distance of 200, returning with the internal number
+ JSR TITLE              \ distance of 200, returning with the internal number
                         \ of the key pressed in A
 
  CPX #'Y'               \ Did we press "Y"? If not, jump to QU5, otherwise
- BNE QU5_C                \ continue on to load a new commander
+ BNE QU5                \ continue on to load a new commander
 
 \JSR stopat             \ This instruction is commented out in the original
                         \ source
 
- JSR DFAULT_C             \ Call DFAULT to reset the current commander data block
+ JSR DFAULT             \ Call DFAULT to reset the current commander data block
                         \ to the last saved commander
 
- JSR SVE_C                \ Call SVE to load a new commander into the last saved
+ JSR SVE                \ Call SVE to load a new commander into the last saved
                         \ commander data block
 
 \JSR startat            \ This instruction is commented out in the original
                         \ source
 
-.QU5_C
+.QU5
 
- JSR DFAULT_C             \ Call DFAULT to reset the current commander data block
+ JSR DFAULT             \ Call DFAULT to reset the current commander data block
                         \ to the last saved commander
 
 \ ******************************************************************************
@@ -37591,21 +37597,21 @@ ENDIF
 \
 \ ******************************************************************************
 
- JSR x4_msblob              \ Reset the dashboard's missile indicators so none of
+ JSR msblob             \ Reset the dashboard's missile indicators so none of
                         \ them are targeted
 
  LDA #7                 \ Call TITLE to show a rotating Cougar (#COU) and token
  LDX #COU               \ 7 ("PRESS SPACE OR FIRE,{single cap}COMMANDER.{cr}
  LDY #100               \ {cr}"), with the ship at a distance of 100, returning
- JSR TITLE_C              \ with the internal number of the key pressed in A
+ JSR TITLE              \ with the internal number of the key pressed in A
 
- JSR ping_C               \ Set the target system coordinates (QQ9, QQ10) to the
+ JSR ping               \ Set the target system coordinates (QQ9, QQ10) to the
                         \ current system coordinates (QQ0, QQ1) we just loaded
 
- JSR TT111_C              \ Select the system closest to galactic coordinates
+ JSR TT111              \ Select the system closest to galactic coordinates
                         \ (QQ9, QQ10)
 
- JSR jmp_C                \ Set the current system to the selected system
+ JSR jmp                \ Set the current system to the selected system
 
  LDX #5                 \ We now want to copy the seeds for the selected system
                         \ in QQ15 into QQ2, where we store the seeds for the
@@ -37616,14 +37622,14 @@ ENDIF
                         \ is almost identical to the TT112 loop in the hyp1
                         \ routine
 
-.likeTT112_C
+.likeTT112
 
  LDA QQ15,X             \ Copy the X-th byte in QQ15 to the X-th byte in QQ2
  STA QQ2,X
 
  DEX                    \ Decrement the counter
 
- BPL likeTT112_C          \ Loop back to likeTT112 if we still have more bytes to
+ BPL likeTT112          \ Loop back to likeTT112 if we still have more bytes to
                         \ copy
 
  INX                    \ Set X = 0 (as we ended the above loop with X = &FF)
@@ -37661,13 +37667,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.BAY_C
+.BAY
 
  LDA #&FF               \ Set QQ12 = &FF (the docked flag) to indicate that we
  STA QQ12               \ are docked
 
  LDA #f8                \ Jump into the main loop at FRCE, setting the key
- JMP j4_FRCE               \ that's "pressed" to red key f8 (so we show the Status
+ JMP FRCE               \ that's "pressed" to red key f8 (so we show the Status
                         \ Mode screen)
 
 \ ******************************************************************************
@@ -37680,7 +37686,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DFAULT_C
+.DFAULT
 
  LDX #NT%+8             \ The size of the last saved commander data block is NT%
                         \ bytes, and it is preceded by the 8 bytes of the
@@ -37692,7 +37698,7 @@ ENDIF
                         \ a counter in X for the NT% + 8 bytes that we want to
                         \ copy
 
-.QUL1_C
+.QUL1
 
  LDA NA%-1,X            \ Copy the X-th byte of NA%-1 to the X-th byte of
  STA NAME-1,X           \ NAME-1 (the -1 is because X is counting down from
@@ -37700,7 +37706,7 @@ ENDIF
 
  DEX                    \ Decrement the loop counter
 
- BNE QUL1_C               \ Loop back for the next byte of the commander data
+ BNE QUL1               \ Loop back for the next byte of the commander data
                         \ block
 
  STX QQ11               \ X is 0 by the end of the above loop, so this sets QQ11
@@ -37711,9 +37717,9 @@ ENDIF
                         \ If the commander check below fails, we keep jumping
                         \ back to here to crash the game with an infinite loop
 
-.doitagain_C
+.doitagain
 
- JSR CHECK_C              \ Call the CHECK subroutine to calculate the checksum
+ JSR CHECK              \ Call the CHECK subroutine to calculate the checksum
                         \ for the current commander block at NA%+8 and put it
                         \ in A
 
@@ -37726,7 +37732,7 @@ IF _REMOVE_CHECKSUMS
 
 ELSE
 
- BNE doitagain_C          \ If the calculated checksum does not match CHK, then
+ BNE doitagain          \ If the calculated checksum does not match CHK, then
                         \ loop back to repeat the check - in other words, we
                         \ enter an infinite loop here, as the checksum routine
                         \ will keep returning the same incorrect value
@@ -37745,12 +37751,12 @@ ENDIF
  LDA COK                \ Set A to the competition flags in COK
 
  CPX CHK2               \ If X = CHK2, then skip the next instruction
- BEQ tZ_C
+ BEQ tZ
 
  ORA #%10000000         \ Set bit 7 of A to indicate this commander file has
                         \ been tampered with
 
-.tZ_C
+.tZ
 
  ORA #%00001000         \ Set bit 3 of A to denote that this is the Master
                         \ version (which is the same flag as the Apple II
@@ -37801,7 +37807,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TITLE_C
+.TITLE
 
  STY distaway           \ Store the ship distance in distaway
 
@@ -37809,18 +37815,18 @@ ENDIF
 
  STX TYPE               \ Store the ship type in location TYPE
 
- JSR RESET_C              \ Reset our ship so we can use it for the rotating
+ JSR RESET              \ Reset our ship so we can use it for the rotating
                         \ title ship
 
- JSR x4_ZEKTRAN            \ Call ZEKTRAN to clear the key logger
+ JSR ZEKTRAN            \ Call ZEKTRAN to clear the key logger
 
- JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace
+ JSR ZINF               \ Call ZINF to reset the INWK ship workspace
 
  LDA #32                \ Set the mode 1 palette to yellow (colour 1), white
- JSR x4_DOVDU19            \ (colour 2) and cyan (colour 3)
+ JSR DOVDU19            \ (colour 2) and cyan (colour 3)
 
  LDA #13                \ Clear the top part of the screen, draw a border box,
- JSR TT66_C               \ and set the current view type in QQ11 to 13 (rotating
+ JSR TT66               \ and set the current view type in QQ11 to 13 (rotating
                         \ ship view)
 
  LDA #RED               \ Switch to colour 2, which is white in the title screen
@@ -37849,28 +37855,28 @@ ENDIF
                         \ case
 
  LDA TYPE               \ Set up a new ship, using the ship type in TYPE
- JSR x4_NWSHP
+ JSR NWSHP
 
  LDA #6                 \ Move the text cursor to column 6
  STA XC
 
  LDA #30                \ Print recursive token 144 ("---- E L I T E ----")
- JSR plf_C                \ followed by a newline
+ JSR plf                \ followed by a newline
 
  LDA #10                \ Print a line feed to move the text cursor down a line
- JSR x4_TT26
+ JSR TT26
 
  LDA #6                 \ Move the text cursor to column 6 again
  STA XC
 
  LDA PATG               \ If PATG = 0, skip the following two lines, which
- BEQ awe_C                \ print the author credits (PATG can be toggled by
+ BEQ awe                \ print the author credits (PATG can be toggled by
                         \ pausing the game and pressing "X")
 
  LDA #13                \ Print extended token 13 ("BY D.BRABEN & I.BELL")
- JSR DETOK_C
+ JSR DETOK
 
-.awe_C
+.awe
 
  LDY #0                 \ Set DELTA = 0 (i.e. ship speed = 0)
  STY DELTA
@@ -37886,13 +37892,13 @@ ENDIF
  PLA                    \ Restore the recursive token number we stored on the
                         \ stack at the start of this subroutine
 
- JSR DETOK_C              \ Print the extended token in A
+ JSR DETOK              \ Print the extended token in A
 
  LDA #7                 \ Move the text cursor to column 7
  STA XC
 
  LDA #12                \ Print extended token 12 ("({single cap}C) ACORNSOFT
- JSR DETOK_C              \ 1986")
+ JSR DETOK              \ 1986")
 
  LDA #12                \ Set CNT2 = 12 as the outer loop counter for the loop
  STA CNT2               \ starting at TLL2
@@ -37902,18 +37908,18 @@ ENDIF
 
  STZ JSTK               \ Set JSTK = 0 (i.e. keyboard, not joystick)
 
-.TLL2_C
+.TLL2
 
  LDA INWK+7             \ If z_hi (the ship's distance) is 1, jump to TL1 to
  CMP #1                 \ skip the following decrement
- BEQ TL1_C
+ BEQ TL1
 
  DEC INWK+7             \ Decrement the ship's distance, to bring the ship
                         \ a bit closer to us
 
-.TL1_C
+.TL1
 
- JSR x4_MVEIT              \ Move the ship in space according to the orientation
+ JSR MVEIT              \ Move the ship in space according to the orientation
                         \ vectors and the new value in z_hi
 
  LDX distaway           \ Set z_lo to the distance value we passed to the
@@ -37924,7 +37930,7 @@ ENDIF
 
  STA INWK+3             \ Set y_lo = 0, so the ship remains in the screen centre
 
- JSR x4_LL9F               \ Call LL9 to display the ship, then render the frame
+ JSR LL9F               \ Call LL9 to display the ship, then render the frame
                         \ (Port: LL9F)
 
  DEC MCNT               \ Decrement the main loop counter
@@ -37939,30 +37945,30 @@ IF _SNG47
 
 ELIF _COMPACT
 
- JSR x4_RDFIRE             \ Call RDFIRE to check whether the joystick's fire
+ JSR RDFIRE             \ Call RDFIRE to check whether the joystick's fire
                         \ button is being pressed
 
- BCS TL3_C                \ If the C flag is set then the joystick fire button
+ BCS TL3                \ If the C flag is set then the joystick fire button
                         \ is being pressed, so jump to TL3
 
 ENDIF
 
 IF _SNG47
 
- BEQ TL3_C                \ If the joystick fire button is pressed, jump to TL3
+ BEQ TL3                \ If the joystick fire button is pressed, jump to TL3
 
 ENDIF
 
- JSR x4_RDKEY              \ Scan the keyboard for a key press and return the ASCII
+ JSR RDKEY              \ Scan the keyboard for a key press and return the ASCII
                         \ code of the key pressed in A and X (or 0 for no key
                         \ press)
 
- BEQ TLL2_C               \ If no key was pressed, loop back up to move/rotate
+ BEQ TLL2               \ If no key was pressed, loop back up to move/rotate
                         \ the ship and check again for a key press
 
  RTS                    \ Return from the subroutine
 
-.TL3_C
+.TL3
 
  DEC JSTK               \ Joystick fire button was pressed, so set JSTK to &FF
                         \ (it was set to 0 above), to disable keyboard and
@@ -37995,7 +38001,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.CHECK_C
+.CHECK
 
  LDX #NT%-3             \ Set X to the size of the commander data block, less
                         \ 3 (as there are two checksum bytes and the save count)
@@ -38012,7 +38018,7 @@ ENDIF
                         \ last byte of the commander data block, i.e. the save
                         \ count)
 
-.QUL2_C
+.QUL2
 
  ADC NA%+7,X            \ Add the X-1-th byte of the data block to A, plus the
                         \ C flag
@@ -38021,7 +38027,7 @@ ENDIF
 
  DEX                    \ Decrement the loop counter
 
- BNE QUL2_C               \ Loop back for the next byte in the calculation, until
+ BNE QUL2               \ Loop back for the next byte in the calculation, until
                         \ we have added byte #0 and EOR'd with byte #1 of the
                         \ data block
 
@@ -38038,7 +38044,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.CHECK2_C
+.CHECK2
 
 \LDX #NT%-3             \ These instructions are commented out in the original
 \                       \ source (they are from the Commodore 64 and Apple II
@@ -38072,21 +38078,21 @@ ENDIF
 \
 \ ******************************************************************************
 
-.JAMESON_C
+.JAMESON
 
  LDY #(NAEND%-NA2%)     \ We are going to copy the default commander at NA2%
                         \ over the top of the last saved commander at NA%, so
                         \ set a counter to copy all the bytes between NA2% and
                         \ NAEND%
 
-.JAMEL1_C
+.JAMEL1
 
  LDA NA2%,Y             \ Copy the Y-th byte of NA2% to the Y-th byte of NA%
  STA NA%,Y
 
  DEY                    \ Decrement the loop counter
 
- BPL JAMEL1_C             \ Loop back until we have copied the whole commander
+ BPL JAMEL1             \ Loop back until we have copied the whole commander
 
  LDY #7                 \ Set oldlong to 7, the length of the commander name
  STY oldlong            \ "JAMESON"
@@ -38103,7 +38109,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TRNME_C
+.TRNME
 
  LDX #7                 \ The commander's name can contain a maximum of 7
                         \ characters, and is terminated by a carriage return,
@@ -38113,14 +38119,14 @@ ENDIF
  STA oldlong            \ to oldlong (though this is never used, so this
                         \ doesn't have any effect)
 
-.GTL1_C
+.GTL1
 
  LDA INWK+5,X           \ Copy the X-th byte of INWK+5 to the X-th byte of NA%
  STA NA%,X
 
  DEX                    \ Decrement the loop counter
 
- BPL GTL1_C               \ Loop back until we have copied all 8 bytes
+ BPL GTL1               \ Loop back until we have copied all 8 bytes
 
                         \ Fall through into TR1 to copy the name back from NA%
                         \ to INWK. This isn't necessary as the name is already
@@ -38137,20 +38143,20 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TR1_C
+.TR1
 
  LDX #7                 \ The commander's name can contain a maximum of 7
                         \ characters, and is terminated by a carriage return,
                         \ so set up a counter in X to copy 8 characters
 
-.GTL2_C
+.GTL2
 
  LDA NA%,X              \ Copy the X-th byte of NA% to the X-th byte of INWK+5
  STA INWK+5,X
 
  DEX                    \ Decrement the loop counter
 
- BPL GTL2_C               \ Loop back until we have copied all 8 bytes
+ BPL GTL2               \ Loop back until we have copied all 8 bytes
 
  RTS                    \ Return from the subroutine
 
@@ -38180,22 +38186,22 @@ ENDIF
 \
 \ ******************************************************************************
 
-.GTNMEW_C
+.GTNMEW
 
-.GTNME_C
+.GTNME
 
  LDX #4                 \ First we want to copy the drive and directory part of
                         \ the commander file from NA%-5, so set a counter in X
                         \ for 5 bytes, as the string is of the form ":0.E."
 
-.GTL3_C
+.GTL3
 
  LDA NA%-5,X            \ Copy the X-th byte from NA%-5 to INWK
  STA INWK,X
 
  DEX                    \ Decrement the loop counter
 
- BPL GTL3_C               \ Loop back until the whole drive and directory string
+ BPL GTL3               \ Loop back until the whole drive and directory string
                         \ has been copied to INWK to INWK+4
 
  LDA #7                 \ The call to MT26 below uses the OSWORD block at RLINE
@@ -38205,9 +38211,9 @@ ENDIF
                         \ allowed)
 
  LDA #8                 \ Print extended token 8 ("{single cap}COMMANDER'S
- JSR DETOK_C              \ NAME? ")
+ JSR DETOK              \ NAME? ")
 
- JSR MT26_C               \ Call MT26 to fetch a line of text from the keyboard
+ JSR MT26               \ Call MT26 to fetch a line of text from the keyboard
                         \ to INWK+5, with the text length in Y, so INWK now
                         \ contains the full pathname of the file, as in
                         \ ":0.E.JAMESON", for example
@@ -38218,7 +38224,7 @@ ENDIF
  TYA                    \ The OSWORD call returns the length of the commander's
                         \ name in Y, so transfer this to A
 
- BEQ TR1_C                \ If A = 0, no name was entered, so jump to TR1 to copy
+ BEQ TR1                \ If A = 0, no name was entered, so jump to TR1 to copy
                         \ the last saved commander's name from NA% to INWK
                         \ and return from the subroutine there
 
@@ -38248,7 +38254,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MT26_C
+.MT26
 
  LDA COL                \ Store the current colour on the stack
  PHA
@@ -38257,25 +38263,25 @@ ENDIF
  STA COL
 
  LDY #8                 \ Wait for 8/50 of a second (0.16 seconds)
- JSR x4_DELAY
+ JSR DELAY
 
- JSR FLKB_C               \ Call FLKB to flush the keyboard buffer
+ JSR FLKB               \ Call FLKB to flush the keyboard buffer
 
  LDY #0                 \ Set Y = 0 to hold the length of the text entered
 
-.OSW0L_C
+.OSW0L
 
- JSR TT217_C              \ Scan the keyboard until a key is pressed, and return
+ JSR TT217              \ Scan the keyboard until a key is pressed, and return
                         \ the key's ASCII code in A (and X)
 
  CMP #13                \ If RETURN was pressed, jump to OSW03
- BEQ OSW03_C
+ BEQ OSW03
 
  CMP #27                \ If ESCAPE was pressed, jump to OSW04
- BEQ OSW04_C
+ BEQ OSW04
 
  CMP #127               \ If DELETE was pressed, jump to OSW05
- BEQ OSW05_C
+ BEQ OSW05
 
 IF _COMPACT
 
@@ -38284,8 +38290,8 @@ IF _COMPACT
 
  PHA                    \ Store the number of the key being pressed on the stack
 
- JSR x4_SHIFT              \ If SHIFT is not being pressed, jump to noshift to skip
- BPL noshift_C            \ the following
+ JSR SHIFT              \ If SHIFT is not being pressed, jump to noshift to skip
+ BPL noshift            \ the following
 
  PLA                    \ SHIFT is being pressed, so fetch the number of the key
                         \ being pressed from the stack
@@ -38302,7 +38308,7 @@ IF _COMPACT
 
  PHA                    \ Push the updated key number onto the stack
 
-.noshift_C
+.noshift
 
  PLA                    \ Retrieve the values of X and A we stored on the stack
  PLX                    \ above
@@ -38310,18 +38316,18 @@ IF _COMPACT
 ENDIF
 
  CPY RLINE+2            \ If Y >= RLINE+2 (the maximum line length from the
- BCS OSW01_C              \ OSWORD configuration block at RLINE), then jump to
+ BCS OSW01              \ OSWORD configuration block at RLINE), then jump to
                         \ OSW01 to give an error beep as we have reached the
                         \ character limit
 
  CMP RLINE+3            \ If the key pressed is less than the character in
- BCC OSW01_C              \ RLINE+3 (the lowest allowed character from the OSWORD
+ BCC OSW01              \ RLINE+3 (the lowest allowed character from the OSWORD
                         \ configuration block at RLINE), then jump to OSW01
                         \ to give an error beep as the key pressed is out of
                         \ range
 
  CMP RLINE+4            \ If the key pressed is greater than or equal to the
- BCS OSW01_C              \ character in RLINE+4 (the highest allowed character
+ BCS OSW01              \ character in RLINE+4 (the highest allowed character
                         \ from the OSWORD configuration block at RLINE), then
                         \ jump to OSW01 to give an error beep as the key
                         \ pressed is out of range
@@ -38334,30 +38340,30 @@ ENDIF
                         \ &2C &A9 &07, or BIT &07A9, which does nothing apart
                         \ from affect the flags
 
-.OSW01_C
+.OSW01
 
  LDA #7                 \ Set A to the beep character, so the next instruction
                         \ makes a system beep
 
-.OSW06_C
+.OSW06
 
- JSR x4_CHPR               \ Print the character in A (and clear the C flag)
+ JSR CHPR               \ Print the character in A (and clear the C flag)
 
- BCC OSW0L_C              \ Loop back to OSW0L to fetch another key press (this
+ BCC OSW0L              \ Loop back to OSW0L to fetch another key press (this
                         \ BCC is effectively a JMP as CHPR clears the C flag)
 
-.OSW03_C
+.OSW03
 
  STA INWK+5,Y           \ Store the return character in the Y-th byte of INWK+5
 
  LDA #12                \ Print a newline
- JSR x4_CHPR
+ JSR CHPR
 
  EQUB &24               \ Skip the next instruction by turning it into &24 &38,
                         \ or BIT &0038, which does nothing apart from affect the
                         \ flags
 
-.OSW04_C
+.OSW04
 
  SEC                    \ Set the C flag as ESCAPE was pressed
 
@@ -38366,17 +38372,17 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-.OSW05_C
+.OSW05
 
  TYA                    \ If the length of the line so far in Y is 0, then we
- BEQ OSW01_C              \ just pressed DELETE on an empty line, so jump to
+ BEQ OSW01              \ just pressed DELETE on an empty line, so jump to
                         \ OSW01 give an error beep
 
  DEY                    \ Otherwise we want to delete a character, so decrement
                         \ the length of the line so far in Y
 
  LDA #127               \ Set A = 127 and jump back to OSW06 to print the
- BNE OSW06_C              \ character in A (i.e. the DELETE character) and listen
+ BNE OSW06              \ character in A (i.e. the DELETE character) and listen
                         \ for the next key press
 
 \ ******************************************************************************
@@ -38390,12 +38396,12 @@ ENDIF
 \
 \ ******************************************************************************
 
-.FILEPR_C
+.FILEPR
 
  LDA #3                 \ Print extended token 3 + DISK, i.e. token 3 or 2 (as
  CLC                    \ DISK can be 0 or &FF). In other versions of the game,
  ADC DISK               \ such as the Commodore 64 version, token 2 is "disk"
- JMP DETOK_C              \ and token 3 is "tape", so this displays the currently
+ JMP DETOK              \ and token 3 is "tape", so this displays the currently
                         \ selected media, but this system is unused in the
                         \ Master version and tokens 2 and 3 contain different
                         \ text
@@ -38433,7 +38439,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ZERO_C
+.ZERO
 
  LDX #(de-FRIN)         \ We're going to zero the UP workspace variables from
                         \ FRIN to de, so set a counter in X for the correct
@@ -38441,13 +38447,13 @@ ENDIF
 
  LDA #0                 \ Set A = 0 so we can zero the variables
 
-.ZEL2_C
+.ZEL2
 
  STA FRIN,X             \ Zero the X-th byte of FRIN to de
 
  DEX                    \ Decrement the loop counter
 
- BPL ZEL2_C               \ Loop back to zero the next variable until we have done
+ BPL ZEL2               \ Loop back to zero the next variable until we have done
                         \ them all
 
  RTS                    \ Return from the subroutine
@@ -38465,10 +38471,10 @@ ENDIF
 
 IF _COMPACT
 
-.GTDIR_C
+.GTDIR
 
  LDA #2                 \ Print extended token 2 ("{cr}WHICH DRIVE?")
- JSR DETOK_C
+ JSR DETOK
 
  LDA #19                \ The call to MT26 below uses the OSWORD block at RLINE
  STA RLINE+2            \ to fetch the line, and RLINE+2 defines the maximum
@@ -38476,7 +38482,7 @@ IF _COMPACT
                         \ length to 19 (as that's the longest directory name
                         \ allowed)
 
- JSR MT26_C               \ Call MT26 to fetch a line of text from the keyboard
+ JSR MT26               \ Call MT26 to fetch a line of text from the keyboard
                         \ to INWK+5, with the text length in Y, so INWK now
                         \ contains the full directory name
 
@@ -38486,7 +38492,7 @@ IF _COMPACT
  TYA                    \ The OSWORD call returns the length of the commander's
                         \ name in Y, so transfer this to A
 
- BEQ GTDIR_C-1            \ If A = 0, no name was entered, so jump to DIR-1 to
+ BEQ GTDIR-1            \ If A = 0, no name was entered, so jump to DIR-1 to
                         \ return from the subroutine (as GTDIR-1 contains an
                         \ RTS)
 
@@ -38499,17 +38505,17 @@ IF _COMPACT
                         \ we copy the string starting at INWK+5 to DIRI+4
                         \ onwards (i.e. "12345678901234567890")
 
-.DIRL_C
+.DIRL
 
  LDA INWK+5,X           \ Copy the X-th byte of INWK+5 to the X-th byte of
  STA DIRI+4,X           \ DIRI+4
 
  DEX                    \ Decrement the loop counter
 
- BPL DIRL_C               \ Loop back to DIRL to copy the next character until we
+ BPL DIRL               \ Loop back to DIRL to copy the next character until we
                         \ have copied the whole filename
 
- JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+ JSR NMIRELEASE         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
                         \ can use it, and store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
@@ -38517,11 +38523,11 @@ IF _COMPACT
  LDX #LO(DIRI)          \ Set (Y X) to point to DIRI ("DIR <name entered>")
  LDY #HI(DIRI)
 
- JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+ JSR DOSCLI             \ (Port: through DOSCLI, the HAZEL and NMI glue)
                         \ Call OSCLI to run the OS command in DIRI, which
                         \ changes the disc directory to the name entered
 
- JMP getzp_C              \ Call getzp to restore the top part of zero page from
+ JMP getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000 and return from the subroutine
                         \ using a tail call
 
@@ -38551,15 +38557,15 @@ ENDIF
 \
 \ ******************************************************************************
 
-.CATS_C
+.CATS
 
 IF _SNG47
 
- JSR GTDRV_C              \ Get an ASCII disc drive number from the keyboard in A,
+ JSR GTDRV              \ Get an ASCII disc drive number from the keyboard in A,
                         \ setting the C flag if an invalid drive number was
                         \ entered
 
- BCS DELT_C-1             \ If the C flag is set, then an invalid drive number was
+ BCS DELT-1             \ If the C flag is set, then an invalid drive number was
                         \ entered, so return from the subroutine (as DELT-1
                         \ contains an RTS)
 
@@ -38574,13 +38580,13 @@ IF _SNG47
 
 ELIF _COMPACT
 
- JSR GTDIR_C              \ Get a directory name from the keyboard and change to
+ JSR GTDIR              \ Get a directory name from the keyboard and change to
                         \ that directory
 
 ENDIF
 
  LDA #3                 \ Print extended token 3, which clears the screen and
- JSR DETOK_C              \ prints the boxed-out title "DRIVE {drive number}
+ JSR DETOK              \ prints the boxed-out title "DRIVE {drive number}
                         \ CATALOGUE"
 
  LDA #1                 \ Set the CATF flag to 1, so that the TT26 routine will
@@ -38590,13 +38596,13 @@ ENDIF
 
 IF _SNG47
 
- JSR getzp_C              \ Call getzp to store the top part of zero page in the
+ JSR getzp              \ Call getzp to store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
 
 ELIF _COMPACT
 
- JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+ JSR NMIRELEASE         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
                         \ can use it, and store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
@@ -38608,11 +38614,11 @@ ENDIF
                         \ DFS command for cataloguing that drive (*. being short
                         \ for *CAT)
 
- JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+ JSR DOSCLI             \ (Port: through DOSCLI, the HAZEL and NMI glue)
                         \ Call OSCLI to execute the OS command at (Y X), which
                         \ catalogues the disc
 
- JSR getzp_C              \ Call getzp to restore the top part of zero page from
+ JSR getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000
 
  STZ CATF               \ Set the CATF flag to 0, so the TT26 routine reverts to
@@ -38646,13 +38652,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DELT_C
+.DELT
 
- JSR CATS_C               \ Call CATS to ask for a drive number (or a directory
+ JSR CATS               \ Call CATS to ask for a drive number (or a directory
                         \ name on the Master Compact) and catalogue that disc
                         \ or directory
 
- BCS SVE_C                \ If the C flag is set then an invalid drive number was
+ BCS SVE                \ If the C flag is set then an invalid drive number was
                         \ entered as part of the catalogue process, so jump to
                         \ SVE to display the disc access menu
 
@@ -38666,13 +38672,13 @@ IF _SNG47
 ENDIF
 
  LDA #8                 \ Print extended token 8 ("{single cap}COMMANDER'S
- JSR DETOK_C              \ NAME? ")
+ JSR DETOK              \ NAME? ")
 
- JSR MT26_C               \ Call MT26 to fetch a line of text from the keyboard
+ JSR MT26               \ Call MT26 to fetch a line of text from the keyboard
                         \ to INWK+5, with the text length in Y
 
  TYA                    \ If no text was entered (Y = 0) then jump to SVE to
- BEQ SVE_C                \ display the disc access menu
+ BEQ SVE                \ display the disc access menu
 
 IF _SNG47
 
@@ -38704,7 +38710,7 @@ ELIF _COMPACT
 
 ENDIF
 
-.DELL1_C
+.DELL1
 
 IF _SNG47
 
@@ -38713,10 +38719,10 @@ IF _SNG47
 
  DEX                    \ Decrement the loop counter
 
- BNE DELL1_C              \ Loop back to DELL1 to copy the next character until we
+ BNE DELL1              \ Loop back to DELL1 to copy the next character until we
                         \ have copied the whole filename
 
- JSR getzp_C              \ Call getzp to store the top part of zero page in the
+ JSR getzp              \ Call getzp to store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
 
@@ -38727,10 +38733,10 @@ ELIF _COMPACT
 
  DEX                    \ Decrement the loop counter
 
- BPL DELL1_C              \ Loop back to DELL1 to copy the next character until we
+ BPL DELL1              \ Loop back to DELL1 to copy the next character until we
                         \ have copied the whole filename
 
- JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+ JSR NMIRELEASE         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
                         \ can use it, and store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
@@ -38740,14 +38746,14 @@ ENDIF
  LDX #LO(DELI)          \ Set (Y X) to point to the OS command at DELI, which
  LDY #HI(DELI)          \ contains the DFS command for deleting this file
 
- JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+ JSR DOSCLI             \ (Port: through DOSCLI, the HAZEL and NMI glue)
                         \ Call OSCLI to execute the OS command at (Y X), which
                         \ deletes the file
 
- JSR getzp_C              \ Call getzp to restore the top part of zero page from
+ JSR getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000
 
- JMP SVE_C                \ Jump to SVE to display the disc access menu and return
+ JMP SVE                \ Jump to SVE to display the disc access menu and return
                         \ from the subroutine using a tail call
 
 \ ******************************************************************************
@@ -38762,16 +38768,16 @@ ENDIF
 \
 \ ******************************************************************************
 
-.SVE_C
+.SVE
 
  TSX                    \ Transfer the stack pointer to X and store it in
  STX stackpt            \ stackpt, so we can restore it in the NEWBRK routine
 
- JSR TRADEMODE2_C         \ Set the palette for trading screens and switch the
+ JSR TRADEMODE2         \ Set the palette for trading screens and switch the
                         \ current colour to white
 
  LDA #1                 \ Print extended token 1, the disc access menu, which
- JSR DETOK_C              \ presents these options:
+ JSR DETOK              \ presents these options:
                         \
                         \   1. Load New Commander
                         \   2. Save Commander {commander name}
@@ -38780,79 +38786,79 @@ ENDIF
                         \   5. Default JAMESON
                         \   6. Exit
 
- JSR t_C                  \ Scan the keyboard until a key is pressed, returning
+ JSR t                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  CMP #'1'               \ Option 1 was chosen, so jump to loading to load a new
- BEQ loading_C            \ commander
+ BEQ loading            \ commander
 
  CMP #'2'               \ Option 2 was chosen, so jump to SV1 to save the
- BEQ SV1_C                \ current commander
+ BEQ SV1                \ current commander
 
  CMP #'3'               \ Option 3 was chosen, so jump to feb10 to catalogue a
- BEQ feb10_C              \ disc
+ BEQ feb10              \ disc
 
  CMP #'4'               \ If option 4 wasn't chosen, skip the next two
- BNE jan18_C              \ instructions
+ BNE jan18              \ instructions
 
- JSR DELT_C               \ Option 4 was chosen, so call DELT to delete a file
+ JSR DELT               \ Option 4 was chosen, so call DELT to delete a file
 
- JMP SVE_C                \ Jump to SVE to display the disc access menu again and
+ JMP SVE                \ Jump to SVE to display the disc access menu again and
                         \ return from the subroutine using a tail call
 
-.jan18_C
+.jan18
 
  CMP #'5'               \ If option 5 wasn't chosen, skip to feb13 to exit the
- BNE feb13_C              \ menu
+ BNE feb13              \ menu
 
  LDA #224               \ Print extended token 224 ("ARE YOU SURE?")
- JSR DETOK_C
+ JSR DETOK
 
- JSR YESNO_C              \ Call YESNO to wait until either "Y" or "N" is pressed
+ JSR YESNO              \ Call YESNO to wait until either "Y" or "N" is pressed
 
- BCC feb13_C              \ If "N" was pressed, jump to feb13
+ BCC feb13              \ If "N" was pressed, jump to feb13
 
- JSR JAMESON_C            \ Otherwise "Y" was pressed, so call JAMESON to set the
+ JSR JAMESON            \ Otherwise "Y" was pressed, so call JAMESON to set the
                         \ last saved commander to the default "JAMESON"
                         \ commander
 
- JMP DFAULT_C             \ Jump to DFAULT to reset the current commander data
+ JMP DFAULT             \ Jump to DFAULT to reset the current commander data
                         \ block to the last saved commander, returning from the
                         \ subroutine using a tail call
 
-.feb13_C
+.feb13
 
  CLC                    \ Option 5 was chosen, so clear the C flag to indicate
                         \ that nothing was loaded
 
  RTS                    \ Return from the subroutine
 
-.feb10_C
+.feb10
 
- JSR CATS_C               \ Call CATS to ask for a drive number (or a directory
+ JSR CATS               \ Call CATS to ask for a drive number (or a directory
                         \ name on the Master Compact) and catalogue that disc
                         \ or directory
 
- JSR t_C                  \ Scan the keyboard until a key is pressed, returning
+ JSR t                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
- JMP SVE_C                \ Jump to SVE to display the disc access menu and return
+ JMP SVE                \ Jump to SVE to display the disc access menu and return
                         \ from the subroutine using a tail call
 
-.loading_C
+.loading
 
- JSR GTNMEW_C             \ If we get here then option 1 (load) was chosen, so
+ JSR GTNMEW             \ If we get here then option 1 (load) was chosen, so
                         \ call GTNMEW to fetch the name of the commander file
                         \ to load (including drive number and directory) into
                         \ INWK
 
 IF _SNG47
 
- JSR GTDRV_C              \ Get an ASCII disc drive number from the keyboard in A,
+ JSR GTDRV              \ Get an ASCII disc drive number from the keyboard in A,
                         \ setting the C flag if an invalid drive number was
                         \ entered
 
- BCS jan2186_C            \ If the C flag is set, then an invalid drive number was
+ BCS jan2186            \ If the C flag is set, then an invalid drive number was
                         \ entered, so return from the subroutine (as DELT-1
                         \ contains an RTS)
 
@@ -38861,29 +38867,29 @@ IF _SNG47
 
 ENDIF
 
- JSR LOD_C                \ Call LOD to load the commander file
+ JSR LOD                \ Call LOD to load the commander file
 
- JSR TRNME_C              \ Transfer the commander filename from INWK to NA%
+ JSR TRNME              \ Transfer the commander filename from INWK to NA%
 
  SEC                    \ Set the C flag to indicate we loaded a new commander
 
-.jan2186_C
+.jan2186
 
  RTS                    \ Return from the subroutine
 
-.SV1_C
+.SV1
 
- JSR GTNMEW_C             \ If we get here then option 2 (save) was chosen, so
+ JSR GTNMEW             \ If we get here then option 2 (save) was chosen, so
                         \ call GTNMEW to fetch the name of the commander file
                         \ to save (including drive number and directory) into
                         \ INWK
 
- JSR TRNME_C              \ Transfer the commander filename from INWK to NA%
+ JSR TRNME              \ Transfer the commander filename from INWK to NA%
 
  LSR SVC                \ Halve the save count value in SVC
 
  LDA #4                 \ Print extended token 4, which is blank (this was where
- JSR DETOK_C              \ the competition number was printed in older versions,
+ JSR DETOK              \ the competition number was printed in older versions,
                         \ but the competition was long gone by the time of the
                         \ BBC Master version
 
@@ -38892,7 +38898,7 @@ ENDIF
                         \ NA%+8, so set a counter in X to copy the NT% bytes in
                         \ the commander data block
 
-.SVL1_C
+.SVL1
 
  LDA TP,X               \ Copy the X-th byte of TP to the X-th byte of NA%+8
 \STA &0B00,X            \
@@ -38900,14 +38906,14 @@ ENDIF
 
  DEX                    \ Decrement the loop counter
 
- BPL SVL1_C               \ Loop back until we have copied all the bytes in the
+ BPL SVL1               \ Loop back until we have copied all the bytes in the
                         \ commander data block
 
 \JSR CHECK2             \ These instructions are commented out in the original
 \                       \ source
 \STA CHK3
 
- JSR CHECK_C              \ Call CHECK to calculate the checksum for the last
+ JSR CHECK              \ Call CHECK to calculate the checksum for the last
                         \ saved commander and return it in A
 
  STA CHK                \ Store the checksum in CHK, which is at the end of the
@@ -38931,8 +38937,8 @@ ENDIF
  CLC                    \ Clear the C flag so the call to BPRNT does not include
                         \ a decimal point
 
- JSR TT67_C               \ Call TT67 twice to print two newlines
- JSR TT67_C
+ JSR TT67               \ Call TT67 twice to print two newlines
+ JSR TT67
 
  PLA                    \ Restore the checksum from the stack
 
@@ -38947,23 +38953,23 @@ ENDIF
  LDY #NT%               \ Set a counter in X to copy the NT% bytes in the
                         \ commander data block
 
-.copyme2_C
+.copyme2
 
  LDA NA%+8,Y            \ Copy the X-th byte of NA% to the X-th byte of TAP%
  STA TAP%,Y
 
  DEY                    \ Decrement the loop counter
 
- BPL copyme2_C            \ Loop back until we have copied all the bytes in the
+ BPL copyme2            \ Loop back until we have copied all the bytes in the
                         \ commander data block
 
 IF _SNG47
 
- JSR GTDRV_C              \ Get an ASCII disc drive number from the keyboard in A,
+ JSR GTDRV              \ Get an ASCII disc drive number from the keyboard in A,
                         \ setting the C flag if an invalid drive number was
                         \ entered
 
- BCS SVEX9_C              \ If the C flag is set, then an invalid drive number was
+ BCS SVEX9              \ If the C flag is set, then an invalid drive number was
                         \ entered, so skip the next two instructions
 
  STA savosc+6           \ Store the ASCII drive number in savosc+6, which is the
@@ -38971,14 +38977,14 @@ IF _SNG47
 
 ENDIF
 
- JSR wfile_C              \ Call wfile to save the commander file
+ JSR wfile              \ Call wfile to save the commander file
 
-.SVEX9_C
+.SVEX9
 
- JSR DFAULT_C             \ Call DFAULT to reset the current commander data
+ JSR DFAULT             \ Call DFAULT to reset the current commander data
                         \ block to the last saved commander
 
-.SVEX_C
+.SVEX
 
  CLC                    \ Clear the C flag to indicate that no new commander
                         \ file was loaded
@@ -39004,28 +39010,28 @@ ENDIF
 \
 \ ******************************************************************************
 
-.GTDRV_C
+.GTDRV
 
  LDA #2                 \ Print extended token 2 ("{cr}WHICH DRIVE?")
- JSR DETOK_C
+ JSR DETOK
 
- JSR t_C                  \ Scan the keyboard until a key is pressed, returning
+ JSR t                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
  ORA #%00010000         \ Set bit 4 of A, perhaps to avoid printing any control
                         \ characters in the next instruction
 
- JSR x4_CHPR               \ Print the character in A
+ JSR CHPR               \ Print the character in A
 
  PHA                    \ Store A on the stack so we can retrieve it after the
                         \ call to FEED
 
- JSR x4_FEED               \ Print a newline
+ JSR FEED               \ Print a newline
 
  PLA                    \ Restore A from the stack
 
  CMP #'0'               \ If A < ASCII "0", then it is not a valid drive number,
- BCC LOR_C                \ so jump to LOR to set the C flag and return from the
+ BCC LOR                \ so jump to LOR to set the C flag and return from the
                         \ subroutine
 
  CMP #'4'               \ If A >= ASCII "4", then it is not a valid drive
@@ -39054,13 +39060,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.LOD_C
+.LOD
 
- JSR rfile_C              \ Call rfile to load the commander file to the TAP%
+ JSR rfile              \ Call rfile to load the commander file to the TAP%
                         \ staging area
 
  LDA TAP%               \ If the first byte of the loaded file has bit 7 set,
- BMI ELT2F_C              \ jump to ELT2F, as this is an invalid commander file
+ BMI ELT2F              \ jump to ELT2F, as this is an invalid commander file
                         \
                         \ ELT2F contains a BRK instruction, which will force an
                         \ interrupt to call the address in BRKV, which will
@@ -39071,30 +39077,30 @@ ENDIF
                         \ last saved commander data block at NA%+8, so we set up
                         \ a counter in Y to copy NT% bytes
 
-.copyme_C
+.copyme
 
  LDA TAP%,Y             \ Copy the Y-th byte of TAP% to the Y-th byte of NA%+8
  STA NA%+8,Y
 
  DEY                    \ Decrement the loop counter
 
- BPL copyme_C             \ Loop back until we have copied all NT% bytes
+ BPL copyme             \ Loop back until we have copied all NT% bytes
 
-.LOR_C
+.LOR
 
  SEC                    \ Set the C flag
 
  RTS                    \ Return from the subroutine
 
-.ELT2F_C
+.ELT2F
 
  LDA #9                 \ Print extended token 9 ("{cr}{all caps}ILLEGAL ELITE
- JSR DETOK_C              \ II FILE{sentence case}")
+ JSR DETOK              \ II FILE{sentence case}")
 
- JSR t_C                  \ Scan the keyboard until a key is pressed, returning
+ JSR t                  \ Scan the keyboard until a key is pressed, returning
                         \ the ASCII code in A and X
 
- JMP SVE_C                \ Jump to SVE to display the disc access menu and return
+ JMP SVE                \ Jump to SVE to display the disc access menu and return
                         \ from the subroutine using a tail call
 
 \ ******************************************************************************
@@ -39148,21 +39154,21 @@ ENDIF
 \
 \ ******************************************************************************
 
-.wfile_C
+.wfile
 
  LDY #NT%               \ We first want to copy the current commander data block
                         \ to the commbuf file buffer so we can do a file save
                         \ operation, so we set a counter in Y to copy the NT%
                         \ bytes in the commander data block
 
-.wfileL1_C
+.wfileL1
 
  LDA NA%+8,Y            \ Copy the Y-th byte of NA%+8 to the Y-th byte of the
  STA commbuf,Y          \ commbuf file buffer
 
  DEY                    \ Decrement the loop counter
 
- BPL wfileL1_C            \ Loop back until we have copied all the bytes in the
+ BPL wfileL1            \ Loop back until we have copied all the bytes in the
                         \ commander data block
 
  LDA #0                 \ The save file is 256 bytes long but only NT% (76) of
@@ -39173,13 +39179,13 @@ ENDIF
  LDY #NT%               \ Set an index in Y to point the byte after the end of
                         \ the first NT% bytes in the commander data block
 
-.wfileL2_C
+.wfileL2
 
  STA commbuf,Y          \ Zero the Y-th byte of the commbuf file buffer
 
  INY                    \ Increment the loop counter
 
- BNE wfileL2_C            \ Loop back until we have zeroed the rest of the
+ BNE wfileL2            \ Loop back until we have zeroed the rest of the
                         \ 256-byte block
 
  LDY #0                 \ Now we need to change the save command at savosc to
@@ -39187,12 +39193,12 @@ ENDIF
                         \ index in Y so we can copy the commander name from NA%
                         \ into the savosc command
 
-.wfileL3_C
+.wfileL3
 
  LDA NA%,Y              \ Fetch the Y-th character of the commander name at NA%
 
  CMP #13                \ If the character is a carriage return then we have
- BEQ wfileL4_C            \ reached the end of the name, so jump to wfileL4 as we
+ BEQ wfileL4            \ reached the end of the name, so jump to wfileL4 as we
                         \ have now copied the whole name
 
 IF _SNG47
@@ -39216,9 +39222,9 @@ ENDIF
  INY                    \ Increment the loop counter
 
  CPY #7                 \ If Y < 7 then there may be more characters in the
- BCC wfileL3_C            \ name, so loop back to wfileL3 to fetch the next one
+ BCC wfileL3            \ name, so loop back to wfileL3 to fetch the next one
 
-.wfileL4_C
+.wfileL4
 
  LDA #' '               \ We have copied the name into the savosc command
                         \ string, but the new name might be shorter than the
@@ -39226,7 +39232,7 @@ ENDIF
                         \ of the name with spaces, so we load the space
                         \ character into A
 
-.wfileL5_C
+.wfileL5
 
 IF _SNG47
 
@@ -39245,18 +39251,18 @@ ENDIF
  INY                    \ Increment the loop counter
 
  CPY #7                 \ If Y < 7 then we haven't yet blanked out the whole
- BCC wfileL4_C            \ name, so loop back to wfileL4 to blank the next one
+ BCC wfileL4            \ name, so loop back to wfileL4 to blank the next one
                         \ until the save string is ready for use
 
 IF _SNG47
 
- JSR getzp_C              \ Call getzp to store the top part of zero page in the
+ JSR getzp              \ Call getzp to store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
 
 ELIF _COMPACT
 
- JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+ JSR NMIRELEASE         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
                         \ can use it, and store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
@@ -39266,11 +39272,11 @@ ENDIF
  LDX #LO(savosc)        \ Set (Y X) to point to the OS command at savosc, which
  LDY #HI(savosc)        \ contains the DFS command for saving the commander file
 
- JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+ JSR DOSCLI             \ (Port: through DOSCLI, the HAZEL and NMI glue)
                         \ Call OSCLI to execute the OS command at (Y X), which
                         \ saves the commander file
 
- JMP getzp_C              \ Call getzp to restore the top part of zero page from
+ JMP getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000 and return from the subroutine
                         \ using a tail call
 
@@ -39297,19 +39303,19 @@ ENDIF
 \
 \ ******************************************************************************
 
-.rfile_C
+.rfile
 
  LDY #0                 \ We start by changing the load command at lodosc to
                         \ contain the filename that was just entered by the
                         \ user, so we set an index in Y so we can copy the
                         \ filename from INWK+5 into the lodosc command
 
-.rfileL3_C
+.rfileL3
 
  LDA INWK+5,Y           \ Fetch the Y-th character of the filename
 
  CMP #13                \ If the character is a carriage return then we have
- BEQ rfileL4_C            \ reached the end of the filename, so jump to rfileL4 as
+ BEQ rfileL4            \ reached the end of the filename, so jump to rfileL4 as
                         \ we have now copied the whole filename
 
 IF _SNG47
@@ -39333,9 +39339,9 @@ ENDIF
  INY                    \ Increment the loop counter
 
  CPY #7                 \ If Y < 7 then there may be more characters in the
- BCC rfileL3_C            \ name, so loop back to rfileL3 to fetch the next one
+ BCC rfileL3            \ name, so loop back to rfileL3 to fetch the next one
 
-.rfileL4_C
+.rfileL4
 
  LDA #' '               \ We have copied the name into the lodosc command
                         \ string, but the new name might be shorter than the
@@ -39343,7 +39349,7 @@ ENDIF
                         \ the name with spaces, so we load the space character
                         \ into A
 
-.rfileL5_C
+.rfileL5
 
 IF _SNG47
 
@@ -39362,18 +39368,18 @@ ENDIF
  INY                    \ Increment the loop counter
 
  CPY #7                 \ If Y < 7 then we haven't yet blanked out the whole
- BCC rfileL4_C            \ name, so loop back to rfileL4 to blank the next one
+ BCC rfileL4            \ name, so loop back to rfileL4 to blank the next one
                         \ until the load string is ready for use
 
 IF _SNG47
 
- JSR getzp_C              \ Call getzp to store the top part of zero page in the
+ JSR getzp              \ Call getzp to store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
 
 ELIF _COMPACT
 
- JSR NMIRELEASE_C         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
+ JSR NMIRELEASE         \ Release the NMI workspace (&00A0 to &00A7) so the MOS
                         \ can use it, and store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
@@ -39384,11 +39390,11 @@ ENDIF
  LDY #HI(lodosc)        \ contains the DFS command for loading the commander
                         \ file
 
- JSR DOSCLI_C           \ (Port: through DOSCLI, the HAZEL and NMI glue)
+ JSR DOSCLI             \ (Port: through DOSCLI, the HAZEL and NMI glue)
                         \ Call OSCLI to execute the OS command at (Y X), which
                         \ loads the commander file
 
- JSR getzp_C              \ Call getzp to restore the top part of zero page from
+ JSR getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000
 
                         \ We now copy the newly loaded commander data block to
@@ -39399,14 +39405,14 @@ ENDIF
  LDY #NT%               \ Set a counter in Y to copy the NT% bytes in the
                         \ commander data block
 
-.rfileL1_C
+.rfileL1
 
  LDA commbuf,Y          \ Copy the Y-th byte of the commbuf file buffer to the
  STA TAP%,Y             \ Y-th byte of the TAP% staging area
 
  DEY                    \ Decrement the loop counter
 
- BPL rfileL1_C            \ Loop back until we have copied all the bytes in the
+ BPL rfileL1            \ Loop back until we have copied all the bytes in the
                         \ newly loaded commander data block
 
  RTS                    \ Return from the subroutine
@@ -39890,13 +39896,13 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DKS3_C
+.DKS3
 
  TXA                    \ Copy the ASCII code of the key that has been pressed
                         \ into A
 
- CMP TGINT_C,Y          \ If the pressed key doesn't match the configuration key
- BNE Dk3_C                \ for option Y (as listed in the TGINT table), then jump
+ CMP TGINT,Y            \ If the pressed key doesn't match the configuration key
+ BNE Dk3                \ for option Y (as listed in the TGINT table), then jump
                         \ to Dk3 to return from the subroutine
 
  LDA DAMP,Y             \ The configuration keys listed in TGINT correspond to
@@ -39909,21 +39915,21 @@ ENDIF
  BPL P%+5               \ If the result has a clear bit 7 (i.e. we just turned
                         \ the option off), skip the following instruction
 
- JSR x4_BELL               \ We just turned the option on, so make a standard
+ JSR BELL               \ We just turned the option on, so make a standard
                         \ system beep, so in all we make two beeps
 
- JSR x4_BELL               \ Make a beep sound so we know something has happened
+ JSR BELL               \ Make a beep sound so we know something has happened
 
  TYA                    \ Store Y and A on the stack so we can retrieve them
  PHA                    \ below
 
  LDY #20                \ Wait for 20/50 of a second (0.4 seconds)
- JSR x4_DELAY
+ JSR DELAY
 
  PLA                    \ Restore A and Y from the stack
  TAY
 
-.Dk3_C
+.Dk3
 
  RTS                    \ Return from the subroutine
 
@@ -40434,39 +40440,39 @@ ENDIF
 \
 \ ******************************************************************************
 
-.TT217_C
+.TT217
 
  STY YSAV               \ Store Y in temporary storage, so we can restore it
                         \ later
 
-.t_C
+.t
 
  LDY #2                 \ Wait for 2/50 of a second (0.04 seconds) to implement
- JSR x4_DELAY              \ a simple keyboard debounce and prevent multiple key
+ JSR DELAY              \ a simple keyboard debounce and prevent multiple key
                         \ presses being recorded
 
- JSR x4_RDKEY              \ Scan the keyboard for a key press and return the
+ JSR RDKEY              \ Scan the keyboard for a key press and return the
                         \ ASCII code of the key pressed in A and X (or 0 for no
                         \ key press)
 
- BNE t_C                  \ If a key was already being held down when we entered
+ BNE t                  \ If a key was already being held down when we entered
                         \ this routine, keep looping back up to t, until the
                         \ key is released
 
-.t2_C
+.t2
 
- JSR x4_RDKEY              \ Any pre-existing key press is now gone, so we can
+ JSR RDKEY              \ Any pre-existing key press is now gone, so we can
                         \ start scanning the keyboard again, returning the
                         \ ASCII code of the key pressed in X (or 0 for no key
                         \ press)
 
- BEQ t2_C                 \ Keep looping up to t2 until a key is pressed
+ BEQ t2                 \ Keep looping up to t2 until a key is pressed
 
  LDY YSAV               \ Restore the original value of Y we stored above
 
  TAX                    \ Copy A into X
 
-.out_C
+.out
 
  RTS                    \ Return from the subroutine
 
@@ -40488,7 +40494,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.me1_C
+.me1
 
  STX DLY                \ Set the message delay in DLY to 0, so any new
                         \ in-flight messages will be shown instantly
@@ -40499,7 +40505,7 @@ ENDIF
  STA COL
 
  LDA MCH                \ Set A to the token number of the message that is
- JSR mes9_C               \ currently on-screen, and call mes9 to print it (which
+ JSR mes9               \ currently on-screen, and call mes9 to print it (which
                         \ will remove it from the screen, as printing is done
                         \ using EOR logic)
 
@@ -40526,18 +40532,18 @@ ENDIF
 \
 \ ******************************************************************************
 
-.MESS_C
+.MESS
 
  PHA                    \ Store A on the stack so we can restore it after the
                         \ following
 
  LDX QQ11               \ If this is the space view, skip the following
- BEQ infrontvw_C          \ instruction
+ BEQ infrontvw          \ instruction
 
- JSR x4_CLYNS              \ Clear the bottom three text rows of the upper screen,
+ JSR CLYNS              \ Clear the bottom three text rows of the upper screen,
                         \ and move the text cursor to the first cleared row
 
-.infrontvw_C
+.infrontvw
 
  LDA #21                \ Move the text cursor to row 21
  STA YC
@@ -40558,7 +40564,7 @@ ENDIF
  LDY #20                \ Set Y = 20 for setting the message delay below
 
  CPX DLY                \ If the message delay in DLY is not zero, jump up to
- BNE me1_C                \ me1 to erase the current message first (whose token
+ BNE me1                \ me1 to erase the current message first (whose token
                         \ number will be in MCH)
 
  STY DLY                \ Set the message delay in DLY to 20
@@ -40591,7 +40597,7 @@ ENDIF
                         \ the number of characters in the " DESTROYED" token)
 
  LDA MCH                \ Call TT27 to print the token in MCH into the buffer
- JSR TT27_C               \ (this doesn't print it on-screen, it just puts it into
+ JSR TT27               \ (this doesn't print it on-screen, it just puts it into
                         \ the buffer and moves the DTW5 pointer along, so DTW5
                         \ now contains the size of the message we want to print,
                         \ including the " DESTROYED" part if that's going to be
@@ -40609,7 +40615,7 @@ ENDIF
 
  STA XC                 \ Move the text cursor to column messXC
 
- JSR MT15_C               \ Call MT15 to switch to left-aligned text when printing
+ JSR MT15               \ Call MT15 to switch to left-aligned text when printing
                         \ extended tokens, disabling the justify text setting we
                         \ set above
 
@@ -40632,15 +40638,15 @@ ENDIF
 \
 \ ******************************************************************************
 
-.mes9_C
+.mes9
 
- JSR TT27_C               \ Call TT27 to print the text token in A
+ JSR TT27               \ Call TT27 to print the text token in A
 
  LSR de                 \ If bit 0 of variable de is clear, return from the
- BCC out_C                \ subroutine (as out contains an RTS)
+ BCC out                \ subroutine (as out contains an RTS)
 
  LDA #253               \ Print recursive token 93 (" DESTROYED") and return
- JMP TT27_C               \ from the subroutine using a tail call
+ JMP TT27               \ from the subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -40657,24 +40663,24 @@ ENDIF
 \
 \ ******************************************************************************
 
-.OUCH_C
+.OUCH
 
- JSR x4_DORND              \ Set A and X to random numbers
+ JSR DORND              \ Set A and X to random numbers
 
- BMI out_C                \ If A < 0 (50% chance), return from the subroutine
+ BMI out                \ If A < 0 (50% chance), return from the subroutine
                         \ (as out contains an RTS)
 
  CPX #22                \ If X >= 22 (91% chance), return from the subroutine
- BCS out_C                \ (as out contains an RTS)
+ BCS out                \ (as out contains an RTS)
 
  LDA QQ20,X             \ If we do not have any of item QQ20+X, return from the
- BEQ out_C                \ subroutine (as out contains an RTS). X is in the range
+ BEQ out                \ subroutine (as out contains an RTS). X is in the range
                         \ 0-21, so this not only checks for cargo, but also for
                         \ E.C.M., fuel scoops, energy bomb, energy unit and
                         \ docking computer, all of which can be destroyed
 
  LDA DLY                \ If there is already an in-flight message on-screen,
- BNE out_C                \ return from the subroutine (as out contains an RTS)
+ BNE out                \ return from the subroutine (as out contains an RTS)
 
  LDY #3                 \ Set bit 1 of de, the equipment destruction flag, so
  STY de                 \ that when we call MESS below, " DESTROYED" is appended
@@ -40685,23 +40691,23 @@ ENDIF
                         \ equipment we have of that type
 
  CPX #17                \ If X >= 17 then we just lost a piece of equipment, so
- BCS ou1_C                \ jump to ou1 to print the relevant message
+ BCS ou1                \ jump to ou1 to print the relevant message
 
  TXA                    \ Print recursive token 48 + A as an in-flight token,
  ADC #208               \ which will be in the range 48 ("FOOD") to 64 ("ALIEN
- JMP MESS_C               \ ITEMS") as the C flag is clear, so this prints the
+ JMP MESS               \ ITEMS") as the C flag is clear, so this prints the
                         \ destroyed item's name, followed by " DESTROYED" (as we
                         \ set bit 1 of the de flag above), and returns from the
                         \ subroutine using a tail call
 
-.ou1_C
+.ou1
 
- BEQ ou2_C                \ If X = 17, jump to ou2 to print "E.C.M.SYSTEM
+ BEQ ou2                \ If X = 17, jump to ou2 to print "E.C.M.SYSTEM
                         \ DESTROYED" and return from the subroutine using a tail
                         \ call
 
  CPX #18                \ If X = 18, jump to ou3 to print "FUEL SCOOPS
- BEQ ou3_C                \ DESTROYED" and return from the subroutine using a tail
+ BEQ ou3                \ DESTROYED" and return from the subroutine using a tail
                         \ call
 
  TXA                    \ Otherwise X is in the range 19 to 21 and the C flag is
@@ -40712,7 +40718,7 @@ ENDIF
                         \     = 113 - 19 + X
                         \     = 113 to 115
 
- JMP MESS_C               \ Print recursive token A ("ENERGY BOMB", "ENERGY UNIT"
+ JMP MESS               \ Print recursive token A ("ENERGY BOMB", "ENERGY UNIT"
                         \ or "DOCKING COMPUTERS") as an in-flight message,
                         \ followed by " DESTROYED", and return from the
                         \ subroutine using a tail call
@@ -40727,11 +40733,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ou2_C
+.ou2
 
  LDA #108               \ Set A to recursive token 108 ("E.C.M.SYSTEM")
 
- JMP MESS_C               \ Print recursive token A as an in-flight message,
+ JMP MESS               \ Print recursive token A as an in-flight message,
                         \ followed by " DESTROYED", and return from the
                         \ subroutine using a tail call
 
@@ -40745,11 +40751,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ou3_C
+.ou3
 
  LDA #111               \ Set A to recursive token 111 ("FUEL SCOOPS")
 
- JMP MESS_C               \ Print recursive token A as an in-flight message,
+ JMP MESS               \ Print recursive token A as an in-flight message,
                         \ followed by " DESTROYED", and return from the
                         \ subroutine using a tail call
 
@@ -47122,7 +47128,7 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TT66_C
+.TT66
 
  STA QQ11               \ Set the current view type in QQ11 to A
 
@@ -47145,12 +47151,12 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.TTX66K_C
+.TTX66K
 
- JSR x4_TTX66              \ Call TTX66 to clear the top part of the screen and
+ JSR TTX66              \ Call TTX66 to clear the top part of the screen and
                         \ draw a border box
 
- JSR MT2_C                \ Switch to Sentence Case when printing extended tokens
+ JSR MT2                \ Switch to Sentence Case when printing extended tokens
 
  LDA #0                 \ Reset the ball line heap pointer at LSP
  STA LSP
@@ -47161,7 +47167,7 @@ ENDMACRO
  STA DTW2               \ Set bit 7 of DTW2 to indicate we are not currently
                         \ printing a word
 
- JSR x4_FLFLLS             \ Call FLFLLS to reset the LSO block
+ JSR FLFLLS             \ Call FLFLLS to reset the LSO block
 
  LDA #0                 \ Set LAS2 = 0 to stop any laser pulsing
  STA LAS2
@@ -47179,12 +47185,12 @@ ENDMACRO
  BEQ P%+5               \ If the counter is zero then we are not counting down
                         \ to hyperspace, so skip the next instruction
 
- JSR ee3_C                \ Print the 8-bit number in X at text location (0, 1),
+ JSR ee3                \ Print the 8-bit number in X at text location (0, 1),
                         \ i.e. print the hyperspace countdown in the top-left
                         \ corner
 
  LDA QQ11               \ If this is not a space view, jump to tt66 to skip
- BNE tt66_C               \ displaying the view name
+ BNE tt66               \ displaying the view name
 
  LDA #11                \ Move the text cursor to column 11
  STA XC
@@ -47201,15 +47207,15 @@ ENDMACRO
 
  ORA #&60               \ OR with &60 so we get a value of &60 to &63 (96 to 99)
 
- JSR TT27_C               \ Print recursive token 96 to 99, which will be in the
+ JSR TT27               \ Print recursive token 96 to 99, which will be in the
                         \ range "FRONT" to "RIGHT"
 
- JSR TT162_C              \ Print a space
+ JSR TT162              \ Print a space
 
  LDA #175               \ Print recursive token 15 ("VIEW ")
- JSR TT27_C
+ JSR TT27
 
-.tt66_C
+.tt66
 
  LDX #0                 \ Set QQ17 = 0 to switch to ALL CAPS
  STX QQ17
@@ -48279,7 +48285,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.COLD_C
+.COLD
 
  LDA #LO(NEWBRK)        \ Set BRKV to point to the NEWBRK routine
  STA BRKV
@@ -48291,13 +48297,13 @@ ENDIF
  LDA #HI(CHPR)
  STA WRCHV+1
 
- JSR setzp_C              \ Call setzp to copy the top part of zero page into
+ JSR setzp              \ Call setzp to copy the top part of zero page into
                         \ the buffer at &3000
 
- JSR SETINTS_C            \ Call SETINTS to set various vectors, interrupts and
+ JSR SETINTS            \ Call SETINTS to set various vectors, interrupts and
                         \ timers
 
- JMP x4_SOFLUSH            \ Call SOFLUSH to reset the sound buffers and return
+ JMP SOFLUSH            \ Call SOFLUSH to reset the sound buffers and return
                         \ from the subroutine using a tail call
 
 \ ******************************************************************************
@@ -48338,7 +48344,7 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DOSCLI_C
+.DOSCLI
 
  PHA                    \ Stash HAZEL in buffer 0 (A, X and Y are kept for
  PHX                    \ OSCLI), with GSTASH set (in HAZEL: the copy back
@@ -48375,7 +48381,7 @@ ENDIF
                         \ Fall through into DOSNMI to put the minimal NMI
                         \ handler back
 
-.DOSNMI_C
+.DOSNMI
 
  PHP                    \ Keep the flags and A (X and Y are not changed)
  PHA
@@ -48406,7 +48412,7 @@ ENDIF
  LDA #&48
  STA &0D00
 
-.DOSNMI_END_C
+.DOSNMI_END
 
  BIT DFSIN              \ After a disc command (or its error), stash DFS's
  BPL dosn3              \ lasting bytes again (the command may have changed

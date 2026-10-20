@@ -8,19 +8,23 @@
 \ Elite's game code runs with its home bank (HOMEBANK, sideways RAM bank 4)
 \ paged in at &8000-&BFFF; main RAM and bank 4 code call each other directly.
 \ The cold code (docked screens, text, charts, title, save and load, and the
-\ flight-rare routines) lives in the cold area, sideways RAM bank 7 (&8000-&8FFF
-\ and from COLD7LO), which is paged in as ROMSEL = COLDBANK (7). Every cold entry
-\ point that code outside the cold area calls keeps its name as a 5-byte stub
-\ outside the cold area, and its cold copy has the suffix _C:
+\ flight-rare routines) lives in the cold area, sideways RAM bank 7, which is
+\ paged in as ROMSEL = COLDBANK (7). The source calls everything by the
+\ original's names; the build (tools/streams.py) gives each cold label the
+\ suffix _C in the cold area's copy of the source, and writes a 5-byte stub
+\ with the original name, outside the cold area, for every cold entry point
+\ that code outside the cold area refers to (build/elite-stubs7.asm, in the
+\ high code):
 \
 \   .TT22 JSR far7 : EQUW TT22_C        call (A, X, Y, flags pass both ways)
-\   .DEATH JSR far7j : EQUW DEATH_C     jump (the target never returns)
+\   .TT170 JSR far7j : EQUW TT170_C     jump (the target never returns)
 \
-\ and cold code reaches everything outside the cold area through stubs of its
-\ own, in the cold area:
+\ and cold code reaches what is outside the cold area through stubs of its
+\ own, in the cold area, which its calls and jumps are renamed to
+\ (build/elite-stubs4.asm):
 \
 \   .x4_TT26 JSR far4 : EQUW TT26       call, then page the cold area back in
-\   .j4_TT100 JSR far4j : EQUW TT100    jump (the target never returns here)
+\   .j4_BEGIN JSR far4j : EQUW BEGIN    jump (the target never returns here)
 \
 \ far7 / far4 page the target's bank in and call it, then page the caller's
 \ bank (&F4 at the call) back in. So far4 also works from code that runs with

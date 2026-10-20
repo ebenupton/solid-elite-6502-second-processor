@@ -9,7 +9,7 @@
 \ rather than code. Code here must never run with ACCCON X set (which hides
 \ main RAM at &3000-&7FFF): the quarter-square tables, the renderer's
 \ game-context stubs and hooks, and the ship lighting's game-context half,
-\ followed by the stubs into the cold area (elite-stubs7.asm).
+\ followed by the stubs into the cold area (build/elite-stubs7.asm).
 \
 \ ******************************************************************************
 
