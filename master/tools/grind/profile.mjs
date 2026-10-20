@@ -52,7 +52,7 @@ const ITERS = +(args.iters || 10000);
 const SEED = args.seed || "boot";
 for (const f of [DISC, SYMS]) if (!existsSync(f)) throw new Error(`${f} missing (build first)`);
 
-const { runElite, loadSyms } = await import(`${TREE}/harness/mlib.mjs`);
+const { runElite, loadSyms, mapAt, mapOfLabel } = await import(`${TREE}/harness/mlib.mjs`);
 const { makePilot, patchCommander } = await import(`${TREE}/harness/mpilot.mjs`);
 const sy = loadSyms(SYMS);
 const t0 = Date.now();
@@ -93,7 +93,7 @@ const cur = new Float64Array(SZ), stamp = new Uint32Array(SZ);
 let touched = [], gen = 1, curTotal = 0;
 const pilot = makePilot();
 let cpu = null, installed = false, on = false, last = 0, lastIdx = -1;
-let myIter = 0, prevTT = -1, sw = null;
+let myIter = 0, prevTT = -1, sw = null, swm = "m";
 const cyc = () => cpu.cycleSeconds * 2e6 + cpu.currentCycles;
 const idxOf = pc => {
     if (pc < 0x8000) return pc;
@@ -134,7 +134,7 @@ const r = await runElite({
         installed = true; on = true;
         cpu = s._machine.processor;
         last = cyc();
-        sw = sy.TT100;
+        sw = sy.TT100; swm = mapOfLabel(sy, "TT100");     // (TT100 may be in bank 4)
         cpu.debugInstruction.add(pc => {
             const now = cyc();
             if (lastIdx >= 0) {
@@ -165,7 +165,7 @@ const r = await runElite({
                     prevBranch = pc; prevBranchIdx = idxOf(pc); prevTarget = (pc + 2 + (o < 128 ? o : o - 256)) & 0xffff;
                 }
             }
-            if (pc === sw && pc < 0x8000) {
+            if (pc === sw && (swm === "m" || mapAt(cpu.romsel, pc) === swm)) {
                 // a TT100 entry: close the interval since the previous one
                 if (prevTT >= 0 && myIter === prevTT + 1) closeFlight(pilot.P.phase);
                 else close(scen.other);

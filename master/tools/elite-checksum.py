@@ -37,7 +37,7 @@ while i < len(args):
         release = 1
     if arg == "-rel2":
         release = 2
-    if arg in ("-d", "-f", "-g", "-n"):
+    if arg in ("-d", "-f", "-g", "-n", "-l"):
         i += 1
         if arg == "-d":
             outdir = args[i]
@@ -77,7 +77,7 @@ na2_per_cent = override.get("-n", na2_per_cent)
 
 # Configuration variables for BCODE
 
-load_address = 0x1300
+load_address = override.get("-l", 0x1300)    # (-l: BCODE's address, if not &1300)
 seed = 0x19
 
 if release == 1:

@@ -22,7 +22,7 @@
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
 import { BBC } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/utils.js";
 import { toSsdOrDsd } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/disc.js";
-import { loadSyms, ROOT } from "./mlib.mjs";
+import { loadSyms, ROOT, mapAt, mapOfLabel } from "./mlib.mjs";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { dirname } from "path";
 const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
@@ -35,7 +35,8 @@ s.loadDisc(DISC); s.keyDown(16); s.reset(true); await s.runFor(2000000); s.keyUp
 const cpu = s._machine.processor;
 const secs = n => s.runFor(2000000 * n);
 const hits = { NEWBRK: 0, DOSNMI_C: 0, DOSCLI_C: 0 };
-cpu.debugInstruction.add(pc => { for (const k in hits) if (pc === sy[k] && (k === "NEWBRK" || (cpu.romsel & 15) === 7)) hits[k]++; return false; });
+const hm = Object.fromEntries(Object.keys(hits).map(k => [k, mapOfLabel(sy, k)]));
+cpu.debugInstruction.add(pc => { for (const k in hits) if (pc === sy[k] && (hm[k] === "m" || mapAt(cpu.romsel, pc) === hm[k])) hits[k]++; return false; });
 let shot = 0;
 const snap = async name => writeFileSync(`${OUT}/${String(shot++).padStart(2, "0")}-${name}.png`, await s.screenshotActive({ scale: 1 }));
 // keys by their place in the BBC keyboard matrix (jsbeeb's BBC table)

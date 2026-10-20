@@ -78,6 +78,15 @@ with open("build/banks.txt", "w") as f:
                       ("src/gfx-raster7.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
+    # the main code continues into bank 4: the labels of the main files that are
+    # assembled at &8000-&BFFF are in bank 4
+    sy = {}
+    for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
+        sy.setdefault(m.group(1), int(m.group(2)))
+    for src in ("src/elite-source.asm", "src/elite-low.asm", "src/elite-flight.asm"):
+        for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
+            if 0x8000 <= sy.get(m.group(1), 0) < 0xC000:
+                f.write("%s 4\n" % m.group(1))
 PY
 # the loader takes the game's entry point from the game's symbols
 python3 - <<'PY'
@@ -111,7 +120,8 @@ done
 F=$(sed -n 's/^F% = &\([0-9A-F]*\).*/\1/p' build/compile.txt)
 G=$(sed -n 's/^G% = &\([0-9A-F]*\).*/\1/p' build/compile.txt)
 N=$(sed -n 's/^NA2% = &\([0-9A-F]*\).*/\1/p' build/compile.txt)
-python3 tools/elite-checksum.py $U -rel1 -d build -f "$F" -g "$G" -n "$N" > build/checksum.txt
+L=$(sed -n 's/^S.BCODE &\([0-9A-F]*\) .*/\1/p' build/compile.txt)
+python3 tools/elite-checksum.py $U -rel1 -d build -f "$F" -g "$G" -n "$N" -l "$L" > build/checksum.txt
 
 $BEEBASM -i src/elite-disc.asm -boot M128Elt -do build/elite-master-sng47.ssd -title "E L I T E"
 echo "BCODE &1300-&$F (G% &$G, NA2% &$N), match=$MATCH"

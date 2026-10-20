@@ -3,7 +3,8 @@
 # (docs/MASTER-MAP.md, master/src/elite-far.asm). Run by build.sh from master/.
 #
 # Areas: "main" (elite-source.asm and the files it INCLUDEs in main RAM:
-# elite-far.asm, elite-stubs7.asm), "bank4" (elite-bank4.asm, and the game data that
+# elite-far.asm, elite-stubs7.asm; their labels assembled at &8000-&BFFF, where
+# the main code continues, are in bank 4), "bank4" (elite-bank4.asm, and the game data that
 # build/data-addresses.asm marks bank4), "cold" (elite-andy.asm,
 # elite-coldstubs.asm, elite-cold7.asm: ROMSEL &87, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
@@ -116,6 +117,9 @@ try:
         addr.setdefault(m.group(1), int(m.group(2)))
 except FileNotFoundError:
     pass
+for l, a in list(area.items()):           # the main code continues into bank 4:
+    if a == "main" and 0x8000 <= addr.get(l, 0) < 0xC000:   # the main files' labels
+        area[l] = "bank4"                  # assembled there are in bank 4
 try:
     for line in open("build/data-addresses.asm"):
         m = re.match(r"^\s*(\S+)\s*=\s*&[0-9A-F]+\s*\\\s*(\w+)", line)
