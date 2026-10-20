@@ -9282,9 +9282,8 @@ ENDIF
 
  CLD
  STZ fkn
- LDY #%00000011         \ Stop the auto scan (interrupts off throughout)
- SEI
- STY VIA+&40
+ LDY #%00000011         \ Stop the auto scan (vsync masked throughout, by
+ STY VIA+&40            \ FILLKL)
  LDA #%01111111         \ DDRA: bits 0-6 out to the keyboard
  STA VIA+&43
  LDX #0                 \ Column X = 0 to 12
@@ -9312,7 +9311,6 @@ ENDIF
 
  LDY #%00001011         \ Restart the auto scan
  STY VIA+&40
- CLI
  RTS
 
 
@@ -22452,6 +22450,16 @@ ENDIF
                         \ the keys in those columns: the same keys in the same
                         \ order as before, as no other key can be pressed
 
+ LDA #%00000010         \ Port: mask the vsync interrupt (CA1) in the System
+ STA VIA+&4E            \ VIA's IER until the scan is done at Rd7, rather than
+                        \ disable every interrupt (SEI) in fkdet and Rd1: the
+                        \ vsync handler drives the sound chip through port A
+                        \ and DDRA and reads IRA, which clears CA2's flag, so
+                        \ it must not run during the scan, but the timer 1
+                        \ interrupt at the dashboard split touches none of
+                        \ them and may (a SEI here held it off for up to 540
+                        \ cycles, and the split came late)
+
  JSR fkdet              \ Set fkl(0..fkn-1) = the columns with a key pressed,
                         \ in increasing order (and clear D)
 
@@ -22476,10 +22484,10 @@ ENDIF
 .Rd1
 
  LDY #%00000011         \ Set Y to %00000011, so it's ready to send to SHEILA
-                        \ once interrupts have been disabled
 
- SEI                    \ Disable interrupts so we can scan the keyboard
-                        \ without being hijacked
+                        \ Port: no SEI here, as FILLKL masks the vsync
+                        \ interrupt for the whole scan, so we can scan the
+                        \ keyboard without being hijacked
 
  STY VIA+&40            \ Set 6522 System VIA output register ORB (SHEILA &40)
                         \ to %00000011 to stop auto scan of keyboard
@@ -22501,8 +22509,6 @@ ENDIF
                         \ to %00001011 to restart auto scan of keyboard (this
                         \ doesn't affect the N flag)
 
- CLI                    \ Allow interrupts again
-
  BMI Rd2                \ If the key was pressed then N is set, so jump to Rd2
 
 .Rd3
@@ -22521,6 +22527,9 @@ ENDIF
 .Rd7
 
                         \ If we get here then we have scanned every key
+
+ LDA #%10000010         \ Port: unmask the vsync interrupt again (a vsync
+ STA VIA+&4E            \ that came during the scan is taken now)
 
  CLD                    \ Clear the D flag to return to binary mode (for cases
                         \ where this routine is called in BCD mode)
