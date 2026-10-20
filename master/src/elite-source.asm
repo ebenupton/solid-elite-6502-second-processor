@@ -3036,19 +3036,20 @@ ENDIF
  PHA                    \ Store the original value of A on the stack
 
  LDA VSCAN+1            \ Set the line scan counter to the value of VSCAN+1
- STA DL                 \ (which contains 30 by default and doesn't change), so
+ STA DL                 \ (Port: 74, and it doesn't change), so
                         \ routines like WSCAN can set DL to 0 and then wait for
                         \ it to change to non-zero to catch the vertical sync
 
- STA VIA+&44            \ Set 6522 System VIA T1C-L timer 1 low-order counter
-                        \ (SHEILA &44) to 30
-
- LDA VSCAN              \ Set 6522 System VIA T1C-L timer 1 high-order counter
- STA VIA+&45            \ (SHEILA &45) to the contents of VSCAN (57) to start
-                        \ the T1 counter counting down from 14622 at a rate of
-                        \ 1 MHz (as before; Port: no mode or palette change
-                        \ follows, so HFX, the hyperspace effect's mode 2
-                        \ colours, no longer has any effect here)
+                        \ Port: the original restarted timer 1 here (T1C-L =
+                        \ VSCAN+1, T1C-H = VSCAN: 14622 us from now), so the
+                        \ split moved with this handler's own latency (an
+                        \ interrupt held off by a SEI section came late, and
+                        \ so did the split). Timer 1 now runs freely with a
+                        \ period of exactly one frame, started in step with
+                        \ vsync once by T1SYNC, so it is left alone here (and
+                        \ HFX, the hyperspace effect's mode 2 colours, no
+                        \ longer has any effect, as no mode or palette change
+                        \ follows)
 
  JSR H_VSYNC            \ Port: the renderer's flip: show the front buffer
                         \ (ACCCON D; gfx-hooks.asm)
@@ -3077,9 +3078,65 @@ ENDIF
 
  EQUB 57                \ Defines the split position in the split-screen mode
 
- EQUB 30                \ The line scan counter in DL gets reset to this value
+ EQUB 74                \ The line scan counter in DL gets reset to this value
                         \ at each vertical sync, before decrementing with each
                         \ line scan
+                        \
+                        \ Port: VSCAN(0 1) = 57 * 256 + 74 = 14666 is now timer
+                        \ 1's first count, started by T1SYNC just after vsync
+                        \ (CA1), so that timer 1 fires (N + 2 us later, then
+                        \ once a frame) where IRQ1's write to ACCCON D lands in
+                        \ the middle of line 191's horizontal blanking, between
+                        \ the last fetch of the space view and the first fetch
+                        \ of the dashboard (docs/MASTER-PLAN.md, "Dashboard
+                        \ split timing"); DL only needs it to be non-zero
+
+\ ******************************************************************************
+\
+\       Name: T1SYNC
+\       Type: Subroutine
+\   Category: Drawing the screen
+\    Summary: Port: start timer 1 running freely, once a frame, in step with
+\             vsync, for the split
+\
+\ ------------------------------------------------------------------------------
+\
+\ Timer 1 runs continuously (ACR bit 6, as the MOS leaves it) and reloads from
+\ its latch at each underflow. Waiting for the vsync flag (CA1, which the MOS
+\ makes interrupt at the end of the vsync pulse) with interrupts off, then
+\ starting the count at VSCAN(0 1) and leaving 19966 in the latch, makes it
+\ fire VSCAN(0 1) + 2 us after vsync and then every 19968 us: one frame of
+\ 312 lines of 64 us, from the same crystal, so the split keeps its place in
+\ the frame whatever the interrupt latency at vsync. Called once, by BEGIN.
+\
+\ ******************************************************************************
+
+.T1SYNC
+
+ SEI                    \ Interrupts off while we wait for vsync
+
+ LDA #%00000010         \ Clear CA1's flag in the System VIA's IFR
+ STA VIA+&4D
+
+.t1sy1
+
+ BIT VIA+&4D            \ Wait for CA1's flag (A = %00000010): vsync
+ BEQ t1sy1
+
+ LDA VSCAN+1            \ Start timer 1's count at VSCAN(0 1)
+ STA VIA+&44
+ LDA VSCAN
+ STA VIA+&45
+
+ LDA #LO(19966)         \ And from its first underflow on, once a frame
+ STA VIA+&46            \ (T1L-L, T1L-H: the latch only, which also clears the
+ LDA #HI(19966)         \ timer 1 flag)
+ STA VIA+&47
+
+ CLI                    \ Interrupts back on (the vsync interrupt is still
+                        \ pending and runs now)
+
+ RTS                    \ Return from the subroutine
 \ ******************************************************************************
 \
 \       Name: DOVDU19
@@ -20602,6 +20659,8 @@ ENDIF
 \ ******************************************************************************
 
 .BEGIN
+
+ JSR T1SYNC             \ Port: start timer 1 in step with vsync for the split
 
  LDX #(DISK-COMC)       \ We start by zeroing all the configuration variables
                         \ between COMC and DISK, to set them to their default
