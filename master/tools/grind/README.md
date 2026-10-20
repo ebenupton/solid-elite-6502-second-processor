@@ -30,7 +30,7 @@ scratch/grind/, with analyse.log, profile.log, windows.log, run_all.log).
 | `analyse.py` | the driver: build, model, analyses, outputs |
 | `profile.mjs` | cycles per (mapping, PC) over the gate's piloted run (harness/mlib.mjs + mpilot.mjs, as harness/mprof.mjs) |
 | `windows.py` | the review windows and their ranking |
-| `verify.sh <worktree> [base]` | the gate: rasteriser soak test if `master/src/gfx-raster*.asm` changed, then `<worktree>/master/verify.sh 10000` |
+| `verify.sh <worktree> [base]` | the gate: the rasteriser soak test (always), then `<worktree>/master/verify.sh 10000` |
 | `test_raster.py [--quick]` | the demo's rasteriser soak test (tools/test_raster.py) pointed at master/src's rasteriser (`GRIND_TREE=<tree>` to test another tree's) |
 | `run_all.sh [root]` | analyse + profile + windows |
 | `gcreach.py [--build DIR] [--out DIR] [--profile F] [--cov F...]` | provable reachability of the code from the real entry points: the unreachable code (garbage collection, below) |
@@ -178,11 +178,13 @@ instruction, segment/address order; plus `far: true` on a far call's JSR, whose
 
 ## The gate (verify.sh)
 
-`verify.sh <worktree> [base]` (base default `full-master`):
+`verify.sh <worktree>` (a second argument, once the base to compare the rasteriser
+against, is ignored):
 
-1. if any `master/src/gfx-raster*.asm` differs from base (working tree included):
-   `GRIND_TREE=<worktree> python3 master/tools/grind/test_raster.py --quick` (about 20 s;
-   FAIL on a non-zero exit).  The soak test is the demo's (tools/test_raster.py: a
+1. always (a data move once broke the rasteriser unnoticed while this ran only when
+   `master/src/gfx-raster*.asm` changed):
+   `GRIND_TREE=<worktree> python3 master/tools/grind/test_raster.py --quick` (about 10 s
+   added to every gate run; FAIL on a non-zero exit).  The soak test is the demo's (tools/test_raster.py: a
    pixel-exact Python reference of every rasteriser entry, run in py65 with a write
    guard) with the Master layout: the renderer's shared workspace as elite-gfx.asm lays it
    out (raster_scr, raster_vars at its real base, R_WL, R_WR, R_NDN, the stars), the

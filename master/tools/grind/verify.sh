@@ -2,10 +2,10 @@
 # verify.sh <worktree> [base]: the grind's gate for a candidate change to full Master
 # Elite (master/src) in <worktree>.
 #
-#  1. rasteriser (first, as it is quick): when any master/src/gfx-raster*.asm differs
-#     from base (default: full-master; working tree changes included), the soak test
+#  1. rasteriser (first, as it is quick): always the soak test
 #     master/tools/grind/test_raster.py --quick on the worktree's rasteriser
-#     (GRIND_TREE=<worktree>); FAIL on a non-zero exit;
+#     (GRIND_TREE=<worktree>), whatever changed (a data move once broke it unnoticed
+#     when only rasteriser changes ran it); FAIL on a non-zero exit;
 #  2. the gate proper: <worktree>/master/verify.sh 10000 (build; determinism of game
 #     state against the released SNG47 disc over 10000 piloted iterations, page &0D
 #     untouched; the redock, save/load and view-change regressions; the speed of both).  PASS only
@@ -21,25 +21,19 @@
 # after the first).
 set -u
 WT=$(cd "${1:?usage: verify.sh <worktree> [base]}" && pwd)
-BASE=${2:-full-master}
+# (a second argument, the base, is accepted and ignored: test_raster once ran only
+# when the rasteriser differed from it)
 HERE=$(cd "$(dirname "$0")" && pwd)
 LOG=$WT/scratch/grind-verify
 mkdir -p "$LOG"
 fail() { echo "VERIFY FAIL $1"; exit 1; }
 
-# ---- 1. rasteriser soak test when the rasteriser changed
-RCH=$( (git -C "$WT" diff --name-only "$BASE" -- 'master/src/gfx-raster*.asm' 2>/dev/null; \
-        git -C "$WT" ls-files --others --exclude-standard -- 'master/src/gfx-raster*.asm' 2>/dev/null) | sort -u)
-if [ -n "$RCH" ]; then
-    echo "rasteriser changed vs $BASE: $(echo $RCH)"
-    if GRIND_TREE="$WT" python3 "$HERE/test_raster.py" --quick > "$LOG/test_raster.log" 2>&1; then
-        grep -E " ok" "$LOG/test_raster.log" | sort | uniq -c | tr '\n' ';'; echo
-        echo "test_raster: PASS"
-    else
-        tail -20 "$LOG/test_raster.log"; echo "test_raster: FAIL"; fail test_raster
-    fi
+# ---- 1. rasteriser soak test, always
+if GRIND_TREE="$WT" python3 "$HERE/test_raster.py" --quick > "$LOG/test_raster.log" 2>&1; then
+    grep -E " ok" "$LOG/test_raster.log" | sort | uniq -c | tr '\n' ';'; echo
+    echo "test_raster: PASS"
 else
-    echo "test_raster: skipped (no master/src/gfx-raster*.asm change vs $BASE)"
+    tail -20 "$LOG/test_raster.log"; echo "test_raster: FAIL"; fail test_raster
 fi
 
 # ---- 2. master/verify.sh 10000
