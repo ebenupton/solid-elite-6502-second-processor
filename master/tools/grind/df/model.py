@@ -11,8 +11,8 @@ Built from what master/tools/grind/mkbuild.sh leaves in a build directory:
                 non-macro line (the "site"); label definitions; CLEAR / ORG / SAVE /
                 COPYBLOCK events
   tree/master/src     the sources exactly as assembled
-  tree/master/build   the SAVEd images (BCODE, HICODE, BANK4, ANDY,
-                      COLD7, HAZEL, BANK5, RASTA, BANK6, TOKENS: the extended tokens)
+  tree/master/build   the SAVEd images (BCODE, HICODE, BANK4, COLD7, HAZEL,
+                      BANK5, RASTA, BANK6)
   symbols.txt   beebasm -d (global symbols: labels and equates)
 
 Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers it):
@@ -21,17 +21,14 @@ Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers
         hooks, the lighting's game half, the far7 stubs)
   B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: the main code's
         continuation, then elite-bank4.asm's code)
-  C7A   ANDY.bin, bank 7 &8000-&8FFF: the cold area's first part (ROMSEL 7; the
-        file keeps the name of ANDY, where it was)
-  C7    COLD7.bin, bank 7 COLD7LO- (QQ18, the far4 stubs, the cold code; ROMSEL 7)
-  R7    TOKENS.bin, bank 7 between them (the extended tokens: cold data, read
-        directly by the cold code; R_LINE was here until it moved to ANDY)
+  C7    COLD7.bin, bank 7 from &8000: the cold area (QQ18 and the extended
+        tokens, the cold code, the far4 stubs; ROMSEL 7)
   B5    BANK5.bin (the rasteriser's shared region and disc window; ROMSEL 5)
   RA    RASTA.bin, ANDY (the rasteriser's polygon window: R_POLY, R_LINE; ROMSEL &85)
   B6    BANK6.bin (frame layer, faces, lighting)
   HZ    HAZEL &C000-&DFFF (HAZEL.bin: the game data, and the glue at &C300)
   SH    shadow RAM data (once TOKENS.bin, the extended tokens at &3100; now none: the
-        tokens are in bank 7, INCBINned into TOKENS.bin, read by the cold code directly)
+        tokens are in bank 7, in COLD7.bin, read by the cold code directly)
   RAM   workspace with no image (zero page, K%, WP ...)
 
 Only bytes inside a SAVEd image are loaded (`loaded`): anything else in a segment's
@@ -44,7 +41,7 @@ the assembler); every other byte is data.  No disassembly guesses.
 Which bank a reference to &8000-&BFFF reaches (bank_at): the segment of the label the
 operand names in the source, when it names one (JSR F_FRAME in a G_ stub reaches bank 6);
 else what the referencing segment sees paged: main and B4 code bank 4; the cold code
-(C7A, C7: ROMSEL 7) bank 7; B5 bank 5; RA ANDY over bank 5; B6 itself;
+(C7: ROMSEL 7) bank 7; B5 bank 5; RA ANDY over bank 5; B6 itself;
 HAZEL code any bank (unknown).
 """
 import os, re, collections, bisect
@@ -132,28 +129,23 @@ def cycles(mn, mode):
 
 
 SEGFILE = {'BCODE': 'main', 'HICODE': 'main',
-           'BANK4': 'B4', 'ANDY': 'C7A', 'COLD7': 'C7', 'TOKENS': 'R7', 'BANK5': 'B5',
+           'BANK4': 'B4', 'COLD7': 'C7', 'BANK5': 'B5',
            'RASTA': 'RA', 'BANK6': 'B6', 'HAZEL': 'HZ'}
-SIDEWAYS = ('B4', 'C7A', 'C7', 'R7', 'B5', 'RA', 'B6')
-SEGORDER = ('main', 'B4', 'C7A', 'C7', 'R7', 'HZ', 'B5', 'RA', 'B6')
+SIDEWAYS = ('B4', 'C7', 'B5', 'RA', 'B6')
+SEGORDER = ('main', 'B4', 'C7', 'HZ', 'B5', 'RA', 'B6')
 # The sideways memory map, as data: each bank's segments at &8000-&BFFF, the
 # segment ANDY holds (ROMSEL bit 7 shows it over &8000-&8FFF of the paged bank),
 # and the ROMSEL each segment's code runs with.  What code in a segment sees at
 # &8000-&BFFF (VIEW, [(segment, lo, hi)]; None: unknown, any bank) and what each
 # ROMSEL value shows (ROMSEL_VIEW: the far calls) follow from them.
-COLD7LO = 0xAC40        # the cold area's bank 7 part starts here (set_cold7lo: from the build)
 ANDYSEG = 'RA'          # the rasteriser's polygon window (ROMSEL &85)
 
 
-def _banksegs(lo):
-    return {4: (('B4', 0x8000, 0xC000),), 5: (('B5', 0x8000, 0xC000),), 6: (('B6', 0x8000, 0xC000),),
-            7: (('C7A', 0x8000, 0x9000), ('R7', 0x9000, lo), ('C7', lo, 0xC000))}
-
-
-BANKSEGS = _banksegs(COLD7LO)
+BANKSEGS = {4: (('B4', 0x8000, 0xC000),), 5: (('B5', 0x8000, 0xC000),), 6: (('B6', 0x8000, 0xC000),),
+            7: (('C7', 0x8000, 0xC000),)}
 # (B5's code at &9000-, the rasteriser's shared region, runs with either window:
 # its view is the disc window's; references naming a label resolve by the label)
-SEGROMSEL = {'B4': 0x04, 'C7A': 0x07, 'C7': 0x07, 'R7': 0x07, 'B5': 0x05, 'RA': 0x85, 'B6': 0x06}
+SEGROMSEL = {'B4': 0x04, 'C7': 0x07, 'B5': 0x05, 'RA': 0x85, 'B6': 0x06}
 
 
 def romsel_view(rs):
@@ -176,12 +168,6 @@ def _views():
 _views()
 
 
-def set_cold7lo(lo):
-    """the build's COLD7LO (elite-data.asm): where bank 7's cold area part starts"""
-    global COLD7LO, BANKSEGS
-    COLD7LO = lo
-    BANKSEGS = _banksegs(lo)
-    _views()
 
 
 def profile_seg(pfx, a):
@@ -328,8 +314,6 @@ class Program:
                 self.gsym.setdefault(m.group(1), int(m.group(2)))
         except OSError:
             self.notes.append('symbols.txt missing: no equates')
-        if 'COLD7_START%' in self.gsym:
-            set_cold7lo(self.gsym['COLD7_START%'])
 
     def segname(self, pc, epoch):
         for name, s, e, ep, _f in self.gsaves:

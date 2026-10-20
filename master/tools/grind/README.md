@@ -44,16 +44,14 @@ INCLUDEs at its end):
 |---|---|---|
 | `main` | `BCODE` &1F00-&3FFF, `HICODE` &7200-&7FFF | the main code and data in the original's order (it continues in bank 4), the high code: the quarter-square tables QSL/QSH at &7200, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the lighting's game half (gfx-light), the far7 stubs into the cold area |
 | `B4` | `BANK4` | bank 4, Elite's home bank, code only: the main code's continuation (from DVL9a), then elite-bank4.asm (TACTICS, LL9, MVEIT, Master's drawing, the CMYK dashboard) |
-| `C7A` | `ANDY` | the cold area's first part, bank 7 &8000-&8FFF (ROMSEL 7; the file keeps the name of ANDY, where it was) |
-| `C7` | `COLD7` | bank 7 from COLD7LO (elite-data.asm): QQ18, the far4 stubs out of the cold area, the cold code |
-| `R7` | `TOKENS` | bank 7 &9000 up to COLD7LO: the extended tokens (cold data; R_LINE was here until it moved to ANDY) |
+| `C7` | `COLD7` | the cold area, bank 7 from &8000 (ROMSEL 7): QQ18 and the extended tokens (cold data), the cold code, the far4 stubs out of the cold area |
 | `HZ` | `HAZEL` (&C000-&DFFF) | HAZEL: the game data (INCBIN HZDATA1, HZDATA2: blueprints, XX21 ..., SNE, ACT), and at &C300 gvars, the T_ trampolines, the text and IRQ hooks |
 | `B5`, `B6` | `BANK5`, `BANK6` | the rasteriser's disc window and shared region (with R_LINE's cold part); the frame layer, faces, lighting tables |
 | `RA` | `RASTA` | ANDY: the rasteriser's polygon window, R_POLY and R_LINE (ROMSEL &85) |
-| `SH` | TOKENS.bin (elite-data.asm) at TKN1 = &3100 | shadow RAM data only: TKN1, RUPLA, RUGAL, RUTOK |
+| `SH` | none now (the extended tokens were once in shadow RAM) | shadow RAM data |
 | `RAM` | none | zero page, stack, K%, WP ... |
 
-The profile's bank 7 key (`B7:`) is split at COLD7LO into `R7` and `C7`.  The disc's
+The profile's bank 7 key (`B7:`) is `C7`.  The disc's
 BCODE.bin (commander checksum set) is used rather than BCODE.unprot.bin, as the loader
 loads it.
 
@@ -65,9 +63,7 @@ loads it.
 * **Which bank** a reference to &8000-&BFFF reaches (`bank_at`): the segment of the label
   the operand names (`JSR F_FRAME` in a G_ stub reaches B6, `JSR R_POLY` in a T_
   trampoline B5, `STA r_pt3+2` patches B5); else what the referencing code sees paged:
-  main and B4 code bank 4; cold code (ANDY, C7: ROMSEL &87) ANDY at &8000-&8FFF and bank 7
-  (R7 below COLD7LO, C7 above); the rasteriser's bank 7 code (R7, ROMSEL 7) R7 and C7; B5
-  and B6 themselves; HAZEL code any bank (a HAZEL reference naming no label is
+  main and B4 code bank 4; cold code (C7, ROMSEL 7) bank 7; B5 and B6 themselves; HAZEL code any bank (a HAZEL reference naming no label is
   ambiguous: all banks, conservative).
 * **Shadow RAM.**  The token readers (TKRD, RUPRD, RUGRD) set ACCCON X and read shadow
   &3100-.  An operand naming TKN1/RUPLA/RUGAL/RUTOK reads `SH`; any other read of main

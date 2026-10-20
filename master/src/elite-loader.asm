@@ -797,13 +797,9 @@ ENDIF
  EQUB HOMEBANK, %00001001
  EQUW &8000, &4000
 
- EQUW MESS5             \ ANDY: the cold area's first part, bank 7 &8000-&8FFF
- EQUB 7, %00001001      \ (the file keeps its name: it was ANDY's)
- EQUW &8000, &1000
-
- EQUW MESS6             \ COLD7: the cold area's second part, bank 7 from COLD7LO
- EQUB 7, %00001001      \ (above the extended tokens)
- EQUW COLD7LO, &C000-COLD7LO
+ EQUW MESS6             \ COLD7: the cold area, bank 7 from &8000 (the cold data,
+ EQUB 7, %00001001      \ QQ18 and the extended tokens, then the cold code)
+ EQUW &8000, C7LEN
 
  EQUW MESS8             \ RASTA: the rasteriser's polygon window, ANDY
  EQUB &85, %00001001    \ (ROMSEL bit 7: ANDY over bank 5's &8000-&8FFF)
@@ -816,10 +812,6 @@ ENDIF
  EQUW MESS10            \ BANK6: the renderer's frame layer, bank 6
  EQUB 6, %00001001
  EQUW &8000, B6LEN
-
- EQUW MESS11            \ TOKENS: the extended tokens, bank 7 from TOKSTART
- EQUB 7, %00001001      \ (below the cold area's second part)
- EQUW TOKSTART, TOKLEN
 
  EQUW MESS12            \ HAZEL: the game data and the renderer's glue, staged
  EQUB HOMEBANK, %00001001 \ in main RAM at &4000 (screen buffer 0) and copied to
@@ -908,11 +900,6 @@ ENDIF
  EQUS "L.BANK4 FFFF1300"    \ Port: *LOAD BANK4 FFFF1300
  EQUB 13
 
-.MESS5
-
- EQUS "L.ANDY FFFF1300"     \ Port: *LOAD ANDY FFFF1300
- EQUB 13
-
 .MESS6
 
  EQUS "L.COLD7 FFFF1300"    \ Port: *LOAD COLD7 FFFF1300
@@ -931,11 +918,6 @@ ENDIF
 .MESS10
 
  EQUS "L.BANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
- EQUB 13
-
-.MESS11
-
- EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
  EQUB 13
 
 .MESS12

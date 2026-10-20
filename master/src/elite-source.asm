@@ -21519,21 +21519,6 @@ ENDMACRO
 
 \ ******************************************************************************
 \
-\ Port: bank 7 holds the extended tokens from &9000 (elite-gfx.asm), so the
-\ cold area continues at COLD7HI, after QQ18 (elite-layout.asm)
-\
-\       Area: cold
-\
-\ ******************************************************************************
-
-.COLD_END1%
-
- ASSERT COLD_END1% <= &9000
-
- ORG COLD7HI
-
-\ ******************************************************************************
-\
 \       Name: TT111
 \       Type: Subroutine
 \   Category: Universe

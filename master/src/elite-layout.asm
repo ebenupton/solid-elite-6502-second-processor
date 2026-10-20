@@ -70,42 +70,35 @@
 \ ******************************************************************************
 \
 \ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
-\ (7): sideways RAM bank 7, from &8000, with the blocks of elite-source.asm
-\ tagged cold in the original's order. Bank 7 also holds the extended tokens
-\ (elite-gfx.asm, from &9000 to below COLD7LO), so the cold blocks go
-\ round them: from &8000 to the marker in elite-source.asm, and from
-\ COLD7HI on, after QQ18 (elite-data.asm) and the stubs that lead out of the
-\ cold area. Saved as ANDY (&8000-&8FFF) and COLD7 (from COLD7LO).
+\ (7): sideways RAM bank 7 from &8000, the original's cold data and code in
+\ the original's order: QQ18 and the extended tokens (elite-data.asm's cold
+\ data, build/COLDD.bin), then the blocks of elite-source.asm tagged cold,
+\ then the stubs that lead out of the cold area. Saved as COLD7.
 \
 \ ******************************************************************************
 
  CLEAR &8000, &C000
- ORG COLD7LO
-
-.COLD7_START%
-
- INCBIN "build/QQ18D.bin"           \ QQ18, the recursive token table
-
- INCLUDE "src/elite-coldstubs.asm"  \ stubs out of the cold area (far4, far4j)
-
-.COLD7HI                            \ (the cold blocks after the marker)
-
  ORG &8000
 
 .COLD_START%
 
+ INCBIN "build/COLDD.bin"           \ QQ18 and the extended tokens
+
+ ASSERT P% = COLDD_END%
+
  INCLUDE "build/elite-source-cold.asm"
 
-.COLD7_END%
+ INCLUDE "src/elite-coldstubs.asm"  \ stubs out of the cold area (far4, far4j)
 
- PRINT "Bank 7 cold: &8000-", ~COLD_END1%-1, " (free ", &9000-COLD_END1%, "), ", ~COLD7LO, "-", ~COLD7_END%-1, " (free ", &C000-COLD7_END%, ")"
- ASSERT COLD7_END% <= &C000
- SAVE "build/ANDY.bin", &8000, &9000, &8000
- SAVE "build/COLD7.bin", COLD7LO, &C000, COLD7LO
+.COLD_END%
+
+ PRINT "Bank 7 cold: &8000-", ~COLD_END%-1, " free ", &C000-COLD_END%
+ ASSERT COLD_END% <= &C000
+ SAVE "build/COLD7.bin", &8000, COLD_END%, &8000
 
  PRINT "Addresses for the scramble routines in elite-checksum.py"
  PRINT "F% = ", ~F%
  PRINT "G% = ", ~G%
  PRINT "NA2% = ", ~NA2%
 
- INCLUDE "src/elite-gfx.asm"      \ Port: the filled renderer (HAZEL, banks 5 and 6, bank 7 below COLD7LO)
+ INCLUDE "src/elite-gfx.asm"      \ Port: the filled renderer (HAZEL, banks 5 and 6, ANDY)

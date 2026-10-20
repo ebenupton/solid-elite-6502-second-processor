@@ -7,7 +7,7 @@
 1. builds <root>'s master/ (default: the tree this script is in) in a private copy with
    the provenance-recording BeebAsm (mkbuild.sh -> --build, default
    <this tree>/scratch/grind/build);
-2. models the program (df/model.py: segments main/B4/C7A/C7/R7/HZ/B5/RA/B6, plus the
+2. models the program (df/model.py: segments main/B4/C7/HZ/B5/RA/B6, plus the
    shadow tokens SH as data; instructions with their source file:line, data, labels,
    equates; the far calls, the IRQ and the MOS calls: see README.md);
 3. runs the beebgame dataflow analyses adapted to it (df/analysis.py: CFG, routine

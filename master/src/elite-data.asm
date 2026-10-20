@@ -3600,12 +3600,10 @@ ENDMACRO
                         \ in HAZEL, below, after QQ18); the padding that put
                         \ QQ18 at &A000 in the original is gone
 
- ORG &AB00              \ Port: QQ18 is cold data, at the start of the cold
-                        \ area's bank 7 part (docs/MASTER-MAP.md); bank 7 below
-                        \ COLD7LO holds the cold area's first part and the
-                        \ extended tokens
-
-.COLD7LO
+ ORG &8000              \ Port: QQ18 is cold data: the cold area (sideways RAM
+                        \ bank 7) starts with it, and with the extended tokens
+                        \ after it, and the cold code follows them
+                        \ (elite-layout.asm, docs/MASTER-MAP.md)
 
 \ ******************************************************************************
 \
@@ -5115,9 +5113,8 @@ ENDMACRO
 
  ASSERT HZDATA1END% <= &C300    \ (the renderer's glue starts at &C300)
 
- ORG &9000              \ Port: the extended tokens (TKN1, RUPLA, RUGAL, RUTOK)
-                        \ are cold data, in bank 7 at &9000-&9DFF (elite-gfx.asm
-                        \ INCBINs them; docs/MASTER-MAP.md)
+ ORG QQ18END%           \ Port: the extended tokens (TKN1, RUPLA, RUGAL, RUTOK)
+                        \ are cold data, after QQ18 in the cold area
 
 \ ******************************************************************************
 \
@@ -9609,7 +9606,8 @@ ENDIF
 
 \ Port: the dashboard image (&7000-&7EFF) is BDATA, which the loader copies to
 \ shadow RAM; the game data is build/HZDATA1.bin (&C000 on) and HZDATA2.bin
-\ (XX21 on), which elite-gfx.asm puts in HAZEL
+\ (XX21 on), which elite-gfx.asm puts in HAZEL, and the cold data (QQ18 and the
+\ extended tokens) build/COLDD.bin, which starts the cold area (elite-layout.asm)
 
  PRINT "S.BDATA ", ~CODE%, " ", ~CODE%+&F00, " ", ~LOAD%, " ", ~LOAD%
  SAVE "build/BDATA.unprot.bin", CODE%, CODE%+&F00, LOAD%
@@ -9618,8 +9616,7 @@ ENDIF
  SAVE "build/HZDATA1.bin", &C000, HZDATA1END%, &C000
  SAVE "build/HZDATA2.bin", XX21, HZDATA2END%, XX21
 
- PRINT "QQ18: ", ~QQ18, "-", ~QQ18END%-1
- SAVE "build/QQ18D.bin", QQ18, QQ18END%, QQ18
-
- PRINT "Extended tokens (bank 7): ", ~TKN1, "-", ~P%-1
- SAVE "build/TOKENSD.bin", TKN1, P%, TKN1
+ ASSERT TKN1 = QQ18END%
+.COLDD_END%
+ PRINT "Cold data (bank 7): QQ18 ", ~QQ18, "-", ~QQ18END%-1, ", the extended tokens ", ~TKN1, "-", ~COLDD_END%-1
+ SAVE "build/COLDD.bin", QQ18, COLDD_END%, QQ18

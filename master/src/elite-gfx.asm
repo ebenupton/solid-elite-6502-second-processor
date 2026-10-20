@@ -1,8 +1,7 @@
 \ ******************************************************************************
 \
 \ elite-gfx.asm - the filled renderer's memory: its shared workspace in main
-\ RAM, its glue in HAZEL, banks 5 and 6 and ANDY, and the extended tokens in
-\ bank 7 below the cold area
+\ RAM, its glue in HAZEL, banks 5 and 6 and ANDY
 \ (docs/MASTER-MAP.md)
 \
 \ INCLUDEd at the end of elite-source.asm (after the game's code, so that the
@@ -26,8 +25,6 @@
 \                    gfx-raster_line.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (gfx-frame.asm),
 \                    the ship faces and colours (gfx-faces.asm) and its state
-\   build/TOKENS.bin  sideways RAM bank 7 from TOKSTART: the extended tokens,
-\                    below the cold area at COLD7LO
 \
 \ ******************************************************************************
 
@@ -38,8 +35,6 @@ MAXDT = 64              \ dots per frame
 RASTBANK = 5            \ the rasteriser: bank 5, its disc window (&8000-&8FFF) and
 RASTPOLY = &85          \ the shared region (&9000-&BFFF); ANDY over bank 5, its
                         \ polygon window
-TOKSTART = &9000         \ the extended tokens in bank 7 (the cold area's), below
-                        \ COLD7LO
 GFXBANK = 6
 ELITEBANK = HOMEBANK
 
@@ -169,13 +164,3 @@ INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step (the flare: gfx-flare.asm
 PRINT "Bank 6: frame layer &8000-", ~B6_CODE_END-1, ", data ", ~F_HW, "-", ~B6_END-1, " free ", &C000-B6_END
 ASSERT B6_END <= &C000
 SAVE "build/BANK6.bin", &8000, B6_END, &8000
-
-CLEAR &8000, &C000      \ bank 7 (the cold area's bank, ROMSEL 7): the extended
-ORG TOKSTART             \ tokens (cold data, elite-data.asm)
-.TOK_BEGIN
-INCBIN "build/TOKENSD.bin"
-ASSERT TKN1 = TOK_BEGIN
-.TOK_END
-PRINT "Bank 7: tokens &", ~TOKSTART, "-", ~TOK_END-1, " free to the cold area ", COLD7LO-TOK_END
-ASSERT TOK_END <= COLD7LO
-SAVE "build/TOKENS.bin", TOKSTART, TOK_END, TOKSTART

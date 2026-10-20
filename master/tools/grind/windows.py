@@ -119,14 +119,6 @@ def main():
     J = json.load(open(os.path.join(G, 'insns.json')))
     recs = J['insns']
     build = J['meta']['build']
-    for c in (os.path.join(str(build), 'tree', 'master', 'build', 'symbols.txt'),
-              os.path.join(str(build), 'symbols.txt')):
-        if os.path.exists(c):
-            import re
-            m = re.search(r"'COLD7_START%':(\d+)", open(c, encoding='latin-1').read())
-            if m:
-                model.set_cold7lo(int(m.group(1)))
-            break
     prof, pmeta = load_profile(a.profile, recs)
     for r in recs:
         p = prof.get((r['seg'], int(r['addr'], 16)), (0.0, 0.0, {}))
