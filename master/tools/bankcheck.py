@@ -5,8 +5,8 @@
 # Areas: "main" (elite-source.asm's run, build/elite-source-run.asm, and the
 # files it INCLUDEs in main RAM: elite-far.asm, elite-stubs7.asm; their labels
 # assembled at &8000-&BFFF, where the main code continues, are in bank 4),
-# "bank4" (elite-bank4.asm and elite-source.asm's blocks in bank 4,
-# build/elite-source-bank4.asm), "cold" (elite-source.asm's cold blocks,
+# "bank4" (elite-source.asm's blocks in bank 4, build/elite-source-bank4.asm,
+# and the dashboard, elite-dash.asm, which one of them INCLUDEs), "cold" (elite-source.asm's cold blocks,
 # build/elite-source-cold.asm, and elite-coldstubs.asm: ROMSEL COLDBANK,
 # bank 7, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
@@ -46,7 +46,7 @@ import re, sys
 SRC = "src/"
 FILES = {"../build/elite-source-run.asm": "main",
          "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
-         "elite-bank4.asm": "bank4", "elite-dash.asm": "bank4",
+         "elite-dash.asm": "bank4",
          "elite-coldstubs.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
          # and its banks

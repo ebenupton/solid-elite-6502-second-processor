@@ -88,14 +88,68 @@ def blocks(lines):
     return [tuple(b) for b in out]
 
 
+# the build options' flags (build/elite-build-options.asm, as build.sh writes
+# them for the game), for the checks' view of conditional assembly
+FLAGS = {"_SNG47": True, "_COMPACT": False, "_MATCH_ORIGINAL_BINARIES": True,
+         "_REMOVE_CHECKSUMS": True, "_MAX_COMMANDER": False, "Q%": False}
+
+
+def active_lines(lines):
+    """for each line, False if it is in a branch of IF ... ENDIF that the
+    flags rule out (a condition on anything else counts as either way)"""
+    out, stack = [], []          # stack: [this branch on, a branch taken, known]
+    for l in lines:
+        c = code_part(l)
+        m = re.match(r"^(IF|ELIF|ELSE|ENDIF)\b\s*(.*)$", c, re.I)
+        on = all(st[0] for st in stack)
+        if not m:
+            out.append(on)
+            continue
+        kw, cond = m.group(1).upper(), m.group(2).strip()
+        v = FLAGS.get(cond.replace("NOT(", "").rstrip(")")) if cond else None
+        if v is not None and cond.startswith("NOT("):
+            v = not v
+        if kw == "IF":
+            stack.append([True if v is None else v, bool(v), v is not None])
+        elif kw in ("ELIF", "ELSE") and stack:
+            st = stack[-1]
+            if not st[2]:
+                st[0] = True
+            elif kw == "ELSE":
+                st[0] = not st[1]
+            else:
+                st[0] = (not st[1]) and (True if v is None else v)
+                st[1] = st[1] or st[0]
+                st[2] = st[2] and v is not None
+        elif kw == "ENDIF" and stack:
+            stack.pop()
+        out.append(False)
+    return out
+
+
+ACTIVE = []
+
+
 def last_statement(lines, s, e):
-    """the last statement of lines[s:e] (None if none), passing over the
-    lines of conditional assembly (IF, ELIF, ELSE, ENDIF)"""
+    """the last statement of lines[s:e] that is assembled (None if none),
+    passing over the lines of conditional assembly (IF, ELIF, ELSE, ENDIF)
+    and the branches the build's flags rule out"""
     for i in range(e - 1, s - 1, -1):
+        if ACTIVE and not ACTIVE[i]:
+            continue
         c = code_part(lines[i])
         if c and not re.match(r"^(IF|ELIF|ELSE|ENDIF)\b", c, re.I):
             return c if c.upper().startswith("EQU") else c.split(" : ")[-1].strip()
     return None
+
+
+def assembles(c, macros):
+    """whether the statement c assembles bytes or moves the address (an
+    instruction, data, a label, ORG ...), not just comments, PRINTs, SAVEs,
+    ASSERTs or constants"""
+    if not c or re.match(r"^(PRINT|SAVE|ASSERT|IF|ELIF|ELSE|ENDIF|MACRO|ENDMACRO|GUARD|CPU)\b", c, re.I):
+        return False
+    return not re.match(r"^[A-Za-z_][\w%]*\s*=", c)
 
 
 def falls_through(stmt, macros):
@@ -119,6 +173,7 @@ def falls_through(stmt, macros):
 def main():
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
+    ACTIVE[:] = active_lines(lines)
     macros = set(m.group(1) for m in (re.match(r"^\s*MACRO\s+(\w+)", l) for l in lines) if m)
     errors = []
     for s, e, name, area in bl:
@@ -138,8 +193,8 @@ def main():
         if not falls_through(st, macros):
             continue
         for s2, e2, name2, area2 in bl[k + 1:]:
-            if last_statement(lines, s2, e2) is None:
-                continue               # (comments only)
+            if not any(ACTIVE[i] and assembles(code_part(lines[i]), macros) for i in range(s2, e2)):
+                continue               # (comments, PRINTs and constants only)
             if any(re.match(r"^(ORG|CLEAR|SKIPTO)\b", code_part(lines[i]), re.I) for i in range(s2, e2)):
                 errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s, which moves the address"
                               % (SRC, e, name, area, st, name2))

@@ -30,12 +30,9 @@
 \ ******************************************************************************
 \
 \ Port: the main code's part in bank 4 ends here; the rest of bank 4 is the
-\ game code that elite-bank4.asm holds (docs/MASTER-MAP.md), then the blocks
-\ of elite-source.asm in bank 4
+\ blocks of elite-source.asm tagged bank 4 (docs/MASTER-MAP.md)
 \
 \ ******************************************************************************
-
- INCLUDE "src/elite-bank4.asm"
 
  INCLUDE "build/elite-source-bank4.asm"
 
