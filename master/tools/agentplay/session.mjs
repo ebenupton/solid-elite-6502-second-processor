@@ -142,13 +142,13 @@ export class Session {
     }
     keysFor(ctx) {
         if (this.cfg.replay) return this.rlog.get(ctx.poll)?.k || [];
-        const k = [...this.held];
+        const k = this.chaos?.exclusive() ? [] : [...this.held];
         if (this.chaos) for (const c of this.chaos.keys(this, ctx)) if (!k.includes(c)) k.push(c);
         return k.sort((a, b) => a - b);
     }
     dksFor(ctx) {
         if (this.cfg.replay) { const e = this.rlog.get(ctx.poll); return !!(e && e.t === "d"); }
-        return this.held.has(ctx.key) || (this.chaos ? this.chaos.keys(this, ctx).includes(ctx.key) : false);
+        return (this.held.has(ctx.key) && !this.chaos?.exclusive()) || (this.chaos ? this.chaos.keys(this, ctx).includes(ctx.key) : false);
     }
     joyFor(ctx) {
         if (this.cfg.replay) {

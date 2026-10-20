@@ -89,6 +89,35 @@ const POKES = {
     heat: { every: 20000, when: flying, poke: () => [["CABTMP", 0, [230]]] },
     fuel: { every: 20000, when: flying, poke: () => [["QQ14", 0, [3]]] },
 };
+// the disc menu, while docked on the Status screen (one such action a dock, and the
+// agent's keys are held back while it runs): catalogues, deletes, loads of a missing
+// file, invalid and empty drives, saves under other names (until the catalogue is full),
+// the default commander. Steps: [keys, frames], or { until(r, sy), keys, max } (hold
+// keys until the condition, at most max frames), or { pulse, until, max } (tap a key
+// every 12 frames until the condition)
+const D = { 0: 0x27, 1: 0x30, 2: 0x31, 3: 0x11, 4: 0x12, 5: 0x13, 6: 0x34, 7: 0x24, 8: 0x15, 9: 0x26, RET: 0x49, Y: 0x44, N: 0x55, AT: 0x47 };
+const LETTER = { A: 0x41, B: 0x64, C: 0x52, D: 0x32, E: 0x22, F: 0x43, G: 0x53, H: 0x54, I: 0x25, J: 0x45, K: 0x46, L: 0x56, M: 0x65, N: 0x55, O: 0x36, P: 0x37, Q: 0x10, R: 0x33, S: 0x51, T: 0x23, U: 0x35, V: 0x63, W: 0x21, X: 0x42, Y: 0x44, Z: 0x61 };
+const press = k => [[k, 3], [null, 5]];
+const typed = t => [...t].flatMap(ch => press(LETTER[ch] ?? D[ch]));
+const inMenu = (r, sy) => r[sy.QQ11] === 1;
+const atStatus = (r, sy) => r[sy.QQ12] && r[sy.QQ11] === 8;
+const menu = () => [{ until: inMenu, keys: [D.AT], max: 150 }, [null, 20]];
+const leave = () => [[null, 20], { pulse: D[6], until: atStatus, max: 1500 }];
+const drive = k => [...press(k), [null, 10]];
+let saveNo = 0;
+const DISC = {
+    dcat:   () => [...menu(), ...press(D[3]), ...drive(D[0]), [null, 250], ...press(0x62), ...leave()],
+    dcat1:  () => [...menu(), ...press(D[3]), ...drive(D[1]), [null, 400], ...press(0x62), ...leave()],
+    dbad:   () => [...menu(), ...press(D[rng() < 0.5 ? 3 : 1]), ...(rng() < 0.5 ? [] : [[null, 12], ...typed("BAD"), ...press(D.RET), [null, 6]]), ...drive(D[rng() < 0.5 ? 7 : 9]), [null, 30], ...leave()],
+    dnoload: () => [...menu(), ...press(D[1]), [null, 12], ...typed("NOFILE"), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
+    dnodel: () => [...menu(), ...press(D[4]), ...drive(D[0]), [null, 250], ...typed("NOFILE"), ...press(D.RET), [null, 200], ...leave()],
+    dsave:  () => { const n = "CH" + (saveNo++ % 40); return [...menu(), ...press(D[2]), [null, 12], ...typed(n), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 250], ...leave()]; },
+    ddel:   () => { const n = "CH" + Math.floor(rng() * Math.max(1, saveNo)); return [...menu(), ...press(D[4]), ...drive(D[0]), [null, 250], ...typed(n), ...press(D.RET), [null, 200], ...leave()]; },
+    ddefault: () => [...menu(), ...press(D[5]), [null, 10], ...press(rng() < 0.5 ? D.Y : D.N), [null, 30], ...leave()],
+    dexit:  () => [...menu(), ...press(D[6]), ...leave()],
+};
+for (const [nm, f] of Object.entries(DISC)) ACTIONS[nm] = { every: 150, disc: true, exclusive: true, when: atStatus, keys: f };
+
 function flying(r, sy) { return !r[sy.QQ12] && !r[sy.QQ11] && r[sy.MCNT] !== 0xff; }
 
 let rng = Math.random;
@@ -98,24 +127,40 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6d2b79f5 | 0; let t = Ma
 // rate ("ecm,bomb*2")
 export function makeChaos(spec, seed) {
     const r = mulberry(seed * 7919 + 17);
-    const names = spec === "all" ? [...Object.keys(ACTIONS), ...Object.keys(POKES)] : spec.split(",");
+    const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...Object.keys(POKES)]
+        : spec === "disc" ? Object.keys(DISC) : spec.split(",");
     const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
-    let seq = null, seqLeft = 0, cur = [];
+    let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = false;
     const done = {};
+    const next = (ram, sy) => {
+        if (!seq.length) { seq = null; cur = []; step = null; excl = false; return; }
+        const e = seq.shift();
+        if (Array.isArray(e)) { const [k, n] = e; cur = k === null ? [] : Array.isArray(k) ? k : [k]; seqLeft = n; step = null; }
+        else { step = e; seqLeft = e.max; cur = e.keys || []; }
+    };
     return {
         counts: done,
+        exclusive() { return excl; },
         // once a frame (after the agent): maybe start an action
         frame(S) {
             rng = r;
             const ram = S.ref.ram, sy = S.rsy;
+            if (flying(ram, sy)) discDone = false;
             if (seq) {
+                if (step) {
+                    if (step.until(ram, sy) || --seqLeft <= 0) { next(ram, sy); return; }
+                    if (step.pulse !== undefined) cur = (step.max - seqLeft) % 12 < 3 ? [step.pulse] : [];
+                    return;
+                }
                 if (--seqLeft > 0) return;
-                if (!seq.length) { seq = null; cur = []; return; }
-                const [k, n] = seq.shift(); cur = k === null ? [] : Array.isArray(k) ? k : [k]; seqLeft = n;
+                next(ram, sy);
                 return;
             }
             for (const { nm, a, rate } of acts) {
+                if (a.disc && discDone) continue;
                 if (r() >= rate || !a.when(ram, sy)) continue;
+                if (a.disc) discDone = true;
+                excl = !!a.exclusive;
                 done[nm] = (done[nm] || 0) + 1;
                 S.logInput({ chaos: nm, frame: S.frame, i: S.ref.iter });
                 if (a.poke) {
@@ -125,8 +170,8 @@ export function makeChaos(spec, seed) {
                     S.logInput({ poke: at, v: pk });
                     return;
                 }
-                seq = (typeof a.keys === "function" ? a.keys() : a.keys).map(x => [...x]);
-                const [k, n] = seq.shift(); cur = k === null ? [] : Array.isArray(k) ? k : [k]; seqLeft = n;
+                seq = (typeof a.keys === "function" ? a.keys() : a.keys).map(x => Array.isArray(x) ? [...x] : { ...x });
+                next(ram, sy);
                 return;
             }
         },
