@@ -135,6 +135,19 @@ const PLANS = {
         for (let i = 0; i < 8; i++) out.push([`n4-load-s${240 + i}`, 15, "--seed", String(240 + i), "--mode", i % 2 ? "load,curious" : "load", "--from", out[i * 4 + 1][0], "--chaos", mixes[(i * 7) % mixes.length]]);
         return out;
     })(),
+    // the fifth wave: seeds 300-323, as night4 with other pairings
+    night5: (() => {
+        const cmdrs = ["deadly", "galaxy3", "equipped", "wanted", "mission2", "debrief1", "rich", "trader"];
+        const modes = ["efficient", "curious", "keyboard", "fair"];
+        const mixes = ["all,docked,disc", "missile*4,views*3,docked", "pod*3,ghyp*3,hurt*2,disc", "dock*4,charts*2,docked,disc", "missile*3,ecm*3,bomb*2,jump*2"];
+        const out = [];
+        for (let i = 0; i < 20; i++) {
+            const seed = 300 + i;
+            out.push([`n5-${cmdrs[i % 8]}-${modes[(i * 3) % 4]}-s${seed}`, 12 + (i % 2) * 4, "--seed", String(seed), "--commander", cmdrs[i % 8], "--mode", modes[(i * 3) % 4], "--chaos", mixes[i % 5], ...(i % 5 === 2 ? ["--savediscs"] : [])]);
+        }
+        for (let i = 0; i < 4; i++) out.push([`n5-load-s${320 + i}`, 12, "--seed", String(320 + i), "--mode", "load", "--from", out[i * 5 + 2][0], "--chaos", mixes[(i + 1) % 5]]);
+        return out;
+    })(),
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
