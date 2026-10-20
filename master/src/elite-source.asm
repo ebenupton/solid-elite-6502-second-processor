@@ -2966,11 +2966,15 @@ ENDIF
 
  PHY                    \ Store Y on the stack
 
- LDA #%00000010         \ Read the 6522 System VIA status byte bit 1 (SHEILA
- BIT VIA+&4D            \ &4D), which is set if vertical sync has occurred on
-                        \ the video system
-
- BNE LINSCN             \ If we are on the vertical sync pulse, jump to LINSCN
+ BIT VIA+&4D            \ Port: read the 6522 System VIA interrupt flag
+ BVC LINSCN             \ register (SHEILA &4D), whose bit 6 (into V) is timer
+                        \ 1's flag, and if it is clear, this is the vertical
+                        \ sync interrupt, so jump to LINSCN (the original
+                        \ tested bit 1, vsync's flag, first; timer 1 and vsync
+                        \ are the only interrupts enabled, and code that must
+                        \ not be interrupted by the vsync handler masks only
+                        \ vsync, in IER, so a vsync flag may be set but masked
+                        \ when timer 1 interrupts)
 
                         \ Port: this is timer 1 (the space view / dashboard
                         \ boundary). The whole screen is now one MODE 1 screen
