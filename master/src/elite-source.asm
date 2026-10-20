@@ -19338,10 +19338,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DORND2
-
- CLC                    \ Clear the C flag so the value of the C flag on entry
-                        \ doesn't affect the outcome
+                        \ Port: DORND2 (CLC) removed (unreachable: its only
+                        \ way in was Ze's fall-through, and Ze, in the cold
+                        \ area, does CLC : JMP x4_DORND itself; the explosion
+                        \ code's DORND2 copies are inline)
 
 .DORND
 
@@ -23084,11 +23084,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.yetanotherrts
-
-.DEMON
-
- RTS                    \ Return from the subroutine
+                        \ Port: removed (unreachable: TT171, which fell through
+                        \ into it, is not assembled for SNG47, and the port's
+                        \ SFRMIS returns with its own RTS instead of BCC
+                        \ yetanotherrts)
 
 \ ******************************************************************************
 \
