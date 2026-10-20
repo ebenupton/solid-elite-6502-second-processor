@@ -62,11 +62,15 @@ which spare RAM the port may take.
    bytes fill the rest.
 9. **The harness** reads the compared game state (zero page, K%, WP, UP,
    NA%, the sound buffers) by symbol, wherever the build puts it, and the
-   game's tables (IKNS) and code (LL5's caller) through their banks.
+   game's tables (IKNS) and code (LL5's caller) through their banks. The one
+   address the compared state holds of data the port moves, the space
+   station's line heap pointer (LSO, in WP), is compared as the original's
+   (mlib.canonFor).
 10. **Each bank keeps its private tables and variables**; the state that
    more than one bank, the IRQ handler or code running with ACCCON X set
    reads is the renderer's shared workspace, in main RAM below the main code
-   (&0840-&0CFF and &1300-&1ECB), with DFSST; HAZEL holds the game data and
+   (one block, &0E40-&1EFF, ending where the main code starts), with DFSST;
+   HAZEL holds the game data and
    the renderer's glue (its shared variables with initial values, the T_
    trampolines, the text and IRQ hooks).
 11. **The main code reads as the original.** BCODE is one run in the
@@ -82,9 +86,10 @@ which spare RAM the port may take.
 
 | Region | Addresses | Purpose | Free |
 |---|---|---|---:|
-| Zero page, stack, K%, WP | &0000-&00E3, &0100-&01FF, &0400-&07FF, &0E41-&12A9 | Elite's workspaces, as Master Elite | - |
-| Shared workspace (low) | main &0840-&0CFF | the renderer's shared state: R_NDN (&0840), the rasteriser's per-call scratch (&0900-&0B8F, R_NDISCL page aligned), DFSST and DFSIN (&0B90-&0C10), R_WL (&0C40) | 47 |
-| Shared workspace | main &1300-&1ECB | R_SS and F_DSS, raster_vars at its fixed place (&1333: R_DIRTYR0 at &14B5 for f_sight2), R_SX, R_SY, R_WR (&1E00), R_SN, R_SCOL, the lens flare's variables | 52 (+ 6) |
+| Zero page, stack, K% | &0000-&00E3, &0100-&01FF, &0400-&07FF | Elite's workspaces, as Master Elite | - |
+| WP | main &0841-&0CA9 | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E | 87 (&0840, &0CAA-&0CFF) |
+| Free | main &0E00-&0E3F | | 64 |
+| Shared workspace | main &0E40-&1EFF | the renderer's shared state, one block ending where the main code starts: R_NDN (&0E40), the rasteriser's per-call scratch (&0F00-&118F, R_NDISCL page aligned), DFSST and DFSIN (&1190-&1210), R_WL (&1240), R_SS and F_DSS (&1300), raster_vars at its fixed place (&1333: R_DIRTYR0 at &14B5 for f_sight2), R_SX, R_SY, R_SN, R_SCOL, the lens flare's variables, R_WR (&1E40) | 105 (47, 6, 52) |
 | Main code (BCODE) | main &1F00-&3F52 | Elite's main code and data in the original's order, from the font and the log tables (page aligned) on: below &3000 (to &290D) the IRQ and sound, the far-call code, the raster stubs, NEWBRK's start, HANGFLAG, CHPR, ADDK, UP; then the main flight loop, MALW, MALC, stardust, the planet and sun, maths, NA% and the disc commands' data, DOCKIT and the tactics helpers, ... up to DVID4 | 173 (1778 below &3000) |
 | Buffer 0, dashboard copy | main &4000-&71FF | the screen (rule 6); &4000-&5FFF also HAZEL's stash during a disc command | - |
 | High code | main &7200-&7DCA | the quarter-square tables QSL/QSH (page-aligned at &7200); the renderer's game-context side (G_ stubs, hooks, the lighting's L_SUN and L_REC); the far7 stubs into the cold area | 565 |
@@ -105,8 +110,11 @@ The loader (`M128Elt`) loads each file to &1300 and copies it into place
 (FTAB): BDATA (the dashboard image), FLARE7, FLARE3, FLARE0, TOKENS, BANK4,
 ANDY, COLD7, BANK5, BANK6, RAST7, HAZEL (8K, staged at &4000), HICODE, BDATA
 again (the first row in main RAM); then it loads BCODE to &1F00 (its address
-from the build), takes DFS's and the MOS's lasting bytes into DFSST after the
-last disc access, and copies HAZEL into place.
+from the build). The loader is at &0E00, in the shared workspace's place, so
+its last part runs from K% (&0400; the game sets K% up itself): it takes
+DFS's and the MOS's lasting bytes into DFSST after the last disc access,
+copies HAZEL into place and calls G_INIT, which sets up the rest of the
+workspace.
 
 ### Why each region holds what it holds
 
@@ -115,8 +123,10 @@ last disc access, and copies HAZEL into place.
   hooks, the IRQ handler and the lens flare (which runs with X = 1) share.
   Below &3000 every one of them sees it, whatever bank is paged and whatever
   ACCCON X is; the renderer initialises it (R_INIT, F_INIT), so it needs no
-  image. &0840-&0CFF is the MOS's buffers that the game never uses
-  (docs/MASTER-MEMORY.md); page &0D above it is never written.
+  image. It is one block from &0E40 to the main code; the page &0D below it
+  is never written, and below that WP (Elite's own workspace) fills the
+  MOS's buffers at &0840-&0CFF that the game never uses
+  (docs/MASTER-MEMORY.md).
 * **The main code** runs in game context. Below &3000 (to HEAD_END%) is what
   must be visible with X = 1 or from interrupts and MOS vectors (rules 1 and
   2). The rest may be anywhere main RAM or bank 4 holds it, so the run simply
@@ -288,7 +298,7 @@ the gate's run, 804 in all):
 | the frame layer's ft_sr1 10, fsg_m2 7 and fwc2 5 (new: bank 6's data moved by f_b0new's 80 bytes) | 31 |
 | STL1's SZ,Y (WP: the stardust's z) and stl_dvr, stld (the stardust loop, at a new place) | 28 |
 | bank 4: EE3K 11, LL51L's LDY lfr2s table 10 | 27 |
-| phase B's reads of r_tb (R_PTB at &0ACB: r_pbr1/r_pbr2) | 20 |
+| phase B's reads of r_tb (R_PTB at &10CB: r_pbr1/r_pbr2) | 20 |
 | r_bstore's stores to R_BDX1, R_BDX2, R_BDX3 (low bytes &C0, &80, &C0 in the boundary block) | 17 |
 | MU8, DVID3B, DVL9a, mad1's BPL add1, SOUL8/SOUL3 (the sound IRQ) | 14 |
 | the rest (about 400 places, each under 5) | about 174 |
@@ -301,8 +311,8 @@ variables and routines of under 66 bytes each.
 
 | Region | At d090015 | Now |
 |---|---:|---:|
-| Low code (then), shared workspace &0840-&0CFF (now) | 14 | 47 |
-| Shared workspace &1300-&1EFF | - | 52 (+ 6 before raster_vars) |
+| Low code (then); WP's pages &0840-&0CFF (now: &0840, &0CAA-&0CFF) | 14 | 87 |
+| Shared workspace &0E00-&1EFF | - | 169 (64 below it; 47, 6, 52 in it) |
 | Main code (BCODE) | 72 | 173 (1778 below &3000) |
 | High code | 137 | 565 |
 | Bank 4 | 30 | 1882 |
@@ -316,8 +326,17 @@ variables and routines of under 66 bytes each.
 | HAZEL state | 1726 (to &D900) | - |
 | HAZEL &DC40 block | 289 (to &E000) | - |
 | Shadow | 7, 3, 16 | 7, 3, 16 |
-| Total | 3856 (+ 1073 in tails) | 4227 (+ 1073 in tails) |
+| Total | 3856 (+ 1073 in tails) | 4378 (+ 1073 in tails) |
 
 HAZEL's 2063 free bytes for lasting content went to the game data; bank 4's
 room grew from 30 bytes to 1882 (with the hangar's line heap at &BF00 and
 the dashboard's variables), and the high code's from 137 to 565.
+
+WP's move below page &0D (MASTER-PLAN.md, "Low data") left the free bytes
+as they were: the 151 now counted in the two rows above (&0E00-&0E40 and
+&12AA-&12FF round WP, and WP's pages' ends) were free before too, but not
+counted. The shared workspace is 4180 bytes with its alignment, more than
+the 16 pages from &0E00 to the main code's first page less one, so the main
+code, which starts with the page-aligned font, stays at &1F00; to start it
+lower, the rasteriser's bank 5 <-> 7 stubs (71 bytes) could go before the
+font, but then R_WR (or R_NDN or R_WL) would cross a page.

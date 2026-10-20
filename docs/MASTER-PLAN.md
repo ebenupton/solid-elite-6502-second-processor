@@ -749,3 +749,48 @@ Gate: 1.231, 17.21 it/s before; 1.232, 17.21 it/s after (116235 to 116187
 cycles per flight iteration: 11 fewer in instructions, 37 fewer in page
 crossings, 841 to 804). test_raster (full), the lens flare's pixel check,
 both agentplay repros and a short campaign pass.
+
+## Low data (after the blueprints in HAZEL)
+
+Elite's workspace went below page &0D and the renderer's shared workspace
+became one block below the main code, in single-purpose gated commits:
+
+* **The loader's last part runs from K% (&0400).** The loader is at &0E00,
+  and after its last disc access it fills DFSST and calls G_INIT, which
+  write the shared workspace; its last part is assembled to run at &0400
+  and copied there (the game sets K% up itself, as it does WP, which was
+  the loader's place in the original). M128Elt's catalogue entry is
+  unchanged.
+* **The harness compares the station's line heap pointer as the
+  original's.** NWSPS points the station's ship data block at LSO, the sun
+  and station line heap in WP, so the compared state holds WP's address;
+  mlib.canonFor (also in agentplay's snapshots) puts the original's LSO in
+  its place.
+* **WP to &0841-&0CA9** (from &0E41-&12A9: each byte at the same place in
+  its page), in the MOS's buffers that the game never uses; the commander
+  file buffer (LSX2) to &087E, which the *SAVE and *LOAD commands take from
+  the symbol. *SAVE gives load and execution addresses 0, so the files'
+  catalogue entries do not depend on the buffer: a commander saved by the
+  original and one saved by the port at the same state are identical, entry
+  and contents, and each loads in the other (scratch/savecompat).
+* **The shared workspace is one block, &0E40-&1EFF**, ending where the main
+  code starts: its first part (R_NDN, the rasteriser's per-call scratch,
+  DFSST, R_WL) moved up by &600 to sit below the second, every array at its
+  place in its page; R_WR and the variables after it went to the top of the
+  last page (R_WR still whole in a page). In a save, a load and a
+  catalogue, nothing but the game writes &0E00-&1EFF once it has started.
+
+The block is 4180 bytes with its alignment (R_NDISCL page aligned,
+raster_vars at its fixed place), more than the 4096 that would let the main
+code, which starts with the page-aligned font, start a page lower; so the
+main code stays at &1F00 and HEAD_END% at &290E (1778 bytes below &3000).
+Putting the rasteriser's bank 5 <-> 7 stubs (71 bytes) before the font
+would start it at &1EB9, but one of R_WR, R_WL and R_NDN would then cross a
+page; not done. Free bytes are unchanged: 87 in WP's pages, 64 below the
+block and 105 in it (the 151 round the old WP were free but not counted).
+
+Gate: 1.232, 17.21 it/s before and after, 116187 cycles per flight
+iteration, 804 of them page crossings, both to the cycle. test_raster
+(full), the lens flare's pixel check (0 errors on the four paths; every
+frame byte for byte the previous tree's), both agentplay repros and the
+quick campaign (with a save and a load) pass.
