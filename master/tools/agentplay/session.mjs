@@ -281,8 +281,12 @@ export class Session {
         }
         // a BRK from a disc error (a ROM) in one machine and not the other shows as a divergence;
         // compare the lists of ROM BRKs as they come
-        const rb = ref.brks.filter(b => b.fromRom).length, cb = cand.brks.filter(b => b.fromRom).length;
-        if (cb > rb && cand.iter <= ref.iter && !this.brkMismatch) { this.brkMismatch = true; this.finding("brk-mismatch", `candidate disc error (${cand.brks.at(-1).msg}) at iteration ${cand.iter} with none in the reference`); }
+        // (by input reads, not iterations: the disc menu runs no MLOOP, and either machine can
+        // be ahead between two reads. The n-th error is missing from a machine once that
+        // machine has made a read past the one the other made it after)
+        const rl = ref.brks.filter(b => b.fromRom), cl = cand.brks.filter(b => b.fromRom);
+        if (!this.brkMismatch && cl.length > rl.length && ref.polls > cl[rl.length].polls) { this.brkMismatch = true; this.finding("brk-mismatch", `candidate disc error (${cl[rl.length].msg}) after read ${cl[rl.length].polls} (iteration ${cl[rl.length].iter}) with none in the reference`); }
+        if (!this.brkMismatch && rl.length > cl.length && cand.polls > rl[cl.length].polls) { this.brkMismatch = true; this.finding("brk-mismatch", `reference disc error (${rl[cl.length].msg}) after read ${rl[cl.length].polls} (iteration ${rl[cl.length].iter}) with none in the candidate`); }
     }
 
     // the commander files (directory E) the two machines have written must be the same

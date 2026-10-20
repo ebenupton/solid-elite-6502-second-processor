@@ -89,7 +89,7 @@ const POKES = {
     heat: { every: 20000, when: flying, poke: () => [["CABTMP", 0, [230]]] },
     fuel: { every: 20000, when: flying, poke: () => [["QQ14", 0, [3]]] },
 };
-// the disc menu, while docked on the Status screen (one such action a dock, and the
+// the disc menu, while docked on the Status screen (up to three such actions a dock, and the
 // agent's keys are held back while it runs): catalogues, deletes, loads of a missing
 // file, invalid and empty drives, saves under other names (until the catalogue is full),
 // the default commander. Steps: [keys, frames], or { until(r, sy), keys, max } (hold
@@ -130,7 +130,7 @@ export function makeChaos(spec, seed) {
     const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...Object.keys(POKES)]
         : spec === "disc" ? Object.keys(DISC) : spec.split(",");
     const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
-    let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = false;
+    let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = 0;
     const done = {};
     const next = (ram, sy) => {
         if (!seq.length) { seq = null; cur = []; step = null; excl = false; return; }
@@ -145,7 +145,7 @@ export function makeChaos(spec, seed) {
         frame(S) {
             rng = r;
             const ram = S.ref.ram, sy = S.rsy;
-            if (flying(ram, sy)) discDone = false;
+            if (flying(ram, sy)) discDone = 0;
             if (seq) {
                 if (step) {
                     if (step.until(ram, sy) || --seqLeft <= 0) { next(ram, sy); return; }
@@ -157,9 +157,9 @@ export function makeChaos(spec, seed) {
                 return;
             }
             for (const { nm, a, rate } of acts) {
-                if (a.disc && discDone) continue;
+                if (a.disc && discDone >= 3) continue;
                 if (r() >= rate || !a.when(ram, sy)) continue;
-                if (a.disc) discDone = true;
+                if (a.disc) discDone++;
                 excl = !!a.exclusive;
                 done[nm] = (done[nm] || 0) + 1;
                 S.logInput({ chaos: nm, frame: S.frame, i: S.ref.iter });

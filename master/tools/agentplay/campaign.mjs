@@ -67,6 +67,28 @@ const PLANS = {
         ["load-s50", 15, "--seed", "50", "--mode", "load", "--from", "galaxy3-s40", "--chaos", "views,ecm", ...W],
         ["load-s51", 15, "--seed", "51", "--mode", "load,curious", "--from", "long-s44", ...W],
     ],
+    // 2026-10-20: aimed at the blueprints-in-HAZEL relayout (the disc menu through DOSCLI's
+    // HAZEL stash, NWSPS/NWSHP and the station's blueprint, the hangar, launch after a
+    // save or load, the docking computer, views, pods, galactic jumps, missions)
+    night: [
+        ["disc-s60", 15, "--seed", "60", "--chaos", "disc", "--savediscs"],
+        ["disc-s61", 15, "--seed", "61", "--commander", "equipped", "--chaos", "disc,dock*2,views", "--savediscs"],
+        ["disc-s62", 15, "--seed", "62", "--commander", "trader", "--chaos", "dsave*3,ddel*2,dcat,dnoload,dnodel", "--mode", "curious"],
+        ["disc-s63", 12, "--seed", "63", "--commander", "deadly", "--chaos", "disc,pod*4,ghyp*3"],
+        ["disc-s64", 12, "--seed", "64", "--chaos", "dcat1,dbad,dexit,ddefault", "--mode", "keyboard"],
+        ["dock-s65", 15, "--seed", "65", "--commander", "equipped", "--chaos", "dock*6,views*2"],
+        ["dock-s66", 15, "--seed", "66", "--commander", "deadly", "--chaos", "dock*6,jump*2,charts", "--mode", "fair"],
+        ["views-s67", 12, "--seed", "67", "--commander", "equipped", "--chaos", "views*6,missile,ecm", "--mode", "curious"],
+        ["pods-s68", 15, "--seed", "68", "--commander", "equipped", "--chaos", "pod*10,ghyp*8,hurt*2"],
+        ["galaxy3-s69", 20, "--seed", "69", "--commander", "galaxy3", "--chaos", "disc,views"],
+        ["debrief2-s70", 15, "--seed", "70", "--commander", "debrief2", "--chaos", "dock*2"],
+        ["debrief1-s71", 12, "--seed", "71", "--commander", "debrief1", "--chaos", "disc"],
+        ["nomission-s72", 15, "--seed", "72", "--commander", "deadly", "--mode", "nomission", "--chaos", "all"],
+        ["death-s73", 15, "--seed", "73", "--commander", "equipped", "--chaos", "hurt*8,heat*3,disc", "--savediscs"],
+        ["load-s74", 15, "--seed", "74", "--mode", "load", "--from", "disc-s60", "--chaos", "dcat,views,dock"],
+        ["load-s75", 15, "--seed", "75", "--mode", "load,curious", "--from", "disc-s61", "--chaos", "pod*3,ghyp*2"],
+        ["load-s76", 12, "--seed", "76", "--mode", "load", "--from", "death-s73", "--chaos", "disc"],
+    ],
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
