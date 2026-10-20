@@ -35,7 +35,7 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
   into ANDY would now break the space view at once, where it used to hit cold code.
 * **HAZEL** holds lasting data everywhere: the game data (the ship blueprints and their
   tables, 7653 bytes, in the original's order from XX21 at &C000) and, after it, the
-  hangar's line heap (HANGHEAP, &DE00-&DEFF). Nothing that runs during a disc command
+  hangar's tables (to &DDF3; &DF00-&DFFF is the MOS's). Nothing that runs during a disc command
   is in HAZEL: the renderer's glue (its shared variables, the T_ trampolines, the text
   and IRQ hooks) is in main RAM below &3000 (the main code's low area). It follows the "save/restore 66 bytes and
   invalidate 6" strategy below (section 2), and around every disc command it is stashed

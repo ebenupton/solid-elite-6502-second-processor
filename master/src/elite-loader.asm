@@ -813,7 +813,7 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
- EQUW MESS12            \ HAZEL: the game data and the hangar's heap, staged
+ EQUW MESS12            \ HAZEL: the game data and the hangar's tables, staged
  EQUB HOMEBANK, %00001001 \ in main RAM at &4000 (screen buffer 0) and copied to
  EQUW &4000, HZLEN      \ HAZEL after the last disc access (see LDEND), as DFS
                         \ uses HAZEL

@@ -1,8 +1,8 @@
 \ ******************************************************************************
 \
 \ gfx-hangar-hz.asm - the hangar's tables (gfx-hangar.asm), in HAZEL after
-\ the game data, before HANGHEAP (elite-layout.asm): read by f_hback in bank
-\ 6, which has no room
+\ the game data (elite-layout.asm): read by f_hback in bank 6, which has no
+\ room
 \
 \ ******************************************************************************
 

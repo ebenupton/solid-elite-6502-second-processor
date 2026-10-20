@@ -17645,7 +17645,7 @@ ENDIF
                         \ are negative
 
  LDA #&0B               \ Set the ship line heap pointer in INWK(34 33) to point
- STA INWK+34            \ to &0B00 (Port: HANGHEAP during LL9, below)
+ STA INWK+34            \ to &0B00
 
  JSR DORND              \ We now perform a random number of small angle (3.6
  STA XSAV               \ degree) rotations to spin the ship on the deck while
@@ -17717,24 +17717,12 @@ ENDIF
                         \ shape due to the imprecise nature of trigonometry
                         \ in assembly language
 
- LDA #HI(HANGHEAP)      \ Port: the line heap at HANGHEAP while LL9 draws
- STA INWK+34
-
- JSR G_HLL9             \ Display the ship (Port: recorded, with TYPE set for
-                        \ the renderer's faces, G_HLL9 in gfx-gstubs.asm; a JSR,
-                        \ not a tail call, so that the heap pointer can be put
-                        \ back below)
-
- LDA #&0B               \ Port: leave INWK(34 33) = &0B00, as the original does
- STA INWK+34
-
- RTS                    \ Return from the subroutine
-
-                        \ Port: the hangar's ships are drawn directly (GFORCE,
-                        \ HALL), so LL9 writes their line heaps. The original's
-                        \ &0B00 is in WP in the port, so the heap is HANGHEAP,
-                        \ the page after the game data in HAZEL, which LL9
-                        \ always sees and no other code uses (elite-layout.asm)
+ JMP G_HLL9             \ Jump to LL9 to display the ship and return from the
+                        \ subroutine using a tail call (Port: through G_HLL9,
+                        \ gfx-gstubs.asm, which sets TYPE for the renderer's
+                        \ faces; LL9 records the ship and writes no ship line
+                        \ heap, so INWK(34 33) = &0B00, the original's, though
+                        \ that is in WP in the port, is never used)
 
 .HA1
 
