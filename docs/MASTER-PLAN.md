@@ -1520,3 +1520,120 @@ every frame byte for byte 9905a11's; the agentplay repros with --cand and
 iterations, docks), TTX66 as on 9905a11 (P+3 at its last iteration); the
 quick campaign, 3 sessions clean (4644 iterations compared, with a save
 and a load); gcreach.py: 23406 instructions, 0 unreachable.
+
+## The briefings (after the hangar)
+
+Mission 1's briefing (BRIEF, then PAUSE and PAS1 through token 10's two
+"{display ship, wait for key press}" codes) was the last place where a
+ship was drawn directly: the Constrictor turning in view types 13 and 1,
+drawn by LL9 as a wireframe and erased by EOR through its ship line heap.
+It is the only briefing or debriefing with a ship: DEBRIEF (token 15),
+BRIEF2 (11), BRIEF3 (222) and DEBRIEF2 (223) are text with PAUSE2 key
+waits, and no other code uses PAUSE or PAS1 (the token tables: EJMP 22
+appears only in token 10). The user asked for the briefing's ship to be
+drawn by the renderer, and then for the direct drawing of ships, which
+nothing else used, to go.
+
+**One frame of the renderer per LL9.** BRIEF, PAUSE and PAS1 call LL9B
+(bank 4, after LL9F) where they called LL9: QQ11 is set to 0 while LL9
+records the ship and F_FRAME draws it (LL9F, as the title screen does),
+and put back afterwards, so QQ11 is the original's whenever game code
+reads it (nothing in the briefing reads it but the hooks and the frame).
+LL9B returns LL9's C, X and Y (hframe keeps them; MVEIT and MT23, which
+follow, start with LDA). The first frame after each TT66 (BRIEF's TT66(13),
+PAUSE's TT66(1)) enters space mode as after any docked screen (f_enter2:
+the direct-mode stars, a disc command's stash in buffer 0, GSTASH, the
+border copied); from then on the frames flip between the two buffers and
+H_VSYNC shows the front one (GMODE bit 7), with the dashboard split as in
+flight; PAUSE's TT66(1) and BAY's status screen go back to direct mode as
+any TT66 does.
+
+**The text around the ship.** The briefing prints its text with QQ11 = 13
+or 1, outside record mode, while the frames are running: CHPR would draw
+it into shadow RAM (buffer 1) behind the frame layer's back. So H_CHAR
+(low area) and f_sync (bank 6) treat space mode as record mode: with GMODE
+bit 7 set the character goes into the text map only, and the frames draw
+it (in both buffers, over the ship). Everywhere else GMODE bit 7 at a text
+change implies QQ11 = 0 and GFORCE = 0 (a TT66 always clears GMODE, and
+F_FRAME enters space mode only when QQ11 = 0), so nothing else changes.
+The text in the frames is in colour 3, as Master's direct text in the
+port's palette; the clear of PAUSE's TT66 shows for a frame, as in SNG47.
+
+**Timing.** The logic is the original's: 64 turns (BRL1), the climb until
+z_lo wraps (BRL2, 127 turns), then PAS1 until a key is pressed and
+released. A turn takes longer, as the Constrictor close up (z = 256 to
+512) is a large polygon load: 68, 53 and 56 ms (BRL1, BRL2, PAS1) against
+SNG47's 46, 39 and 42 ms and the wireframe port's 42, 35 and 36 ms; BRIEF
+to the briefing's text 13.2 s against 10.1 s (harness/mbrief.mjs). The
+profile of BRL1 and BRL2 is the rasteriser's (r_e8 12%, r7_rowrep 7%,
+phase B ...), with no wait for the flip. In agentplay's lockstep replays
+the number of PAS1 turns before each key is the reference's, read for
+read, so the game state is the original's whatever the speed;
+harness/mbriefcmp.mjs finds the ship's INWK identical at each of the 247
+LL9 calls before the first key press in both machines.
+
+**The direct drawing of ships removed.** LL9's callers are now the flight
+loop's MA8 (QQ11 = 0), LL9F (the title and the escape pod, QQ11 = 0),
+G_HLL9 (the hangar, after TT66(0)) and LL9B, never with GFORCE set (only
+HFS1's rings set it): every LL9 records. So EE31 jumps to H_EE31, which no
+longer tests for record mode; the rest of part 9 (the enemy's beam on the
+heap), part 10 (the edges clipped and put on the heap), part 11's edge
+loop, LSPUT, LSCLR's erase loop and SHPPT's dashes (Shpt) are removed,
+each original routine with Mark's header and a `Port: removed` note;
+H_LSCLR and H_SHPPT are gone (SHPPT calls G_SHPPT). LSCLR returns as LSC2
+did (A = 1, Y = 0, C set: LL9's callers go on to DORND, which takes in C).
+Nothing writes the heap's byte #0 but DOEXP (H_EE31 and H_LSCLR wrote 1
+there only so that a later direct-mode LL9 had nothing to erase), and LL9
+no longer reads it into LSNUM2; LSNUM and LSNUM2 are unused, kept in place
+in zero page; part 1 keeps the Y = 0 that set-up left for EE51's RTS. The
+explosion clouds (bytes #0 to #6 and the vertices) are written and read as
+before, and the heap's allocation (NWSHP's INWK+33/34 and SLSP) is the
+original's: it is game state (a full heap stops NWSHP). CLIP stays (the
+enemy's beam in H_EE31, BLINE's CLIP2), as do LOIN and Master's other line
+and text drawing for the docked screens. gcreach.py: 23198 instructions, 0
+unreachable; in analyse.py's model no instruction refers to LSNUM or LSNUM2
+and the only (XX19) accesses are DOEXP's, PTCLS's and LL9's explosion
+set-up.
+
+**HANGHEAP.** As LL9 writes no ship line heap for the hangar's ships, HAS1
+no longer points INWK+34 at HANGHEAP around its LL9: it keeps the
+original's LDA #&0B : STA INWK+34 (&0B00 is in WP in the port, but nothing
+uses it) and ends with a tail call again (JMP G_HLL9 for JMP LL9). The
+page is free; HAZEL.bin ends after the hangar's tables (&DDF3), and the
+build asserts that HAZEL's contents end below &DF00, the MOS's page.
+
+**Bytes** (against b583ecc; MASTER-MAP, "Free space"): bank 4 353 (367
+removed, LL9B 11 and the LDY #0 2 added: 2057 free), the high code 48 (1244),
+HAZEL 256 (268), the main code 4 (HAS1 9, H_CHAR's test 5 in the low area:
+192), bank 6 1 (f_direct0's needless save of Y, 6, paid for f_sync's test,
+5: 5 free); 662 bytes in all. Bank 6 stays nearly full.
+
+**Speed.** The gate's flight run: 115980 to 115935 cycles per iteration
+(profile.mjs --pagex: 41 fewer in instructions, H_EE31's record-mode test
+gone, and 4 fewer in page crossings, 671 to 667), 17.24 to 17.25 it/s;
+ratio 1.235.
+
+**Commits** (each gated by master/tools/grind/verify.sh: game state
+identical at all 10000 iterations, test_raster --quick, redock, savetest
+and views pass): ae7b96a harness/mbrief.mjs, mbriefsheet.mjs and
+mbriefcmp.mjs (no change to the build); c4c27ae the briefing's ship drawn
+by the renderer (1.234, 17.25); 5c20230 the direct drawing of ships removed
+(1.235, 17.25); 067b7eb HANGHEAP and HAS1's workaround removed (1.235,
+17.25); then these docs.
+
+**Checks.** The agentplay sessions that reach the briefings, replayed in
+lockstep against SNG47 with --cand and --csyms spelled out, all clean (on
+5c20230; the two marked also on 067b7eb): campaign2's deadly-s43* (BRIEF,
+23184 iterations, 32240 reads), debrief1-s42 (DEBRIEF, 9949), galaxy3-s40*
+(BRIEF2 and BRIEF3, 22425), galaxy3-s41 (BRIEF2, 19952) and debrief2-s52
+(DEBRIEF2, 12397), campaign1's deadly-s9 (BRIEF, 16523) and mission2-s10
+(17287). At the end: test_raster (full) passes; the lens flare's pixel
+check, four scenes, 704 frames (532 flared), 0 errors against the model,
+every frame byte for byte b583ecc's; the repros: compass, LOOK1 and MSBAR
+clean (msbar-carry 9031 iterations), TTX66 as before (P+3 at its last
+iteration); the quick campaign, 3 sessions clean (4644 iterations); the
+sheet and movies at ~/elite-full/screenshots/briefing (sheet.png: SNG47
+beside the port at BRIEF's turns, its climb and every key wait of the five
+briefings and debriefings; brief1-ref.mp4, brief1-cand.mp4 and
+brief1-side.mp4, every frame from the ship's first to the status screen,
+x2); the trial disc ~/elite-full/elite-master-full-briefings.ssd.
