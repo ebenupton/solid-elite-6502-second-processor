@@ -3053,7 +3053,7 @@ ENDIF
  PHA                    \ Store the original value of A on the stack
 
  LDA VSCAN+1            \ Set the line scan counter to the value of VSCAN+1
- STA DL                 \ (Port: 74, and it doesn't change), so
+ STA DL                 \ (Port: 72, and it doesn't change), so
                         \ routines like WSCAN can set DL to 0 and then wait for
                         \ it to change to non-zero to catch the vertical sync
 
@@ -3095,18 +3095,22 @@ ENDIF
 
  EQUB 57                \ Defines the split position in the split-screen mode
 
- EQUB 74                \ The line scan counter in DL gets reset to this value
+ EQUB 72                \ The line scan counter in DL gets reset to this value
                         \ at each vertical sync, before decrementing with each
                         \ line scan
                         \
-                        \ Port: VSCAN(0 1) = 57 * 256 + 74 = 14666 is now timer
+                        \ Port: VSCAN(0 1) = 57 * 256 + 72 = 14664 is now timer
                         \ 1's first count, started by T1SYNC just after vsync
                         \ (CA1), so that timer 1 fires (N + 2 us later, then
                         \ once a frame) where IRQ1's write to ACCCON D lands in
                         \ the middle of line 191's horizontal blanking, between
                         \ the last fetch of the space view and the first fetch
                         \ of the dashboard (docs/MASTER-PLAN.md, "Dashboard
-                        \ split timing"); DL only needs it to be non-zero
+                        \ split timing"): T1SYNC's wait for vsync leaves the
+                        \ phase anywhere in a 9-cycle range (its loop), and
+                        \ IRQ1's write then comes 45-53 cycles after timer 1
+                        \ fires, so 72 centres that 26-cycle spread in the
+                        \ 64-cycle gap; DL only needs it to be non-zero
 
 \ ******************************************************************************
 \
