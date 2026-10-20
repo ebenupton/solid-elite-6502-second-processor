@@ -24,7 +24,7 @@ scratch/grind/, with analyse.log, profile.log, windows.log, run_all.log).
 | file | what |
 |---|---|
 | `setup_worktree.sh [path] [branch] [base]` | create the grind worktree (default `/Users/ebenupton/elite-full-grind`, branch `full-grind`, base `full-master`), or reset an existing clean one whose branch has nothing the base lacks |
-| `mkbuild.sh <root> <out>` | build `<root>/master` in a private copy (`<out>/tree/master`: its `src/`, `build.sh`, `tools/`; `<out>/tree/tools/beebasm`) with its own `master/build.sh`, then assemble `elite-source.asm` once more with the patched BeebAsm (`tools/grind/bin/beebasm-grind`, shared with the demo tooling) for the provenance map, checking that every image comes out byte-identical.  Never touches `<root>/master/build` |
+| `mkbuild.sh <root> <out>` | build `<root>/master` in a private copy (`<out>/tree/master`: its `src/`, `build.sh`, `tools/`; `<out>/tree/tools/beebasm`) with its own `master/build.sh`, then assemble `elite-layout.asm` (with the per-area copies of `elite-source.asm` that `master/tools/streams.py` wrote) once more with the patched BeebAsm (`tools/grind/bin/beebasm-grind`, shared with the demo tooling) for the provenance map, checking that every image comes out byte-identical.  Never touches `<root>/master/build` |
 | `df/` | the demo's adaptation of the beebgame dataflow tools, copied and changed for this build: `model.py` (segments, bank views, shadow data), `analysis.py` (far calls, SMC rules), `ranges.py` (loaded bytes only, shadow reads, a compare-link fix), `gamecfg.py` (FAR_CALLS, FAR_SCRATCH) |
 | `master_config.py` | the game config those tools read (interrupt, MOS, cross-bank and far calls) |
 | `analyse.py` | the driver: build, model, analyses, outputs |

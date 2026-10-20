@@ -11262,9 +11262,170 @@ HANGHEAP = &BF00
 
  RTS                    \ Return from the subroutine
 
-\ Port: FRS1, FRMIS, ANGRY and FR1 are in the cold area (elite-cold7.asm,
-\ ANGRY in elite-andy.asm); the stubs for FRMIS, ANGRY and fq1 are in
-\ elite-stubs7.asm
+\ ******************************************************************************
+\
+\       Name: FRS1
+\       Type: Subroutine
+\   Category: Tactics
+\    Summary: Launch a ship straight ahead of us, below the laser sights
+\       Area: cold
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is used in three places:
+\
+\   * When we launch a missile, in which case the missile is the ship that is
+\     launched ahead of us
+\
+\   * When we launch our escape pod, in which case it's our abandoned Cobra Mk
+\     III that is launched ahead of us
+\
+\   * The fq1 entry point is used to launch a bunch of cargo canisters ahead of
+\     us as part of the death screen
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   X                   The type of ship to launch ahead of us
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   C flag              Set if the ship was successfully launched, clear if it
+\                       wasn't (as there wasn't enough free memory)
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   fq1                 Used to add a cargo canister to the universe
+\
+\ ******************************************************************************
+
+.FRS1_C
+
+ JSR x4_ZINF               \ Call ZINF to reset the INWK ship workspace
+
+ LDA #28                \ Set y_lo = 28
+ STA INWK+3
+
+ LSR A                  \ Set z_lo = 14, so the launched ship starts out
+ STA INWK+6             \ ahead of us
+
+ LDA #%10000000         \ Set y_sign to be negative, so the launched ship is
+ STA INWK+5             \ launched just below our line of sight
+
+ LDA MSTG               \ Set A to the missile lock target, shifted left so the
+ ASL A                  \ slot number is in bits 1-5
+
+ ORA #%10000000         \ Set bit 7 and store the result in byte #32, the AI
+ STA INWK+32            \ flag launched ship for the launched ship. For missiles
+                        \ this enables AI (bit 7), makes it friendly towards us
+                        \ (bit 6), sets the target to the value of MSTG (bits
+                        \ 1-5), and sets its lock status as launched (bit 0).
+                        \ It doesn't matter what it does for our abandoned
+                        \ Cobra, as the AI flag gets overwritten once we return
+                        \ from the subroutine back to the ESCAPE routine that
+                        \ called FRS1 in the first place
+
+.fq1_C
+
+ LDA #&60               \ Set byte #14 (nosev_z_hi) to 1 (&60), so the launched
+ STA INWK+14            \ ship is pointing away from us
+
+ ORA #128               \ Set byte #22 (sidev_x_hi) to -1 (&D0), so the launched
+ STA INWK+22            \ ship has the same orientation as spawned ships, just
+                        \ pointing away from us (if we set sidev to +1 instead,
+                        \ this ship would be a mirror image of all the other
+                        \ ships, which are spawned with -1 in nosev and +1 in
+                        \ sidev)
+
+ LDA DELTA              \ Set byte #27 (speed) to 2 * DELTA, so the launched
+ ROL A                  \ ship flies off at twice our speed
+ STA INWK+27
+
+ TXA                    \ Add a new ship of type X to our local bubble of
+ JMP x4_NWSHP              \ universe and return from the subroutine using a tail
+                        \ call
+
+\ ******************************************************************************
+\
+\       Name: FRMIS
+\       Type: Subroutine
+\   Category: Tactics
+\    Summary: Fire a missile from our ship
+\       Area: cold
+\
+\ ------------------------------------------------------------------------------
+\
+\ We fired a missile, so send it streaking away from us to unleash mayhem and
+\ destruction on our sworn enemies.
+\
+\ ******************************************************************************
+
+.FRMIS_C
+
+ LDX #MSL               \ Call FRS1 to launch a missile straight ahead of us
+ JSR FRS1_C
+
+ BCC FR1_C                \ If FRS1 returns with the C flag clear, then there
+                        \ isn't room in the universe for our missile, so jump
+                        \ down to FR1 to display a "missile jammed" message
+
+ LDX MSTG               \ Fetch the slot number of the missile's target
+
+ JSR x4_GINF               \ Get the address of the data block for the target ship
+                        \ and store it in INF
+
+ LDA FRIN,X             \ Fetch the ship type of the missile's target into A
+
+ JSR ANGRY_C              \ Call ANGRY to make the target ship or station hostile,
+                        \ and if this is a ship, wake up its AI and give it a
+                        \ kick of speed
+
+ LDY #0                 \ We have just launched a missile, so we need to remove
+ JSR x4_ABORT              \ missile lock and hide the leftmost indicator on the
+                        \ dashboard by setting it to black (Y = 0)
+
+ DEC NOMSL              \ Reduce the number of missiles we have by 1
+
+ LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
+ JSR x4_NOISE              \ of a missile launch
+
+ JMP ANGRY_C            \ (Port: FRMIS fell through into ANGRY, now in ANDY)
+
+                        \ Fall through into ANGRY to make the missile target
+                        \ angry, though as we already did this above, I'm not
+                        \ entirely sure why we do this again
+
+\ ******************************************************************************
+\
+\       Name: FR1
+\       Type: Subroutine
+\   Category: Tactics
+\    Summary: Display the "missile jammed" message
+\       Area: cold
+\
+\ ------------------------------------------------------------------------------
+\
+\ This is shown if there isn't room in the local bubble of universe for a new
+\ missile.
+\
+\ ------------------------------------------------------------------------------
+\
+\ Other entry points:
+\
+\   FR1-2               Clear the C flag and return from the subroutine
+\
+\ ******************************************************************************
+
+.FR1_C
+
+ LDA #201               \ Print recursive token 41 ("MISSILE JAMMED") as an
+ JMP MESS_C               \ in-flight message and return from the subroutine using
+                        \ a tail call
 
 \ ******************************************************************************
 \
@@ -23388,84 +23549,3 @@ ENDIF
 
  PRINT "S.ELTH ", ~CODE_H%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_H%
 \SAVE "build/ELTH.bin", CODE_G%, P%, LOAD%
-
-\ ******************************************************************************
-\
-\ Port: the main code's part in bank 4 ends here; the rest of bank 4 is the
-\ game code that elite-bank4.asm holds (docs/MASTER-MAP.md)
-\
-\ ******************************************************************************
-
- INCLUDE "src/elite-bank4.asm"
-
-.BANK4_END%
-
- PRINT "Bank 4: &8000-", ~BANK4_END%-1, " free ", HANGHEAP-BANK4_END%
- ASSERT BANK4_END% <= HANGHEAP
- SAVE "build/BANK4.bin", &8000, &C000, &8000
-
-\ ******************************************************************************
-\
-\ Port: the high code, main RAM &7200-&7FFF (docs/MASTER-MAP.md): the
-\ quarter-square tables, the renderer's game-context side (elite-hi.asm) and
-\ the stubs into the cold area (elite-stubs7.asm). Code here runs only in game
-\ context, never while ACCCON X is set (which hides main RAM at &3000-&7FFF).
-\ Saved as HICODE, which the loader copies there.
-\
-\ ******************************************************************************
-
- ORG &7200
-
- INCLUDE "src/elite-hi.asm"         \ quarter squares, renderer stubs and hooks
-
- INCLUDE "src/elite-stubs7.asm"     \ stubs into the cold area (far7, far7j)
-
-.HI_END%
-
- PRINT "Hi code: &7200-", ~HI_END%-1, " free ", &8000-HI_END%
- ASSERT HI_END% <= &8000
- SAVE "build/HICODE.bin", &7200, HI_END%, &7200
-
-\ ******************************************************************************
-\
-\ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
-\ (7): sideways RAM bank 7 at &8000-&8FFF (elite-andy.asm, which was ANDY's
-\ and keeps the name) and from COLD7LO (QQ18 from elite-data.asm, the stubs
-\ that lead out of the cold area, then elite-cold7.asm). Between them bank 7
-\ holds the extended tokens (elite-gfx.asm, from &9000), then free space.
-\
-\ ******************************************************************************
-
- CLEAR &8000, &C000
- ORG &8000
-
- INCLUDE "src/elite-andy.asm"
-
-.ANDY_END%
-
- PRINT "Bank 7 cold (elite-andy.asm): &8000-", ~ANDY_END%-1, " free ", &9000-ANDY_END%
- ASSERT ANDY_END% <= &9000
- SAVE "build/ANDY.bin", &8000, &9000, &8000
-
- CLEAR &8000, &C000
- ORG COLD7LO
-
-.COLD7_START%
-
- INCBIN "build/QQ18D.bin"           \ QQ18, the recursive token table
-
- INCLUDE "src/elite-coldstubs.asm"  \ stubs out of the cold area (far4, far4j)
-
- INCLUDE "src/elite-cold7.asm"
-
-.COLD7_END%
-
- PRINT "Bank 7 cold: ", ~COLD7LO, "-", ~COLD7_END%-1, " free ", &C000-COLD7_END%
- SAVE "build/COLD7.bin", COLD7LO, &C000, COLD7LO
-
- PRINT "Addresses for the scramble routines in elite-checksum.py"
- PRINT "F% = ", ~F%
- PRINT "G% = ", ~G%
- PRINT "NA2% = ", ~NA2%
-
- INCLUDE "src/elite-gfx.asm"      \ Port: the filled renderer (HAZEL, banks 5 and 6, bank 7 below COLD7LO)

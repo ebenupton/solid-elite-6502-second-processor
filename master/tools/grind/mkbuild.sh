@@ -3,7 +3,7 @@
 # copy (never touches <root>/master/build): <outdir>/tree/master/{src,build.sh,tools}
 # and <outdir>/tree/tools/beebasm are <root>'s, built there with master/build.sh
 # (-> tree/master/build/elite-master-sng47.ssd, symbols.txt, banks.txt, compile.txt,
-# the images ...), then elite-source.asm is assembled once more with the patched
+# the images ...), then elite-layout.asm is assembled once more with the patched
 # BeebAsm (tools/grind/bin/beebasm-grind, the demo port's: see tools/grind/README.md)
 # for the provenance map.  Leaves in <outdir>:
 #   tree/                       the copy and its build
@@ -36,7 +36,7 @@ done
 # checked below)
 mkdir -p "$OUT/imgs"
 for f in "$OUT"/tree/master/build/*.bin; do cp "$f" "$OUT/imgs/"; done
-( cd "$OUT/tree/master" && BEEBASM_GRINDMAP="$OUT/gmap.tsv" "$BA" -i src/elite-source.asm > "$OUT/gmap.stdout" 2> "$OUT/gmap.stderr" ) || { cat "$OUT/gmap.stderr"; exit 1; }
+( cd "$OUT/tree/master" && BEEBASM_GRINDMAP="$OUT/gmap.tsv" "$BA" -i src/elite-layout.asm > "$OUT/gmap.stdout" 2> "$OUT/gmap.stderr" ) || { cat "$OUT/gmap.stderr"; exit 1; }
 for f in "$OUT"/imgs/*.bin; do
     cmp -s "$f" "$OUT/tree/master/build/$(basename "$f")" || { echo "mkbuild: the patched BeebAsm's $(basename "$f") differs from tools/beebasm's" >&2; exit 1; }
 done

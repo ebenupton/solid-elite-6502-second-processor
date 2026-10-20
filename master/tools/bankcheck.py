@@ -2,10 +2,13 @@
 # bankcheck.py: check the banking rules of the relocated Master Elite
 # (docs/MASTER-MAP.md, master/src/elite-far.asm). Run by build.sh from master/.
 #
-# Areas: "main" (elite-source.asm and the files it INCLUDEs in main RAM:
-# elite-far.asm, elite-stubs7.asm; their labels assembled at &8000-&BFFF, where
-# the main code continues, are in bank 4), "bank4" (elite-bank4.asm), "cold" (elite-andy.asm,
-# elite-coldstubs.asm, elite-cold7.asm: ROMSEL COLDBANK, bank 7, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
+# Areas: "main" (elite-source.asm's run, build/elite-source-run.asm, and the
+# files it INCLUDEs in main RAM: elite-far.asm, elite-stubs7.asm; their labels
+# assembled at &8000-&BFFF, where the main code continues, are in bank 4),
+# "bank4" (elite-bank4.asm and elite-source.asm's blocks in bank 4,
+# build/elite-source-bank4.asm), "cold" (elite-source.asm's cold blocks,
+# build/elite-source-cold.asm, elite-andy.asm, elite-coldstubs.asm,
+# elite-cold7.asm: ROMSEL COLDBANK, bank 7, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
 #
 # Rules, for every reference from code or data in one area to a label in
@@ -41,7 +44,8 @@
 import re, sys
 
 SRC = "src/"
-FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
+FILES = {"../build/elite-source-run.asm": "main",
+         "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
          "elite-bank4.asm": "bank4", "elite-dash.asm": "bank4",
          "elite-andy.asm": "cold", "elite-coldstubs.asm": "cold", "elite-cold7.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
@@ -53,6 +57,9 @@ FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm"
          "gfx-raster_line.asm": "bank5a", "gfx-raster_lcold.asm": "bank5",
          "gfx-frame.asm": "bank6", "gfx-faces.asm": "bank6", "gfx-light6.asm": "bank6",
          "gfx-frame_cold.asm": "bank6", "gfx-flare6.asm": "bank6", "gfx-flare.asm": "bank5"}
+# the copies of elite-source.asm that tools/streams.py writes, one per area
+# (their line numbers are elite-source.asm's)
+SHOW = {"../build/elite-source-%s.asm" % a: "elite-source.asm" for a in ("run", "bank4", "cold")}
 RENDER = ("bank5", "bank5d", "bank5a", "bank6")
 # the rasteriser's bank 5: its shared region (bank5, &9000-&BFFF) is seen with
 # either window, the disc window (bank5d, ROMSEL 5) or the polygon window
@@ -158,7 +165,7 @@ for f, a in FILES.items():
             b = "self" if x in own[f] else area.get(x)
             if b is None or b == a or b == "self" or x in ("far4", "far4j", "far7", "far7j"):
                 continue                   # (the far-call code is callable from anywhere)
-            where = "%s:%d" % (f, n)
+            where = "%s:%d" % (SHOW.get(f, f), n)
             if b == "shadow":
                 if not op.strip().startswith("#"):
                     errors.append("%s: %s reads shadow RAM data %s outside a reader marked bankcheck: ok" % (where, a, x))

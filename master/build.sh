@@ -6,7 +6,7 @@
 #   build/BANK4.bin (Elite's home bank: the data and bank 4 code),
 #   build/ANDY.bin, build/COLD7.bin (the cold area: ANDY, bank 7 from COLD7LO),
 #   build/HICODE.bin (main RAM &7200-&7FFF),
-#   build/symbols.txt (beebasm -d symbol dump of elite-source.asm; zero page,
+#   build/symbols.txt (beebasm -d symbol dump of elite-layout.asm; zero page,
 #   workspaces, main code and banked code), build/banks.txt (the banked
 #   labels' banks), build/symbols-data.txt (elite-data.asm),
 #   build/elite-master-sng47.ssd (bootable with SHIFT+BREAK on a BBC Master).
@@ -62,14 +62,18 @@ with open("build/data-addresses.asm", "w") as f:
                  "RUTOK": "cold", "HZDATA1END%": "const"}.get(n, "hazel")   # (the data's area, for tools/bankcheck.py)
         f.write(" %s = &%04X \\ %s\n" % (n, a, where))
 PY
-$BEEBASM -i src/elite-source.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
-$BEEBASM -i src/elite-source.asm -d > build/symbols.txt 2>/dev/null
+# elite-source.asm's areas: one copy per area (build/elite-source-run.asm,
+# -bank4.asm, -cold.asm), which elite-layout.asm assembles in turn
+python3 tools/streams.py >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+$BEEBASM -i src/elite-layout.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
+$BEEBASM -i src/elite-layout.asm -d > build/symbols.txt 2>/dev/null
 # build/banks.txt: the labels of the code in sideways RAM and the ROMSEL value
 # of their bank (harness/mlib.mjs and tools/bankcheck.py read it)
 python3 - <<'PY'
 import re
 with open("build/banks.txt", "w") as f:
-    for src, bank in (("src/elite-bank4.asm", "4"),
+    for src, bank in (("src/elite-bank4.asm", "4"), ("build/elite-source-bank4.asm", "4"),
+                      ("build/elite-source-cold.asm", "7"),
                       ("src/elite-andy.asm", "7"), ("src/elite-coldstubs.asm", "7"),
                       ("src/elite-cold7.asm", "7"),
                       ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"),
@@ -83,7 +87,7 @@ with open("build/banks.txt", "w") as f:
     sy = {}
     for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
         sy.setdefault(m.group(1), int(m.group(2)))
-    for src in ("src/elite-source.asm",):
+    for src in ("build/elite-source-run.asm",):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             if 0x8000 <= sy.get(m.group(1), 0) < 0xC000:
                 f.write("%s 4\n" % m.group(1))
