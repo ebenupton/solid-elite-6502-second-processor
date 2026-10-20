@@ -46,20 +46,20 @@ tr.HZ = 0xDF00
 
 
 def gfx_constants():
-    """elite-gfx.asm's constants (MCB, banks, sizes), defined before its first CLEAR"""
+    """elite-gfx.asm's constants (MCB, banks, sizes), defined before its first ORG or CLEAR"""
     out = ['HOMEBANK = 4']
+    # the shared workspace's F_DSS is NDSTAR (elite-gfx.asm) long, from Elite's NOST
+    # (elite-source.asm), and it ends at the main code's start, CODE% (WS_TOP)
+    src = open(os.path.join(MS, 'elite-source.asm')).read()
+    out.append('NOST = %s' % re.search(r'^\s*NOST\s*=\s*(\d+)', src, re.M).group(1))
+    out.append('CODE%% = %s' % re.search(r'^\s*CODE%\s*=\s*(&[0-9A-Fa-f]+)', src, re.M).group(1))
     for l in open(GFX).read().split('\n'):
-        if re.match(r'\s*CLEAR\b', l):
+        if re.match(r'\s*(CLEAR|ORG)\b', l):         # (the workspace, ws_block, follows)
             break
         if re.match(r'^[A-Z_][A-Z0-9_]*\s*=', l):
             out.append(l)
-    # the shared workspace's F_DSS is NDSTAR (elite-gfx.asm, after its first CLEAR) long,
-    # from Elite's NOST (elite-source.asm)
-    src = open(os.path.join(MS, 'elite-source.asm')).read()
-    out.append('NOST = %s' % re.search(r'^\s*NOST\s*=\s*(\d+)', src, re.M).group(1))
-    # and the main code's start, where the shared workspace ends (WS_TOP)
-    out.append('CODE%% = %s' % re.search(r'^\s*CODE%\s*=\s*(&[0-9A-Fa-f]+)', src, re.M).group(1))
-    out += [l for l in open(GFX).read().split('\n') if re.match(r'^NDSTAR\s*=', l)]
+    if not any(re.match(r'^NDSTAR\s*=', l) for l in out):
+        out += [l for l in open(GFX).read().split('\n') if re.match(r'^NDSTAR\s*=', l)]
     return '\n'.join(out)
 
 
