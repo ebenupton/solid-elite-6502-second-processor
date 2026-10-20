@@ -34,8 +34,10 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
   every disc command it makes (save, load, the failed load, the catalogue). A write
   into ANDY would now break the space view at once, where it used to hit cold code.
 * **HAZEL** holds lasting data everywhere: the game data (the ship blueprints and their
-  tables, 7653 bytes) and the renderer's glue (its shared variables, the T_ trampolines,
-  the text and IRQ hooks, 402 bytes). It follows the "save/restore 66 bytes and
+  tables, 7653 bytes, in the original's order from XX21 at &C000) and, after it, the
+  hangar's line heap (HANGHEAP, &DE00-&DEFF). Nothing that runs during a disc command
+  is in HAZEL: the renderer's glue (its shared variables, the T_ trampolines, the text
+  and IRQ hooks) is in main RAM below &3000 (the main code's low area). It follows the "save/restore 66 bytes and
   invalidate 6" strategy below (section 2), and around every disc command it is stashed
   whole in screen buffer 0:
   * The loader stashes DFS's and the MOS's lasting bytes, &C2C0-&C2FF and &DFC0-&DFFF, in
@@ -46,46 +48,49 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
     blueprint bytes there would leave ACCCON X set in BRKV.
   * DOSCLI (the cold area; every OSCLI the game makes goes through it, all from the disc
     menu, docked or on the title screen) copies all of HAZEL to main RAM &4000-&5FFF
-    (screen buffer 0, not on show while docked; the dashboard's first-row copy at
-    &7000-&71FF is outside it), puts DFS's and the MOS's 128 bytes back, writes &FF to
-    &C282, &C287 and &C28B-&C28E (so DFS re-reads the catalogue), and makes the command.
+    (screen buffer 0, not on show while docked), puts DFS's and the MOS's 128 bytes back,
+    writes &FF to &C282, &C287 and &C28B-&C28E (so DFS re-reads the catalogue), copies
+    the command into buffer 0 at &6000 (DOSBUF: the commands' strings are in the cold
+    area, which is not paged in while the MOS and DFS run the command) and makes it.
     Afterwards (DOSNMI, which a disc error reaches through BRKV's NEWBRK, DFSIN saying a
     command was under way) it stashes the 128 bytes again (*DIR and *DRIVE change them)
     and copies HAZEL back, so nothing DFS, the MOS or another ROM wrote there during the
     command lasts. DOSNMI also puts back the minimal NMI handler at &0D00-&0D05, the one
     sanctioned write to page &0D.
   * Buffer 0 then no longer holds the last space-mode frame, which the renderer repairs
-    incrementally: DOSCLI sets GSTASH (in HAZEL, kept by the copy back), and the next
+    incrementally: DOSCLI sets GSTASH (in the low area), and the next
     entry to space mode (f_enter2) clears buffer 0 and resets its rasteriser state,
     disc colour, sights and shown-text map as F_INIT leaves them (f_b0new). The hangar
     draws directly, into shadow RAM: no game code writes buffer 0 while docked.
   * During a command the IRQ handler (H_VSYNC and the shared variables) and the
-    catalogue's printing (CHPR's text hooks, through bank 6) still run from HAZEL, so the
-    glue and everything written in HAZEL (XX21: NWSPS stores the station's blueprint in
-    XX21+2/3) is in &C300-&D8FF, which disc commands leave alone; read-only blueprint
-    bytes fill the rest, including &C000-&C2FF, &D900-&DAFF and &DC00-&DFFF, which DFS and
-    the MOS overwrite during a command.
+    catalogue's printing (CHPR's text hooks, through bank 6) run from main RAM below
+    &3000, which disc commands never write, and read nothing in HAZEL. So the game data
+    may sit anywhere in HAZEL, written parts included (XX21: NWSPS stores the station's
+    blueprint in XX21+2/3, at &C002-&C003, where DFS keeps its catalogue cache): a write
+    made before a command is in the copy DOSCLI takes and comes back with it, and nothing
+    in HAZEL is read or written during the command. (Before the full stash, XX21 and the
+    glue had to be in &C300-&D8FF, which disc commands leave alone.)
   The save test (harness/msavetest.mjs) fills &C000-&C27F, &D900-&DAFF and &DC00-&DFBF
   with junk at each OSCLI DOSCLI makes, checks that NEWBRK is entered once (the failed
   load) and with ACCCON X clear, that the game data is intact after the disc commands
   and that the space view after the launch holds nothing of the stash.
-* **Exposure.** &C300-&C3BF (the glue: the shared variables, the T_ trampolines) is DFS's
-  open-file channel table, which DFS writes only on `*DISC` or a filing system change (the
-  game makes neither) and when files are opened with OSFIND (the game opens none). Between
+* **Exposure.** &C300-&C3BF (blueprint bytes) is DFS's open-file channel table, which DFS
+  writes only on `*DISC` or a filing system change (the game makes neither) and when files
+  are opened with OSFIND (the game opens none). Between
   disc commands the MOS does not touch HAZEL: OSWORD 0 (the commander's name, MT26) and
   the docked screens' OSBYTE calls leave the game data intact (the save test checks it
   after its save, load, failed load and catalogue). A third-party ROM given a private
   page in HAZEL (see "ROM private pages" below) that writes it during a disc command is
-  undone by the stash; one that writes it on other OS calls would corrupt blueprints or
-  the glue.
+  undone by the stash; one that writes it on other OS calls would corrupt blueprints.
 * **Shadow RAM**: &3090-&30FF the zero-page save; nothing else (the lens flare moved
   to bank 5, the extended tokens to bank 7), and nothing more goes there.
 * **Main RAM below &0E00**: Elite's workspace WP at &0841-&0CA9 (the original's
   &0E41-&12A9, moved by &600; in the MOS's sound, printer, RS423, cassette and speech
-  buffers and the unused &0B00-&0CFF), with the commander file buffer at &087E: DFS
+  buffers and the unused &0B00-&0CFF), then the CMYK dashboard's variables (DASHV,
+  &0CAA-&0CCE), with the commander file buffer at &087E: DFS
   loads and saves commander files there during a docked disc command. Nothing in page
   &0D. From &0E00 (OSHWM) up to the main code: the renderer's shared workspace
-  (&0E40-&1EFF); in a save, a load and a catalogue nothing but the game writes
+  (&0E40-&1EE0, the main code starting at &1EE1); in a save, a load and a catalogue nothing but the game writes
   &0E00-&1EFF once the game has started (traced in jsbeeb). The loader runs at &0E00
   and its last part from &0400, as it fills DFSST and calls G_INIT.
 
@@ -377,8 +382,8 @@ command is harmless.
 
 The failing case is a third-party ROM that hooks BYTEV (or WORDV) on a
 service call and writes its private page on every call. Its page is given
-out below the standard ones, i.e. somewhere in &C3-&D8: in the renderer's
-glue (&C300-&C491) or the blueprints. The loader already resets the
+out below the standard ones, i.e. somewhere in &C3-&D8: in the blueprints
+(the renderer's glue is in main RAM now). The loader already resets the
 non-filing-system vectors (3a4686e), so a ROM hooked at boot is unhooked; a
 ROM that hooks again during the game's own disc commands is undone by
 DOSCLI's stash when it writes during the command, but not if it writes on

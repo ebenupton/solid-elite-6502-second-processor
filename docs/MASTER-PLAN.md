@@ -1219,3 +1219,107 @@ a module; the high code (QSL/QSH and the renderer's game half, which have
 no place in the original); the cold area's data before its code (the data
 is a separate assembly, elite-data.asm, so its addresses must be known
 before the code's: it starts the cold area).
+
+## The original's order, continued (after the source in the original's order)
+
+The user asked to chase down what d23e427 still left out of the original's
+order, so that upstream the game side reads as "the original BCODE plus
+BDATA, emitted twice, once hot, once cold", with as few exceptions as
+possible (docs/MASTER-MAP.md, "What is not in the original's order").
+
+**The fixed points in the hot run.** The rule that forces something below
+&3000 (visible with ACCCON X = 1, from the IRQ or from a MOS vector) asks
+for "below &3000", not "first":
+* the font and the log tables are back at their place after ADDK: the
+  original's order puts them in the head anyway. They must be page aligned
+  (FONT% is a page number; MLTU2g reads log through an operand whose low
+  byte is the argument); one ALIGN before the font does for all four, and
+  CODE% is &1EE1, chosen so that it pads nothing (the build prints
+  FONTPAD%; the shared workspace ends at CODE%);
+* stackpt and NEWBRK: their original place is late in the run, in bank 4,
+  so they cannot sit there; a new tag, `Area: low`, leaves them at their
+  place in the source and emits them at the end of the head (the low area,
+  elite-low.asm, which also holds the port's far calls and, now, the
+  renderer's glue). NEWBRK is one routine again (NEWBRK2 went);
+* the disc commands' data: RLINE, thislong and oldlong are read only by
+  cold code, and the OSCLI strings (CTLI, DELI, savosc, lodosc) are read by
+  the MOS from a copy DOSCLI makes in screen buffer 0 (DOSBUF, &6000, after
+  HAZEL's stash), so all are back at their places in the cold area;
+* QSL/QSH are a port addition with no place in the original: they start the
+  high code (page aligned there, as their users patch their operands' low
+  bytes), now at &7000;
+* HANGHEAP is a port addition (the original's &0B00 is WP's in the port):
+  the page after the game data in HAZEL, &DE00, so bank 4 holds code only.
+
+**The CMYK dashboard** (elite-dash.asm) is split up: SCAN, DOT, ddot (at
+CPIXK's place), ECBLB2, ECBLB, SPBLB, SPBT, ECBT, MSBAR, DIALS, PZW2, PZW,
+DIL (at DILX's place) and DIL2 at their original routines' places, tagged
+bank 4, with the port's helpers DILI and DSEG after DIL2; dashboard.py
+writes its tables per routine (build/dashtab-*.asm); its variables DASHV
+are at WP's end (&0CAA-&0CCE), visible with ACCCON X set.
+
+**The high code** (elite-hi.asm) is one region with a header saying what it
+holds and why: the port's game-context glue (QSL/QSH, the renderer's game
+half, the far7 stubs). Nothing in it is better elsewhere: the G_ stubs page
+bank 6 and the lighting runs with bank 6 paged, so neither may be in a
+bank; none of it runs with X set or from the IRQ, so it needs no room below
+&3000; bank 4's room is the run's. Then (at the user's request, its own
+commit) the dashboard's first-row copy at main &7000-&71FF went, as with
+IRQ option D the split is never late, and the high code starts at &7000
+("Dashboard split timing").
+
+**The cold data after the cold code.** elite-data.asm is now emitted like
+elite-source.asm (tools/streams.py): its blocks are hot (no tag), `Area:
+cold` or `Area: BDATA`, and elite-layout.asm assembles the hot and cold
+copies in the same pass as the code (no separate data assembly, no
+data-addresses.asm). The cold emission is the cold code, then QQ18 and the
+extended tokens, then the stubs out; BDATA (the dashboard image) is its own
+small assembly with the original's SAVE.
+
+**HAZEL in order.** The renderer's glue (415 bytes), which forced the wrap,
+is in the low area now: main RAM below &3000 is visible whatever is paged
+and whatever ACCCON X is, disc commands never write it, and the shared
+workspace is already there. The hot data runs from XX21 at &C000 in BDATA's
+order to ACT (&DDE4). The old constraint that XX21 be in &C300-&D8FF, as
+NWSPS writes it, dates from before DOSCLI stashed all of HAZEL: a write
+before a command goes out with the copy and comes back; nothing the IRQ or
+the catalogue's printing reads is in HAZEL any more (the save test junks
+&C000-&C27F, &D900-&DAFF and &DC00-&DFBF at each OSCLI and passes). NWSHP's
+read past E% into the missile's blueprint is as in the original (the order
+from XX21 is the original's).
+
+**Also back in order:** MULTU after MLU1 (both rare in flight now; MLU1
+joins MU11 with BRA and MULTU falls into it).
+
+**Commits** (each gated by master/tools/grind/verify.sh, all VERIFY PASS
+1.234): 740e733 the low area, stackpt and NEWBRK (17.24); 85a1258 the disc
+commands' data home, DOSCLI's copy (17.24); 1dbcede the font and the log
+tables (17.24); c433ac3 the glue to the low area (17.25); 5ac1a8f the data
+in the layout's pass, HAZEL in order, the cold data after the cold code
+(17.25); 75a43b3 HANGHEAP into HAZEL (17.25); 3bcc00c the dashboard split
+(17.24); 92b5c6d the high code's region (byte-identical, 17.24); 1c943e8
+the dashboard copy removed (17.24; irqprobe late 0, early 0, with and
+without --holdkey); ba54a60 MULTU (17.25); 4df93ce irqprobe's glue reads;
+then the tools' test_raster fix and these docs.
+
+**Speed** (profile.mjs --pagex): 116044 to 115978 cycles per flight
+iteration (17.23 to 17.24 it/s): instructions 115295 to 115291 (the
+trampolines and hooks cost the same in main RAM), page crossings 749 to 688
+(the candidates: MASTER-MAP, "Alignment candidates"); no padding added.
+
+**Free space** (MASTER-MAP, "Free space"): main 218 (1376 below &3000), high
+code 1077, bank 4 1897, the cold area 3693, HAZEL 283, WP 50, the shared
+workspace 148: 7867 outside shadow RAM, 492 more than d23e427 (the
+dashboard copy's 512). The diff of elite-source.asm and elite-data.asm
+against Mark's went from 8387 lines (git diff --numstat, added + deleted) to
+8249, with elite-dash.asm's 1003 lines of port code now inside the source.
+
+**Checks.** At each commit the gate; streams.py's checks and bankcheck at
+every build. At the end: test_raster (full); the lens flare's pixel check,
+four scenes, 704 frames (552 flared), 0 errors against the model, and
+every frame byte for byte d23e427's; the save test (in the gate: HAZEL
+junked at each OSCLI, the ANDY CRC); the agentplay repros with --cand and
+--csyms spelled out (compass, LOOK1, MSBAR clean; TTX66 as before, P+3 at
+its last iteration); the quick campaign, 3 sessions clean (4644 iterations compared, with a save and a load); the docked screens
+(harness/mdocked.mjs) byte for byte d23e427's apart from the title ship's
+rotation phase.
