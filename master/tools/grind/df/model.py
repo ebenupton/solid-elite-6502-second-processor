@@ -132,29 +132,63 @@ SEGFILE = {'BCODE': 'main', 'HICODE': 'main',
            'BANK6': 'B6', 'HAZEL': 'HZ'}
 SIDEWAYS = ('B4', 'ANDY', 'C7', 'R7', 'B5', 'B6')
 SEGORDER = ('main', 'B4', 'ANDY', 'C7', 'R7', 'HZ', 'B5', 'B6')
-# what code in a segment sees at &8000-&BFFF: [(segment, lo, hi)] (None: unknown, any bank)
+# The sideways memory map, as data: each bank's segments at &8000-&BFFF, the
+# segment ANDY holds (ROMSEL bit 7 shows it over &8000-&8FFF of the paged bank),
+# and the ROMSEL each segment's code runs with.  What code in a segment sees at
+# &8000-&BFFF (VIEW, [(segment, lo, hi)]; None: unknown, any bank) and what each
+# ROMSEL value shows (ROMSEL_VIEW: the far calls) follow from them.
 COLD7LO = 0xAC40        # the cold area's bank 7 part starts here (set_cold7lo: from the build)
-COLDVIEW = (('ANDY', 0x8000, 0x9000), ('R7', 0x9000, COLD7LO), ('C7', COLD7LO, 0xC000))
-B7VIEW = (('R7', 0x8000, COLD7LO), ('C7', COLD7LO, 0xC000))
-VIEW = {'main': (('B4', 0x8000, 0xC000),), 'RAM': (('B4', 0x8000, 0xC000),),
-        'B4': (('B4', 0x8000, 0xC000),), 'ANDY': COLDVIEW, 'C7': COLDVIEW, 'R7': B7VIEW,
-        'B5': (('B5', 0x8000, 0xC000),), 'B6': (('B6', 0x8000, 0xC000),), 'HZ': None,
-        'SH': None}
-# bank views by ROMSEL value (far calls: far7 pages COLDBANK &87, far4 HOMEBANK 4)
-ROMSEL_VIEW = {0x87: COLDVIEW, 0x04: (('B4', 0x8000, 0xC000),), 0x07: B7VIEW,
-               0x05: (('B5', 0x8000, 0xC000),), 0x06: (('B6', 0x8000, 0xC000),)}
+ANDYSEG = 'ANDY'        # the cold area's first part (ROMSEL &87)
+
+
+def _banksegs(lo):
+    return {4: (('B4', 0x8000, 0xC000),), 5: (('B5', 0x8000, 0xC000),), 6: (('B6', 0x8000, 0xC000),),
+            7: (('R7', 0x8000, lo), ('C7', lo, 0xC000))}
+
+
+BANKSEGS = _banksegs(COLD7LO)
+SEGROMSEL = {'B4': 0x04, 'ANDY': 0x87, 'C7': 0x87, 'R7': 0x07, 'B5': 0x05, 'B6': 0x06}
+
+
+def romsel_view(rs):
+    """what ROMSEL rs shows at &8000-&BFFF (bit 7: ANDYSEG over &8000-&8FFF)"""
+    segs = BANKSEGS.get(rs & 15)
+    if segs is None:
+        return None
+    if rs & 0x80:
+        return ((ANDYSEG, 0x8000, 0x9000),) + tuple((s, max(lo, 0x9000), hi) for s, lo, hi in segs if hi > 0x9000)
+    return segs
+
+
+def _views():
+    global VIEW, ROMSEL_VIEW
+    ROMSEL_VIEW = {rs: romsel_view(rs) for rs in set(SEGROMSEL.values())}
+    VIEW = {'main': romsel_view(4), 'RAM': romsel_view(4), 'HZ': None, 'SH': None}
+    VIEW.update({sg: romsel_view(rs) for sg, rs in SEGROMSEL.items()})
+
+
+_views()
 
 
 def set_cold7lo(lo):
     """the build's COLD7LO (elite-data.asm): where bank 7's cold area part starts"""
-    global COLD7LO, COLDVIEW, B7VIEW
+    global COLD7LO, BANKSEGS
     COLD7LO = lo
-    COLDVIEW = (('ANDY', 0x8000, 0x9000), ('R7', 0x9000, lo), ('C7', lo, 0xC000))
-    B7VIEW = (('R7', 0x8000, lo), ('C7', lo, 0xC000))
-    VIEW['ANDY'] = VIEW['C7'] = COLDVIEW
-    VIEW['R7'] = B7VIEW
-    ROMSEL_VIEW[0x87] = COLDVIEW
-    ROMSEL_VIEW[0x07] = B7VIEW
+    BANKSEGS = _banksegs(lo)
+    _views()
+
+
+def profile_seg(pfx, a):
+    """the segment that a profile key (mprof's mapping: M, A, B4..B7, HZ) names at a"""
+    if pfx == 'M':
+        return 'main'
+    if pfx == 'HZ':
+        return 'HZ'
+    if pfx == 'A':
+        return ANDYSEG
+    if pfx.startswith('B') and pfx[1:].isdigit():
+        return view_seg(BANKSEGS.get(int(pfx[1:])), a)
+    return None
 
 
 # shadow RAM data (elite-data.asm's TOKENS.bin): the equates naming it

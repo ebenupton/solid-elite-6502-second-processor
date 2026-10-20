@@ -7,9 +7,8 @@
 // Boots with SHIFT+BREAK, runs until the first title screen ("Load New
 // Commander (Y/N)?") has drawn its rotating ship a few times (the 8th call of
 // RDKEY after TITLE starts), then reports ROMSEL / ACCCON, compares the
-// sideways, shadow and main RAM images the loader installs (BANK4.bin,
-// ANDY.bin, COLD7.bin, TOKENS.bin; the renderer's BANK5.bin,
-// BANK6.bin, RAST7.bin and HAZEL.bin; HICODE.bin) with what memory holds,
+// sideways, shadow and main RAM images the loader installs (build/images.txt)
+// with what memory holds,
 // and
 // writes title.png.
 // Exit status 0 if the title screen was reached and the banks match.
@@ -58,11 +57,13 @@ console.log(`sideways RAM banks in this model: ${cpu.model.swram.map((v, i) => v
 // The banked images against the build: [file, ROMSEL or "shadow", start]
 // (ROMSEL bit 7: ANDY at &8000-&8FFF). The game writes XX21+2/3 (the station's
 // blueprint, in HAZEL) and patches DETOK's JSR at DTM (DTM_C in the cold area).
-const images = [["BANK4.bin", 4, 0x8000], ["ANDY.bin", 0x87, 0x8000], ["COLD7.bin", 7, syms["COLD7_START%"] ?? 0xac40], ["TOKENS.bin", "shadow", 0x3100],
-    ["BANK5.bin", 5, 0x8000], ["BANK6.bin", 6, 0x8000], ["RAST7.bin", 7, 0x8000], ["HAZEL.bin", "hazel", syms.HZ_START], ["HICODE.bin", "main", 0x7200]];
+// (build/images.txt, from build.sh: file, ROMSEL or main/shadow/hazel, start,
+// "v" if it holds variables or self-modified code)
+const images = readFileSync(SYMS.replace(/symbols\.txt$/, "images.txt"), "utf8").trim().split("\n").map(l => l.trim().split(/\s+/))
+    .map(([f, rs, at, v]) => [f, /^[0-9a-f]+$/i.test(rs) ? parseInt(rs, 16) : rs, parseInt(at, 16), v === "v"]);
 const xx21 = parseInt(readFileSync(SYMS.replace(/symbols\.txt$/, "data-addresses.asm"), "utf8").match(/XX21 = &([0-9A-F]+)/)[1], 16);
 let diffs = [];
-for (const [f, rs, start] of images) {
+for (const [f, rs, start, vol] of images) {
     let img;
     try { img = readFileSync(`${ROOT}master/build/${f}`); } catch { continue; }
     const d = [];
@@ -78,7 +79,7 @@ for (const [f, rs, start] of images) {
     // the renderer's banks and code, and bank 4 (where the main code continues),
     // hold variables and self-modified code: their differences are reported but
     // not failures
-    if (!["BANK4.bin", "BANK5.bin", "BANK6.bin", "RAST7.bin", "HAZEL.bin", "HICODE.bin"].includes(f)) diffs = diffs.concat(d);
+    if (!vol) diffs = diffs.concat(d);
 }
 writeFileSync(`${OUT}/title.png`, await s.screenshotActive({ scale: 1 }));
 console.log(`screenshot: ${OUT}/title.png`);

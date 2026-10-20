@@ -301,8 +301,8 @@ def region(P, i):
         if i.addr < 0x7200:
             return 'BCODE >=&3000'
         return 'high code'
-    return {'B4': 'bank 4', 'ANDY': 'ANDY', 'C7': 'bank 7 cold', 'R7': 'bank 7 rasteriser',
-            'B5': 'bank 5', 'B6': 'bank 6', 'HZ': 'HAZEL', 'SHF': 'shadow (flare)'}.get(s, s)
+    return {'B4': 'bank 4', 'ANDY': 'ANDY', 'C7A': 'bank 7 cold (&8000-)', 'C7': 'bank 7 cold',
+            'R7': 'bank 7 rasteriser', 'B5': 'bank 5', 'RA': 'ANDY (rasteriser)', 'B6': 'bank 6', 'HZ': 'HAZEL', 'SHF': 'shadow (flare)'}.get(s, s)
 
 
 def main():
@@ -397,12 +397,10 @@ def main():
                 for v2 in x:
                     walk(v2)
         walk(pj)
-        segmap = {'M': ['main'], 'A': ['ANDY'], 'B4': ['B4'], 'B5': ['B5'], 'B6': ['B6'],
-                  'B7': ['R7', 'C7'], 'HZ': ['HZ']}
         nexec = 0
         for kk in keys:
             m, pc = kk.split(':'); pc = int(pc, 16)
-            for s in segmap[m]:
+            for s in [model.profile_seg(m, pc)]:
                 i = P.insns.get((s, pc))
                 if i is not None:
                     nexec += 1

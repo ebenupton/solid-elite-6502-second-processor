@@ -18,7 +18,10 @@
 // blueprints and their tables, from XX21) is intact after the disc commands,
 // and that the space view after the launch holds nothing of what a disc
 // command left in screen buffer 0 (DOSCLI may stash HAZEL there): no more
-// than a few of its bytes may equal HAZEL's at the same offset. Screenshots
+// than a few of its bytes may equal HAZEL's at the same offset; and that no
+// disc command changes ANDY (the rasteriser's polygon window: a CRC of
+// &8000-&8FFF at each OSCLI DOSCLI makes, against one when DOSNMI ends the
+// command, also on the error path). Screenshots
 // of each step go to <out>. Exit status 0 on success.
 import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/machine-session.js";
 import { BBC } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/utils.js";
@@ -39,7 +42,11 @@ const secs = n => s.runFor(2000000 * n);
 const hits = { NEWBRK: 0, DOSNMI_C: 0, DOSCLI_C: 0 };
 const hm = Object.fromEntries(Object.keys(hits).map(k => [k, mapOfLabel(sy, k)]));
 let brkX = 0;
-cpu.debugInstruction.add(pc => { for (const k in hits) if (pc === sy[k] && (hm[k] === "m" || mapAt(cpu.romsel, pc) === hm[k])) { hits[k]++; if (k === "NEWBRK" && (cpu.acccon & 4)) brkX++; } return false; });
+// ANDY (jsbeeb keeps it at &8000-&8FFF in its RAM array) around each disc command
+const crc = (lo, hi) => { let c = 0xffffffff; for (let a = lo; a < hi; a++) { c ^= cpu.ramRomOs[a]; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); } return (c ^ 0xffffffff) >>> 0; };
+let andyAt = null, andyChecks = 0, andyBad = 0;
+cpu.debugInstruction.add(pc => { for (const k in hits) if (pc === sy[k] && (hm[k] === "m" || mapAt(cpu.romsel, pc) === hm[k])) { hits[k]++; if (k === "NEWBRK" && (cpu.acccon & 4)) brkX++;
+    if (k === "DOSNMI_C" && andyAt !== null) { andyChecks++; if (crc(0x8000, 0x9000) !== andyAt) andyBad++; andyAt = null; } } return false; });
 let shot = 0;
 const snap = async name => writeFileSync(`${OUT}/${String(shot++).padStart(2, "0")}-${name}.png`, await s.screenshotActive({ scale: 1 }));
 // keys by their place in the BBC keyboard matrix (jsbeeb's BBC table)
@@ -59,7 +66,7 @@ const junk = () => {
 cpu.debugInstruction.add(pc => {
     if (pc !== 0xfff7 || (cpu.romsel & 15) !== 7) return false;
     const site = (cpu.ramRomOs[0x100 + ((cpu.s + 1) & 0xff)] | cpu.ramRomOs[0x100 + ((cpu.s + 2) & 0xff)] << 8) - 2;
-    if (site >= sy.DOSCLI_C && site < sy.DOSNMI_C) junk();          // (DOSCLI's JSR OSCLI, not the loader's)
+    if (site >= sy.DOSCLI_C && site < sy.DOSNMI_C) { junk(); andyAt = crc(0x8000, 0x9000); }   // (DOSCLI's JSR OSCLI, not the loader's)
     return false; });
 // the game data from XX21 (the blueprints and their tables) as the build has it,
 // and where it lives (bank 4, or HAZEL)
@@ -144,5 +151,6 @@ let same = 0, nz = 0;
 for (let i = 0; i < 0x2000; i++) { const h = cpu.ramRomOs[HZ(0xc000 + i)]; if (h) { nz++; if (cpu.ramRomOs[0x4000 + i] === h) same++; } }
 const viewOk = same * 20 < nz;
 console.log(`space view after the disc commands: ${same} of HAZEL's ${nz} non-zero bytes in buffer 0 at the same offset (${viewOk ? "no stale stash" : "STALE STASH"})`);
+console.log(`ANDY over the disc commands: ${andyChecks} checked, ${andyBad ? andyBad + " CHANGED" : "unchanged"}`);
 console.log(saved ? "E.TESTA is on the disc" : "E.TESTA is NOT on the disc");
-process.exit(ok && saved && !bad && viewOk && junks >= 4 && hits.NEWBRK === 1 && !brkX ? 0 : 1);
+process.exit(ok && saved && !bad && viewOk && junks >= 4 && hits.NEWBRK === 1 && !brkX && andyChecks >= 4 && !andyBad ? 0 : 1);

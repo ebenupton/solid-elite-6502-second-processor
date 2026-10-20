@@ -7,9 +7,14 @@ reference, py65 65C02, the write guard and every test), pointed at the Master fi
   * the wrapper assembles the renderer's shared workspace as elite-gfx.asm lays it
     out in main RAM (one block, from its first ORG to WS_END: gfx-raster_scr.asm, the
     per-call scratch, with R_NDISCL page aligned; gfx-raster_vars.asm at its fixed base, as the
-    laser-sight rows must not cross a page; R_WL, R_WR, R_NDN, the stars), the
-    cross-bank stubs gfx-raster_hz.asm at &DF00, gfx-raster.asm at --org (bank 5) and
-    gfx-raster7.asm at &8000 (bank 7);
+    laser-sight rows must not cross a page; R_WL, R_WR, R_NDN, the stars), and the
+    rasteriser as elite-gfx.asm does: bank 5 (gfx-raster.asm, the shared region, at
+    &9000; gfx-raster_disc.asm, the disc window, at &8000), ANDY (gfx-raster_poly.asm,
+    the polygon window) and bank 7 (gfx-raster7.asm, R_LINE, at R7START), or, while
+    there are no windows, bank 5 from &8000, the stubs gfx-raster_hz.asm at &DF00
+    and bank 7 from &8000; the machine
+    pages as the Master does (ROMSEL bits 0-3 the bank, bit 7 ANDY), each entry point
+    is called with its T_ trampoline's ROMSEL, and &F4 must match each ROMSEL write;
   * the write guard allows exactly those areas (plus the renderer's zero page, the
     stack and the screen, as before);
   * R_POLY's 4-row colour: every polygon is drawn with R_COL2 = R_COLE and
@@ -17,7 +22,7 @@ reference, py65 65C02, the write guard and every test), pointed at the Master fi
     header: "set R_COL2 = R_COLE and R_COL3 = R_COLO for a 2-row colour pair").  The
     4-row dither itself is not checked here.
 
-    python3 master/tools/grind/test_raster.py [--seed N] [--quick] [--org HEX] [--only x,y]
+    python3 master/tools/grind/test_raster.py [--seed N] [--quick] [--only x,y]
 
 Run from anywhere; needs py65 and <repo>/tools/beebasm.  Exit status 0 only if every
 test passes.
@@ -34,7 +39,6 @@ TREE = os.path.abspath(os.environ.get('GRIND_TREE', REPO))     # the tree whose 
 MS = os.path.join(TREE, 'master', 'src')
 tr.SRC = os.path.join(MS, 'gfx-raster.asm')
 tr.SRCV = os.path.join(MS, 'gfx-raster_vars.asm')
-tr.SRCH = os.path.join(MS, 'gfx-raster_hz.asm')
 tr.SRC7 = os.path.join(MS, 'gfx-raster7.asm')
 GFX = os.path.join(MS, 'elite-gfx.asm')
 tr.HZ = 0xDF00
@@ -69,7 +73,36 @@ def ws_block():
     return '\n'.join(out)
 
 
+def raster_files():
+    """the rasteriser's bank 5 / ANDY sources (those that exist): the shared region
+    and its two windows"""
+    return [p for p in (os.path.join(MS, f) for f in ('gfx-raster.asm', 'gfx-raster_disc.asm', 'gfx-raster_poly.asm'))
+            if os.path.exists(p)]
+
+
+SRCH = os.path.join(MS, 'gfx-raster_hz.asm')       # (the bank 5 <-> 7 stubs, while they exist)
+WINDOWS = os.path.exists(os.path.join(MS, 'gfx-raster_poly.asm'))
+
+
+def check_patch_sites():
+    """the demo's check, over all three bank 5 / ANDY files (the polygon window's
+    phase B operands are patched by R_SETBUF's r_sbpoly)"""
+    base = os.path.join(REPO, 'scratch', 'raster')
+    os.makedirs(base, exist_ok=True)
+    cat = os.path.join(base, 'raster-all.asm')
+    with open(cat, 'w') as f:
+        f.write('\n'.join(open(p).read() for p in raster_files()))
+    old, tr.SRC = tr.SRC, cat
+    try:
+        return _demo_check_patch_sites()
+    finally:
+        tr.SRC = old
+
+
 def assemble(org):
+    """as elite-gfx.asm lays the rasteriser out: bank 5 (the shared region from
+    &9000, the disc window at &8000), ANDY (the polygon window at &8000),
+    bank 7 (R_LINE from R7START).  (org is ignored: the layout is fixed.)"""
     base = os.path.join(REPO, 'scratch', 'raster')
     os.makedirs(base, exist_ok=True)
     d = tempfile.mkdtemp(prefix='mraster_', dir=base)
@@ -77,11 +110,17 @@ def assemble(org):
     with open(w, 'w') as f:
         f.write(gfx_constants() + '\n')
         f.write(ws_block() + '\n')
-        f.write('ORG &%X\nINCLUDE "%s"\n.r_hz_end\n' % (tr.HZ, tr.SRCH))
-        f.write('ORG &%X\nINCLUDE "%s"\n' % (org, tr.SRC))
-        f.write('SAVE "r.bin", &%X, P%%\n' % org)
-        f.write('CLEAR &8000, &C000\nORG &8000\nINCLUDE "%s"\nSAVE "r7.bin", &8000, P%%\n' % tr.SRC7)
-        f.write('SAVE "h.bin", &%X, r_hz_end\n' % tr.HZ)
+        if WINDOWS:
+            f.write('ORG &%X\n.r_hz_end\n' % tr.HZ)
+            f.write('CLEAR &8000, &C000\nORG &9000\nINCLUDE "%s"\n.t_b5end\n' % tr.SRC)
+            f.write('ORG &8000\nINCLUDE "%s"\nSAVE "r.bin", &8000, t_b5end\n' % os.path.join(MS, 'gfx-raster_disc.asm'))
+            f.write('CLEAR &8000, &9000\nORG &8000\nINCLUDE "%s"\nSAVE "ra.bin", &8000, P%%\n' % os.path.join(MS, 'gfx-raster_poly.asm'))
+            f.write('CLEAR &8000, &C000\nORG R7START\nINCLUDE "%s"\nSAVE "r7.bin", R7START, P%%\n' % tr.SRC7)
+        else:                               # (bank 5 from &8000, the stubs, bank 7 from &8000)
+            f.write('ORG &%X\nINCLUDE "%s"\n.r_hz_end\n' % (tr.HZ, SRCH))
+            f.write('ORG &8000\nINCLUDE "%s"\nSAVE "r.bin", &8000, P%%\n' % tr.SRC)
+            f.write('CLEAR &8000, &C000\nORG &8000\nINCLUDE "%s"\nSAVE "r7.bin", &8000, P%%\n' % tr.SRC7)
+            f.write('SAVE "h.bin", &%X, r_hz_end\n' % tr.HZ)
     r = subprocess.run([tr.BEEBASM, '-i', w, '-d', '-labels', os.path.join(d, 'w.lab')],
                        cwd=d, capture_output=True, text=True)
     if r.returncode != 0 or 'error' in r.stdout.lower():
@@ -90,14 +129,47 @@ def assemble(org):
     txt = open(os.path.join(d, 'w.lab')).read()
     syms = {k: int(v) for k, v in re.findall(r"'([^']+)':(-?\d+)L?", txt)}
     data = open(os.path.join(d, 'r.bin'), 'rb').read()
+    dataa = open(os.path.join(d, 'ra.bin'), 'rb').read() if WINDOWS else b''
     data7 = open(os.path.join(d, 'r7.bin'), 'rb').read()
-    datah = open(os.path.join(d, 'h.bin'), 'rb').read()
+    datah = open(os.path.join(d, 'h.bin'), 'rb').read() if not WINDOWS else b''
     msg = [l for l in r.stdout.splitlines() if l.startswith('raster')]
     shutil.rmtree(d, ignore_errors=True)
-    return syms, (data, data7, datah), ('; '.join(msg))
+    return syms, (data, dataa, data7, datah), ('; '.join(msg))
+
+
+# the bank (ROMSEL) each entry point is called with: the frame layer's T_
+# trampolines page bank 5 in (RASTBANK), ANDY over it for R_POLY (T_POLY:
+# RASTPOLY, once there is a polygon window), bank 7 for R_LINE (T_LINE)
+_C = dict(re.findall(r'^(RASTPOLY|RASTBANK)\s*=\s*&?([0-9A-Fa-f]+)', open(GFX).read(), re.M))
+ENTRY_BANK = {'R_POLY': int(_C.get('RASTPOLY', '5'), 16), 'R_LINE': 7}
 
 
 class Machine(tr.Machine):
+    """the demo's machine with the Master's sideways RAM: ROMSEL bits 0-3 page a
+    bank in at &8000-&BFFF, bit 7 ANDY over its &8000-&8FFF"""
+    def __init__(self, org, seed=1):
+        import random
+        from py65.devices.mpu65c02 import MPU
+        self.syms, (data, dataa, data7, datah), self.sizemsg = assemble(org)
+        rnd = random.Random(seed)
+        self.mem = [rnd.randrange(256) for _ in range(65536)]
+        self.mem[tr.HZ:tr.HZ + len(datah)] = list(datah)
+        b5 = [rnd.randrange(256) for _ in range(0x4000)]
+        b5[0:len(data)] = list(data)
+        b7 = [rnd.randrange(256) for _ in range(0x4000)]
+        r7 = self.syms.get('r7_start', 0x8000) - 0x8000
+        b7[r7:r7 + len(data7)] = list(data7)
+        self.andy = [rnd.randrange(256) for _ in range(0x1000)]
+        self.andy[0:len(dataa)] = list(dataa)
+        self.banks = {5: b5, 7: b7}
+        self.romsel = None
+        self.page(5)
+        self.lo, self.hi = 0x8000, 0xC000
+        self.image = list(data)
+        self.mpu = MPU(memory=self.mem)
+        self.cycles = 0
+        self.guard = True
+
     def check_writes(self, snap, name):
         mem, s = self.mem, self.syms
         allowed = sorted([(0x06, 0x28), (tr.ROMSELCOPY, tr.ROMSELCOPY + 1), (0x100, 0x200),
@@ -117,18 +189,30 @@ class Machine(tr.Machine):
             if mem[b:b + 190] != snap[b:b + 190]:
                 raise AssertionError('%s left run %d modified' % (name, r))
 
+    def page(self, rs):
+        """ROMSEL = rs (as a write to ROMSEL would): bank rs AND 15, ANDY if bit 7"""
+        mem = self.mem
+        if rs != self.romsel:
+            if self.romsel is not None:          # put the paged memory back
+                b, andy = self.romsel & 15, self.romsel & 0x80
+                if andy:
+                    self.andy[:] = mem[0x8000:0x9000]
+                    self.banks[b][0x1000:] = mem[0x9000:0xC000]
+                else:
+                    self.banks[b][:] = mem[0x8000:0xC000]
+            b = rs & 15
+            mem[0x8000:0xC000] = self.banks[b]
+            if rs & 0x80:
+                mem[0x8000:0x9000] = self.andy
+            self.romsel = rs
+        mem[tr.ROMSEL] = mem[tr.ROMSELCOPY] = rs
 
-    def page(self, nb):
-        """page sideways bank nb in (as a write to ROMSEL would)"""
-        if nb != self.bank:
-            self.banks[self.bank] = self.mem[0x8000:0xC000]
-            self.mem[0x8000:0xC000] = self.banks[nb]
-            self.bank = nb
-        self.mem[tr.ROMSEL] = self.mem[tr.ROMSELCOPY] = nb
-
-    def call(self, name, a=0, x=0, y=0, maxcyc=20_000_000, bank=5):
-        """as the demo's, but entered (and returning) with bank `bank` paged: R_LINE is
-        in bank 7, which the frame layer's T_LINE pages in itself"""
+    def call(self, name, a=0, x=0, y=0, maxcyc=20_000_000, bank=None):
+        """as the demo's, but entered (and returning) with the entry's ROMSEL (the
+        T_ trampoline's); ROMSEL writes page as the hardware would, and &F4 must
+        match ROMSEL whenever it is written"""
+        if bank is None:
+            bank = ENTRY_BANK.get(name, 5)
         self.page(bank)
         mpu, mem = self.mpu, self.mem
         if self.guard:
@@ -144,15 +228,16 @@ class Machine(tr.Machine):
         step = mpu.step
         while mpu.pc != tr.RET:
             step()
-            nb = mem[tr.ROMSEL]
-            if nb != self.bank:
-                self.banks[self.bank] = mem[0x8000:0xC000]
-                mem[0x8000:0xC000] = self.banks[nb]
-                self.bank = nb
+            rs = mem[tr.ROMSEL]
+            if rs != self.romsel:
+                if mem[tr.ROMSELCOPY] != rs:
+                    raise AssertionError('%s: ROMSEL &%02X written with &F4 = &%02X' % (name, rs, mem[tr.ROMSELCOPY]))
+                self.page(rs)                    # (the runs, which the guard checks, are in
+                                                 # bank 5's &9000-&BFFF: paged either way)
             if mpu.processorCycles - c0 > maxcyc:
                 raise RuntimeError('runaway in %s' % name)
-        if self.bank != bank:
-            raise AssertionError('%s returned with bank %d paged' % (name, self.bank))
+        if self.romsel != bank:
+            raise AssertionError('%s returned with ROMSEL &%02X' % (name, self.romsel))
         self.cycles = mpu.processorCycles - c0
         if self.guard:
             self.check_writes(snap, name)
@@ -173,10 +258,12 @@ def draw_line(self, x0, y0, x1, y1, ce, co, entry='R_LINE'):
         m.wr(nm, v & 0xFF)
         m.wr(nm, (v >> 8) & 0xFF, 1)
     self.set_col(ce, co)
-    return m.call(entry, bank=7)          # (T_LINE: bank 7)
+    return m.call(entry)                  # (T_LINE: bank 7)
 
 
 tr.assemble = assemble
+_demo_check_patch_sites = tr.check_patch_sites
+tr.check_patch_sites = check_patch_sites
 tr.Machine = Machine
 tr.Tester.set_col = set_col
 tr.Tester.draw_line = draw_line

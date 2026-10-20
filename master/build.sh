@@ -109,6 +109,16 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" COLD7LO = &%04X\n" % sy["COLD7_START%"])
     f.write(" HILEN = &%04X\n" % (sy["HI_END%"] - 0x7200))
+# build/images.txt: where the loader puts each image (harness/mboot.mjs checks
+# them): file, ROMSEL (hex; bit 7: ANDY) or main/shadow/hazel, start (hex), and
+# "v" for images holding variables or self-modified code
+with open("build/images.txt", "w") as f:
+    for img, rs, at, v in (("BANK4.bin", "4", 0x8000, "v"), ("ANDY.bin", "87", 0x8000, ""),
+                           ("COLD7.bin", "7", sy["COLD7_START%"], ""), ("TOKENS.bin", "shadow", 0x3100, ""),
+                           ("BANK5.bin", "5", 0x8000, "v"), ("BANK6.bin", "6", 0x8000, "v"),
+                           ("RAST7.bin", "7", 0x8000, "v"), ("HAZEL.bin", "hazel", sy["HZ_START"], "v"),
+                           ("HICODE.bin", "main", 0x7200, "v")):
+        f.write("%s %s %04X %s\n" % (img, rs, at, v))
 PY
 python3 tools/bankcheck.py || exit 1
 for f in loader readme; do
