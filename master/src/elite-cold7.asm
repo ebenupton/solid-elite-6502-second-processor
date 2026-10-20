@@ -6331,31 +6331,14 @@ ENDIF
  LDX #KEY1              \ Set X = KEY1 as the decryption seed (the value used to
                         \ encrypt the code, which is done in elite-checksum.py)
 
-IF _REMOVE_CHECKSUMS
-
  NOP                    \ If we have disabled checksums, skip the call to DEEORS
  NOP                    \ and return from the subroutine to skip the second call
  RTS                    \ below
 
-ELSE
-
- JSR DEEORS_C             \ Call DEEORS to decrypt between DOENTRY and F%
-
-ENDIF
-
- LDA #LO(XX21-1)        \ Set FRIN(1 0) = XX21-1 as the low address (bankcheck: ok)
- STA FRIN               \ decryption block (Port: not reached, as DEEOR returns
- LDA #HI(XX21-1)        \ above with _REMOVE_CHECKSUMS; bankcheck: ok)
- STA FRIN+1
-
- LDA #&B1               \ Set (A Y) = &B1FF as the high address of the
- LDY #&FF               \ decryption block
-
- LDX #KEY2              \ Set X = KEY2 as the decryption seed (the value used to
-                        \ encrypt the code, which is done in elite-checksum.py)
-
-                        \ Fall through into DEEORS to decrypt between XX21 and
-                        \ &B1FF
+                        \ Port: the rest is removed (unreachable: the port is
+                        \ always built with _REMOVE_CHECKSUMS, so DEEOR returns
+                        \ above): the ELSE's JSR DEEORS, and the second block's
+                        \ set-up (XX21-1 to &B1FF, KEY2) that fell into DEEORS
 
 \ ******************************************************************************
 \
@@ -6376,46 +6359,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.DEEORS_C
-
- STX T                  \ Store the decryption seed in T as our starting point
-
- STA SC+1               \ Set SC(1 0) = (A 0) to point to the start of page A,
- LDA #0                 \ so we can use SC(1 0) + Y as our pointer to the next
- STA SC                 \ byte to decrypt
-
-.DEEORL_C
-
- LDA (SC),Y             \ Set A to the Y-th byte of SC(1 0)
-
- SEC                    \ Set A = A - T
- SBC T
-
- STA (SC),Y             \ Update the Y-th byte of SC to the new value in A
-
- STA T                  \ Update T with the new value in A
-
- TYA                    \ Set A to the current byte index in Y
-
- BNE P%+4               \ If A <> 0 then decrement the high byte of SC(1 0) to
- DEC SC+1               \ point to the previous page
-
- DEY                    \ Decrement the byte pointer
-
- CPY FRIN               \ Loop back to decrypt the next byte, until Y = the low
- BNE DEEORL_C             \ byte of FRIN(1 0), at which point we have decrypted a
-                        \ whole page
-
- LDA SC+1               \ Check whether SC(1 0) matches FRIN(1 0) and loop back
- CMP FRIN+1             \ to decrypt the next byte until it does, at which point
- BNE DEEORL_C             \ we have decrypted the whole block
-
- RTS                    \ Return from the subroutine
-
- EQUB &B7, &AA          \ These bytes appear to be unused, though there is a
- EQUB &45, &23          \ comment in the original source that says "red
-                        \ herring", so this would appear to be a red herring
-                        \ aimed at confusing any crackers
+                        \ Port: removed (unreachable without the copy
+                        \ protection): DEEORS and DEEORL, and the four unused
+                        \ "red herring" bytes after them (EQUB &B7, &AA, &45,
+                        \ &23)
 
 \ ******************************************************************************
 \
