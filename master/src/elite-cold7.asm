@@ -4359,8 +4359,8 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ This routine copies a commander file into the commbuf file buffer at &0E7E,
-\ and then saves it.
+\ This routine copies a commander file into the commbuf file buffer at &087E
+\ (Port: &0E7E in the original), and then saves it.
 \
 \ ******************************************************************************
 
@@ -4499,9 +4499,10 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ This routine loads a commander file into the commbuf file buffer at &0E7E, and
-\ then copies it to the TAP% staging area (though the latter is not used in this
-\ version, as it's left over from the Commodore 64 version).
+\ This routine loads a commander file into the commbuf file buffer at &087E
+\ (Port: &0E7E in the original), and then copies it to the TAP% staging area
+\ (though the latter is not used in this version, as it's left over from the
+\ Commodore 64 version).
 \
 \ ------------------------------------------------------------------------------
 \

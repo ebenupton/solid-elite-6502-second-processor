@@ -5,8 +5,8 @@ A thin adapter over the demo port's tools/test_raster.py (its pixel-exact Python
 reference, py65 65C02, the write guard and every test), pointed at the Master files:
 
   * the wrapper assembles the renderer's shared workspace as elite-gfx.asm lays it
-    out in main RAM (from its `ORG &1300` to WS_END: gfx-raster_scr.asm, the per-call
-    scratch, with R_NDISCL page aligned; gfx-raster_vars.asm at its fixed base, as the
+    out in main RAM (one block, from its first ORG to WS_END: gfx-raster_scr.asm, the
+    per-call scratch, with R_NDISCL page aligned; gfx-raster_vars.asm at its fixed base, as the
     laser-sight rows must not cross a page; R_WL, R_WR, R_NDN, the stars), the
     cross-bank stubs gfx-raster_hz.asm at &DF00, gfx-raster.asm at --org (bank 5) and
     gfx-raster7.asm at &8000 (bank 7);
@@ -58,8 +58,7 @@ def gfx_constants():
 
 def ws_block():
     """elite-gfx.asm's shared workspace (after `NDSTAR =`, from its first ORG to
-    .WS_END: two parts, WS_START..WS_HI_END and WS_LO..WS_END), as text, with its
-    INCLUDEs made absolute"""
+    .WS_END: one block, WS_START..WS_END), as text, with its INCLUDEs made absolute"""
     t = open(GFX).read().split('\n')
     i = next(n for n, l in enumerate(t) if re.match(r'^NDSTAR\s*=', l)) + 1
     out = []
@@ -103,7 +102,7 @@ class Machine(tr.Machine):
         mem, s = self.mem, self.syms
         allowed = sorted([(0x06, 0x28), (tr.ROMSELCOPY, tr.ROMSELCOPY + 1), (0x100, 0x200),
                           (tr.SCR0, tr.SCR1), (self.lo, self.hi),
-                          (s['WS_START'], s['WS_HI_END']), (s['WS_LO'], s['WS_END']), (tr.HZ, s['r_hz_end']),
+                          (s['WS_START'], s['WS_END']), (tr.HZ, s['r_hz_end']),
                           (tr.ROMSEL, tr.ROMSEL + 1)])
         a0 = 0
         for lo, hi in allowed + [(0x10000, 0x10000)]:

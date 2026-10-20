@@ -66,16 +66,30 @@ NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 
 \ The shared workspace: the state that the rasteriser's two banks, the frame
 \ layer, the game's hooks, the IRQ handler and the lens flare (which runs
-\ with ACCCON X set) share, in main RAM below the main code (CODE%) and below
-\ &3000, where all of them see it. Variables only (the renderer initialises
-\ them: R_INIT, F_INIT), except DFSST, which the loader fills. The arrays
-\ keep their low bytes from HAZEL, where their page crossings were measured:
-\ raster_vars at a fixed place (the rows of the laser sights' scan in
-\ R_DIRTYR0/1 must not cross a page, gfx-frame.asm's f_sight2), R_NDISCL page
-\ aligned (gfx-raster_scr.asm)
+\ with ACCCON X set) share, in one block in main RAM below the main code
+\ (CODE%) and below &3000, where all of them see it, above page &0D (off
+\ limits, docs/MASTER-MEMORY.md). Variables only (the renderer initialises
+\ them: R_INIT, F_INIT), except DFSST, which the loader fills (from &0400,
+\ as the loader itself is here). The arrays keep their low bytes from HAZEL,
+\ where their page crossings were measured: raster_vars at a fixed place
+\ (the rows of the laser sights' scan in R_DIRTYR0/1 must not cross a page,
+\ gfx-frame.asm's f_sight2), R_NDISCL page aligned (gfx-raster_scr.asm)
 
-ORG &1300               \ (from here to WS_END: test_raster.py assembles it too)
+ORG &0E40               \ (from here to WS_END: test_raster.py assembles it too)
 .WS_START
+.R_NDN      SKIP 192        \ (raster_vars.asm: boundaries per disc row, 0..4)
+INCLUDE "src/gfx-raster_scr.asm"
+ASSERT LO(R_NDISCL) = 0
+.DFSST  SKIP 128        \ DFS's and the MOS's lasting bytes in HAZEL, &C2C0-&C2FF
+                        \ and &DFC0-&DFFF (the MOS's FSCV copy at &DFDA-&DFDB, the
+                        \ ACCCON its error path puts back at &DFDC-&DFDD), while
+                        \ the game uses those places: put back for each disc
+                        \ command (DOSCLI; the loader takes them first)
+.DFSIN  SKIP 1          \ bit 7: a disc command is under way (DOSCLI, DOSNMI)
+ASSERT DFSIN = DFSST + 128      \ (the loader clears it)
+ASSERT P% <= &1240
+ORG &1240
+.R_WL       SKIP 192        \ this frame's written extents (empty: R=0)
 .R_SS       SKIP 24         \ star size 1..3 (raster_vars.asm: the stars)
 .F_DSS      SKIP NDSTAR     \ the directly drawn stars' sizes (0 = none; see
                             \ F_DSX): cleared with R_SS (F_INIT, f_direct0)
@@ -97,29 +111,9 @@ ASSERT R_DIRTYR0 = RVBASE + RVOFF
 .fl_sh  SKIP 2
 .fl_lev SKIP 1          \ the level, 1..3
 .fl_xb  SKIP 1          \ ACCCON X while writing: 4 = clear it (buffer 0)
-.WS_HI_END
-ASSERT P% <= &1F00
-ORG &0840               \ (the MOS's sound, printer, RS423, cassette and speech
-                        \ buffers, and &0B00-&0CFF, which the Master does not use,
-                        \ docs/MASTER-MEMORY.md)
-.WS_LO
-.R_NDN      SKIP 192        \ (raster_vars.asm: boundaries per disc row, 0..4)
-INCLUDE "src/gfx-raster_scr.asm"
-ASSERT R_NDISCL = &0900
-.DFSST  SKIP 128        \ DFS's and the MOS's lasting bytes in HAZEL, &C2C0-&C2FF
-                        \ and &DFC0-&DFFF (the MOS's FSCV copy at &DFDA-&DFDB, the
-                        \ ACCCON its error path puts back at &DFDC-&DFDD), while
-                        \ the game uses those places: put back for each disc
-                        \ command (DOSCLI; the loader takes them first)
-.DFSIN  SKIP 1          \ bit 7: a disc command is under way (DOSCLI, DOSNMI)
-ASSERT DFSIN = DFSST + 128      \ (the loader clears it)
-ASSERT P% <= &0C40
-ORG &0C40
-.R_WL       SKIP 192        \ this frame's written extents (empty: R=0)
-ASSERT P% <= &0D00      \ (page &0D is off limits, docs/MASTER-MEMORY.md)
 .WS_END
-PRINT "Shared workspace: &0840-", ~WS_END-1, " (free ", &0C40-DFSIN-1, "), &1300-", ~WS_HI_END-1, " (free to the main code ", CODE%-WS_HI_END, ")"
-ASSERT WS_HI_END <= CODE%
+PRINT "Shared workspace: ", ~WS_START, "-", ~WS_END-1, " (free ", &1240-DFSIN-1, " and ", CODE%-WS_END, " to the main code)"
+ASSERT WS_START >= &0E00 AND WS_END <= CODE%
 
 CLEAR &8000, &C000
 ORG &8000

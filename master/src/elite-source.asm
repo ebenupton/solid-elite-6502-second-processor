@@ -258,9 +258,9 @@
                         \ before saving (though this isn't actually used in this
                         \ version, and is left-over Commodore 64 code)
 
- commbuf = &0E7E        \ The file buffer where we load and save commander files
-                        \ (this shares a location with LSX2 and is the address
-                        \ used in the *SAVE and *LOAD OS commands)
+                        \ Port: commbuf, the file buffer where we load and save
+                        \ commander files (&0E7E in the original), is defined
+                        \ after WP, as it shares a location with LSX2 there
 
  INCLUDE "build/data-addresses.asm"
 
@@ -1236,15 +1236,20 @@ ENDIF
 \
 \       Name: WP
 \       Type: Workspace
-\    Address: &0E41 to &12A9
+\    Address: &0841 to &0CA9
 \   Category: Workspaces
 \    Summary: Ship slots, variables
 \
 \ ******************************************************************************
 
- ASSERT &0E41 >= &0E00  \ Port: WP starts above page &0D (see K%)
-
- ORG &0E41              \ Set the assembly address to &0E41
+ ORG &0841              \ Set the assembly address to &0841 (Port: &0E41 in
+                        \ the original; WP is in main RAM below page &0D, in
+                        \ the MOS's sound, printer, RS423, cassette and speech
+                        \ buffers and &0B00-&0CFF, which the game never uses,
+                        \ with its bytes' places in their pages as in the
+                        \ original, and the renderer's shared workspace from
+                        \ &0E00 up to the main code, see elite-gfx.asm and
+                        \ docs/MASTER-MAP.md)
 
 .WP
 
@@ -2022,6 +2027,15 @@ ENDIF
                         \ updated regularly by the IRQ1 interrupt handler
 
  PRINT "WP workspace from ", ~WP, "to ", ~P%-1, "inclusive"
+
+ ASSERT P% <= &0D00     \ Port: nothing may be assembled into page &0D (see K%)
+
+ commbuf = LSX2         \ The file buffer where we load and save commander files
+                        \ (this shares a location with LSX2 and is the address
+                        \ used in the *SAVE and *LOAD OS commands; Port: the
+                        \ commands take it from here, &087E, as the file's
+                        \ catalogue entry does not depend on it: *SAVE gives
+                        \ load and execution addresses 0)
 
 \ ******************************************************************************
 \
@@ -7021,12 +7035,12 @@ ENDIF
 
 IF _SNG47
 
- EQUS "SAVE :1.E.JAMESON  E7E +100 0 0"
+ EQUS "SAVE :1.E.JAMESON  ", STR$~(commbuf), " +100 0 0"
  EQUB 13
 
 ELIF _COMPACT
 
- EQUS "SAVE JAMESON  E7E +100 0 0"
+ EQUS "SAVE JAMESON  ", STR$~(commbuf), " +100 0 0"
  EQUB 13
 
 ENDIF
@@ -7044,12 +7058,12 @@ ENDIF
 
 IF _SNG47
 
- EQUS "LOAD :1.E.JAMESON  E7E"
+ EQUS "LOAD :1.E.JAMESON  ", STR$~(commbuf)
  EQUB 13
 
 ELIF _COMPACT
 
- EQUS "LOAD JAMESON  E7E"
+ EQUS "LOAD JAMESON  ", STR$~(commbuf)
  EQUB 13
 
 ENDIF
