@@ -17847,12 +17847,13 @@ ENDIF
  JSR DOVDU19            \ which is yellow (colour 1), red (colour 2) and cyan
                         \ (colour 3)
 
+ LDA #&FF               \ Port: the hangar is drawn directly, not recorded
+ STA GFORCE             \ for the renderer (GFORCE, gfx-gvars.asm): its ships,
+                        \ and the view's name that TT66 prints
+
  LDA #0                 \ Clear the top part of the screen, draw a border box,
  JSR TT66               \ and set the current view type in QQ11 to 0 (space
                         \ view)
-
- LDA #&FF               \ Port: the hangar's ships are drawn directly, not
- STA GFORCE             \ recorded for the renderer (GFORCE, gfx-gvars.asm)
 
  JSR DORND              \ Set A and X to random numbers
 
