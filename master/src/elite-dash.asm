@@ -19,7 +19,7 @@
 \ Colours are 2x2 dither cells, kept as a pair of bytes: the four pixels for
 \ even lines and for odd lines.
 \
-\ They replace Master Elite's DIALS, PZW, DILX, DIL, DIL2, ADDK, SCAN, CPIXK,
+\ They replace Master Elite's DIALS, PZW, DILX, DIL, DIL2, SCAN, CPIXK,
 \ DOT, ECBLB2, ECBLB, SPBLB and MSBAR, and leave every game variable and
 \ temporary that the game reads afterwards, and the registers and flags where
 \ a caller can see them, as those did (see each routine). Only the bytes of
@@ -51,7 +51,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \ The game's temporaries are left as that DIALS left them: K and K+1 (its
 \ mode 2 colour bytes), T1 (its thresholds), XX15 (the energy banks at 16 per
 \ bank), and P, R, S, T, U (the roll and pitch values are still calculated
-\ with ADD, which is ADDK's twin). The MODE 1 dashboard's own values (colour
+\ with ADDK, as Master's). The MODE 1 dashboard's own values (colour
 \ numbers dK/dK1, thresholds dT, the finer bar lengths) are its own.
 \ ------------------------------------------------------------------------------
 
@@ -79,8 +79,8 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA DELTA
  JSR DIL
 
- STZ R                  \ Roll and pitch, calculated as Master (ADD, ADDK's
- STZ P                  \ twin), for the side effects on P, R, S, T, T1, U
+ STZ R                  \ Roll and pitch, calculated as Master (ADDK), for
+ STZ P                  \ the side effects on P, R, S, T, T1, U
  LDA #8
  STA S
  LDA ALP1
@@ -88,7 +88,7 @@ DCN_MARK = 6            \ roll / pitch marker
  LSR A
  ORA ALP2
  EOR #%10000000
- JSR ADD
+ JSR ADDK
 
                         \ The roll marker: at 15 -/+ ALP1 / 2 (0..30), on the
                         \ side Master's ADD put it
@@ -113,7 +113,7 @@ DCN_MARK = 6            \ roll / pitch marker
  LDX BET1
  BEQ P%+4
  SBC #1
- JSR ADD
+ JSR ADDK
 
                         \ The pitch marker: at 15 +/- (2 * BET1 - 1), with
                         \ BETA's sign (sign-magnitude), 15 when BET1 = 0

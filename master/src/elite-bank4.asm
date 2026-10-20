@@ -2721,11 +2721,11 @@
 
 .PIX1
 
-                        \ Set (A X) = (A P) + (S R) (Port: ADD inlined; all
+                        \ Set (A X) = (A P) + (S R) (Port: ADDK inlined; all
                         \ three callers set P = 0, so the same-sign low byte
-                        \ is X = R + 0 with C = 0, exactly as ADD's CLC : LDA R
-                        \ : ADC P : TAX, and the opposite-sign case calls MU8,
-                        \ ADD's own tail, with T and T1 set as ADD sets them)
+                        \ is X = R + 0 with C = 0, exactly as ADDK's CLC : LDA R
+                        \ : ADC P : TAX, and the opposite-sign case calls MU8K,
+                        \ ADDK's own tail, with T and T1 set as ADDK sets them)
 
  STA T1                 \ Store argument A in T1
 
@@ -2735,7 +2735,8 @@
  EOR S                  \ If A and S have the same sign, add them at pxad
  BPL pxad
 
- JSR MU8                \ Different signs: (A X) = (A P) + (S R) via MU8
+ JSR MU8K               \ Different signs: (A X) = (A P) + (S R) via MU8K
+                        \ (ADDK's tail, as PIX1 may run with ACCCON X set)
 
  BRA pxst
 

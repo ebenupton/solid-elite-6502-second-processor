@@ -3945,6 +3945,101 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: ADDK
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A X) = (A P) + (S R)
+\
+\ ------------------------------------------------------------------------------
+\
+\ A copy of ADD (and of MU8, its tail, as MU8K) in main RAM below &3000, for
+\ code that runs with ACCCON X set, which hides main RAM above &3000: the
+\ dashboard (DIALS, elite-dash.asm) and PIX1 (Port: the same code as the
+\ port's ADD and MU8, so it gives the same results and flags).
+\
+\ ------------------------------------------------------------------------------
+\
+\ Arguments:
+\
+\   (A P)               The first number to add
+\
+\   (S R)               The second number to add
+\
+\ ******************************************************************************
+
+.ADDK
+
+ STA T1                 \ Store argument A in T1
+
+ AND #%10000000         \ Extract the sign (bit 7) of A and store it in T
+ STA T
+
+ EOR S                  \ EOR bit 7 of A with S. If they have different bit 7s
+ BMI MU8K               \ (i.e. they have different signs) then bit 7 in the
+                        \ EOR result will be 1, which means the EOR result is
+                        \ negative. So the AND, EOR and BMI together mean that
+                        \ we jump to MU8K if A and S have different signs
+
+ CLC                    \ Add the least significant bytes together into X:
+ LDA R                  \
+ ADC P                  \   X = P + R
+ TAX
+
+ LDA S                  \ Add the most significant bytes together into A. We
+ ADC T1                 \ stored the original argument A in T1 earlier, so we
+                        \ can do this with:
+                        \
+                        \   A = A  + S + C
+                        \     = T1 + S + C
+
+ ORA T                  \ If argument A was negative (and therefore S was also
+                        \ negative) then make sure result A is negative by
+                        \ OR'ing the result with the sign bit from argument A
+                        \ (which we stored in T)
+
+ RTS                    \ Return from the subroutine
+
+.MU8K
+
+                        \ Port: as MU8 (the arguments have different signs)
+
+ LDA R                  \ X = R - P
+ SEC
+ SBC P
+ TAX
+ BEQ mu8kz              \ If the low byte is 0, check for |S R| = |A P|
+
+ LDA S                  \ A = S - T1 - borrow = m EOR &80, with m = |S| - |A|
+ SBC T1                 \ - borrow
+ BPL mu8kb              \ If |S R| < |A P|, jump to mu8kb
+
+.mu8ka
+
+ EOR T                  \ |S R| > |A P|: the result has S's sign; return with
+ CLC                    \ C = 0
+ RTS
+
+.mu8kz
+
+ LDA S                  \ X = 0: |S R| > |A P| if and only if A >= &81
+ SBC T1
+ CMP #%10000001
+ BCS mu8ka
+
+.mu8kb
+
+ LDA P                  \ |S R| <= |A P|: X = P - R, A = |A| - |S| - borrow,
+ SEC                    \ with argument A's sign, and C = 1
+ SBC R
+ TAX
+ LDA T1
+ EOR #%10000000
+ SBC S
+ EOR T
+ RTS
+
+\ ******************************************************************************
+\
 \       Name: ZEKTRAN
 \       Type: Subroutine
 \   Category: Keyboard
