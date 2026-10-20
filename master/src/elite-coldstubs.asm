@@ -143,10 +143,6 @@
  JSR far4
  EQUW BELL
 
-.x4_ADD
- JSR far4
- EQUW ADD
-
 .x4_CTRL
  JSR far4
  EQUW CTRL
@@ -158,10 +154,6 @@
 .x4_LOOK1
  JSR far4
  EQUW LOOK1
-
-.x4_MAS2
- JSR far4
- EQUW MAS2
 
 .x4_NOISE
  JSR far4
@@ -183,21 +175,9 @@
  JSR far4
  EQUW LL9F
 
-.x4_m
- JSR far4
- EQUW m
-
 .j4_GOIN
  JSR far4j
  EQUW GOIN
-
-.x4_EDGES
- JSR far4
- EQUW EDGES
-
-.x4_HLOIN
- JSR far4
- EQUW HLOIN
 
 .x4_SCAN
  JSR far4

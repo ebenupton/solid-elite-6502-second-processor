@@ -144,10 +144,6 @@
  JSR far7
  EQUW TT18_C
 
-.WARP
- JSR far7
- EQUW WARP_C
-
 .ee3
  JSR far7
  EQUW ee3_C
@@ -163,10 +159,6 @@
 .ESCAPE
  JSR far7
  EQUW ESCAPE_C
-
-.HLOIN2
- JSR far7
- EQUW HLOIN2_C
 
 .MESS
  JSR far7
