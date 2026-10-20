@@ -87,20 +87,16 @@
 
 \ ******************************************************************************
 \
-\ Port: the high code, main RAM &7200-&7FFF (docs/MASTER-MAP.md): the
-\ quarter-square tables, the renderer's game-context side (elite-hi.asm) and
-\ the stubs into the cold area (build/elite-stubs7.asm). Code here runs only in game
-\ context, never while ACCCON X is set (which hides main RAM at &3000-&7FFF).
-\ Saved as HICODE, which the loader copies there.
+\ Port: the high code, main RAM &7200-&7FFF (elite-hi.asm, docs/MASTER-MAP.md):
+\ the port's game-context glue, which has no counterpart in the original (the
+\ quarter squares, the renderer's game-context half, the stubs into the cold
+\ area). Saved as HICODE, which the loader copies there.
 \
 \ ******************************************************************************
 
  ORG &7200
 
- INCLUDE "src/elite-hi.asm"         \ quarter squares, renderer stubs and hooks
-
- INCLUDE "build/elite-stubs7.asm"   \ stubs into the cold area (far7, far7j),
-                                    \ which tools/streams.py writes
+ INCLUDE "src/elite-hi.asm"
 
 .HI_END%
 
