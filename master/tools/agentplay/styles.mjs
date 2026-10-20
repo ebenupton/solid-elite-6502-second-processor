@@ -98,7 +98,9 @@ const POKES = {
 const D = { 0: 0x27, 1: 0x30, 2: 0x31, 3: 0x11, 4: 0x12, 5: 0x13, 6: 0x34, 7: 0x24, 8: 0x15, 9: 0x26, RET: 0x49, Y: 0x44, N: 0x55, AT: 0x47 };
 const LETTER = { A: 0x41, B: 0x64, C: 0x52, D: 0x32, E: 0x22, F: 0x43, G: 0x53, H: 0x54, I: 0x25, J: 0x45, K: 0x46, L: 0x56, M: 0x65, N: 0x55, O: 0x36, P: 0x37, Q: 0x10, R: 0x33, S: 0x51, T: 0x23, U: 0x35, V: 0x63, W: 0x21, X: 0x42, Y: 0x44, Z: 0x61 };
 const press = k => [[k, 3], [null, 5]];
-const typed = t => [...t].flatMap(ch => press(LETTER[ch] ?? D[ch]));
+// ("~" is DELETE, "^" ESCAPE)
+const typed = t => [...t].flatMap(ch => press(LETTER[ch] ?? D[ch] ?? { "~": 0x59, "^": 0x70 }[ch]));
+const fumble = t => rng() < 0.4 ? t.slice(0, -1) + "QZ~~" + t.slice(-1) : t;        // (sometimes a slip, deleted)
 const inMenu = (r, sy) => r[sy.QQ11] === 1;
 const atStatus = (r, sy) => r[sy.QQ12] && r[sy.QQ11] === 8;
 const menu = () => [{ until: inMenu, keys: [D.AT], max: 150 }, [null, 20]];
@@ -111,10 +113,12 @@ const DISC = {
     // Master with no disc, so the session ends there with hang-both. Not in "disc")
     dcat1:  () => [...menu(), ...press(D[3]), ...drive(D[1]), [null, 400], ...press(0x62), ...leave()],
     dbad:   () => [...menu(), ...press(D[rng() < 0.5 ? 3 : 1]), ...(rng() < 0.5 ? [] : [[null, 12], ...typed("BAD"), ...press(D.RET), [null, 6]]), ...drive(D[rng() < 0.5 ? 7 : 9]), [null, 30], ...leave()],
-    dnoload: () => [...menu(), ...press(D[1]), [null, 12], ...typed("NOFILE"), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
+    dnoload: () => [...menu(), ...press(D[1]), [null, 12], ...typed(fumble("NOFILE")), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
     dnodel: () => [...menu(), ...press(D[4]), ...drive(D[0]), [null, 250], ...typed("NOFILE"), ...press(D.RET), [null, 200], ...leave()],
-    dsave:  () => { const n = "CH" + (saveNo++ % 40); return [...menu(), ...press(D[2]), [null, 12], ...typed(n), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 250], ...leave()]; },
+    dsave:  () => { const n = "CH" + (saveNo++ % 40); return [...menu(), ...press(D[2]), [null, 12], ...typed(fumble(n)), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 250], ...leave()]; },
     ddel:   () => { const n = "CH" + Math.floor(rng() * Math.max(1, saveNo)); return [...menu(), ...press(D[4]), ...drive(D[0]), [null, 250], ...typed(n), ...press(D.RET), [null, 200], ...leave()]; },
+    // a name typed, over-deleted (DELETE with nothing left), or abandoned with ESCAPE
+    dname:  () => [...menu(), ...press(D[rng() < 0.5 ? 1 : 2]), [null, 12], ...typed(rng() < 0.5 ? "AB~~~~C^" : "XY~~~~"), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
     ddefault: () => [...menu(), ...press(D[5]), [null, 10], ...press(rng() < 0.5 ? D.Y : D.N), [null, 30], ...leave()],
     dexit:  () => [...menu(), ...press(D[6]), ...leave()],
 };
