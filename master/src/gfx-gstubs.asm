@@ -160,15 +160,21 @@
 
 .ghlt EQUB 24, 24, &E8
 
-\ G_HLL9: HAS1's LL9, with TYPE = the hangar ship's type while LL9
-\ records it (H_EE31 takes the ship's faces from TYPE; HAS1 sets only XX0),
-\ and TYPE as it was afterwards, as the original leaves it
+\ G_HLL9: HAS1's LL9, with TYPE set while LL9 records the ship (H_EE31
+\ takes the ship's faces from TYPE; HAS1 sets only XX0): the type whose XX21
+\ entry is XX0 (XX15+2, the type HAS1 was given, is gone: TIDY uses XX15),
+\ or the one HSUB draws in its place, with XX0 its blueprint. TYPE and XX0
+\ are put back afterwards, as the original leaves them
 
 .G_HLL9
  LDA TYPE
  PHA
- LDX #0                 \ TYPE = the type whose XX21 entry is XX0 (XX15+2,
-.ghl1                   \ the type HAS1 was given, is gone: TIDY uses XX15)
+ LDA XX0
+ PHA
+ LDA XX0+1
+ PHA
+ LDX #0
+.ghl1
  INX
  INX
  LDA XX21-2,X
@@ -179,11 +185,40 @@
  BNE ghl1
  TXA
  LSR A
+ TAY
+ LDA HSUB-1,Y           \ the type drawn
  STA TYPE
+ ASL A
+ TAX
+ LDA XX21-2,X           \ and its blueprint
+ STA XX0
+ LDA XX21-1,X
+ STA XX0+1
  JSR LL9
+ PLA
+ STA XX0+1
+ PLA
+ STA XX0
  PLA
  STA TYPE
  RTS
+
+\ HSUB: the type whose blueprint the hangar draws, for each type HALL can
+\ choose (1 to 21: HATB's, and the solo ships, SH3 to SH3+4): the type
+\ itself, but for the two that blend into the tan (HATB's Port note,
+\ elite-source.asm): the Sidewinder (17) is drawn as an Asp Mk II (25), the
+\ Mamba (18) as a Viper (COPS)
+
+.HSUB
+FOR hst, 1, 21
+ IF hst = 17
+  EQUB 25
+ ELIF hst = 18
+  EQUB COPS
+ ELSE
+  EQUB hst
+ ENDIF
+NEXT
 
 .G_HANGAR
  LDA #GFXBANK

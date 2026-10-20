@@ -17337,6 +17337,21 @@ ENDIF
 \ The ship's y-coordinate is calculated in the has1 routine from the size of
 \ its targetable area. Ships of type 0 are not shown.
 \
+\ Port: the hangar is drawn by the renderer, filled and lit, on a tan wall
+\ and floor (gfx-hangar.asm), and two of the ships HALL can choose blend into
+\ it: the Sidewinder and the Mamba, whose faces are dithered from yellow,
+\ magenta and black alone (yellow 48% and 60% of their pixels, no cyan), the
+\ inks of the wall's tan (2Y+M+K) and half the floor's (2Y+M+C). Measured on
+\ the rendered hangar (every type, 12 placements each), they are the only
+\ ones HALL can choose with no cyan in their faces; the others have 20% (the
+\ Krait) to 64% (the Viper) (master/tools/hangarinks.py). HAS1 draws them as the nearest ships of their
+\ size (HAS1 places a ship by its targetable area) that stand out: the
+\ Sidewinder (area 4225) as an Asp Mk II (3600), the Mamba (4900) as a Viper
+\ (5625). Only the blueprint that LL9 draws changes (G_HLL9, gfx-gstubs.asm,
+\ with its table HSUB): HALL and HAS1 run as before, with the same random
+\ numbers, and place the ship by its own type's size, and this table is
+\ unchanged (none of its ships blends)
+\
 \ ******************************************************************************
 
 .HATB
