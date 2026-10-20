@@ -124,7 +124,8 @@ for (const [nm, f] of Object.entries(DISC)) ACTIONS[nm] = { every: 150, disc: tr
 // data (f6), the charts with the cursor moved (with SHIFT, sometimes) and hyperspace asked for (out of range, or
 // not allowed while docked), equipment that is fitted already or can't be afforded
 const F = { f2: 0x72, f3: 0x73, f4: 0x14, f5: 0x74, f6: 0x75, f7: 0x16, f8: 0x76, f9: 0x77, L: 0x19, R: 0x79, U: 0x39, Dn: 0x29, H: 0x54 };
-const toStatus = () => [[null, 20], { pulse: F.f8, until: atStatus, max: 600 }];
+// (f8, or RETURN to end a number being typed, or 0 for the view of a laser bought)
+const toStatus = () => [[null, 20], { pulse: [F.f8, D.RET, F.f8, D[0]], until: atStatus, max: 900 }];
 const pick = a => a[Math.floor(rng() * a.length)];
 const DOCKED = {
     dmarket: () => [...press(F.f7), [null, 80], ...press(F.f6), [null, 80], ...press(F.f9), [null, 60], ...toStatus()],
@@ -165,7 +166,7 @@ export function makeChaos(spec, seed) {
             if (seq) {
                 if (step) {
                     if (step.until(ram, sy) || --seqLeft <= 0) { next(ram, sy); return; }
-                    if (step.pulse !== undefined) cur = (step.max - seqLeft) % 12 < 3 ? [step.pulse] : [];
+                    if (step.pulse !== undefined) { const t = step.max - seqLeft, p = step.pulse; cur = t % 12 < 3 ? [Array.isArray(p) ? p[Math.floor(t / 12) % p.length] : p] : []; }
                     return;
                 }
                 if (--seqLeft > 0) return;
