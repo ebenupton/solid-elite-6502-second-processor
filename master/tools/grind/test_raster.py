@@ -261,7 +261,72 @@ def draw_line(self, x0, y0, x1, y1, ce, co, entry='R_LINE'):
     return m.call(entry)                  # (T_LINE: bank 7)
 
 
+_demo_test_lines = tr.Tester.test_lines
+
+
+def test_lines(self, n):
+    """the demo's random lines, then as many again aimed at R_LINE's clipping:
+    ends on and next to the window's sides, long lines (d > 255) across the
+    window, points, horizontal, vertical and diagonal lines; each checked
+    against the reference (pixels, DIRTY) and the buffer's row range
+    (R_PRDYT..R_PRDYB must take in every row drawn)"""
+    _demo_test_lines(self, n)
+    m, rnd = self.m, self.rnd
+
+    def end(kind):
+        cl, cr, ct, cb = self.clip
+        if kind == 0:                                     # on or next to a side
+            return (rnd.choice((cl - 1, cl, cl + 1, cr - 1, cr, cr + 1, rnd.randrange(256))),
+                    rnd.choice((ct - 1, ct, ct + 1, cb - 1, cb, cb + 1, rnd.randrange(192))))
+        if kind == 1:                                     # around the window
+            return rnd.randrange(-300, 556), rnd.randrange(-300, 492)
+        if kind == 2:                                     # inside
+            return rnd.randrange(cl, cr + 1), rnd.randrange(ct, cb + 1)
+        return rnd.randrange(-3000, 3256), rnd.randrange(-3000, 3192)   # long
+    b = 0
+    for it in range(n):
+        if it % 50 == 0:
+            if rnd.random() < 0.5:
+                cl = rnd.randrange(1, 120)
+                ct = rnd.randrange(0, 120)
+                self.set_clip((cl, rnd.randrange(cl, 255), ct, rnd.randrange(ct, 192)))
+            else:
+                self.set_clip((1, 254, 1, 191))
+            b = rnd.randrange(2)
+            m.set_screen(bytes(rnd.randrange(256) for _ in range(0x3000)))
+            ref, dirt = self.reset_state(b)
+        x0, y0 = end(rnd.randrange(4))
+        x1, y1 = end(rnd.randrange(4))
+        s = rnd.random()
+        if s < 0.1:
+            x1, y1 = x0, y0
+        elif s < 0.2:
+            y1 = y0
+        elif s < 0.3:
+            x1 = x0
+        elif s < 0.4:
+            d = rnd.randrange(-600, 600)
+            x1, y1 = x0 + d, y0 + rnd.choice((d, -d))
+        ce, co = rnd.randrange(256), rnd.randrange(256)
+        pts = (x0, y0, x1, y1)
+        self.draw_line(*pts, ce, co)
+        rows = []
+        for x, y in tr.line_pixels(*pts):
+            if ref.inwin(x, y):
+                ref.setpix(x, y, ce, co)
+                dl, dr = dirt[y]
+                dirt[y] = (min(dl, x), max(dr, x))
+                rows.append(y)
+        if m.screen() != bytes(ref.b):
+            raise AssertionError('line %s' % (pts,))
+        if self.dirty(b) != dirt:
+            raise AssertionError('line dirty %s' % (pts,))
+        if rows and not (m.rd('R_PRDYT', b) <= min(rows) and max(rows) <= m.rd('R_PRDYB', b)):
+            raise AssertionError('line row range %s' % (pts,))
+
+
 tr.assemble = assemble
+tr.Tester.test_lines = test_lines
 _demo_check_patch_sites = tr.check_patch_sites
 tr.check_patch_sites = check_patch_sites
 tr.Machine = Machine
