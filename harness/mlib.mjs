@@ -164,10 +164,32 @@ export function excludeSet(sy, lists) {
     return ex;
 }
 
+// The Master's CMOS RAM and real-time clock, made the machine's own and fixed. jsbeeb's
+// clock reads the host's (local) time, and every machine in a process shares its CMOS
+// bytes (one array, written through). Neither changes anything Elite does today: in a
+// boot and an agentplay session the MOS and the game read CMOS bytes &13-&1E only, never
+// the clock, and write only the clock's control registers A and B, at reset. Fixed all the
+// same, so that no run can depend on when or beside what it runs: each machine gets its
+// own copy of the CMOS bytes, and the clock always reads RTC_TIME, in UTC (writes to it
+// are ignored).
+export const RTC_TIME = Date.UTC(2000, 0, 1, 0, 0, 0);
+export function pinRtc(s) {
+    const c = s._machine.processor.cmos, read = c.read.bind(c), t = new Date(RTC_TIME);
+    const bcd = v => parseInt(String(v % 100), 16);
+    const clock = { 0: t.getUTCSeconds(), 2: t.getUTCMinutes(), 4: t.getUTCHours(), 6: t.getUTCDay() + 1, 7: t.getUTCDate(), 8: t.getUTCMonth() + 1, 9: t.getUTCFullYear() };
+    c.store = c.store.slice();
+    c.read = () => {
+        const v = read();
+        if (c.enabled && !c.addressSelect && c.dataSelect && c.isRead && c.cmosAddr in clock) return bcd(clock[c.cmosAddr]);
+        return v;
+    };
+}
+
 // Machine set-up: boot the Master, insert the disc, SHIFT+BREAK
 export async function bootMaster(disc) {
     const s = new MachineSession("Master");
     await s.initialise();
+    pinRtc(s);
     await s.boot(30);
     s.loadDisc(disc);
     s.keyDown(16); s.reset(true); await s.runFor(2000000); s.keyUp(16);
