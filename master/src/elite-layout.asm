@@ -57,11 +57,13 @@
 \ E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's, SNE and
 \ ACT. DOSCLI stashes all of HAZEL in screen buffer 0 around each disc
 \ command, so the data may sit anywhere in it; nothing the IRQ handler or
-\ CHPR uses during a command is here. After the data, the page HANGHEAP: the
-\ hangar's line heap (the port's: the original's, &0B00, is in WP here), which
-\ LL9 writes while HAS1 draws a ship in the hangar, and nothing else uses. Saved
-\ as HAZEL, which the loader copies into place after its last disc access (and
-\ the data as HZDATA, for the tools).
+\ CHPR uses during a command is here. After the data, the hangar's tables
+\ (gfx-hangar-hz.asm), then the page HANGHEAP: the hangar's line heap (the
+\ port's: the original's, &0B00, is in WP here), which LL9 writes while HAS1
+\ draws a ship in the hangar, and nothing else uses. Saved as HAZEL (to
+\ &DEFF: the MOS's own bytes from &DF00 on are left as the loader's disc
+\ accesses left them), which the loader copies into place after its last disc
+\ access (and the data as HZDATA, for the tools).
 \
 \ ******************************************************************************
 
@@ -74,6 +76,13 @@
 
 .HZDATA_END%
 
+ INCLUDE "src/gfx-hangar-hz.asm"    \ Port: the hangar's tables, before its
+                                    \ line heap (not after it: the MOS keeps
+                                    \ its FS numbers and filing-system names
+                                    \ at &DF00-&DF47, docs/MASTER-MEMORY.md)
+.HZTAB_END%
+
+ ASSERT P% <= &DE00     \ (HANGHEAP stays at &DE00, and HAZEL.bin ends there)
  ALIGN &100             \ (a whole page: HAS1 sets only the heap pointer's high
                         \ byte, INWK+34)
 .HANGHEAP
@@ -82,7 +91,7 @@
 
 .HZ_END
 
- PRINT "HAZEL: game data &C000-", ~HZDATA_END%-1, ", HANGHEAP ", ~HANGHEAP, ", free ", HANGHEAP-HZDATA_END%, " + ", &E000-HZ_END
+ PRINT "HAZEL: game data &C000-", ~HZDATA_END%-1, ", the hangar's tables to ", ~HZTAB_END%-1, ", HANGHEAP ", ~HANGHEAP, ", free ", HANGHEAP-HZTAB_END%, " + ", &E000-HZ_END
  ASSERT HZ_END <= &E000
  SAVE "build/HZDATA.bin", &C000, HZDATA_END%, &C000
  SAVE "build/HAZEL.bin", HZ_START, HZ_END, HZ_START

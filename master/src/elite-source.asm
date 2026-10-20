@@ -45,7 +45,7 @@
 \
 \ ******************************************************************************
 
- CODE% = &1ED7          \ The address where the code will be run (Port: the
+ CODE% = &1EDC          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; its low byte is chosen so that the
                         \ font, at its place after ADDK, starts a page with no
@@ -17847,13 +17847,14 @@ ENDIF
  JSR DOVDU19            \ which is yellow (colour 1), red (colour 2) and cyan
                         \ (colour 3)
 
- LDA #&FF               \ Port: the hangar is drawn directly, not recorded
- STA GFORCE             \ for the renderer (GFORCE, gfx-gvars.asm): its ships,
-                        \ and the view's name that TT66 prints
-
  LDA #0                 \ Clear the top part of the screen, draw a border box,
  JSR TT66               \ and set the current view type in QQ11 to 0 (space
                         \ view)
+
+ JSR G_HANG0            \ Port: the hangar is one frame of the renderer
+                        \ (gfx-hangar.asm): the ships are recorded (and lit by
+                        \ the hangar's light), the view's name goes into the
+                        \ text map, and G_HANGAR draws the frame below
 
  JSR DORND              \ Set A and X to random numbers
 
@@ -17974,10 +17975,9 @@ ENDIF
  STY HANGFLAG           \ Store Y in HANGFLAG to specify whether there are
                         \ multiple ships in the hangar
 
- STZ GFORCE             \ Port: back to recording (the ships are drawn)
-
- JMP HANGER             \ Call HANGER to draw the hangar background and return
-                        \ from the subroutine using a tail call
+ JMP G_HANGAR           \ Port: draw the frame, with the hangar's background
+                        \ under the ships (gfx-hangar.asm), in place of HANGER,
+                        \ and return from the subroutine using a tail call
 
 \ ******************************************************************************
 \
@@ -18119,8 +18119,10 @@ ENDIF
  LDA #HI(HANGHEAP)      \ Port: the line heap at HANGHEAP while LL9 draws
  STA INWK+34
 
- JSR LL9                \ Display the ship (Port: JSR, not a tail call, so that
-                        \ the heap pointer can be put back below)
+ JSR G_HLL9             \ Display the ship (Port: recorded, with TYPE set for
+                        \ the renderer's faces, G_HLL9 in gfx-gstubs.asm; a JSR,
+                        \ not a tail call, so that the heap pointer can be put
+                        \ back below)
 
  LDA #&0B               \ Port: leave INWK(34 33) = &0B00, as the original does
  STA INWK+34

@@ -671,6 +671,7 @@ FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
  JSR T_STARERASE        \ undo last time's stars in this buffer
  JSR f_discs            \ the disc layer (sun or planet), incremental
  JSR f_disc2            \ the other disc, if both are on screen (full spans)
+.ff_lin                 \ (F_HANGAR points this call at f_hback for its frame)
  JSR f_lines            \ planet meridians, craters, enemy lasers
  JSR f_ships            \ filled ships, far to near
  JSR f_dots             \ particles, distant ships

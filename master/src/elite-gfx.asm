@@ -116,6 +116,7 @@ INCLUDE "src/gfx-faces.asm"
 INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
 INCLUDE "src/gfx-frame_cold.asm"
 INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step (the flare: gfx-flare.asm, bank 5)
+INCLUDE "src/gfx-hangar.asm"   \ the hangar's frame (HALL; its tables are in HAZEL)
 .B6_CODE_END
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths

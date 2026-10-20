@@ -139,3 +139,55 @@
  JMP gback
 
 
+
+\ The hangar (gfx-hangar.asm), from HALL and HAS1. G_HANG0, before the ships are
+\ recorded: the hangar's light (LLT, gfx-light.asm: towards the top right and
+\ the viewer, as the title's), and the frame's lists emptied. G_HANGAR: the
+\ frame, with the hangar's background under the ships
+
+.G_HANG0
+ LDX #2
+.ghg0
+ LDA ghlt,X
+ STA LLT,X
+ DEX
+ BPL ghg0
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JSR F_HANG0
+ JMP gback
+
+.ghlt EQUB 24, 24, &E8
+
+\ G_HLL9: HAS1's LL9, with TYPE = the hangar ship's type while LL9
+\ records it (H_EE31 takes the ship's faces from TYPE; HAS1 sets only XX0),
+\ and TYPE as it was afterwards, as the original leaves it
+
+.G_HLL9
+ LDA TYPE
+ PHA
+ LDX #0                 \ TYPE = the type whose XX21 entry is XX0 (XX15+2,
+.ghl1                   \ the type HAS1 was given, is gone: TIDY uses XX15)
+ INX
+ INX
+ LDA XX21-2,X
+ CMP XX0
+ BNE ghl1
+ LDA XX21-1,X
+ CMP XX0+1
+ BNE ghl1
+ TXA
+ LSR A
+ STA TYPE
+ JSR LL9
+ PLA
+ STA TYPE
+ RTS
+
+.G_HANGAR
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JSR F_HANGAR
+ JMP gback
