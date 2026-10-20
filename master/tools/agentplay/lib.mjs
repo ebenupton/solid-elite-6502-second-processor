@@ -150,6 +150,29 @@ export class EliteMachine {
         }
         return { reached, unreached };
     }
+    // (opts.hazelCheck, the port) HAZEL's read-only game data must never change: the
+    // blueprints and their tables at &C000-&C2FF and from HZDATA2 (XX21) to &DFFF, but
+    // for XX21's station entry (NWSPS). DOSCLI stashes HAZEL for each disc command and
+    // copies it back; a byte that differs at an MLOOP from its value at the first one
+    // means the stash, or something else, lost it. HAZEL is at &9000-&AFFF in jsbeeb's
+    // memory. Reported once, as a "hazel" event, with the differing ranges
+    _hazelCheck() {
+        const mem = this.cpu.ramRomOs, sy = this.sy;
+        const xx = sy.XX21 ?? sy.HZDATA2 ?? 0xc4c9;          // (XX21 starts HZDATA2)
+        if (!this.hazel0) { this.hazel0 = mem.slice(0x9000, 0xb000); this.hazelBad = false; return; }
+        if (this.hazelBad) return;
+        const diffs = [];
+        for (let a = 0xc000; a < 0xe000; a++) {
+            if (a >= 0xc300 && a < xx) continue;                // (the renderer's glue)
+            if (a === xx + 2 || a === xx + 3) continue;
+            const i = a - 0xc000;
+            if (mem[0x9000 + i] !== this.hazel0[i]) diffs.push(a);
+        }
+        if (!diffs.length) return;
+        this.hazelBad = true;
+        const ranges = []; for (const a of diffs) { const r = ranges.at(-1); if (r && a === r[1] + 1) r[1] = a; else ranges.push([a, a]); }
+        this.event("hazel", `HAZEL's read-only data changed (${diffs.length} bytes: ${ranges.slice(0, 12).map(([x, y]) => x === y ? `&${x.toString(16)}` : `&${x.toString(16)}-&${y.toString(16)}`).join(" ")}${ranges.length > 12 ? " ..." : ""}), first ${diffs.slice(0, 4).map(a => `&${a.toString(16)} ${this.hazel0[a - 0xc000].toString(16)}->${mem[0x9000 + a - 0xc000].toString(16)}`).join(", ")}`);
+    }
     emuSecs() { return this.cpu.cycleSeconds + this.cpu.currentCycles / 2e6; }
     rb(a) { return this.ram[a & 0xffff]; }
     rd(a, n) { return Array.from(this.ram.subarray(a, a + n)); }
@@ -258,6 +281,7 @@ export class EliteMachine {
             if (pk) for (const [sym, off, bytes] of pk) this.wr(this.sy[sym] + off, bytes);
             this.snaps.push([this.iter, this.snapshot()]);
             this.iterInfo.push([this.polls, this.emuSecs()]);
+            if (this.opts.hazelCheck && this.iter % 16 === 0) this._hazelCheck();
             if (this.onIter) this.onIter(this);
             this.iter++; this.lastProgressCycles = this.cyclesNow();
         } else if (this._at(H.TT100, pc) && this.started) {

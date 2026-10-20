@@ -70,7 +70,7 @@ export class Session {
         if (!cmdr) throw new Error(`unknown commander ${cfg.commander}`);
         const patch = cmdr.patch ? m => cmdr.patch(m) : null;
         this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true });
-        this.cand = new EliteMachine({ name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, workarounds: cfg.workarounds || [] });
+        this.cand = new EliteMachine({ name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, workarounds: cfg.workarounds || [] });
         await this.ref.boot();
         await this.cand.boot();
         this.cand.opts.seedFrom = this.ref;
@@ -292,7 +292,7 @@ export class Session {
                 this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] = (this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] || 0) + 1;
                 if (kind !== "routine") appendFileSync(this.files.events, JSON.stringify({ m: m.name, iter: it, kind, detail }) + "\n");
                 if (kind === "workaround") this.stats.workarounds = (this.stats.workarounds || 0) + 1;
-                if (kind === "brk" || kind === "page0d") this.finding(kind, `${m.name} iteration ${it}: ${detail}`, { iter: it });
+                if (kind === "brk" || kind === "page0d" || kind === "hazel") this.finding(kind, `${m.name} iteration ${it}: ${detail}`, { iter: it });
             }
         }
         // a BRK from a disc error (a ROM) in one machine and not the other shows as a divergence;
