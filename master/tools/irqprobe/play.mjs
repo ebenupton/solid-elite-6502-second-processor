@@ -9,8 +9,9 @@ import { writeFileSync, readFileSync } from "fs";
 import { Session } from "../agentplay/session.mjs";
 import { MODES } from "../agentplay/styles.mjs";
 import { attachProbe, summarise, marksFor } from "./probe.mjs";
+import { parseArgs } from "../../../harness/args.mjs";
 
-const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
+const a = parseArgs({ out: "value", replay: "value", minutes: "value", seed: "value", commander: "value", mode: "value", chaos: "value", start: "value", workaround: "value", ref: "value", rsyms: "value", cand: "value", csyms: "value", iters: "value" });
 if (!a.out) { console.error("--out DIR required"); process.exit(2); }
 let cfg;
 if (a.replay) {
@@ -19,7 +20,7 @@ if (a.replay) {
         cand: a.cand || h.cand, csyms: a.csyms || h.csyms, workarounds: h.workarounds || [], keepGoing: 1e9, observe: false };
 } else {
     const env = {};
-    for (const m of String(a.mode || "efficient").split(",")) Object.assign(env, MODES[m]);
+    for (const m of String(a.mode || "efficient").split(",")) { if (!MODES[m]) { console.error(`unknown mode ${m}`); process.exit(2); } Object.assign(env, MODES[m]); }
     cfg = { out: a.out, minutes: +(a.minutes || 10), seed: a.seed !== undefined ? +a.seed : undefined, commander: a.commander || "jameson",
         agentEnv: env, mode: String(a.mode || "efficient"), chaos: a.chaos || null, startFrame: +(a.start || 700), keepGoing: 1e9,
         workarounds: a.workaround ? String(a.workaround).split(",") : [], observe: false, iters: a.iters ? +a.iters : undefined };

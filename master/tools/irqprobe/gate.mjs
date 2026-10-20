@@ -11,11 +11,9 @@ import { writeFileSync, existsSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import { attachProbe, summarise, marksFor } from "./probe.mjs";
+import { parseArgs } from "../../../harness/args.mjs";
 
-const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => {
-    if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]);
-    return acc;
-}, []));
+const args = parseArgs({ root: "value", iters: "value", out: "value", seed: "value", disc: "value", syms: "value", holdkey: "value" });
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TREE = resolve(args.root || `${HERE}/../../..`);
 const DISC = resolve(args.disc || `${TREE}/master/build/elite-master-sng47.ssd`);
