@@ -6754,6 +6754,215 @@ ENDIF
  SKIP 4                 \ These bytes appear to be unused
 
 \ ******************************************************************************
+\
+\ Port: the disc access's data and the start of the BRKV handler, moved here
+\ from later in the main code: they must be in main RAM (which the main code
+\ may continue beyond, into bank 4), as the MOS reads the OSCLI commands and
+\ OSWORD blocks, the cold area's disc routines read and write them, and the
+\ MOS enters BRKV with whatever ROM raised the error paged in
+\
+\ ******************************************************************************
+
+\ ******************************************************************************
+\
+\       Name: stackpt
+\       Type: Variable
+\   Category: Save and load
+\    Summary: Temporary storage for the stack pointer when jumping to the break
+\             handler at NEWBRK
+\
+\ ******************************************************************************
+
+.stackpt
+
+ EQUB &FF
+
+\ ******************************************************************************
+\
+\       Name: NEWBRK
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Port: the start of the standard BRKV handler for the game
+\
+\ ------------------------------------------------------------------------------
+\
+\ The MOS enters BRKV with the ROM that raised the error paged in, so the
+\ handler starts here in main RAM: it resets the stack, pages Elite's home
+\ bank in and carries on at NEWBRK2, at NEWBRK's place in the main code (which
+\ may be in bank 4).
+\
+\ ******************************************************************************
+
+.NEWBRK
+
+ LDX stackpt            \ Set the stack pointer to the value that we stored in
+ TXS                    \ location stack, so that's back to the value it had
+
+ LDA #HOMEBANK          \ Port: page Elite's home bank in, as the MOS enters
+ STA &F4                \ BRKV with the ROM that raised the error paged in (the
+ STA VIA+&30            \ original's getzp did this, setting ROMSEL to bank 6)
+                        \ before we change it in the SVE routine
+
+ JMP NEWBRK2            \ Port: the rest of NEWBRK
+
+\ ******************************************************************************
+\
+\       Name: RLINE
+\       Type: Variable
+\   Category: Text
+\    Summary: The OSWORD configuration block used to fetch a line of text from
+\             the keyboard
+\
+\ ******************************************************************************
+
+.RLINE
+
+ EQUW INWK+5            \ The address to store the input, so the text entered
+                        \ will be stored in INWK+5 as it is typed
+
+ EQUB 9                 \ Maximum line length = 9, as that's the maximum size
+                        \ for a commander's name including a directory name
+
+ EQUB '!'               \ Allow ASCII characters from "!" through to "{" in
+ EQUB '{'               \ the input
+
+\ ******************************************************************************
+\
+\       Name: thislong
+\       Type: Variable
+\   Category: Save and load
+\    Summary: Contains the length of the most recently entered commander name
+\
+\ ******************************************************************************
+
+.thislong
+
+ EQUB 7
+
+\ ******************************************************************************
+\
+\       Name: oldlong
+\       Type: Variable
+\   Category: Save and load
+\    Summary: Contains the length of the last saved commander name
+\
+\ ******************************************************************************
+
+.oldlong
+
+ EQUB 7
+
+\ ******************************************************************************
+\
+\       Name: CTLI
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for cataloguing a disc
+\
+\ ******************************************************************************
+
+.CTLI
+
+IF _SNG47
+
+ EQUS "CAT 1"           \ The "1" part of the string is overwritten with the
+ EQUB 13                \ actual drive number by the CATS routine
+
+ELIF _COMPACT
+
+ EQUS "CAT"             \ The Master Compact only has one drive, so the CAT
+ EQUB 13                \ command always catalogues that drive
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: DELI
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for deleting a file
+\
+\ ******************************************************************************
+
+.DELI
+
+IF _SNG47
+
+ EQUS "DELETE :1.1234567"
+ EQUB 13
+
+ELIF _COMPACT
+
+ EQUS "DELETE 1234567890"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: DIRI
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for changing directory on the Master Compact
+\
+\ ******************************************************************************
+
+IF _COMPACT
+
+.DIRI
+
+ EQUS "DIR 12345678901234567890"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: savosc
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for saving a commander file
+\
+\ ******************************************************************************
+
+.savosc
+
+IF _SNG47
+
+ EQUS "SAVE :1.E.JAMESON  E7E +100 0 0"
+ EQUB 13
+
+ELIF _COMPACT
+
+ EQUS "SAVE JAMESON  E7E +100 0 0"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: lodosc
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for loading a commander file
+\
+\ ******************************************************************************
+
+.lodosc
+
+IF _SNG47
+
+ EQUS "LOAD :1.E.JAMESON  E7E"
+ EQUB 13
+
+ELIF _COMPACT
+
+ EQUS "LOAD JAMESON  E7E"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
 
  PRINT "ELITE A"
  PRINT "Assembled at ", ~(NA%-5)
@@ -18029,19 +18238,9 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ ******************************************************************************
-\
-\       Name: stackpt
-\       Type: Variable
-\   Category: Save and load
-\    Summary: Temporary storage for the stack pointer when jumping to the break
-\             handler at NEWBRK
-\
-\ ******************************************************************************
-
-.stackpt
-
- EQUB &FF
+\ Port: stackpt and the start of NEWBRK, the BRKV handler, are in main RAM
+\ with the disc access's data (after NA%), as the MOS enters BRKV with the ROM
+\ that raised the error paged in
 
 \ ******************************************************************************
 \
@@ -18049,6 +18248,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: The standard BRKV handler for the game
+\             (Port: from NEWBRK2 on; its start is in main RAM, after NA%)
 \
 \ ------------------------------------------------------------------------------
 \
@@ -18059,15 +18259,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-.NEWBRK
+.NEWBRK2
 
- LDX stackpt            \ Set the stack pointer to the value that we stored in
- TXS                    \ location stack, so that's back to the value it had
-
- LDA #HOMEBANK          \ Port: page Elite's home bank in, as the MOS enters
- STA &F4                \ BRKV with the ROM that raised the error paged in (the
- STA VIA+&30            \ original's getzp did this, setting ROMSEL to bank 6)
-                        \ before we change it in the SVE routine
+                        \ Port: NEWBRK (in main RAM, after NA%) has reset the
+                        \ stack and paged Elite's home bank in, and comes here
 
  JSR getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000, as this will have been stored in
@@ -18160,162 +18355,8 @@ ENDIF
  JMP TT170              \ Port: jump to TT170 to start the game (the original
                         \ fell through into it; it is now in the cold area)
 
-\ ******************************************************************************
-\
-\       Name: RLINE
-\       Type: Variable
-\   Category: Text
-\    Summary: The OSWORD configuration block used to fetch a line of text from
-\             the keyboard
-\
-\ ******************************************************************************
-
-.RLINE
-
- EQUW INWK+5            \ The address to store the input, so the text entered
-                        \ will be stored in INWK+5 as it is typed
-
- EQUB 9                 \ Maximum line length = 9, as that's the maximum size
-                        \ for a commander's name including a directory name
-
- EQUB '!'               \ Allow ASCII characters from "!" through to "{" in
- EQUB '{'               \ the input
-
-\ ******************************************************************************
-\
-\       Name: thislong
-\       Type: Variable
-\   Category: Save and load
-\    Summary: Contains the length of the most recently entered commander name
-\
-\ ******************************************************************************
-
-.thislong
-
- EQUB 7
-
-\ ******************************************************************************
-\
-\       Name: oldlong
-\       Type: Variable
-\   Category: Save and load
-\    Summary: Contains the length of the last saved commander name
-\
-\ ******************************************************************************
-
-.oldlong
-
- EQUB 7
-
-\ ******************************************************************************
-\
-\       Name: CTLI
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for cataloguing a disc
-\
-\ ******************************************************************************
-
-.CTLI
-
-IF _SNG47
-
- EQUS "CAT 1"           \ The "1" part of the string is overwritten with the
- EQUB 13                \ actual drive number by the CATS routine
-
-ELIF _COMPACT
-
- EQUS "CAT"             \ The Master Compact only has one drive, so the CAT
- EQUB 13                \ command always catalogues that drive
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: DELI
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for deleting a file
-\
-\ ******************************************************************************
-
-.DELI
-
-IF _SNG47
-
- EQUS "DELETE :1.1234567"
- EQUB 13
-
-ELIF _COMPACT
-
- EQUS "DELETE 1234567890"
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: DIRI
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for changing directory on the Master Compact
-\
-\ ******************************************************************************
-
-IF _COMPACT
-
-.DIRI
-
- EQUS "DIR 12345678901234567890"
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: savosc
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for saving a commander file
-\
-\ ******************************************************************************
-
-.savosc
-
-IF _SNG47
-
- EQUS "SAVE :1.E.JAMESON  E7E +100 0 0"
- EQUB 13
-
-ELIF _COMPACT
-
- EQUS "SAVE JAMESON  E7E +100 0 0"
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: lodosc
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for loading a commander file
-\
-\ ******************************************************************************
-
-.lodosc
-
-IF _SNG47
-
- EQUS "LOAD :1.E.JAMESON  E7E"
- EQUB 13
-
-ELIF _COMPACT
-
- EQUS "LOAD JAMESON  E7E"
- EQUB 13
-
-ENDIF
+\ Port: RLINE, thislong, oldlong, CTLI, DELI, DIRI, savosc and lodosc are in
+\ main RAM with NEWBRK's start (after NA%), as the MOS reads them
 
 \ ******************************************************************************
 \
