@@ -21687,36 +21687,6 @@ ENDMACRO
 
 \ ******************************************************************************
 \
-\       Name: MULTU
-\       Type: Subroutine
-\   Category: Maths (Arithmetic)
-\    Summary: Calculate (A P) = P * Q
-\
-\ ------------------------------------------------------------------------------
-\
-\ Do the following multiplication of unsigned 8-bit numbers:
-\
-\   (A P) = P * Q
-\
-\ ******************************************************************************
-
-.MULTU
-
- LDX Q                  \ Set X = Q
-
- BEQ MU1                \ If X = Q = 0, jump to MU1 to copy X into P and A,
-                        \ clear the C flag and return from the subroutine using
-                        \ a tail call
-
- DEX                    \ Set T = X - 1 (X is never 0 here)
- STX T
-
- LDA P                  \ Set A = P and join MU11 to set (A P) = P * Q
- BRA MU11               \ (Port: MULTU is before MLU1, which falls through
-                        \ into MU11 instead of the original's MLU2)
-
-\ ******************************************************************************
-\
 \       Name: MLU1
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
@@ -21760,10 +21730,38 @@ ENDMACRO
  AND #%01111111         \ Clear the sign bit in P, so P = |A|
  STA P
 
-                        \ Fall through into MU11 to calculate:
-                        \
-                        \   (A P) = P * Q
-                        \         = |A| * Q
+ BRA MU11               \ Port: join MU11 to calculate (A P) = P * Q = |A| * Q
+                        \ (the original's MLU2 fell through MULTU's test into
+                        \ it; the port's MULTU falls into MU11)
+
+\ ******************************************************************************
+\
+\       Name: MULTU
+\       Type: Subroutine
+\   Category: Maths (Arithmetic)
+\    Summary: Calculate (A P) = P * Q
+\
+\ ------------------------------------------------------------------------------
+\
+\ Do the following multiplication of unsigned 8-bit numbers:
+\
+\   (A P) = P * Q
+\
+\ ******************************************************************************
+
+.MULTU
+
+ LDX Q                  \ Set X = Q
+
+ BEQ MU1                \ If X = Q = 0, jump to MU1 to copy X into P and A,
+                        \ clear the C flag and return from the subroutine using
+                        \ a tail call
+
+ DEX                    \ Set T = X - 1 (X is never 0 here)
+ STX T
+
+ LDA P                  \ Set A = P and fall through into MU11 to set
+                        \ (A P) = P * Q
 
 \ ******************************************************************************
 \
