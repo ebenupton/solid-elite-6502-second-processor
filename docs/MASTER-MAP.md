@@ -39,10 +39,20 @@ which spare RAM the port may take.
    hangar's line heap). The blueprints keep the original's order from XX21 on,
    as NWSHP reads past E% (E%-1,Y for the planet and the sun) into the
    missile's blueprint.
-6. **The screen.** Main &4000-&6FFF is buffer 0 and shadow &4000-&6FFF
-   buffer 1; shadow &7000-&7DFF is the dashboard and main &7000-&71FF a copy
-   of its first character row (for a late split). Nothing else lives there,
+6. **The screen and the split.** Main &4000-&6FFF is buffer 0 and shadow
+   &4000-&6FFF buffer 1; shadow &7000-&7DFF is the dashboard and main
+   &7000-&71FF a copy of its first character row (for a late split; a
+   candidate for removal once the split's timing is confirmed on hardware,
+   docs/MASTER-PLAN.md "Dashboard split timing"). Nothing else lives there,
    except that a disc command borrows buffer 0 to stash HAZEL (rule 8).
+   In space mode with buffer 0 on show, IRQ1's timer 1 interrupt sets ACCCON D
+   in line 191's horizontal blanking; timer 1 runs freely, once a frame
+   (T1SYNC), and only timer 1 and vsync (CA1) are enabled. Code that must not
+   be interrupted by the vsync handler (its sound-chip writes, its IRA read,
+   H_VSYNC's flip variables) masks only CA1 in the System VIA's IER
+   (`LDA #%00000010 : STA &FE4E` ... `LDA #%10000010 : STA &FE4E`), never SEI,
+   which would hold the split off: FILLKL, NOISE, SOFLUSH and the frame flip
+   do. IRQ1 tests timer 1's flag first, so a masked vsync flag is harmless.
 7. **Page &0D** (&0D00-&0DFF) is never written: the DFS NMI routine, the
    extended vectors and the ROM workspace table are there
    (docs/MASTER-MEMORY.md). The build asserts that nothing is assembled there

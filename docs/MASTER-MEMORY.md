@@ -285,6 +285,32 @@ unstash: LDX #63 : .u1 LDA STASH,X : STA &C2C0,X : DEX : BPL u1
   code at &0D00 stores through the normal &3000-&7FFF mapping). A docked-only overlay
   can therefore be loaded straight into shadow RAM.
 
+### ACCCON D, the CRTC and the System VIA at the dashboard split
+
+Measured with master/tools/irqprobe (jsbeeb; docs/MASTER-PLAN.md "Dashboard split
+timing"):
+
+* ACCCON D selects the RAM the CRTC's fetches come from byte by byte, at the moment of
+  each fetch; nothing is latched per row except the start address (R12/R13).
+* The game's screen: 128 characters a line, one per 2 MHz cycle (R0 = 127), 64
+  displayed (R1), 312 lines (R4 = 38, R9 = 7, R5 = 0) = 39,936 cycles = 19,968 us a
+  frame, non-interlaced. Line 191's last fetch (space view, &6FFF's row) is at
+  line*128+char = 24511, line 192's first (&7000) at 24576: a write to D from 24512
+  to 24576 splits cleanly. Late by N cycles shows min(N, 64) bytes of line 192 from
+  main RAM, then whole lines; early shows buffer 1's last bytes of line 191.
+* Vsync is lines 272-273 (R7 = 34, R3 = &28); with the MOS's PCR = 4, CA1's flag is
+  set at the end of the pulse, at line 274's start (pos 35072). Unconfirmed on hardware: if CA1 fired at the start of the pulse,
+  every split would be two lines (256 cycles) earlier.
+* MOS 3.20's IRQ path: entry 7 cycles, then STA &FC / PLA / PHA / AND #&10 / BNE /
+  JMP (&0204), 20 cycles, to IRQ1 (IRQ1V); IRQ1 never chains, so no ROM's handler runs.
+  IRQ1 to its TSB &FE34 write: 17-18 cycles (timer 1 tested first).
+* System VIA IER: the game leaves only CA1 (vsync) and timer 1 enabled (SETINTS),
+  User VIA none. Timer 1 is continuous (ACR = &40, as the MOS leaves it); writing
+  T1L-L/T1L-H (&FE46/&FE47) sets the latch only (and clears the flag), T1C-H (&FE45)
+  starts the count. The VIA's 1 MHz and the CRTC's character clock come from the same
+  crystal: with a latch of 19966 the timer fires at the same raster position every
+  frame (no drift over 14,000+ frames in jsbeeb).
+
 ### Main RAM below &0E00
 
 MOS buffer addresses were found by inserting a byte with OSBYTE &8A into each buffer:

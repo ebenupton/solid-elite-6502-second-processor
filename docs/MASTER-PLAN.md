@@ -870,3 +870,80 @@ commit; test_raster (full), the flare's pixel check (0 errors, every frame
 byte for byte as before), the compass, LOOK1 and MSBAR repros and the quick
 campaign (with a save and a load) pass; the TTX66 repro diverges at its last
 iteration (P+3) exactly as it does on b365683.
+
+## Dashboard split timing (after the unreachable code)
+
+In space mode with buffer 0 (main RAM) on show, IRQ1's timer 1 interrupt sets
+ACCCON D so that the dashboard (shadow &7000-&7DFF) is fetched from shadow RAM;
+main &7000-&71FF holds a static copy of the dashboard's first character row in
+case the split comes late. Docked screens, the disc menu, the hangar, briefings,
+launch and the hyperspace countdown are in direct mode (GMODE bit 7 clear:
+H_VSYNC shows shadow RAM all frame), so the split does nothing there; every
+OSCLI (all through DOSCLI, all inside SVE, after token 1's {clear screen} has
+made TT66 enter direct mode) runs with GMODE = 0 and D = 1, and no buffer-0
+frame ever overlapped a disc command.
+
+**Measurement** (master/tools/irqprobe: gate.mjs over the gate's run, play.mjs
+over agentplay sessions; jsbeeb, nothing changed in the game). ACCCON D acts on
+each CRTC fetch as it happens. The last space-view fetch is at line*128+char =
+24511, the first dashboard fetch at 24576: the window for the write is 64 cycles
+(line 191's horizontal blanking); docs/MASTER-MEMORY.md has the geometry. Before
+this work LINSCN restarted timer 1 at each vsync (14,624 us), and IRQ1's write
+landed at 24506-24516: usually 2-6 cycles early (1-5 bytes of buffer 1 at the end
+of line 191; visibly different in ~1.1% of buffer-0 frames), and in ~0.9% of
+buffer-0 frames 1-4 lines late (up to 498 cycles, 256 bytes of the copy shown;
+never beyond the copy's 8 lines; gate 115 of 14,421, agentplay 675 of 71,879).
+Every late split came from fkdet's SEI section (FILLKL's column scan, ~540
+cycles with interrupts off once per iteration), holding off either the timer 1
+interrupt or the vsync interrupt that restarted the timer; the other SEI
+sections met in space mode were NOISE (~60 cycles), the frame flip (~20) and,
+with a key held, Rd1 (~30 per key).
+
+**The rework** (one commit each, gate 1.232-1.233, 17.22 it/s throughout):
+
+| Commit | Change |
+|---|---|
+| IRQ: timer 1 runs freely | T1SYNC (called once by BEGIN) waits for vsync with interrupts off, starts timer 1 at VSCAN(0 1) and latches 19966: it fires at the same raster position every frame, whatever the vsync interrupt's latency; LINSCN no longer writes the timer |
+| IRQ1 tests timer 1 first | `BIT &FE4D : BVC LINSCN` (2 cycles less), so a set but masked vsync flag can't misroute the timer interrupt |
+| FILLKL | masks only CA1 in IER from before fkdet to Rd7; no SEI in fkdet and Rd1 |
+| Sound | NOISE and SOFLUSH mask only CA1 |
+| Frame layer | the flip masks only CA1 |
+| VSCAN+1 74 -> 72 | centres the write: timer 1 fires at 24497 in this build, the write 45-53 cycles later; T1SYNC's poll loop can place the phase anywhere in ~9 cycles, so the worst-case spread (~26 cycles) is centred in the window. This subsumes simply re-centring the old scheme (VSCAN+1 30 -> 46) |
+
+Result (gate 10000 with and without a held key, four agentplay sessions: docked
+and disc menu, pods and galactic jumps and bomb, deaths and disc, all chaos;
+51,000+ buffer-0 splits): timer 1 latency 45-55 cycles, write at 24542-24552,
+**0 late, 0 early**; margins 30 cycles early, 24 late. Flight cost 116,140 to
+116,155 cycles an iteration (profile --pagex): fkdet's loop now straddles a page
+(fkc/fkc1, ~25 cycles an iteration) and the frame layer moved 8 bytes (fpr2), a
+grind item. The agentplay repros (the TTX66 one diverging at its last iteration
+as on aee0818) and the quick campaign pass.
+
+**Risks.** The phase is set once: it relies on a fixed 312-line non-interlaced
+frame and the VIA and CRTC sharing the crystal (zero drift in jsbeeb over
+14,000+ frames); anything that rewrote timer 1 or the CRTC's R0/R4/R5/R7 would
+need T1SYNC again (nothing does; DET1's R6 change doesn't alter the frame).
+jsbeeb sets CA1's flag at the end of the two-line vsync pulse; if real hardware
+set it at the start, every split (before this work too) would land two lines
+early, showing buffer 1's last lines in buffer-0 frames. The VIA's and the
+65C12's interrupt timing are worth +-1-2 cycles each, inside the margins. A
+vsync masked by FILLKL with many keys held is deferred by at most ~1,500 cycles,
+well inside the 4,864 cycles between CA1 and line 0, so the flip is unaffected.
+DKS4 and DKS5 (single-key tests) still use short SEI sections (~30 cycles).
+
+**Hardware canary.** `sh master/tools/irqprobe/canary.sh [out.ssd]` builds the
+tree with the loader filling main &7000-&71FF with solid yellow (&FF) instead of
+the copy: a late split shows as a yellow flash across the top of the dashboard.
+Fly a few minutes holding keys (combat, the bomb, the pod, hyperspace), sit on
+the title screen (its Cobra is in space mode), and watch the top of the
+dashboard and the bottom lines of the space view (flicker there would be an
+early split, i.e. CA1 timing differing from jsbeeb).
+
+**Candidate (after the hardware check): remove the copy.** Delete the loader's
+last FTAB entry (`EQUW MESS1 ... EQUW &7000, &0200`, 8 bytes of loader) and
+update rule 6 (docs/MASTER-MAP.md), elite-hi.asm's header and the BCODE
+assert's comment (elite-source.asm). That frees main &7000-&71FF, 512 bytes,
+contiguous with the high code at &7200 (so HICODE could start at &7000, keeping
+QSL/QSH page aligned). Main &7000-&71FF must then never hold anything that
+needs to stay readable during flight with ACCCON X set (main RAM is hidden),
+like the rest of the high code.
