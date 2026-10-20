@@ -111,7 +111,11 @@ async function cachedRef() {
         iters: r.iters, tt100: r.tt100, emuSecs: r.emuSecs, error: r.error, phases: r.phases,
         stats: { ...r.stats, systems: [...r.stats.systems] } };
     mkdirSync(dir, { recursive: true });
-    writeFileSync(file, gzipSync(JSON.stringify(o)));
+    // (written whole, then renamed into place: a gate running at the same time in this
+    // worktree never reads a part-written file)
+    const tmp = `${file}.${process.pid}.tmp`;
+    writeFileSync(tmp, gzipSync(JSON.stringify(o)));
+    (await import("fs")).renameSync(tmp, file);
     return r;
 }
 const ref = await cachedRef();
