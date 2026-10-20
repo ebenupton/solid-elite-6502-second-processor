@@ -20229,8 +20229,6 @@ ENDIF
  LDY #solaun            \ Call the NOISE routine with Y = 8 to make the sound
  JSR NOISE              \ of a missile launch
 
- JMP ANGRY              \ (Port: FRMIS fell through into ANGRY, now in ANDY)
-
                         \ Fall through into ANGRY to make the missile target
                         \ angry, though as we already did this above, I'm not
                         \ entirely sure why we do this again
@@ -31803,9 +31801,6 @@ ENDIF
                         \ it's the second one to be added to our local bubble
                         \ of this new system's universe
 
- JMP NWSTARS            \ Port: set up the stardust and return (the original
-                        \ fell through into NWSTARS)
-
 \ ******************************************************************************
 \
 \       Name: NWSTARS
@@ -36673,8 +36668,8 @@ ENDIF
  LDA #HI(LS%)           \ to indicate that the heap is empty
  STA SLSP+1
 
- JMP ZINF               \ Finally, reset the INWK ship workspace with ZINF and
-                        \ return (Port: the original fell through into ZINF)
+                        \ Finally, fall through into ZINF to reset the INWK
+                        \ ship workspace
 
 \ ******************************************************************************
 \
@@ -36879,11 +36874,7 @@ ENDIF
  STA INWK+32            \ Store A in the AI flag of this ship
 
                         \ Fall through into DORND2 to set A, X and the C flag
-                        \ randomly (Port: DORND2 is CLC then DORND, in main
-                        \ RAM, so do the CLC here and jump to DORND)
-
- CLC
- JMP DORND
+                        \ randomly
 
 \ ******************************************************************************
 \
@@ -36914,10 +36905,10 @@ ENDIF
 \
 \ ******************************************************************************
 
-                        \ Port: DORND2 (CLC) removed (unreachable: its only
-                        \ way in was Ze's fall-through, and Ze, in the cold
-                        \ area, does CLC : JMP DORND itself; the explosion
-                        \ code's DORND2 copies are inline)
+.DORND2
+
+ CLC                    \ Clear the C flag so the value of the C flag on entry
+                        \ doesn't affect the outcome
 
 .DORND
 
@@ -38439,8 +38430,7 @@ ENDIF
  JSR JAMESON            \ Call JAMESON to set the last saved commander to the
                         \ default "JAMESON" commander
 
- JMP TT170              \ Port: jump to TT170 to start the game (the original
-                        \ fell through into it; it is now in the cold area)
+                        \ Fall through into TT170 to start the game
 
 \ ******************************************************************************
 \

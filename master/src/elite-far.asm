@@ -26,7 +26,9 @@
 \
 \ A routine that fell through into a routine now on the other side falls
 \ into its stub: the stub calls the body, which returns to the falling
-\ routine's caller with the caller's bank back, as the fall-through did.
+\ routine's caller with the caller's bank back, as the fall-through did
+\ (RES2 into ZINF, Ze into DORND2, SOLAR into NWSTARS; BEGIN into TT170's
+\ jump stub, as TT170 never returns).
 \ The helpers read the EQUW while the caller's bank is still paged in, so a
 \ stub works the same in main RAM, bank 4 or bank 7.
 \
