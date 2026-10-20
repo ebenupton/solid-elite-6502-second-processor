@@ -121,14 +121,14 @@ const DISC = {
 for (const [nm, f] of Object.entries(DISC)) ACTIONS[nm] = { every: 150, disc: true, exclusive: true, when: atStatus, keys: f };
 // the docked screens the agent never visits or never gets wrong (as the disc menu: from the
 // Status screen, up to three a dock, the agent held back): the market (f7), the system
-// data (f6), the charts with the cursor moved and hyperspace asked for (out of range, or
+// data (f6), the charts with the cursor moved (with SHIFT, sometimes) and hyperspace asked for (out of range, or
 // not allowed while docked), equipment that is fitted already or can't be afforded
 const F = { f2: 0x72, f3: 0x73, f4: 0x14, f5: 0x74, f6: 0x75, f7: 0x16, f8: 0x76, f9: 0x77, L: 0x19, R: 0x79, U: 0x39, Dn: 0x29, H: 0x54 };
 const toStatus = () => [[null, 20], { pulse: F.f8, until: atStatus, max: 600 }];
 const pick = a => a[Math.floor(rng() * a.length)];
 const DOCKED = {
     dmarket: () => [...press(F.f7), [null, 80], ...press(F.f6), [null, 80], ...press(F.f9), [null, 60], ...toStatus()],
-    dchart:  () => [...press(pick([F.f4, F.f5])), [null, 60], [[pick([F.L, F.R]), pick([F.U, F.Dn])], 20 + Math.floor(rng() * 80)], [null, 20], ...press(F.H), [null, 80], ...toStatus()],
+    dchart:  () => [...press(pick([F.f4, F.f5])), [null, 60], [[pick([F.L, F.R]), pick([F.U, F.Dn]), ...(rng() < 0.5 ? [0x00] : [])], 20 + Math.floor(rng() * 80)], [null, 20], ...press(F.H), [null, 80], ...toStatus()],
     dequip:  () => [...press(F.f3), [null, 150], ...typed(String(1 + Math.floor(rng() * 6))), ...press(D.RET), [null, 60], ...press(D.RET), [null, 20], ...toStatus()],
     dsell:   () => [...press(F.f2), [null, 40], ...[0, 1, 2].flatMap(() => [...press(pick([D.Y, D.N, D[1], D.RET])), [null, 10]]), [null, 20], ...toStatus()],
 };
