@@ -118,8 +118,14 @@ const DISC = {
     dnodel: () => [...menu(), ...press(D[4]), ...drive(D[0]), [null, 250], ...typed("NOFILE"), ...press(D.RET), [null, 200], ...leave()],
     dsave:  () => { const n = "CH" + (saveNo++ % 40); return [...menu(), ...press(D[2]), [null, 12], ...typed(fumble(n)), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 250], ...leave()]; },
     ddel:   () => { const n = "CH" + Math.floor(rng() * Math.max(1, saveNo)); return [...menu(), ...press(D[4]), ...drive(D[0]), [null, 250], ...typed(n), ...press(D.RET), [null, 200], ...leave()]; },
-    // a name typed, over-deleted (DELETE with nothing left), or abandoned with ESCAPE
-    dname:  () => [...menu(), ...press(D[rng() < 0.5 ? 1 : 2]), [null, 12], ...typed(rng() < 0.5 ? "AB~~~~C^" : "XY~~~~"), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
+    // a name typed and over-deleted (DELETE with nothing left)
+    dname:  () => [...menu(), ...press(D[rng() < 0.5 ? 1 : 2]), [null, 12], ...typed(rng() < 0.5 ? "AB~~~~C" : "XY~~~~"), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
+    // a name abandoned with ESCAPE: the original leaves it unterminated (MT26 returns
+    // without storing the RETURN), so the Status screen prints the bytes after NAME up
+    // to the next RETURN. Past the commander block those differ with the memory layout
+    // (the port's renderer workspace is at &1300), so the text, and P+3 for a while,
+    // differ by design: not in "disc", as it ends a session at that divergence
+    dnameesc: () => [...menu(), ...press(D[2]), [null, 12], ...typed("AB~~~~C^"), ...press(D.RET), [null, 6], ...drive(D[0]), [null, 200], ...leave()],
     ddefault: () => [...menu(), ...press(D[5]), [null, 10], ...press(rng() < 0.5 ? D.Y : D.N), [null, 30], ...leave()],
     dexit:  () => [...menu(), ...press(D[6]), ...leave()],
 };
@@ -150,7 +156,7 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6d2b79f5 | 0; let t = Ma
 export function makeChaos(spec, seed) {
     const r = mulberry(seed * 7919 + 17);
     const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...Object.keys(POKES)]
-        : spec.split(",").flatMap(n => n === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1") : n === "docked" ? Object.keys(DOCKED)
+        : spec.split(",").flatMap(n => n === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1" && k !== "dnameesc") : n === "docked" ? Object.keys(DOCKED)
             : n === "all" ? [...Object.keys(ACTIONS).filter(k => !ACTIONS[k].disc), ...Object.keys(POKES)] : [n]);
     const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
     let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = 0;
