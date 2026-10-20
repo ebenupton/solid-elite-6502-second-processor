@@ -11,9 +11,11 @@
 #   \       Area: cold
 #
 # No Area field: the main code's run (main RAM from CODE%, then bank 4 where
-# main RAM ends). "Area: bank 4": bank 4, after the run (code that runs with
-# ACCCON X set, which hides main RAM at &3000-&7FFF, and the tables it reads).
-# "Area: cold": the cold area, sideways RAM bank 7. A block runs from its
+# main RAM ends). "Area: low": main RAM below &3000, at the end of the run's
+# head (what the MOS enters with any ROM paged, but whose original place is
+# later in the run). "Area: bank 4": bank 4, after the run (code that runs
+# with ACCCON X set, which hides main RAM at &3000-&7FFF, and the tables it
+# reads). "Area: cold": the cold area, sideways RAM bank 7. A block runs from its
 # header to the next header (or to a separator line of stars, which starts an
 # untagged block: the original's PRINT and SAVE sections).
 #
@@ -22,8 +24,9 @@
 # from a copy of the source of their own: build/elite-source-<area>.asm is
 # elite-source.asm with every line outside that area's blocks blanked (so
 # that line numbers stay the source's). src/elite-layout.asm INCLUDEs the
-# copies one after the other (run, bank4, cold), each at its own address, so
-# every label is defined exactly once and every block is assembled once.
+# copies one after the other (run, bank4, cold), each at its own address, and
+# the run INCLUDEs the low copy at the end of its head, so every label is
+# defined exactly once and every block is assembled once.
 #
 # Checks (exit status 1 on failure):
 #   * every block's IF ... ENDIF nesting is balanced (a blanked block must not
@@ -35,10 +38,10 @@ import re, sys
 
 SRC = "src/elite-source.asm"
 OUT = "build/elite-source-%s.asm"
-AREAS = ("run", "bank4", "cold")
+AREAS = ("run", "low", "bank4", "cold")
 STAR = re.compile(r"^\\ \*{70,}\s*$")
 AREA = re.compile(r"^\\       Area: (.*)$")
-TAGS = {"cold": "cold", "bank 4": "bank4"}
+TAGS = {"cold": "cold", "bank 4": "bank4", "low": "low"}
 NOFALL = set("RTS RTI JMP BRA BRK".split())
 
 
@@ -304,9 +307,10 @@ def glue(copies, errors):
         if m:
             macros.add(m.group(1))
     cold = {n for n, i in defined(copies["cold"]) if not n.endswith("%")}
-    # the labels of the run and bank 4, with the files the hot blocks INCLUDE
-    hotfiles = [("run", copies["run"]), ("bank4", copies["bank4"])]
-    for a in ("run", "bank4"):
+    # the labels of the run, the low area and bank 4, with the files the hot
+    # blocks INCLUDE
+    hotfiles = [("run", copies["run"]), ("low", copies["low"]), ("bank4", copies["bank4"])]
+    for a in ("run", "low", "bank4"):
         for l in copies[a]:
             m = re.match(r'^\s*INCLUDE\s+"(src/[^"]+)"', split_code(l)[0])
             if m:
@@ -373,7 +377,7 @@ def glue(copies, errors):
         others += read_file(f)
     out7, seen7 = [], set()
     elsewhere = {n for f, ls in others for n, i in defined(ls)}
-    for f, ls in [("run", copies["run"]), ("bank4", copies["bank4"])] + others:
+    for f, ls in [("run", copies["run"]), ("low", copies["low"]), ("bank4", copies["bank4"])] + others:
         own = {n for n, i in defined(ls)}
         for l in ls:                       # (loop variables and macro parameters)
             m = re.match(r"^\s*(FOR|MACRO)\s+(.*)$", split_code(l)[0], re.I)
@@ -385,7 +389,7 @@ def glue(copies, errors):
                 if name not in cold or name in own:
                     continue
                 if name in elsewhere:      # (another file's label of the same name)
-                    if f in ("run", "bank4"):
+                    if f in ("run", "low", "bank4"):
                         errors.append("%s:%d: %s is a cold label and a label of another file"
                                       % (SRC, i + 1, name))
                     continue

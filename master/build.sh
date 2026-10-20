@@ -62,7 +62,7 @@ with open("build/data-addresses.asm", "w") as f:
                  "RUTOK": "cold", "HZDATA1END%": "const"}.get(n, "hazel")   # (the data's area, for tools/bankcheck.py)
         f.write(" %s = &%04X \\ %s\n" % (n, a, where))
 PY
-# elite-source.asm's areas: one copy per area (build/elite-source-run.asm,
+# elite-source.asm's areas: one copy per area (build/elite-source-run.asm, -low.asm,
 # -bank4.asm, -cold.asm), which elite-layout.asm assembles in turn
 python3 tools/streams.py >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i src/elite-layout.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }

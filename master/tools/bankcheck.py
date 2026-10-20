@@ -2,8 +2,9 @@
 # bankcheck.py: check the banking rules of the relocated Master Elite
 # (docs/MASTER-MAP.md, master/src/elite-far.asm). Run by build.sh from master/.
 #
-# Areas: "main" (elite-source.asm's run, build/elite-source-run.asm, and the
-# files it INCLUDEs in main RAM: elite-far.asm, build/elite-stubs7.asm; their labels
+# Areas: "main" (elite-source.asm's run, build/elite-source-run.asm, its low
+# area, build/elite-source-low.asm, and the files they INCLUDE in main RAM:
+# elite-far.asm, build/elite-stubs7.asm; their labels
 # assembled at &8000-&BFFF, where the main code continues, are in bank 4),
 # "bank4" (elite-source.asm's blocks in bank 4, build/elite-source-bank4.asm,
 # and the dashboard, elite-dash.asm, which one of them INCLUDEs), "cold" (elite-source.asm's cold blocks,
@@ -44,7 +45,7 @@
 import re, sys
 
 SRC = "src/"
-FILES = {"../build/elite-source-run.asm": "main",
+FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm": "main",
          "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "../build/elite-stubs7.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
          "elite-dash.asm": "bank4",
          "../build/elite-stubs4.asm": "cold",
@@ -59,7 +60,7 @@ FILES = {"../build/elite-source-run.asm": "main",
          "gfx-frame_cold.asm": "bank6", "gfx-flare6.asm": "bank6", "gfx-flare.asm": "bank5"}
 # the copies of elite-source.asm that tools/streams.py writes, one per area
 # (their line numbers are elite-source.asm's)
-SHOW = {"../build/elite-source-%s.asm" % a: "elite-source.asm" for a in ("run", "bank4", "cold")}
+SHOW = {"../build/elite-source-%s.asm" % a: "elite-source.asm" for a in ("run", "low", "bank4", "cold")}
 RENDER = ("bank5", "bank5d", "bank5a", "bank6")
 # the rasteriser's bank 5: its shared region (bank5, &9000-&BFFF) is seen with
 # either window, the disc window (bank5d, ROMSEL 5) or the polygon window

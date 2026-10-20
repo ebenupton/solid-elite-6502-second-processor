@@ -3243,56 +3243,6 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
- INCLUDE "src/elite-far.asm"   \ Port: far calls to and from the cold area
-
-\ ******************************************************************************
-\
-\       Name: stackpt
-\       Type: Variable
-\   Category: Save and load
-\    Summary: Temporary storage for the stack pointer when jumping to the break
-\             handler at NEWBRK
-\
-\ ------------------------------------------------------------------------------
-\
-\ Port: here, below &3000, with the start of NEWBRK (the MOS enters it through
-\ BRKV with any ROM paged in); the original's place is before NEWBRK, which
-\ goes on at NEWBRK2 there
-\
-\ ******************************************************************************
-
-.stackpt
-
- EQUB &FF
-
-\ ******************************************************************************
-\
-\       Name: NEWBRK
-\       Type: Subroutine
-\   Category: Utility routines
-\    Summary: Port: the start of the standard BRKV handler for the game
-\
-\ ------------------------------------------------------------------------------
-\
-\ The MOS enters BRKV with the ROM that raised the error paged in, so the
-\ handler starts here in main RAM below &3000 (visible whatever ACCCON X is):
-\ it resets the stack, pages Elite's home bank in and carries on at NEWBRK2,
-\ at NEWBRK's place in the main code (which may be in bank 4).
-\
-\ ******************************************************************************
-
-.NEWBRK
-
- LDX stackpt            \ Set the stack pointer to the value that we stored in
- TXS                    \ location stack, so that's back to the value it had
-
- LDA #HOMEBANK          \ Port: page Elite's home bank in, as the MOS enters
- STA &F4                \ BRKV with the ROM that raised the error paged in (the
- STA VIA+&30            \ original's getzp did this, setting ROMSEL to bank 6)
-                        \ before we change it in the SVE routine
-
- JMP NEWBRK2            \ Port: the rest of NEWBRK
-
 \ ******************************************************************************
 \
 \       Name: setzp
@@ -8531,15 +8481,29 @@ ENDIF
 
  PRINT "UP workspace from ", ~UP, "to ", ~P%-1, "inclusive"
 
+\ ******************************************************************************
+\
+\ Port: the end of the main code's head, which is in main RAM below &3000
+\ (docs/MASTER-MAP.md): the low area, the blocks of this source tagged low
+\ (build/elite-source-low.asm, which tools/streams.py writes), whose original
+\ places are later, and the port's own code that must be low: the far calls
+\ (elite-far.asm)
+\
+\ ******************************************************************************
+
+ INCLUDE "build/elite-source-low.asm"   \ the blocks tagged low
+
+ INCLUDE "src/elite-far.asm"            \ far calls to and from the cold area
+
 .HEAD_END%
 
  PRINT "Main code below &3000: ", ~CODE%, "-", ~HEAD_END%-1, " free ", &3000-HEAD_END%
  ASSERT P% <= &3000     \ Port: everything up to here must be below &3000, as it
                         \ is used while ACCCON X = 1 (shadow RAM at &3000-&7FFF),
                         \ from interrupts or from MOS vectors with any ROM paged:
-                        \ the IRQ and sound code, CHPR and its font, the far
-                        \ calls, the log tables (LOINQ), HANGFLAG (HANGER), ADDK
-                        \ (DIALS, PIX1) and UP (CATF, FLH, COMC)
+                        \ the IRQ and sound code, CHPR and its font, the log
+                        \ tables (LOINQ), HANGFLAG (HANGER), ADDK (DIALS, PIX1),
+                        \ UP (CATF, FLH, COMC), NEWBRK (BRKV) and the far calls
 
 \ ******************************************************************************
 \
@@ -37143,9 +37107,20 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
-\ Port: stackpt and the start of NEWBRK, the BRKV handler, are in main RAM
-\ below &3000 (after the far-call code), as the MOS enters BRKV with the ROM
-\ that raised the error paged in
+\ ******************************************************************************
+\
+\       Name: stackpt
+\       Type: Variable
+\   Category: Save and load
+\    Summary: Temporary storage for the stack pointer when jumping to the break
+\             handler at NEWBRK
+\       Area: low
+\
+\ ******************************************************************************
+
+.stackpt
+
+ EQUB &FF
 
 \ ******************************************************************************
 \
@@ -37153,7 +37128,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: The standard BRKV handler for the game
-\             (Port: from NEWBRK2 on; its start is in main RAM below &3000)
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -37164,11 +37139,15 @@ ENDIF
 \
 \ ******************************************************************************
 
-.NEWBRK2
+.NEWBRK
 
-                        \ Port: NEWBRK (in main RAM, after the far-call code)
-                        \ has reset the stack and paged Elite's home bank in,
-                        \ and comes here
+ LDX stackpt            \ Set the stack pointer to the value that we stored in
+ TXS                    \ location stack, so that's back to the value it had
+                        \ before we change it in the SVE routine
+
+ LDA #HOMEBANK          \ Port: page Elite's home bank in, as the MOS enters
+ STA &F4                \ BRKV with the ROM that raised the error paged in (the
+ STA VIA+&30            \ original's getzp did this, setting ROMSEL to bank 6)
 
  JSR getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000, as this will have been stored in
