@@ -42,8 +42,7 @@
  _SNG47                 = (_VARIANT = 1)
  _COMPACT               = (_VARIANT = 2)
 
- GUARD &E000            \ Guard against assembling over MOS memory (Port: the
-                        \ game data is in HAZEL, &C000-&DFFF)
+ GUARD &C000            \ Guard against assembling over MOS memory
 
 \ ******************************************************************************
 \
@@ -75,6 +74,7 @@
 \       Type: Variable
 \   Category: Loader
 \    Summary: The binary for the dashboard image
+\       Area: BDATA
 \
 \ ------------------------------------------------------------------------------
 \
@@ -103,32 +103,10 @@
 \
 \ ******************************************************************************
 
- SKIP 256               \ These bytes appear to be unused, but they get moved to
+\SKIP 256               \ These bytes appear to be unused, but they get moved to
                         \ &7F00-&7FFF along with the ship blueprints and text
-                        \ tokens
-
-\ ******************************************************************************
-\
-\ Port: the game data (the ship blueprints and their tables, SNE and ACT) is
-\ in HAZEL, which is visible whatever bank is paged (docs/MASTER-MAP.md,
-\ "Blueprints in HAZEL"). DOSCLI stashes HAZEL in screen buffer 0 for each
-\ disc command, so the data may go anywhere in it, except that what is
-\ written must be in &C300-&D8FF, which disc commands leave alone (the
-\ renderer's glue, whose IRQ and text hooks run during a command, is there
-\ too): XX21 is written (NWSPS stores the station's blueprint in XX21+2/3).
-\ The blueprints keep the original's order from XX21 on, as code reads past
-\ the tables (NWSHP's E%-1,Y for the planet and the sun reads the missile's
-\ blueprint): XX21 to the Constrictor end at the end of HAZEL, from HZDATA2,
-\ and the Cougar, the Dodo, SNE and ACT fill &C000-&C2FF; the renderer's glue
-\ is in between, from &C300 (elite-gfx.asm). The build saves the two parts as
-\ HZDATA2.bin and HZDATA1.bin, which elite-gfx.asm puts in HAZEL.bin.
-\
-\ ******************************************************************************
-
- HZDATA2 = &C4C9        \ (XX21 to the end of the Constrictor: 6967 bytes,
-                        \ which end at &DFFF, asserted below)
-
- ORG HZDATA2
+                        \ tokens (Port: not assembled, as the blueprints that
+                        \ follow are the hot data, in HAZEL from &C000)
 
 \ ******************************************************************************
 \
@@ -3365,12 +3343,6 @@ ENDMACRO
 
 \ ******************************************************************************
 
-.HZDATA2END%            \ Port: XX21 to the Constrictor end at the end of HAZEL;
-                        \ the Cougar and the Dodo are at &C000, followed by SNE
- ASSERT HZDATA2END% = &E000     \ and ACT
-
- ORG &C000
-
 \ ******************************************************************************
 \
 \       Name: SHIP_COUGAR
@@ -3596,14 +3568,8 @@ ENDMACRO
 \
 \ ******************************************************************************
 
- HZD1% = P%             \ Port: the blueprints end here (SNE and ACT follow
-                        \ in HAZEL, below, after QQ18); the padding that put
-                        \ QQ18 at &A000 in the original is gone
-
- ORG &8000              \ Port: QQ18 is cold data: the cold area (sideways RAM
-                        \ bank 7) starts with it, and with the extended tokens
-                        \ after it, and the cold code follows them
-                        \ (elite-layout.asm, docs/MASTER-MAP.md)
+                        \ Port: the workspace noise that padded QQ18 to &A000
+                        \ in the original is gone
 
 \ ******************************************************************************
 \
@@ -3612,6 +3578,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for characters in the recursive token table
 \  Deep dive: Printing text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3646,6 +3613,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for two-letter tokens in the token table
 \  Deep dive: Printing text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3804,6 +3772,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for control codes in the recursive token table
 \  Deep dive: Printing text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3832,6 +3801,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for recursive tokens in the recursive token table
 \  Deep dive: Printing text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3875,6 +3845,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: The recursive token table for tokens 0-148
 \  Deep dive: Printing text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -4999,10 +4970,6 @@ ENDMACRO
  EQUB &19, &03          \ random workspace noise left over from the BBC Micro
  EQUB &16               \ assembly process
 
- QQ18END% = P%
-
- ORG HZD1%              \ Port: back to HAZEL, after the Dodo, for SNE and ACT
-
 \ ******************************************************************************
 \
 \       Name: SNE
@@ -5109,13 +5076,6 @@ ENDMACRO
 
  NEXT
 
-.HZDATA1END%
-
- ASSERT HZDATA1END% <= &C300    \ (the renderer's glue starts at &C300)
-
- ORG QQ18END%           \ Port: the extended tokens (TKN1, RUPLA, RUGAL, RUTOK)
-                        \ are cold data, after QQ18 in the cold area
-
 \ ******************************************************************************
 \
 \ ELITE EXTENDED TEXT TOKEN FILE
@@ -5131,6 +5091,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for jump tokens in the extended token table
 \  Deep dive: Extended text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5159,6 +5120,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for characters in the extended token table
 \  Deep dive: Extended text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5193,6 +5155,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for recursive tokens in the extended token table
 \  Deep dive: Extended text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5222,6 +5185,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for two-letter tokens in the extended token table
 \  Deep dive: Extended text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5418,6 +5382,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for random tokens in the extended token table
 \  Deep dive: Extended text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5449,6 +5414,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for standard tokens in the extended token table
 \  Deep dive: Printing text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5492,6 +5458,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: The first extended token table for recursive tokens 0-255 (DETOK)
 \  Deep dive: Extended text tokens
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8742,6 +8709,7 @@ ENDIF
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \             The Constrictor mission
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8803,6 +8771,7 @@ ENDIF
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \             The Constrictor mission
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8871,6 +8840,7 @@ ENDIF
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \             The Constrictor mission
+\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9604,19 +9574,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-\ Port: the dashboard image (&7000-&7EFF) is BDATA, which the loader copies to
-\ shadow RAM; the game data is build/HZDATA1.bin (&C000 on) and HZDATA2.bin
-\ (XX21 on), which elite-gfx.asm puts in HAZEL, and the cold data (QQ18 and the
-\ extended tokens) build/COLDD.bin, which starts the cold area (elite-layout.asm)
+\ Port: BDATA is the dashboard image (&7000-&7EFF), which the loader copies
+\ to shadow RAM: tools/streams.py emits the blocks tagged BDATA, assembled on
+\ their own; the hot data (the blueprints and their tables, SNE, ACT) and the
+\ cold data (QQ18 and the extended tokens) are assembled with the game code
+\ in HAZEL and in the cold area (elite-layout.asm, docs/MASTER-MAP.md)
 
- PRINT "S.BDATA ", ~CODE%, " ", ~CODE%+&F00, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BDATA.unprot.bin", CODE%, CODE%+&F00, LOAD%
-
- PRINT "HAZEL data: &C000-", ~HZDATA1END%-1, ", ", ~XX21, "-", ~HZDATA2END%-1
- SAVE "build/HZDATA1.bin", &C000, HZDATA1END%, &C000
- SAVE "build/HZDATA2.bin", XX21, HZDATA2END%, XX21
-
- ASSERT TKN1 = QQ18END%
-.COLDD_END%
- PRINT "Cold data (bank 7): QQ18 ", ~QQ18, "-", ~QQ18END%-1, ", the extended tokens ", ~TKN1, "-", ~COLDD_END%-1
- SAVE "build/COLDD.bin", QQ18, COLDD_END%, QQ18
+ PRINT "S.BDATA ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ SAVE "build/BDATA.unprot.bin", CODE%, P%, LOAD%

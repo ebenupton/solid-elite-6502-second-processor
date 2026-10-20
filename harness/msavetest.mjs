@@ -70,12 +70,14 @@ cpu.debugInstruction.add(pc => {
     return false; });
 // the game data from XX21 (the blueprints and their tables) as the build has it,
 // and where it lives (bank 4, or HAZEL)
-// (build/HZDATA1.bin and HZDATA2.bin: the data in HAZEL, from &C000 and from
-// XX21; or build/BANK4D.bin: in bank 4 from XX21; data-addresses.asm has XX21)
+// (build/HZDATA.bin: the data in HAZEL from XX21 at &C000, with XX21 in the
+// symbols; before that, build/HZDATA1.bin and HZDATA2.bin: from &C000 and from
+// XX21; or build/BANK4D.bin: in bank 4 from XX21; data-addresses.asm had XX21)
 const BD = dirname(a.syms || `${ROOT}master/build/symbols.txt`);
-const XX21 = parseInt(readFileSync(`${BD}/data-addresses.asm`, "utf8").match(/XX21 = &([0-9A-F]+)/)[1], 16);
-const INHZ = existsSync(`${BD}/HZDATA1.bin`);
-const PARTS = INHZ ? [[0xc000, readFileSync(`${BD}/HZDATA1.bin`)], [XX21, readFileSync(`${BD}/HZDATA2.bin`)]] : [[XX21, readFileSync(`${BD}/BANK4D.bin`)]];
+const XX21 = sy.XX21 ?? parseInt(readFileSync(`${BD}/data-addresses.asm`, "utf8").match(/XX21 = &([0-9A-F]+)/)[1], 16);
+const INHZ = existsSync(`${BD}/HZDATA.bin`) || existsSync(`${BD}/HZDATA1.bin`);
+const PARTS = existsSync(`${BD}/HZDATA.bin`) ? [[XX21, readFileSync(`${BD}/HZDATA.bin`)]]
+    : INHZ ? [[0xc000, readFileSync(`${BD}/HZDATA1.bin`)], [XX21, readFileSync(`${BD}/HZDATA2.bin`)]] : [[XX21, readFileSync(`${BD}/BANK4D.bin`)]];
 const dataPhys = ad => INHZ ? HZ(ad) : cpu.romOffset + 4 * 16384 + ad - 0x8000;
 await secs(28);
 await snap("title");

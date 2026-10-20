@@ -172,8 +172,9 @@ export class EliteMachine {
         return { reached, unreached };
     }
     // (opts.hazelCheck, the port) HAZEL's read-only game data must never change: the
-    // blueprints and their tables at &C000-&C2FF and from HZDATA2 (XX21) to &DFFF, but
-    // for XX21's station entry (NWSPS). DOSCLI stashes HAZEL for each disc command and
+    // blueprints and their tables from XX21 at &C000 to HZDATA_END% (before that build:
+    // at &C000-&C2FF and from HZDATA2, XX21, to &DFFF), but for XX21's station entry
+    // (NWSPS). DOSCLI stashes HAZEL for each disc command and
     // copies it back; a byte that differs at an MLOOP from its value at the first one
     // means the stash, or something else, lost it. HAZEL is at &9000-&AFFF in jsbeeb's
     // memory. Reported once, as a "hazel" event, with the differing ranges
@@ -183,8 +184,9 @@ export class EliteMachine {
         if (!this.hazel0) { this.hazel0 = mem.slice(0x9000, 0xb000); this.hazelBad = false; return; }
         if (this.hazelBad) return;
         const diffs = [];
-        for (let a = 0xc000; a < 0xe000; a++) {
-            if (a >= 0xc300 && a < xx) continue;                // (the renderer's glue)
+        const end = sy["HZDATA_END%"] ?? 0xe000;
+        for (let a = 0xc000; a < end; a++) {
+            if (a >= 0xc300 && a < xx) continue;                // (the renderer's glue, then)
             if (a === xx + 2 || a === xx + 3) continue;
             const i = a - 0xc000;
             if (mem[0x9000 + i] !== this.hazel0[i]) diffs.push(a);

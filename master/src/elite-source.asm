@@ -264,12 +264,10 @@
                         \ commander files (&0E7E in the original), is defined
                         \ after WP, as it shares a location with LSX2 there
 
- INCLUDE "build/data-addresses.asm"
-
-                        \ Port: the addresses of the game data (XX21, E%, KWL%,
-                        \ KWH%, QQ18, SNE, ACT, TKN1, RUPLA, RUGAL, RUTOK), as
-                        \ set in elite-data.asm, which build.sh assembles first
-                        \ and takes these from (they were constants here)
+                        \ Port: the game data's addresses (XX21, E%, KWL%, KWH%,
+                        \ QQ18, SNE, ACT, TKN1, RUPLA, RUGAL, RUTOK), constants
+                        \ here in the original, are elite-data.asm's own labels,
+                        \ as it is assembled in the same pass (elite-layout.asm)
 
  HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
                         \ paged in while the game runs (bank 6 in the original)

@@ -28,6 +28,16 @@
 # the run INCLUDEs the low copy at the end of its head, so every label is
 # defined exactly once and every block is assembled once.
 #
+# The data source, src/elite-data.asm, is the original's too, and is emitted
+# the same way (build/elite-data-<area>.asm): its blocks are hot data (no
+# Area field: HAZEL, which elite-layout.asm fills from &C000 in the source's
+# order), "Area: cold" (the cold area, after the cold code) or "Area: BDATA"
+# (the dashboard image, which build.sh assembles on its own as the BDATA
+# file). A block without a name (the configuration, the file banners, the
+# closing SAVE) goes with the next named block, and those after the last one
+# with BDATA. The hot and cold copies are assembled in elite-layout.asm's
+# pass, so the configuration they use is elite-source.asm's.
+#
 # Checks (exit status 1 on failure):
 #   * every block's IF ... ENDIF nesting is balanced (a blanked block must not
 #     take half of a conditional with it);
@@ -39,6 +49,10 @@ import re, sys
 SRC = "src/elite-source.asm"
 OUT = "build/elite-source-%s.asm"
 AREAS = ("run", "low", "bank4", "cold")
+DATA = "src/elite-data.asm"
+DOUT = "build/elite-data-%s.asm"
+DAREAS = ("bdata", "hot", "cold")
+DTAGS = {"cold": "cold", "BDATA": "bdata"}
 STAR = re.compile(r"^\\ \*{70,}\s*$")
 AREA = re.compile(r"^\\       Area: (.*)$")
 TAGS = {"cold": "cold", "bank 4": "bank4", "low": "low"}
@@ -56,7 +70,7 @@ def code_part(line):
     return out.strip()
 
 
-def blocks(lines):
+def blocks(lines, tags=TAGS):
     """[(start, end, name, area)]: a block starts at a header (a line of
     stars followed by a lone backslash) or at a separator line of stars"""
     out = [[0, None, None, "run"]]
@@ -83,9 +97,9 @@ def blocks(lines):
             m = AREA.match(l)
             if m:
                 t = m.group(1).strip()
-                if t not in TAGS:
-                    sys.exit("%s:%d: unknown area %r" % (SRC, i + 1, t))
-                out[-1][3] = TAGS[t]
+                if t not in tags:
+                    sys.exit("%d: unknown area %r" % (i + 1, t))
+                out[-1][3] = tags[t]
     for k, b in enumerate(out):
         b[1] = out[k + 1][0] if k + 1 < len(out) else len(lines)
     return [tuple(b) for b in out]
@@ -424,6 +438,34 @@ def glue(copies, errors):
     return n7, n4
 
 
+def data(errors):
+    """the data source's copies, one per area (DAREAS)"""
+    lines = open(DATA, encoding="latin-1").read().split("\n")
+    bl = []
+    for s, e, name, area in blocks(lines, DTAGS):
+        bl.append([s, e, name, ("hot" if area == "run" else area) if name else None])
+    nxt = "bdata"
+    for b in reversed(bl):                 # (unnamed blocks: the next named one's)
+        if b[3] is None:
+            b[3] = nxt
+        else:
+            nxt = b[3]
+    for s, e, name, area in bl:
+        depth = 0
+        for i in range(s, e):
+            c = code_part(lines[i]).upper()
+            depth += bool(re.match(r"^IF\b", c)) - bool(re.match(r"^ENDIF\b", c))
+        if depth:
+            errors.append("%s:%d: %s: IF ... ENDIF not balanced in an area's block" % (DATA, s + 1, name))
+    for a in DAREAS:
+        out = []
+        for s, e, name, area in bl:
+            out += [lines[i] if area == a else "" for i in range(s, e)]
+        with open(DOUT % a, "w", encoding="latin-1") as f:
+            f.write("\n".join(out))
+    return {a: sum(1 for b in bl if b[3] == a and b[2]) for a in DAREAS}
+
+
 def main():
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
@@ -462,14 +504,16 @@ def main():
         for s, e, name, area in bl:
             copies[a] += [lines[i] if area == a else "" for i in range(s, e)]
     nstubs = glue(copies, errors)
+    nd = data(errors)
     for a in AREAS:
         with open(OUT % a, "w", encoding="latin-1") as f:
             f.write("\n".join(copies[a]))
     n = {a: sum(1 for b in bl if b[3] == a) for a in AREAS}
     for e in errors:
         print("streams:", e)
-    print("streams: %d blocks (%s), stubs %d into the cold area, %d out of it%s"
+    print("streams: %d blocks (%s), stubs %d into the cold area, %d out of it; data %s%s"
           % (len(bl), ", ".join("%s %d" % (a, n[a]) for a in AREAS), nstubs[0], nstubs[1],
+             ", ".join("%s %d" % (a, nd[a]) for a in DAREAS),
              ", %d error(s)" % len(errors) if errors else ""))
     sys.exit(1 if errors else 0)
 

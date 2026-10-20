@@ -8,8 +8,8 @@
 # assembled at &8000-&BFFF, where the main code continues, are in bank 4),
 # "bank4" (elite-source.asm's blocks in bank 4, build/elite-source-bank4.asm,
 # and the dashboard, elite-dash.asm, which one of them INCLUDEs), "cold" (elite-source.asm's cold blocks,
-# build/elite-source-cold.asm, and build/elite-stubs4.asm: ROMSEL COLDBANK,
-# bank 7, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
+# build/elite-source-cold.asm, build/elite-data-cold.asm and
+# build/elite-stubs4.asm: ROMSEL COLDBANK, bank 7). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
 #
 # Rules, for every reference from code or data in one area to a label in
@@ -37,8 +37,8 @@
 #    code calls main RAM and HAZEL code directly but nothing in another bank,
 #    reads no other bank's data, and reads main RAM data only below &3000 (the frame layer may run with ACCCON
 #    X set, which hides main RAM above);
-#  * "hazel" is visible to every area: HAZEL (the game data that
-#    build/data-addresses.asm marks hazel) and the renderer's shared
+#  * "hazel" is visible to every area: HAZEL (the game data,
+#    build/elite-data-hot.asm) and the renderer's shared
 #    workspace in main RAM below &3000 (elite-gfx.asm, gfx-raster_scr.asm,
 #    gfx-raster_vars.asm); the renderer's glue is main RAM below &3000 (the
 #    low area), which every area sees too.
@@ -50,6 +50,8 @@ FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm
          "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "../build/elite-stubs7.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
          "elite-dash.asm": "bank4",
          "../build/elite-stubs4.asm": "cold",
+         # elite-data.asm's hot data (in HAZEL) and cold data (in the cold area)
+         "../build/elite-data-hot.asm": "hazel", "../build/elite-data-cold.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
          # and its banks
          "elite-low.asm": "main",
@@ -63,6 +65,7 @@ FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm
 # the copies of elite-source.asm that tools/streams.py writes, one per area
 # (their line numbers are elite-source.asm's)
 SHOW = {"../build/elite-source-%s.asm" % a: "elite-source.asm" for a in ("run", "low", "bank4", "cold")}
+SHOW.update({"../build/elite-data-%s.asm" % a: "elite-data.asm" for a in ("hot", "cold")})
 RENDER = ("bank5", "bank5d", "bank5a", "bank6")
 # the rasteriser's bank 5: its shared region (bank5, &9000-&BFFF) is seen with
 # either window, the disc window (bank5d, ROMSEL 5) or the polygon window
@@ -130,6 +133,9 @@ for f, a in FILES.items():
         for l in labels:
             area.setdefault(l, a)
             own[f].add(l)
+        m = re.match(r"^([A-Za-z_]\w*)\s*=", op.strip())
+        if m and mn is None:               # (constants and macro locals the file assigns)
+            own[f].add(m.group(1))
         m = re.match(r"^(MACRO\s+\w+|FOR)\s+(.*)$", op.strip(), re.I)
         if m:                              # (macro parameters and loop variables)
             own[f].update(IDENT.findall(m.group(2).split(",")[0] if m.group(1).upper() == "FOR" else m.group(2)))
@@ -142,13 +148,6 @@ except FileNotFoundError:
 for l, a in list(area.items()):           # the main code continues into bank 4:
     if a == "main" and 0x8000 <= addr.get(l, 0) < 0xC000:   # the main files' labels
         area[l] = "bank4"                  # assembled there are in bank 4
-try:
-    for line in open("build/data-addresses.asm"):
-        m = re.match(r"^\s*(\S+)\s*=\s*&[0-9A-F]+\s*\\\s*(\w+)", line)
-        if m:
-            area[m.group(1)] = m.group(2)
-except FileNotFoundError:
-    pass
 
 errors = []
 for f, a in FILES.items():

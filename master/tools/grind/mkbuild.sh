@@ -8,7 +8,7 @@
 # for the provenance map.  Leaves in <outdir>:
 #   tree/                       the copy and its build
 #   gmap.tsv                    the grindmap (tools/grind/beebasm/grindmap.patch)
-#   compile.txt, symbols.txt, banks.txt, symbols-data.txt   (as build.sh makes them)
+#   compile.txt, symbols.txt, banks.txt   (as build.sh makes them)
 set -e
 ROOT=$(cd "$1" && pwd); OUT=$2
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -29,7 +29,7 @@ cp "$ROOT/tools/beebasm" "$OUT/tree/tools/beebasm"
 if grep -iE "error|assertion failed" "$OUT/build.log" "$OUT/tree/master/build/compile.txt" > "$OUT/build.errors"; then
     cat "$OUT/build.errors"; echo "mkbuild: error/ASSERT in the build output" >&2; exit 1
 fi
-for f in compile.txt symbols.txt banks.txt symbols-data.txt; do
+for f in compile.txt symbols.txt banks.txt; do
     cp "$OUT/tree/master/build/$f" "$OUT/$f"
 done
 # the provenance map: the same assembly again (its SAVEs rewrite identical images;

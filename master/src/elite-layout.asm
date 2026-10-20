@@ -19,9 +19,14 @@
 \
 \   * bank 4: the blocks that must be in bank 4, after the run;
 \
-\   * the cold area: sideways RAM bank 7;
+\   * HAZEL: elite-data.asm's hot data (build/elite-data-hot.asm);
+\
+\   * the cold area, sideways RAM bank 7: elite-source.asm's cold blocks,
+\     then elite-data.asm's (build/elite-data-cold.asm);
 \
 \ then the high code (main RAM &7200-&7FFF) and the renderer (elite-gfx.asm).
+\ elite-data.asm's blocks tagged BDATA, the dashboard image, are assembled on
+\ their own (build/elite-data-bdata.asm, by build.sh).
 \
 \ ******************************************************************************
 
@@ -41,6 +46,36 @@
  PRINT "Bank 4: &8000-", ~BANK4_END%-1, " free ", HANGHEAP-BANK4_END%
  ASSERT BANK4_END% <= HANGHEAP
  SAVE "build/BANK4.bin", &8000, &C000, &8000
+
+\ ******************************************************************************
+\
+\ Port: HAZEL (&C000-&DFFF), visible whatever bank is paged: the hot data,
+\ elite-data.asm's blocks that are not tagged (build/elite-data-hot.asm,
+\ which tools/streams.py writes) in the original's order from &C000: XX21,
+\ E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's, SNE and
+\ ACT. DOSCLI stashes all of HAZEL in screen buffer 0 around each disc
+\ command, so the data may sit anywhere in it; nothing the IRQ handler or
+\ CHPR uses during a command is here. Saved as HAZEL, which the loader copies
+\ into place after its last disc access (and as HZDATA, the data, for the
+\ tools).
+\
+\ ******************************************************************************
+
+ CLEAR &C000, &E000
+ ORG &C000
+
+.HZ_START
+
+ INCLUDE "build/elite-data-hot.asm"
+
+.HZDATA_END%
+
+.HZ_END
+
+ PRINT "HAZEL: game data &C000-", ~HZDATA_END%-1, ", free ", &E000-HZ_END
+ ASSERT HZ_END <= &E000
+ SAVE "build/HZDATA.bin", &C000, HZDATA_END%, &C000
+ SAVE "build/HAZEL.bin", HZ_START, HZ_END, HZ_START
 
 \ ******************************************************************************
 \
@@ -68,10 +103,10 @@
 \ ******************************************************************************
 \
 \ Port: the cold area (docs/MASTER-MAP.md), paged in as ROMSEL = COLDBANK
-\ (7): sideways RAM bank 7 from &8000, the original's cold data and code in
-\ the original's order: QQ18 and the extended tokens (elite-data.asm's cold
-\ data, build/COLDD.bin), then the blocks of elite-source.asm tagged cold,
-\ then the stubs that lead out of the cold area. Saved as COLD7.
+\ (7): sideways RAM bank 7 from &8000, the original's cold code and data in
+\ the original's order: the blocks of elite-source.asm tagged cold, then
+\ those of elite-data.asm (QQ18 and the extended tokens TKN1, RUPLA, RUGAL
+\ and RUTOK), then the stubs that lead out of the cold area. Saved as COLD7.
 \
 \ ******************************************************************************
 
@@ -80,11 +115,9 @@
 
 .COLD_START%
 
- INCBIN "build/COLDD.bin"           \ QQ18 and the extended tokens
-
- ASSERT P% = COLDD_END%
-
  INCLUDE "build/elite-source-cold.asm"
+
+ INCLUDE "build/elite-data-cold.asm"    \ QQ18 and the extended tokens
 
  INCLUDE "build/elite-stubs4.asm"   \ stubs out of the cold area (far4, far4j),
                                     \ which tools/streams.py writes

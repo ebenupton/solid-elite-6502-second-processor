@@ -13,10 +13,8 @@
 \ the glue (the cross-bank trampolines and hooks, the shared variables with
 \ initial values), in the main code's low area (elite-low.asm), as the IRQ
 \ and text hooks run during disc commands too. HAZEL holds the game data
-\ (the ship blueprints, elite-data.asm). Produces:
+\ (the ship blueprints, elite-data.asm: elite-layout.asm). Produces:
 \
-\   build/HAZEL.bin  HAZEL &C000-&DFFF: the game data, which the loader
-\                    copies into place after its last disc access
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser's shared region and
 \                    disc window (gfx-raster.asm, gfx-flare.asm,
 \                    gfx-raster_lcold.asm; gfx-raster_disc.asm)
@@ -36,23 +34,6 @@ RASTPOLY = &85          \ the shared region (&9000-&BFFF); ANDY over bank 5, its
                         \ polygon window
 GFXBANK = 6
 ELITEBANK = HOMEBANK
-
-\ HAZEL: the Cougar's and the Dodo's blueprints, SNE and ACT (elite-data.asm),
-\ then XX21 and the other blueprints to the end of HAZEL (elite-data.asm,
-\ "Blueprints in HAZEL" in docs/MASTER-PLAN.md). The renderer's glue is in
-\ main RAM below &3000 (elite-low.asm)
-
-CLEAR &C000, &E000
-ORG &C000
-.HZ_START
-INCBIN "build/HZDATA1.bin"
-PRINT "HAZEL: game data &C000-", ~HZDATA1END%-1, ", ", ~XX21, "-&DFFF (", XX21-HZDATA1END%, " free)"
-ASSERT HZDATA1END% <= XX21
-ORG XX21
-INCBIN "build/HZDATA2.bin"
-.HZ_END
-ASSERT HZ_END = &E000
-SAVE "build/HAZEL.bin", HZ_START, HZ_END, HZ_START
 
 NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 

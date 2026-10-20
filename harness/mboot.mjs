@@ -61,7 +61,9 @@ console.log(`sideways RAM banks in this model: ${cpu.model.swram.map((v, i) => v
 // "v" if it holds variables or self-modified code)
 const images = readFileSync(SYMS.replace(/symbols\.txt$/, "images.txt"), "utf8").trim().split("\n").map(l => l.trim().split(/\s+/))
     .map(([f, rs, at, v]) => [f, /^[0-9a-f]+$/i.test(rs) ? parseInt(rs, 16) : rs, parseInt(at, 16), v === "v"]);
-const xx21 = parseInt(readFileSync(SYMS.replace(/symbols\.txt$/, "data-addresses.asm"), "utf8").match(/XX21 = &([0-9A-F]+)/)[1], 16);
+// (XX21: in the symbols since the data is assembled with the code; before
+// that, in build/data-addresses.asm)
+const xx21 = syms.XX21 ?? parseInt(readFileSync(SYMS.replace(/symbols\.txt$/, "data-addresses.asm"), "utf8").match(/XX21 = &([0-9A-F]+)/)[1], 16);
 let diffs = [];
 for (const [f, rs, start, vol] of images) {
     let img;
