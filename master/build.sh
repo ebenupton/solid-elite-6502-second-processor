@@ -62,7 +62,9 @@ $BEEBASM -i src/elite-layout.asm -d > build/symbols.txt 2>/dev/null
 python3 - <<'PY'
 import re
 with open("build/banks.txt", "w") as f:
-    for src, bank in (("build/elite-source-bank4.asm", "4"), ("src/elite-dash.asm", "4"),
+    for src, bank in (("build/elite-source-bank4.asm", "4"),
+                      ("build/dashtab-scan.asm", "4"), ("build/dashtab-dot.asm", "4"), ("build/dashtab-spbt.asm", "4"),
+                      ("build/dashtab-ecbt.asm", "4"), ("build/dashtab-msbar.asm", "4"),
                       ("build/elite-source-cold.asm", "7"),
                       ("build/elite-stubs4.asm", "7"),
                       ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"),

@@ -55,7 +55,7 @@ export class Observer {
         const p = (x >> 1) & 1;
         return p === 0 ? (b & 0xaa) && ((b >> 7) & 1) << 3 | ((b >> 5) & 1) << 2 | ((b >> 3) & 1) << 1 | ((b >> 1) & 1) : ((b >> 6) & 1) << 3 | ((b >> 4) & 1) << 2 | ((b >> 2) & 1) << 1 | (b & 1);
     }
-    // a bulb's 16-byte bitmap: the original's in main RAM, the port's in bank 4 (elite-dash.asm)
+    // a bulb's 16-byte bitmap: the original's in main RAM, the port's in bank 4 (SPBT, ECBT: build/dashtab-*.asm)
     pattern(sym) {
         this.pats ||= {};
         if (!this.pats[sym]) {

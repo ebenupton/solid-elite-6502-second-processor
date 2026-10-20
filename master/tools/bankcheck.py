@@ -7,7 +7,7 @@
 # elite-far.asm, build/elite-stubs7.asm; their labels
 # assembled at &8000-&BFFF, where the main code continues, are in bank 4),
 # "bank4" (elite-source.asm's blocks in bank 4, build/elite-source-bank4.asm,
-# and the dashboard, elite-dash.asm, which one of them INCLUDEs), "cold" (elite-source.asm's cold blocks,
+# with the CMYK dashboard), "cold" (elite-source.asm's cold blocks,
 # build/elite-source-cold.asm, build/elite-data-cold.asm and
 # build/elite-stubs4.asm: ROMSEL COLDBANK, bank 7). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
@@ -48,7 +48,6 @@ import re, sys
 SRC = "src/"
 FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm": "main",
          "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "../build/elite-stubs7.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main", "gfx-light.asm": "main",
-         "elite-dash.asm": "bank4",
          "../build/elite-stubs4.asm": "cold",
          # elite-data.asm's hot data (in HAZEL) and cold data (in the cold area)
          "../build/elite-data-hot.asm": "hazel", "../build/elite-data-cold.asm": "cold",
