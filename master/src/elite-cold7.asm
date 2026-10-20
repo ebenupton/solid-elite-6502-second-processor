@@ -7383,7 +7383,3 @@ ENDIF
                         \ a tail call
 
                         \ Port: ZEKTRAN is in the main code (elite-source.asm)
-
-.ZEKRTS
-
- RTS                    \ Return from the subroutine
