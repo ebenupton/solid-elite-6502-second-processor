@@ -922,7 +922,9 @@ DCN_MARK = 6            \ roll / pitch marker
 \ MSBAR: draw missile indicator X (1-4) in colour Y (0 = none, GREEN2 =
 \ unarmed, YELLOW2 = armed, RED2 = locked) in row 6, bytes 12 - 2X and 13 -
 \ 2X. Returns as Master's: X preserved, Y = 0 (ABORT2 stores it in MSAR), T =
-\ X * 16, A = %00001001
+\ X * 16, A = %00001001, C clear (Master's ends with SC + 8, which never
+\ carries: ABORT2's callers go on to DORND, whose result depends on C, when a
+\ ship starts exploding in the same iteration as a missile lock)
 \ ------------------------------------------------------------------------------
 
 .MSBAR
@@ -991,6 +993,7 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA #4
  TRB VIA+&34
  LDA #%00001001
+ CLC                    \ C clear, as Master (the CPY above left it set)
  RTS
 
 \ ------------------------------------------------------------------------------
