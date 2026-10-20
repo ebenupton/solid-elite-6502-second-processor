@@ -3274,6 +3274,21 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: HANGFLAG
+\       Type: Variable
+\   Category: Ship hangar
+\    Summary: The number of ships being displayed in the ship hangar
+\             (Port: in main RAM below &3000, as HANGER in the cold area
+\             reads it with ACCCON X set)
+\
+\ ******************************************************************************
+
+.HANGFLAG
+
+ EQUB 0
+
+\ ******************************************************************************
+\
 \       Name: cls
 \       Type: Subroutine
 \   Category: Drawing the screen
@@ -8922,20 +8937,6 @@ ENDIF
 
  EQUB 0                 \ No third ship
  EQUB 0
- EQUB 0
-
-\ ******************************************************************************
-\
-\       Name: HANGFLAG
-\       Type: Variable
-\   Category: Ship hangar
-\    Summary: The number of ships being displayed in the ship hangar
-\             (Port: in main RAM, read by HANGER in the cold area)
-\
-\ ******************************************************************************
-
-.HANGFLAG
-
  EQUB 0
 
 \ ******************************************************************************
