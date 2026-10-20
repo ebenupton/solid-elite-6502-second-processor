@@ -24,43 +24,64 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
 * **ANDY** holds cold code (the cold area's first 4K, ROMSEL &87). The loader sets
   `*FX 225,128` and the game prints through its own WRCHV, so the MOS never reads the
   font or soft keys there.
-* **HAZEL** follows the "save/restore 66 bytes and invalidate 6" strategy below (section
-  2). The loader stashes &C2C0-&C2FF and &DFDA-&DFDB in DFSST (HAZEL lasting state)
-  after its last disc access, and copies HAZEL's code into place. DOSCLI (the cold area,
-  the game's only OS call) puts the 66 bytes back before each disc command, writes &FF to
-  &C282, &C287 and &C28B-&C28E (so DFS re-reads the catalogue), and stashes them again
-  after the command; on a disc error, BRKV's NEWBRK does that through DOSNMI (DFSIN says a
-  command was under way). DOSNMI also puts back the minimal NMI handler at &0D00-&0D05,
-  the one sanctioned write to page &0D. So the game may use:
-  * &C000-&C2FF for scratch only (the rasteriser's: nothing kept between calls);
-  * &C300-&D8FF for code and lasting state (the code at &C300-&C702, the state at
-    &C733-&D241, then free);
-  * not &D900-&DAFF (the ADFS and DFS private pages, written by disc commands);
-  * &DC40-&DFFF only for state rebuilt on re-entering flight (&DC00-&DC3F takes the
-    longest command line), and &DF00-&DFFF only for what the IRQ handler and the
-    catalogue's printing (CHPR) never read: the MOS writes &DF00-&DF05 and &DFC6 during a
-    command and DOSCLI writes &DFDA-&DFDB. The hangar's line heap is at &DF00 while
-    docked.
-  After a command nothing needs rebuilding: what DFS and the MOS overwrite holds only
-  scratch and state rebuilt in flight. The save test (harness/msavetest.mjs) fills
-  &C000-&C2FF and &DF00-&DFFF with junk before each disc command.
-* **Exposure.** &C300-&C3BF (HAZEL code: the shared variables, the T_ trampolines) is
-  DFS's open-file channel table, which DFS writes only on `*DISC` or a filing system
-  change (the game makes neither) and when files are opened with OSFIND (the game opens
-  none). A third-party ROM given a private page in &C3-&D2 (see "ROM private pages"
-  below) would overlap HAZEL's code (&C3-&C7) or its lasting state (&C7-&D2); a page in
-  &D3-&D8 is free space.
+* **HAZEL** holds lasting data everywhere: the game data (the ship blueprints and their
+  tables, 7653 bytes) and the renderer's glue (its shared variables, the T_ trampolines,
+  the text and IRQ hooks, 402 bytes). It follows the "save/restore 66 bytes and
+  invalidate 6" strategy below (section 2), and around every disc command it is stashed
+  whole in screen buffer 0:
+  * The loader stashes DFS's and the MOS's lasting bytes, &C2C0-&C2FF and &DFC0-&DFFF, in
+    DFSST (in main RAM, the renderer's shared workspace) after its last disc access, then
+    copies HAZEL's 8K into place. &DFC0-&DFFF is the MOS's state in bank F: the copy of
+    FSCV at &DFDA-&DFDB, and at &DFDC-&DFDD an ACCCON value and a flag: on an error
+    (BRK) during a command the MOS writes &DFDC to ACCCON if &DFDD is non-zero, so
+    blueprint bytes there would leave ACCCON X set in BRKV.
+  * DOSCLI (the cold area; every OSCLI the game makes goes through it, all from the disc
+    menu, docked or on the title screen) copies all of HAZEL to main RAM &4000-&5FFF
+    (screen buffer 0, not on show while docked; the dashboard's first-row copy at
+    &7000-&71FF is outside it), puts DFS's and the MOS's 128 bytes back, writes &FF to
+    &C282, &C287 and &C28B-&C28E (so DFS re-reads the catalogue), and makes the command.
+    Afterwards (DOSNMI, which a disc error reaches through BRKV's NEWBRK, DFSIN saying a
+    command was under way) it stashes the 128 bytes again (*DIR and *DRIVE change them)
+    and copies HAZEL back, so nothing DFS, the MOS or another ROM wrote there during the
+    command lasts. DOSNMI also puts back the minimal NMI handler at &0D00-&0D05, the one
+    sanctioned write to page &0D.
+  * Buffer 0 then no longer holds the last space-mode frame, which the renderer repairs
+    incrementally: DOSCLI sets GSTASH (in HAZEL, kept by the copy back), and the next
+    entry to space mode (f_enter2) clears buffer 0 and resets its rasteriser state,
+    disc colour, sights and shown-text map as F_INIT leaves them (f_b0new). The hangar
+    draws directly, into shadow RAM: no game code writes buffer 0 while docked.
+  * During a command the IRQ handler (H_VSYNC and the shared variables) and the
+    catalogue's printing (CHPR's text hooks, through bank 6) still run from HAZEL, so the
+    glue and everything written in HAZEL (XX21: NWSPS stores the station's blueprint in
+    XX21+2/3) is in &C300-&D8FF, which disc commands leave alone; read-only blueprint
+    bytes fill the rest, including &C000-&C2FF, &D900-&DAFF and &DC00-&DFFF, which DFS and
+    the MOS overwrite during a command.
+  The save test (harness/msavetest.mjs) fills &C000-&C27F, &D900-&DAFF and &DC00-&DFBF
+  with junk at each OSCLI DOSCLI makes, checks that NEWBRK is entered once (the failed
+  load) and with ACCCON X clear, that the game data is intact after the disc commands
+  and that the space view after the launch holds nothing of the stash.
+* **Exposure.** &C300-&C3BF (the glue: the shared variables, the T_ trampolines) is DFS's
+  open-file channel table, which DFS writes only on `*DISC` or a filing system change (the
+  game makes neither) and when files are opened with OSFIND (the game opens none). Between
+  disc commands the MOS does not touch HAZEL: OSWORD 0 (the commander's name, MT26) and
+  the docked screens' OSBYTE calls leave the game data intact (the save test checks it
+  after its save, load, failed load and catalogue). A third-party ROM given a private
+  page in HAZEL (see "ROM private pages" below) that writes it during a disc command is
+  undone by the stash; one that writes it on other OS calls would corrupt blueprints or
+  the glue.
 * **Shadow RAM**: &3100-&3EFF the extended tokens, &3090-&30FF the zero-page save,
   &3000-&307F, &3F00-&3FFC and &7E00-&7FF8 the lens flare.
-* **Main RAM below &0E00**: the low code at &0840-&0CF1 (the MOS's sound, printer, RS423,
-  cassette and speech buffers and the unused &0B00-&0CFF). Nothing in page &0D.
+* **Main RAM below &0E00**: part of the renderer's shared workspace at &0840-&0CFF (the
+  MOS's sound, printer, RS423, cassette and speech buffers and the unused &0B00-&0CFF):
+  R_NDN, the rasteriser's scratch, DFSST and R_WL, variables that the renderer
+  initialises (the loader fills DFSST). Nothing in page &0D.
 
 Short answer:
 
 | Region | Usable by the port? | Bytes |
 |---|---|---|
 | ANDY &8000-&8FFF | Yes, all of it, if the MOS VDU is never used (Elite's own WRCHV) and soft keys are not expanded (Master Elite sets *FX 225,128). Disc I/O through OSCLI/OSFILE never touches it. | 4096 |
-| HAZEL &C000-&DFFF | Yes, all of it during flight. For disc I/O, keep 66 bytes (stash them or never write them), poke 6 bytes to &FF before each call, and rebuild what DFS/MOS overwrite (mainly &C000-&C2FF). | 8192, of which 66 need care |
+| HAZEL &C000-&DFFF | Yes, all of it during flight. For disc I/O, keep 66 bytes (stash them or never write them), poke 6 bytes to &FF before each call, and rebuild or stash what DFS/MOS overwrite (mainly &C000-&C2FF; the port stashes all of HAZEL in screen buffer 0). | 8192, of which 66 need care |
 | Shadow &3000-&3FFF | Yes (ACCCON X=1). Master Elite already uses shadow &3090-&30FF for its zero-page save. | 4096 (3984 if the zp buffer stays) |
 | Shadow &7E00-&7FFF | Yes, if not displayed. | 512 |
 | Main &0B00-&0CFF | Yes. Nothing in MOS 3.20 or DFS uses it (the B's soft keys and font moved to ANDY). | 512 |
@@ -200,6 +221,12 @@ before the next call.
 
 ### Recommended strategy: save/restore 66 bytes and invalidate 6
 
+(Found later, with the port's blueprints filling &DF00-&DFFF: the clobber tests above
+never raised an error during a command, and on that path the MOS (bank F, &9DEC)
+writes &DFDC to ACCCON if &DFDD is non-zero, and tests &DFD4 and &DFD5. So keep
+&DFC0-&DFFF, not only &DFDA-&DFDB: the port stashes &C2C0-&C2FF and &DFC0-&DFFF, 128
+bytes, and the save test's failed load checks the error path.)
+
 1. After the loader's last disc access, and before the port first overwrites HAZEL,
    stash &C2C0-&C2FF (64 bytes) and &DFDA-&DFDB (2 bytes) in main RAM or SWRAM.
    Alternatively, lay out HAZEL so those 66 bytes are never written and skip the stash.
@@ -303,41 +330,32 @@ in HAZEL, listed at &0DF0+bank. On the emulated Master 128 (MOS 3.20, the
 standard ROM set) the table holds DFS (bank 9) = &DA and ADFS (bank 13) =
 &D9, before and after the game loads; no other ROM has a page.
 
-Both pages are outside what the game uses: its lasting HAZEL state stops below
-&D900 (asserted in the build), so DFS or ADFS writing its own page during a docked
-disc command is harmless.
+The game keeps lasting data in all of HAZEL (the game data and the renderer's
+glue), the DFS and ADFS pages included (read-only blueprint bytes there), and
+DOSCLI stashes all of HAZEL in screen buffer 0 for each disc command and copies
+it back afterwards, so DFS or ADFS writing its own page during a docked disc
+command is harmless.
 
 The failing case is a third-party ROM that hooks BYTEV (or WORDV) on a
 service call and writes its private page on every call. Its page is given
-out below the standard ones, i.e. somewhere in &C3-&D8: in HAZEL's code
-(&C300-&C702) or its lasting state (&C733-&D241, raster_vars, the
-dashboard's and the flare's variables, DFSST), or in the free space after
-them (&D3-&D8, harmless). The loader already resets the non-filing-system
-vectors (3a4686e), so a ROM hooked at boot is unhooked; the risk is a ROM
-that hooks again during the game's own disc commands.
+out below the standard ones, i.e. somewhere in &C3-&D8: in the renderer's
+glue (&C300-&C491) or the blueprints. The loader already resets the
+non-filing-system vectors (3a4686e), so a ROM hooked at boot is unhooked; a
+ROM that hooks again during the game's own disc commands is undone by
+DOSCLI's stash when it writes during the command, but not if it writes on
+the OSBYTE and OSWORD calls the docked screens make (e.g. *FX through OSBYTE,
+OSWORD 0 for the commander's name); the game makes none in flight.
 
-Cheap mitigations considered:
+Mitigations considered:
 
-* Reset the vectors again in DOSCLI after OSCLI: no help, the damage is
-  done during the command.
-* Stash and restore, around OSCLI, each page listed in &0DF0-&0DFF that
-  lies in the lasting data (except &D9 and &DA, which are the ROMs' own
-  and outside it): about 80 bytes of code in the cold area and 256 bytes a
-  page of buffer (HAZEL's free space, &D242-&D8FF, would do). It covers
-  disc commands only; the game makes no OSBYTE or OSWORD calls in flight,
-  but the docked screens make some (e.g. *FX through OSBYTE), which it
-  would not cover.
-* Rebuild the renderer's lasting data after each disc command: the
-  per-buffer state is rebuilt anyway on re-entering flight; DASHV and the
-  text map would need a full re-initialisation.
-* Move the lasting data higher: it now ends at &D241, so a ROM's page in
-  &D3-&D8 is already harmless; packing the state against &D8FF would make
-  the low pages the free ones instead, which helps only if such ROMs are
-  given high pages.
+* Reset the vectors again in DOSCLI after OSCLI: no help, the hook is in
+  place by then.
+* Rebuild HAZEL from the loaded image after such calls: the blueprints are
+  read-only but for XX21+2/3, which NWSPS sets afresh on each launch; the
+  glue's variables would need re-initialising. About 8K of image to keep.
 
-Outcome: no ROM in the standard Master set is affected, and the stash is the
-cheap mitigation if a real ROM is found that does this; it is not
-implemented.
+Outcome: no ROM in the standard Master set is affected; nothing is done for
+the hypothetical third-party ROM.
 
 ## Caveats
 

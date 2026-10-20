@@ -44,11 +44,12 @@ version's ships, missions and extended text. Master is the user's preferred base
 
 The port uses HAZEL (&C000-&DFFF) because the MOS never touches it during flight.
 Full Elite does disc I/O (commander save/load and catalogue) while docked, and DFS
-keeps its workspace in HAZEL. The port stashes DFS's lasting bytes (&C2C0-&C2FF and
-the MOS's &DFDA-&DFDB, 66 in all) at load time and swaps them in around its one OS
-call, OSCLI in DOSCLI, invalidating DFS's catalogue cache each time; what DFS and the
-MOS overwrite during a command holds only scratch and state rebuilt in flight, so
-nothing needs rebuilding (docs/MASTER-MEMORY.md, docs/MASTER-MAP.md rule 8).
+keeps its workspace in HAZEL. The port keeps the game data (the blueprints) and the
+renderer's glue in HAZEL, stashes DFS's and the MOS's lasting bytes (&C2C0-&C2FF and
+&DFC0-&DFFF) at load time and swaps them in around its one OS call, OSCLI in DOSCLI,
+invalidating DFS's catalogue cache each time, and copies all of HAZEL to screen
+buffer 0 for the command and back after it (docs/MASTER-MEMORY.md,
+docs/MASTER-MAP.md rule 8, "Blueprints in HAZEL" below).
 
 ## Verification
 
@@ -680,3 +681,71 @@ Gate: 1.235, 17.25 it/s before; 1.231, 17.21 it/s after, with
 test_raster (full), the flare's pixel check, the agentplay repros and a
 short campaign with a save and a load passing.
 
+
+## Blueprints in HAZEL (after the memory relayout)
+
+The game data (XX21, the 33 blueprints, E%, KWL%, KWH%, SNE, ACT: 7653
+bytes) moved from bank 4 to HAZEL, which every bank sees, and bank 4 holds
+code only; the main code became one run in the original's order, from main
+RAM on into bank 4; the renderer's shared state moved from HAZEL to main RAM
+below the main code. In single-purpose gated commits:
+
+* **Disc commands stash HAZEL in screen buffer 0.** DOSCLI copies all of
+  HAZEL to main &4000-&5FFF before the command and back after it (DOSNMI,
+  also on the error path), so the data may sit anywhere in HAZEL; GSTASH
+  makes the next entry to space mode clear buffer 0 and forget its state
+  (f_b0new). DFSST keeps DFS's and the MOS's lasting bytes (&C2C0-&C2FF and
+  &DFC0-&DFFF) for the command. The save test junks HAZEL where DFS and the
+  MOS write at each OSCLI, and checks the game data, the space view after
+  the launch (no stale stash) and the error path.
+* **What the main code must keep low, found by the audit** (static, and
+  traced in jsbeeb: main-RAM code and data used with ACCCON X set, in the
+  IRQ handler, or with another ROM paged, over the gate's pilot, docking with
+  the hangar, and the disc menu's save, load, failed load, catalogue and
+  delete): DIALS calls ADD and PIX1 MU8 with X set, so ADDK (the original's
+  copy of ADD below &3000) is back; HANGER reads HANGFLAG with X set, so
+  HANGFLAG is back at its original place; the IRQ handler and CHPR were
+  already below &3000. The MOS enters BRKV with the ROM that raised the
+  error paged in, so NEWBRK starts below &3000 (with stackpt) and pages bank
+  4 itself; the MOS reads the disc commands' strings and OSWORD block, so
+  they stay in main RAM (after NA%). The cold area reads QQ23, which moved
+  there (after GVL: hyp1 falls through into GVL). The tools find code in
+  bank 4 (banks.txt by address, the harness's IKNS and LL5 reads, profile's
+  TT100 hook).
+* **The relayout.** The blueprints keep the original's order from XX21 on
+  (NWSHP reads E%-1,Y for the planet and the sun, i.e. into the missile's
+  blueprint), so XX21 to the Constrictor fills &C4C9-&DFFF (XX21 written, so
+  in &C300-&D8FF), and the Cougar, the Dodo, SNE and ACT &C000-&C2AD; the
+  glue is at &C300-&C491 (the rasteriser's bank 5 <-> 7 stubs moved to the
+  main code below &3000 for want of room). The shared workspace is &0840-&0CFF
+  and &1300-&1ECB (the arrays keep their low bytes; R_WR is page aligned).
+  The dashboard's variables went to bank 4 with the dashboard, the hangar's
+  line heap to bank 4's last page. The main code starts at &1F00 and goes
+  into bank 4 from DVL9a (DVID3B's rare paths); the low code (DOKEY, DK4,
+  TIDY, TIS3, DVIDT, DOCKIT, the tactics helpers, HITCH, MALW), the high
+  code's flight routines (SIGHT, OOPS, SFRMIS, ECMOF, THERE, msblob, MALC;
+  DEATHT back into DEATH), STARS6, STARS2 and FLIP (from HAZEL) and
+  elite-flight.asm's routines (TIS2, MVS5; MV40, MV1, MV2 beside MVEIT in
+  elite-bank4.asm) are back at their places; elite-low.asm, elite-hazel.asm
+  and elite-flight.asm, LOWCODE and the loader's copy of it are gone.
+* **Cold routines home.** WARP and HLOIN2, the two cold routines flight
+  calls most, which call only home code, came back to their places: 2 far7
+  stubs and 5 x4_ stubs fewer, flight far calls 7624 to 5280 in the gate's
+  10000 iterations, for 105 bytes. Not taken: the token printers (TT27, ex
+  and their helpers with QQ18, about 1.2K) would save about 35 cycles an
+  iteration (the x4_TT26 per character of the view's name on each change of
+  view, of messages and of the countdown), 0.03 cycles a byte against the
+  margin of 2; the rest of the cold routines that flight calls (Ze, BAD,
+  OUCH, ee3) save a cycle an iteration or less each and would need x4_
+  stubs of their own for their cold callers.
+
+Bank 4 went from 30 bytes free to 1882 (and the hangar's heap), the main code
+has 1778 bytes of headroom below &3000 (HEAD_END% &290E), HAZEL's 2063 free
+bytes are used (55 left in the glue's gap, 82 read-only), the high code has
+565 free. The original's main-code bytes in the cold area: 7560 to 7556 by
+the routines' SNG47 sizes (WARP and HLOIN2 home, QQ23 out).
+
+Gate: 1.231, 17.21 it/s before; 1.232, 17.21 it/s after (116235 to 116187
+cycles per flight iteration: 11 fewer in instructions, 37 fewer in page
+crossings, 841 to 804). test_raster (full), the lens flare's pixel check,
+both agentplay repros and a short campaign pass.
