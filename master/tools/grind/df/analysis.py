@@ -324,10 +324,23 @@ class Analysis:
         names (STA r_pt3+2), else the storer's own bank / bank 4 from main code (HAZEL
         code naming no label: every bank).  An opcode store makes the instruction a
         barrier (volatile), an operand store makes its operand unknown (opvolatile).
-        Indexed stores count only when their base is itself inside an instruction.
+        Indexed stores count only when their base is itself inside an instruction;
+        such a store also reaches base + d for every offset d the program loads into
+        its index register as a difference of two code labels (`LDX #MLSA-MLSB` then
+        stl_pat's `STA mlb1+1,X`: one store patches two parallel copies of the code).
         Stores to SKIP bytes are data."""
         P = self.P
         n = 0
+        # index offsets between parallel code copies: LDX/LDY #label1-label2
+        code_names = {s['name'] for labs in P.code_label.values() for s in labs}
+        offs = {'X': set(), 'Y': set()}
+        for i in P.insns.values():
+            if i.mn in ('LDX', 'LDY') and i.mode == 'imm':
+                mn, ot = operand_text(P.src.text(i.inner['file'], i.inner['line']))
+                m = re.match(r'#\s*([A-Za-z_][\w%$]*)\s*-\s*([A-Za-z_][\w%$]*)\s*$', ot or '')
+                if m and m.group(1) in code_names and m.group(2) in code_names and i.opnd:
+                    offs[i.mn[2]].add(i.opnd)
+        self.idx_offsets = offs
         for i in P.insns.values():
             if i.mn not in STORES and i.mn not in RMW:
                 continue
@@ -339,6 +352,8 @@ class Analysis:
                 if self._indexes_data(i):
                     continue
                 rng = [i.opnd]
+                if any(j.seg == i.seg for j, _ in P.cover.get(i.opnd, ())):
+                    rng += [i.opnd + d for d in sorted(offs['X' if i.mode == 'abx' else 'Y'])]
             else:
                 continue
             for a in rng:
