@@ -51,6 +51,8 @@ import { parseArgs } from "./args.mjs";
 
 const args = parseArgs({ iters: "value", ref: "value", rsyms: "value", cand: "value", csyms: "value", seed: "value", loose: "flag", window: "value",
     out: "value", shots: "value", maxsecs: "value", nopatch: "flag", norefcache: "flag", views: "flag", trace: "value" });
+for (const [d, s] of [["ref", "rsyms"], ["cand", "csyms"]])       // (a disc with another build's symbols hooks the wrong addresses)
+    if (!args[d] !== !args[s]) { console.error(`--${d} and --${s} go together`); process.exit(2); }
 const ITERS = +(args.iters || 5000);
 const REF = args.ref || `${ROOT}master/reference/elite-master-sng47.ssd`;
 const RSYMS = args.rsyms || `${ROOT}master/reference/symbols.txt`;

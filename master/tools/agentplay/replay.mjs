@@ -4,8 +4,9 @@
 //
 // node master/tools/agentplay/replay.mjs --run DIR [--out DIR2] [--until ITER] [--keepgoing N]
 //      [--cut ITER --save FILE] [--trace FROM,TO [--tracefull]] [--shots N] [--noobserve] [--cand disc --csyms syms] [--ref disc --rsyms syms] [--log inputs.jsonl]
-// Defaults: the discs and symbols in DIR/inputs.jsonl's header (the candidate can be swapped for
-// another build to test a fix); --out DIR/replay. --until: stop after that iteration (a
+// Defaults: the discs and symbols in DIR/inputs.jsonl's header, if those discs are still the
+// ones recorded (the candidate can be swapped for another build to test a fix: --cand with
+// --csyms); --out DIR/replay. Unknown options are an error (exit 2). --until: stop after that iteration (a
 // divergence's, for a short repro). Exit status as agentplay.mjs.
 import { Session } from "./session.mjs";
 import { parseArgs } from "../../../harness/args.mjs";
@@ -27,12 +28,29 @@ if (a.cut !== undefined) {
     console.log(`${a.save}: ${keep.length} records, to iteration ${it + 1}`);
     process.exit(0);
 }
-// (the header's paths are absolute; a log moved to another checkout falls back to its
-// files of the same name under this one)
-import { existsSync } from "fs";
+// Which builds: --ref/--rsyms and --cand/--csyms, each pair given together (a disc with
+// another build's symbols hooks the wrong addresses), else the header's. The header's
+// paths are absolute, and often name another worktree's master/build, which that
+// worktree rebuilds as it goes: so a disc taken from the header must still be the one the
+// log was recorded with (its sha1 in the header), or the replay stops (exit 2) rather
+// than quietly run whatever build is there now. (A log moved to another checkout falls
+// back to its files of the same name under this one, on the same condition.)
+import { existsSync, readFileSync as rd } from "fs";
+import { createHash } from "crypto";
 import { ROOT } from "./lib.mjs";
+const sha1 = f => createHash("sha1").update(rd(f)).digest("hex").slice(0, 12);
 const here = f => !f || existsSync(f) ? f : (() => { const m = /(master\/.*)$/.exec(f); return m && existsSync(ROOT + m[1]) ? ROOT + m[1] : f; })();
-for (const k of ["ref", "rsyms", "cand", "csyms"]) h[k] = here(h[k]);
+for (const [d, s] of [["ref", "rsyms"], ["cand", "csyms"]]) {
+    if (!a[d] !== !a[s]) { console.error(`--${d} and --${s} go together (a disc and the symbols of the same build)`); process.exit(2); }
+    if (a[d]) continue;
+    h[d] = here(h[d]); h[s] = here(h[s]);
+    const want = h[d + "Sha"];
+    if (!h[d] || !existsSync(h[d])) { console.error(`the log's ${d} disc ${h[d]} is not there: pass --${d} DISC --${s} SYMS`); process.exit(2); }
+    if (want && sha1(h[d]) !== want) {
+        console.error(`the log's ${d} disc ${h[d]} has changed since the log was recorded (sha1 ${sha1(h[d])}, recorded ${want}): pass --${d} DISC --${s} SYMS for the build to replay against`);
+        process.exit(2);
+    }
+}
 const cfg = {
     out: a.out || `${a.run}/replay`, replay: log, seed: h.seed, commander: h.commander, startFrame: h.startFrame, strict: h.strict,
     ref: a.ref || h.ref, rsyms: a.rsyms || h.rsyms, cand: a.cand || h.cand, csyms: a.csyms || h.csyms,
@@ -43,6 +61,7 @@ const cfg = {
 try {
     const S = new Session(cfg);
     await S.start();
+    console.log(`ref ${S.builds.ref} (${S.builds.refSha}), cand ${S.builds.cand} (${S.builds.candSha})`);
     const s = await S.run();
     const bad = s.findings.filter(f => f.kind !== "observable" && f.kind !== "hang-both");
     console.log(`REPLAY ${bad.length ? "FINDINGS" : "CLEAN"} ${cfg.out}: ${s.compared} iterations compared, ${s.reads} reads, findings ${s.findings.length}${s.divergence ? `, first divergence at iteration ${s.divergence.iter}` : ""}`);

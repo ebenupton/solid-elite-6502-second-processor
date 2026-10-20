@@ -69,6 +69,8 @@ export class Session {
         const cmdr = COMMANDERS[cfg.commander || "jameson"];
         if (!cmdr) throw new Error(`unknown commander ${cfg.commander}`);
         const patch = cmdr.patch ? m => cmdr.patch(m) : null;
+        // the builds as booted (summary.json's builds: which discs a session or replay ran)
+        this.builds = { ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms };
         this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true });
         this.cand = new EliteMachine({ name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
         await this.ref.boot();
@@ -89,7 +91,7 @@ export class Session {
         else {
             this.agent = new Agent(cfg.agentEnv || {});
             this.chaos = cfg.chaos ? makeChaos(cfg.chaos, cfg.seed || 0) : null;
-            const header = { header: true, ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms,
+            const header = { header: true, ...this.builds,
                 seed: cfg.seed, commander: cfg.commander || "jameson", mode: cfg.mode || "efficient", agentEnv: cfg.agentEnv || {}, chaos: cfg.chaos || null, startFrame: cfg.startFrame, strict: !!cfg.strict, workarounds: cfg.workarounds || [] };
             appendFileSync(this.files.inputs, JSON.stringify(header) + "\n");
             writeFileSync(`${cfg.out}/config.json`, JSON.stringify({ ...header, minutes: cfg.minutes, iters: cfg.iters }, null, 1));
@@ -390,7 +392,7 @@ export class Session {
     summary(wall) {
         const { ref, cand, cfg } = this;
         const s = {
-            out: cfg.out, wall, frames: this.frame, gameMinutes: +(Math.max(0, this.frame) / 3000).toFixed(2),
+            out: cfg.out, builds: this.builds, wall, frames: this.frame, gameMinutes: +(Math.max(0, this.frame) / 3000).toFixed(2),
             refIters: ref.iter, candIters: cand.iter, compared: this.stats.iters, flight: ref.tt100, reads: ref.polls, keyReads: this.stats.keyPolls,
             divergence: this.div, findings: this.findings, events: this.stats.events, agentNotes: this.stats.notes,
             observables: this.obsR ? { checked: this.obsChecked, differing: this.obsDiffs, kinds: this.obsKinds || {}, expected: this.obsExpected || {} } : null,
