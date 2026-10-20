@@ -143,21 +143,16 @@
 .hso8
  CLC                    \ outside record mode: star Y is no longer drawn
  JMP G_DSTAR            \ (returns C set, X and Y kept)
-\ H_EE31: LL9 has projected the ship (part 9, EE31); in record mode record it
-\ (and its laser beam if it is firing at us) instead of drawing its edges, and
-\ return from LL9. What LL9's parts 9 to 12 leave that the game reads is set
+\ H_EE31: LL9 has projected the ship (part 9, EE31, which jumps here: every
+\ LL9 records, as nothing draws a ship directly, docs/MASTER-PLAN.md, "The
+\ briefings"): record it (and its laser beam if it is firing at us) and
+\ return from LL9. What LL9's parts 9 to 12 left that the game reads is set
 \ as they would: bit 3 of byte #31 (on screen), bit 6 cleared if it fired,
-\ XX20 (edges) and CNT (the blueprint's heap size, which LL170 leaves there),
-\ and the ship line heap's byte #0 = LSNUM = 1 (no lines on the heap, so the
-\ next LL9 has nothing to erase)
+\ XX20 (edges) and CNT (the blueprint's heap size, which LL170 leaves there);
+\ and it returns as LSCLR does (A = 1, Y = 0, C set). The ship line heap is
+\ not written (only the explosion clouds use it, DOEXP)
 
 .H_EE31
- LDA QQ11
- ORA GFORCE
- BEQ P%+3
- RTS
- PLA
- PLA
  LDY #9                 \ XX20 = the number of edges (as EE31)
  LDA (XX0),Y
  STA XX20
@@ -234,44 +229,10 @@
  LDY #5                 \ CNT = the blueprint's maximum heap size (as LL170)
  LDA (XX0),Y
  STA CNT
- LDA #1                 \ an empty line heap (as LSC2 would store it), and
- STA LSNUM              \ A = LSNUM, Y = 0, C set, as LSCLR returns
+ LDA #1                 \ A = 1, Y = 0, C set, as LSCLR returns
  LDY #0
- STA (XX19),Y
  SEC
  RTS
-
-\ H_LSCLR: in record mode there are no ship lines on screen to erase: just
-\ store LSNUM in the heap's byte #0 and return, as LSCLR's LSC2 does (A =
-\ LSNUM, Y = 0, C set: LL9's callers go on to DORND, which takes in C)
-
-.H_LSCLR
- LDA QQ11
- ORA GFORCE
- BEQ P%+3
- RTS
- PLA
- PLA
- LDA LSNUM
- LDY #0
- STA (XX19),Y
- SEC                    \ (LSC2 is reached with C set)
- RTS
-
-\ H_SHPPT: SHPPT has a distant ship's dot on screen at (K3, K4); in record
-\ mode record it and carry on at SHPPT2 (bit 3 of byte #31, then LSCLR),
-\ skipping the two dashes
-
-.H_SHPPT
- LDA QQ11
- ORA GFORCE
- BEQ P%+3
- RTS
- PLA
- PLA
- JSR G_SHPPT
- JMP SHPPT2
-
 
 \ H_DOT: PIXEL with X = x, A = y (in record mode only DOEXP's explosion
 \ particles reach it; stars are recorded by H_STAR): the dot is recorded

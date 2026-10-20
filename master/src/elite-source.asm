@@ -822,6 +822,10 @@ ENDIF
                         \ we are drawing in LL9, i.e. the number of lines in the
                         \ old ship that is currently shown on-screen and which
                         \ we need to erase
+                        \
+                        \ Port: LSNUM and LSNUM2 are no longer used, as nothing
+                        \ draws a ship directly (LL9 records every ship); they
+                        \ keep their places, so zero page is the original's
 
 .RAT
 
@@ -42089,18 +42093,9 @@ ENDMACRO
  BCS nono               \ the bottom of the screen, jump to nono as the ship's
                         \ dot is off the bottom of the space view
 
- JSR H_SHPPT            \ Port: in record mode, record the dot for the renderer
-                        \ and continue at SHPPT2 (gfx-hooks.asm)
-
- JSR Shpt               \ Call Shpt to draw a horizontal four-pixel dash for the
-                        \ first row of the dot (i.e. a four-pixel dash)
-
- LDA K4                 \ Set A = y-coordinate of dot + 1 (so this is the second
- CLC                    \ row of the two-pixel high dot)
- ADC #1
-
- JSR Shpt               \ Call Shpt to draw a horizontal four-pixel dash for the
-                        \ second row of the dot (i.e. a four-pixel dash)
+ JSR G_SHPPT            \ Port: record the dot for the renderer (gfx-gstubs.asm)
+                        \ instead of drawing its two four-pixel dashes with
+                        \ Shpt (removed, below)
 
 .SHPPT2
 
@@ -42122,32 +42117,9 @@ ENDMACRO
                         \ still in the ship line heap and return from the
                         \ subroutine using a tail call
 
-.Shpt
-
-                        \ This routine draws a horizontal four-pixel dash, for
-                        \ either the top or the bottom of the ship's dot
-
- STA Y1                 \ Store A in both y-coordinates, as this is a horizontal
- STA Y2                 \ dash at y-coordinate A
-
- LDA K3                 \ Set A = screen x-coordinate of the ship dot
-
- STA X1                 \ Store the x-coordinate of the ship dot in X1, as this
-                        \ is where the dash starts
-
- CLC                    \ Set A = screen x-coordinate of the ship dot + 3
- ADC #3
-
- BCC P%+4               \ If the addition overflowed, set A = 255, the
- LDA #255               \ x-coordinate of the right edge of the screen
-
- STA X2                 \ Store the x-coordinate of the ship dot in X1, as this
-                        \ is where the dash starts
-
- JMP LSPUT              \ Draw this edge using flicker-free animation, by first
-                        \ drawing the ship's new line and then erasing the
-                        \ corresponding old line from the screen, and return
-                        \ from the subroutine using a tail call
+                        \ Port: Shpt, which drew a dash of the dot and put it on
+                        \ the ship line heap (LSPUT), is removed: the dot is
+                        \ recorded (G_SHPPT, above)
 
 \ ******************************************************************************
 \
@@ -42814,36 +42786,16 @@ ENDMACRO
                         \ update this value below with the actual ship's
                         \ distance if it turns out to be visible on-screen
 
-                        \ We now set things up for flicker-free ship plotting,
-                        \ by setting the following:
-                        \
-                        \   LSNUM = offset to the first coordinate in the ship's
-                        \           line heap
-                        \
-                        \   LSNUM2 = the number of bytes in the heap for the
-                        \            ship that's currently on-screen (or 0 if
-                        \            there is no ship currently on-screen)
+                        \ Port: the set-up for flicker-free ship plotting is
+                        \ removed: LSNUM = 1 (the offset of the first set of
+                        \ line coordinates in the ship line heap) and LSNUM2 =
+                        \ the heap's byte #0 (the size of the heap of the ship
+                        \ on screen), which only the line drawing read (parts
+                        \ 10 to 12 and LSPUT: nothing is drawn directly, every
+                        \ LL9 records, H_EE31)
 
- LDY #1                 \ Set LSNUM = 1, the offset of the first set of line
- STY LSNUM              \ coordinates in the ship line heap
-
- DEY                    \ Decrement Y to 0
-
- LDA #%00001000         \ If bit 3 of the ship's byte #31 is set, then the ship
- BIT INWK+31            \ is currently being drawn on-screen, so skip the
- BNE P%+5               \ following two instructions
-
- LDA #0                 \ The ship is not being drawn on screen, so set A = 0
-                        \ so that LSNUM2 gets set to 0 below (as there are no
-                        \ existing coordinates on the ship line heap for this
-                        \ ship)
-
- EQUB &2C               \ Skip the next instruction by turning it into
-                        \ &2C &B1 &BD, or BIT &BDB1 which does nothing apart
-                        \ from affect the flags
-
- LDA (XX19),Y           \ Set LSNUM2 to the first byte of the ship's line heap,
- STA LSNUM2             \ which contains the number of bytes in the heap
+ LDY #0                 \ Port: Y = 0, as that set-up left it (LL9 returns with
+                        \ it through EE51's RTS)
 
  LDA NEWB               \ If bit 7 of the ship's NEWB flags is set, then the
  BMI EE51               \ ship has been scooped or has docked, so jump down to
@@ -42946,7 +42898,8 @@ ENDMACRO
 
  JMP LSCLR              \ Jump to LSCLR to draw the ship, which removes it from
                         \ the screen, returning from the subroutine using a
-                        \ tail call
+                        \ tail call (Port: the frame layer draws only what is
+                        \ recorded, so LSCLR just returns as it did)
 
  RTS                    \ Return from the subroutine
 
@@ -44596,109 +44549,12 @@ ENDMACRO
 
 .EE31
 
- JSR H_EE31             \ Port: in record mode, record the ship for the renderer
-                        \ and return from LL9 (gfx-hooks.asm)
-
- LDY #9                 \ Fetch byte #9 of the ship's blueprint, which is the
- LDA (XX0),Y            \ number of edges, and store it in XX20
- STA XX20
-
- LDA #%00001000         \ Set bit 3 of A so the next instruction sets bit 3 of
-                        \ the ship's byte #31 to denote that we are drawing
-                        \ something on-screen for this ship
-
- ORA XX1+31             \ Apply bit 3 of A to the ship's byte #31, so if there
- STA XX1+31             \ was no ship already on screen, the bit is clear,
-                        \ otherwise it is set
-
- LDY #0                 \ Set XX17 = 0, which we are going to use as a counter
-\STY LSNUM              \ for stepping through the ship's edges
- STY XX17               \
-                        \ The STY is commented out in the original source
-
- BIT XX1+31             \ If bit 6 of the ship's byte #31 is clear, then the
- BVC LL170              \ ship is not firing its lasers, so jump to LL170 to
-                        \ skip the drawing of laser lines
-
-                        \ The ship is firing its laser at us, so we need to draw
-                        \ the laser lines
-
- LDA XX1+31             \ Clear bit 6 of the ship's byte #31 so the ship doesn't
- AND #%10111111         \ keep firing endlessly
- STA XX1+31
-
- LDY #6                 \ Fetch byte #6 of the ship's blueprint, which is the
- LDA (XX0),Y            \ number * 4 of the vertex where the ship has its lasers
-
- TAY                    \ Put the vertex number into Y, where it can act as an
-                        \ index into list of vertex screen coordinates we added
-                        \ to the XX3 heap
-
- LDX XX3,Y              \ Fetch the x_lo coordinate of the laser vertex from the
- STX XX15               \ XX3 heap into XX15
-
- INX                    \ If X = 255 then the laser vertex is not visible, as
- BEQ LL170              \ the value we stored in part 2 wasn't overwritten by
-                        \ the vertex calculation in part 6 and 7, so jump to
-                        \ LL170 to skip drawing the laser lines
-
-                        \ We now build a laser beam from the ship's laser vertex
-                        \ towards our ship, as follows:
-                        \
-                        \   XX15(1 0) = laser vertex x-coordinate
-                        \
-                        \   XX15(3 2) = laser vertex y-coordinate
-                        \
-                        \   XX15(5 4) = x-coordinate of the end of the beam
-                        \
-                        \   XX12(1 0) = y-coordinate of the end of the beam
-                        \
-                        \ The end of the laser beam will be positioned to look
-                        \ good, rather than being directly aimed at us, as
-                        \ otherwise we would only see a flashing point of light
-                        \ as they unleashed their attack
-
- LDX XX3+1,Y            \ Fetch the x_hi coordinate of the laser vertex from the
- STX XX15+1             \ XX3 heap into XX15+1
-
- INX                    \ If X = 255 then the laser vertex is not visible, as
- BEQ LL170              \ the value we stored in part 2 wasn't overwritten by
-                        \ a vertex calculation in part 6 and 7, so jump to LL170
-                        \ to skip drawing the laser beam
-
- LDX XX3+2,Y            \ Fetch the y_lo coordinate of the laser vertex from the
- STX XX15+2             \ XX3 heap into XX15+2
-
- LDX XX3+3,Y            \ Fetch the y_hi coordinate of the laser vertex from the
- STX XX15+3             \ XX3 heap into XX15+3
-
- LDA #0                 \ Set XX15(5 4) = 0, so their laser beam fires to the
- STA XX15+4             \ left edge of the screen
- STA XX15+5
-
- STA XX12+1             \ Set XX12(1 0) = the ship's z_lo coordinate, which will
- LDA XX1+6              \ effectively make the vertical position of the end of
- STA XX12               \ the laser beam move around as the ship moves in space
-
- LDA XX1+2              \ If the ship's x_sign is positive, skip the next
- BPL P%+4               \ instruction
-
- DEC XX15+4             \ The ship's x_sign is negative (i.e. it's on the left
-                        \ side of the screen), so switch the laser beam so it
-                        \ goes to the right edge of the screen by decrementing
-                        \ XX15(5 4) to 255
-
- JSR CLIP               \ Call CLIP to see if the laser beam needs to be
-                        \ clipped to fit on-screen, returning the clipped line's
-                        \ end-points in (X1, Y1) and (X2, Y2)
-
- BCS LL170              \ If the C flag is set then the line is not visible on
-                        \ screen, so jump to LL170 so we don't store this line
-                        \ in the ship line heap
-
- JSR LSPUT              \ Draw the laser line using flicker-free animation, by
-                        \ first drawing the new laser line and then erasing the
-                        \ corresponding old line from the screen
+ JMP H_EE31             \ Port: record the ship for the renderer, with its
+                        \ laser beam if it is firing at us, and return from LL9
+                        \ as parts 9 to 12 would (gfx-hooks.asm): every LL9
+                        \ records (docs/MASTER-PLAN.md, "The briefings"), so
+                        \ the rest of this part, which drew the beam and put it
+                        \ on the ship line heap, is removed
 
 \ ******************************************************************************
 \
@@ -44722,137 +44578,10 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.LL170
-
- LDY #3                 \ Fetch byte #3 of the ship's blueprint, which contains
- CLC                    \ the low byte of the offset to the edges data
- LDA (XX0),Y
-
- ADC XX0                \ Set V = low byte edges offset + XX0
- STA V
-
- LDY #16                \ Fetch byte #16 of the ship's blueprint, which contains
- LDA (XX0),Y            \ the high byte of the offset to the edges data
-
- ADC XX0+1              \ Set V+1 = high byte edges offset + XX0+1
- STA V+1                \
-                        \ So V(1 0) now points to the start of the edges data
-                        \ for this ship
-
- LDY #5                 \ Fetch byte #5 of the ship's blueprint, which contains
- LDA (XX0),Y            \ the maximum heap size for plotting the ship (which is
- STA CNT                \ 1 + 4 * the maximum number of visible edges) and store
-                        \ it in CNT
-
-.LL75
-
- LDY #0                 \ Set Y = 0 so we start with byte #0
-
- LDA (V),Y              \ Fetch byte #0 for this edge, which contains the
-                        \ visibility distance for this edge, beyond which the
-                        \ edge is not shown
-
- CMP XX4                \ If XX4 > the visibility distance, where XX4 contains
- BCC LL78               \ the ship's z-distance reduced to 0-31 (which we set in
-                        \ part 2), then this edge is too far away to be visible,
-                        \ so jump down to LL78 to move on to the next edge
-
- INY                    \ Increment Y to point to byte #1
-
- LDA (V),Y              \ Fetch byte #1 for this edge into A, so:
-                        \
-                        \   A = %ffff ffff, where:
-                        \
-                        \     * Bits 0-3 = the number of face 1
-                        \
-                        \     * Bits 4-7 = the number of face 2
-
- STA P                  \ Store byte #1 into P
-
- AND #%00001111         \ Extract the number of face 1 into X
- TAX
-
- LDA XX2,X              \ If XX2+X is non-zero then we decided in part 5 that
- BNE LL79               \ face 1 is visible, so jump to LL79
-
- LDA P                  \ Fetch byte #1 for this edge into A
-
- LSR A                  \ Shift right four times to extract the number of face 2
- LSR A                  \ from bits 4-7 into X
- LSR A
- LSR A
- TAX
-
- LDA XX2,X              \ If XX2+X is zero then we decided in part 5 that
- BEQ LL78               \ face 2 is hidden, so jump to LL78
-
-.LL79
-
-                        \ We now build the screen line for this edge, as
-                        \ follows:
-                        \
-                        \   XX15(1 0) = start x-coordinate
-                        \
-                        \   XX15(3 2) = start y-coordinate
-                        \
-                        \   XX15(5 4) = end x-coordinate
-                        \
-                        \   XX12(1 0) = end y-coordinate
-                        \
-                        \ We can then pass this to the line clipping routine
-                        \ before storing the resulting line in the ship line
-                        \ heap
-
- INY                    \ Increment Y to point to byte #2
-
- LDA (V),Y              \ Fetch byte #2 for this edge into X, which contains
- TAX                    \ the number of the vertex at the start of the edge
-                        \
-                        \ Byte #2 contains the vertex number multiplied by 4,
-                        \ so we can use it as an index into the heap at XX3 to
-                        \ fetch the vertex's screen coordinates, which are
-                        \ stored as four bytes containing two 16-bit numbers
-
- LDA XX3,X              \ Fetch the x_lo coordinate of the edge's start vertex
- STA XX15               \ from the XX3 heap into XX15
-
- LDA XX3+1,X            \ Fetch the x_hi coordinate of the edge's start vertex
- STA XX15+1             \ from the XX3 heap into XX15+1
-
- LDA XX3+2,X            \ Fetch the y_lo coordinate of the edge's start vertex
- STA XX15+2             \ from the XX3 heap into XX15+2
-
- LDA XX3+3,X            \ Fetch the y_hi coordinate of the edge's start vertex
- STA XX15+3             \ from the XX3 heap into XX15+3
-
- INY                    \ Increment Y to point to byte #3
-
- LDA (V),Y              \ Fetch byte #3 for this edge into X, which contains
- TAX                    \ the number of the vertex at the end of the edge
-
- LDA XX3,X              \ Fetch the x_lo coordinate of the edge's end vertex
- STA XX15+4             \ from the XX3 heap into XX15+4
-
- LDA XX3+2,X            \ Fetch the y_lo coordinate of the edge's end vertex
- STA XX12               \ from the XX3 heap into XX12
-
- LDA XX3+3,X            \ Fetch the y_hi coordinate of the edge's end vertex
- STA XX12+1             \ from the XX3 heap into XX12+1
-
- LDA XX3+1,X            \ Fetch the x_hi coordinate of the edge's end vertex
- STA XX15+5             \ from the XX3 heap into XX15+5
-
- JSR CLIP2              \ Call CLIP2 to see if the new line segment needs to be
-                        \ clipped to fit on-screen, returning the clipped line's
-                        \ end-points in (X1, Y1) and (X2, Y2)
-
- BCS LL78               \ If the C flag is set then the line is not visible on
-                        \ screen, so jump to LL78 so we don't store this line
-                        \ in the ship line heap
-
- JSR LSPUT              \ Draw this edge using flicker-free animation, by first
-                        \ drawing the ship's new line and then erasing the
-                        \ corresponding old line from the screen
+                        \ Port: removed (nothing is drawn directly: H_EE31
+                        \ records the ship, and the frame layer fills its faces
+                        \ and draws its edges, so no edge is clipped or put on
+                        \ the ship line heap here)
 
 \ ******************************************************************************
 \
@@ -44871,35 +44600,8 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.LL78
-
- LDA LSNUM              \ If LSNUM >= CNT, skip to LL81 so we don't loop back
- CMP CNT                \ for the next edge (CNT was set to the maximum heap
- BCS LL81               \ size for this ship in part 10, so this checks whether
-                        \ we have just run out of space in the ship line heap,
-                        \ and stops drawing edges if we have)
-
- LDA V                  \ Increment V by 4 so V(1 0) points to the data for the
- CLC                    \ next edge
- ADC #4
- STA V
-
- BCC P%+4               \ If the above addition didn't overflow, skip the
-                        \ following instruction
-
- INC V+1                \ Otherwise increment the high byte of V(1 0), as we
-                        \ just moved the V(1 0) pointer past a page boundary
-
- INC XX17               \ Increment the edge counter to point to the next edge
-
- LDY XX17               \ If Y < XX20, which contains the number of edges in
- CPY XX20               \ the blueprint, loop back to LL75 to process the next
- BCC LL75               \ edge
-
-.LL81
-
- JMP LSCLR              \ Jump down to part 12 below to draw any remaining lines
-                        \ from the old ship that are still in the ship line heap
+                        \ Port: removed (the edge loop of part 10, and LL81's
+                        \ call of LSCLR after it)
 
 \ ******************************************************************************
 \
@@ -45981,52 +45683,17 @@ ENDMACRO
 
 .LSCLR
 
- JSR H_LSCLR            \ Port: in record mode there are no lines to erase
-                        \ (gfx-hooks.asm)
+                        \ Port: nothing is drawn directly, so no old lines are
+                        \ on the screen to erase (LSC1 is removed) and the
+                        \ heap's byte #0 is not written (LSC2): nothing reads
+                        \ it but DOEXP, which writes it first. LSCLR returns as
+                        \ LSC2 did, with A = 1 (LSNUM, the empty heap's), Y = 0
+                        \ and C set (LL9's callers go on to DORND, which takes
+                        \ in C)
 
- LDY LSNUM              \ Set Y to the offset in the line heap LSNUM
-
-.LSC1
-
- CPY LSNUM2             \ If Y >= LSNUM2, jump to LSC2 to return from the ship
- BCS LSC2               \ drawing routine, because the index in Y is greater
-                        \ than the size of the existing ship line heap, which
-                        \ means we have already erased all the old ship's lines
-                        \ when drawing the new ship
-
-                        \ If we get here then Y < LSNUM2, which means Y is
-                        \ pointing to an on-screen line from the old ship that
-                        \ we need to erase
-
- LDA (XX19),Y           \ Fetch the X1 line coordinate from the heap and store
- INY                    \ it in XX15, incrementing the heap pointer
- STA XX15
-
- LDA (XX19),Y           \ Fetch the Y1 line coordinate from the heap and store
- INY                    \ it in XX15+1, incrementing the heap pointer
- STA XX15+1
-
- LDA (XX19),Y           \ Fetch the X2 line coordinate from the heap and store
- INY                    \ it in XX15+2, incrementing the heap pointer
- STA XX15+2
-
- LDA (XX19),Y           \ Fetch the Y2 line coordinate from the heap and store
- INY                    \ it in XX15+3, incrementing the heap pointer
- STA XX15+3
-
- JSR LOIN               \ Draw a line from (X1, Y1) to (X2, Y2) to erase it from
-                        \ the screen
-
- JMP LSC1               \ Loop back to LSC1 to draw (i.e. erase) the next line
-                        \ from the heap
-
-.LSC2
-
- LDA LSNUM              \ Store LSNUM in the first byte of the ship line heap
+ LDA #1
  LDY #0
- STA (XX19),Y
-
-.LSC3
+ SEC
 
  RTS                    \ Return from the subroutine
 
@@ -46084,74 +45751,9 @@ ENDMACRO
 \
 \ ******************************************************************************
 
-.LSPUT
-
- LDY LSNUM              \ Set Y = LSNUM, to get the offset within the ship line
-                        \ heap where we want to insert our new line
-
- CPY LSNUM2             \ Compare LSNUM and LSNUM2 and store the flags on the
- PHP                    \ stack so we can retrieve them later
-
- LDX #3                 \ We now want to copy the line coordinates (X1, Y1) and
-                        \ (X2, Y2) to XX12...XX12+3, so set a counter to copy
-                        \ 4 bytes
-
-.LSC4
-
- LDA X1,X               \ Copy the X-th byte of X1/Y1/X2/Y2 to the X-th byte of
- STA XX12,X             \ XX12
-
- DEX                    \ Decrement the loop counter
-
- BPL LSC4               \ Loop back until we have copied all four bytes
-
- JSR LOIN               \ Draw a line from (X1, Y1) to (X2, Y2)
-
- LDA (XX19),Y           \ Set X1 to the Y-th coordinate on the ship line heap,
- STA X1                 \ i.e. the one we are replacing in the heap
-
- LDA XX12               \ Replace it with the X1 coordinate in XX12
- STA (XX19),Y
-
- INY                    \ Increment the index to point to the Y1 coordinate
-
- LDA (XX19),Y           \ Set Y1 to the Y-th coordinate on the ship line heap,
- STA Y1                 \ i.e. the one we are replacing in the heap
-
- LDA XX12+1             \ Replace it with the Y1 coordinate in XX12+1
- STA (XX19),Y
-
- INY                    \ Increment the index to point to the X2 coordinate
-
- LDA (XX19),Y           \ Set X2 to the Y-th coordinate on the ship line heap,
- STA X2                 \ i.e. the one we are replacing in the heap
-
- LDA XX12+2             \ Replace it with the X2 coordinate in XX12+2
- STA (XX19),Y
-
- INY                    \ Increment the index to point to the Y2 coordinate
-
- LDA (XX19),Y           \ Set Y2 to the Y-th coordinate on the ship line heap,
- STA Y2                 \ i.e. the one we are replacing in the heap
-
- LDA XX12+3             \ Replace it with the Y2 coordinate in XX12+3
- STA (XX19),Y
-
- INY                    \ Increment the index to point to the next coordinate
- STY LSNUM              \ and store the updated index in LSNUM
-
- PLP                    \ Restore the result of the comparison above, so if the
- BCS LSC3               \ original value of LSNUM >= LSNUM2, then we have
-                        \ already redrawn all the lines from the old ship's line
-                        \ heap, so return from the subroutine (as LSC3 contains
-                        \ an RTS)
-
- JMP LOIN               \ Otherwise there are still more lines to erase from the
-                        \ old ship on-screen, so the coordinates in (X1, Y1) and
-                        \ (X2, Y2) that we just pulled from the ship line heap
-                        \ point to a line that is still on-screen, so call LOIN
-                        \ to draw this line and erase it from the screen,
-                        \ returning from the subroutine using a tail call
+                        \ Port: removed (nothing is drawn directly, so no line
+                        \ is put on the ship line heap: LL9 records the ship,
+                        \ H_EE31, and SHPPT the dot, G_SHPPT)
 
 \ ******************************************************************************
 \
