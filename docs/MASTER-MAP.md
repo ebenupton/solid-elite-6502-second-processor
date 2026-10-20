@@ -89,25 +89,25 @@ which spare RAM the port may take.
 | Zero page, stack, K% | &0000-&00E3, &0100-&01FF, &0400-&07FF | Elite's workspaces, as Master Elite | - |
 | WP | main &0841-&0CA9 | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E | 87 (&0840, &0CAA-&0CFF) |
 | Free | main &0E00-&0E3F | | 64 |
-| Shared workspace | main &0E40-&1EFF | the renderer's shared state, one block ending where the main code starts: R_NDN (&0E40), the rasteriser's per-call scratch (&0F00-&118F, R_NDISCL page aligned), DFSST and DFSIN (&1190-&1210), R_WL (&1240), R_SS and F_DSS (&1300), raster_vars at its fixed place (&1333: R_DIRTYR0 at &14B5 for f_sight2), R_SX, R_SY, R_SN, R_SCOL, the lens flare's variables, R_WR (&1E40) | 105 (47, 6, 52) |
+| Shared workspace | main &0E40-&1EFF | the renderer's shared state, one block ending where the main code starts: R_NDN (&0E40), the rasteriser's per-call scratch (&0F00-&118F, R_NDISCL page aligned), DFSST and DFSIN (&1190-&1210), R_WL (&1240), R_SS and F_DSS (&1300), raster_vars at its fixed place (&1333: R_DIRTYR0 at &14B5 for f_sight2), R_SX, R_SY, R_SN, R_SCOL, R_WR (&1E40) | 115 (47, 6, 62) |
 | Main code (BCODE) | main &1F00-&3F52 | Elite's main code and data in the original's order, from the font and the log tables (page aligned) on: below &3000 (to &290D) the IRQ and sound, the far-call code, the raster stubs, NEWBRK's start, HANGFLAG, CHPR, ADDK, UP; then the main flight loop, MALW, MALC, stardust, the planet and sun, maths, NA% and the disc commands' data, DOCKIT and the tactics helpers, ... up to DVID4 | 173 (1778 below &3000) |
 | Buffer 0, dashboard copy | main &4000-&71FF | the screen (rule 6); &4000-&5FFF also HAZEL's stash during a disc command | - |
 | High code | main &7200-&7DCA | the quarter-square tables QSL/QSH (page-aligned at &7200); the renderer's game-context side (G_ stubs, hooks, the lighting's L_SUN and L_REC); the far7 stubs into the cold area | 565 |
 | Bank 4 | &8000-&B7A5, &BF00-&BFFF | Elite's home bank, code only: the main code from DVL9a (DVID3B's rare paths) to F% (&8000-&9480: the maths after DVID4, LASLI, DOEXP, the planet, the main game loop, WARP, DOKEY, TIDY and TIS2, FILLKL, SIGHT, the sounds, ...); then elite-bank4.asm: Master's drawing (still used by the docked screens: LOIN, HLOIN, PIXEL, PIX1, TTX66, CLYNS, ...), flight code (TACTICS, LL5, LL9F and LL9, MVEIT, MV40, LOOK1, DEATH, pl4pat), the CMYK dashboard (elite-dash.asm: DIALS, SCAN, DOT, the bulbs, MSBAR, and their variables DASHV); the hangar's line heap HANGHEAP at &BF00 | 1882 |
 | Cold area: ANDY | ANDY &8000-&8FED | cold code, docked and flight-rare: market, equipment, charts, system data, status, missions, pause, messages, number printing, TT66, ESCAPE, ANGRY | 18 |
 | Cold area: bank 7 | bank 7 COLD7LO (&AB00)-&BEEC | QQ18, the x4_/j4_ stubs out of the cold area, the cold code (text and tokens, title and start-up, save and load and DOSCLI, hyperspace, launch and docking, the hangar, the market table QQ23, FRMIS, FRS1, FR1, Ze) | 275 |
-| Rasteriser | bank 5 &8000-&BCD6 | the rasteriser (gfx-raster.asm): its per-x tables; the 24 row-run pages, whose 66-byte tails hold its variables, small routines and the high-byte tables R_SETBUF patches from; the boundary arrays (R_BD*, both buffers, &9C00-&A57F, with r_rowset, r_dw and r_bstore in the 128 bytes between the buffers); 8-bit polygons and every polygon's phase B, discs, spans, dots, stars | 809 (+ 350 in the tails) |
-| Frame layer | bank 6 &8000-&ADCB code, &ADCC-&BF3D data | the frame layer (gfx-frame.asm), the faces of the 33 ships (gfx-faces.asm), the lighting tables (gfx-light6.asm), frame_cold (with f_b0new) and the flare's bank 6 part (f_flt, fl_or and its tables); then its state: F_HW, F_HW2, F_DL, the text maps, the directly drawn stars (F_DSX, F_DSY) | 194 |
+| Rasteriser | bank 5 &8000-&BFE8 | the rasteriser (gfx-raster.asm): its per-x tables; the 24 row-run pages, whose 66-byte tails hold its variables, small routines and the high-byte tables R_SETBUF patches from (and the lens flare's half-width table and variables); the boundary arrays (R_BD*, both buffers, &9C00-&A57F, with r_rowset, r_dw and r_bstore in the 128 bytes between the buffers); 8-bit polygons and every polygon's phase B, discs, spans, dots, stars; then the lens flare (gfx-flare.asm: R_FLARE) | 23 (+ 278 in the tails) |
+| Frame layer | bank 6 &8000-&ADCA code, &ADCB-&BF3C data | the frame layer (gfx-frame.asm), the faces of the 33 ships (gfx-faces.asm), the lighting tables (gfx-light6.asm), frame_cold (with f_b0new) and the flare's step (f_flt: its tests on bank 6's state, then T_FLARE); then its state: F_HW, F_HW2, F_DL, the text maps, the directly drawn stars (F_DSX, F_DSY) | 195 |
 | Rasteriser bank 7 | bank 7 &8000-&AAD4 | the rasteriser's second bank (gfx-raster7.asm): the 24 row-run pages first (they must be whole pages), their tails holding R_LINE's and the 16-bit polygons' variables and the small routines; its tables; R_LINE (all of it: T_LINE pages bank 7), the 16-bit polygons' phase A, the dirty repair, R_INIT | 43 (to COLD7LO; + 723 in the tails) |
 | HAZEL | &C000-&C2AD | the game data: the Cougar's and the Dodo's blueprints, SNE, ACT (read only: DFS writes here during a command) | 82 (to &C300) |
-| HAZEL glue | &C300-&C491 | the renderer's glue, visible whatever is paged: shared variables (gfx-gvars: GMODE, GFRONT, GFLIP, ..., GSTASH), the T_ trampolines into banks 5 and 7, the text and IRQ hooks (G_CHAR, G_DELCHAR, G_CLRTEXT, H_CHAR, H_DEL, H_VSYNC), GWARP | 55 (to XX21) |
+| HAZEL glue | &C300-&C49E | the renderer's glue, visible whatever is paged: shared variables (gfx-gvars: GMODE, GFRONT, GFLIP, ..., GSTASH), the T_ trampolines into banks 5 and 7, the text and IRQ hooks (G_CHAR, G_DELCHAR, G_CLRTEXT, H_CHAR, H_DEL, H_VSYNC), GWARP | 42 (to XX21) |
 | HAZEL | &C4C9-&DFFF | the game data: XX21 (written: &C300-&D8FF), E%, KWL%, KWH%, the missile's to the Constrictor's blueprints (from &D900 on in places DFS and the MOS overwrite during a command) | - |
-| Shadow &3000-&3FFF | &3000-&307F, &3090-&30FF, &3100-&3EFF, &3F00-&3FFC | the flare (FLARE0), the zero-page save (setzp/getzp), the extended tokens (TOKENS), the flare (FLARE3) | 16, 3 |
+| Shadow &3000-&3FFF | &3090-&30FF, &3100-&3EFF | the zero-page save (setzp/getzp), the extended tokens (TOKENS); nothing new goes into shadow RAM | 144 (&3000-&308F), 256 (&3F00-&3FFF) |
 | Buffer 1, dashboard | shadow &4000-&7DFF | the screen (rule 6) | - |
-| Shadow &7E00-&7FF8 | | the flare (FLARE7; not displayed) | 7 |
+| Shadow &7E00-&7FFF | | unused (not displayed) | 512 |
 
 The loader (`M128Elt`) loads each file to &1300 and copies it into place
-(FTAB): BDATA (the dashboard image), FLARE7, FLARE3, FLARE0, TOKENS, BANK4,
+(FTAB): BDATA (the dashboard image), TOKENS, BANK4,
 ANDY, COLD7, BANK5, BANK6, RAST7, HAZEL (8K, staged at &4000), HICODE, BDATA
 again (the first row in main RAM); then it loads BCODE to &1F00 (its address
 from the build). The loader is at &0E00, in the shared workspace's place, so
@@ -120,7 +120,7 @@ workspace.
 
 * **Main RAM below the main code** holds the renderer's shared workspace:
   variables that the rasteriser's two banks, the frame layer, the game's
-  hooks, the IRQ handler and the lens flare (which runs with X = 1) share.
+  hooks and the IRQ handler share.
   Below &3000 every one of them sees it, whatever bank is paged and whatever
   ACCCON X is; the renderer initialises it (R_INIT, F_INIT), so it needs no
   image. It is one block from &0E40 to the main code; the page &0D below it
@@ -156,8 +156,8 @@ workspace.
   (rule 5) and the renderer's glue (rule 10), laid out for disc commands
   (rule 8).
 * **Shadow RAM** outside the screen holds data read only with X = 1 (the
-  extended tokens, through TKRD, RUPRD and RUGRD) and the lens flare's code,
-  which runs with X = 1 from the frame layer.
+  extended tokens, through TKRD, RUPRD and RUGRD) and the zero-page save;
+  nothing more goes there (the lens flare left it for bank 5).
 
 ## Calls between regions
 
@@ -169,7 +169,7 @@ through a stub; the stubs are of four kinds.
 | far7 / far7j stubs (`.TT22 JSR far7 : EQUW TT22_C`) | main: the high code | 48 | the cold area in, the caller's bank back |
 | far4 / far4j stubs (`.x4_TT26 JSR far4 : EQUW TT26`) | the cold area (elite-coldstubs.asm), and TTX66M in main | 49 | bank 4 in, the cold area back |
 | G_ stubs | main (gfx-gstubs.asm, 12) and HAZEL (G_CHAR, G_DELCHAR, G_CLRTEXT) | 15 | bank 6 in, bank 4 (or, from HAZEL, the caller's bank) back |
-| T_ trampolines; r_call7 / r_call5 | HAZEL; main below &3000 | 11; 2 | bank 5 (T_LINE: bank 7) in, bank 6 back; bank 7 <-> bank 5 |
+| T_ trampolines; r_call7 / r_call5 | HAZEL; main below &3000 | 12; 2 | bank 5 (T_LINE: bank 7) in, bank 6 back; bank 7 <-> bank 5 |
 
 far7, far4 and their jump forms are the only far-call helpers (elite-far.asm).
 A far call costs about 100 cycles; in the gate's run the flight iterations
@@ -183,7 +183,7 @@ branches never cross areas; cold code reaches main RAM and bank 4 only through
 x4_/j4_ stubs (an address, #LO/#HI, is not a reach) and the others reach it
 only through far7 stubs; the main files' labels assembled at &8000-&BFFF are
 bank 4's; shadow data is read only by readers marked `bankcheck: ok`; the
-renderer's banks (bank5, bank6, bank7r, the flare's shadow code) are entered
+renderer's banks (bank5, bank6, bank7r) are entered
 from elsewhere only through the stub files or by address, call nothing in
 another bank, read no other bank's data and read main RAM only below &3000;
 HAZEL and the shared workspace are visible to every area. Deliberate
@@ -312,21 +312,21 @@ variables and routines of under 66 bytes each.
 | Region | At d090015 | Now |
 |---|---:|---:|
 | Low code (then); WP's pages &0840-&0CFF (now: &0840, &0CAA-&0CFF) | 14 | 87 |
-| Shared workspace &0E00-&1EFF | - | 169 (64 below it; 47, 6, 52 in it) |
+| Shared workspace &0E00-&1EFF | - | 179 (64 below it; 47, 6, 62 in it) |
 | Main code (BCODE) | 72 | 173 (1778 below &3000) |
 | High code | 137 | 565 |
 | Bank 4 | 30 | 1882 |
 | ANDY | 5 | 18 |
 | Bank 7 cold area | 271 | 275 |
-| Bank 5 | 809 (+ 350 in tails) | 809 (+ 350 in tails) |
-| Bank 6 | 274 | 194 |
+| Bank 5 | 809 (+ 350 in tails) | 23 (+ 278 in tails) |
+| Bank 6 | 274 | 195 |
 | Bank 7 rasteriser | 43 (+ 723 in tails) | 43 (+ 723 in tails) |
 | HAZEL scratch (then), read-only game data zone (now) | 112 (to &C300) | 82 (&C2AE-&C2FF) |
-| HAZEL code (then), glue (now) | 48 | 55 (to XX21) |
+| HAZEL code (then), glue (now) | 48 | 42 (to XX21) |
 | HAZEL state | 1726 (to &D900) | - |
 | HAZEL &DC40 block | 289 (to &E000) | - |
-| Shadow | 7, 3, 16 | 7, 3, 16 |
-| Total | 3856 (+ 1073 in tails) | 4378 (+ 1073 in tails) |
+| Shadow | 7, 3, 16 | 512, 256, 144 |
+| Total | 3856 (+ 1073 in tails) | 4476 (+ 1001 in tails) |
 
 HAZEL's 2063 free bytes for lasting content went to the game data; bank 4's
 room grew from 30 bytes to 1882 (with the hangar's line heap at &BF00 and
@@ -335,8 +335,15 @@ the dashboard's variables), and the high code's from 137 to 565.
 WP's move below page &0D (MASTER-PLAN.md, "Low data") left the free bytes
 as they were: the 151 now counted in the two rows above (&0E00-&0E40 and
 &12AA-&12FF round WP, and WP's pages' ends) were free before too, but not
-counted. The shared workspace is 4180 bytes with its alignment, more than
+counted. The shared workspace is 4170 bytes with its alignment, more than
 the 16 pages from &0E00 to the main code's first page less one, so the main
 code, which starts with the page-aligned font, stays at &1F00; to start it
 lower, the rasteriser's bank 5 <-> 7 stubs (71 bytes) could go before the
 font, but then R_WR (or R_NDN or R_WL) would cross a page.
+
+The lens flare moved from shadow RAM into bank 5 (MASTER-PLAN.md, "Lens
+flare out of shadow RAM"): bank 5 gave 786 bytes and 72 of its tails, HAZEL's
+glue 13 (T_FLARE), and the shared workspace got 10 back (the flare's
+variables went to bank 5's tails). Shadow RAM outside the screen now holds
+only the extended tokens and the zero-page save: 912 bytes there are free
+and stay so.

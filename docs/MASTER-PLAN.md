@@ -794,3 +794,40 @@ iteration, 804 of them page crossings, both to the cycle. test_raster
 (full), the lens flare's pixel check (0 errors on the four paths; every
 frame byte for byte the previous tree's), both agentplay repros and the
 quick campaign (with a save and a load) pass.
+
+## Lens flare out of shadow RAM (after the low data)
+
+Shadow RAM is being cleared out: nothing new goes there. The lens flare's
+code and tables (FLARE7, FLARE3, FLARE0: 886 bytes at shadow &7E00-&7FF8,
+&3F00-&3FFC and &3000-&307F) moved into bank 5, after the rasteriser, and
+the "Lens flare" layout above changed so:
+
+* f_flt (bank 6) keeps the tests that read bank 6's state (the front view,
+  the sun's centre on the screen, not inside the planet's disc: F_HW), then
+  enters R_FLARE (bank 5) through T_FLARE (HAZEL) with this buffer's dirty
+  extents' pages in X and Y. R_FLARE does the level, the ghosts, the discs'
+  and rings' rows and their spans; it calls R_MARKDIRTY directly.
+* No ACCCON switching: the frame layer draws with ACCCON X mapping the back
+  buffer at &4000-&7FFF, and the flare's code and data are no longer in
+  &3000-&7FFF, so fl_or writes either buffer as it is (fl_xb, the patched
+  jump into fl_or and the X switches around FL_MAIN and each span into
+  buffer 0 are gone).
+* fl_htab (one page) is in bank 5's run page 19's tail, the flare's
+  variables (fl_ml, fl_mh, fl_sl, fl_sh, fl_lev) in page 20's (from the
+  shared workspace), fl_or and its masks and ring from bank 6 beside the
+  flare's code.
+
+Bank 6 was the first choice (beside f_flt), but its cold code (frame_cold,
+f_enter) works on bank 6's own state (the text maps, F_DSX, F_DSY), so
+moving it to bank 5 to make room would have meant trampolines and copies
+of that state; bank 5 had room (809 bytes) and needs one trampoline per
+flared frame. Bank 5: 809 to 23 bytes free (and 72 of its tails); bank 6:
+194 to 195; HAZEL's glue: 55 to 42; shared workspace: 10 more. Shadow RAM
+holds only the extended tokens and the zero-page save; 912 bytes there are
+free.
+
+The pixel check (check.py, four paths, 552 flared frames): 0 errors, every
+frame byte for byte as before. The flare costs 1000-1200 cycles less per
+flared frame (frames matched by iteration: sweep -1189 mean, square -1108,
+planet line -832, leaving -1224; at most -2900, at worst +145 in one frame).
+Gate: 1.232, 17.21 it/s, unchanged (the gate's run shows no flare).
