@@ -129,12 +129,8 @@ def assemble(org):
             if not LINE7:
                 f.write('INCLUDE "%s"\n' % LINEA)
             f.write('SAVE "ra.bin", &8000, P%\n')
-            f.write('CLEAR &8000, &C000\nORG R7START\n')
             if LINE7:
-                f.write('INCLUDE "%s"\n' % tr.SRC7)
-            else:
-                f.write('NOP\n')
-            f.write('SAVE "r7.bin", R7START, P%\n')
+                f.write('CLEAR &8000, &C000\nORG R7START\nINCLUDE "%s"\nSAVE "r7.bin", R7START, P%%\n' % tr.SRC7)
         else:                               # (bank 5 from &8000, the stubs, bank 7 from &8000)
             f.write('ORG &%X\nINCLUDE "%s"\n.r_hz_end\n' % (tr.HZ, SRCH))
             f.write('ORG &8000\nINCLUDE "%s"\nSAVE "r.bin", &8000, P%%\n' % tr.SRC)
@@ -149,7 +145,7 @@ def assemble(org):
     syms = {k: int(v) for k, v in re.findall(r"'([^']+)':(-?\d+)L?", txt)}
     data = open(os.path.join(d, 'r.bin'), 'rb').read()
     dataa = open(os.path.join(d, 'ra.bin'), 'rb').read() if WINDOWS else b''
-    data7 = open(os.path.join(d, 'r7.bin'), 'rb').read()
+    data7 = open(os.path.join(d, 'r7.bin'), 'rb').read() if os.path.exists(os.path.join(d, 'r7.bin')) else b''
     datah = open(os.path.join(d, 'h.bin'), 'rb').read() if not WINDOWS else b''
     msg = [l for l in r.stdout.splitlines() if l.startswith('raster')]
     shutil.rmtree(d, ignore_errors=True)

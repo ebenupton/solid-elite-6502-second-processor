@@ -105,8 +105,8 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" HZ_START = &%04X\n HZLEN = &%04X\n" % (sy["HZ_START"], sy["HZ_END"] - sy["HZ_START"]))
     f.write(" BCODEAT = &%s\n" % re.search(r"^S\.BCODE &([0-9A-F]+)", open("build/compile.txt").read(), re.M).group(1))
     f.write(" DFSST = &%04X\n" % sy["DFSST"])
-    f.write(" B5LEN = &%04X\n B6LEN = &%04X\n R7LEN = &%04X\n RALEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["R7_END"] - sy["R7_BEGIN"], sy["RA_END"] - 0x8000))
-    f.write(" R7START = &%04X\n" % sy["R7_BEGIN"])
+    f.write(" B5LEN = &%04X\n B6LEN = &%04X\n TOKLEN = &%04X\n RALEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["TOK_END"] - sy["TOK_BEGIN"], sy["RA_END"] - 0x8000))
+    f.write(" TOKSTART = &%04X\n" % sy["TOK_BEGIN"])
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" COLD7LO = &%04X\n" % sy["COLD7_START%"])
     f.write(" HILEN = &%04X\n" % (sy["HI_END%"] - 0x7200))
@@ -117,7 +117,7 @@ with open("build/images.txt", "w") as f:
     for img, rs, at, v in (("BANK4.bin", "4", 0x8000, "v"), ("ANDY.bin", "7", 0x8000, ""),
                            ("COLD7.bin", "7", sy["COLD7_START%"], ""),
                            ("BANK5.bin", "5", 0x8000, "v"), ("RASTA.bin", "85", 0x8000, "v"),
-                           ("BANK6.bin", "6", 0x8000, "v"), ("RAST7.bin", "7", sy["R7_BEGIN"], ""),
+                           ("BANK6.bin", "6", 0x8000, "v"), ("TOKENS.bin", "7", sy["TOK_BEGIN"], ""),
                            ("HAZEL.bin", "hazel", sy["HZ_START"], "v"), ("HICODE.bin", "main", 0x7200, "v")):
         f.write("%s %s %04X %s\n" % (img, rs, at, v))
 PY

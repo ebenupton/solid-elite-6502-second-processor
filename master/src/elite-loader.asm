@@ -817,9 +817,9 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
- EQUW MESS11            \ RAST7: the extended tokens, bank 7 from R7START
+ EQUW MESS11            \ TOKENS: the extended tokens, bank 7 from TOKSTART
  EQUB 7, %00001001      \ (below the cold area's second part)
- EQUW R7START, R7LEN
+ EQUW TOKSTART, TOKLEN
 
  EQUW MESS12            \ HAZEL: the game data and the renderer's glue, staged
  EQUB HOMEBANK, %00001001 \ in main RAM at &4000 (screen buffer 0) and copied to
@@ -935,7 +935,7 @@ ENDIF
 
 .MESS11
 
- EQUS "L.RAST7 FFFF1300"    \ Port: *LOAD RAST7 FFFF1300
+ EQUS "L.TOKENS FFFF1300"   \ Port: *LOAD TOKENS FFFF1300
  EQUB 13
 
 .MESS12

@@ -12,7 +12,7 @@ Built from what master/tools/grind/mkbuild.sh leaves in a build directory:
                 COPYBLOCK events
   tree/master/src     the sources exactly as assembled
   tree/master/build   the SAVEd images (BCODE, HICODE, BANK4, ANDY,
-                      COLD7, HAZEL, BANK5, RASTA, BANK6, RAST7: with the extended tokens)
+                      COLD7, HAZEL, BANK5, RASTA, BANK6, TOKENS: the extended tokens)
   symbols.txt   beebasm -d (global symbols: labels and equates)
 
 Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers it):
@@ -24,14 +24,14 @@ Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers
   C7A   ANDY.bin, bank 7 &8000-&8FFF: the cold area's first part (ROMSEL 7; the
         file keeps the name of ANDY, where it was)
   C7    COLD7.bin, bank 7 COLD7LO- (QQ18, the far4 stubs, the cold code; ROMSEL 7)
-  R7    RAST7.bin, bank 7 between them (the extended tokens: cold data, read
+  R7    TOKENS.bin, bank 7 between them (the extended tokens: cold data, read
         directly by the cold code; R_LINE was here until it moved to ANDY)
   B5    BANK5.bin (the rasteriser's shared region and disc window; ROMSEL 5)
   RA    RASTA.bin, ANDY (the rasteriser's polygon window: R_POLY, R_LINE; ROMSEL &85)
   B6    BANK6.bin (frame layer, faces, lighting)
   HZ    HAZEL &C000-&DFFF (HAZEL.bin: the game data, and the glue at &C300)
   SH    shadow RAM data (once TOKENS.bin, the extended tokens at &3100; now none: the
-        tokens are in bank 7, INCBINned into RAST7.bin, read by the cold code directly)
+        tokens are in bank 7, INCBINned into TOKENS.bin, read by the cold code directly)
   RAM   workspace with no image (zero page, K%, WP ...)
 
 Only bytes inside a SAVEd image are loaded (`loaded`): anything else in a segment's
@@ -132,7 +132,7 @@ def cycles(mn, mode):
 
 
 SEGFILE = {'BCODE': 'main', 'HICODE': 'main',
-           'BANK4': 'B4', 'ANDY': 'C7A', 'COLD7': 'C7', 'RAST7': 'R7', 'BANK5': 'B5',
+           'BANK4': 'B4', 'ANDY': 'C7A', 'COLD7': 'C7', 'TOKENS': 'R7', 'BANK5': 'B5',
            'RASTA': 'RA', 'BANK6': 'B6', 'HAZEL': 'HZ'}
 SIDEWAYS = ('B4', 'C7A', 'C7', 'R7', 'B5', 'RA', 'B6')
 SEGORDER = ('main', 'B4', 'C7A', 'C7', 'R7', 'HZ', 'B5', 'RA', 'B6')

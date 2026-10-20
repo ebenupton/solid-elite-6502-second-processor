@@ -26,7 +26,7 @@
 \                    gfx-raster_line.asm)
 \   build/BANK6.bin  sideways RAM bank 6: the frame layer (gfx-frame.asm),
 \                    the ship faces and colours (gfx-faces.asm) and its state
-\   build/RAST7.bin  sideways RAM bank 7 from R7START: the extended tokens,
+\   build/TOKENS.bin  sideways RAM bank 7 from TOKSTART: the extended tokens,
 \                    below the cold area at COLD7LO
 \
 \ ******************************************************************************
@@ -38,7 +38,7 @@ MAXDT = 64              \ dots per frame
 RASTBANK = 5            \ the rasteriser: bank 5, its disc window (&8000-&8FFF) and
 RASTPOLY = &85          \ the shared region (&9000-&BFFF); ANDY over bank 5, its
                         \ polygon window
-R7START = &9000         \ the extended tokens in bank 7 (the cold area's), below
+TOKSTART = &9000         \ the extended tokens in bank 7 (the cold area's), below
                         \ COLD7LO
 GFXBANK = 6
 ELITEBANK = HOMEBANK
@@ -171,11 +171,11 @@ ASSERT B6_END <= &C000
 SAVE "build/BANK6.bin", &8000, B6_END, &8000
 
 CLEAR &8000, &C000      \ bank 7 (the cold area's bank, ROMSEL 7): the extended
-ORG R7START             \ tokens (cold data, elite-data.asm)
-.R7_BEGIN
+ORG TOKSTART             \ tokens (cold data, elite-data.asm)
+.TOK_BEGIN
 INCBIN "build/TOKENSD.bin"
-ASSERT TKN1 = R7_BEGIN
-.R7_END
-PRINT "Bank 7: tokens &", ~R7START, "-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
-ASSERT R7_END <= COLD7LO
-SAVE "build/RAST7.bin", R7START, R7_END, R7START
+ASSERT TKN1 = TOK_BEGIN
+.TOK_END
+PRINT "Bank 7: tokens &", ~TOKSTART, "-", ~TOK_END-1, " free to the cold area ", COLD7LO-TOK_END
+ASSERT TOK_END <= COLD7LO
+SAVE "build/TOKENS.bin", TOKSTART, TOK_END, TOKSTART
