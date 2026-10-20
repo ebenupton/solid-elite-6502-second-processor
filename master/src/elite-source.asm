@@ -2484,7 +2484,12 @@ ENDIF
  BNE SOUL2              \ Loop back to zero the next byte until we have done all
                         \ three from SOFLG+2 down to SOFLG
 
- SEI                    \ Disable interrupts while we update the sound chip
+ LDA #%00000010         \ Port: mask the vsync interrupt (CA1) in the System
+ STA VIA+&4E            \ VIA's IER while we update the sound chip, rather
+                        \ than disable every interrupt (SEI): only the vsync
+                        \ handler (SOINT) also drives the sound chip, and the
+                        \ timer 1 interrupt at the dashboard split must not be
+                        \ held off
 
                         \ At this point Y = 0, which we can now use as a loop
                         \ counter to loop through the 5 bytes in SOOFF and send
@@ -2503,7 +2508,8 @@ ENDIF
  CPY #5                 \ Loop back until we have sent all 5 bytes to the sound
  BNE SOUL1              \ chip
 
- CLI                    \ Enable interrupts again
+ LDA #%10000010         \ Port: unmask the vsync interrupt again
+ STA VIA+&4E
 
  RTS                    \ Return from the subroutine
 
@@ -2638,7 +2644,12 @@ ENDIF
  CMP SOPR,X             \ If SFXPR+Y < SOPR+X, return from the subroutine
  BCC SOUR1              \ (as SOUR1 contains an RTS)
 
- SEI                    \ Disable interrupts while we update the sound buffer
+ PHA                    \ Port: mask the vsync interrupt (CA1) in the System
+ LDA #%00000010         \ VIA's IER while we update the sound buffer, rather
+ STA VIA+&4E            \ than disable every interrupt (SEI): only the vsync
+ PLA                    \ handler (SOINT) reads the buffer, and the timer 1
+                        \ interrupt at the dashboard split must not be held
+                        \ off (A and C are kept)
 
                         \ If we get here then SFXPR+Y >= SOPR+X
 
@@ -2670,7 +2681,9 @@ ENDIF
  LDA #%10000000         \ Set bit 7 of SOFLG+X
  STA SOFLG,X
 
- CLI                    \ Enable interrupts again
+ LDA #%10000010         \ Port: unmask the vsync interrupt again, and return
+ STA VIA+&4E            \ with A = %10000000 as before
+ LDA #%10000000
 
  SEC                    \ Set the C flag
 
