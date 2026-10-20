@@ -225,6 +225,12 @@ export class Session {
             this.stats.iters = ri + 1;
             const d = diffSnaps(cs, a, b);
             if (d.length && !this.div) this.reportDivergence(ri, a, b, d);
+            else if (d.length) {
+                // (with --keepgoing: how long the difference lasts, and what else comes to differ)
+                const k = this.div.after ||= { iters: 0, last: ri, fields: {} };
+                k.iters++; k.last = ri;
+                for (const o of d.slice(0, 50)) { const f = fieldName(cs, cs.offAddr[o]); k.fields[f] = (k.fields[f] || 0) + 1; }
+            }
             if (this.div && ri >= this.div.iter + this.cfg.keepGoing) { this.stopNow = true; return; }
             if (this.cfg.shots && ri % this.cfg.shots === 0) this.shotsDue = ri;
         }
@@ -292,7 +298,13 @@ export class Session {
                 this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] = (this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] || 0) + 1;
                 if (kind !== "routine") appendFileSync(this.files.events, JSON.stringify({ m: m.name, iter: it, kind, detail }) + "\n");
                 if (kind === "workaround") this.stats.workarounds = (this.stats.workarounds || 0) + 1;
-                if (kind === "brk" || kind === "page0d" || kind === "hazel") this.finding(kind, `${m.name} iteration ${it}: ${detail}`, { iter: it });
+                if (kind === "brk" || kind === "page0d" || kind === "hazel") {
+                    // (a BRK loop: report the first few, then stop the session)
+                    this.brkSeen ||= {};
+                    const n = this.brkSeen[detail] = (this.brkSeen[detail] || 0) + 1;
+                    if (n <= 3) this.finding(kind, `${m.name} iteration ${it}: ${detail}`, { iter: it });
+                    if (n === 20) { this.finding("brk-loop", `${m.name} iteration ${it}: the same BRK 20 times: ${detail}`, { iter: it }); this.stopNow = true; }
+                }
             }
         }
         // a BRK from a disc error (a ROM) in one machine and not the other shows as a divergence;
