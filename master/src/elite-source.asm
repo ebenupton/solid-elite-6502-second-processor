@@ -12414,172 +12414,6 @@ ENDIF
 
 \ ******************************************************************************
 \
-\ Port: the disc access's data, moved here from later in the main code: it
-\ must be in main RAM (which the main code may continue beyond, into bank 4),
-\ as the MOS reads the OSCLI commands and OSWORD blocks and the cold area's
-\ disc routines read and write them
-\
-\ ******************************************************************************
-
-\ ******************************************************************************
-\
-\       Name: RLINE
-\       Type: Variable
-\   Category: Text
-\    Summary: The OSWORD configuration block used to fetch a line of text from
-\             the keyboard
-\
-\ ******************************************************************************
-
-.RLINE
-
- EQUW INWK+5            \ The address to store the input, so the text entered
-                        \ will be stored in INWK+5 as it is typed
-
- EQUB 9                 \ Maximum line length = 9, as that's the maximum size
-                        \ for a commander's name including a directory name
-
- EQUB '!'               \ Allow ASCII characters from "!" through to "{" in
- EQUB '{'               \ the input
-
-\ ******************************************************************************
-\
-\       Name: thislong
-\       Type: Variable
-\   Category: Save and load
-\    Summary: Contains the length of the most recently entered commander name
-\
-\ ******************************************************************************
-
-.thislong
-
- EQUB 7
-
-\ ******************************************************************************
-\
-\       Name: oldlong
-\       Type: Variable
-\   Category: Save and load
-\    Summary: Contains the length of the last saved commander name
-\
-\ ******************************************************************************
-
-.oldlong
-
- EQUB 7
-
-\ ******************************************************************************
-\
-\       Name: CTLI
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for cataloguing a disc
-\
-\ ******************************************************************************
-
-.CTLI
-
-IF _SNG47
-
- EQUS "CAT 1"           \ The "1" part of the string is overwritten with the
- EQUB 13                \ actual drive number by the CATS routine
-
-ELIF _COMPACT
-
- EQUS "CAT"             \ The Master Compact only has one drive, so the CAT
- EQUB 13                \ command always catalogues that drive
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: DELI
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for deleting a file
-\
-\ ******************************************************************************
-
-.DELI
-
-IF _SNG47
-
- EQUS "DELETE :1.1234567"
- EQUB 13
-
-ELIF _COMPACT
-
- EQUS "DELETE 1234567890"
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: DIRI
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for changing directory on the Master Compact
-\
-\ ******************************************************************************
-
-IF _COMPACT
-
-.DIRI
-
- EQUS "DIR 12345678901234567890"
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: savosc
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for saving a commander file
-\
-\ ******************************************************************************
-
-.savosc
-
-IF _SNG47
-
- EQUS "SAVE :1.E.JAMESON  ", STR$~(commbuf), " +100 0 0"
- EQUB 13
-
-ELIF _COMPACT
-
- EQUS "SAVE JAMESON  ", STR$~(commbuf), " +100 0 0"
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
-\       Name: lodosc
-\       Type: Variable
-\   Category: Save and load
-\    Summary: The OS command string for loading a commander file
-\
-\ ******************************************************************************
-
-.lodosc
-
-IF _SNG47
-
- EQUS "LOAD :1.E.JAMESON  ", STR$~(commbuf)
- EQUB 13
-
-ELIF _COMPACT
-
- EQUS "LOAD JAMESON  ", STR$~(commbuf)
- EQUB 13
-
-ENDIF
-
-\ ******************************************************************************
-\
 \       Name: shpcol
 \       Type: Variable
 \   Category: Drawing ships
@@ -37420,9 +37254,6 @@ ENDIF
  JMP TT170              \ Port: jump to TT170 to start the game (the original
                         \ fell through into it; it is now in the cold area)
 
-\ Port: RLINE, thislong, oldlong, CTLI, DELI, DIRI, savosc and lodosc are in
-\ main RAM (after NA%), as the MOS reads them
-
 \ ******************************************************************************
 \
 \       Name: TT170
@@ -38335,6 +38166,28 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: RLINE
+\       Type: Variable
+\   Category: Text
+\    Summary: The OSWORD configuration block used to fetch a line of text from
+\             the keyboard
+\       Area: cold
+\
+\ ******************************************************************************
+
+.RLINE
+
+ EQUW INWK+5            \ The address to store the input, so the text entered
+                        \ will be stored in INWK+5 as it is typed
+
+ EQUB 9                 \ Maximum line length = 9, as that's the maximum size
+                        \ for a commander's name including a directory name
+
+ EQUB '!'               \ Allow ASCII characters from "!" through to "{" in
+ EQUB '{'               \ the input
+
+\ ******************************************************************************
+\
 \       Name: FILEPR
 \       Type: Subroutine
 \   Category: Save and load
@@ -38941,6 +38794,34 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: thislong
+\       Type: Variable
+\   Category: Save and load
+\    Summary: Contains the length of the most recently entered commander name
+\       Area: cold
+\
+\ ******************************************************************************
+
+.thislong
+
+ EQUB 7
+
+\ ******************************************************************************
+\
+\       Name: oldlong
+\       Type: Variable
+\   Category: Save and load
+\    Summary: Contains the length of the last saved commander name
+\       Area: cold
+\
+\ ******************************************************************************
+
+.oldlong
+
+ EQUB 7
+
+\ ******************************************************************************
+\
 \       Name: GTDRV
 \       Type: Subroutine
 \   Category: Save and load
@@ -39086,6 +38967,121 @@ ENDIF
 
                         \ Port: removed (unreachable: CLDELAY has no caller in
                         \ SNG47)
+
+\ ******************************************************************************
+\
+\       Name: CTLI
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for cataloguing a disc
+\       Area: cold
+\
+\ ******************************************************************************
+
+.CTLI
+
+IF _SNG47
+
+ EQUS "CAT 1"           \ The "1" part of the string is overwritten with the
+ EQUB 13                \ actual drive number by the CATS routine
+
+ELIF _COMPACT
+
+ EQUS "CAT"             \ The Master Compact only has one drive, so the CAT
+ EQUB 13                \ command always catalogues that drive
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: DELI
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for deleting a file
+\       Area: cold
+\
+\ ******************************************************************************
+
+.DELI
+
+IF _SNG47
+
+ EQUS "DELETE :1.1234567"
+ EQUB 13
+
+ELIF _COMPACT
+
+ EQUS "DELETE 1234567890"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: DIRI
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for changing directory on the Master Compact
+\       Area: cold
+\
+\ ******************************************************************************
+
+IF _COMPACT
+
+.DIRI
+
+ EQUS "DIR 12345678901234567890"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: savosc
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for saving a commander file
+\       Area: cold
+\
+\ ******************************************************************************
+
+.savosc
+
+IF _SNG47
+
+ EQUS "SAVE :1.E.JAMESON  ", STR$~(commbuf), " +100 0 0"
+ EQUB 13
+
+ELIF _COMPACT
+
+ EQUS "SAVE JAMESON  ", STR$~(commbuf), " +100 0 0"
+ EQUB 13
+
+ENDIF
+
+\ ******************************************************************************
+\
+\       Name: lodosc
+\       Type: Variable
+\   Category: Save and load
+\    Summary: The OS command string for loading a commander file
+\       Area: cold
+\
+\ ******************************************************************************
+
+.lodosc
+
+IF _SNG47
+
+ EQUS "LOAD :1.E.JAMESON  ", STR$~(commbuf)
+ EQUB 13
+
+ELIF _COMPACT
+
+ EQUS "LOAD JAMESON  ", STR$~(commbuf)
+ EQUB 13
+
+ENDIF
 
 \ ******************************************************************************
 \
@@ -48326,21 +48322,37 @@ ENDIF
 \ the 1770 is quietened (Force Interrupt) and the minimal handler the loader
 \ installed goes back (a stray NMI would otherwise run DFS's handler with
 \ the game's zero page at &A0-&A7). The error path (BRKV, NEWBRK) does the
-\ same through DOSNMI.
+\ same through DOSNMI. The MOS reads the command from a copy in buffer 0
+\ (DOSBUF, after HAZEL's stash), as the commands' strings (CTLI, DELI,
+\ savosc, lodosc) are in the cold area, which is not paged in while the
+\ MOS and DFS run the command.
 \
 \ ******************************************************************************
 
+DOSBUF = &6000          \ the command's copy, in buffer 0 after HAZEL's stash
+
 .DOSCLI
 
- PHA                    \ Stash HAZEL in buffer 0 (A, X and Y are kept for
- PHX                    \ OSCLI), with GSTASH set (in HAZEL: the copy back
- PHY                    \ keeps it): buffer 0 holds no frame from now on
+ PHA                    \ Stash HAZEL in buffer 0 (A and the command's address
+ PHX                    \ in Y X are kept), with GSTASH set (in HAZEL: the copy
+ PHY                    \ back keeps it): buffer 0 holds no frame from now on
  LDA #&80
  STA GSTASH
  LDX #&C0
  LDY #&40
  JSR dosmv
- PLY
+
+ PLY                    \ Copy the command, to its CR, from (Y X) into buffer 0
+ PLX                    \ after HAZEL's stash (ACCCON X = 0, as dosmv left it),
+ STX dosc0+1            \ where the MOS reads it whatever ROM is paged in (the
+ STY dosc0+2            \ commands' strings are in the cold area, with the code
+ LDX #0                 \ that builds them)
+.dosc0
+ LDA &FFFF,X            \ (patched)
+ STA DOSBUF,X
+ INX
+ CMP #13
+ BNE dosc0
 
  LDX #63                \ Put back DFS's and the MOS's lasting bytes
 .dosc1
@@ -48350,7 +48362,6 @@ ENDIF
  STA &DFC0,X
  DEX
  BPL dosc1
- PLX
 
  LDA #&FF               \ Invalidate DFS's catalogue cache and drive state
  STA &C282
@@ -48362,7 +48373,9 @@ ENDIF
  STA DFSIN              \ (a disc command is under way)
  PLA
 
- JSR OSCLI              \ The command
+ LDX #LO(DOSBUF)        \ The command, from its copy in buffer 0
+ LDY #HI(DOSBUF)
+ JSR OSCLI
 
                         \ Fall through into DOSNMI to put the minimal NMI
                         \ handler back
