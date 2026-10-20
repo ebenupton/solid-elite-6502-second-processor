@@ -1396,3 +1396,127 @@ iteration); the quick campaign, 3 sessions clean (4644 iterations compared,
 with a save and a load); the docked screens (harness/mdocked.mjs) byte for
 byte e932f77's apart from the title ship's rotation phase; gcreach.py: 0
 unreachable, every profiled PC matched.
+
+## The hangar (after the far-call stubs inline)
+
+The ship hangar, shown on docking (DOENTRY's HALL), was the last screen with
+ships that Master's direct drawing still drew: HALL and HAS1 drew up to
+three ships with LL9 as wireframes, and HANGER drew the hangar's lines in
+from the screen's edges until each met something already drawn. The user
+asked for a filled version and, from drafts of several bay styles (grid
+lines on black, blue and red dithered panels, tan panels with and without
+lines), chose flat tan panels with HANGER's grid in black, without the
+ships that blend into the tan.
+
+**One frame of the renderer.** The hangar is a space-view frame
+(gfx-hangar.asm, bank 6), drawn once:
+* HALL stays in record mode (QQ11 = 0, GFORCE = 0). TT66 clears the screen
+  as before, and the view's name it prints goes into the text map;
+* G_HANG0 (high code) empties the frame's lists, as a docking leaves the
+  last flight iteration's records in them, and sets the hangar's light
+  (LLT: the title screen's, from the top right and the viewer);
+* HAS1 places each ship as before and calls LL9 through G_HLL9, which sets
+  TYPE (the renderer takes a ship's faces by TYPE, and HAS1 sets only XX0:
+  G_HLL9 finds the type whose XX21 entry is XX0) and, for the two types that
+  blend in, the type and blueprint drawn in their place (below), and puts
+  TYPE and XX0 back afterwards. LL9 records the ship (H_EE31), lit as in
+  flight;
+* HALL ends with G_HANGAR in place of HANGER: it runs F_FRAME once with its
+  call of f_lines (ff_lin) pointed at f_hback, and back. f_hback draws the
+  background after the (empty) disc layer and before the ships, so the ships
+  hide it where the original's lines stopped at them; the frame then flips to
+  buffer 0, and the next TT66 goes back to direct mode as after any space
+  view. The flight's frames run exactly as before: nothing is tested on
+  their path.
+
+**The background** keeps HANGER's geometry. The wall, from row 16 to the
+floor's furthest line, is a darker tan, two yellow, a magenta and a black
+pixel in each 2x2 cell (RGB about 191, 128, 64); the floor below it a light
+tan, two yellow, a magenta and a cyan (about 191, 191, 128). Both are flat
+R_POLY rectangles in f_col's packed colours; ink counts in quarters make
+f_col's 4x4 Bayer tile a 2x2 one with yellow on a diagonal, a regular
+pattern that neither shimmers nor bands. Over them, in black, the floor's
+11 lines at #Y + 130 DIV Q, Q = 12 to 2 (HFY, as HANGER's DVID4K computed
+them), x = 2 to 253, as one-row R_POLY rectangles (R_LINE costs about 80
+cycles a pixel), and the wall's 31 lines every 8 pixels, x = 8 to 248
+(R_LINE). Rows 1 to 15 stay black: TT66's yellow view name, on the tan
+(half yellow), was nearly invisible; on the black band it reads as in
+SNG47 (screenshots/hangar/title-before-after.png in the main worktree).
+
+**HAZEL's &DF00 page is the MOS's.** The tables (HFY, HPWL, HPWH: 15
+bytes) are in HAZEL between the game data and HANGHEAP (gfx-hangar-hz.asm),
+as bank 6 is full. A draft put them after HANGHEAP, at &DF00, which the
+MASTER-MAP counted free since d23e427: the loader then copied them over the
+MOS's current FS numbers and filing-system names (&DF00-&DF47,
+docs/MASTER-MEMORY.md), and the agentplay repro msbar-carry hung in DFS on
+its first disc command. HAZEL.bin ends at &DEFF again, and the map now says
+that &DF00-&DFFF is not for the game's data.
+
+**Ships that blend in.** Every type was rendered at the four groups' places
+(harness/mhangar.mjs, master/tools/hangarinks.py: 12 placements each) and
+its pixels compared with the empty hangar. The Sidewinder's and the Mamba's
+faces are dithered from yellow, magenta and black alone (yellow 48% and 60%
+of their pixels, cyan 0% and 4%), the wall's own inks, and they read as the
+wall's texture; every other type HALL can choose has 20% (the Krait) to 64%
+(the Viper) cyan. (A blurred colour difference ranks them mid-table, dE 51
+and 61, as their yellow faces are light: it is the texture that hides them.)
+G_HLL9 draws them as the nearest types of their size class (HAS1 places a
+ship by its targetable area) that stand out, through HSUB (high code): the
+Sidewinder (area 4225) as an Asp Mk II (3600), the Mamba (4900) as a Viper
+(5625). HALL and HAS1 run as before, with the same random numbers, and
+place the ship by its own type's size: a draft that swapped the type in
+HAS1 placed it by the substitute's size, which left INWK+3 different from
+the original's after a docking (the msbar-carry repro diverged there,
+though the gate's run did not see it). HATB is unchanged, as none of its
+ships blends.
+
+**Removed.** HANGER, HAS2, HAL3, HAS3 and DVID4K (only HANGER called it) are
+unreachable and gone, each with a "Port: removed" note under Mark's header;
+HANGFLAG is still set by HALL and read by nothing. HANGER's far7 stub went
+from the head, so CODE% moved up five bytes, to &1EDC, keeping the font page
+aligned. gcreach.py: 23390 instructions, 0 unreachable.
+
+**Known.** A ship whose LL9 visibility cutoff (XX4) leaves some of its face
+vertices unprojected is not drawn by the frame layer (f_ship's F_SX4 test, as
+in flight): the furthest canister of HATB's second group is missing, where
+SNG47 draws its edges.
+
+**Time.** HALL to its DELAY, over the eight standard configurations
+(harness/mhangar.mjs): 0.43 to 0.76 s, against SNG47's 0.25 to 0.63 s; the
+frame itself 555,000 to 639,000 cycles (0.28 to 0.32 s), of which the wall's
+lines (R_LINE) are about half. The flight loop is unchanged (17.24 it/s).
+
+**Bytes** (against 9905a11; MASTER-MAP, "Free space"): bank 6 181 (4 left),
+the high code 121, HAZEL 15; the cold area gained 251, the main code 5 and
+the shared workspace 5: 56 bytes in all.
+
+**The redock regression's timings.** The gate's redock (harness/mredock.mjs:
+real key presses at fixed emulated times, the docking computer) docks after
+26 s and 71 s on full-master, and after 26 or 55 s and 49, 51 or 71 s on
+these commits; once (55 s, 51 s) with the legal status Fugitive at the
+second docking. It is the key timing, not a change of behaviour: on
+full-master (9905a11), starting the same key presses 0.01 to 0.3 s later
+gives 26 or 55 s for the first docking and 47, 49 or 71 s for the second; a
+commit that only removes unreachable code moved the result from (26, 71) to
+(55, 51); on these commits, the same offsets give (26, 47), (55, 49) and
+(55, 51), Fugitive only with (55, 51); and the Fugitive status is FIST's bit
+6, set at MA15 when a cop is destroyed, here a Viper rammed on the docking
+computer's approach (the test presses no fire key). The game-state
+comparison, which replays its inputs in step, is identical at every commit.
+
+**Commits** (each gated by master/tools/grind/verify.sh: game state
+identical at all 10000 iterations, which include a docking and so a
+hangar; 1.234, 17.24 it/s): 9a00795 harness/mhangar.mjs; 790104c the hangar
+drawn by the renderer; 81559c5 the wireframe hangar's routines removed;
+c58af4f the Sidewinder and the Mamba drawn as an Asp Mk II and a Viper;
+6ef952b the view's name on a black band; then these docs. (The Front View
+fix that came first, ddf5b3e: HALL set GFORCE after TT66, so the name went
+into the text map and was never drawn.)
+
+**Checks** at the end: test_raster (full) passes; the lens flare's pixel
+check, four scenes, 704 frames (532 flared), 0 errors against the model,
+every frame byte for byte 9905a11's; the agentplay repros with --cand and
+--csyms spelled out: compass, LOOK1 and MSBAR clean (msbar-carry, 9031
+iterations, docks), TTX66 as on 9905a11 (P+3 at its last iteration); the
+quick campaign, 3 sessions clean (4644 iterations compared, with a save
+and a load); gcreach.py: 23406 instructions, 0 unreachable.
