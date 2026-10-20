@@ -1021,3 +1021,122 @@ save test checks it over disc commands. R_SETBUF's r_sbpoly must keep &F4
 in step with ROMSEL (test_raster checks it). Bank 7 is fuller (585 free in
 three places), so the cold area has less room to grow; the renderer has
 1925 bytes (+ 291 in tails) for speed-ups.
+
+## R_LINE in the polygon window (after the rasteriser in ANDY)
+
+R_LINE was the last of the rasteriser outside bank 5 and ANDY: 3217 bytes in
+bank 7 (&9E00-&AA90, gfx-raster7.asm), paged by T_LINE, with its own copies
+of what the rest of the rasteriser has. The aim: the renderer in banks 5 and
+6 and ANDY only, and bank 7 the cold area's alone.
+
+**The audit.** R_LINE's bytes, by part: the fast path and the old long path
+(R_LINE, 868); r7_lgo (1067: the 8-bit set-up, the clip stepping, four
+unclipped and four clipped loops); r7_lc16 and its helpers r7_cab, r7_cswap,
+r7_cmul, r7_cdiv (778, with their variables); the operand patcher r7_lpat
+(118); r7_lstart, r7_lswap (73); and copies of what the polygon window and
+the shared region have: the 32-bit multiply and divide with their variables
+(120, the same as phase A's rp_ ones), a pixel plotter r7_pset/r7_pclip with
+r7_pm (114: bank 5's r_pset/r_pclip), the 4-entry masks (8: the per-x r_lm,
+r_rm) and the DIRTY arrays' high bytes (4: R_SETBUF's r_sbh_dl, r_sbh_dr):
+246 bytes in all. R_LINE uses no runs and nothing of the disc window's, so
+the polygon window (ROMSEL &85: ANDY and the shared region) is its home:
+T_LINE pages it as T_POLY does, and it reaches the shared region directly.
+
+Without the copies R_LINE was about 2960 bytes. The room it could use: ANDY
+1313, the shared region 295 and the 51 before the per-x tables, the disc
+window's 317 only by moving code that only ROMSEL 5's entry points reach out
+of the shared region, and the run pages' tails (291, in pieces of 1 to 40
+bytes: variables, not code). That is about 2000 bytes for code: the real
+shortfall was about 950 bytes, not 0.5K. Bank 6's 187 could take only code
+that needs neither bank 5 nor ANDY.
+
+The profile (profile.mjs --pagex, the gate's run) put R_LINE at 1572 cycles
+per flight iteration, about 1300 of them in the four unclipped loops (both
+ends inside the window: about 1.2 lines an iteration). Lines with an end
+outside are rare (about one in 25 iterations), and their cost was mostly
+the clip stepping and the clipped loops' tests (about 200 cycles an
+iteration), the long path's per-pixel window tests and r7_pset (about 50),
+r7_lc16's maths (about 20).
+
+| Option | Bytes | Cycles per iteration | Rate | |
+|---|---:|---:|---:|---|
+| clip every clipped line exactly (first and last pixel from the window's sides), then the unclipped loops (d <= 255) or a 16-bit error loop (d > 255): no clip stepping, clipped loops, r7_lc16, old long path | -1305 | -64 | - | made |
+| R_LINE's copies gone | -211 | -5 | - | made |
+| R_INIT, R_RESETBUF to the disc window; the polygon window's arithmetic (r_div8, r_dvq, the 32-bit maths) and R_LINE's cold part (rl_mdq, rl_long) to the shared region; R_LINE's variables to a tail | moves | 0 (crossings -14) | - | made |
+| the clipped loops as the unclipped ones plus tests (keeping the stepping) | about -380 | about +250 | 0.7 | superseded |
+| the fast path through rl_gen (no 8-bit set-up) | about -177 | about +200 | 1.1 | not needed |
+| R_INIT in bank 7 behind a far call | -102 | 0 | - | not needed (and the renderer would be in bank 7 again) |
+
+**Commits** (each gated by master/tools/grind/verify.sh; test_raster --quick
+in each gate, the full test_raster at the end):
+
+| Commit | Change | Gate | Cycles per flight iteration (crossings) |
+|---|---|---|---:|
+| 9918ac8 | raster: R_LINE clips exactly, one path for every clipped line (bank 7: R_LINE 3217 -> 1912 bytes) | 1.234, 17.24 | 116050 (688) -> 115986 (689) |
+| 666d7d7 | tests: test_raster's lines aimed at R_LINE's clipping, with the row range | 1.234, 17.24 | - |
+| 97dc7d1 | raster: R_INIT and R_RESETBUF into the disc window | 1.234, 17.24 | 115986 (689) |
+| 9ad939c | raster: the polygon window's arithmetic into the shared region | 1.234, 17.25 | 115971 (675) |
+| d562f68 | bankcheck: the shared region refers to neither window (binaries as before) | 1.234, 17.25 | - |
+| e2e8bb5 | raster: R_LINE into the polygon window; bank 7 is the cold area's | 1.234, 17.25 | 115966 (674) |
+| 173f07d | build: bank 7's tokens file is TOKENS, not RAST7 | 1.234, 17.25 | 115966 (674) |
+
+**R_LINE now** (gfx-raster_line.asm, 1498 bytes in ANDY after R_POLY;
+gfx-raster_lcold.asm, 164 bytes at the shared region's end; its variables,
+39 bytes, in run page 16's tail). A line with both ends inside the window
+(8-bit) goes to the line loops as before. Any other goes to rl_gen: the
+buffer's row range from its clamped y extent; then, from the left or top end
+(major m0, minor n0, d = |d major|, a = |d minor|, h = d DIV 2; pixel i at
+minor n0 +- (i * a + h) DIV d, the original's rounding), the first pixel
+inside, c_i = max(0, lo - m0, ceil((k * d - h) / a)) with k the distance to
+the minor side it enters by, and the last, c_j = min(d, hi - m0, ((K + 1) *
+d - h - 1) DIV a) with K the distance to the side it leaves by, each term
+only when it binds (rl_mdq, on the shared 32-bit maths; most clipped lines
+need one multiply-divide or none). The pixels between are drawn by the
+unclipped loops from (q, r) = (c_i * a + h) DIV / MOD d when d <= 255, or by
+rl_long with a 16-bit error term. R_SETBUF patches r_pset's DIRTY operands;
+rl_lpat patches the loops' when the buffer has changed.
+
+**Speed.** 116050 to 115966 cycles per flight iteration (17.23 to 17.25
+it/s): instructions -70 (R_LINE's clipped and long lines, its new long-line
+loop on r_pset, r7_lstart without clamps), page crossings 688 to 674 (phase
+B's moved away; the new ones are in MASTER-MAP's alignment candidates; no
+padding added). In the old-against-new run below, whose lines are mostly
+clipped, R_LINE takes 22-26% fewer cycles.
+
+**Free space.** ANDY 1313 -> 38; the disc window 317 -> 137; the shared
+region 295 -> 131 (+ 8 before the per-x tables, which the build now prints;
+there were 51); the tails 291 -> 252; bank 6 187; bank 7 111 -> 3328
+(&9E00-&AAFF, contiguous with COLD7LO). In all 1516 bytes more outside shadow
+RAM (7372; the table in MASTER-MAP.md); the cold area itself is unchanged,
+its new room recorded for it to grow into.
+
+**Checks.** At each commit verify.sh 10000 (game state identical at all
+10000 iterations; redock, savetest, views). test_raster --quick in each
+gate and the full test_raster at the end. An old-against-new run of R_LINE
+(a scratch script on test_raster's machine: 27,000 lines on 9918ac8 and
+48,000 on the final build, six seeds, two of them with colours held across
+lines; ends around the window, on its sides, far off, long; points,
+horizontal, vertical and diagonal lines; random clip windows): pixels and
+DIRTY identical; the row range differs only for a line
+wholly outside the window with 8-bit ends, which the old path added to the
+range without drawing (a superset either way: rows with nothing to repair).
+The only DIRTY difference found was an old bug: with R_CT = 0 (the
+interface allows it; the game always sets 1) the old clipped loop lxuc ran
+on past row 0, writing outside the screen and DIRTY; test_raster's new line
+test catches it on cb2c8e5 and passes now. The lens flare's pixel check
+(four scenes, 552 flared frames): 0 errors, every frame byte for byte
+cb2c8e5's. The agentplay repros: compass, LOOK1 and MSBAR clean, TTX66 as
+before (P+3 at its last iteration). The quick campaign: 3 sessions clean
+(with a save and a load). gcreach.py: 0 unreachable, every profiled PC
+matched. bankcheck: all rules hold, with the new one.
+
+**Risks.** R_LINE's clipping is new code on a cold path: lines with an end
+off screen (lasers from the screen's edge, ships partly in view, the
+sights). It is checked pixel for pixel against the reference and against
+the old code, but the gate's run draws few such lines (one in 25
+iterations). The polygon window is nearly full (38 bytes), so R_POLY or
+R_LINE has little room to grow without moving more cold code into the
+shared region (131 + 8) or the disc window (137). R_LINE's cold part and
+R_POLY's arithmetic in the shared region must keep using nothing of either
+window's: bankcheck now checks that. R_LINE's variables share page 16's
+tail with R_SPAN (one byte left there).

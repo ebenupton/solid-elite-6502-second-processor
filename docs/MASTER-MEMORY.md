@@ -21,9 +21,9 @@ and file contents, through jsbeeb's `toSsdOrDsd`), not only the screen output.
 
 docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
 
-* **ANDY** holds the rasteriser's polygon window (R_POLY, both phases, ROMSEL &85: ANDY
-  over bank 5, whose &9000-&BFFF is the rasteriser's shared region), code that runs
-  every frame and patches its own operands. Until the ANDY move it held the cold
+* **ANDY** holds the rasteriser's polygon window (R_POLY, both phases, and R_LINE,
+  ROMSEL &85: ANDY over bank 5, whose &9000-&BFFF is the rasteriser's shared region),
+  code that runs every frame and patches its own operands. Until the ANDY move it held the cold
   area's first 4K, which is now in bank 7 at the same addresses. The loader sets
   `*FX 225,128` and the game prints through its own WRCHV, so the MOS never reads the
   font or soft keys there, and nothing writes ANDY but the rasteriser (the MOS's VDU

@@ -44,11 +44,12 @@ INCLUDEs at its end):
 |---|---|---|
 | `main` | `BCODE` &1F00-&3FFF, `HICODE` &7200-&7FFF | the main code and data in the original's order (it continues in bank 4), the high code: the quarter-square tables QSL/QSH at &7200, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the lighting's game half (gfx-light), the far7 stubs into the cold area |
 | `B4` | `BANK4` | bank 4, Elite's home bank, code only: the main code's continuation (from DVL9a), then elite-bank4.asm (TACTICS, LL9, MVEIT, Master's drawing, the CMYK dashboard) |
-| `ANDY` | `ANDY` | the cold area's &8000-&8FFF (ROMSEL &87) |
+| `C7A` | `ANDY` | the cold area's first part, bank 7 &8000-&8FFF (ROMSEL 7; the file keeps the name of ANDY, where it was) |
 | `C7` | `COLD7` | bank 7 from COLD7LO (elite-data.asm): QQ18, the far4 stubs out of the cold area, the cold code |
-| `R7` | `RAST7` | bank 7 &8000 up to COLD7LO: the rasteriser's cold code (ROMSEL 7) |
+| `R7` | `TOKENS` | bank 7 &9000 up to COLD7LO: the extended tokens (cold data; R_LINE was here until it moved to ANDY) |
 | `HZ` | `HAZEL` (&C000-&DFFF) | HAZEL: the game data (INCBIN HZDATA1, HZDATA2: blueprints, XX21 ..., SNE, ACT), and at &C300 gvars, the T_ trampolines, the text and IRQ hooks |
-| `B5`, `B6` | `BANK5`, `BANK6` | the rasteriser; the frame layer, faces, lighting tables |
+| `B5`, `B6` | `BANK5`, `BANK6` | the rasteriser's disc window and shared region (with R_LINE's cold part); the frame layer, faces, lighting tables |
+| `RA` | `RASTA` | ANDY: the rasteriser's polygon window, R_POLY and R_LINE (ROMSEL &85) |
 | `SH` | TOKENS.bin (elite-data.asm) at TKN1 = &3100 | shadow RAM data only: TKN1, RUPLA, RUGAL, RUTOK |
 | `RAM` | none | zero page, stack, K%, WP ... |
 
