@@ -71,9 +71,10 @@ python3 - <<'PY'
 import re
 with open("build/banks.txt", "w") as f:
     for src, bank in (("src/elite-bank4.asm", "4"),
-                      ("src/elite-andy.asm", "87"), ("src/elite-coldstubs.asm", "87"),
-                      ("src/elite-cold7.asm", "87"),
-                      ("src/gfx-raster.asm", "5"), ("src/gfx-flare.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"),
+                      ("src/elite-andy.asm", "7"), ("src/elite-coldstubs.asm", "7"),
+                      ("src/elite-cold7.asm", "7"),
+                      ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"),
+                      ("src/gfx-flare.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"),
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
                       ("src/gfx-raster7.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
@@ -105,7 +106,8 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" HZ_START = &%04X\n HZLEN = &%04X\n" % (sy["HZ_START"], sy["HZ_END"] - sy["HZ_START"]))
     f.write(" BCODEAT = &%s\n" % re.search(r"^S\.BCODE &([0-9A-F]+)", open("build/compile.txt").read(), re.M).group(1))
     f.write(" DFSST = &%04X\n" % sy["DFSST"])
-    f.write(" B5LEN = &%04X\n B6LEN = &%04X\n R7LEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["R7_END"] - 0x8000))
+    f.write(" B5LEN = &%04X\n B6LEN = &%04X\n R7LEN = &%04X\n RALEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["R7_END"] - sy["r7_start"], sy["RA_END"] - 0x8000))
+    f.write(" R7START = &%04X\n" % sy["r7_start"])
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" COLD7LO = &%04X\n" % sy["COLD7_START%"])
     f.write(" HILEN = &%04X\n" % (sy["HI_END%"] - 0x7200))
@@ -113,11 +115,11 @@ with open("build/game-addresses.asm", "w") as f:
 # them): file, ROMSEL (hex; bit 7: ANDY) or main/shadow/hazel, start (hex), and
 # "v" for images holding variables or self-modified code
 with open("build/images.txt", "w") as f:
-    for img, rs, at, v in (("BANK4.bin", "4", 0x8000, "v"), ("ANDY.bin", "87", 0x8000, ""),
+    for img, rs, at, v in (("BANK4.bin", "4", 0x8000, "v"), ("ANDY.bin", "7", 0x8000, ""),
                            ("COLD7.bin", "7", sy["COLD7_START%"], ""), ("TOKENS.bin", "shadow", 0x3100, ""),
-                           ("BANK5.bin", "5", 0x8000, "v"), ("BANK6.bin", "6", 0x8000, "v"),
-                           ("RAST7.bin", "7", 0x8000, "v"), ("HAZEL.bin", "hazel", sy["HZ_START"], "v"),
-                           ("HICODE.bin", "main", 0x7200, "v")):
+                           ("BANK5.bin", "5", 0x8000, "v"), ("RASTA.bin", "85", 0x8000, "v"),
+                           ("BANK6.bin", "6", 0x8000, "v"), ("RAST7.bin", "7", sy["r7_start"], "v"),
+                           ("HAZEL.bin", "hazel", sy["HZ_START"], "v"), ("HICODE.bin", "main", 0x7200, "v")):
         f.write("%s %s %04X %s\n" % (img, rs, at, v))
 PY
 python3 tools/bankcheck.py || exit 1

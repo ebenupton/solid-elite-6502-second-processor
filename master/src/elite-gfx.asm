@@ -30,7 +30,11 @@ ACCY = 8                \ ACCCON bit Y: HAZEL at &C000-&DFFF
 MAXSH = 13              \ ships per frame
 MAXLN = 48              \ lines per frame
 MAXDT = 64              \ dots per frame
-RASTBANK = 5
+RASTBANK = 5            \ the rasteriser: bank 5, its disc window (&8000-&8FFF) and
+RASTPOLY = &85          \ the shared region (&9000-&BFFF); ANDY over bank 5, its
+                        \ polygon window
+R_BANK_AUX = 7          \ R_LINE, in bank 7 (with the cold area), from R7START
+R7START = &9000
 GFXBANK = 6
 ELITEBANK = HOMEBANK
 
@@ -38,8 +42,7 @@ ELITEBANK = HOMEBANK
 \ the glue at &C300 (the shared variables with initial values, the T_
 \ trampolines, the text and IRQ hooks), then XX21 and the other blueprints to
 \ the end of HAZEL (elite-data.asm, "Blueprints in HAZEL" in
-\ docs/MASTER-PLAN.md). The rasteriser's bank 5 <-> 7 stubs (gfx-raster_hz.asm)
-\ are in the main code below &3000, for want of room here
+\ docs/MASTER-PLAN.md)
 
 CLEAR &C000, &E000
 ORG &C000
@@ -113,14 +116,26 @@ PRINT "Shared workspace: ", ~WS_START, "-", ~WS_END-1, " (free ", WS_START-&0E00
 ASSERT WS_START >= &0E00 AND WS_END = CODE%    \ (one block, ending where the main code starts)
 ASSERT HI(R_WR) = HI(R_WR + 191)
 
-CLEAR &8000, &C000
-ORG &8000
-INCLUDE "src/gfx-raster.asm"
+CLEAR &8000, &C000      \ bank 5: the shared region from &9000 (the per-x tables,
+ORG &9000               \ the row runs, the boundary arrays, the stars, the lens
+INCLUDE "src/gfx-raster.asm"   \ flare ...), then the disc window at &8000
 INCLUDE "src/gfx-flare.asm"    \ the lens flare (its step in bank 6: gfx-flare6.asm)
 .B5_END
-PRINT "Bank 5: rasteriser &8000-", ~B5_END-1, " free ", &C000-B5_END
 ASSERT B5_END <= &C000
+ORG &8000
+INCLUDE "src/gfx-raster_disc.asm"
+.B5LO_END
+ASSERT B5LO_END <= &9000
+PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", &9000-B5LO_END, "), shared &9000-", ~B5_END-1, " free ", &C000-B5_END
 SAVE "build/BANK5.bin", &8000, B5_END, &8000
+
+CLEAR &8000, &9000      \ ANDY (ROMSEL &85): the rasteriser's polygon window
+ORG &8000
+INCLUDE "src/gfx-raster_poly.asm"
+.RA_END
+ASSERT RA_END <= &9000
+PRINT "ANDY: rasteriser polygon window &8000-", ~RA_END-1, " free ", &9000-RA_END
+SAVE "build/RASTA.bin", &8000, RA_END, &8000
 
 CLEAR &8000, &C000
 ORG &8000
@@ -148,11 +163,10 @@ PRINT "Bank 6: frame layer &8000-", ~B6_CODE_END-1, ", data ", ~F_HW, "-", ~B6_E
 ASSERT B6_END <= &C000
 SAVE "build/BANK6.bin", &8000, B6_END, &8000
 
-CLEAR &8000, &C000
-ORG &8000
-INCLUDE "src/gfx-raster7.asm"   \ the rasteriser's second bank (cold code)
+CLEAR &8000, &C000      \ bank 7 (the cold area's bank, ROMSEL 7): R_LINE
+ORG R7START
+INCLUDE "src/gfx-raster7.asm"   \ R_LINE
 .R7_END
-PRINT "Bank 7: rasteriser (cold) &8000-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
+PRINT "Bank 7: R_LINE &", ~R7START, "-", ~R7_END-1, " free to the cold area ", COLD7LO-R7_END
 ASSERT R7_END <= COLD7LO
-SAVE "build/RAST7.bin", &8000, R7_END, &8000
-
+SAVE "build/RAST7.bin", R7START, R7_END, R7START

@@ -40,8 +40,7 @@
 \
 \ ******************************************************************************
 
-COLDBANK = &87          \ ROMSEL for the cold area: bank 7 with ANDY over
-                        \ &8000-&8FFF
+COLDBANK = 7            \ ROMSEL for the cold area: bank 7 (ANDY is the rasteriser's)
 
 .fA     EQUB 0          \ A, X, the bank to page in (and flags on the way back)
 .fX     EQUB 0

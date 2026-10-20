@@ -3204,9 +3204,6 @@ ENDIF
 
  INCLUDE "src/elite-far.asm"   \ Port: far calls to and from the cold area
 
- INCLUDE "src/gfx-raster_hz.asm" \ Port: the rasteriser's bank 5 <-> 7 stubs (below
-                        \ &3000, which both banks see whatever ACCCON X is)
-
 \ ******************************************************************************
 \
 \       Name: stackpt

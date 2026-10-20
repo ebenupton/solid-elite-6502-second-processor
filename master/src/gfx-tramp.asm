@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ tramp.asm - trampolines from the frame layer (bank GFXBANK) into the
-\ rasteriser (bank RASTBANK). Lives in HAZEL (&C000-&DFFF), visible whichever
+\ rasteriser (bank RASTBANK, and ANDY over it, RASTPOLY, for R_POLY). Lives in HAZEL (&C000-&DFFF), visible whichever
 \ bank is paged. A, X, Y are passed through; nothing is returned.
 \
 \ ******************************************************************************
@@ -77,9 +77,9 @@
  JSR R_MARKDIRTY
  JMP tback
 
-.T_POLY
+.T_POLY                 \ (R_POLY is in the rasteriser's polygon window, ANDY)
  STA tA
- LDA #RASTBANK
+ LDA #RASTPOLY
  STA &F4
  STA &FE30
  LDA tA

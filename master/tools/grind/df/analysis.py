@@ -4,7 +4,7 @@
 build: BIT skips from the grindmap's EQUB records; address-taken entries from the
 source text (immediates #LO()/#HI() and data naming a code label); self-modifying
 stores restricted to the bank the store can reach; the rasteriser's cross-bank calls
-(r_call7 / r_call5 through r_hzt7 / r_hzt5) resolved to their targets; the interrupt's
+(gamecfg CROSS_CALLS; none in full Master Elite now) resolved to their targets; the interrupt's
 JMP (VEC) into the MOS taken as an exit that touches no game memory; PAGED is
 &3000-&BFFF (HAZEL is fixed RAM during the game).)
 
@@ -185,7 +185,7 @@ class Analysis:
     def _far(self):
         """The far calls between the home bank and the cold area (master/src/elite-far.asm):
         `JSR far7 : EQUW target` (far4, far7j, far4j likewise).  far7/far4 page the
-        target's bank in (ROMSEL &87 / 4), call it, page the caller's bank back and return
+        target's bank in (ROMSEL 7 / 4), call it, page the caller's bank back and return
         to the stub's *caller* (the stub's own return address is dropped); A X Y and every
         flag pass both ways unchanged.  far7j/far4j jump (the target returns to the stub's
         caller, if at all).  So a stub is modelled as `JSR target` with the far code's

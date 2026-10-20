@@ -5,7 +5,7 @@
 # Areas: "main" (elite-source.asm and the files it INCLUDEs in main RAM:
 # elite-far.asm, elite-stubs7.asm; their labels assembled at &8000-&BFFF, where
 # the main code continues, are in bank 4), "bank4" (elite-bank4.asm), "cold" (elite-andy.asm,
-# elite-coldstubs.asm, elite-cold7.asm: ROMSEL COLDBANK, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
+# elite-coldstubs.asm, elite-cold7.asm: ROMSEL COLDBANK, bank 7, and the data marked cold). Main RAM and bank 4 see each other (bank 4 is paged
 # whenever game code runs). The cold area is only paged during far calls.
 #
 # Rules, for every reference from code or data in one area to a label in
@@ -45,7 +45,7 @@ FILES = {"elite-source.asm": "main", "elite-far.asm": "main", "elite-stubs7.asm"
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
          # and its banks
          "gfx-gvars.asm": "hazel", "gfx-tramp.asm": "hazel", "gfx-hzhooks.asm": "hazel",
-         "gfx-raster_hz.asm": "hazel", "gfx-raster_scr.asm": "hazel",
+         "gfx-raster_scr.asm": "hazel",
          "gfx-raster_vars.asm": "hazel", "elite-gfx.asm": "hazel",
          "gfx-raster.asm": "bank5", "gfx-raster_disc.asm": "bank5d", "gfx-raster_poly.asm": "bank5a",
          "gfx-raster7.asm": "bank7r",
@@ -57,10 +57,9 @@ RENDER = ("bank5", "bank5d", "bank5a", "bank6", "bank7r")
 # (bank5a, ANDY, ROMSEL &85), which are never paged in together
 RAST5 = ("bank5", "bank5d", "bank5a")
 # the files that hold the cross-bank stubs into the renderer's banks (the G_
-# stubs page bank 6 in from game code, the T_ trampolines the rasteriser's banks
-# from bank 6, raster_hz (while it exists) bank 7 from bank 5 and back, the HAZEL
-# hooks bank 6 from any bank)
-GLUE = ("gfx-gstubs.asm", "gfx-tramp.asm", "gfx-raster_hz.asm", "gfx-hzhooks.asm")
+# stubs page bank 6 in from game code, the T_ trampolines bank 5 (ANDY over it
+# for R_POLY, bank 7 for R_LINE) from bank 6, the HAZEL hooks bank 6 from any bank)
+GLUE = ("gfx-gstubs.asm", "gfx-tramp.asm", "gfx-hzhooks.asm")
 MNEM = set(("ADC AND ASL BCC BCS BEQ BIT BMI BNE BPL BRA BRK BVC BVS CLC CLD CLI CLV CMP CPX CPY "
             "DEC DEX DEY EOR INC INX INY JMP JSR LDA LDX LDY LSR NOP ORA PHA PHP PHX PHY PLA PLP PLX "
             "PLY ROL ROR RTI RTS SBC SEC SED SEI STA STX STY STZ TAX TAY TRB TSB TSX TXA TXS TYA").split())

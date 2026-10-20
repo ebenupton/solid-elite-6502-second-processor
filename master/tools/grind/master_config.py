@@ -10,9 +10,10 @@ ISR_EXTRA_WRITES = (0xFC,)
 ISR_DATA_POINTERS = ()
 INLINE_HELPERS = {}
 SCREEN_POINTERS = ('SC',)           # Elite's screen pointer (SC, SCH)
-# the rasteriser's bank 5 <-> bank 7 calls through HAZEL (gfx-raster_hz.asm)
-CROSS_CALLS = {'r_call7': ('r_hzt7', 'R7'), 'r_call5': ('r_hzt5', 'B5')}
-CROSS_SCRATCH = ('r_hza',)
+# (the rasteriser makes no calls between banks: its bank 5 and ANDY parts call
+# each other directly, R_LINE in bank 7 calls nothing outside it)
+CROSS_CALLS = {}
+CROSS_SCRATCH = ()
 # the far calls between the home bank and the cold area (elite-far.asm):
 # JSR far7 : EQUW target (ROMSEL COLDBANK, from elite-far.asm), JSR far4 : EQUW target (bank 4)
 import os as _os, re as _re
