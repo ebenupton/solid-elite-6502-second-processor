@@ -47,11 +47,10 @@ import { runElite, loadSyms, regionsFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLU
 import { makePilot, patchCommander } from "./mpilot.mjs";
 import { writeFileSync, mkdirSync } from "fs";
 import { makeTracer } from "./mtrace.mjs";
+import { parseArgs } from "./args.mjs";
 
-const args = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => {
-    if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]);
-    return acc;
-}, []));
+const args = parseArgs({ iters: "value", ref: "value", rsyms: "value", cand: "value", csyms: "value", seed: "value", loose: "flag", window: "value",
+    out: "value", shots: "value", maxsecs: "value", nopatch: "flag", norefcache: "flag", views: "flag", trace: "value" });
 const ITERS = +(args.iters || 5000);
 const REF = args.ref || `${ROOT}master/reference/elite-master-sng47.ssd`;
 const RSYMS = args.rsyms || `${ROOT}master/reference/symbols.txt`;

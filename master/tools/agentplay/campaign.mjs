@@ -10,9 +10,10 @@
 // Sessions in phase 2 start from discs a phase 1 session saved (--savediscs), and load
 // the agent's commander from them.
 import { spawn } from "child_process";
+import { parseArgs } from "../../../harness/args.mjs";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
-const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
+const a = parseArgs({ out: "value", jobs: "value", plan: "value", only: "value", scale: "value", summarise: "flag", workaround: "value", cand: "value", csyms: "value" });
 if (!a.out) { console.error("--out DIR required"); process.exit(2); }
 const OUT = a.out, JOBS = +(a.jobs || 3), SCALE = +(a.scale || 1);
 const HERE = decodeURIComponent(new URL(".", import.meta.url).pathname);

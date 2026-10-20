@@ -6,7 +6,8 @@ import { MachineSession } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node
 import { BBC } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/utils.js";
 import { loadSyms, ROOT } from "./mlib.mjs";
 import { writeFileSync, mkdirSync } from "fs";
-const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1]]); return acc; }, []));
+import { parseArgs } from "./args.mjs";
+const a = parseArgs({ disc: "value", syms: "value", out: "value" });
 const sy = loadSyms(a.syms || `${ROOT}master/build/symbols.txt`);
 const OUT = a.out || `${ROOT}scratch/master/redock`; mkdirSync(OUT, { recursive: true });
 const s = new MachineSession("Master"); await s.initialise(); await s.boot(30);

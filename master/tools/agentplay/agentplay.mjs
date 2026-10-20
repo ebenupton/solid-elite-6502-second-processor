@@ -12,9 +12,10 @@
 // Writes DIR/{config.json, inputs.jsonl, agent.log, journal.jsonl, events.jsonl, summary.json, *.png}.
 // Exit status: 0 no findings, 1 a finding (divergence, crash, hang, BRK, page &0D), 2 error.
 import { Session } from "./session.mjs";
+import { parseArgs } from "../../../harness/args.mjs";
 import { MODES } from "./styles.mjs";
 
-const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
+const a = parseArgs({ out: "value", minutes: "value", seed: "value", commander: "value", mode: "value", chaos: "value", start: "value", shots: "value", keepgoing: "value", strict: "flag", noobserve: "flag", workaround: "value", savediscs: "flag", ref: "value", rsyms: "value", cand: "value", csyms: "value", iters: "value" });
 if (!a.out) { console.error("--out DIR required"); process.exit(2); }
 const env = {};
 for (const m of String(a.mode || "efficient").split(",")) { if (!MODES[m]) { console.error(`unknown mode ${m}`); process.exit(2); } Object.assign(env, MODES[m]); }

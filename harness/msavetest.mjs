@@ -26,7 +26,8 @@ import { toSsdOrDsd } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_mod
 import { loadSyms, ROOT, mapAt, mapOfLabel } from "./mlib.mjs";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
 import { dirname } from "path";
-const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
+import { parseArgs } from "./args.mjs";
+const a = parseArgs({ disc: "value", syms: "value", out: "value" });
 const DISC = a.disc || `${ROOT}master/build/elite-master-sng47.ssd`;
 const sy = loadSyms(a.syms || `${ROOT}master/build/symbols.txt`);
 const OUT = a.out || `${ROOT}scratch/master/save`;

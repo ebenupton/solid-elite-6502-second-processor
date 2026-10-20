@@ -9,10 +9,10 @@
 // compared. --info also reports routines known to differ (DOT).
 // node master/tools/agentplay/test-exit-flags.mjs [--cand disc --csyms syms] [--info]
 import { Session } from "./session.mjs";
+import { parseArgs } from "../../../harness/args.mjs";
 import { ROOT } from "./lib.mjs";
 import { writeFileSync, mkdirSync } from "fs";
-const argv = process.argv.slice(2);
-const a = Object.fromEntries(argv.reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1]]); return acc; }, []));
+const a = parseArgs({ out: "value", cand: "value", csyms: "value", info: "flag" });
 const out = a.out || ROOT + "scratch/agentplay/test-exit-flags";
 mkdirSync(out, { recursive: true });
 const log = out + "/inputs.jsonl";
@@ -25,7 +25,7 @@ while (S.frame < 900) await S.step();
 const CASES = [
     ["MSBAR", [1, 2, 3, 4].flatMap(x => [0, 0xf0, 0x0f, 0xff].map(y => [x, y]))],      // (Y: colour bytes as the original's callers pass)
     ["ECBLB", [[0, 0]]], ["SPBLB", [[0, 0]]],
-    ...(argv.includes("--info") ? [["DOT", [[0, 0]]]] : []),
+    ...(a.info ? [["DOT", [[0, 0]]]] : []),
 ];
 function call(m, name, x, y, c) {
     const cpu = m.cpu, addr = m.sy[name], RET = 0xfff0, pc0 = cpu.pc, s0 = cpu.s;

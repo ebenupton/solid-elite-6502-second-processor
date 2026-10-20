@@ -10,9 +10,10 @@
 // letter, as RR2 leaves them; the same after code 11) and ACCCON's X bit clear.
 // node master/tools/agentplay/test-chpr-overflow.mjs [--cand disc --csyms syms]
 import { Session } from "./session.mjs";
+import { parseArgs } from "../../../harness/args.mjs";
 import { ROOT } from "./lib.mjs";
 import { writeFileSync, mkdirSync } from "fs";
-const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1]]); return acc; }, []));
+const a = parseArgs({ out: "value", cand: "value", csyms: "value" });
 const out = a.out || ROOT + "scratch/agentplay/test-chpr-overflow";
 mkdirSync(out, { recursive: true });
 const log = out + "/inputs.jsonl";

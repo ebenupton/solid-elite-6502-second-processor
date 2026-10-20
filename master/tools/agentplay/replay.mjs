@@ -8,9 +8,10 @@
 // another build to test a fix); --out DIR/replay. --until: stop after that iteration (a
 // divergence's, for a short repro). Exit status as agentplay.mjs.
 import { Session } from "./session.mjs";
+import { parseArgs } from "../../../harness/args.mjs";
 import { readFileSync } from "fs";
 
-const a = Object.fromEntries(process.argv.slice(2).reduce((acc, v, i, arr) => { if (v.startsWith("--")) acc.push([v.slice(2), arr[i + 1] && !arr[i + 1].startsWith("--") ? arr[i + 1] : true]); return acc; }, []));
+const a = parseArgs({ run: "value", log: "value", out: "value", until: "value", keepgoing: "value", cut: "value", save: "value", trace: "value", tracefull: "flag", shots: "value", noobserve: "flag", cand: "value", csyms: "value", ref: "value", rsyms: "value", workaround: "value" });
 const log = a.log || `${a.run}/inputs.jsonl`;
 if (!a.run && !a.out && a.cut === undefined) { console.error("--run DIR or --log FILE with --out DIR"); process.exit(2); }
 const h = JSON.parse(readFileSync(log, "utf8").split("\n")[0]);
