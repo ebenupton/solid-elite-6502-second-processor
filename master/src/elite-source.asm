@@ -3253,6 +3253,12 @@ ENDIF
 \    Summary: Temporary storage for the stack pointer when jumping to the break
 \             handler at NEWBRK
 \
+\ ------------------------------------------------------------------------------
+\
+\ Port: here, below &3000, with the start of NEWBRK (the MOS enters it through
+\ BRKV with any ROM paged in); the original's place is before NEWBRK, which
+\ goes on at NEWBRK2 there
+\
 \ ******************************************************************************
 
 .stackpt
@@ -8336,44 +8342,6 @@ ENDIF
  SBC S
  EOR T
  RTS
-
-\ ******************************************************************************
-\
-\       Name: ZEKTRAN
-\       Type: Subroutine
-\   Category: Keyboard
-\    Summary: Clear the key logger
-\
-\ ------------------------------------------------------------------------------
-\
-\ Returns:
-\
-\   X                   X is set to 0
-\
-\ ******************************************************************************
-
-.ZEKTRAN
-
- LDA #0                 \ We want to zero the key logger buffer, so set A % 0
-
- LDX #17                \ We want to clear the 17 key logger locations from
-                        \ KL to KY20, so set a counter in X
-
-.ZEKLOOP
-
- STA JSTY,X             \ Store 0 in the X-th byte of the key logger
-
- DEX                    \ Decrement the counter
-
- BNE ZEKLOOP            \ And loop back for the next key, until we have just
-                        \ KL+1. We don't want to clear the first key logger
-                        \ location at KL, as the keyboard table at KYTB starts
-                        \ with offset 1, not 0, so KL is not technically part of
-                        \ the key logger (it's actually used for logging keys
-                        \ that don't appear in the keyboard table, and which
-                        \ therefore don't use the key logger)
-
- RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
@@ -20756,7 +20724,8 @@ ENDMACRO
  STX T
 
  LDA P                  \ Set A = P and join MU11 to set (A P) = P * Q
- BRA MU11
+ BRA MU11               \ (Port: MULTU is before MLU1, which falls through
+                        \ into MU11 instead of the original's MLU2)
 
 \ ******************************************************************************
 \
@@ -47675,6 +47644,44 @@ IF _SNG47
  RTS                    \ Return from the subroutine
 
 ENDIF
+
+\ ******************************************************************************
+\
+\       Name: ZEKTRAN
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Clear the key logger
+\
+\ ------------------------------------------------------------------------------
+\
+\ Returns:
+\
+\   X                   X is set to 0
+\
+\ ******************************************************************************
+
+.ZEKTRAN
+
+ LDA #0                 \ We want to zero the key logger buffer, so set A % 0
+
+ LDX #17                \ We want to clear the 17 key logger locations from
+                        \ KL to KY20, so set a counter in X
+
+.ZEKLOOP
+
+ STA JSTY,X             \ Store 0 in the X-th byte of the key logger
+
+ DEX                    \ Decrement the counter
+
+ BNE ZEKLOOP            \ And loop back for the next key, until we have just
+                        \ KL+1. We don't want to clear the first key logger
+                        \ location at KL, as the keyboard table at KYTB starts
+                        \ with offset 1, not 0, so KL is not technically part of
+                        \ the key logger (it's actually used for logging keys
+                        \ that don't appear in the keyboard table, and which
+                        \ therefore don't use the key logger)
+
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
