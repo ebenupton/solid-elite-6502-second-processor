@@ -48,11 +48,11 @@ which spare RAM the port may take.
    as NWSHP reads past E% (E%-1,Y for the planet and the sun) into the
    missile's blueprint.
 6. **The screen and the split.** Main &4000-&6FFF is buffer 0 and shadow
-   &4000-&6FFF buffer 1; shadow &7000-&7DFF is the dashboard and main
-   &7000-&71FF a copy of its first character row (for a late split; a
-   candidate for removal once the split's timing is confirmed on hardware,
-   docs/MASTER-PLAN.md "Dashboard split timing"). Nothing else lives there,
-   except that a disc command borrows buffer 0 to stash HAZEL (rule 8).
+   &4000-&6FFF buffer 1; shadow &7000-&7DFF is the dashboard. Main RAM under
+   the dashboard (&7000-&7FFF) is never on show, as the split is never late
+   (docs/MASTER-PLAN.md, "Dashboard split timing"), so it holds the high code.
+   Nothing else lives in the buffers, except that a disc command borrows
+   buffer 0 to stash HAZEL and to hand the MOS its command (rule 8).
    In space mode with buffer 0 on show, IRQ1's timer 1 interrupt sets ACCCON D
    in line 191's horizontal blanking; timer 1 runs freely, once a frame
    (T1SYNC), and only timer 1 and vsync (CA1) are enabled. Code that must not

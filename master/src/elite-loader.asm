@@ -813,19 +813,15 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
- EQUW MESS12            \ HAZEL: the game data and the renderer's glue, staged
+ EQUW MESS12            \ HAZEL: the game data and the hangar's heap, staged
  EQUB HOMEBANK, %00001001 \ in main RAM at &4000 (screen buffer 0) and copied to
  EQUW &4000, HZLEN      \ HAZEL after the last disc access (see LDEND), as DFS
                         \ uses HAZEL
 
  EQUW MESS14            \ HICODE: the high code (the quarter squares, the
  EQUB HOMEBANK, %00001001 \ renderer's stubs and hooks, the stubs into the cold
-                        \ area), main RAM &7200-&7FFF
- EQUW &7200, HILEN
-
- EQUW MESS1             \ BDATA again: the dashboard's first character row in
- EQUB HOMEBANK, %00001001 \ main RAM too (&7000-&71FF), for a late split
- EQUW &7000, &0200
+                        \ area), main RAM &7000-&7FFF
+ EQUW &7000, HILEN
 
  EQUW 0
 

@@ -20829,7 +20829,7 @@ ENDIF
 
  PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
  ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0, and
-                        \ &7000-&71FF the dashboard's first row)
+                        \ &7000-&7FFF the high code, elite-hi.asm)
  PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
  SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
 

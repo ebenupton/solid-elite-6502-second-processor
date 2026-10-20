@@ -24,7 +24,7 @@
 \   * the cold area, sideways RAM bank 7: elite-source.asm's cold blocks,
 \     then elite-data.asm's (build/elite-data-cold.asm);
 \
-\ then the high code (main RAM &7200-&7FFF) and the renderer (elite-gfx.asm).
+\ then the high code (main RAM &7000-&7FFF) and the renderer (elite-gfx.asm).
 \ elite-data.asm's blocks tagged BDATA, the dashboard image, are assembled on
 \ their own (build/elite-data-bdata.asm, by build.sh).
 \
@@ -87,22 +87,22 @@
 
 \ ******************************************************************************
 \
-\ Port: the high code, main RAM &7200-&7FFF (elite-hi.asm, docs/MASTER-MAP.md):
+\ Port: the high code, main RAM &7000-&7FFF (elite-hi.asm, docs/MASTER-MAP.md):
 \ the port's game-context glue, which has no counterpart in the original (the
 \ quarter squares, the renderer's game-context half, the stubs into the cold
 \ area). Saved as HICODE, which the loader copies there.
 \
 \ ******************************************************************************
 
- ORG &7200
+ ORG &7000
 
  INCLUDE "src/elite-hi.asm"
 
 .HI_END%
 
- PRINT "Hi code: &7200-", ~HI_END%-1, " free ", &8000-HI_END%
+ PRINT "Hi code: &7000-", ~HI_END%-1, " free ", &8000-HI_END%
  ASSERT HI_END% <= &8000
- SAVE "build/HICODE.bin", &7200, HI_END%, &7200
+ SAVE "build/HICODE.bin", &7000, HI_END%, &7000
 
 \ ******************************************************************************
 \

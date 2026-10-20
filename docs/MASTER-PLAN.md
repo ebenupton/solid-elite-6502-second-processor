@@ -931,22 +931,17 @@ vsync masked by FILLKL with many keys held is deferred by at most ~1,500 cycles,
 well inside the 4,864 cycles between CA1 and line 0, so the flip is unaffected.
 DKS4 and DKS5 (single-key tests) still use short SEI sections (~30 cycles).
 
-**Hardware canary.** `sh master/tools/irqprobe/canary.sh [out.ssd]` builds the
-tree with the loader filling main &7000-&71FF with solid yellow (&FF) instead of
-the copy: a late split shows as a yellow flash across the top of the dashboard.
-Fly a few minutes holding keys (combat, the bomb, the pod, hyperspace), sit on
-the title screen (its Cobra is in space mode), and watch the top of the
-dashboard and the bottom lines of the space view (flicker there would be an
-early split, i.e. CA1 timing differing from jsbeeb).
-
-**Candidate (after the hardware check): remove the copy.** Delete the loader's
-last FTAB entry (`EQUW MESS1 ... EQUW &7000, &0200`, 8 bytes of loader) and
-update rule 6 (docs/MASTER-MAP.md), elite-hi.asm's header and the BCODE
-assert's comment (elite-source.asm). That frees main &7000-&71FF, 512 bytes,
-contiguous with the high code at &7200 (so HICODE could start at &7000, keeping
-QSL/QSH page aligned). Main &7000-&71FF must then never hold anything that
-needs to stay readable during flight with ACCCON X set (main RAM is hidden),
-like the rest of the high code.
+**The copy removed** (2026-10-20, on the order2 branch). The user chose not to
+wait for the hardware canary: with option D the split is never late (the probe
+measured 0 late splits over 62K frames). The loader's last FTAB entry (`EQUW
+MESS1 ... EQUW &7000, &0200`, 8 bytes) is gone, and the high code starts at
+&7000 (QSL/QSH page aligned there), so main &7000-&71FF, 512 bytes, is the high
+code's. canary.sh is retired: without the copy every build is the canary, as a
+late split would show the high code's bytes across the top of the dashboard.
+irqprobe's gate.mjs on the result: 10000 iterations, split late 0, early 0,
+main RAM shown in the dashboard's area in 0 of 30519 frames (T1 latency p50 47,
+max 53 cycles); with --holdkey 0,1 (Q held) late 0, early 0, 0 of 30673
+frames (max 53).
 
 ## The rasteriser in ANDY (after the dashboard split timing)
 

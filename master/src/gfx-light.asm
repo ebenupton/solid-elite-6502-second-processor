@@ -9,7 +9,7 @@
 \ of nine hue ramps shared by every ship, each from 50% to 100% of the hue's
 \ own full brightness: gfx-light6.asm).
 \
-\ Master port: in main RAM &7200-&7DFF (elite-hi.asm), so this runs in game
+\ Master port: in main RAM &7000-&7FFF (elite-hi.asm), so this runs in game
 \ context only (never with ACCCON X set, which hides it), with bank 6 (the
 \ frame layer) paged in; it multiplies with the quarter squares QSL/QSH.
 \ The frame layer's f_col (gfx-frame.asm) turns a level into the four row

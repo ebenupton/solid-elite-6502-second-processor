@@ -298,7 +298,7 @@ def region(P, i):
     if s == 'main':
         if i.addr < 0x3000:
             return 'main <&3000'
-        if i.addr < 0x7200:
+        if i.addr < 0x7000:
             return 'BCODE >=&3000'
         return 'high code'
     return {'B4': 'bank 4', 'ANDY': 'ANDY', 'C7A': 'bank 7 cold (&8000-)', 'C7': 'bank 7 cold',

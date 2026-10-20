@@ -1,15 +1,14 @@
 \ ******************************************************************************
 \
 \ elite-hi.asm - the high code: the port's game-context glue, main RAM
-\ &7200-&7FFF (docs/MASTER-MAP.md)
+\ &7000-&7FFF (docs/MASTER-MAP.md)
 \
 \ Port: none of this has a counterpart in the original; it is the glue that
 \ the port adds around the original's code, for game context only. Main RAM
-\ &7000-&7DFF would be the dashboard's, but the dashboard is in shadow RAM
-\ (the IRQ shows shadow RAM from the dashboard's first line on): only its
-\ first character row (&7000-&71FF) is kept, as a copy of the static image,
-\ so that a split that lands a few lines late shows the dashboard rather
-\ than code. The rest, from &7200, is this region. Code here must never run
+\ &7000-&7DFF would be the dashboard's, but the dashboard is in shadow RAM:
+\ the IRQ shows shadow RAM from the dashboard's first line on (timer 1 sets
+\ ACCCON D in line 191's horizontal blanking, never late), so main RAM there
+\ is never on show, and this region starts at &7000. Code here must never run
 \ with ACCCON X set (which hides main RAM at &3000-&7FFF), so what the IRQ,
 \ the MOS vectors or code running with X set use is in the low area instead
 \ (elite-low.asm); and it is not in bank 4, whose room is the main code's
