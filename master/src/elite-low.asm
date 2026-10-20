@@ -19,8 +19,11 @@
 \   * the renderer's glue: the variables that the game, the IRQ handler and
 \     the renderer's banks share, with their initial values (gfx-gvars.asm),
 \     the trampolines from the frame layer into the rasteriser
-\     (gfx-tramp.asm), and the hooks that CHPR (WRCHV: any ROM paged, ACCCON X
-\     set) and IRQ1 call (gfx-lowhooks.asm).
+\     (gfx-tramp.asm), the hooks that CHPR (WRCHV: any ROM paged, ACCCON X
+\     set) and IRQ1 call (gfx-lowhooks.asm), and, needing only game context
+\     but outside the banks they page, the G_ stubs that page the frame layer
+\     in (gfx-gstubs.asm) and the hooks in Elite's drawing code
+\     (gfx-hooks.asm).
 \
 \ ******************************************************************************
 
