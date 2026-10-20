@@ -145,7 +145,8 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6d2b79f5 | 0; let t = Ma
 export function makeChaos(spec, seed) {
     const r = mulberry(seed * 7919 + 17);
     const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...Object.keys(POKES)]
-        : spec.split(",").flatMap(n => n === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1") : n === "docked" ? Object.keys(DOCKED) : [n]);
+        : spec.split(",").flatMap(n => n === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1") : n === "docked" ? Object.keys(DOCKED)
+            : n === "all" ? [...Object.keys(ACTIONS).filter(k => !ACTIONS[k].disc), ...Object.keys(POKES)] : [n]);
     const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
     let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = 0;
     const done = {};
