@@ -387,7 +387,7 @@ export async function runElite(opts) {
     // code in RAM (main RAM, sideways RAM banks 4-7, HAZEL) are recorded in
     // res.page0d, and mcompare fails the candidate on any.
     res.page0d = [];
-    if (T) T.watch0d(res, () => iter);
+    if (T) T.watch0d(res, () => iter, () => inGame);
     else cpu.debugWrite.add(a => {
         if (!inGame || a < 0x0d00 || a > 0x0dff) return false;
         const pc = cpu.pc;
@@ -447,18 +447,21 @@ async function bootTubeElite(opts) {
         get y() { return par.y; }, set y(v) { par.y = v; }, get s() { return par.s; }, get pc() { return par.pc; },
         romsel: 0, acccon: 8, ramRomOs: par.memory, readmem: a => par.readmem(a),
     };
+    const hp = String(opts.disc).replace(/[^/]*$/, "hsyms.txt"), hsy = existsSync(hp) ? loadSyms(hp) : {};
+    const hnmi = [hsy.HNMI ?? 0, hsy.HNMI_END ?? 0];
     const writers = [];
     const wm = par.writemem.bind(par);
     par.writemem = (a, b) => { for (const f of writers) f(a & 0xffff); return wm(a, b); };
     return {
         t, s: t.s, cpu,
         onWrite(f) { writers.push(f); return { remove() { const i = writers.indexOf(f); if (i >= 0) writers.splice(i, 1); } }; },
-        watch0d(res, iterOf) {
+        watch0d(res, iterOf, armed) {
             host.debugWrite.add(a => {
-                if (a < 0x0d00 || a > 0x0dff) return false;
+                if (a < 0x0d00 || a > 0x0dff || !armed()) return false;
                 const pc = host.oldPcArray[host.oldPcIndex];
                 const inRam = pc < 0x8000 || (pc < 0xc000 && (host.romsel & 15) >= 4 && (host.romsel & 15) <= 7) || (pc < 0x9000 && pc >= 0x8000 && (host.romsel & 0x80));
                 if (pc >= 0x0d00 && pc < 0x0e00) return false;      // (DFS's NMI code itself)
+                if (pc >= hnmi[0] && pc < hnmi[1]) return false;    // (HNMI: the minimal handler back after a disc command)
                 if (inRam && res.page0d.length < 20) res.page0d.push([iterOf(), pc, a]);
                 return false;
             });

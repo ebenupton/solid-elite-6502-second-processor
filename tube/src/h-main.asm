@@ -50,13 +50,66 @@ ENDMACRO
 
 .hwrch
  CMP #&FE
- BEQ hstart
- JMP CHPR
+ BNE hwr1
+ JMP hstart
+.hwr1
+ STA hwa                \ printing in the MOS (a catalogue): CHPR with its zero
+ JSR hctxsw             \ page swapped for the command's (hctx), which the MOS's
+ LDA hwa                \ Tube code's zero page (&12-&15) overlaps
+ JSR CHPR
+ JSR hctxsw
+ LDA hwa
+ RTS
+.hwa EQUB 0
+
+.hctxsw                 \ exchange zero page &0A-&15 and W with hctx
+ LDX #HCTXN-1
+.hcs1
+ LDA &0A,X
+ LDY hctx,X
+ STA hctx,X
+ STY &0A,X
+ DEX
+ BPL hcs1
+ LDA W
+ LDY hctx+HCTXN
+ STA hctx+HCTXN
+ STY W
+ RTS
+HCTXN = 12
+.hctx SKIP HCTXN+1      \ CHPR's zero page and W, between the parasite's commands
+.hzps SKIP &50          \ the MOS's Tube code's zero page (&00-&4F), as the host
+                        \ took over from it
+.hzpk EQUB 0            \ non-zero: hzps holds it
 
 .hstart
  LDX #&FF
  TXS
  SEI
+ LDA hzpk               \ the first time, keep the MOS's Tube code's zero page
+ BNE hst1               \ (its transfer state and idle loop) for the disc
+ LDX #&4F               \ commands
+.hst0
+ LDA &00,X
+ STA hzps,X
+ DEX
+ BPL hst0
+ DEC hzpk
+.hst1
+ BIT hmos               \ back from a disc command: quieten the 1770, put the
+ BPL hst2               \ minimal NMI handler back (DFS installed its own), and
+ JSR HNMI               \ return the printing's zero page to the parasite
+ LDX #0
+.hst3
+ LDA hctx,X
+ HTX
+ INX
+ CPX #HCTXN+1
+ BNE hst3
+ LDA CATF
+ HTX
+ STZ hmos
+.hst2
  LDA #%00111001         \ as SETINTS: no CB1, CB2, CA2 or T2 interrupts from the
  STA VIA+&4E            \ System VIA, none from the User VIA, IRQ1V = IRQ1
  LDA #%01111111
@@ -87,8 +140,71 @@ ASSERT P% - htab = C_MAX
  JMP (htab,X)
 
 .h_sync                 \ C_SYNC: a frame's end (the harness hashes the screen
-.h_oscli                \ here); C_OSCLI: phase 2
- JMP hloop
+ JMP hloop              \ here)
+
+\ h_oscli: C_OSCLI: QQ11 OR GFORCE, GMODE, CHPR's zero page and W, CATF: go
+\ back to the MOS's Tube code (its idle loop, with its zero page back), where
+\ the parasite's OSCLI runs the command; the parasite's &FE through register 1
+\ comes back through hwrch to hstart
+
+.h_oscli
+ HRX
+ STA QQ11
+ STZ GFORCE
+ HRX
+ STA GMODE
+ LDX #0
+.hos1
+ HRX
+ STA hctx,X
+ INX
+ CPX #HCTXN+1
+ BNE hos1
+ HRX
+ STA CATF
+ SEI
+ LDX #&4F
+.hos2
+ LDA hzps,X
+ STA &00,X
+ DEX
+ BPL hos2
+ LDA #&FF
+ STA hmos
+ LDA #0                 \ (ready)
+ HTX
+ JMP &0032              \ (the MOS's Tube idle loop: LDX #&FF : TXS : CLI ...)
+.hmos EQUB 0
+
+\ HNMI: after a disc command, as the Master port's DOSNMI: 1770 Force
+\ Interrupt, then the minimal NMI handler at &0D00 (RTI, then its body, then
+\ PHA): the one write the host makes to page &0D
+
+.HNMI
+ SEI
+ LDA #&D0
+ STA &FE28
+ LDA #8
+.hnm1
+ DEC A
+ BNE hnm1
+ LDA &FE28
+ LDA #&40
+ STA &0D00
+ LDA #&AD
+ STA &0D01
+ LDA #&28
+ STA &0D02
+ LDA #&FE
+ STA &0D03
+ LDA #&68
+ STA &0D04
+ LDA #&40
+ STA &0D05
+ LDA #&48
+ STA &0D00
+ RTS
+.HNMI_END
 
 .h_init                 \ C_INIT: F_INIT's host part
  JSR T_INIT

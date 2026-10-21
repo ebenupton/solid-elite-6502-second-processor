@@ -478,10 +478,96 @@ ENDMACRO
  RTS
 .pfkn EQUB 0
 
-\ p_oscli: DOSCLI (the disc commands): the host's (phase 2)
+\ p_oscli: DOSCLI (the disc commands, Y X = the command): the host's MOS runs
+\ it through its own Tube code, which the host goes back to for it (h_oscli):
+\ this side sends what the host's CHPR needs to print during the command (a
+\ catalogue), waits for the host to be in the MOS's idle loop, then calls
+\ the client OS's OSCLI with interrupts on (the MOS's transfers to and from
+\ the parasite's memory, *SAVE and *LOAD, run through the client OS's IRQ and
+\ NMI handlers), and finally brings the host back to the command loop
+\ (p_resume). As DOSCLI: A and the flags are OSCLI's, and GSTASH is set (the
+\ Master port's next space-mode frame clears buffer 0)
+
+PCTX = &0A              \ CHPR's zero page: SC, SCH, P(4), XC, COL, YC, QQ17, K3, K3+1
+PCTXN = 12
 
 .p_oscli
+ PHA
+ PHX
+ PHY
+ LDA #&80
+ STA GSTASH
+ LDA #C_OSCLI
+ PSEND
+ LDA QQ11
+ ORA GFORCE
+ PSEND
+ LDA GMODE
+ PSEND
+ LDX #0
+.pos1
+ LDA PCTX,X
+ PSEND
+ INX
+ CPX #PCTXN
+ BNE pos1
+ LDA W
+ PSEND
+ LDA CATF
+ PSEND
+ JSR prx                \ (the host is in the MOS's idle loop)
+ LDA #&FF
+ STA pmos
+ PLY
+ PLX
+ PLA
+ CLI
+ JSR OSCLI
+ SEI
+ PHP
+ PHA
+ JSR p_resume
+ PLA
+ PLP
  RTS
+
+\ p_dosnmi: NEWBRK's DOSNMI, after a disc command's error (which the MOS's Tube
+\ code has brought here): back to the command loop. Keeps A and the flags
+
+.p_dosnmi
+ SEI
+ PHP
+ PHA
+ JSR p_resume
+ PLA
+ PLP
+ RTS
+
+\ p_resume: if the host is in the MOS (pmos), wake its command loop (&FE through
+\ register 1, which the MOS's idle loop passes to the host's WRCHV, hwrch) and
+\ take back CHPR's zero page, W and CATF as the host's printing left them
+
+.p_resume
+ BIT pmos
+ BPL prs9
+ STZ pmos
+ LDA #&FE
+ PSEND
+ LDX #0
+.prs1
+ JSR prx
+ STA PCTX,X
+ INX
+ CPX #PCTXN
+ BNE prs1
+ JSR prx
+ STA W
+ JSR prx
+ STA CATF
+.prs9
+ RTS
+
+.pmos EQUB 0
 
 .T1SYNC                 \ (BEGIN's: the host's, at its start)
  RTS
@@ -489,8 +575,7 @@ ENDMACRO
 .TTX66M                 \ (CHPR's call of TTX66: no banks here)
  JMP TTX66
 
-.p_dosnmi               \ (NEWBRK's DOSNMI, after a disc error: the host's)
- RTS
+
 
 \ p_start: the parasite's entry (the loader starts it through the MOS's Tube
 \ code): interrupts off for good (the client OS's handlers would take the
