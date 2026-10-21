@@ -42,6 +42,17 @@ $BEEBASM -i tsrc/p-layout.asm -d > build/psyms.txt 2>/dev/null
 # the host
 $BEEBASM -i tsrc/h-layout.asm -v > build/compile-h.txt 2>&1 || { grep -iE "error" -A3 build/compile-h.txt | head -30; exit 1; }
 $BEEBASM -i tsrc/h-layout.asm -d > build/hsyms.txt 2>/dev/null
+# build/hbanks.txt: the host's labels in sideways RAM and the ROMSEL value of
+# their bank (5: bank 5, 85: ANDY over bank 5, 6: bank 6), for the profilers
+python3 - <<'PY'
+import re
+with open("build/hbanks.txt", "w") as f:
+    for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
+                      ("src/gfx-flare.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_line.asm", "85"),
+                      ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-flare6.asm", "6")):
+        for m in re.finditer(r"^\s*\.([A-Za-z_][\w%]*)", open(src, encoding="latin-1").read(), re.M):
+            f.write("%s %s\n" % (m.group(1), bank))
+PY
 # the commander checksum in NA% (as elite-checksum.py)
 python3 - <<'PY'
 import re

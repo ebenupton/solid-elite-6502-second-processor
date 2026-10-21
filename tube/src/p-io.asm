@@ -23,6 +23,28 @@ fl_dx = &10             \ (gfx-flare.asm's zero page, which the host's flare and
 fl_dy = &11             \ the parasite's f_flt share: the flare's inputs)
 fl_t  = &0E
 
+\ p-cover.asm's zero page (&E4-&FB: free on the parasite during play)
+cv_on  = &E4            \ bit 7: the coverage pass
+cv_rt  = &E5            \ character rows with coverage: top and bottom
+cv_rb  = &E6
+cv_y   = &E7            \ the sample row
+cv_c0  = &E8            \ the polygon's character rows: first and last
+cv_c1  = &E9
+cv_n   = &EA            \ vertices
+cv_or  = &EB            \ bit 0: samples with F left of B, bit 1: B left of F
+cv_g   = &EC            \ edge advances left (a guard)
+cv_sp  = &ED            \ the stack pointer at T_POLY's entry (for the guard)
+cv_d0  = &EE            \ product / dividend, then quotient
+cv_d1  = &EF
+cv_d2  = &F0
+cv_d3  = &F1
+cv_r0  = &F2            \ remainder
+cv_r1  = &F3
+cv_v   = &F4            \ divisor (2)
+cv_a   = &F6            \ |dx| (2)
+cv_k   = &F8            \ rows from the edge's top (2)
+cv_t   = &FA            \ temporary (2)
+
 \ ptx: send A to the host through register 1, waiting for room. Keeps A, X
 \ and Y (and C)
 
@@ -138,6 +160,9 @@ ENDMACRO
 \ The trampolines into the rasteriser (gfx-tramp.asm in the Master port)
 
 .T_SPAN                 \ Y = row, R_XL..R_XR, R_COLE/R_COLO
+ BIT cv_on              \ (nothing in the coverage pass)
+ BPL P%+3
+ RTS
  PHA
  LDA #C_SPAN
  PSEND
@@ -155,6 +180,9 @@ ENDMACRO
  RTS
 
 .T_MARKDIRTY            \ Y = row, R_XL..R_XR
+ BIT cv_on              \ (nothing in the coverage pass)
+ BPL P%+3
+ RTS
  PHA
  LDA #C_MARK
  PSEND
@@ -168,6 +196,9 @@ ENDMACRO
  RTS
 
 .T_POLY                 \ R_PN vertices (at most 16), the four colours
+ BIT cv_on              \ the coverage pass: p-cover.asm
+ BPL P%+5
+ JMP cv_poly
  PHA
  PHX
  LDA #C_POLY
@@ -207,6 +238,9 @@ ENDMACRO
 .tpn EQUB 0
 
 .T_LINE                 \ R_X0, R_Y0, R_X1, R_Y1 (words), the four colours
+ BIT cv_on              \ (nothing in the coverage pass)
+ BPL P%+3
+ RTS
  PHA
  PHX
  LDA #C_LINE
@@ -231,6 +265,9 @@ ENDMACRO
  RTS
 
 .T_DOT                  \ X = x, Y = y, A = size, R_COLE/R_COLO
+ BIT cv_on              \ (nothing in the coverage pass)
+ BPL P%+3
+ RTS
  PHA
  LDA #C_DOT
  PSEND
@@ -495,6 +532,7 @@ PCTXN = 12
  PHA
  PHX
  PHY
+ JSR p_swap             \ the client OS back (for OSCLI and the MOS's Tube code)
  LDA #&80
  STA GSTASH
  LDA #C_OSCLI
@@ -564,6 +602,7 @@ PCTXN = 12
  STA W
  JSR prx
  STA CATF
+ JSR p_swap             \ the high code back (keeps nothing: callers save A)
 .prs9
  RTS
 
@@ -591,5 +630,35 @@ PCTXN = 12
  TXS
  LDA #&FE
  JSR ptx
+ JSR p_swap             \ the high code in, the client OS out
  JSR G_INIT
  JMP S%
+
+\ p_swap: exchange &F800-&FEEF with the host's copy (h_swap): the client OS
+\ for the high code (p-layout.asm), or back. Keeps nothing
+
+.p_swap
+ LDA #C_SWAP
+ PSEND
+ LDA #&F8
+ STA psw1+2
+ STA psw2+2
+ LDY #0
+.psw0
+.psw1
+ LDA &F800,Y            \ (patched)
+ PSEND
+ JSR prx
+.psw2
+ STA &F800,Y            \ (patched)
+ INY
+ BNE psw3
+ INC psw1+2
+ INC psw2+2
+.psw3
+ LDA psw1+2
+ CMP #&FE
+ BNE psw0
+ CPY #&F0
+ BNE psw0
+ RTS

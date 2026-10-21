@@ -30,6 +30,11 @@ zR_DCE = &0E
 zR_DCO = &0F
 zfl_dx = &10
 zfl_dy = &11
+zc_L  = &18             \ (r7_rowrep's c_L, c_NL, c_CO, c_M and RZ_PP, for
+zc_NL = &1A             \ r7_rcov)
+zc_CO = &22
+zc_M  = &23
+zRZ_PP = &14
 
 hsp = &E4                \ (a pointer: zero page the game leaves free)
 
@@ -129,7 +134,7 @@ HCTXN = 12
  EQUW h_sync, h_init, h_fb, h_fe, h_enter, h_disc, h_ddirty, h_span
  EQUW h_mark, h_poly, h_line, h_dot, h_flare, h_direct, h_char, h_keys
  EQUW h_dks, h_wscan, h_noise, h_soflush, h_dstar, h_sceor, h_scsta, h_cls
- EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli
+ EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli, h_cover, h_swap
 ASSERT P% - htab = C_MAX
 
 .hloop
@@ -233,6 +238,9 @@ ASSERT P% - htab = C_MAX
  JMP hloop
 
 .h_fb                   \ C_FB: F_BACK, GSIGHT
+ LDA #&FF               \ (no coverage until C_COVER)
+ STA hcv_t
+ STZ hcv_b
  HRX
  STA F_BACK
  HRX
@@ -725,6 +733,132 @@ ASSERT P% - htab = C_MAX
  LDA VIA+&40
  HTX
  JMP hloop
+
+\ h_swap: C_SWAP: exchange the parasite's &F800-&FEEF with HSW (bank 6, the
+\ resting bank), a byte at a time: the parasite's byte in, ours out
+
+.h_swap
+ LDA #HI(HSW)
+ STA hsw1+2
+ STA hsw2+2
+ LDY #0
+.hsw0
+ HRX
+ TAX
+.hsw1
+ LDA HSW AND &FF00,Y    \ (patched)
+ HTX
+ TXA
+.hsw2
+ STA HSW AND &FF00,Y    \ (patched)
+ INY
+ BNE hsw3
+ INC hsw1+2
+ INC hsw2+2
+.hsw3
+ LDA hsw1+2             \ the last page's &F0 bytes
+ CMP #HI(HSW) + 6
+ BNE hsw0
+ CPY #&F0
+ BNE hsw0
+ JMP hloop
+
+\ h_cover: C_COVER (tube/src/p-cover.asm): first and last character row,
+\ then per character row the first and last byte column that this frame's
+\ ships paint whole, for r7_rcov; h_fb empties them (hcv_t > hcv_b)
+
+.h_cover
+ HRX
+ STA hcv_t
+ TAY
+ HRX
+ STA hcv_b
+.hcv0
+ HRX
+ STA HCVL,Y
+ HRX
+ STA HCVR,Y
+ CPY hcv_b
+ INY
+ BCC hcv0
+ JMP hloop
+.hcv_t  EQUB &FF
+.hcv_b  EQUB 0
+.HCVL   SKIP 24
+.HCVR   SKIP 24
+
+\ r7_rcov: r7_rowrep's black run over byte columns c_NL..A (1..62) of row Y,
+\ less the columns that this frame's ships cover (in bank 5's disc window;
+\ keeps Y)
+
+.r7_rcov
+ STA zc_L                \ (zc_L: hi)
+ TYA
+ LSR A
+ LSR A
+ LSR A
+ TAX
+ CPX hcv_t
+ BCC rcv8
+ CPX hcv_b
+ BEQ P%+4
+ BCS rcv8
+ LDA HCVL,X             \ a > hi or b < lo: apart
+ CMP zc_L
+ BEQ P%+4
+ BCS rcv8
+ LDA HCVR,X
+ CMP zc_NL
+ BCC rcv8
+ LDA HCVL,X             \ lo .. a-1
+ CMP zc_NL
+ BEQ rcv1
+ BCC rcv1
+ STX zc_M
+ DEC A
+ LDX zc_NL
+ JSR rrun
+ LDX zc_M
+.rcv1
+ LDA HCVR,X             \ b+1 .. hi
+ CMP zc_L
+ BCS rcv9
+ INC A
+ TAX
+ LDA zc_L
+ JMP rrun
+.rcv8
+ LDX zc_NL
+ LDA zc_L
+ JMP rrun
+.rcv9
+ RTS
+
+\ rrun: byte columns X..A (1..62, X <= A) of row Y black, through the row's
+\ run (keeps Y)
+
+.rrun
+ STA zc_CO
+ LDA r7_j3,X            \ enter at column X
+ STA rrj+1
+ LDX zc_CO
+ LDA r7_j3+1,X          \ the RTS at column A + 1
+ STA zRZ_PP
+ TYA
+ LSR A
+ LSR A
+ LSR A
+ ORA #HI(r_run0)
+ STA rrj+2
+ STA zRZ_PP+1
+ LDA #&60
+ STA (zRZ_PP)
+ LDA #0
+.rrj
+ JSR &FFFF
+ LDA #r_opSTA
+ STA (zRZ_PP)
+ RTS
 
 \ The parasite's routines that the host's copies of the game's blocks refer
 \ to but never reach here

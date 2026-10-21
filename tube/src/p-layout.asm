@@ -67,3 +67,15 @@ PRINT "Parasite: frame code end at &", ~P%
  PRINT "Parasite: code &", ~CODE%, "-&", ~PCODE_END-1, ", frame layer &", ~PF_START, "-&", ~PCODE_END-1, " (", PCODE_END-PF_START, " bytes), free to &F800: ", &F800-PCODE_END
  ASSERT PCODE_END <= &F800
  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
+
+\ The high code (PHIGH): &F800-&FEEF, where the client OS's copy is but for
+\ the client's only use (the boot and disc commands, through the MOS's Tube
+\ code): the host keeps whichever of the two is not in the parasite, and
+\ p_swap exchanges them (at the start, and either side of a disc command)
+ ORG &F800
+.PHIGH_START
+ INCLUDE "tsrc/p-cover.asm"
+.PHIGH_END
+ PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
+ ASSERT PHIGH_END <= &FEF0
+ SAVE "build/PHIGH.bin", PHIGH_START, PHIGH_END

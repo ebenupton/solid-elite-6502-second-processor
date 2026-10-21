@@ -1846,6 +1846,41 @@ c_BB  = &25
   STA sd2+2
   STA fl2+2
   STA fs2+2
+IF _TPART = 2             \ (Tube: what this frame's ships cover is left alone,
+                          \ tube/src/p-cover.asm and h-main.asm's r7_rcov)
+.frow                     \ fast path: extent inside columns 1..62
+.fl2
+  LDA R_DIRTYR0,Y
+  BEQ fnx
+  CMP #252
+  BCS slow
+  STA c_R
+  ORA #3
+  STA R_WR,Y
+.fl1
+  LDA R_DIRTYL0,Y
+  AND #&FC                \ L AND &FC = 0 <=> L < 4
+  BEQ slow
+  STA R_WL,Y
+  LSR A
+  LSR A
+  STA c_NL
+  LDA #&FF
+.fs1
+  STA R_DIRTYL0,Y
+  LDA #0
+.fs2
+  STA R_DIRTYR0,Y
+  LDA c_R
+  LSR A
+  LSR A
+  JSR r7_rcov             \ columns c_NL..A of row Y, less the coverage
+.fnx
+  INY
+  CPY c_YE
+  BCC frow
+  RTS
+ELSE
 .frow                     \ fast path: extent inside columns 1..62
 .fl2
   LDA R_DIRTYR0,Y
@@ -1889,6 +1924,7 @@ c_BB  = &25
   CPY c_YE
   BCC frow
   RTS
+ENDIF
 .slow                     \ an end in column 0 or 63: the general row code
   JSR row1
   BRA fnx
@@ -1927,6 +1963,10 @@ c_BB  = &25
   CMP c_NL
   BEQ nx
   BCC nx
+IF _TPART = 2
+  DEC A                   \ (Tube: columns NL..NR-1, less the coverage)
+  JMP r7_rcov
+ENDIF
   TAX                     \ plant the RTS at column NR
   LDA r7_j3,X
   STA RZ_PP

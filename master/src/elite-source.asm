@@ -39,7 +39,7 @@
 
 IF _TPART = 1
 
- GUARD &F800            \ Port (Tube): the parasite is one flat 64K; its client
+ GUARD &FEF0            \ Port (Tube): the parasite is one flat 64K; its client
                         \ OS is at &F800 (docs/TUBE-MAP.md)
 
 ELSE
