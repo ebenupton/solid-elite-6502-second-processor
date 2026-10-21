@@ -65,6 +65,13 @@ RW = {
 }
 BRANCH = {"BCC", "BCS", "BEQ", "BNE", "BMI", "BPL", "BVC", "BVS", "BRA"}
 
+def code_of(l):
+    q = False
+    for k, ch in enumerate(l):
+        if ch == '"': q = not q
+        if ch == "\\" and not q: return l[:k]
+    return l
+
 def split(l):
     """(label, mnemonic, operand, comment) of a line ('' where absent); a line
     that is not a single plain instruction has mnemonic None"""
@@ -209,6 +216,46 @@ for r in report:
     lab = P[n - 1][0].lstrip(".^")
     if lab and re.search(r"\b%s\s*[+-]\s*\d" % re.escape(lab), text):
         errors.append("%d: %s is referenced at an offset (a patched operand)" % (n, lab))
+# a P%+n (or label+n) operand whose span crosses a converted instruction now
+# lands elsewhere: also for --sub
+conv = set(int(r.split(":")[0]) - 1 for r in report)
+ZPC = {}
+for l in lines:
+    m = re.match(r"^\s*([A-Za-z_]\w*)\s*=\s*&([0-9A-Fa-f]+)\s*($|\\)", l)
+    if m and int(m.group(2), 16) < 256: ZPC[m.group(1)] = 1
+def length(mn, op):
+    o = (op or "").strip()
+    if o in ("", "A"): return 1
+    if o.startswith("#") or mn in BRANCH: return 2
+    if o.startswith("("): return 3 if mn == "JMP" else 2
+    base = re.split(r"[,+\-]", o)[0].strip()
+    if re.match(r"^&[0-9A-Fa-f]{1,2}$", base) or base in ZPC: return 2
+    return 3
+def span_lines(k, n, fwd):
+    """the lines of the n bytes after (or before) line k's instruction"""
+    out, j, b = [], k, 0
+    while b < n:
+        j = j + 1 if fwd else j - 1
+        if j < 0 or j >= len(P): break
+        lab, mn, op, com = P[j]
+        if mn is None: return None
+        if mn == "": continue
+        out.append(j); b += length(mn, op)
+    return out
+for k, (lab, mn, op, com) in enumerate(P):
+    m = re.search(r"P%\s*([+-])\s*(\d+)", op or "") if mn else None
+    if not m: continue
+    n = int(m.group(2)) - (length(mn, op) if m.group(1) == "+" else 0)
+    rng = span_lines(k, n, m.group(1) == "+")
+    hit = [j for j in (rng if rng is not None else range(k + 1, k + 6)) if j in conv]
+    if hit: errors.append("%d: %s %s spans converted line(s) %s" % (k + 1, mn, op, [j + 1 for j in hit]))
+for m in re.finditer(r"\b([A-Za-z_]\w*)\s*\+\s*(\d+)", "\n".join(code_of(l) for l in lines)):
+    lab, n = m.group(1), int(m.group(2))
+    if lab in labels and n > 2 and P[labels[lab]][1]:
+        k0 = labels[lab]
+        rng = span_lines(k0 - 1, n, True)
+        hit = [j for j in (rng if rng is not None else range(k0, k0 + n)) if j in conv]
+        if hit: errors.append("%s+%d: the offset spans converted line(s) %s" % (lab, n, [j + 1 for j in hit]))
 res = "\n".join(out)
 res = re.sub(r"^(\s*)CPU 1\b", r"\1CPU 0", res, flags=re.M)
 open(OUT, "w", encoding="latin-1").write(res)
