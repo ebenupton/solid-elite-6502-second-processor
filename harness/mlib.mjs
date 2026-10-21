@@ -223,8 +223,11 @@ function xTrace(s, file, disc) {
 //   events, iters, tt100, emuSecs, error }
 export async function runElite(opts) {
     const sy = opts.syms;
-    const s = await bootMaster(opts.disc);
-    const cpu = s._machine.processor;
+    // opts.tube ("Master" or "B"): the Tube build, the game on the parasite
+    // (tube/tools/tmachine.mjs has the same adapter for agentplay)
+    const T = opts.tube ? await bootTubeElite(opts) : null;
+    const s = T ? T.s : await bootMaster(opts.disc);
+    const cpu = T ? T.cpu : s._machine.processor;
     const regions = regionsFor(sy);
     const canon = canonFor(sy, regions);
     const rd = (a, n = 1) => { const r = new Array(n); for (let i = 0; i < n; i++) r[i] = cpu.ramRomOs[(a + i) & 0xffff]; return r; };
@@ -237,12 +240,12 @@ export async function runElite(opts) {
     for (const [k, v] of Object.entries(sy)) {
         if (v < 0x0800 || /^(CODE|LOAD)/.test(k)) continue;   // (section addresses, not routines)
         const m = mapOfLabel(sy, k);
-        if (m === "m" && v >= 0x8000) continue;
+        if (m === "m" && v >= 0x8000 && !T) continue;
         (labs[m] ||= []).push([k, v]);
     }
     for (const l of Object.values(labs)) l.sort((a, b) => a[1] - b[1]);
     const labelOf = (a, romsel = cpu.romsel) => {
-        const lab = labs[mapAt(romsel, a)] || [];
+        const lab = labs[T ? "m" : mapAt(romsel, a)] || [];
         let lo = 0, hi = lab.length - 1, r = null;
         while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }
         return r && r.endsWith("_C") ? r.slice(0, -2) : r;      // (cold copies keep their names, plus _C)
@@ -268,7 +271,7 @@ export async function runElite(opts) {
     // outside reaches it through a stub of the old name, cold code directly)
     const hook = (name, off = 0) => { const n = sy[name + "_C"] !== undefined ? name + "_C" : name; return { a: sy[n] + off, m: mapOfLabel(sy, n) }; };
     const at = (h, pc) => pc === h.a && (h.m === "m" || h.m === mapAt(cpu.romsel, pc));
-    const H_RDK = hook("RDKEY", 5), H_DKS5 = hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"), H_LL5 = hook("LL5"),
+    const H_RDK = hook("RDKEY", 5), H_DKS5 = T ? hook("DKS5T") : hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"), H_LL5 = hook("LL5"),
         H_TT100 = hook("TT100"), H_QU5 = hook("QU5"), H_BAY = hook("BAY"), H_MT26 = hook("MT26"), H_TT170 = hook("TT170");
 
     const res = { snaps: [], iterTimes: [], tt100Times: [], tt100AtIter: [], init: null, keyLog: [], events: [], s, cpu, sy, regions };
@@ -351,7 +354,7 @@ export async function runElite(opts) {
             done = true; return true;
         } else if (at(H_TT170, pc) && !started) {
             started = true;
-            if (!checked) {
+            if (!checked && !T) {
                 checked = true;
                 const op = (h, i = 0) => physRead(cpu, h.m, h.a + i);
                 if (op(H_RDK) !== 0x68) throw new Error(`RDKEY+5 is not PLA (&${op(H_RDK).toString(16)})`);
@@ -370,21 +373,22 @@ export async function runElite(opts) {
         for (const [a, n] of regions) out.push(...rd(a, n));
         return canon(Uint8Array.from(out));
     }
-    function emuSecs() { return cpu.cycleSeconds + cpu.currentCycles / 2e6; }
+    function emuSecs() { return T ? T.t.hostSecs() : cpu.cycleSeconds + cpu.currentCycles / 2e6; }
     // the addresses written between the game's entry (S%) and TT170, by the game
     // or by the MOS on its behalf: anything else in the compared state at TT170
     // was left by the boot and the loader (opts.seedBoot)
     const H_S = hook("S%");
     const written = new Set();
     let inGame = false;
-    const bootWrites = cpu.debugWrite.add(a => { if (inGame && a < 0x8000) written.add(a); return false; });
+    const bootWrites = T ? T.onWrite(a => { if (inGame && !started) written.add(a); }) : cpu.debugWrite.add(a => { if (inGame && a < 0x8000) written.add(a); return false; });
     // Page &0D is off limits (docs/MASTER-MEMORY.md): once the game has
     // started, only the MOS and the filing system ROM may write it (DFS
     // rewrites its NMI routine at &0D00 for every disc operation). Writes by
     // code in RAM (main RAM, sideways RAM banks 4-7, HAZEL) are recorded in
     // res.page0d, and mcompare fails the candidate on any.
     res.page0d = [];
-    cpu.debugWrite.add(a => {
+    if (T) T.watch0d(res, () => iter);
+    else cpu.debugWrite.add(a => {
         if (!inGame || a < 0x0d00 || a > 0x0dff) return false;
         const pc = cpu.pc;
         const inRam = pc < 0x8000 || (pc < 0xc000 && (cpu.romsel & 15) >= 4 && (cpu.romsel & 15) <= 7) || (pc < 0x9000 && pc >= 0x8000 && (cpu.romsel & 0x80)) ||
@@ -395,10 +399,19 @@ export async function runElite(opts) {
         if (inRam && res.page0d.length < 20) res.page0d.push([iter, pc, a]);
         return false;
     });
-    const entry = cpu.debugInstruction.add(pc => { if (at(H_S, pc)) { inGame = true; entry.remove(); } return false; });
-    cpu.debugInstruction.add(handler);
     const maxSecs = opts.maxSecs || 7200;
     let shotAt = 0;
+    if (T) {
+        T.t.addParHook(pc => { if (!inGame && at(H_S, pc)) inGame = true; return handler(pc); });
+        while (!done && emuSecs() < maxSecs) {
+            for (let k = 0; k < 40 && !done; k++) T.t.host.execute(50000);
+            if (opts.shots && iter >= shotAt + opts.shots) { shotAt = iter; await opts.onShot(s, iter); }
+        }
+        res.emuSecs = emuSecs(); res.iters = iter; res.tt100 = tt100; res.tube = T;
+        return res;
+    }
+    const entry = cpu.debugInstruction.add(pc => { if (at(H_S, pc)) { inGame = true; entry.remove(); } return false; });
+    cpu.debugInstruction.add(handler);
     while (!done && emuSecs() < maxSecs) {
         for (let k = 0; k < 40 && !done; k++) { if (handler(cpu.pc)) break; cpu.execute(50000); }
         if (opts.shots && iter >= shotAt + opts.shots) { shotAt = iter; await opts.onShot(s, iter); }
@@ -418,4 +431,37 @@ export function valAt(regions, buf, ad) {
     let o = 0;
     for (const [a, n] of regions) { if (ad >= a && ad < a + n) return buf[o + ad - a]; o += n; }
     return -1;
+}
+
+// The Tube build (runElite's opts.tube): boot the host with its parasite, SHIFT+BREAK, and
+// present the parasite as runElite's cpu (registers, memory, no banks: romsel 0 and
+// acccon &08 so that &C000-&DFFF counts as RAM); the host's writes to page &0D by the
+// host's own code (RAM) are recorded, as page &0D is off limits on the host
+async function bootTubeElite(opts) {
+    const { bootTube } = await import("./tlib.mjs");
+    const t = await bootTube({ host: opts.tube, disc: opts.disc });
+    t.s.keyDown(16); t.s.reset(true); t.host.execute(2e6 * 2); t.s.keyUp(16);
+    const par = t.par, host = t.host;
+    const cpu = {
+        get a() { return par.a; }, set a(v) { par.a = v; }, get x() { return par.x; }, set x(v) { par.x = v; },
+        get y() { return par.y; }, set y(v) { par.y = v; }, get s() { return par.s; }, get pc() { return par.pc; },
+        romsel: 0, acccon: 8, ramRomOs: par.memory, readmem: a => par.readmem(a),
+    };
+    const writers = [];
+    const wm = par.writemem.bind(par);
+    par.writemem = (a, b) => { for (const f of writers) f(a & 0xffff); return wm(a, b); };
+    return {
+        t, s: t.s, cpu,
+        onWrite(f) { writers.push(f); return { remove() { const i = writers.indexOf(f); if (i >= 0) writers.splice(i, 1); } }; },
+        watch0d(res, iterOf) {
+            host.debugWrite.add(a => {
+                if (a < 0x0d00 || a > 0x0dff) return false;
+                const pc = host.oldPcArray[host.oldPcIndex];
+                const inRam = pc < 0x8000 || (pc < 0xc000 && (host.romsel & 15) >= 4 && (host.romsel & 15) <= 7) || (pc < 0x9000 && pc >= 0x8000 && (host.romsel & 0x80));
+                if (pc >= 0x0d00 && pc < 0x0e00) return false;      // (DFS's NMI code itself)
+                if (inRam && res.page0d.length < 20) res.page0d.push([iterOf(), pc, a]);
+                return false;
+            });
+        },
+    };
 }

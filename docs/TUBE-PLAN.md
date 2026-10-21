@@ -13,6 +13,15 @@ measured (phase 0).
   rupture for the dashboard, NMOS 6502 host code. Master-only optimisations
   (shadow RAM, 65C12 code) come last, if at all.
 - B+ hosts are out of scope.
+- (2026-10-21, the user's follow-up) The Master host keeps the Master port's
+  shadow-RAM double buffering (buffer 0 in main RAM, buffer 1 in shadow RAM at
+  the same addresses), so one set of screen-store runs serves both buffers; it
+  may use 65C12 code. This supersedes "both buffers in main RAM" for the
+  Master host; the Model B host keeps its own layout (main-RAM buffers, the
+  CRTC rupture, NMOS code). Full `STA abs` runs (one store per screen byte):
+  not on the Model B (two sets would need 75K), and on the Master host only in
+  phase 4's byte writer (TUBE-REPORT.md, "Evaluation: full STA abs screen
+  runs").
 - Branch `tube` off `full-master`, worktree `~/elite-full-tube`.
 
 ## 1. The shape

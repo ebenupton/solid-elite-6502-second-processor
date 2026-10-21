@@ -50,7 +50,7 @@ import { makeTracer } from "./mtrace.mjs";
 import { parseArgs } from "./args.mjs";
 
 const args = parseArgs({ iters: "value", ref: "value", rsyms: "value", cand: "value", csyms: "value", seed: "value", loose: "flag", window: "value",
-    out: "value", shots: "value", maxsecs: "value", nopatch: "flag", norefcache: "flag", views: "flag", trace: "value" });
+    out: "value", shots: "value", maxsecs: "value", nopatch: "flag", norefcache: "flag", views: "flag", trace: "value", tube: "value" });
 for (const [d, s] of [["ref", "rsyms"], ["cand", "csyms"]])       // (a disc with another build's symbols hooks the wrong addresses)
     if (!args[d] !== !args[s]) { console.error(`--${d} and --${s} go together`); process.exit(2); }
 const ITERS = +(args.iters || 5000);
@@ -74,7 +74,7 @@ async function run(label, disc, sy, seed, seedBoot) {
     const tracer = args.trace ? makeTracer(args.trace, sy, traceOut) : null;
     const t0 = Date.now();
     const r = await runElite({
-        disc, syms: sy, pilot, iters: ITERS, maxSecs: +(args.maxsecs || 4 * ITERS),
+        disc, syms: sy, pilot, iters: ITERS, maxSecs: +(args.maxsecs || 4 * ITERS), tube: label === "cand" ? args.tube : undefined,
         patch: args.nopatch ? null : patchCommander, seed, seedBoot,
         onIter: (i, s, res) => { phases.push(pilot.P.phase); if (tracer) tracer(i, s, res); },
         shots: SHOTS, onShot: async (s, i) => writeFileSync(`${OUT}/${label}-${String(i).padStart(6, "0")}.png`, await s.screenshotActive({ scale: 1 })),
