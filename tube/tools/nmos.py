@@ -134,7 +134,10 @@ def is_dead(k, bits): return dead(k + 1, bits) == bits
 
 out, report, errors = [], [], []
 zero_reg = None             # a register known to hold 0 (a run of converted STZs)
+consumed = set()            # lines already emitted inside a (zp) block
+IZP = re.compile(r"^\(\s*([^,)]+)\s*\)$")
 for k, l in enumerate(lines):
+    if k in consumed: continue
     lab, mn, op, com = P[k]
     ind = re.match(r"^(\s*)", l).group(1) or " "
     prefix = (lab + " ") if lab else ""
@@ -190,6 +193,39 @@ for k, l in enumerate(lines):
         need = Y | (N | Z if store else 0)
         if is_dead(k, need):
             emit(["LDY #0", "%s (%s),Y" % (mn, m.group(1))], ""); continue
+        # Y live: a block of (zp) accesses and instructions that leave Y alone
+        # (no labels, no control flow) shares one save of Y in TMPY
+        blk, j = [k], k + 1
+        while j < len(P):
+            lb2, mn2, op2, _ = P[j]
+            if mn2 is None or lb2: break
+            if mn2 == "": j += 1; continue
+            if mn2 in BRANCH or mn2 in ("JMP", "JSR", "RTS", "RTI", "BRK", "BRA", "PHX", "PHY", "PLX", "PLY", "STZ", "TSB", "TRB"): break
+            if mn2 in ("INC", "DEC") and op2.upper() == "A": break
+            if IZP.match(op2 or "") and mn2 != "JMP": blk.append(j); j += 1; continue
+            r2, w2 = regs_of(mn2, op2)
+            if (r2 | w2) & Y: break
+            blk.append(j); j += 1
+        while blk and not IZP.match(P[blk[-1]][2] or ""): blk.pop()
+        if len(blk) > 1:
+            last = blk[-1]
+            lastmn = P[last][1]
+            body = []
+            for b in blk:
+                lb, mb, ob, cb = P[b]
+                mm = IZP.match(ob or "")
+                body.append("%s (%s),Y" % (mb, mm.group(1)) if mm and mb != "JMP" else ("%s %s" % (mb, ob)).strip())
+            live = not is_dead(last, N | Z)
+            own = any(regs_of(P[b][1], "")[1] & (N | Z) for b in blk)   # does the block set N, Z?
+            if live and own:      # the block's own flags, as it left them
+                instrs = ["STY " + TMPY, "LDY #0"] + body + ["PHP", "LDY " + TMPY, "PLP"]
+            elif live:            # those from before it
+                instrs = ["PHP", "STY " + TMPY, "LDY #0"] + body + ["LDY " + TMPY, "PLP"]
+            else:
+                instrs = ["STY " + TMPY, "LDY #0"] + body + ["LDY " + TMPY]
+            emit(instrs, "Y kept, %d accesses" % len(blk))
+            for b in blk[1:]: consumed.add(b)
+            continue
         # Y live: keep it in TMPY round the indexed access, and the flags as
         # the original leaves them (a store: as before it; a load: its own)
         if is_dead(k, N | Z):

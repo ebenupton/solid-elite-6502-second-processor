@@ -205,12 +205,32 @@ r_opRTS = &60
 \ read, R_BDN, R_BDP and R_BDX0, are at low bytes &00, &40 and &00: reading
 \ them ,X never crosses a page.
 \ ============================================================================
+IF _HOSTB AND _RBANK = 2      \ (Model B, bank P: no boundary arrays; the
+.R_BDN0                       \ flare and the lines' cold part instead)
+ INCLUDE "build/nmos/gfx-flare.asm"
+ CPU 1
+ INCLUDE "build/nmos/gfx-raster_lcold.asm"
+ CPU 1
+ SKIP R_BDN0 + &480 - P%
+R_BDX10 = 0                   \ (and the arrays' names, unused here)
+R_BDX20 = 0
+R_BDP0 = 0
+R_BDX00 = 0
+R_BDX30 = 0
+R_BDN1 = 0
+R_BDX11 = 0
+R_BDX21 = 0
+R_BDP1 = 0
+R_BDX01 = 0
+R_BDX31 = 0
+ELSE
 .R_BDN0  SKIP 192       \ boundaries per row, 0..4
 .R_BDX10 SKIP 192       \ their x (raw), the second ...
 .R_BDX20 SKIP 192
 .R_BDP0  SKIP 192       \ bit 0: the colour at the span's left end
 .R_BDX00 SKIP 192       \ ... and the first
 .R_BDX30 SKIP 192
+ENDIF
 \ (the 128 bytes up to buffer 1's arrays)
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
 \ (RZ_PP+1 and r_jsr+2).  Clobbers A.
@@ -239,12 +259,16 @@ ENDIF
   LSR A
   LSR A
   CLC
+IF _HOSTB
+  ADC #&A0                \ (Model B: bank P's runs, also from bank D)
+ELSE
   ADC #HI(r_run0)
+ENDIF
   STA RZ_PP+1
   STA r_jsr+2
-IF _HOSTB
-  JMP r_pgfix             \ (Model B: the run page patched for the buffer)
-ELSE
+IF _HOSTB AND _RBANK = 2
+  JMP r_pgfix             \ (Model B: the run page patched for the buffer; bank
+ELSE                      \ D's runp has bank P's do it)
   RTS
 ENDIF
 \ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
@@ -284,6 +308,9 @@ ENDIF
 .^r_pt103 STA r_bdx3,Y
   RTS
 
+IF _HOSTB AND _RBANK = 2
+  SKIP R_BDN0 + &980 - P%       \ (Model B, bank P: its data, PDATA)
+ELSE
   SKIP R_BDN0 + &500 - P%
 .R_BDN1  SKIP 192
 .R_BDX11 SKIP 192
@@ -292,8 +319,11 @@ ENDIF
 .R_BDX01 SKIP 192
 .R_BDX31 SKIP 192
 ASSERT R_BDN1 = R_BDN0 + &500 AND R_BDX31 = R_BDX30 + &500
+ENDIF
+IF _HOSTB = 0 OR _RBANK = 2
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
 ASSERT r_s1a = r_s0a + &300 AND r_s1b = r_s0b + &300
+ENDIF
 
 \ ============================================================================
 \ Per-buffer row arrays: buffer 1's are buffer 0's + &300 (R_SETBUF adds 3 to
@@ -508,8 +538,8 @@ ENDIF
 IF _RBANK = 1
   STA r_bs5+1
   STA r_bs6+1
-  STA r_bs7+1
 ELSE
+  STA r_bs7+1
   STA r_bs8+1
   LSR A                   \ (the flare's: half of it)
   STA r_bs9+1
@@ -528,79 +558,6 @@ ENDIF
 .r_sbbase EQUB HI(BUF0), &40
 .r_sbdelta EQUB HI(BUF0) - &40, 0
 
-\ r_pgfix (Model B): A = a run page's high byte: if this bank's copy of the
-\ page is not for buffer r_buf, add or take &30 from the high byte of each
-\ of its 63 stores' addresses (the runs are assembled for &4000, buffer 1's;
-\ buffer 0's screen is &3000 lower). Keeps A, X, Y.
-.r_pgfix
-{
-  STA pfa
-  STX pfx
-  SEC
-  SBC #HI(r_run0)
-  TAX
-  LDA r_buf
-  CMP r_pgtag,X
-  BNE fix
-  LDA pfa
-  LDX pfx
-  RTS
-.fix
-  STA r_pgtag,X
-  STY pfy
-  TAX                     \ (X = the buffer)
-  LDA r_pgadd,X
-  STA a1+1
-  STA a2+1
-  STA a3+1
-  LDA pfa
-  STA l1+2
-  STA s1+2
-  STA l2+2
-  STA s2+2
-  STA l3+2
-  STA s3+2
-  LDY #180                \ the stores' high bytes: offsets 2, 5, .. 188
-.lp
-.l1
-  LDA &FF02,Y
-  CLC
-.a1
-  ADC #&30
-.s1
-  STA &FF02,Y
-.l2
-  LDA &FF05,Y
-  CLC
-.a2
-  ADC #&30
-.s2
-  STA &FF05,Y
-.l3
-  LDA &FF08,Y
-  CLC
-.a3
-  ADC #&30
-.s3
-  STA &FF08,Y
-  TYA
-  SEC
-  SBC #9
-  TAY
-  BCS lp
-  LDA pfa
-  LDX pfx
-  LDY pfy
-  RTS
-.pfa EQUB 0
-.pfx EQUB 0
-.pfy EQUB 0
-}
-.r_pgtag                  \ per run page: the buffer it is for (as assembled: 1)
-FOR i, 0, 23
-  EQUB 1
-NEXT
-.r_pgadd EQUB &D0, &30    \ to buffer 0: -&30; to buffer 1: +&30
 ENDIF
 \ ============================================================================
 \ r_spc: the span core.  Row set up (r_rowset), RZ_COL = colour byte,
@@ -626,12 +583,18 @@ ENDIF
   STA RZ_PP
   LDA r_j,X               \ entry: column xl DIV 4 + 1 (= the plant when no
   STA r_jsr+1             \ whole byte lies between: the JSR hits the RTS)
+IF _HOSTB AND _RBANK = 1
+  LDY RZ_Y                \ (Model B, bank D: the runs are bank P's: runp plants
+  LDA RZ_COL              \ the RTS there, runs it and takes it out; r_jsr is
+  JSR runp                \ runp's JSR, in main RAM: hb-main.asm)
+ELSE
   LDA #r_opRTS
   STA (RZ_PP)
   LDY RZ_Y                \ (the run is indexed by the row)
   LDA RZ_COL
 .^r_jsr
   JSR &FFFF
+ENDIF
   LDX R_XR                \ right edge (A = RZ_COL still; N = XR >= &80)
   BMI rb
   LDY r_xo,X
@@ -639,8 +602,10 @@ ENDIF
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
+IF _HOSTB = 0 OR _RBANK <> 1
   LDA #r_opSTA
   STA (RZ_PP)
+ENDIF
   RTS
 .rb
   LDY r_xo,X
@@ -648,8 +613,10 @@ ENDIF
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
+IF _HOSTB = 0 OR _RBANK <> 1
   LDA #r_opSTA
   STA (RZ_PP)
+ENDIF
   RTS
 .lb                       \ xl >= &80 (A = xl)
   EOR R_XR
@@ -918,16 +885,22 @@ NEXT
 \ c = 1..63 then RTS (190 bytes).  The 66 bytes after each run hold variables.
 \ ============================================================================
 MACRO R_RUN r
+IF _HOSTB AND _RBANK = 1        \ (Model B, bank D: no runs, bank P's are used)
+ELSE
   FOR c, 1, 63
     STA &4000 + r * &200 + c * 8 - r * 8, Y
   NEXT
   RTS
   EQUB 0                  \ spare: the 'nothing planted' target (offset 190)
+ENDIF
 ENDMACRO
 
 MACRO R_ENDPAGE r
+IF _HOSTB AND _RBANK = 1
+ELSE
   ASSERT P% <= r_run0 + (r + 1) * &100
   ALIGN &100
+ENDIF
 ENDMACRO
 
 .r_run0 R_RUN 0
@@ -986,6 +959,7 @@ R_ENDPAGE 9
 .r_cidx EQUB 0, 0
 .r_ccnt EQUB 0, 0
 .r_cend EQUB 0, 0
+IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's)
 .r_smx                    \ r_dmb, an unchanged dirty row (X; A = dL + 1): a
   DEC A                   \ dirty extent clear of the span only needs blacking
   CMP R_NDISCR,X          \ (r_dp1, as r_drg would)
@@ -1005,6 +979,7 @@ R_ENDPAGE 9
   TXA
   TAY
   JMP r_gd1
+ENDIF
 ASSERT HI(R_DIRTYR0) = HI(R_DIRTYL0) + 1 AND HI(R_DIRTYR1) = HI(R_DIRTYL1) + 1
 ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
 R_ENDPAGE 10
@@ -1106,50 +1081,9 @@ ASSERT LO(r_s0b) = LO(r_s1b)
 ASSERT LO(R_BDX30) = LO(R_BDX31)
 R_ENDPAGE 14
 .r_run15 R_RUN 15
-.r_pset
-{
-  TYA                     \ RZ_PP = screen address of (X, Y)
-  AND #7
-  ORA r_xo,X
-  STA RZ_PP
-  TYA
-  LSR A
-  LSR A
-  AND #&FE
-IF _HOSTB
-  CLC
-.^r_bs2
-  ADC #&40
-ELSE
-  ORA #&40
+IF _HOSTB = 0
+ INCLUDE "src/gfx-raster_pset.asm"
 ENDIF
-  CPX #&80
-  ADC #0
-  STA RZ_PP+1
-  LDA r_lm,X
-  AND r_rm,X
-  STA RZ_T6
-  TYA
-  LSR A
-  LDA R_COLE
-  BCC ev
-  LDA R_COLO
-.ev
-  EOR (RZ_PP)
-  AND RZ_T6
-  EOR (RZ_PP)
-  STA (RZ_PP)
-  TXA
-.^r_pt01 CMP r_dl,Y
-  BCS n1
-.^r_pt02 STA r_dl,Y
-.n1
-.^r_pt03 CMP r_dr,Y
-  BCC n2
-.^r_pt04 STA r_dr,Y
-.n2
-  RTS
-}
 R_ENDPAGE 15
 .r_run16 R_RUN 16
 .R_SPAN
@@ -1314,6 +1248,7 @@ R_ENDPAGE 20
 }
 R_ENDPAGE 21
 .r_run22 R_RUN 22
+IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's)
 \ r_bmn: black on [r_ba, r_bb] minus [r_nL, r_nR]
 .r_bmn
 {
@@ -1346,6 +1281,7 @@ R_ENDPAGE 21
 .done
   RTS
 }
+ENDIF
 R_ENDPAGE 22
 .r_run23 R_RUN 23
 IF _HOSTB = 0 OR _RBANK = 1
@@ -1383,7 +1319,13 @@ ENDIF
   STA r_cB
   RTS
 R_ENDPAGE 23
-ASSERT (HI(r_run0) AND 31) = 0   \ (the repair: the row's run page is Y DIV 8 OR HI(r_run0))
+IF _HOSTB = 0 OR _RBANK = 2
+ASSERT (HI(r_run0) AND 31) = 0
+ENDIF
+IF _HOSTB AND _RBANK = 2
+ASSERT r_run0 = &A000           \ (Model B: bank D's r_rowset's run pages)
+ENDIF
+\   \ (the repair: the row's run page is Y DIV 8 OR HI(r_run0))
 
 
 IF _HOSTB = 0 OR _RBANK = 2   \ (Model B: the stars are bank P's)
@@ -1700,6 +1642,7 @@ ENDIF
 ENDIF
 \ r_lput2: pixels RZ_SB .. RZ_TA+1 of row RZ_Y in RZ_COL (row pointers set).
 \ Clobbers A, X, Y.
+IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's, but the table)
 .r_lput2
 {
   LDA RZ_TA+1
@@ -1772,10 +1715,14 @@ ENDIF
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   RTS
+ELSE
+{
+ENDIF
 .^r_ypg                   \ high byte of row y's byte 0
 FOR y, 0, 191
   EQUB &40 + 2 * (y DIV 8)
 NEXT
+IF _HOSTB = 0 OR _RBANK = 1
 .long
   STX R_XL                \ up to 12 bytes: masked ends, whole bytes stored
   TYA                     \ through a byte pointer
@@ -1853,6 +1800,87 @@ ENDIF
   LDX R_XL
   JMP r_spc
 }
+ELSE
+}
+ENDIF
 
+IF _HOSTB
+\ r_pgfix (Model B): A = a run page's high byte: if this bank's copy of the
+\ page is not for buffer r_buf, add or take &30 from the high byte of each
+\ of its 63 stores' addresses (the runs are assembled for &4000, buffer 1's;
+\ buffer 0's screen is &3000 lower). Keeps A, X, Y.
+.r_pgfix
+{
+  STA pfa
+  STX pfx
+  SEC
+  SBC #HI(r_run0)
+  TAX
+  LDA r_buf
+  CMP r_pgtag,X
+  BNE fix
+  LDA pfa
+  LDX pfx
+  RTS
+.fix
+  STA r_pgtag,X
+  STY pfy
+  TAX                     \ (X = the buffer)
+  LDA r_pgadd,X
+  STA a1+1
+  STA a2+1
+  STA a3+1
+  LDA pfa
+  STA l1+2
+  STA s1+2
+  STA l2+2
+  STA s2+2
+  STA l3+2
+  STA s3+2
+  LDY #180                \ the stores' high bytes: offsets 2, 5, .. 188
+.lp
+.l1
+  LDA &FF02,Y
+  CLC
+.a1
+  ADC #&30
+.s1
+  STA &FF02,Y
+.l2
+  LDA &FF05,Y
+  CLC
+.a2
+  ADC #&30
+.s2
+  STA &FF05,Y
+.l3
+  LDA &FF08,Y
+  CLC
+.a3
+  ADC #&30
+.s3
+  STA &FF08,Y
+  TYA
+  SEC
+  SBC #9
+  TAY
+  BCS lp
+  LDA pfa
+  LDX pfx
+  LDY pfy
+  RTS
+.pfa EQUB 0
+.pfx EQUB 0
+.pfy EQUB 0
+}
+.r_pgtag                  \ per run page: the buffer it is for (as assembled: 1)
+FOR i, 0, 23
+  EQUB 1
+NEXT
+.r_pgadd EQUB &D0, &30    \ to buffer 0: -&30; to buffer 1: +&30
+ENDIF
+IF _HOSTB
+ INCLUDE "src/gfx-raster_pset.asm"
+ENDIF
 .r_end
 PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end

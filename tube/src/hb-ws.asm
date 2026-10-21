@@ -38,7 +38,12 @@ PANEL = &7000
 \ Main RAM (reclaimed from the MOS while the game runs)
 \ ------------------------------------------------------------------------------
 
-MR_A = &0236            \ code and data: &0236-&03F4
+\ the fixed entry points bank D's and bank P's code calls in main RAM (hb-main.asm
+\ assembles them here, asserting it)
+RUNP = &0236            \ runp: a run of bank P's for bank D's r_spc (A colour, Y row)
+RUNPJ = RUNP + 21       \ (its JSR: bank D's r_jsr)
+P_ROWREPT = RUNP + 40   \ bank D's way to bank P's r7_rowrep
+MR_A = P_ROWREPT + 16   \ code and data: to &03F4
 MR_AEND = &03F5
 R_DIRTYL0 = &03F5       \ the per-buffer arrays, at the Master port's low bytes
 R_DIRTYR0 = R_DIRTYL0 + 192
@@ -80,7 +85,27 @@ MR_B = R_SY + 24               \ code and data: to JOPOS
 MR_BEND = &0CA7
 ASSERT JOPOS = &0CA7
 hpe_w = &0CAA           \ R_DISCROWS (bank D): the pre-erase has started R_WL/R_WR
-MR_C = &0CAB            \ code and data: to page &0D
+GVARS = &0CAB           \ gfx-gvars.asm's (hb-main.asm assembles it here)
+IF _RBANK
+GMODE = GVARS + 0
+GFRONT = GVARS + 1
+GFLIP = GVARS + 2
+GPEND = GVARS + 3
+GDRAWON = GVARS + 4
+GFORCE = GVARS + 5
+GSIGHT = GVARS + 6
+GLASV = GVARS + 7
+GLCOL = GVARS + 8
+GDCOL = GVARS + 9
+GNF = GVARS + 10
+GNV = GVARS + 11
+GTYPE = GVARS + 12
+GSUNON = GVARS + 13
+GSUNR = GVARS + 14
+GSTASH = GVARS + 15
+GWARP = GVARS + 16
+ENDIF
+MR_C = GVARS + 17       \ code and data: to page &0D
 MR_CEND = &0D00
 MR_D = &0E00            \ code and data
 MR_DEND = &1000
@@ -131,3 +156,35 @@ R_PCR1   = PDATA + &4F
 R_PTA    = PDATA + &100
 R_PTB    = PDATA + &1C0
 PDATA_END = PDATA + &280
+
+\ ------------------------------------------------------------------------------
+\ The banks' jump tables, at fixed addresses (so that the assemblies need no
+\ symbols from each other)
+\ ------------------------------------------------------------------------------
+
+JT = &BFC0
+D_DISCROWS = JT         \ bank D
+D_SETBUF   = JT + 3
+D_INIT     = JT + 6
+D_RESETBUF = JT + 9
+D_WCLEAR   = JT + 12
+D_DISC     = JT + 15    \ h_disc's receiving part (hb-d.asm)
+P_PGFIX    = JT         \ bank P
+P_ROWREP   = JT + 3
+P_POLY     = JT + 6
+P_LINE     = JT + 9
+P_SETBUF   = JT + 12
+P_SPAN     = JT + 15
+P_MARKDIRTY = JT + 18
+P_DOT      = JT + 21
+P_STARERASE = JT + 24
+P_STARPLOT = JT + 27
+P_FLARE    = JT + 30
+P_POLYIN   = JT + 33    \ h_poly's receiving part (hb-p.asm)
+P_LINEIN   = JT + 36    \ h_line's
+
+MACRO HRX               \ A = the next byte from the parasite (register 1)
+ BIT &FEE0
+ BPL P%-3
+ LDA &FEE1
+ENDMACRO

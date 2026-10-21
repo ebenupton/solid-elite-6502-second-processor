@@ -47,8 +47,8 @@ $BEEBASM -i tsrc/h-layout.asm -d > build/hsyms.txt 2>/dev/null
 python3 - <<'PY'
 import re
 with open("build/hbanks.txt", "w") as f:
-    for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
-                      ("src/gfx-flare.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_line.asm", "85"),
+    for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_rep.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
+                      ("src/gfx-flare.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"),
                       ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-flare6.asm", "6")):
         for m in re.finditer(r"^\s*\.([A-Za-z_][\w%]*)", open(src, encoding="latin-1").read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
@@ -107,7 +107,11 @@ $NM src/gfx-raster_disc.asm build/nmos/gfx-raster_disc.asm --report build/nmos/g
 .m0
 .^r_pt110 STA r_bdn,X
 .^r_pt111 STA r_bdp,X" > /dev/null
+$NM src/gfx-raster_pset.asm build/nmos/gfx-raster_pset.asm --report build/nmos/gfx-raster_pset.txt > /dev/null
+sed -i '' 's|INCLUDE "src/gfx-raster_pset.asm"|INCLUDE "build/nmos/gfx-raster_pset.asm"|' build/nmos/gfx-raster.asm
+$NM src/gfx-raster_rep.asm build/nmos/gfx-raster_rep.asm --report build/nmos/gfx-raster_rep.txt > /dev/null
 $NM src/gfx-raster_poly.asm build/nmos/gfx-raster_poly.asm --report build/nmos/gfx-raster_poly.txt > /dev/null
+$NM src/gfx-raster_lineb.asm build/nmos/gfx-raster_lineb.asm --report build/nmos/gfx-raster_lineb.txt > /dev/null
 $NM src/gfx-raster_line.asm build/nmos/gfx-raster_line.asm --report build/nmos/gfx-raster_line.txt > /dev/null
 $NM src/gfx-raster_lcold.asm build/nmos/gfx-raster_lcold.asm --report build/nmos/gfx-raster_lcold.txt \
   --sub "  PHX
@@ -124,6 +128,21 @@ $NM src/gfx-flare.asm build/nmos/gfx-flare.asm --report build/nmos/gfx-flare.txt
  CLC
  ADC #1" > /dev/null
 : > build/hb-mainsyms.asm
-$BEEBASM -i tsrc/hb-d.asm -v > build/compile-hbd.txt 2>&1 || { echo "Model B bank D:"; grep -iE "error" -A3 build/compile-hbd.txt | head -8; }
-$BEEBASM -i tsrc/hb-p.asm -v > build/compile-hbp.txt 2>&1 || { echo "Model B bank P:"; grep -iE "error" -A3 build/compile-hbp.txt | head -8; }
+# (NMOS code is longer: out-of-range branches are made long, tools/longbr.py,
+# until the bank assembles)
+hbasm() {
+  for k in $(seq 1 100); do
+    if $BEEBASM -i tsrc/hb-$1.asm -v > build/compile-hb$1.txt 2>&1; then return 0; fi
+    L=$(grep -m1 "Branch out of range" build/compile-hb$1.txt | sed 's/: error.*//')
+    [ -z "$L" ] && break
+    F=${L%:*}; [ "$F" = build/nmos/gfx-raster-d.asm ] && F=build/nmos/gfx-raster.asm && echo "(long branch in the D copy: by hand)" && break
+    python3 $TUBE_DIR/tools/longbr.py $F ${L##*:} || break
+  done
+  echo "Model B bank $1:"; grep -iE "error" -A3 build/compile-hb$1.txt | head -8
+}
+# (bank D packs the run pages' tails, without the runs: the stars' records
+# and the flare's tables there are bank P's, so their alignment is not D's)
+sed -e 's/^\(ASSERT .*r_s[01][abxykr]\)/\\ \1/' -e 's/^\(ASSERT HI(fl_htab)\)/\\ \1/' build/nmos/gfx-raster.asm > build/nmos/gfx-raster-d.asm
+hbasm d
+hbasm p
 grep -h "^Model B" build/compile-hbd.txt build/compile-hbp.txt || true
