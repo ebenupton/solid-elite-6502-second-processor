@@ -179,7 +179,8 @@ ball. Each changed two-colour row costs about 1,200 cycles there (r_dpe's
 own bookkeeping is about 675 a row, and r_sw a further 270), against about
 400 for a moving plain disc's row.
 
-**What MERIDHOLD buys** (measured on the final code; 3 is the default):
+**What MERIDHOLD buys** (measured on 5bdceed, before the K4 fix; see the
+review round below for the final figures; 3 is the default):
 
 | MERIDHOLD | 0 (every frame, as the demo) | 3 | 5 | 7 |
 |---|---:|---:|---:|---:|
@@ -259,6 +260,88 @@ the remaining large cost (see the table above).
   should keep a new planet from showing another planet's orientation. One
   case is not checked: a launch straight after docking with MCNT lining up,
   which could show a stale orientation for at most MERIDHOLD frames.
+
+## Review round: further optimisation (no further change kept)
+
+Asked to make the faithful look (MERIDHOLD 0: the original spins the planet
+1/16 radian every iteration and redraws it every frame) as fast as possible,
+I measured before writing more code. Nothing I found was worth a commit, so
+the gate figures are unchanged from 4b839ac (this round's mcompare runs):
+
+| MERIDHOLD | 0 | 3 (default) | 5 | 7 |
+|---|---:|---:|---:|---:|
+| Gate it/s (original: 13.97) | 11.98 | 13.56 | 13.89 | 14.06 |
+
+**Where a beach ball's time goes**, over the whole gate:
+
+* MERIDHOLD 0: 172K cycles an iteration, against 122K before beach balls.
+  * Geometry (bank 7): 27.8K. Of that, the hook (the orientation's
+    constants) is about 7K and the row loop about 20K.
+  * Disc layer (bank 5): +29.6K over the plain disc.
+* MERIDHOLD 3: 153K. Geometry 12.7K; disc layer +26K.
+* Reaching 13.97 at MERIDHOLD 0 would need about 25K cycles an iteration
+  cut. That is nearly all of the geometry, so it is out of reach without a
+  different method.
+
+**The r_dpe fast path (moving rows).** The idea was to update rows whose
+boundaries have only shifted at a moving plain disc's ~400 cycles, not
+~1,200. I instruction-profiled a moving r = 99 ball (py65).
+
+* r_dpe's own code is about 675 cycles a row: the strip loop about 380, the
+  edge lists about 86, the stores about 50. r_sw adds about 250.
+* A row of a beach ball has 4-6 edges (two span ends and up to four
+  boundaries); a plain disc's has 2. Per edge it costs about 70 cycles of
+  bookkeeping plus 55-100 of writing (r_sw).
+* A rewrite of the loop with the colour pair precomputed and the one-byte
+  write inlined comes to about 75 cycles an edge against about 80 now. The
+  loop is already near its floor.
+* Repainting the whole row instead (r_dpe always to r_dpgl, the row runs):
+  294K cycles a frame against 225K for the strips. Worse.
+* Strip widths: a moving ball's strips are mostly one byte (3,080 in 5,038
+  calls). A spinning stationary ball's are mostly two or three bytes. r_sw's
+  one- and two-byte paths are already within about 15 cycles of the
+  smallest code that could do the read-modify-write.
+
+So for a six-edge row the strip writer is about as good as this design
+allows. A 2-3x gain would need a different representation, not a faster
+loop.
+
+**The orientation constants (about 22K a new frame).**
+
+* Shift-subtract integer square root: about the same cycles as the
+  quarter-square one, so not worth it.
+* Faster mul8 or fdiv: at most about 5K a new frame, which is 0.2 it/s at
+  MERIDHOLD 0 and 0.05 at 3.
+
+**The row loop (about 550 cycles a row).** It is incremental already: per
+circle and row it does D -= dl, dl += K2, C += a and the s step. The exact
+model needs the 16.16 precision. Merging the two circles' passes, or a
+table-based s (inexact: the model would change), would save 10-15% of it.
+
+**What does pay is reuse between frames,** which is what MERIDHOLD and the
+kept, moved and radius-only rows do (11.98 → 13.56 at MERIDHOLD 3).
+
+**Recommendation: MERIDHOLD 3** (the default).
+
+* Every fourth frame shows a new orientation, about 3 per second in combat
+  at Lave. It turns 14° each time, in a spin the original shows at 9-14
+  steps a second.
+* Position and size follow every frame, so the ball never lags the ship's
+  turn.
+* It runs at 13.56: 3% below the original's 13.97 overall. The no-beach-ball
+  windows are unchanged, and windows with a beach ball read 12.3, against
+  the original's 12.7.
+* If the README must keep "faster than the original" for the gate, use
+  MERIDHOLD 7 (14.06, 29° steps); 5 gives 13.89.
+
+**Spin clips** (Lave just after launch, the ball standing still on screen,
+iterations 330-365), in screenshots/beachball/spin/:
+
+* sheet-mh3.png and spin-mh3.gif: MERIDHOLD 3, the recommended setting. The
+  GIF runs at the measured 11.6 iterations a second; three iterations were
+  not captured, so the GIF skips there.
+* sheet-mh0.png and spin-mh0.gif: MERIDHOLD 0, every frame, at 7.2
+  iterations a second.
 
 ## Per-window speeds (flight it/s)
 
