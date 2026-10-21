@@ -19,7 +19,8 @@ import { parseArgs } from "../../harness/args.mjs";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { createHash } from "crypto";
 
-const a = parseArgs({ log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value" });
+const a = parseArgs({ log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value", dumpn: "value", master: "flag" });
+const DUMP = a.dumpn ? a.dumpn.split("-").map(Number) : null;
 if (!a.log || !a.out || !a.cand || !a.csyms) { console.error("--log, --out, --cand and --csyms are required"); process.exit(2); }
 mkdirSync(a.out, { recursive: true });
 const L = { rlog: new Map(), rjoy: [[], []], ptr: [0, 0], pokes: new Map(), header: null };
@@ -51,13 +52,20 @@ const q = [], res = {};
 let n = 0;
 cand.t.addParHook(pc => { if (pc === csy.p_sync) q.push(cand.iter); return false; });
 const host = cand.host;
+let syncSeen = false;
 host.debugInstruction.add(pc => {
+    // (jsbeeb skips this hook on a slice's first instruction: h_sync is a NOP and
+    // h_syncb the instruction after it, so one of the two is always seen)
+    if (pc === hsy.h_sync) syncSeen = true;
+    if (pc === hsy.h_syncb && !syncSeen) pc = hsy.h_sync;
+    else if (pc === hsy.h_syncb) { syncSeen = false; return false; }
     if (pc === hsy.h_sync) {
         const it = q.shift();
         if (it >= FROM) {
             const h = createHash("sha1"), [b0, b1] = cand.hostScreen();
             h.update(b0); h.update(b1);
             res[`${it}.${n}`] = h.digest("hex").slice(0, 16);
+            if (DUMP && it >= DUMP[0] && it <= DUMP[1]) writeFileSync(`${a.out}/it-${it}-${n}.raw`, Buffer.concat([b0, b1]));
         }
         n++;
     }

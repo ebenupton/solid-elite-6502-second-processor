@@ -319,7 +319,8 @@ ENDIF
 
 MACRO SCEOR
 IF _TPART = 1
- JSR p_sceor
+ JSR p_sceor            \ (with a NOP, four bytes, as the two instructions: LOINQ
+ NOP                    \ enters its pixel loops at label+6)
 ELSE
  EOR (SC),Y
  STA (SC),Y
@@ -7537,7 +7538,7 @@ ENDIF
                         \ screen (i.e. we need the pixel shape of this
                         \ character). The MOS ROM contains bitmap definitions
                         \ of the system's ASCII characters, starting from &C000
-                        \ for space (ASCII 32) and ending with the £ symbol
+                        \ for space (ASCII 32) and ending with the Â£ symbol
                         \ (ASCII 126)
                         \
                         \ There are definitions for 32 characters in each of the
@@ -24664,15 +24665,15 @@ ENDMACRO
 \ This routine twists the three 16-bit seeds in QQ15 once.
 \
 \ If we start with seeds s0, s1 and s2 and we want to work out their new values
-\ after we perform a twist (let's call the new values s0´, s1´ and s2´), then:
+\ after we perform a twist (let's call the new values s0Â´, s1Â´ and s2Â´), then:
 \
-\  s0´ = s1
-\  s1´ = s2
-\  s2´ = s0 + s1 + s2
+\  s0Â´ = s1
+\  s1Â´ = s2
+\  s2Â´ = s0 + s1 + s2
 \
 \ So given an existing set of seeds in s0, s1 and s2, we can get the new values
-\ s0´, s1´ and s2´ simply by doing the above sums. And if we want to do the
-\ above in-place without creating three new s´ variables, then we can do the
+\ s0Â´, s1Â´ and s2Â´ simply by doing the above sums. And if we want to do the
+\ above in-place without creating three new sÂ´ variables, then we can do the
 \ following:
 \
 \  tmp = s0 + s1

@@ -140,7 +140,9 @@ ASSERT P% - htab = C_MAX
  JMP (htab,X)
 
 .h_sync                 \ C_SYNC: a frame's end (the harness hashes the screen
- JMP hloop              \ here)
+ NOP                    \ here: at h_sync, or at h_syncb if its instruction hook
+.h_syncb                \ missed h_sync, as jsbeeb's does on a slice's first
+ JMP hloop              \ instruction)
 
 \ h_oscli: C_OSCLI: QQ11 OR GFORCE, GMODE, CHPR's zero page and W, CATF: go
 \ back to the MOS's Tube code (its idle loop, with its zero page back), where
