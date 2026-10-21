@@ -14,6 +14,7 @@
 \
 \ ******************************************************************************
 
+IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
 \ F_CHAR: TT26's character K3 at (XC-1, YC) (see f_char0)
 
 .F_CHAR
@@ -67,6 +68,8 @@
  STZ f_dtext
  RTS
 
+ENDIF
+IF _TPART <> 2             \ (Tube: the parasite's part)
 \ f_poly2: f_item's polygon detail (T_POLY), and a station's docking slot
 \ (the only unlit polygon detail: black, colour byte &80 + 4 * its fill
 \ visibility, gfx-faces.asm) filled and outlined in yellow over that. A fill
@@ -135,6 +138,8 @@
  ASSERT R_PXH = R_PXL + 16 AND R_PYL = R_PXL + 32 AND R_PYH = R_PXL + 48
  ASSERT R_Y0 = R_X0 + 2 AND R_X1 = R_X0 + 4 AND R_Y1 = R_X0 + 6
 
+ENDIF
+IF _TPART <> 1             \ (Tube: the host's part)
 \ f_enter2: the first record-mode frame since F_DIRECT. Main RAM is visible
 \ (X = 0): remove the directly drawn stars before f_enter copies the border
 \ to shadow RAM, then give buffer 0's shown map (which f_enter clears) the
@@ -356,3 +361,5 @@
 .fsgs3
  PLY
  JMP fsg3
+
+ENDIF

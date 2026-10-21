@@ -95,6 +95,7 @@ F_CPO = F_CPE           \ (the odd rows' bytes are the even rows')
 \ F_INIT: one-off initialisation (called by the loader / startup) is in F_DL
 \ (elite-gfx.asm), which it leaves to the ship records.
 
+IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
 \ Text map: 24 rows x 32 columns of desired characters (F_TM), and for each
 \ cell what each buffer shows (F_ST, at F_TM + &300). A cell of F_TM is its
@@ -428,6 +429,12 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
  BPL fdi1
  RTS
 
+ENDIF
+IF _TPART = 1
+.f_ysav EQUB 0          \ (the text map's, which is the host's, but F_FRAME's too)
+.f_tmp  EQUB 0
+ENDIF
+IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
 \ Recorders (called during the main loop; must only touch Elite variables they
 \ are documented to read, and preserve Y)
@@ -719,7 +726,9 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
                         \ (f_enter, with frame_cold.asm's direct-mode fix-ups)
 
 .ff5                    \ (what touches no screen memory goes before the wait)
+IF _TPART = 0
  JSR f_bufpatch
+ENDIF
  LDA #2                 \ the clip window inside the border (the zero page
  STA R_CL               \ copy is Elite's between frames)
  LDA #253
@@ -728,6 +737,10 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
  STA R_CT
  LDA #191
  STA R_CB
+IF _TPART = 1
+ JSR p_fb               \ (Tube: the host does all of that's screen work, as
+                        \ below, up to the stars' erasure: tube/src/h-frame.asm)
+ELSE
  LDA F_BACK
  JSR T_SETBUF
  JSR f_text1            \ text cells to be erased: background them (old dirty)
@@ -744,6 +757,7 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
 .ffb0
 
  JSR T_STARERASE        \ undo last time's stars in this buffer
+ENDIF
  JSR f_discs            \ the disc layer (sun or planet), incremental
  JSR f_disc2            \ the other disc, if both are on screen (full spans)
 .ff_lin                 \ (F_HANGAR points this call at f_hback for its frame)
@@ -752,9 +766,14 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
  JSR f_dots             \ particles, distant ships
  JSR f_lasers           \ our laser beams and the sights
  JSR f_flt              \ the lens flare (gfx-flare6.asm), then the text on top
+IF _TPART = 1
+                        \ (Tube: the text, the sights, the stars and the flip
+                        \ are the host's, after p_fe has sent the stars)
+ELSE
  JSR f_sight2           \ and the sights
  JSR f_stars            \ stardust, on black only (last: erasing it next
                         \ time restores black, so it needs no WL/WR)
+ENDIF
 
  FOR z, 15, 0, -1        \ restore the zero page (pushed at ff1)
   PLA
@@ -765,6 +784,12 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
   STA z
  NEXT
 
+IF _TPART = 1
+ JSR p_fe               \ (Tube: the text, the sights, the stars, then the flip:
+ LDA F_BACK             \ the host's)
+ EOR #1
+ STA F_BACK
+ELSE
  LDA #4                 \ CPU back to main RAM, and flip at the next vsync
  TRB &FE34
  LDA #%00000010         \ (Master port: with only the vsync interrupt masked
@@ -777,6 +802,7 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
  STA GFLIP
  LDA #%10000010
  STA &FE4E
+ENDIF
 
 .f_reset
  LDA #0                 \ empty the per-frame lists
@@ -795,6 +821,8 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
  STA F_DLP+1
  LDY f_ysav
  RTS
+ENDIF
+IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
 
 
 \ f_enter: switch from direct drawing to double buffering. Main RAM (buffer
@@ -962,6 +990,8 @@ ENDMACRO
 ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1) AND LO(R_DIRTYR0) = LO(R_DIRTYR1)
 ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 
+ENDIF
+IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
 \ The disc layer
 \ ------------------------------------------------------------------------------
@@ -1004,7 +1034,12 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP F_DCOL,X           \ old disc spans into the old dirty extents
  BEQ fds5
  STA F_DCOL,X
+IF _TPART = 1
+ LDA #C_DDIRTY          \ (Tube: the host's)
+ JSR ptx
+ELSE
  JSR f_discdirty
+ENDIF
 .fds5
  LDA f_lay
  BEQ fds9
@@ -1035,6 +1070,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .f_lay EQUB 0           \ disc layer: 0 none, 1 sun, 2 planet
 .f_sec EQUB 0           \ secondary disc
 
+ENDIF
+IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
 .f_discdirty            \ DIRTY[b][y] |= DISC[b][y] for all rows
  LDY #191
 .fdd1
@@ -1059,6 +1096,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BNE fdd1
  RTS
 
+ENDIF
+IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ f_sunrows / f_plrows: a disc's spans into R_NDISCL/R and R_NDT/R_NDB, from
 \ its centre (16-bit screen coordinates) and radius (8-bit), using a cached
 \ half-width table per disc (rebuilt only when the radius changes)
@@ -2129,11 +2168,15 @@ ASSERT LT_HL1 = LT_HL0 + 17 AND LT_HL2 = LT_HL0 + 34 AND LT_HL3 = LT_HL0 + 51
 .fla9
  RTS
 
+IF _TPART = 0
 .f_stars                \ stars 1..NOSTM (NOSTM is only ever NOST = 18), recorded
  LDA #NOST+1            \ by the hooks straight into R_SX/R_SY/R_SS (R_SS = 0: none)
  STA R_SN               \ (Master port: NOST = 20)
  JMP T_STARPLOT
+ENDIF
 
+ENDIF
+IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
 \ Text overlay
 \ ------------------------------------------------------------------------------
@@ -2673,6 +2716,8 @@ SGOUT = 20
  SEC                    \ C = 1 on exit, as before
  RTS
 
+ENDIF
+IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
 \ Planet surface detail, filled: Elite's PLS22 computes each ellipse (half
 \ ellipses for the equator and meridian, a full one for a crater) as points
@@ -3408,3 +3453,5 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
 .fw_t2 EQUB 0
 .fw_h  EQUB 0
 .fw_l  EQUB 0
+
+ENDIF

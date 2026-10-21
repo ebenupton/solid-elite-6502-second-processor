@@ -47,11 +47,17 @@
  BCC flt9
  BEQ flt9
 .flt1
+IF _TPART = 1
+ JSR p_flare            \ (Tube: the host has this buffer's dirty extents)
+.flt9
+ RTS                    \ (Tube: the text is the host's, in the frame's end)
+ELSE
  LDX fsw_d1+2           \ this buffer's dirty extents (f_bufpatch)
  LDY fsw_d2+2
  JSR T_FLARE
 .flt9
  JMP f_text2
+ENDIF
 
 \ fl_pd: X = 0: |F_SUX - F_PLX|, X = 2: |F_SUY - F_PLY| in Y, with Z = 1 if
 \ it is below 256 (Z = 0: further apart)

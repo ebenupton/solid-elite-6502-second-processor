@@ -14,7 +14,7 @@
 //    each machine's screen memory into values, compared when they are deterministic.
 // The input log (inputs.jsonl) holds every read that had a key down or a stick change, by
 // read number; it replays the session exactly, without the agent (replay.mjs).
-import { writeFileSync, appendFileSync, mkdirSync, readFileSync, existsSync } from "fs";
+import { writeFileSync, appendFileSync, mkdirSync, readFileSync, existsSync, unlinkSync } from "fs";
 import { createHash } from "crypto";
 import { EliteMachine, loadSyms, compareSetup, diffSnaps, fieldName, groupOf, ROOT, CYCLES_PER_FRAME } from "./lib.mjs";
 import { Agent } from "./agent.mjs";
@@ -60,6 +60,8 @@ export class Session {
         this.div = null;
         this.files = { inputs: `${cfg.out}/inputs.jsonl`, log: `${cfg.out}/agent.log`, journal: `${cfg.out}/journal.jsonl`, events: `${cfg.out}/events.jsonl` };
         if (!cfg.replay) for (const f of Object.values(this.files)) writeFileSync(f, "");
+        // (cfg.hashes: cand-hash.bin, a u32 per compared iteration, the candidate's snapshot's snapHash)
+        if (cfg.hashes) { this.files.hashes = `${cfg.out}/cand-hash.bin`; writeFileSync(this.files.hashes, ""); this.hashBuf = []; }
         else { writeFileSync(`${cfg.out}/events.jsonl`, ""); }
     }
 
@@ -189,6 +191,7 @@ export class Session {
         if (!cfg.replay && this.frame >= cfg.startFrame) {
             const r = await this.agent.frame(ref.ram.subarray(0, 0x8000));
             for (const [code, down] of r.keys) down ? this.held.add(code) : this.held.delete(code);
+            if (r.dull !== undefined) { this.dull = r.dull; appendFileSync(this.files.journal, JSON.stringify({ frame: this.frame, iter: ref.iter, e: { event: "dull", on: r.dull } }) + "\n"); }
             for (const [ch, v] of r.analogue) if (ch < 2) this.stick[ch] = v >> 8;
             for (const [lv, t] of r.logs) { appendFileSync(this.files.log, `${(this.frame / 3000).toFixed(2)} ${lv === 0 ? "STATUS " : lv === 2 ? "  " : ""}${t}\n`); if (lv === 0) this.stats.agentStatus++; }
             for (const n of r.notes) {
@@ -204,6 +207,10 @@ export class Session {
         if (sve !== undefined && sve !== this.checkedSve && this.ref.iter > sve && this.cand.iter > sve) { this.checkedSve = sve; this.compareDiscs(); }
         ref.run(CYCLES_PER_FRAME);
         this.frame++;
+        // (a live session: every 250 frames, how far the log is complete, the reference's reads and
+        // stick reads so far; a film that follows the log as it grows (film.mjs --follow) may
+        // replay that far. Replays ignore these records)
+        if (!cfg.replay && this.frame % 250 === 0) this.logInput({ mark: true, polls: ref.polls, joys: ref.joys, iter: ref.iter, frame: this.frame });
         // the candidate: until it blocks at a read the reference hasn't made (or 2 s, to keep both responsive)
         for (let k = 0; k < 100; k++) if (cand.run(CYCLES_PER_FRAME) === "blocked" || this.stopNow) break;
         this.trim();
@@ -225,6 +232,7 @@ export class Session {
             const [ri, a] = ref.snaps.shift(), [ci, b] = cand.snaps.shift();
             if (ri !== ci) { this.finding("internal", `iteration mismatch ${ri} vs ${ci}`); this.stopNow = true; return; }
             this.stats.iters = ri + 1;
+            if (this.hashBuf) { this.hashBuf.push(snapHash(b)); if (this.hashBuf.length >= 256) this.flushHashes(); }
             const d = diffSnaps(cs, a, b);
             if (d.length && !this.div) this.reportDivergence(ri, a, b, d);
             else if (d.length) {
@@ -237,6 +245,11 @@ export class Session {
             if (this.cfg.shots && ri % this.cfg.shots === 0) this.shotsDue = ri;
         }
         if (this.obsR) this.compareObs();
+    }
+    flushHashes() {
+        if (!this.hashBuf?.length) return;
+        const u = new Uint32Array(this.hashBuf); this.hashBuf = [];
+        appendFileSync(this.files.hashes, Buffer.from(u.buffer));
     }
     reportDivergence(iter, a, b, d) {
         const { cs } = this;
@@ -362,7 +375,13 @@ export class Session {
         const t0 = Date.now();
         let lastLog = 0;
         if (cfg.shots) { this.ref.renderAll(); this.cand.renderAll(); }
+        // (a stop asked for: SIGTERM or SIGINT, or a file DIR/STOP; the session ends as if its time
+        // were up, with its end record and summary)
+        const stopAsk = () => { if (!this.stopAsked) { this.stopAsked = true; console.log("stop asked: ending the session"); } };
+        process.once("SIGTERM", stopAsk); process.once("SIGINT", stopAsk);
         while (this.frame < maxFrames) {
+            if (this.stopAsked) break;
+            if (this.frame % 500 === 0 && existsSync(`${cfg.out}/STOP`)) { try { unlinkSync(`${cfg.out}/STOP`); } catch { } stopAsk(); break; }
             if (this.stopNow && this.stopFrame === undefined) { this.stopFrame = this.frame + 3; this.ref.renderAll(); this.cand.renderAll(); }
             if (this.stopFrame !== undefined && this.frame >= this.stopFrame) break;
             await this.step();
@@ -375,11 +394,18 @@ export class Session {
             if (this.shotsDue !== undefined) { await this.shots(`it${String(this.shotsDue).padStart(6, "0")}`); this.shotsDue = undefined; }
             if (Date.now() - lastLog > 30000) {
                 lastLog = Date.now();
+                this.flushHashes();
+                writeFileSync(`${cfg.out}/progress.json`, JSON.stringify({ wall: (Date.now() - t0) / 1000, frames: this.frame, gameMinutes: +(this.frame / 3000).toFixed(2),
+                    compared: this.stats.iters, refIters: this.ref.iter, candIters: this.cand.iter, reads: this.ref.polls, joys: this.ref.joys, keyReads: this.stats.keyPolls,
+                    findings: this.findings.length, findingKinds: [...new Set(this.findings.map(f => f.kind))], divergence: this.div?.iter ?? null,
+                    obsChecked: this.obsChecked, obsDiffs: this.obsDiffs, discChecks: this.stats.discChecks || 0, saveFilesSame: this.stats.saveFilesSame || 0,
+                    events: this.stats.events, agentNotes: this.stats.notes, final: finalState(this.ref, this.rsy) }, null, 1));
                 console.log(`[${cfg.out.split("/").pop()}] frame ${this.frame} (${(this.frame / 3000).toFixed(1)} min) ref it ${this.ref.iter} cand it ${this.cand.iter} reads ${this.ref.polls} wall ${((Date.now() - t0) / 1000).toFixed(0)} s` +
                     ` cash ${cashOf(this.ref)} tally ${this.ref.rb(this.rsy.TALLY) | this.ref.rb(this.rsy.TALLY + 1) << 8} galaxy ${this.ref.rb(this.rsy.GCNT) + 1}`);
             }
         }
-        if (!cfg.replay) this.logInput({ end: true, iter: this.ref.iter, polls: this.ref.polls, frames: this.frame });
+        if (!cfg.replay) this.logInput({ end: true, iter: this.ref.iter, polls: this.ref.polls, joys: this.ref.joys, frames: this.frame });
+        this.flushHashes();
         this.compareDiscs(true);
         this.ref.renderAll(); this.cand.renderAll();
         if (this.findings.some(f => f.kind !== "observable") && !this.div) await this.shots("finding");
@@ -408,6 +434,9 @@ export class Session {
     }
 }
 
+// FNV-1a over a snapshot: the candidate's game state at each iteration, kept in cand-hash.bin
+// so that a film of the candidate (film.mjs) can show it is the very run that was compared
+export function snapHash(b) { let h = 0x811c9dc5; for (let i = 0; i < b.length; i++) h = Math.imul(h ^ b[i], 16777619); return h >>> 0; }
 function safeJson(s) { try { return JSON.parse(s); } catch { return s; } }
 export function seedBytes(seed) {
     // four RAND bytes from a seed number (any seed but 0 gives a different game)

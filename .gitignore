@@ -6,3 +6,5 @@ __pycache__/
 .claude/
 elite-master.ssd
 jsbeeb-*.json.gz
+tube/build/
+tube/stage/

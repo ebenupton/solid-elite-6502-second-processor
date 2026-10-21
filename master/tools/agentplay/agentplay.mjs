@@ -9,20 +9,22 @@
 //      [--workaround look1] (candidate-side runtime workaround for a known port bug, to play on past it)
 //      [--savediscs] (write both machines' discs, with their saves, at the end: ref-disc.ssd, cand-disc.ssd)
 //      [--ref disc --rsyms syms] [--cand disc --csyms syms] [--iters N]
+//      [--hashes] (cand-hash.bin: the candidate's game state hashed at every iteration, for film.mjs)
+// A live session can be ended early, cleanly (end record, summary): SIGTERM, or a file DIR/STOP.
 // Writes DIR/{config.json, inputs.jsonl, agent.log, journal.jsonl, events.jsonl, summary.json, *.png}.
 // Exit status: 0 no findings, 1 a finding (divergence, crash, hang, BRK, page &0D), 2 error.
 import { Session } from "./session.mjs";
 import { parseArgs } from "../../../harness/args.mjs";
 import { MODES } from "./styles.mjs";
 
-const a = parseArgs({ out: "value", minutes: "value", seed: "value", commander: "value", mode: "value", chaos: "value", start: "value", shots: "value", keepgoing: "value", strict: "flag", noobserve: "flag", workaround: "value", savediscs: "flag", ref: "value", rsyms: "value", cand: "value", csyms: "value", iters: "value" });
+const a = parseArgs({ out: "value", minutes: "value", seed: "value", commander: "value", mode: "value", chaos: "value", start: "value", shots: "value", keepgoing: "value", strict: "flag", noobserve: "flag", workaround: "value", savediscs: "flag", ref: "value", rsyms: "value", cand: "value", csyms: "value", iters: "value", hashes: "flag" });
 if (!a.out) { console.error("--out DIR required"); process.exit(2); }
 const env = {};
 for (const m of String(a.mode || "efficient").split(",")) { if (!MODES[m]) { console.error(`unknown mode ${m}`); process.exit(2); } Object.assign(env, MODES[m]); }
 const cfg = {
     out: a.out, minutes: +(a.minutes || 10), seed: a.seed !== undefined ? +a.seed : undefined, commander: a.commander || "jameson",
     agentEnv: env, mode: String(a.mode || "efficient"), chaos: a.chaos || null, startFrame: +(a.start || 700), shots: +(a.shots || 0), keepGoing: +(a.keepgoing || 0),
-    strict: !!a.strict, saveDiscs: !!a.savediscs, workarounds: a.workaround ? String(a.workaround).split(",") : [], observe: !a.noobserve, iters: a.iters ? +a.iters : undefined,
+    strict: !!a.strict, saveDiscs: !!a.savediscs, workarounds: a.workaround ? String(a.workaround).split(",") : [], observe: !a.noobserve, iters: a.iters ? +a.iters : undefined, hashes: !!a.hashes,
 };
 for (const k of ["ref", "rsyms", "cand", "csyms"]) if (a[k]) cfg[k] = a[k];
 try {

@@ -37,7 +37,16 @@
  _SNG47                 = (_VARIANT = 1)
  _COMPACT               = (_VARIANT = 2)
 
+IF _TPART = 1
+
+ GUARD &F800            \ Port (Tube): the parasite is one flat 64K; its client
+                        \ OS is at &F800 (docs/TUBE-MAP.md)
+
+ELSE
+
  GUARD &C000            \ Guard against assembling over MOS memory
+
+ENDIF
 
 \ ******************************************************************************
 \
@@ -45,11 +54,15 @@
 \
 \ ******************************************************************************
 
+IF _TPART = 1
+ CODE% = &1500          \ Port (Tube): the parasite's (tube/src/p-ws.asm below)
+ELSE
  CODE% = &1EDC          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; its low byte is chosen so that the
                         \ font, at its place after ADDK, starts a page with no
                         \ padding: the build prints the padding, FONTPAD%)
+ENDIF
 
  LOAD% = CODE%          \ The address where the code will be loaded
 
@@ -272,9 +285,54 @@
  HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
                         \ paged in while the game runs (bank 6 in the original)
 
+IF _TPART = 1
+
+ VIA = &0D00            \ Port (Tube): the parasite has no SHEILA (only the Tube's
+                        \ registers, at &FEF8): what Master's code still writes
+                        \ there (ACCCON's X bit, around the drawing whose screen
+                        \ writes go to the host) lands in page &0D, which is
+                        \ free on the parasite, and what it reads (the keyboard,
+                        \ the timers) is replaced (docs/TUBE-MAP.md)
+
+ELSE
+
  VIA = &FE00            \ Memory-mapped space for accessing internal hardware,
                         \ such as the video ULA, 6845 CRTC and 6522 VIAs (also
                         \ known as SHEILA)
+
+ENDIF
+
+                        \ Port: SCEOR and SCSTA are Master's drawing's screen
+                        \ writes, EOR (SC),Y : STA (SC),Y and STA (SC),Y. The
+                        \ Tube's parasite sends them to the host, which owns
+                        \ the screen (tube/src/p-io.asm): A (not the EORed
+                        \ value, which no caller reads), X, Y and the flags are
+                        \ kept
+
+IF _TPART = 1
+ ZPSAVE = &0D00 - &90 + &80     \ Port (Tube): setzp and getzp's buffer for zero
+                                \ page &90-&FF (shadow &3090-&30FF on the Master):
+                                \ &0D80-&0DEF, in the parasite's free page &0D
+ELSE
+ ZPSAVE = &3000
+ENDIF
+
+MACRO SCEOR
+IF _TPART = 1
+ JSR p_sceor
+ELSE
+ EOR (SC),Y
+ STA (SC),Y
+ENDIF
+ENDMACRO
+
+MACRO SCSTA
+IF _TPART = 1
+ JSR p_scsta
+ELSE
+ STA (SC),Y
+ENDIF
+ENDMACRO
 
  OSBYTE = &FFF4         \ The address for the OSBYTE routine
 
@@ -2116,6 +2174,12 @@ ENDIF
 
 .WSCAN
 
+IF _TPART = 1
+
+ JMP p_wscan            \ Port (Tube): the host waits for its vsync
+
+ENDIF
+
  STZ DL                 \ Set DL to 0
 
 .DELL1K                 \ This label is a duplicate of a label in the DELT
@@ -2200,6 +2264,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound chip data mask for choosing a tone channel in the range 0-2
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -2215,6 +2280,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound chip data to turn the volume down on all channels and to act
+\       Tube: both
 \             as a mask for choosing a tone channel in the range 0-2
 \
 \ ******************************************************************************
@@ -2242,6 +2308,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Write sound data directly to the 76489 sound chip
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -2288,10 +2355,17 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Reset the sound buffers and turn off all sound channels
+\       Tube: both
 \
 \ ******************************************************************************
 
 .SOFLUSH
+
+IF _TPART = 1
+
+ JSR p_soflush          \ Port (Tube): the host's sound chip
+
+ENDIF
 
  LDY #3                 \ We need to zero the first 3 bytes of the sound buffer
                         \ at SOFLG, so set a counter in Y
@@ -2377,6 +2451,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Make the sound whose number is in Y by populating the sound buffer
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -2414,6 +2489,15 @@ ENDIF
                         \ the results to the 76489 sound chip. How this all
                         \ works is a bit of a mystery, so this part needs more
                         \ investigation
+
+IF _TPART = 1
+
+ JSR p_noise            \ Port (Tube): the host makes the sound (its own NOISE
+                        \ and SOINT); here NOISE returns as with every channel
+                        \ free (SOPR = 0), as the harness makes the original
+                        \ (docs/TUBE-MAP.md)
+
+ENDIF
 
  LDA DNOIZ              \ If DNOIZ is non-zero, then sound is disabled, so
  BNE SOUR1              \ return from the subroutine (as SOUR1 contains an RTS)
@@ -2518,6 +2602,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Process the contents of the sound buffer and send it to the sound
+\       Tube: host
 \             chip
 \
 \ ******************************************************************************
@@ -2639,6 +2724,7 @@ ENDIF
 \    Address: &144D to &1491
 \   Category: Sound
 \    Summary: The sound buffer where the data to be sent to the sound chip is
+\       Tube: both
 \             processed
 \
 \ ******************************************************************************
@@ -2724,6 +2810,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 1
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -2740,6 +2827,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 2
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -2756,6 +2844,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 3
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -2772,6 +2861,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 4
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -2793,6 +2883,12 @@ ENDIF
 \ ******************************************************************************
 
 .SETINTS
+
+IF _TPART = 1
+
+ RTS                    \ Port (Tube): the host's (its start, tube/src/h-main.asm)
+
+ELSE
 
  SEI                    \ Disable interrupts
 
@@ -2823,6 +2919,8 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+ENDIF
+
 \ ******************************************************************************
 \
 \       Name: IRQ1
@@ -2830,6 +2928,7 @@ ENDIF
 \   Category: Drawing the screen
 \    Summary: The main screen-mode interrupt handler (IRQ1V points here)
 \  Deep dive: The split-screen mode in BBC Micro Elite
+\       Tube: host
 \
 \ ------------------------------------------------------------------------------
 \
@@ -2952,6 +3051,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing the screen
 \    Summary: Defines the split position in the split-screen mode
+\       Tube: host
 \
 \ ******************************************************************************
 
@@ -2982,6 +3082,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Port: start timer 1 running freely, once a frame, in step with
+\       Tube: host
 \             vsync, for the split
 \
 \ ------------------------------------------------------------------------------
@@ -3095,7 +3196,7 @@ ENDIF
 .sz1
 
  LDA ZP,X               \ Copy the X-th byte of ZP to the X-th byte of &3000
- STA &3000,X
+ STA ZPSAVE,X
 
  INX                    \ Increment the loop counter
 
@@ -3171,9 +3272,9 @@ ENDIF
 .sz2
 
  LDA ZP,X               \ Swap the X-th byte of ZP with the X-th byte of &3000
- LDY &3000,X
+ LDY ZPSAVE,X
  STY ZP,X
- STA &3000,X
+ STA ZPSAVE,X
 
  INX                    \ Increment the loop counter
 
@@ -3576,8 +3677,8 @@ ENDIF
  DEC SCH
 .scu1
  LDA dstab,Y
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  DEX
  BNE scnup
 .scnu9
@@ -3606,8 +3707,8 @@ ENDIF
  INC SCH
 .scd2
  LDA dstab,Y
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  INX
  BNE scndn
  LDA Y2                 \ Y = (Y2 + 1) AND 7, C clear, as Master after a
@@ -4078,8 +4179,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -4108,8 +4209,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -4136,8 +4237,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -4164,8 +4265,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  LDA S                  \ Set S = S + Q to update the slope error
  ADC Q
@@ -4395,8 +4496,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -4423,8 +4524,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -4451,8 +4552,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -4479,8 +4580,8 @@ ENDIF
                         \ the start of this section to be a bit mask for the
                         \ colour in COL)
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  LDA S                  \ Set S = S + Q to update the slope error
  ADC Q
@@ -4983,8 +5084,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5008,8 +5109,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5033,8 +5134,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5058,8 +5159,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5083,8 +5184,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5108,8 +5209,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5133,8 +5234,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5158,8 +5259,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5562,8 +5663,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5587,8 +5688,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5612,8 +5713,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5637,8 +5738,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5662,8 +5763,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5687,8 +5788,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5712,8 +5813,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -5737,8 +5838,8 @@ ENDIF
  LDA R                  \ Fetch the pixel byte from R and apply the colour in
  AND COL                \ COL to it
 
- EOR (SC),Y             \ Store A into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen
+ SCEOR                 \ Store A into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen
 
  DEX                    \ Decrement the counter in X
 
@@ -6011,8 +6112,8 @@ ENDIF
                         \ set in screen memory to paint the relevant pixels in
                         \ the required colour
 
- EOR (SC),Y             \ Store this into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen,
+ SCEOR                 \ Store this into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen,
                         \ so we have now drawn the line's left cap
 
  TYA                    \ Set Y = Y + 8 so (SC),Y points to the next character
@@ -6044,8 +6145,8 @@ ENDIF
 .HLL1
 
  LDA COL                \ Store a full-width four-pixel horizontal line of
- EOR (SC),Y             \ colour COL in SC(1 0) so that it draws the line
- STA (SC),Y             \ on-screen, using EOR logic so it merges with whatever
+ SCEOR                 \ colour COL in SC(1 0) so that it draws the line
+                        \ on-screen, using EOR logic so it merges with whatever
                         \ is already on-screen
 
  TYA                    \ Set Y = Y + 8 so (SC),Y points to the next character
@@ -6083,8 +6184,8 @@ ENDIF
                         \ set in screen memory to paint the relevant pixels in
                         \ the required colour
 
- EOR (SC),Y             \ Store this into screen memory at SC(1 0), using EOR
- STA (SC),Y             \ logic so it merges with whatever is already on-screen,
+ SCEOR                 \ Store this into screen memory at SC(1 0), using EOR
+                        \ logic so it merges with whatever is already on-screen,
                         \ so we have now drawn the line's right cap
 
 .HL6
@@ -6137,8 +6238,8 @@ ENDIF
                         \ set in screen memory to paint the relevant pixels in
                         \ the required colour
 
- EOR (SC),Y             \ Store our horizontal line byte into screen memory at
- STA (SC),Y             \ SC(1 0), using EOR logic so it merges with whatever is
+ SCEOR                 \ Store our horizontal line byte into screen memory at
+                        \ SC(1 0), using EOR logic so it merges with whatever is
                         \ already on-screen
 
  LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
@@ -6609,8 +6710,8 @@ ENDIF
                         \ so that pixel takes on the colour we want to draw
                         \ (i.e. A is acting as a mask on the colour byte)
 
- EOR (SC),Y             \ Draw the pixel on-screen using EOR logic, so we can
- STA (SC),Y             \ remove it later without ruining the background that's
+ SCEOR                 \ Draw the pixel on-screen using EOR logic, so we can
+                        \ remove it later without ruining the background that's
                         \ already on-screen
 
  LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
@@ -6632,8 +6733,8 @@ ENDIF
                         \ so that pixel takes on the colour we want to draw
                         \ (i.e. A is acting as a mask on the colour byte)
 
- EOR (SC),Y             \ Draw the pixel on-screen using EOR logic, so we can
- STA (SC),Y             \ remove it later without ruining the background that's
+ SCEOR                 \ Draw the pixel on-screen using EOR logic, so we can
+                        \ remove it later without ruining the background that's
                         \ already on-screen
 
  DEY                    \ Reduce Y by 1 to point to the pixel row above the one
@@ -6651,8 +6752,8 @@ ENDIF
                         \ so that pixel takes on the colour we want to draw
                         \ (i.e. A is acting as a mask on the colour byte)
 
- EOR (SC),Y             \ Draw the pixel on-screen using EOR logic, so we can
- STA (SC),Y             \ remove it later without ruining the background that's
+ SCEOR                 \ Draw the pixel on-screen using EOR logic, so we can
+                        \ remove it later without ruining the background that's
                         \ already on-screen
 
  LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
@@ -6808,8 +6909,8 @@ ENDIF
  LSR A
  BCS ddo
  LDA dt0E,X
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  LDA dt1E,X
  BEQ ddn2
  STA dmk
@@ -6817,16 +6918,16 @@ ENDIF
  ORA #8
  TAY
  LDA dmk
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  TYA
  AND #7
  TAY
  BRA ddn2
 .ddo
  LDA dt0O,X
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  LDA dt1O,X
  BEQ ddn2
  STA dmk
@@ -6834,8 +6935,8 @@ ENDIF
  ORA #8
  TAY
  LDA dmk
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  TYA
  AND #7
  TAY
@@ -6901,8 +7002,8 @@ ENDIF
  TSB VIA+&34
 .bul1
  LDA ECBT,Y
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  DEY
  BPL bul1
  BMI bul3
@@ -6931,8 +7032,8 @@ ENDIF
  TSB VIA+&34
 .bul2
  LDA SPBT,Y
- EOR (SC),Y
- STA (SC),Y
+ SCEOR
+
  DEY
  BPL bul2
 .bul3
@@ -7039,13 +7140,13 @@ ENDIF
  LDA dpO
  STA dmk
  AND dmsmask,X          \ the left byte
- STA (SC),Y
+ SCSTA
  TYA
  ORA #8
  TAY
  LDA dmk
  AND dmsmask+1,X        \ the right byte
- STA (SC),Y
+ SCSTA
  TYA
  AND #7
  TAY
@@ -7072,6 +7173,7 @@ ENDIF
 \       Type: Variable
 \   Category: Ship hangar
 \    Summary: The number of ships being displayed in the ship hangar
+\       Tube: both
 \             (Port: HALL still sets it, but nothing reads it: HANGER, which
 \             did, is removed, as the renderer draws the hangar)
 \
@@ -7223,6 +7325,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Clear the top part of the screen and draw a border box
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -7241,6 +7344,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a newline
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -7265,6 +7369,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a character at the text cursor by poking into screen memory
 \  Deep dive: Drawing text
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7347,9 +7452,14 @@ ENDIF
 
  TAY                    \ Set Y = the character to be printed
 
+IF _TPART <> 1         \ (Port, Tube: CHPR's drawing is the host's, through
+                        \ H_CHAR and H_DEL)
+
  LDA #4                 \ Set bit 2 (X) of the Access Control Register at
  TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
                         \ (Port: keeping D, which buffer the IRQ shows)
+
+ENDIF
 
  TYA                    \ (A and the flags from the character, as the TAY left
                         \ them)
@@ -7634,9 +7744,13 @@ IF _SNG47
  JSR TTX66M             \ Otherwise we are off the bottom of the screen, so
                         \ clear the screen and draw a border box
 
+IF _TPART <> 1
+
  LDA #4                 \ Set bit 2 (X) of the Access Control Register at
  TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
                         \ (Port: keeping D)
+
+ENDIF
 
 ELIF _COMPACT
 
@@ -7796,9 +7910,13 @@ ENDIF
 
 .RR4
 
+IF _TPART <> 1         \ (Port, Tube: no ACCCON; the flags are LDA K3's below)
+
  LDA #4                 \ Clear bit 2 (X) of the Access Control Register at
  TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
                         \ (Port: keeping D)
+
+ENDIF
 
  PLX                    \ We're done printing, so restore the values of the
  PLY                    \ A, X and Y registers that we saved above and clear the
@@ -7853,6 +7971,18 @@ ENDIF
  LDX #%00001111         \ Set bits 1 and 2 of the Access Control Register at
  STX VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
 
+IF _TPART = 1
+
+ JSR p_cls              \ Port (Tube): the host clears the screen; X = &70
+ LDX #&70               \ and ZES1's leftovers (Y = 0, A = 0, SC(1 0) = &6F00)
+ LDY #0                 \ as the loop leaves them
+ STY SC
+ LDA #&6F
+ STA SC+1
+ TYA
+
+ELSE
+
  LDX #&40               \ Set X to point to page &40, which is the start of the
                         \ screen memory at &4000
 
@@ -7866,6 +7996,8 @@ ENDIF
 
  CPX #&70               \ Loop back to keep clearing character rows until we
  BNE BOL1               \ have cleared up to &7000, which is where the dashboard
+
+ENDIF
                         \ starts
 
 .BOX
@@ -7928,8 +8060,12 @@ ENDIF
                         \ two-pixel wide vertical border along the right edge
 
  LDA COL                \ Set locations &4000 and &41F8 to the correct colour,
+IF _TPART = 1
+ JSR p_boxc             \ Port (Tube): the host's two corners
+ELSE
  STA &4000              \ as otherwise the top-left and top-right corners will
  STA &41F8              \ be black (as the lines overlap at the corners, and
+ENDIF
                         \ the EOR logic used by LOINQ will otherwise make them
                         \ black)
 
@@ -7969,6 +8105,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: Zero-fill the page whose number is in X
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7991,6 +8128,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: Zero-fill a specific page
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8071,6 +8209,14 @@ ENDIF
                         \ record mode return instead of clearing the screen
                         \ (gfx-hooks.asm)
 
+IF _TPART = 1
+
+ JSR p_clyns            \ Port (Tube): the host clears rows 20-23 (the loop's
+ LDX #0                 \ X and Y left as below; the flags are the caller's)
+ LDY #0
+
+ELSE
+
  LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
  STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
 
@@ -8093,7 +8239,7 @@ ENDIF
 
 .EE2
 
- STA (SC),Y             \ Zero the Y-th byte from SC(1 0), which clears it by
+ SCSTA             \ Zero the Y-th byte from SC(1 0), which clears it by
                         \ setting it to colour 0, black
 
  INY                    \ Increment the byte counter in Y
@@ -8106,7 +8252,7 @@ ENDIF
                         \ so SC(1 0) points to the start of the next page, or
                         \ the start of the right half of the row
 
- STA (SC),Y             \ Clear the byte at SC(1 0), as that won't be caught by
+ SCSTA             \ Clear the byte at SC(1 0), as that won't be caught by
                         \ the next loop
 
  LDY #247               \ The second page covers the right half of the text row,
@@ -8125,7 +8271,7 @@ ENDIF
                         \ because BeebAsm doesn't allow us to redefine labels,
                         \ I have renamed it to EE3K
 
- STA (SC),Y             \ Zero the Y-th byte from SC(1 0), which clears it by
+ SCSTA             \ Zero the Y-th byte from SC(1 0), which clears it by
                         \ setting it to colour 0, black
 
  DEY                    \ Decrement the byte counter in Y
@@ -8140,6 +8286,8 @@ ENDIF
  DEX                    \ Decrement the row counter in X
 
  BNE CLYL               \ Loop back to blank another row, until we have done the
+
+ENDIF
                         \ number of rows in X
 
  LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
@@ -8751,7 +8899,7 @@ DCN_MARK = 6            \ roll / pitch marker
  EOR dmx
  LDX dln
 .dsg7
- STA (SC),Y
+ SCSTA
  EOR dmx                \ the next line's
  INY
  DEX
@@ -8862,6 +9010,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \       Type: Variable
 \   Category: Text
 \    Summary: A copy of the character definition bitmap table from the MOS ROM
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9082,6 +9231,7 @@ ENDIF
 \    Address: &2C40 to &2C61
 \   Category: Workspaces
 \    Summary: Configuration variables
+\       Tube: both
 \
 \ ******************************************************************************
 
@@ -9271,12 +9421,20 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TUBE
+
+ INCLUDE "tsrc/p-low.asm"               \ Port (Tube): the parasite's low area
+
+ELSE
+
  INCLUDE "src/elite-low.asm"
+
+ENDIF
 
 .HEAD_END%
 
  PRINT "Main code below &3000: ", ~CODE%, "-", ~HEAD_END%-1, " free ", &3000-HEAD_END%, " (the font's alignment: ", FONTPAD%, " bytes of padding)"
- ASSERT P% <= &3000     \ Port: everything up to here must be below &3000, as it
+ ASSERT P% <= &3000 OR _TUBE     \ Port: everything up to here must be below &3000, as it
                         \ is used while ACCCON X = 1 (shadow RAM at &3000-&7FFF),
                         \ from interrupts or from MOS vectors with any ROM paged:
                         \ the IRQ and sound code, CHPR and its font, the log
@@ -17739,6 +17897,18 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TUBE
+
+                        \ Port (Tube): the parasite has no screen and no banks,
+                        \ so the run goes straight on, with the quarter squares
+                        \ page aligned here (docs/TUBE-MAP.md)
+
+ ALIGN &100
+
+ INCLUDE "src/elite-hi.asm"             \ the quarter squares
+
+ELSE
+
  PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
  ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0)
  PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
@@ -17748,6 +17918,8 @@ ENDIF
  ORG &7000
 
  INCLUDE "src/elite-hi.asm"             \ the quarter squares
+
+ENDIF
 
 .HI_RUN%
 
@@ -31649,6 +31821,12 @@ ENDIF
 
 .DET1
 
+IF _TPART = 1
+
+ JMP p_det1             \ Port (Tube): the host's 6845
+
+ENDIF
+
  LDA #6                 \ Set A to 6 so we can update 6845 register R6 below
 
  SEI                    \ Disable interrupts so we can update the 6845
@@ -37758,9 +37936,13 @@ ENDIF
  TXS                    \ location stack, so that's back to the value it had
                         \ before we change it in the SVE routine
 
+IF _TPART <> 1
+
  LDA #HOMEBANK          \ Port: page Elite's home bank in, as the MOS enters
  STA &F4                \ BRKV with the ROM that raised the error paged in (the
  STA VIA+&30            \ original's getzp did this, setting ROMSEL to bank 6)
+
+ENDIF
 
  JSR getzp              \ Call getzp to restore the top part of zero page from
                         \ the buffer at &3000, as this will have been stored in
@@ -38494,7 +38676,15 @@ ENDIF
 
 IF _SNG47
 
+IF _TPART = 1
+
+ JSR p_irb              \ Port (Tube): the host's System VIA's port B
+
+ELSE
+
  LDA VIA+&40            \ Read 6522 System VIA input register IRB (SHEILA &40)
+
+ENDIF
 
  AND #%00010000         \ Bit 4 of IRB (PB4) is clear if joystick 1's fire
                         \ button is pressed, otherwise it is set, so AND'ing
@@ -40888,7 +41078,15 @@ IF _SNG47
 
  STA JSTY               \ Store the resulting joystick Y value in JSTY
 
+IF _TPART = 1
+
+ JSR p_irb              \ Port (Tube): the host's System VIA's port B
+
+ELSE
+
  LDA VIA+&40            \ Read 6522 System VIA input register IRB (SHEILA &40)
+
+ENDIF
 
  AND #%00010000         \ Bit 4 of IRB (PB4) is clear if joystick 1's fire
                         \ button is pressed, otherwise it is set, so AND'ing
@@ -47757,6 +47955,12 @@ ENDMACRO
  JSR ZEKTRAN            \ Call ZEKTRAN to clear the key logger, which also sets
                         \ X to 0
 
+IF _TPART = 1
+
+ JMP p_fillkl           \ Port (Tube): the host scans the keyboard
+
+ENDIF
+
  STX RdX+1              \ Store X = 0 as the operand of the LDX at RdX, which
                         \ holds the index into the flight keys for Rd2 below
 
@@ -47997,6 +48201,15 @@ ENDIF
 IF _SNG47
 
 .DKS5
+
+IF _TPART = 1
+
+ JSR p_dks              \ Port (Tube): ask the host whether key A is held (X =
+.DKS5T                  \ the key, with bit 7 set if it is: the harness's
+ TXA                    \ injection point, tube/harness), and return as below:
+ RTS                    \ A = X, N from bit 7
+
+ENDIF
 
  LDX #3                 \ Set X to 3, so it's ready to send to SHEILA once
                         \ interrupts have been disabled
@@ -48749,6 +48962,19 @@ DOSBUF = &6000          \ the command's copy, in buffer 0 after HAZEL's stash
 
 .DOSCLI
 
+IF _TPART = 1
+
+ JMP p_oscli            \ Port (Tube): the command goes to the host's MOS, in
+                        \ its own Tube protocol (tube/src/p-io.asm)
+
+.DOSNMI                 \ (NEWBRK's, after a disc error: tube/src/p-io.asm)
+
+ JMP p_dosnmi
+
+.DOSNMI_END
+
+ELSE
+
  PHA                    \ Stash HAZEL in buffer 0 (A and the command's address
  PHX                    \ in Y X are kept), with GSTASH set (in HAZEL: the copy
  PHY                    \ back keeps it): buffer 0 holds no frame from now on
@@ -48871,6 +49097,8 @@ DOSBUF = &6000          \ the command's copy, in buffer 0 after HAZEL's stash
  DEY
  BNE dosm1
  RTS
+
+ENDIF
 
 \ ******************************************************************************
 \

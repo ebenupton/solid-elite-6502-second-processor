@@ -73,7 +73,9 @@
 #     the cold area) is an error;
 #   * every stub's line is blank in its copy, and every target is defined in
 #     elite-source.asm (a stub has a place only there).
-import re, sys
+import os, re, sys
+
+TUBE = os.environ.get("TUBE") == "1"     # the Tube parasite's build (tube/build.sh)
 
 SRC = "src/elite-source.asm"
 OUT = "build/elite-source-%s.asm"
@@ -84,6 +86,14 @@ DAREAS = ("bdata", "hot", "cold")
 DTAGS = {"cold": "cold", "BDATA": "bdata"}
 STAR = re.compile(r"^\\ \*{70,}\s*$")
 AREA = re.compile(r"^\\       Area: (.*)$")
+# The Tube build (TUBE=1, tube/build.sh): every block is the parasite's
+# (Master's drawing too: its screen writes go to the host, SCEOR and SCSTA)
+# but where a header's "Tube:" field says otherwise: "host" (the IRQ, sound,
+# keyboard scanning) or "both" (CHPR, whose glyphs the host draws). The
+# host's copy, build/elite-source-host.asm, holds the host's blocks, and the
+# parasite's copies (run, low, bank4, cold) blank the host-only ones.
+TUBEF = re.compile(r"^\\       Tube: (.*)$")
+TUBETAG = {}                             # block start line -> "host" / "both"
 TAGS = {"cold": "cold", "bank 4": "bank4", "low": "low"}
 NOFALL = set("RTS RTI JMP BRA BRK".split())
 
@@ -129,6 +139,12 @@ def blocks(lines, tags=TAGS):
                 if t not in tags:
                     sys.exit("%d: unknown area %r" % (i + 1, t))
                 out[-1][3] = tags[t]
+            m = TUBEF.match(l)
+            if m:
+                t = m.group(1).strip()
+                if t not in ("host", "both"):
+                    sys.exit("%d: unknown Tube field %r" % (i + 1, t))
+                TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
         b[1] = out[k + 1][0] if k + 1 < len(out) else len(lines)
     return [tuple(b) for b in out]
@@ -137,7 +153,7 @@ def blocks(lines, tags=TAGS):
 # the build options' flags (build/elite-build-options.asm, as build.sh writes
 # them for the game), for the checks' view of conditional assembly
 FLAGS = {"_SNG47": True, "_COMPACT": False, "_MATCH_ORIGINAL_BINARIES": True,
-         "_REMOVE_CHECKSUMS": True, "_MAX_COMMANDER": False, "Q%": False}
+         "_REMOVE_CHECKSUMS": True, "_MAX_COMMANDER": False, "Q%": False, "_TUBE": TUBE}
 
 
 def active_lines(lines):
@@ -514,7 +530,11 @@ def glue(copies, errors, lines, bl, falls):
                 # assembled between them in this copy)
                 if k == len(at) - 1 or any(assembles(code_part(copies[a][j]), macros_)
                                            for j in range(i + 1, at[k + 1][0])):
-                    text += " JSR %s : EQUW %s" % (far, target + "_C" if side == "cold" else target)
+                    tgt = target + "_C" if side == "cold" else target
+                    # (the Tube's parasite is one flat 64K with no banks: a
+                    # stub is a jump, which calls, jumps or falls into the
+                    # routine as the far call did)
+                    text += (" JMP %s" % tgt) if TUBE else (" JSR %s : EQUW %s" % (far, tgt))
                     n += 1
                 cur = copies[a][i]
                 if (a, i) in placed:
@@ -624,11 +644,33 @@ def main():
                                   % (SRC, e, name, area, st, name2, area2,
                                      "" if side else ", and no stub of %s is in %s's emission" % (name2, area)))
             break
+    def place(s, area):
+        """the Tube build's placement of the block at line s: host, parasite
+        or both"""
+        return TUBETAG.get(s, "parasite")
     copies = {}
     for a in AREAS:
         copies[a] = []
         for s, e, name, area in bl:
-            copies[a] += [lines[i] if area == a else "" for i in range(s, e)]
+            on = area == a and not (TUBE and place(s, area) == "host")
+            copies[a] += [lines[i] if on else "" for i in range(s, e)]
+    if TUBE:
+        # the host's copies: the configuration and the workspaces at fixed
+        # addresses (zero page, the stack, K%, WP), which the host mirrors at
+        # the same addresses (build/elite-source-ws.asm), and the host's
+        # blocks (build/elite-source-host.asm), which tube/src/h-layout.asm
+        # assembles at its own addresses
+        WS = ("ZP", "XX3", "K%", "WP")
+        wsc, hostc = [], []
+        first = min(k for k, b in enumerate(bl) if b[2] in WS)    # (the configuration: the blocks before ZP)
+        for k, (s, e, name, area) in enumerate(bl):
+            ws = k < first or name in WS
+            on = not ws and place(s, area) != "parasite"
+            wsc += [lines[i] if ws else "" for i in range(s, e)]
+            hostc += [lines[i] if on else "" for i in range(s, e)]
+        for nm, c in (("ws", wsc), ("host", hostc)):
+            with open(OUT % nm, "w", encoding="latin-1") as f:
+                f.write("\n".join(c))
     nstubs = glue(copies, errors, lines, bl, falls)
     nd = data(errors)
     for a in AREAS:

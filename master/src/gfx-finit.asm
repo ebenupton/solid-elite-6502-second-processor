@@ -9,6 +9,25 @@
 \
 \ ******************************************************************************
 
+IF _TPART = 1
+
+.F_INIT                 \ (Tube: the rasteriser's state, buffer 0's picture and
+ LDA #C_INIT            \ the text map are the host's: tube/src/h-frame.asm)
+ JSR ptx
+ LDA #0
+ STA F_NSHIP
+ STA F_NLINE
+ STA F_NDOT
+ STA F_PLON
+ LDX #23+NDSTAR         \ (the parasite's copy of the stars' sizes: R_SS)
+.fin1
+ STA R_SS,X
+ DEX
+ BPL fin1
+ RTS
+
+ELSE
+
 .F_INIT
  LDX #&21               \ R_INIT uses &06-&27: keep Elite's values (in F_DL,
 .fin0                   \ before this code)
@@ -49,3 +68,5 @@
  BPL fin1
  JSR f_tmclear
  RTS
+
+ENDIF
