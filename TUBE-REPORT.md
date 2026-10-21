@@ -22,6 +22,12 @@ Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
   Master host 21.8, Model B host 20.0; combat 2.9-3.2x SNG47.
 
 **Not passed / not done**
+- Beach ball planets (since the beachball merge, section at the end): with a
+  meridian planet on screen both hosts are now slower than SNG47 (the gate's
+  combat at Lave: Master host 7.6 it/s, Model B host 7.0, SNG47 9.3; before
+  the beach ball 29.9 and 28.3). The host is the limit: the meridian window's
+  geometry (on the host: the parasite has no room for it) and the disc layer's
+  two-colour rows. Flight without one, docking and approach are unchanged.
 - Docking (3420-3550) is still slower than SNG47 (12.6 it/s): Master host 8.2,
   Model B host 6.7 (the Master port 6.6). The plan's phase 4 (each byte written
   once) was not built: it needs a per-row model of both buffers on a parasite
@@ -281,3 +287,121 @@ bound; spanrec.mjs: record each frame's spans, lines and disc rows;
 spansim.py: replay them through the kept-span rules with a cycle model).
 tube/tools/thprof.mjs now labels HAZEL (&C300-&CFFF) code instead of lumping
 it in with the MOS.
+
+## Beach ball planets (merge of `beachball`, 2026-10-21)
+
+`beachball` (full-master 85b264a: BEACHBALL-REPORT.md) merged into `tube`.
+Meridian planets (TYPE 128, Lave among them) are drawn as the Master port's
+beach ball on both hosts, pixel for pixel.
+
+**Merge.** One conflict: elite-gfx.asm's constants, which `tube` had moved to
+gfx-ws.asm (shared with the Tube's host); MERIDBANK and MERIDHOLD went there.
+The Master build on `tube` is byte-identical to beachball's own (85b264a). The
+pixel oracle scratch/fbref and scratch/master-ref.ssd are renewed from it
+(the plain-disc ones kept as scratch/fbref-plaindisc and
+scratch/master-ref-plaindisc.ssd; scratch/ is untracked).
+
+**Where the geometry runs: the host.** The meridian window (PM_HOOK and
+PM_MERID, gfx-merid.asm) is 3.3K; the parasite has about 300 bytes free
+(104 below &F800, 121 in the high area, 81 in the workspace), so it runs on
+the host, in sideways RAM, as the user's fallback allowed:
+
+* the parasite keeps H_MERID (gfx-hooks.asm; K2 and TGT as PL9 leaves them).
+  Its G_MERHOOK (p-glue.asm) sends C_MERHOOK: roofv and sidev
+  (INWK+15..26), K3, K4, MCNT, PM_R (19 bytes), and sets PM_OK. The host runs
+  PM_HOOK at once, in the parasite's game time, when it is otherwise idle;
+* f_bounds' T_MERID (p-io.asm) marks the planet's C_DISC R_NDF = &81: its
+  rows carry the spans only (no boundary bytes through the Tube). The host
+  runs PM_MERID on them (the rows' boundaries need the spans: PM_MERID clips
+  each crossing to its row's span) and then R_DISCROWS;
+* the host's window is tube/src/h-merid.asm: the quarter squares (1K: the
+  host has no QSL/QSH), PM_IN, C_MERHOOK's receiver, then gfx-merid.asm
+  assembled with _TPART = 2: PM_HOOK reads PM_IN for INWK, K3, K4 and MCNT
+  (symbols PM_V, PM_K3, PM_K4, PM_MCNT), and with MERIDHOLD = 0 the held
+  orientation's paths (kept and moved rows, radius-only and centre-only
+  constants: dead at MERIDHOLD 0) are left out (PM_HELD). The Master port
+  assembles exactly as before (byte-identical);
+* Master host: bank 7 &8000-&8F06 (HMERID on the disc, a new FTAB entry in
+  the loader), C_MERHOOK through h_merhook, the rows through gfx-tramp.asm's
+  T_MERID from h_disc;
+* Model B host: bank D after the shared code, &A748-&B72B (NMOS, by nmos.py
+  with two --sub fixes; 212 bytes left before the disc inputs at &B800), next
+  to the disc inputs it writes; C_MERHOOK through hb_merhook (main RAM) and
+  bank D's jump table (D_MERHOOK), the rows from d_disc. GVARS gained PM_OK,
+  PM_R and PS_VALID (hb-ws.asm). h_disc's Master body is now under ELSE for
+  the Model B (bank F: 256 bytes back).
+* the parasite's frame layer and the game are otherwise unchanged (the run
+  grew 3 bytes; the high area and the workspace are as they were).
+
+**Verification** (all on the final build; run1 is scratch/curious/run1):
+* Lockstep against SNG47: `REPLAY CLEAN ... 16002 iterations compared,
+  29887 reads, findings 0` on both hosts.
+* Pixels against the Master port (the beachball build, fbreplay over run1;
+  run1 shows a beach ball at iterations 301-402 and 5355-5456, Lave and a
+  second meridian planet): both hosts `14611 matched, 3 sampling gaps, 0
+  mismatched` over 0..16000 (`fbcmp.mjs ... --to 15999`). The two hosts'
+  frames are identical over 0..16000 (14614 distinct frames), and outside
+  the beach ball iterations both equal the plain-disc oracle
+  (scratch/fbref-plaindisc) frame for frame. The window's constants, spans and rows at PM_MERID/R_DISCROWS
+  (iterations 301-304) equal the Master port's byte for byte on both hosts
+  (a recorder that hooks PM_MERID and R_DISCROWS on each build).
+* Disc menu (`tube/tools/tsavetest.mjs --host Master|B`): passes on both
+  (E.TESTA 256 bytes, the commander block; 4 disc commands, the error path).
+* `harness/mcompare.mjs --iters 2000 --loose --tube Master|B`: MCOMPARE PASS
+  on both.
+* Screenshots: screenshots/tube/master-beach-it341.png (Master host, Lave
+  just after launch), modelb-beach-it5421.png (Model B host, the second
+  meridian planet).
+
+**Speed.** run1 windows (`tube/tools/tspeed.mjs`), it/s; 300-403 and
+5355-5457 are run1's two beach ball windows:
+
+| | flight 1000-1400 | docking 3420-3550 | 0-3550 | beach 300-403 | beach 5355-5457 |
+|---|---:|---:|---:|---:|---:|
+| SNG47 | 12.69 | 12.61 | 14.38 | 8.11 | 9.09 |
+| Master port (beachball, MERIDHOLD 0) | 19.07 | 6.64 | 17.46 | 6.28 | 4.80 |
+| Tube, Master host, before | 21.81 | 8.20 | 22.08 | 13.50 | 11.71 |
+| Tube, Master host, after | 21.75 | 8.19 | 20.97 | 6.52 | 5.12 |
+| Tube, Model B host, before | 20.00 | 6.71 | 20.20 | 12.67 | 10.99 |
+| Tube, Model B host, after | 19.84 | 6.72 | 19.13 | 5.96 | 4.55 |
+
+("Before" is `tube` a3d9090, drawing Lave as a plain disc.) By pilot phase
+(`harness/mcompare.mjs --iters 2000 --loose`; the gate's pilot starts at
+Lave, so its combat and hyperspace phases have a beach ball on screen), flight
+it/s:
+
+| | combat | hyperspace | approach | all |
+|---|---:|---:|---:|---:|
+| SNG47 | 9.27 | 9.13 | 15.75 | 12.99 |
+| Master port (beachball) | 7.14 | 6.56 | 13.91 | 10.75 |
+| Tube, Master host, before | 29.94 | 26.63 | 15.42 | 18.01 |
+| Tube, Master host, after | 7.59 | 6.85 | 15.36 | 11.65 |
+| Tube, Model B host, before | 28.30 | 25.34 | 13.37 | 15.86 |
+| Tube, Model B host, after | 6.96 | 6.35 | 13.34 | 10.38 |
+
+Without a beach ball on screen nothing changed (flight, docking, approach).
+With one the Tube is now slower than SNG47, as the Master port is: the Master
+host 4-7% faster than the Master port there, the Model B host 5% slower; a
+24 MHz parasite changes nothing (300-403: 6.67 it/s, Model B host 6.03). Why (Master host, iterations 300-403, `tube/tools/thprof.mjs`): the host is the
+limit, 285K cycles an iteration (the parasite waits 85% of its time). Of
+those, the meridian window takes 92K (PM_HOOK 21K, the row loop 71K) and the
+disc layer's two-colour rows about 108K (r_dq, r_dpe, r_dmb: the Master port's
+own cost, BEACHBALL-REPORT.md); before, the plain disc's took about a third of
+that.
+
+**Tried and not kept: the row loop on the parasite** (patch:
+tube/experiments/merid-rows-parasite.patch, against 6b5a8b2). To make
+room: the parasite's font goes (it draws no glyphs; H_CHAR's W comes from a
+96-byte table of each glyph's first-byte nibble, placed in the font's old
+alignment padding), the high area grows by &FF00-&FFF9 (C_SWAP swaps it too),
+PM_MERID is split in three (the end of the frame layer, &F800 and &FF00) with
+its data in the workspace and PM_BLK at &0CCF; the host keeps PM_HOOK and
+answers C_MERGET (44 bytes) at the frame's start. Pixel-exact (0..800 on both
+hosts) and the disc menu passed, but it bought only 6.52 -> 6.83 and
+5.12 -> 5.23 it/s (Master host): the host's meridian time fell from 92K to
+23K cycles, but the host then waited 46K cycles for the parasite's rows, which
+come between C_FB and C_DISC with nothing else for the host to do. It left
+13 bytes free below &F800, so it was not kept. Overlapping the rows with the
+host's work would need them a frame early (they need the frame's spans and
+constants) or the disc layer drawn after the ships; neither is the Master
+port's order.

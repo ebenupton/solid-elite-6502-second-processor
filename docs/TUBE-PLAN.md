@@ -169,3 +169,12 @@ cold code loaded from disc.
   commands, a loader that finds and patches the sideways RAM banks.
 - Verification: both hosts lockstep-clean against SNG47 over run1's 16002
   iterations and pixel-exact against the Master port over 0..16000.
+- Beach ball planets (after the Master port's beachball merge, 2026-10-21):
+  the meridian window (PM_HOOK, PM_MERID, 3.3K) did not fit the parasite
+  (about 300 bytes free), so it runs on the host, in sideways RAM (the Master
+  host's bank 7, the Model B host's bank D, NMOS): the parasite sends PM_HOOK's
+  inputs in game time (C_MERHOOK) and the planet's spans without boundaries
+  (C_DISC, R_NDF = &81); the host makes the boundaries before R_DISCROWS.
+  The row loop on the parasite (room made by dropping its font and swapping
+  &FF00-&FFF9 too) was tried: +5% at the beach ball, as the host then waits
+  for the rows; not kept (tube/experiments/merid-rows-parasite.patch).

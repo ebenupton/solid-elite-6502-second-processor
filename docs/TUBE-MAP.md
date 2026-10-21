@@ -32,7 +32,12 @@ operands. Notable ones:
 - C_POLY: R_POLY's rows after the parasite's phase A (phase 3): COLE, COLO,
   COL2, COL3, the horizontal clip flag, ystart, ylast, then left and right per
   row; the host enters its rasteriser at r_pcbd.
-- C_DISC: the disc layer's rows (spans, colours, up to 4 boundaries a row).
+- C_DISC: the disc layer's rows (spans, colours, up to 4 boundaries a row;
+  R_NDF = &81: a beach ball, spans only, the host makes the boundaries).
+- C_MERHOOK: a beach ball (meridian planet, TYPE 128): H_MERID's inputs to the
+  host's meridian window (below): roofv and sidev (INWK+15..26), K3, K4, MCNT,
+  PM_R. The host runs PM_HOOK at once (in the parasite's game time); C_DISC's
+  R_NDF = &81 then has it run PM_MERID on the spans before R_DISCROWS.
 - C_LINE, C_DOT, C_SPAN, C_MARK, C_FLARE, C_DSTAR: as the Master port's
   trampolines' arguments.
 - C_FB / C_FE / C_SYNC: a frame's begin, end (stars, flip) and the end of the
@@ -43,13 +48,30 @@ operands. Notable ones:
   parasite's &FE through register 1 (WRCHV = hwrch) brings it back.
 - C_SWAP: exchange &F800-&FEEF with the host's copy, byte for byte.
 
+## Beach ball planets (the meridian window)
+
+The Master port draws a meridian planet as a beach ball (BEACHBALL-REPORT.md:
+gfx-merid.asm, PM_HOOK and PM_MERID, 3.3K in its bank 7). The parasite has
+about 300 bytes free, so the window is the host's (tube/src/h-merid.asm: the
+quarter squares it multiplies with, PM_IN, C_MERHOOK's receiver h_merin, then
+gfx-merid.asm assembled with _TPART = 2: its inputs from PM_IN, and with
+MERIDHOLD = 0 the held orientation's paths left out, PM_HELD). The parasite
+keeps H_MERID (gfx-hooks.asm: K2 and TGT as PL9 leaves them), whose
+G_MERHOOK (p-glue.asm) sends C_MERHOOK and sets PM_OK; f_bounds' T_MERID
+(p-io.asm) marks the C_DISC R_NDF = &81, and its rows carry the spans only.
+Master host: bank 7 &8000-&8F06 (HMERID, loaded by the loader's FTAB); the
+row loop through gfx-tramp.asm's T_MERID from h_disc. Model B host: bank D
+after the shared code (&A748-&B72B, NMOS, beside the disc inputs it writes),
+C_MERHOOK through hb_merhook and the jump table's D_MERHOOK, the row loop
+from d_disc.
+
 ## The Master host
 
 The Master port's display side: buffer 0 in main RAM &4000-&6FFF, buffer 1
 in shadow RAM at the same addresses (ACCCON X), the dashboard in shadow
 &7000; the rasteriser in bank 5 and ANDY, the frame layer's host part (text
 map, text overlay, sights, flip) and the rarely run host code (h-cold.asm) and
-the high area's copy (HSW) in bank 6; the renderer's workspace at
+the high area's copy (HSW) in bank 6; the meridian window in bank 7 (h-merid.asm); the renderer's workspace at
 &0E40-&1EDB and from &1EDC the game's host blocks (IRQ, sound, CHPR and font,
 UP), the trampolines, the command loop and the pre-erase (h-main.asm,
 h-hpe.asm). 65C12 code.
@@ -72,7 +94,7 @@ differ (no ACCCON; the screen base; the banks).
 | Buffer 1 | &4000-&6FFF | the Master port's addresses: direct mode unchanged |
 | Panel | &7000-&7DFF | the dashboard, the Master port's address |
 | &7E00-&7FFF | | hwrch (WRCHV), the IRQ entry, hbswap: not swapped |
-| Bank D | &8000-&BFFF | the disc window, the shared code without the runs (bank D's r_spc runs bank P's through runp), the boundary arrays, the disc inputs (&B800), jump table at &BFC0 |
+| Bank D | &8000-&BFFF | the disc window, the shared code without the runs (bank D's r_spc runs bank P's through runp), the boundary arrays, the meridian window (h-merid.asm, &A748-&B72B), the disc inputs (&B800), jump table at &BFC0 |
 | Bank P | &8000-&BFFF | the polygon window (phase B, r_pcbd), the line loops, the shared region with the runs (patched per buffer on first use: r_pgfix), the stars, the flare, the row repair (r7_rowrep), the polygon inputs (&9500), jump table at &BFC0 |
 | Bank F | &8000-&B6EF | the command loop and handlers, the frame layer's host part, CHPR and its font, the sound, the interrupts (hb-irq.asm), the high area's copy |
 | Bank S | &8000-&8DC9 | the swapped main RAM |

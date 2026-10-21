@@ -1,0 +1,626 @@
+diff -ruN pa/master/src/elite-source.asm pb/master/src/elite-source.asm
+--- a/master/src/elite-source.asm	2026-10-22 00:16:57
++++ b/master/src/elite-source.asm	2026-10-22 00:16:57
+@@ -9036,6 +9036,11 @@
+ \
+ \ ******************************************************************************
+ 
++IF _TPART = 1           \ Port (Tube): the parasite's glyph nibbles for H_CHAR
++.PFONTW                 \ (tube/src/p-glue.asm), in what would be the font's
++ INCLUDE "build/fontw.asm"  \ alignment: the parasite has no font (below)
++ENDIF
++
+  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
+ 
+  ALIGN &100             \ Port: the font must start on a page boundary, as only
+@@ -9046,7 +9051,9 @@
+ 
+  FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
+ 
+- INCBIN "src/fonts/P.FONT.bin"
++IF _TPART <> 1          \ Port (Tube: the parasite draws no glyphs, the host
++ INCBIN "src/fonts/P.FONT.bin"  \ does: CHPR's H_CHAR reads only W's nibble of a
++ENDIF                   \ glyph, from its own table, tube/src/p-glue.asm)
+ 
+ \ ******************************************************************************
+ \
+diff -ruN pa/master/src/gfx-tramp.asm pb/master/src/gfx-tramp.asm
+--- a/master/src/gfx-tramp.asm	2026-10-22 00:16:57
++++ b/master/src/gfx-tramp.asm	2026-10-22 00:16:57
+@@ -79,6 +79,7 @@
+  JSR R_MARKDIRTY
+  JMP tback
+ 
++IF _TPART <> 2          \ (the Tube's host: its parasite runs the row loop)
+ .T_MERID                \ (the meridian window's row loop, gfx-merid.asm: bank 7;
+  BIT PM_OK              \ not when PM_HOOK has kept the last rows, PM_OK = &C0)
+  BVS tmer9
+@@ -91,6 +92,7 @@
+  JMP tback
+ .tmer9
+  RTS
++ENDIF
+ 
+ .T_POLY                 \ (R_POLY is in the rasteriser's polygon window, ANDY)
+  STA tA
+diff -ruN pa/tube/build.sh pb/tube/build.sh
+--- a/tube/build.sh	2026-10-22 00:16:57
++++ b/tube/build.sh	2026-10-22 00:16:57
+@@ -34,6 +34,27 @@
+ EOF
+ : > build/compile.txt
+ python3 tools/dashboard.py build > /dev/null
++# the meridian window (gfx-merid.asm) in five pieces: the host runs the hook
++# (PM_HOOK), the parasite the row loop (PM_MERID), whose code it places in two
++# parts and whose data in its workspace (p-layout.asm, h-merid.asm)
++python3 - <<'PY'
++L = open("src/gfx-merid.asm", encoding="latin-1").read().split("\n")
++def at(pred, what):
++    k = [i for i, l in enumerate(L) if pred(l)]
++    assert len(k) == 1, "gfx-merid.asm: the split point " + what
++    return k[0]
++rows = at(lambda l: l.startswith("\\ PM_MERID: the disc layer"), "PM_MERID") - 2
++assert L[rows].startswith("\\ ****")
++put = at(lambda l: l.startswith("\\ mp_two: row X"), "mp_two")
++ins = at(lambda l: l.startswith(".mpi ") or l == ".mpi", "mpi")
++dat = at(lambda l: l.startswith(".mp_cx2"), "mp_cx2")
++for name, a, b in (("hook", 0, rows), ("rows", rows, put), ("put", put, ins), ("ins", ins, dat), ("data", dat, len(L))):
++    open("build/merid-%s.asm" % name, "w", encoding="latin-1").write("\n".join(["\\ (tube/build.sh: lines %d-%d of src/gfx-merid.asm)" % (a + 1, b)] + L[a:b]) + "\n")
++PY
++python3 - <<'PY'                     # the glyphs' W nibbles for the parasite's H_CHAR (p-glue.asm)
++f = open("src/fonts/P.FONT.bin", "rb").read()
++open("build/fontw.asm", "w").write(" EQUB " + ", ".join("&%02X" % (f[8 * i] & 15) for i in range(96)) + "\n")
++PY
+ TUBE=1 python3 tools/streams.py >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+ $BEEBASM -i build/elite-data-bdata.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
+ # the parasite
+@@ -125,7 +146,7 @@
+   LDX l_x0" --sub "  PLX
+   DEC l_n=  LDX &E7
+   DEC l_n" > /dev/null
+-$NM src/gfx-merid.asm build/nmos/gfx-merid.asm --report build/nmos/gfx-merid.txt \
++$NM build/merid-hook.asm build/nmos/merid-hook.asm --report build/nmos/merid-hook.txt \
+   --sub ".PM_HOOK
+  PHP
+  PHA
+@@ -136,13 +157,7 @@
+  TXA                    \\ (NMOS: PHX, PHY; A dead after)
+  PHA
+  TYA
+- PHA" \
+-  --sub " STA R_NDP,X
+- STZ R_NDN,X= STA R_NDP,X
+- TAY                    \\ (NMOS: STZ, A live, Y dead)
+- LDA #0
+- STA R_NDN,X
+- TYA" > /dev/null
++ PHA" > /dev/null
+ $NM src/gfx-flare.asm build/nmos/gfx-flare.asm --report build/nmos/gfx-flare.txt \
+   --sub " BPL P%+5
+  EOR #&FF
+@@ -154,6 +169,7 @@
+ : > build/hb-mainsyms.asm
+ # (the beach ball's MERIDHOLD: hb-ws.asm's must be gfx-ws.asm's)
+ [ "$(grep -E '^MERIDHOLD' src/gfx-ws.asm | awk '{print $3}')" = "$(grep -E '^MERIDHOLD' tsrc/hb-ws.asm | awk '{print $3}')" ] || { echo "MERIDHOLD: hb-ws.asm differs from gfx-ws.asm"; exit 1; }
++[ "$(grep -E '^MERIDHOLD' src/gfx-ws.asm | awk '{print $3}')" = 0 ] || { echo "MERIDHOLD: the Tube build's row loop keeps no rows (p-ws.asm's PM_HELD): 0 only"; exit 1; }
+ # (NMOS code is longer: out-of-range branches are made long, tools/longbr.py,
+ # until the bank assembles)
+ hbasm() {
+diff -ruN pa/tube/src/cmds.asm pb/tube/src/cmds.asm
+--- a/tube/src/cmds.asm	2026-10-22 00:16:58
++++ b/tube/src/cmds.asm	2026-10-22 00:16:58
+@@ -36,9 +36,7 @@
+ C_FE       = 6          \ frame end: R_SN, the stars (x, y, size each), flip
+ C_ENTER    = 8          \ the first space-mode frame since the screen was drawn
+                         \ directly (f_enter2): GSTASH
+-C_DISC     = 10         \ R_DISCROWS: rows, colours, spans, boundaries (R_NDF =
+-                        \ 1), or none (0: a plain disc; &81: a beach ball, whose
+-                        \ boundaries the host's meridian window makes)
++C_DISC     = 10         \ R_DISCROWS: rows, colours, spans, boundaries
+ C_DDIRTY   = 12         \ f_discdirty: fold this buffer's disc into its dirty
+ C_SPAN     = 14         \ R_SPAN: Y, XL, XR, COLE, COLO
+ C_MARK     = 16         \ R_MARKDIRTY: Y, XL, XR
+@@ -66,14 +64,15 @@
+ C_DET1     = 54         \ DET1: 6845 R6 = X
+ C_IRB      = 56         \ request: the System VIA's port B
+ C_OSCLI    = 58         \ OSCLI (DOSCLI): the host's MOS runs the command
+-C_SWAP     = 60         \ exchange the parasite's &F800-&FEEF with the host's copy
++C_SWAP     = 60         \ exchange the parasite's &F800-&FEEF and &FF00-&FFF9 with the host's copy
+                         \ (the client OS's and the high code: byte for byte)
+ C_MERHOOK  = 62         \ H_MERID (a beach ball, gfx-hooks.asm): roofv and sidev
+                         \ (INWK+15..26), K3, K4, MCNT, PM_R: the host's meridian
+-                        \ window computes the frame's constants (PM_HOOK), and
+-                        \ C_DISC with R_NDF = &81 has it make the rows
+-                        \ (PM_MERID) from the spans that C_DISC carries
+-C_MAX      = 64
++                        \ window computes the frame's constants (PM_HOOK)
++C_MERGET   = 64         \ request: PM_HOOK's constants (PM_BLK1, PM_BLK2, PM_CX,
++                        \ PM_CY: 44 bytes), for the parasite's row loop (PM_MERID)
++C_MAX      = 66
+ 
+-TUBE_HIGH = TRUE        \ the parasite's &F800-&FEEF holds code (p-layout.asm's
+-                        \ PHIGH), swapped with the client OS's copy (C_SWAP)
++TUBE_HIGH = TRUE        \ the parasite's &F800-&FEEF and &FF00-&FFF9 hold code
++                        \ (p-layout.asm's PHIGH, PHIGH2), swapped with the client
++                        \ OS's copy (C_SWAP)
+diff -ruN pa/tube/src/h-cold.asm pb/tube/src/h-cold.asm
+--- a/tube/src/h-cold.asm	2026-10-22 00:16:58
++++ b/tube/src/h-cold.asm	2026-10-22 00:16:58
+@@ -139,8 +139,9 @@
+ .HNMI_END
+ 
+ 
+-\ h_swap: C_SWAP: exchange the parasite's &F800-&FEEF with HSW (bank 6, the
+-\ resting bank), a byte at a time: the parasite's byte in, ours out
++\ h_swap: C_SWAP: exchange the parasite's &F800-&FEEF and &FF00-&FFF9 with
++\ HSW (bank 6, the resting bank; &FF00 at HSW+&700), a byte at a time: the
++\ parasite's byte in, ours out
+ 
+ .h_swap
+  LDA #HI(HSW)
+@@ -161,9 +162,18 @@
+  INC hsw1+2
+  INC hsw2+2
+ .hsw3
+- LDA hsw1+2             \ the last page's &F0 bytes
++ LDA hsw1+2             \ page 6's first &F0 bytes, then page 7's &FA
+  CMP #HI(HSW) + 6
+- BNE hsw0
++ BNE hsw4
+  CPY #&F0
++ BNE hsw0
++ INC hsw1+2
++ INC hsw2+2
++ LDY #0
++ BEQ hsw0
++.hsw4
++ CMP #HI(HSW) + 7
++ BNE hsw0
++ CPY #&FA
+  BNE hsw0
+  JMP hloop
+diff -ruN pa/tube/src/h-layout.asm pb/tube/src/h-layout.asm
+--- a/tube/src/h-layout.asm	2026-10-22 00:16:58
++++ b/tube/src/h-layout.asm	2026-10-22 00:16:58
+@@ -81,9 +81,11 @@
+ .f_hwr  EQUB 0          \ (the parasite's half-width cache tags, which f_enter2
+ .f_hw2r EQUB 0          \ clears: unused here)
+ ALIGN &100
+-.HSW                    \ the parasite's &F800-&FEEF that is not in it (h_swap):
++.HSW                    \ the parasite's &F800-&FEEF and &FF00-&FFF9 that are not in it (h_swap):
+  INCBIN "build/PHIGH.bin" \ the high code at first, the client OS's while it runs
+- SKIP HSW + &6F0 - P%
++ SKIP HSW + &700 - P%
++ INCBIN "build/PHIGH2.bin" \ (the parasite's &FF00-&FFF9)
++ SKIP HSW + &7FA - P%
+ .B6_END
+  PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, ")"
+  SAVE "build/HBANK6.bin", &8000, B6_END, &8000
+@@ -91,7 +93,7 @@
+  CLEAR &8000, &C000      \ bank 7 (MERIDBANK): the meridian window, the beach
+  ORG &8000              \ ball's boundaries (h-merid.asm)
+  INCLUDE "tsrc/h-merid.asm"
+- INCLUDE "src/gfx-merid.asm"
++ INCLUDE "build/merid-hook.asm"  \ (gfx-merid.asm's PM_HOOK: tube/build.sh)
+ .M7_END
+  PRINT "Host: bank 7 &8000-&", ~M7_END-1, " (the meridian window)"
+  SAVE "build/HMERID.bin", &8000, M7_END, &8000
+diff -ruN pa/tube/src/h-main.asm pb/tube/src/h-main.asm
+--- a/tube/src/h-main.asm	2026-10-22 00:16:58
++++ b/tube/src/h-main.asm	2026-10-22 00:16:58
+@@ -102,6 +102,7 @@
+  EQUW h_mark, h_poly, h_line, h_dot, h_flare, h_direct, h_char, h_keys
+  EQUW h_dks, h_wscan, h_noise, h_soflush, h_dstar, h_sceor, h_scsta, h_cls
+  EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli, h_swap, h_merhook
++ EQUW h_merget
+ ASSERT P% - htab = C_MAX
+ 
+ .hloop
+@@ -147,7 +148,7 @@
+ 
+ .hsafe                  \ per command: non-zero if it never draws in the buffers
+  FOR i, 0, C_MAX - 1, 2
+-  IF i=C_SYNC OR i=C_CHAR OR i=C_KEYS OR i=C_DKS OR i=C_WSCAN OR i=C_NOISE OR i=C_SOFLUSH OR i=C_SCEOR OR i=C_SCSTA OR i=C_CLRTEXT OR i=C_DET1 OR i=C_IRB OR i=C_MERHOOK
++  IF i=C_SYNC OR i=C_CHAR OR i=C_KEYS OR i=C_DKS OR i=C_WSCAN OR i=C_NOISE OR i=C_SOFLUSH OR i=C_SCEOR OR i=C_SCSTA OR i=C_CLRTEXT OR i=C_DET1 OR i=C_IRB OR i=C_MERHOOK OR i=C_MERGET
+    EQUB 1, 1
+   ELSE
+    EQUB 0, 0
+@@ -281,9 +282,6 @@
+  HRX
+  STA R_NDF
+  BEQ hdi1
+- BMI hdi0               \ (&81: a beach ball, made here)
+- STZ PS_VALID           \ (1: a crater's boundaries over the beach ball's rows)
+-.hdi0
+  HRX
+  STA R_DBE
+  HRX
+@@ -299,8 +297,7 @@
+  HRX
+  STA R_NDISCR,Y
+  LDA R_NDF
+- CMP #1
+- BNE hdi4
++ BEQ hdi4
+  HRX
+  STA R_NDP,Y
+  HRX
+@@ -328,12 +325,6 @@
+  INY
+  BNE hdi2
+ .hdi9
+- LDA R_NDF              \ a beach ball: its boundaries from the spans (the
+- BPL hdi8               \ meridian window, bank 7: h-merid.asm)
+- LDA #1
+- STA R_NDF
+- JSR T_MERID
+-.hdi8
+  JSR T_DISCROWS
+  JMP hloop
+ ENDIF
+@@ -346,10 +337,22 @@
+  STA &F4
+  STA &FE30
+  JSR h_merin
++.hmer9
+  LDA #GFXBANK
+  STA &F4
+  STA &FE30
+  JMP hloop
++ENDIF
++
++.h_merget               \ C_MERGET: the beach ball's constants back (h-merid.asm)
++IF _HOSTB
++ JMP hb_merget           \ (Model B: bank D's, hb-res.asm)
++ELSE
++ LDA #MERIDBANK
++ STA &F4
++ STA &FE30
++ JSR h_merget7
++ JMP hmer9
+ ENDIF
+ 
+ .h_ddirty               \ C_DDIRTY
+diff -ruN pa/tube/src/h-merid.asm pb/tube/src/h-merid.asm
+--- a/tube/src/h-merid.asm	2026-10-22 00:16:58
++++ b/tube/src/h-merid.asm	2026-10-22 00:16:58
+@@ -1,17 +1,17 @@
+ \ ******************************************************************************
+ \
+-\ h-merid.asm - the host's meridian window (docs/TUBE-MAP.md): the beach ball
+-\ planet's colour boundaries, the Master port's gfx-merid.asm run by the host
+-\ (the parasite has no room for its 3K): the Master host's bank 7 (as the
+-\ Master port's MERIDBANK), the Model B host's bank D (NMOS, beside the disc
+-\ layer whose arrays it writes)
++\ h-merid.asm - the host's half of the meridian window (docs/TUBE-MAP.md): the
++\ beach ball planet's per-frame constants, the Master port's PM_HOOK
++\ (gfx-merid.asm, build/merid-hook.asm), run by the host (the parasite has no
++\ room for it; it runs the row loop, PM_MERID): the Master host's bank 7 (as
++\ the Master port's MERIDBANK), the Model B host's bank D (NMOS)
+ \
+ \ C_MERHOOK (G_MERHOOK on the parasite, from H_MERID in game context) brings
+ \ PM_HOOK's inputs: roofv and sidev (INWK+15..26), K3, K4 and MCNT into PM_IN,
+ \ the radius into PM_R; h_merin then runs PM_HOOK, which keeps the frame's
+-\ constants here. C_DISC with R_NDF = &81 (f_bounds' T_MERID on the parasite)
+-\ carries the planet's spans only; the host then runs PM_MERID, which makes
+-\ the rows' boundaries from them, before R_DISCROWS.
++\ constants (PM_BLK1, PM_BLK2, PM_CX, PM_CY) here, in the parasite's game
++\ time. C_MERGET (the parasite's p_fb, at the frame's start) has h_merget
++\ send them back.
+ \
+ \ The quarter squares PM_HOOK multiplies with (QSL, QSH: Elite's, which the
+ \ host does not have) are here too.
+@@ -41,3 +41,13 @@
+  HRX
+  STA PM_R
+  JMP PM_HOOK
++
++.h_merget7              \ C_MERGET: the constants to the parasite
++ LDX #0
++.hmg1
++ LDA PM_BLK1,X
++ HTX
++ INX
++ CPX #2 * MCB + 4
++ BNE hmg1
++ RTS
+diff -ruN pa/tube/src/hb-d.asm pb/tube/src/hb-d.asm
+--- a/tube/src/hb-d.asm	2026-10-22 00:16:58
++++ b/tube/src/hb-d.asm	2026-10-22 00:16:58
+@@ -26,8 +26,8 @@
+  INCLUDE "build/nmos/gfx-raster-d.asm"
+  CPU 0
+ .D_HIEND
+- INCLUDE "tsrc/h-merid.asm"     \ the meridian window (the beach ball's
+- INCLUDE "build/nmos/gfx-merid.asm" \ boundaries), beside the arrays it writes
++ INCLUDE "tsrc/h-merid.asm"     \ the meridian window's hook (the beach
++ INCLUDE "build/nmos/merid-hook.asm" \ ball's constants: the parasite runs the rows)
+  CPU 0
+ .D_MEND
+  ORG &8000
+@@ -48,10 +48,6 @@
+  HRX
+  STA R_NDF
+  BEQ ddi1
+- BMI ddi0               \ (&81: a beach ball, made here)
+- LDA #0                 \ (1: a crater's boundaries over the beach ball's rows)
+- STA PS_VALID
+-.ddi0
+  HRX
+  STA R_DBE
+  HRX
+@@ -67,8 +63,7 @@
+  HRX
+  STA R_NDISCR,Y
+  LDA R_NDF
+- CMP #1
+- BNE ddi4
++ BEQ ddi4
+  HRX
+  STA R_NDP,Y
+  HRX
+@@ -96,16 +91,6 @@
+  INY
+  BNE ddi2
+ .ddi9
+- LDA R_NDF              \ a beach ball: its boundaries from the spans (PM_MERID,
+- BPL ddi8               \ as the Master port's T_MERID)
+- LDA #1
+- STA R_NDF
+- BIT PM_OK
+- BVS ddi8
+- JSR PM_MERID
+- LDA #&80
+- STA PS_VALID
+-.ddi8
+  JMP R_DISCROWS
+ .D_CODE_END
+  GUARD &C000
+@@ -117,6 +102,7 @@
+  JMP r_wclear
+  JMP d_disc
+  JMP h_merin
++ JMP h_merget7
+  PRINT "Model B bank D: &8000-&", ~D_LOEND-1, " (free ", &9000-D_LOEND, "), &9000-&", ~D_HIEND-1, ", the meridian window to &", ~D_MEND-1, " (free ", DDATA-D_MEND, "), data &", ~DDATA, "-&", ~DDATA_END-1
+  ASSERT D_CODE_END <= JT
+  SAVE "build/HBD.bin", &8000, &C000, &8000
+diff -ruN pa/tube/src/hb-main.asm pb/tube/src/hb-main.asm
+--- a/tube/src/hb-main.asm	2026-10-22 00:16:58
++++ b/tube/src/hb-main.asm	2026-10-22 00:16:58
+@@ -96,9 +96,11 @@
+ .f_hwr  EQUB 0
+ .f_hw2r EQUB 0
+ ALIGN &100
+-.HSW                    \ the parasite's &F800-&FEEF that is not in it (h_swap)
++.HSW                    \ the parasite's &F800-&FEEF and &FF00-&FFF9 that are not in it (h_swap)
+  INCBIN "build/PHIGH.bin"
+- SKIP HSW + &6F0 - P%
++ SKIP HSW + &700 - P%
++ INCBIN "build/PHIGH2.bin" \ (the parasite's &FF00-&FFF9)
++ SKIP HSW + &7FA - P%
+ .F_END
+  PRINT "Model B bank F: &8000-&", ~F_END-1, " (code to &", ~F_CODE_END-1, ")"
+  SAVE "build/HBF.bin", &8000, F_END, &8000
+diff -ruN pa/tube/src/hb-res2.asm pb/tube/src/hb-res2.asm
+--- a/tube/src/hb-res2.asm	2026-10-22 00:16:58
++++ b/tube/src/hb-res2.asm	2026-10-22 00:16:58
+@@ -45,6 +45,10 @@
+  PAGE RASTBANK
+  JSR D_MERHOOK
+  JMP hbloop
++.hb_merget              \ C_MERGET
++ PAGE RASTBANK
++ JSR D_MERGET
++ JMP hbloop
+ .hb_poly
+  PAGE RASTPOLY
+  JSR P_POLYIN
+diff -ruN pa/tube/src/hb-ws.asm pb/tube/src/hb-ws.asm
+--- a/tube/src/hb-ws.asm	2026-10-22 00:16:58
++++ b/tube/src/hb-ws.asm	2026-10-22 00:16:58
+@@ -176,6 +176,7 @@
+ D_WCLEAR   = JT + 12
+ D_DISC     = JT + 15    \ h_disc's receiving part (hb-d.asm)
+ D_MERHOOK  = JT + 18    \ C_MERHOOK's: the meridian window (h-merid.asm)
++D_MERGET   = JT + 21    \ C_MERGET's
+ P_PGFIX    = JT         \ bank P
+ P_ROWREP   = JT + 3
+ P_POLY     = JT + 6
+@@ -195,6 +196,11 @@
+  BIT &FEE0
+  BPL P%-3
+  LDA &FEE1
++ENDMACRO
++MACRO HTX               \ send A to the parasite (register 4)
++ BIT &FEE6
++ BVC P%-3
++ STA &FEE7
+ ENDMACRO
+ ENDIF
+ 
+diff -ruN pa/tube/src/p-glue.asm pb/tube/src/p-glue.asm
+--- a/tube/src/p-glue.asm	2026-10-22 00:16:58
++++ b/tube/src/p-glue.asm	2026-10-22 00:16:58
+@@ -302,9 +302,10 @@
+  STA P+2
+  LDA SC+1
+  STA P+3
+- LDY #0
+- LDA (P),Y
+- AND #%00001111
++ LDA K3                 \ W = the low nibble of the glyph's first byte (RRL1's
++ AND #&7F               \ (P),Y with Y = 0: the font is the host's only, so
++ TAY                    \ these nibbles are the parasite's, PFONTW)
++ LDA PFONTW-32,Y
+  STA W
+  JMP RR4
+ 
+diff -ruN pa/tube/src/p-io.asm pb/tube/src/p-io.asm
+--- a/tube/src/p-io.asm	2026-10-22 00:16:58
++++ b/tube/src/p-io.asm	2026-10-22 00:16:58
+@@ -65,7 +65,23 @@
+ \ the host's f_text1, f_sight1, its wait for the last flip and the stars'
+ \ erasure (tube/src/h-frame.asm)
+ 
++\ (and first, with a beach ball this frame, PM_HOOK's constants from the host,
++\ which made them in the game's time: the row loop needs them, and asking
++\ before C_FB has the host answer before it waits for the flip)
++
+ .p_fb
++ BIT PM_OK
++ BPL pfb1
++ LDA #C_MERGET
++ PSEND
++ LDX #0
++.pfb0
++ JSR prx
++ STA PM_BLK1,X
++ INX
++ CPX #2 * MCB + 4
++ BNE pfb0
++.pfb1
+  LDA #C_FB
+  PSEND
+  LDA F_BACK
+@@ -218,20 +234,17 @@
+  PSEND
+  RTS
+ 
+-\ T_MERID: f_bounds has a beach ball (PM_OK, G_MERHOOK): its boundaries are
+-\ the host's meridian window's to make, from C_DISC's spans (R_NDF = &81)
++\ T_MERID: f_bounds has a beach ball (PM_OK, G_MERHOOK): the meridian
++\ window's row loop, PM_MERID (gfx-merid.asm, here in three parts: p-layout.asm),
++\ makes its boundaries from the constants p_fb fetched (PM_BLK1, PM_BLK2,
++\ PM_CX, PM_CY), which T_DISCROWS sends as any other (R_NDF = 1)
+ 
+ .T_MERID
+- PHA
+- LDA #&81
+- STA R_NDF
+- PLA
+- RTS
++ JMP PM_MERID
+ 
+ \ T_DISCROWS: R_NDT, R_NDB, R_DCE, R_DCO, R_NDF (with R_DBE, R_DBO), then
+-\ for each row R_NDT..R_NDB, R_NDISCL and R_NDISCR, and with R_NDF = 1 also
+-\ R_NDP, R_NDN and R_NDN of R_NDX0..R_NDX3 (R_NDF = &81: a beach ball, whose
+-\ boundaries the host makes)
++\ for each row R_NDT..R_NDB, R_NDISCL and R_NDISCR, and with R_NDF set also
++\ R_NDP, R_NDN and R_NDN of R_NDX0..R_NDX3
+ 
+ .T_DISCROWS
+  PHA
+@@ -266,8 +279,7 @@
+  LDA R_NDISCR,Y
+  PSEND
+  LDA R_NDF
+- CMP #1
+- BNE tdr4
++ BEQ tdr4
+  LDA R_NDP,Y
+  PSEND
+  LDA R_NDN,Y            \ (the count as it is, then at most 4 boundaries,
+@@ -587,8 +599,8 @@
+  JSR G_INIT
+  JMP S%
+ 
+-\ p_swap: exchange &F800-&FEEF with the host's copy (h_swap): the client OS
+-\ for the high code (p-layout.asm), or back. Keeps nothing
++\ p_swap: exchange &F800-&FEEF and &FF00-&FFF9 with the host's copy (h_swap):
++\ the client OS for the high code (p-layout.asm), or back. Keeps nothing
+ 
+ .p_swap
+  LDA #C_SWAP
+@@ -609,9 +621,18 @@
+  INC psw1+2
+  INC psw2+2
+ .psw3
+- LDA psw1+2
+- CMP #&FE
+- BNE psw0
++ LDA psw1+2             \ &F800-&FEEF, then &FF00-&FFF9 (the Tube's registers
++ CMP #&FE               \ and the hardware vectors stay)
++ BNE psw4
+  CPY #&F0
++ BNE psw0
++ INC psw1+2
++ INC psw2+2
++ LDY #0
++ BEQ psw0
++.psw4
++ CMP #&FF
++ BNE psw0
++ CPY #&FA
+  BNE psw0
+  RTS
+diff -ruN pa/tube/src/p-layout.asm pb/tube/src/p-layout.asm
+--- a/tube/src/p-layout.asm	2026-10-22 00:16:59
++++ b/tube/src/p-layout.asm	2026-10-22 00:16:59
+@@ -57,6 +57,10 @@
+  INCLUDE "src/gfx-hangar.asm"
+  INCLUDE "tsrc/p-polya.asm"    \ (phase 3: R_POLY's phase A, its first part)
+  CPU 1
++ INCLUDE "build/merid-rows.asm" \ the meridian window's row loop (PM_MERID: its
++ CPU 1                          \ hook is the host's, h-merid.asm), less mpi
++                                \ (PHIGH), mp_two's part (PHIGH2) and its data
++                                \ (p-ws.asm)
+ .PF_CODE_END
+ PRINT "Parasite: frame code end at &", ~P%
+ .F_HW   SKIP 256        \ planet half-widths
+@@ -72,7 +76,7 @@
+  ASSERT PCODE_END <= &F800
+  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
+ 
+-\ The high code (PHIGH): &F800-&FEEF, where the client OS's copy is but for
++\ The high code (PHIGH): &F800-&FEEF (and PHIGH2, below), where the client OS's copy is but for
+ \ the client's only use (the boot and disc commands, through the MOS's Tube
+ \ code): the host keeps whichever of the two is not in the parasite, and
+ \ p_swap exchanges them (at the start, and either side of a disc command)
+@@ -80,7 +84,21 @@
+ .PHIGH_START
+  INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
+  CPU 1
++ INCLUDE "build/merid-ins.asm"  \ (the row loop's mpi)
++ CPU 1
+ .PHIGH_END
+  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
+  ASSERT PHIGH_END <= &FEF0
+  SAVE "build/PHIGH.bin", PHIGH_START, PHIGH_END
++
++\ The high code's second part (PHIGH2): &FF00-&FFF9, the client OS's too but
++\ for its hardware vectors (and the Tube's registers before it, &FEF8-&FEFF)
++
++ ORG &FF00
++.PHIGH2_START
++ INCLUDE "build/merid-put.asm"  \ the row loop's mp_two, mp_two1, mp_put
++ CPU 1
++.PHIGH2_END
++ PRINT "Parasite: high code &FF00-&", ~PHIGH2_END-1, ", free to &FFFA: ", &FFFA-PHIGH2_END
++ ASSERT PHIGH2_END <= &FFFA
++ SAVE "build/PHIGH2.bin", PHIGH2_START, PHIGH2_END
+diff -ruN pa/tube/src/p-ws.asm pb/tube/src/p-ws.asm
+--- a/tube/src/p-ws.asm	2026-10-22 00:16:58
++++ b/tube/src/p-ws.asm	2026-10-22 00:16:58
+@@ -48,7 +48,22 @@
+ .R_NDX1     SKIP 192
+ .R_NDX2     SKIP 192
+ .R_NDX3     SKIP 192
++ INCLUDE "build/merid-data.asm"   \ the meridian window's row loop's data
+ .PWS_END
+ ASSERT F_DSS = R_SS + 24 AND R_Y1 = R_Y0 + 4
++
++\ PM_HOOK's constants, fetched from the host for the row loop (p_fb), after
++\ the game's workspace (WP ends at &0CCE) and below page &0D
++
++MCB = 20                \ (gfx-merid.asm's: a circle's constants)
++PM_HELD = FALSE         \ (the row loop without the held orientation's paths: the
++                        \ Tube build has MERIDHOLD = 0, tube/build.sh checks, and
++                        \ phase A reuses R_NDX2/3, so no rows are kept here)
++ORG &0CCF
++.PM_BLK1    SKIP MCB        \ roofv's circle
++.PM_BLK2    SKIP MCB        \ sidev's
++.PM_CX      SKIP 2          \ the planet's centre
++.PM_CY      SKIP 2
++ASSERT P% <= &0D00
+ PRINT "Parasite workspace: &", ~PWS_START, "-&", ~PWS_END-1, ", free ", CODE%-PWS_END
+ ASSERT PWS_END <= CODE%
