@@ -397,3 +397,11 @@ iterations 330-365), in screenshots/beachball/spin/:
 | 9400-9599 | approach 200 | 13.43 | 16.74 | 6.90 | 7.60 | 0.45 |
 | 9600-9799 | approach 200 | 12.30 | 17.22 | 7.48 | 9.10 | 0.53 |
 | 9800-9999 | approach 200 | 11.35 | 15.45 | 6.45 | 7.69 | 0.50 |
+
+## Shipped setting (2026-10-21)
+
+The user chose MERIDHOLD 0, the original's look: a new orientation every
+frame, as Acornsoft's game spins the planet (1/16 radian an iteration) and
+redraws it every frame. Gate: VERIFY PASS 13.97 11.98 0.857. test_raster's
+held-orientation checks now set PM_SPIN themselves, so the held paths (still
+in the code, for MERIDHOLD >= 1) stay tested.
