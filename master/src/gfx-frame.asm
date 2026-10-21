@@ -740,7 +740,6 @@ ENDIF
 IF _TPART = 1
  JSR p_fb               \ (Tube: the host does all of that's screen work, as
                         \ below, up to the stars' erasure: tube/src/h-frame.asm)
- JSR p_cover            \ (Tube: the ships' coverage, tube/src/p-cover.asm)
 ELSE
  LDA F_BACK
  JSR T_SETBUF

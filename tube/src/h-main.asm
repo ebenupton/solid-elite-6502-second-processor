@@ -30,11 +30,7 @@ zR_DCE = &0E
 zR_DCO = &0F
 zfl_dx = &10
 zfl_dy = &11
-zc_L  = &18             \ (r7_rowrep's c_L, c_NL, c_CO, c_M and RZ_PP, for
-zc_NL = &1A             \ r7_rcov)
-zc_CO = &22
-zc_M  = &23
-zRZ_PP = &14
+zc_YE = &1E              \ (r7_rowrep's c_YE, for the pre-erase)
 
 hsp = &E4                \ (a pointer: zero page the game leaves free)
 
@@ -56,6 +52,9 @@ ENDMACRO
 .hwrch
  CMP #&FE
  BNE hwr1
+ LDA #GFXBANK           \ (hstart is in bank 6: h-cold.asm)
+ STA &F4
+ STA &FE30
  JMP hstart
 .hwr1
  STA hwa                \ printing in the MOS (a catalogue): CHPR with its zero
@@ -83,135 +82,239 @@ ENDMACRO
  RTS
 HCTXN = 12
 .hctx SKIP HCTXN+1      \ CHPR's zero page and W, between the parasite's commands
-.hzps SKIP &50          \ the MOS's Tube code's zero page (&00-&4F), as the host
-                        \ took over from it
-.hzpk EQUB 0            \ non-zero: hzps holds it
 
-.hstart
- LDX #&FF
- TXS
- SEI
- LDA hzpk               \ the first time, keep the MOS's Tube code's zero page
- BNE hst1               \ (its transfer state and idle loop) for the disc
- LDX #&4F               \ commands
-.hst0
- LDA &00,X
- STA hzps,X
- DEX
- BPL hst0
- DEC hzpk
-.hst1
- BIT hmos               \ back from a disc command: quieten the 1770, put the
- BPL hst2               \ minimal NMI handler back (DFS installed its own), and
- JSR HNMI               \ return the printing's zero page to the parasite
- LDX #0
-.hst3
- LDA hctx,X
- HTX
- INX
- CPX #HCTXN+1
- BNE hst3
- LDA CATF
- HTX
- STZ hmos
-.hst2
- LDA #%00111001         \ as SETINTS: no CB1, CB2, CA2 or T2 interrupts from the
- STA VIA+&4E            \ System VIA, none from the User VIA, IRQ1V = IRQ1
- LDA #%01111111
- STA &FE6E
- LDA #LO(IRQ1)
- STA IRQ1V
- LDA #HI(IRQ1)
- STA IRQ1V+1
- LDA #GFXBANK           \ (the resting bank: the frame layer's host part)
- STA &F4
- STA &FE30
- CLD
- JSR T1SYNC             \ (CLIs)
- JMP hloop
+
 
 .htab
  EQUW h_sync, h_init, h_fb, h_fe, h_enter, h_disc, h_ddirty, h_span
  EQUW h_mark, h_poly, h_line, h_dot, h_flare, h_direct, h_char, h_keys
  EQUW h_dks, h_wscan, h_noise, h_soflush, h_dstar, h_sceor, h_scsta, h_cls
- EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli, h_cover, h_swap
+ EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli, h_swap
 ASSERT P% - htab = C_MAX
 
 .hloop
  BIT HR1S
- BPL hloop
+ BMI hlp1
+ LDA hpe_on             \ (idle: the pre-erase, a step at a time)
+ BEQ hloop
+ JSR hpe_step
+ BRA hloop
+.hlp1
  LDA HR1D
  TAX
+ LDA hpe_on             \ a command that may draw finishes the pre-erase first
+ BEQ hlp2
+ LDA hsafe,X
+ BNE hlp2
+ JSR hpe_fin
+.hlp2
  JMP (htab,X)
 
 .h_sync                 \ C_SYNC: a frame's end (the harness hashes the screen
  NOP                    \ here: at h_sync, or at h_syncb if its instruction hook
 .h_syncb                \ missed h_sync, as jsbeeb's does on a slice's first
- JMP hloop              \ instruction)
+ LDA hpe_arm            \ instruction); after a space frame, the pre-erase of
+ BEQ hsy9               \ the next back buffer
+ STZ hpe_arm
+ JSR hpe_start
+.hsy9
+ JMP hloop
+
+\ The pre-erase (phase 5): while the parasite runs an iteration's game, the
+\ host blacks the next back buffer's old dirty rows outside its old disc rows
+\ (what R_DISCROWS' r7_crep would do at the frame's start: these rows are
+\ black whatever the new disc), a few rows at a time between commands, once
+\ the flip has hidden the buffer; it starts the frame's R_WL/R_WR as
+\ R_DISCROWS would (which then leaves them: hpe_w), and leaves the buffer's
+\ dirty row range to the old disc rows. Commands that may draw (any not in
+\ hsafe) finish it first, as does C_FB.
+
+.hpe_start
+ LDA F_BACK             \ (bank 6's)
+ EOR #1
+ STA hpe_b
+ LDA #RASTBANK
+ STA &F4
+ STA &FE30
+ JSR r_wclear           \ the frame's R_WL/R_WR (text2 has read the last's)
+ LDA #&FF
+ STA R_PRWT
+ STZ R_PRWB
+ LDA #1
+ STA hpe_w
+ LDX hpe_b
+ LDA R_PRDYT,X          \ the dirty rows dyt..dyb, less the old disc rows
+ STA hpe_y              \ dst..dsb: dyt..min(dyb, dst-1), max(dyt, dsb+1)..dyb
+ LDA R_PRDYB,X
+ STA hpe_e2
+ CMP hpe_y
+ BCS P%+5
+ JMP hpa9               \ (no dirty rows)
+ LDA R_PRDSB,X
+ CMP R_PRDST,X
+ BCS hpa2
+ LDA hpe_e2             \ no disc rows: one part, and no dirty rows left
+ STA hpe_e
+ LDA #&FF
+ STA hpe_y2
+ STA R_PRDYT,X
+ STZ R_PRDYB,X
+ BRA hpa8
+.hpa2
+ LDA R_PRDST,X          \ first part: dyt .. min(dyb, dst - 1)
+ DEC A
+ CMP hpe_e2
+ BCC P%+5
+ LDA hpe_e2
+ STA hpe_e              \ (empty if dst = 0 or dyt >= dst: hpe_e < hpe_y)
+ LDA R_PRDST,X
+ BEQ hpa3
+ CMP hpe_y
+ BCS hpa4
+.hpa3
+ LDA #&FF               \ (empty)
+ STA hpe_e
+.hpa4
+ LDA R_PRDSB,X          \ second part: max(dyt, dsb + 1) .. dyb
+ INC A
+ BEQ hpa5
+ CMP hpe_y
+ BCS P%+5
+ LDA hpe_y
+ CMP hpe_e2
+ BEQ hpa6
+ BCC hpa6
+.hpa5
+ LDA #&FF
+.hpa6
+ STA hpe_y2
+ LDA R_PRDST,X          \ the dirty rows left: max(dyt, dst) .. min(dyb, dsb)
+ CMP hpe_y
+ BCS P%+5
+ LDA hpe_y
+ STA hpe_t
+ LDA R_PRDSB,X
+ CMP hpe_e2
+ BCC P%+5
+ LDA hpe_e2
+ CMP hpe_t
+ BCS hpa7
+ LDA #&FF
+ STA R_PRDYT,X
+ STZ R_PRDYB,X
+ BRA hpa7b
+.hpa7
+ STA R_PRDYB,X
+ LDA hpe_t
+ STA R_PRDYT,X
+.hpa7b
+ LDA hpe_e              \ an empty first part: straight to the second
+ CMP #&FF
+ BNE hpa8
+ JSR hpe_next
+ BRA hpa9
+.hpa8
+ LDA #1
+ STA hpe_on
+.hpa9
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ RTS
+
+.hpe_next               \ on to the second part (hpe_y2 = &FF: none): done?
+ LDA hpe_y2
+ CMP #&FF
+ BEQ hnx9
+ STA hpe_y
+ LDA hpe_e2
+ STA hpe_e
+ LDA #&FF
+ STA hpe_y2
+ LDA #1
+ STA hpe_on
+ RTS
+.hnx9
+ STZ hpe_on
+ RTS
+
+.hpe_fin                \ finish it (waiting for the flip). Keeps X
+ PHX
+.hfi1
+ JSR hpe_step
+ LDA hpe_on
+ BNE hfi1
+ PLX
+ RTS
+
+.hpe_step               \ up to 4 rows (none until the flip)
+ LDA GFLIP
+ BNE hps9
+ LDA #RASTBANK
+ STA &F4
+ STA &FE30
+ LDA R_PRBUF
+ PHA
+ LDX hpe_b
+ STX R_PRBUF
+ BEQ hps1
+ LDA #4                 \ (buffer 1: shadow RAM)
+ TSB &FE34
+.hps1
+ LDY hpe_y
+ CPY R_PRWT             \ (the frame's written rows)
+ BCS P%+5
+ STY R_PRWT
+ TYA                    \ rows Y .. min(Y + 3, e)
+ CLC
+ ADC #3
+ CMP hpe_e
+ BCC P%+5
+ LDA hpe_e
+ CMP R_PRWB
+ BCC P%+5
+ STA R_PRWB
+ INC A
+ STA zc_YE
+ STA hpe_y
+ JSR r7_rowrep
+ LDA hpe_e
+ CMP hpe_y
+ BCS hps8
+ JSR hpe_next
+.hps8
+ LDA #4
+ TRB &FE34
+ PLA
+ STA R_PRBUF
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+.hps9
+ RTS
+
+.hpe_on  EQUB 0         \ rows to black
+.hpe_arm EQUB 0         \ after the next C_SYNC
+.hpe_w   EQUB 0         \ R_DISCROWS: the frame's R_WL/R_WR are started
+.hpe_b   EQUB 0         \ the buffer
+.hpe_y   EQUB 0         \ the part: next row, last row
+.hpe_e   EQUB 0
+.hpe_y2  EQUB 0         \ the second part (&FF: none)
+.hpe_e2  EQUB 0
+.hpe_t   EQUB 0
+.hsafe                  \ per command: non-zero if it never draws in the buffers
+ FOR i, 0, C_MAX - 1, 2
+  IF i=C_SYNC OR i=C_CHAR OR i=C_KEYS OR i=C_DKS OR i=C_WSCAN OR i=C_NOISE OR i=C_SOFLUSH OR i=C_SCEOR OR i=C_SCSTA OR i=C_CLRTEXT OR i=C_DET1 OR i=C_IRB
+   EQUB 1, 1
+  ELSE
+   EQUB 0, 0
+  ENDIF
+ NEXT
 
 \ h_oscli: C_OSCLI: QQ11 OR GFORCE, GMODE, CHPR's zero page and W, CATF: go
 \ back to the MOS's Tube code (its idle loop, with its zero page back), where
 \ the parasite's OSCLI runs the command; the parasite's &FE through register 1
 \ comes back through hwrch to hstart
-
-.h_oscli
- HRX
- STA QQ11
- STZ GFORCE
- HRX
- STA GMODE
- LDX #0
-.hos1
- HRX
- STA hctx,X
- INX
- CPX #HCTXN+1
- BNE hos1
- HRX
- STA CATF
- SEI
- LDX #&4F
-.hos2
- LDA hzps,X
- STA &00,X
- DEX
- BPL hos2
- LDA #&FF
- STA hmos
- LDA #0                 \ (ready)
- HTX
- JMP &0032              \ (the MOS's Tube idle loop: LDX #&FF : TXS : CLI ...)
-.hmos EQUB 0
-
-\ HNMI: after a disc command, as the Master port's DOSNMI: 1770 Force
-\ Interrupt, then the minimal NMI handler at &0D00 (RTI, then its body, then
-\ PHA): the one write the host makes to page &0D
-
-.HNMI
- SEI
- LDA #&D0
- STA &FE28
- LDA #8
-.hnm1
- DEC A
- BNE hnm1
- LDA &FE28
- LDA #&40
- STA &0D00
- LDA #&AD
- STA &0D01
- LDA #&28
- STA &0D02
- LDA #&FE
- STA &0D03
- LDA #&68
- STA &0D04
- LDA #&40
- STA &0D05
- LDA #&48
- STA &0D00
- RTS
-.HNMI_END
 
 .h_init                 \ C_INIT: F_INIT's host part
  JSR T_INIT
@@ -238,9 +341,6 @@ ASSERT P% - htab = C_MAX
  JMP hloop
 
 .h_fb                   \ C_FB: F_BACK, GSIGHT
- LDA #&FF               \ (no coverage until C_COVER)
- STA hcv_t
- STZ hcv_b
  HRX
  STA F_BACK
  HRX
@@ -298,6 +398,8 @@ ASSERT P% - htab = C_MAX
  STA GFLIP
  LDA #%10000010
  STA &FE4E
+ LDA #1                 \ (the pre-erase of the other buffer, after C_SYNC)
+ STA hpe_arm
  JMP hloop
 
 .h_enter                \ C_ENTER: GSTASH
@@ -734,131 +836,6 @@ ASSERT P% - htab = C_MAX
  HTX
  JMP hloop
 
-\ h_swap: C_SWAP: exchange the parasite's &F800-&FEEF with HSW (bank 6, the
-\ resting bank), a byte at a time: the parasite's byte in, ours out
-
-.h_swap
- LDA #HI(HSW)
- STA hsw1+2
- STA hsw2+2
- LDY #0
-.hsw0
- HRX
- TAX
-.hsw1
- LDA HSW AND &FF00,Y    \ (patched)
- HTX
- TXA
-.hsw2
- STA HSW AND &FF00,Y    \ (patched)
- INY
- BNE hsw3
- INC hsw1+2
- INC hsw2+2
-.hsw3
- LDA hsw1+2             \ the last page's &F0 bytes
- CMP #HI(HSW) + 6
- BNE hsw0
- CPY #&F0
- BNE hsw0
- JMP hloop
-
-\ h_cover: C_COVER (tube/src/p-cover.asm): first and last character row,
-\ then per character row the first and last byte column that this frame's
-\ ships paint whole, for r7_rcov; h_fb empties them (hcv_t > hcv_b)
-
-.h_cover
- HRX
- STA hcv_t
- TAY
- HRX
- STA hcv_b
-.hcv0
- HRX
- STA HCVL,Y
- HRX
- STA HCVR,Y
- CPY hcv_b
- INY
- BCC hcv0
- JMP hloop
-.hcv_t  EQUB &FF
-.hcv_b  EQUB 0
-.HCVL   SKIP 24
-.HCVR   SKIP 24
-
-\ r7_rcov: r7_rowrep's black run over byte columns c_NL..A (1..62) of row Y,
-\ less the columns that this frame's ships cover (in bank 5's disc window;
-\ keeps Y)
-
-.r7_rcov
- STA zc_L                \ (zc_L: hi)
- TYA
- LSR A
- LSR A
- LSR A
- TAX
- CPX hcv_t
- BCC rcv8
- CPX hcv_b
- BEQ P%+4
- BCS rcv8
- LDA HCVL,X             \ a > hi or b < lo: apart
- CMP zc_L
- BEQ P%+4
- BCS rcv8
- LDA HCVR,X
- CMP zc_NL
- BCC rcv8
- LDA HCVL,X             \ lo .. a-1
- CMP zc_NL
- BEQ rcv1
- BCC rcv1
- STX zc_M
- DEC A
- LDX zc_NL
- JSR rrun
- LDX zc_M
-.rcv1
- LDA HCVR,X             \ b+1 .. hi
- CMP zc_L
- BCS rcv9
- INC A
- TAX
- LDA zc_L
- JMP rrun
-.rcv8
- LDX zc_NL
- LDA zc_L
- JMP rrun
-.rcv9
- RTS
-
-\ rrun: byte columns X..A (1..62, X <= A) of row Y black, through the row's
-\ run (keeps Y)
-
-.rrun
- STA zc_CO
- LDA r7_j3,X            \ enter at column X
- STA rrj+1
- LDX zc_CO
- LDA r7_j3+1,X          \ the RTS at column A + 1
- STA zRZ_PP
- TYA
- LSR A
- LSR A
- LSR A
- ORA #HI(r_run0)
- STA rrj+2
- STA zRZ_PP+1
- LDA #&60
- STA (zRZ_PP)
- LDA #0
-.rrj
- JSR &FFFF
- LDA #r_opSTA
- STA (zRZ_PP)
- RTS
 
 \ The parasite's routines that the host's copies of the game's blocks refer
 \ to but never reach here

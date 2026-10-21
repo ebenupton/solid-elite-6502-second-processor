@@ -63,8 +63,9 @@ C_CLRTEXT  = 52         \ G_CLRTEXT: the text map's rows 21-23 (QQ11 OR GFORCE,
 C_DET1     = 54         \ DET1: 6845 R6 = X
 C_IRB      = 56         \ request: the System VIA's port B
 C_OSCLI    = 58         \ OSCLI (DOSCLI): the host's MOS runs the command
-C_COVER    = 60         \ the frame's coverage (p-cover.asm): top, bottom, then
-                        \ first and last whole byte column per row
-C_SWAP     = 62         \ exchange the parasite's &F800-&FEEF with the host's copy
+C_SWAP     = 60         \ exchange the parasite's &F800-&FEEF with the host's copy
                         \ (the client OS's and the high code: byte for byte)
-C_MAX      = 64
+C_MAX      = 62
+
+TUBE_HIGH = FALSE       \ the parasite's &F800-&FEEF holds code (p-layout.asm's
+                        \ PHIGH), swapped with the client OS's copy (C_SWAP)

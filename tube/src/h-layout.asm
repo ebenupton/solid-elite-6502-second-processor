@@ -62,6 +62,7 @@ _TPART = 2
  ORG &8000
  INCLUDE "src/gfx-frame.asm"
  INCLUDE "src/gfx-frame_cold.asm"
+ INCLUDE "tsrc/h-cold.asm"
 .B6_CODE_END
 .F_HW   SKIP 256        \ (f_enter's buffer)
 .F_HW2  SKIP 256

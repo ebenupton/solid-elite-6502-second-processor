@@ -74,7 +74,7 @@ PRINT "Parasite: frame code end at &", ~P%
 \ p_swap exchanges them (at the start, and either side of a disc command)
  ORG &F800
 .PHIGH_START
- INCLUDE "tsrc/p-cover.asm"
+ EQUB 0                 \ (none now: tube/src/p-cover.asm was here, git history)
 .PHIGH_END
  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
  ASSERT PHIGH_END <= &FEF0
