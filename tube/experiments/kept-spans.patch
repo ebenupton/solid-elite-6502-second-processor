@@ -1,0 +1,1320 @@
+diff --git a/master/src/gfx-frame.asm b/master/src/gfx-frame.asm
+index 5d01a17..9a9c562 100644
+--- a/master/src/gfx-frame.asm
++++ b/master/src/gfx-frame.asm
+@@ -2542,6 +2542,10 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
+ \ the glyph's pixels and only inside the clip window
+ 
+ .f_glyph
++IF _TPART = 2 AND _HOSTB = 0
++ LDX fz_i               \ (Tube, Master host: kept spans, h-spank.asm)
++ JSR k_glyph
++ENDIF
+  SEC
+  SBC #32                 \ glyph address = F_FONT + 8 * (char - 32)
+  PHA
+diff --git a/master/src/gfx-raster_polyb.asm b/master/src/gfx-raster_polyb.asm
+index bd953aa..cb280eb 100644
+--- a/master/src/gfx-raster_polyb.asm
++++ b/master/src/gfx-raster_polyb.asm
+@@ -225,10 +225,20 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
+   BCC pb_d2_e
+ .r_pt63 STA r_dr,Y
+ .pb_d2_e
++IF _TPART = 2 AND _HOSTB = 0
++  JSR k_pbe               \ (Tube, Master host: kept spans, h-spank.asm)
++  BCS pb_skip_e
++ENDIF
+   TXA
+   EOR R_XR
+   CMP #4
++IF _TPART = 2 AND _HOSTB = 0
++  BCS pb_kx1
++  JMP pb_one_e
++.pb_kx1
++ELSE
+   BCC pb_one_e
++ENDIF
+   LDY r_xo,X
+   CPX #&80
+   BCS pb_lb_e
+@@ -245,7 +255,13 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
+   LDY r_j,X
+   STY r_jsr2_e+1
+   CMP RZ_PP
++IF _TPART = 2 AND _HOSTB = 0
++  BEQ pb_kx2
++  JMP pb_plant_e
++.pb_kx2
++ELSE
+   BNE pb_plant_e
++ENDIF
+ .pb_go_e
+   LDY RZ_Y                \ (the run is indexed by the row)
+   LDA RZ_CE
+@@ -289,10 +305,20 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
+   BCC pb_d2_o
+ .r_pt413 STA r_dr,Y
+ .pb_d2_o
++IF _TPART = 2 AND _HOSTB = 0
++  JSR k_pbo
++  BCS pb_skip_o
++ENDIF
+   TXA
+   EOR R_XR
+   CMP #4
++IF _TPART = 2 AND _HOSTB = 0
++  BCS pb_kx3
++  JMP pb_one_o
++.pb_kx3
++ELSE
+   BCC pb_one_o
++ENDIF
+   LDY r_xo,X
+   CPX #&80
+   BCS pb_lb_o
+diff --git a/master/src/gfx-raster_rep.asm b/master/src/gfx-raster_rep.asm
+index ec3e47e..6135c6c 100644
+--- a/master/src/gfx-raster_rep.asm
++++ b/master/src/gfx-raster_rep.asm
+@@ -27,7 +27,21 @@ ENDIF
+   STA sd2+2
+   STA fl2+2
+   STA fs2+2
++IF _TPART = 2 AND _HOSTB = 0
++  TXA                     \ (Tube, Master host: this buffer's kept spans,
++  CLC                     \ tube/src/h-spank.asm)
++  ADC #HI(KL0)
++  STA rkl+2
++ENDIF
+ .frow                     \ fast path: extent inside columns 1..62
++IF _TPART = 2 AND _HOSTB = 0
++.rkl
++  LDA KL0,Y               \ a kept span: k_rep blacks the extent around it
++  BEQ frow0
++  JSR k_rep
++  BRA fnx
++.frow0
++ENDIF
+ .fl2
+   LDA R_DIRTYR0,Y
+   BEQ fnx
+@@ -78,6 +92,7 @@ ENDIF
+   BRA fnx
+ \ row1: row Y, general (the border columns' bytes masked)
+ .row1
++.^r7_row1
+ .ld2
+   LDA R_DIRTYR0,Y
+   STA c_R
+diff --git a/tube/src/h-cold.asm b/tube/src/h-cold.asm
+index aa5e97c..844e7fc 100644
+--- a/tube/src/h-cold.asm
++++ b/tube/src/h-cold.asm
+@@ -65,6 +65,17 @@ ELSE
+  STA &F4
+  STA &FE30
+  CLD
++ LDA #8                 \ HAZEL in (ACCCON Y, as the loader left it), and the
++ TSB &FE34              \ kept spans' code into it from bank 6, none kept
++ LDX #0                 \ (h-spank.asm)
++.hst4
++ FOR i, 0, (KZ_END - KZ_START - 1) DIV 256
++  LDA HSPK + i * 256,X
++  STA KZ_START + i * 256,X
++ NEXT
++ INX
++ BNE hst4
++ JSR k_clear
+  JSR T1SYNC             \ (CLIs)
+  JMP hloop
+ ENDIF
+@@ -74,6 +85,9 @@ ENDIF
+ .hzpk EQUB 0            \ non-zero: hzps holds it
+ 
+ .h_oscli
++IF _HOSTB = 0
++ JSR k_leave             \ (kept spans: h-spank.asm)
++ENDIF
+  HRX
+  STA QQ11
+  STZ GFORCE
+diff --git a/tube/src/h-layout.asm b/tube/src/h-layout.asm
+index 64e619a..ddd62ee 100644
+--- a/tube/src/h-layout.asm
++++ b/tube/src/h-layout.asm
+@@ -60,6 +60,14 @@ _RBANK = 0
+  ASSERT RA_END <= &9000
+  SAVE "build/HRASTA.bin", &8000, RA_END, &8000
+ 
++ CLEAR &C300, &D000      \ HAZEL: the kept spans (h-spank.asm), whose image
++ ORG &C300               \ bank 6 holds (HSPK) for hstart to copy in
++.KZ_START
++ INCLUDE "tsrc/h-spank.asm"
++.KZ_END
++ ASSERT KZ_END <= KL0
++ PRINT "Host: HAZEL (kept spans) &C300-&", ~KZ_END-1
++
+  CLEAR &8000, &C000      \ bank 6: the frame layer's host part
+  ORG &8000
+  INCLUDE "src/gfx-frame.asm"
+@@ -82,6 +90,9 @@ ALIGN &100
+ .HSW                    \ the parasite's &F800-&FEEF that is not in it (h_swap):
+  INCBIN "build/PHIGH.bin" \ the high code at first, the client OS's while it runs
+  SKIP HSW + &6F0 - P%
++.HSPK                   \ the kept spans' code, copied into HAZEL by hstart
++ SKIP (KZ_END - KZ_START + 255) AND &FF00
+ .B6_END
++ COPYBLOCK KZ_START, KZ_END, HSPK
+  PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, ")"
+  SAVE "build/HBANK6.bin", &8000, B6_END, &8000
+diff --git a/tube/src/h-main.asm b/tube/src/h-main.asm
+index 0bd410c..6008cb4 100644
+--- a/tube/src/h-main.asm
++++ b/tube/src/h-main.asm
+@@ -160,6 +160,9 @@ ENDIF
+ \ comes back through hwrch to hstart
+ 
+ .h_init                 \ C_INIT: F_INIT's host part
++IF _HOSTB = 0
++ JSR k_leave
++ENDIF
+  JSR T_INIT
+ IF _HOSTB = 0
+  LDA #4                 \ clear main RAM's screen (buffer 0)
+@@ -209,6 +212,9 @@ ENDIF
+  STA zR_CB
+  LDA F_BACK
+  JSR T_SETBUF
++IF _HOSTB = 0
++ JSR k_fb
++ENDIF
+  JSR f_text1
+  JSR f_sight1
+ .hfb1
+@@ -238,11 +244,17 @@ ENDIF
+  INX
+  CPX #NOST+1
+  BNE hfe1
++IF _HOSTB = 0
++ JSR k_fe1
++ENDIF
+  JSR f_text2
+  JSR f_sight2
+  LDA #NOST+1
+  STA R_SN
+  JSR T_STARPLOT
++IF _HOSTB = 0
++ JSR k_fe2
++ENDIF
+ IF _HOSTB = 0
+  LDA #4                 \ CPU back to main RAM, and flip at the next vsync
+  TRB &FE34
+@@ -260,6 +272,9 @@ ENDIF
+  JMP hloop
+ 
+ .h_enter                \ C_ENTER: GSTASH
++IF _HOSTB = 0
++ JSR k_leave
++ENDIF
+  HRX
+  STA GSTASH
+  STZ QQ11
+@@ -324,6 +339,9 @@ ENDIF
+  INY
+  BNE hdi2
+ .hdi9
++IF _HOSTB = 0
++ JSR k_disc
++ENDIF
+  JSR T_DISCROWS
+  JMP hloop
+ 
+@@ -342,6 +360,9 @@ ENDIF
+  STA zR_COLE
+  HRX
+  STA zR_COLO
++IF _HOSTB = 0
++ JSR k_span
++ENDIF
+  JSR T_SPAN
+  JMP hloop
+ 
+@@ -417,6 +438,9 @@ ENDIF
+  INX
+  CPX #8
+  BNE hli1
++IF _HOSTB = 0
++ JSR k_line
++ENDIF
+  JSR T_LINE
+  JMP hloop
+ 
+@@ -432,6 +456,9 @@ ENDIF
+  HRX
+  LDX hdx
+  LDY hdy
++IF _HOSTB = 0
++ JSR k_dot
++ENDIF
+  JSR T_DOT
+  JMP hloop
+ .hdx EQUB 0
+@@ -442,12 +469,18 @@ ENDIF
+  STA zfl_dx
+  HRX
+  STA zfl_dy
++IF _HOSTB = 0
++ JSR k_all
++ENDIF
+  LDX fsw_d1+2
+  LDY fsw_d2+2
+  JSR T_FLARE
+  JMP hloop
+ 
+ .h_direct               \ C_DIRECT: 1 = an in-system jump (space mode kept),
++IF _HOSTB = 0
++ JSR k_leave
++ENDIF
+  HRX                    \ 0 = F_DIRECT's f_direct0
+  BEQ hdr1
+  JSR f_sync
+@@ -638,6 +671,9 @@ ENDIF
+  RTS
+ 
+ .h_cls                  \ C_CLS: TTX66's clear, shadow &4000-&6FFF
++IF _HOSTB = 0
++ JSR k_leave
++ENDIF
+ IF _HOSTB = 0
+  LDA #4
+  TSB &FE34
+@@ -661,6 +697,9 @@ ENDIF
+  JMP hloop
+ 
+ .h_boxc                 \ C_BOXC: BOX's corners, in A
++IF _HOSTB = 0
++ JSR k_leave
++ENDIF
+  HRX
+  TAX
+ IF _HOSTB = 0
+@@ -676,6 +715,9 @@ ENDIF
+  JMP hloop
+ 
+ .h_clyns                \ C_CLYNS: CLYNS's clear of text rows 20-23
++IF _HOSTB = 0
++ JSR k_leave
++ENDIF
+ IF _HOSTB = 0
+  LDA #4
+  TSB &FE34
+diff --git a/tube/src/h-spank.asm b/tube/src/h-spank.asm
+new file mode 100644
+index 0000000..6239273
+--- /dev/null
++++ b/tube/src/h-spank.asm
+@@ -0,0 +1,1003 @@
++\ ******************************************************************************
++\
++\ h-spank.asm - kept spans (the Master host only): a large filled span is a
++\ resource to conserve. Per buffer and per pixel row, the host remembers the
++\ largest run of whole bytes that one polygon span filled with one colour
++\ byte and that nothing drew over afterwards (KL..KR, colour KV). When that
++\ buffer is next erased (r7_rowrep) the kept bytes are left alone and the row
++\ is marked pending (KL bit 7). The next frame's first write to a pending row
++\ settles it: a polygon span (phase B) blacks only the kept bytes outside its
++\ own interior and paints only the interior bytes the kept span does not
++\ already hold in its colour; anything else (a line, a dot, a small span, the
++\ disc, the frame's end) blacks the kept bytes first, as the erase would have.
++\ Afterwards the row is exactly what erase-then-draw would have made.
++\
++\ Assembled into HAZEL (&C300..): visible in every paging context the host
++\ uses (ACCCON Y = 1 throughout). Its image is kept in bank 6 (HSPK) and
++\ copied into HAZEL by hstart (at the start and after each disc command,
++\ which also forgets every kept span).
++\
++\ The arrays (page aligned, rows 0..191): KL (0 = none; bit 7 = pending),
++\ KR (last byte column, inclusive), KV (the colour byte), one page each per
++\ buffer: KL0 + &100 * buffer etc. Byte columns of kept spans lie in 1..62.
++\
++\ ******************************************************************************
++
++KMIN = 8                \ the smallest interior (whole bytes) worth keeping
++
++KL0 = &D000
++KR0 = &D200
++KV0 = &D400
++ASSERT KV0 + &200 <= &D900
++
++.k_any  EQUB 0          \ non-zero: some KL may be non-zero
++.k_infr EQUB 0          \ non-zero: inside a space frame (C_FB .. C_FE)
++.k_cur  EQUB 0          \ the buffer the array operands are patched for
++.kc     EQUB 0          \ the span's colour byte
++.kxl    EQUB 0          \ its left pixel
++.ky     EQUB 0          \ its row
++.ke0    EQUB 0          \ the byte columns of its ends
++.ke1    EQUB 0
++.kkl    EQUB 0          \ a kept span's byte columns
++.kkr    EQUB 0
++.kval   EQUB 0          \ krun's byte
++.kt0    EQUB 0          \ a trim's byte columns
++.kt1    EQUB 0
++.kL     EQUB 0          \ k_rep: the row's old dirty extent
++.kR     EQUB 0
++.k4     EQUB 0
++.kty    EQUB 0          \ k_trow's last row
++.krom   EQUB 0          \ the caller's ROMSEL
++.ksg    EQUB 0          \ k_fe2: F_SGS for the buffer
++
++\ ------------------------------------------------------------------------------
++\ k_setb: patch the array operands for buffer A (0/1)
++\ ------------------------------------------------------------------------------
++
++.k_setb
++ STA k_cur
++ LDX #KSN-1
++.ksb1
++ LDA kslo,X
++ STA ksb2+1
++ LDA kshi,X
++ STA ksb2+2
++ LDA ksbase,X
++ CLC
++ ADC k_cur
++.ksb2
++ STA &FFFF
++ DEX
++ BPL ksb1
++ RTS
++
++\ ------------------------------------------------------------------------------
++\ krun: black or fill (kval) byte columns X..A (inclusive, 1..62) of row Y
++\ through the row's store run (bank 5 paged in, ACCCON X for the buffer). Y
++\ kept.
++\ ------------------------------------------------------------------------------
++
++.krun
++ STX kt0
++ CMP kt0
++ BCC kr9                \ (empty)
++ TAX
++ LDA k3,X               \ the RTS at column A + 1's store
++ STA kp1+1
++ STA kp2+1
++ LDX kt0
++ LDA k3,X               \ entry: column X's store (3X - 3)
++ SEC
++ SBC #3
++ STA kj+1
++ TYA
++ LSR A
++ LSR A
++ LSR A
++ ORA #HI(r_run0)
++ STA kp1+2
++ STA kp2+2
++ STA kj+2
++ LDA #r_opRTS
++.kp1
++ STA &FFFF
++ LDA kval
++.kj
++ JSR &FFFF
++ LDA #r_opSTA
++.kp2
++ STA &FFFF
++.kr9
++ RTS
++
++\ ------------------------------------------------------------------------------
++\ ktrim: the kept span kkl..kkr less byte columns kt0..kt1: the larger piece
++\ left in kkl..kkr (kkl > kkr: none)
++\ ------------------------------------------------------------------------------
++
++.ktrim
++ LDA #0                 \ left piece kkl..min(kkr, kt0 - 1): its length in k4
++ STA k4
++ LDA kkl
++ CMP kt0
++ BCS ktm1               \ kkl >= kt0: none
++ LDA kt0
++ DEC A
++ CMP kkr
++ BCC P%+4
++ LDA kkr
++ STA kL                 \ (its end)
++ SEC
++ SBC kkl
++ INC A
++ STA k4
++.ktm1
++ LDA kkr                \ right piece max(kkl, kt1 + 1)..kkr
++ CMP kt1
++ BEQ ktm2
++ BCC ktm2               \ kkr <= kt1: none
++ LDA kt1
++ INC A
++ CMP kkl
++ BCS P%+4
++ LDA kkl
++ STA kR                 \ (its start)
++ LDA kkr
++ SEC
++ SBC kR
++ INC A
++ CMP k4
++ BCC ktm2
++ LDA kR                 \ the right piece is the larger
++ STA kkl
++ RTS
++.ktm2
++ LDA k4
++ BEQ ktm3
++ LDA kL                 \ the left piece
++ STA kkr
++ RTS
++.ktm3
++ LDA #&FF               \ nothing left
++ STA kkl
++ STZ kkr
++ RTS
++
++\ ------------------------------------------------------------------------------
++\ ktouch: something other than a kept-span update writes byte columns
++\ kt0..kt1 of row Y: a pending kept span is blacked (it is old); a kept span
++\ of this frame is trimmed (KMIN or more bytes left, else forgotten). Needs
++\ the runs paged in for a pending row. Y kept.
++\ ------------------------------------------------------------------------------
++
++.ktouch
++.ks_l1
++ LDA KL0,Y
++ BEQ kto9
++ BPL kto2
++ AND #&7F               \ pending: black it all
++ TAX
++.ks_r1
++ LDA KR0,Y
++ STZ kval
++ JSR krun
++ LDA #0
++.ks_l2
++ STA KL0,Y
++.kto9
++ RTS
++.kto2
++ STA kkl
++.ks_r2
++ LDA KR0,Y
++ STA kkr
++ JSR ktrim
++ LDA kkr                \ fewer than KMIN bytes left: forget it
++ SEC
++ SBC kkl
++ BCC kto3
++ CMP #KMIN-1
++ BCC kto3
++ LDA kkl
++.ks_l3
++ STA KL0,Y
++ LDA kkr
++.ks_r3
++ STA KR0,Y
++ RTS
++.kto3
++ LDA #0
++.ks_l4
++ STA KL0,Y
++ RTS
++
++\ ------------------------------------------------------------------------------
++\ k_trow: ktouch rows Y..kty, byte columns kt0..kt1 (from the command loop:
++\ pages bank 5 in and the caller's bank back; ACCCON X is the frame's)
++\ ------------------------------------------------------------------------------
++
++.k_trow
++ LDA k_infr
++ BEQ ktr9
++ LDA &F4
++ STA krom
++ LDA #RASTBANK
++ STA &F4
++ STA &FE30
++ LDA kt0
++ PHA
++ LDA kt1
++ PHA
++.ktr1
++ PLA                    \ (ktrim and krun use kt0/kt1: keep the command's)
++ STA kt1
++ PLA
++ STA kt0
++ PHA
++ LDA kt1
++ PHA
++ JSR ktouch
++ CPY kty
++ INY
++ BCC ktr1
++ PLA
++ PLA
++ LDA krom
++ STA &F4
++ STA &FE30
++.ktr9
++ RTS
++
++\ ------------------------------------------------------------------------------
++\ Phase B (gfx-raster_polyb.asm): row Y, X = left pixel, R_XR = right pixel
++\ (inclusive), after the dirty extent is updated. C = 0: phase B draws the row
++\ (X kept); C = 1: done here.
++\ ------------------------------------------------------------------------------
++
++.k_pbe
++ LDA RZ_CE
++ BRA kpb
++.k_pbo
++ LDA RZ_CO
++.kpb
++ STA kc
++.ks_l5
++ LDA KL0,Y
++ BNE kpb1
++ TXA                    \ no kept span: a quick test for a small one
++ EOR #&FF
++ SEC
++ ADC R_XR               \ XR - XL
++ CMP #4 * KMIN + 4
++ BCS kpb1
++ CLC
++ RTS
++.kpb1
++ STX kxl
++ STY ky
++ TXA
++ LSR A
++ LSR A
++ STA ke0
++ LDA R_XR
++ LSR A
++ LSR A
++ STA ke1
++ SEC
++ SBC ke0                \ E1 - E0: the interior is E0 + 1 .. E1 - 1
++ CMP #KMIN + 1
++ BCC kpsmall
++.ks_l6
++ LDA KL0,Y
++ BEQ kpnew
++ BMI kpend
++ JSR kmerge             \ a kept span of this frame
++.kpr0
++ LDY ky
++ LDX kxl
++ CLC
++ RTS
++.kpnew                  \ none: this span's interior is the row's kept span
++ LDX ke0
++ INX
++ TXA
++.ks_l7
++ STA KL0,Y
++ LDA ke1
++ DEC A
++.ks_r4
++ STA KR0,Y
++ LDA kc
++.ks_v1
++ STA KV0,Y
++ LDX kxl
++ CLC
++ RTS
++.kpsmall                \ a small span: it writes E0..E1
++.ks_l8
++ LDA KL0,Y
++ BEQ kpr0
++ BPL kps1
++ JSR kunpl
++.kps1
++ LDA ke0
++ STA kt0
++ LDA ke1
++ STA kt1
++ JSR ktouch
++ BRA kpr0
++
++\ the first write to a pending row: settle it (phase B's planted RTS out first)
++.kpend
++ AND #&7F
++ STA kkl
++.ks_r5
++ LDA KR0,Y
++ STA kkr
++ JSR kunpl
++ STZ kval
++.ks_v2
++ LDA KV0,Y
++ CMP kc
++ BNE kpdiff
++ LDA ke0                \ same colour: black kkl..min(kkr, E0)
++ CMP kkr
++ BCC P%+4
++ LDA kkr
++ LDX kkl
++ JSR krun
++ LDX ke1                \ and max(kkl, E1)..kkr
++ CPX kkl
++ BCS P%+4
++ LDX kkl
++ LDA kkr
++ JSR krun
++ LDA kc                 \ fill E0 + 1 .. min(E1 - 1, kkl - 1)
++ STA kval
++ LDA ke1
++ DEC A
++ STA kt1
++ LDA kkl
++ DEC A
++ CMP kt1
++ BCC P%+4
++ LDA kt1
++ LDX ke0
++ INX
++ JSR krun
++ LDX kkr                \ and max(E0 + 1, kkr + 1) .. E1 - 1
++ CPX ke0
++ BCS P%+4
++ LDX ke0
++ INX
++ LDA ke1
++ DEC A
++ JSR krun
++ BRA kedge
++.kpdiff                 \ another colour: black it all, fill the interior
++ LDX kkl
++ LDA kkr
++ JSR krun
++ LDA kc
++ STA kval
++ LDX ke0
++ INX
++ LDA ke1
++ DEC A
++ JSR krun
++.kedge                  \ the two end bytes, as phase B's (on black)
++ LDX kxl
++ LDY r_xo,X
++ CPX #&80
++ BCS ked1
++ LDA (RZ_PA),Y
++ EOR kc
++ AND r_lm,X
++ EOR (RZ_PA),Y
++ STA (RZ_PA),Y
++ BRA ked2
++.ked1
++ LDA (RZ_PB),Y
++ EOR kc
++ AND r_lm,X
++ EOR (RZ_PB),Y
++ STA (RZ_PB),Y
++.ked2
++ LDX R_XR
++ LDY r_xo,X
++ CPX #&80
++ BCS ked3
++ LDA (RZ_PA),Y
++ EOR kc
++ AND r_rm,X
++ EOR (RZ_PA),Y
++ STA (RZ_PA),Y
++ BRA ked4
++.ked3
++ LDA (RZ_PB),Y
++ EOR kc
++ AND r_rm,X
++ EOR (RZ_PB),Y
++ STA (RZ_PB),Y
++.ked4
++ LDY ky                 \ the row's kept span is now this span's interior
++ LDX ke0
++ INX
++ TXA
++.ks_l9
++ STA KL0,Y
++ LDA ke1
++ DEC A
++.ks_r6
++ STA KR0,Y
++ LDA kc
++.ks_v3
++ STA KV0,Y
++ SEC
++ RTS
++
++\ kunpl: take phase B's planted RTS out (it plants again as it needs)
++.kunpl
++ LDA #r_opSTA
++ STA (RZ_PP)
++ LDA #190
++ STA RZ_PP
++ RTS
++
++\ kmerge: a later span of this frame over the row's kept span (A = KL, non-
++\ pending): the same colour and overlapping or adjacent interiors: their
++\ union; else the kept span less this span's bytes (E0..E1), or this span's
++\ interior if that is larger
++.kmerge
++ STA kkl
++.ks_r7
++ LDA KR0,Y
++ STA kkr
++.ks_v4
++ LDA KV0,Y
++ CMP kc
++ BNE kmg3
++ LDA kkr                \ NL <= kkr + 1 (NL = E0 + 1: E0 <= kkr)
++ CMP ke0
++ BCC kmg3
++ LDA ke1                \ NR >= kkl - 1 (NR = E1 - 1: E1 >= kkl)
++ CMP kkl
++ BCC kmg3
++ LDA ke0                \ union: min(kkl, E0 + 1) .. max(kkr, E1 - 1)
++ INC A
++ CMP kkl
++ BCS P%+5
++.ks_l10
++ STA KL0,Y
++ LDA ke1
++ DEC A
++ CMP kkr
++ BCC kmg9
++.ks_r8
++ STA KR0,Y
++.kmg9
++ RTS
++.kmg3
++ LDA ke0
++ STA kt0
++ LDA ke1
++ STA kt1
++ JSR ktrim
++ LDA ke1                \ this span's interior length - 1: E1 - E0 - 2
++ SEC
++ SBC ke0
++ DEC A
++ DEC A
++ STA k4
++ LDA kkr                \ the piece's length - 1 (kkl > kkr: none)
++ SEC
++ SBC kkl
++ BCC kmg4
++ CMP k4
++ BCS kmg5               \ the piece, as long or longer
++.kmg4
++ LDX ke0                \ this span's interior
++ INX
++ TXA
++.ks_l11
++ STA KL0,Y
++ LDA ke1
++ DEC A
++.ks_r9
++ STA KR0,Y
++ LDA kc
++.ks_v5
++ STA KV0,Y
++ RTS
++.kmg5
++ LDA kkl
++.ks_l12
++ STA KL0,Y
++ LDA kkr
++.ks_r10
++ STA KR0,Y
++ RTS
++
++\ ------------------------------------------------------------------------------
++\ k_rep (r7_rowrep, bank 5 paged, ACCCON X for the buffer): row Y of buffer
++\ R_PRBUF has a kept span (A = KL): black its dirty extent but the kept bytes
++\ (r7_row1 for each side), as the erase would leave the whole extent: WL/WR
++\ and DIRTY as r7_rowrep sets them; the row is pending. Y kept.
++\ ------------------------------------------------------------------------------
++
++.k_rep
++ STY ky
++ PHA
++ LDA R_PRBUF
++ CMP k_cur
++ BEQ P%+5
++ JSR k_setb
++ PLA
++ AND #&7F
++ STA kkl
++.ks_r11
++ LDA KR0,Y
++ STA kkr
++ LDX R_PRBUF
++ LDA kdrh,X
++ STA krd1+2
++ STA krd2+2
++ STA krd3+2
++ STA krd4+2
++ LDA kdlh,X
++ STA krl1+2
++ STA krl2+2
++ STA krl3+2
++.krd1
++ LDA R_DIRTYR0,Y
++ BEQ krp9               \ not dirty (done already): still pending
++ STA kR
++.krl1
++ LDA R_DIRTYL0,Y
++ STA kL
++ LDA kkl                \ left of it: pixels L .. 4 * kkl - 1
++ ASL A
++ ASL A
++ STA k4
++ LDA kL
++ CMP k4
++ BCS krp1
++ LDA k4
++ DEC A
++.krd2
++ STA R_DIRTYR0,Y
++ JSR r7_row1
++ LDY ky
++.krp1
++ LDA kkr                \ right of it: pixels 4 * kkr + 4 .. R
++ INC A
++ ASL A
++ ASL A
++ STA k4
++ LDA kR
++ CMP k4
++ BCC krp2
++.krd3
++ STA R_DIRTYR0,Y
++ LDA k4
++.krl2
++ STA R_DIRTYL0,Y
++ JSR r7_row1
++ LDY ky
++.krp2
++ LDA kL                 \ written: the whole extent
++ AND #&FC
++ STA R_WL,Y
++ LDA kR
++ ORA #3
++ STA R_WR,Y
++ LDA #&FF               \ the dirty extent: none (r7_row1 left it so, or
++.krl3                   \ there was no side to black)
++ STA R_DIRTYL0,Y
++ LDA #0
++.krd4
++ STA R_DIRTYR0,Y
++.krp9
++ LDA kkl
++ ORA #&80
++.ks_l13
++ STA KL0,Y
++ RTS
++
++\ ------------------------------------------------------------------------------
++\ The command loop's calls
++\ ------------------------------------------------------------------------------
++
++\ k_fb: C_FB, after T_SETBUF: a frame of buffer F_BACK starts
++.k_fb
++ LDA F_BACK
++ JSR k_setb
++ LDA #&FF
++ STA k_any
++ STA k_infr
++ RTS
++
++\ k_fe1: C_FE, before the text, sights and stars: the pending rows nothing
++\ wrote are blacked as the erase would have
++.k_fe1
++ LDA k_infr
++ BEQ kfe9
++ LDA &F4
++ STA krom
++ LDA #RASTBANK
++ STA &F4
++ STA &FE30
++ JSR kflush
++ LDA krom
++ STA &F4
++ STA &FE30
++.kfe9
++ RTS
++
++.kflush                 \ (bank 5 paged in, ACCCON X for k_cur's buffer)
++ STZ kval
++ LDY #191
++.kfl1
++.ks_l14
++ LDA KL0,Y
++ BPL kfl2
++ AND #&7F
++ TAX
++.ks_r12
++ LDA KR0,Y
++ JSR krun
++ LDA #0
++.ks_l15
++ STA KL0,Y
++.kfl2
++ DEY
++ BNE kfl1
++ RTS
++
++\ k_fe2: C_FE, after the stars (ACCCON X still the frame's): the kept spans
++\ less what the stars and the sights wrote; none in the disc rows
++.k_fe2
++ LDA k_infr
++ BNE P%+3
++ RTS
++ STZ k_infr
++ LDX F_BACK             \ (bank 6's, as F_SGS)
++ STX kc
++ LDA F_SGS,X
++ STA ksg
++ LDA &F4
++ STA krom
++ LDA #RASTBANK
++ STA &F4
++ STA &FE30
++ LDX kc                 \ the stars: records (address low, high OR &80 for
++ LDA r_scnt,X           \ one byte only) at r_s0y/r_s0x, + &300 for buffer 1
++ BEQ kfs9
++ STA kty
++ LDA #HI(r_s0y)
++ LDY #HI(r_s0x)
++ CPX #0
++ BEQ P%+6
++ LDA #HI(r_s1y)
++ LDY #HI(r_s1x)
++ STA kfs1+2
++ STY kfs2+2
++ LDX #0
++.kfs0
++ STX kxl
++.kfs2
++ LDA r_s0x,X            \ (high byte: &40 + 2 * char row (+1), bit 7)
++ PHA
++ AND #&7F
++ SEC
++ SBC #&40
++ LSR A                  \ C = column bit 5
++ PHP
++ ASL A
++ ASL A
++ ASL A
++ STA k4                 \ 8 * char row
++.kfs1
++ LDA r_s0y,X            \ low byte: column bits 0-4, line
++ PHA
++ AND #7
++ ORA k4
++ TAY                    \ the row
++ PLA
++ LSR A
++ LSR A
++ LSR A
++ PLP
++ BCC P%+4
++ ORA #32
++ STA kt0                \ the column
++ STA kt1
++ PLA
++ BMI P%+5
++ INC kt1                \ (and the next)
++ JSR ktouch
++ LDX kxl
++ INX
++ CPX kty
++ BCC kfs0
++.kfs9
++ LDA ksg                \ the sights, if this buffer shows them: row 96's
++                        \ arms (columns 27-29, 34-37) and column 32's
++ BEQ kfg9               \ (rows 76-85, 107-116)
++ LDY #96
++ LDA #27
++ STA kt0
++ LDA #29
++ STA kt1
++ JSR ktouch
++ LDA #34
++ STA kt0
++ LDA #37
++ STA kt1
++ JSR ktouch
++ LDA #32
++ STA kt0
++ STA kt1
++ LDY #76
++.kfg1
++ JSR ktouch
++ INY
++ CPY #86
++ BCC kfg1
++ LDY #107
++.kfg2
++ JSR ktouch
++ INY
++ CPY #117
++ BCC kfg2
++.kfg9
++ LDY R_NDT              \ the disc rows: none kept
++.kfd1
++ CPY R_NDB
++ BEQ P%+4
++ BCS kfd9
++ LDA #0
++.ks_l16
++ STA KL0,Y
++ INY
++ BNE kfd1
++.kfd9
++ LDA krom
++ STA &F4
++ STA &FE30
++ RTS
++
++\ k_disc: C_DISC, before T_DISCROWS: the disc's rows (whole width)
++.k_disc
++ LDY R_NDT
++ LDA R_NDB
++ CMP R_NDT
++ BCC kdi9
++ STA kty
++ STZ kt0
++ LDA #63
++ STA kt1
++ JMP k_trow
++.kdi9
++ RTS
++
++\ k_all: every row (whole width), e.g. C_FLARE
++.k_all
++ LDY #0
++ LDA #191
++ STA kty
++ STZ kt0
++ LDA #63
++ STA kt1
++ JMP k_trow
++
++\ k_line: C_LINE, before T_LINE: the line's bounding box (R_X0, R_Y0, R_X1,
++\ R_Y1: 16-bit, clamped to the screen)
++.k_line
++ LDA k_infr
++ BEQ kli9
++ LDX #0
++ JSR kclx
++ STA kt0
++ LDX #4
++ JSR kclx
++ CMP kt0
++ BCS kli1
++ LDX kt0
++ STA kt0
++ TXA
++.kli1
++ STA kt1
++ LDX #2
++ JSR kcly
++ STA kty
++ LDX #6
++ JSR kcly
++ CMP kty
++ BCS kli2
++ LDX kty
++ STA kty
++ TXA
++.kli2
++ LDY kty
++ STA kty
++ JMP k_trow
++.kli9
++ RTS
++.kclx                   \ byte column of R_X0+X (16-bit), clamped
++ LDA R_X0+1,X
++ BMI kcl0
++ BNE kcx1
++ LDA R_X0,X
++ LSR A
++ LSR A
++ RTS
++.kcx1
++ LDA #63
++ RTS
++.kcl0
++ LDA #0
++ RTS
++.kcly                   \ row of R_X0+X (16-bit), clamped
++ LDA R_X0+1,X
++ BMI kcl0
++ BNE kcy1
++ LDA R_X0,X
++ CMP #192
++ BCC kcy2
++.kcy1
++ LDA #191
++.kcy2
++ RTS
++
++\ k_dot: C_DOT, before T_DOT (X = x, Y = y, A = size: kept): rows y..y+1,
++\ columns of x..x+1
++.k_dot
++ PHA
++ PHX
++ PHY
++ TYA
++ CMP #191
++ BCC P%+4
++ LDA #190
++ INC A
++ STA kty
++ TXA
++ LSR A
++ LSR A
++ STA kt0
++ INC A
++ CMP #64
++ BCC P%+4
++ LDA #63
++ STA kt1
++ JSR k_trow
++ PLY
++ PLX
++ PLA
++ RTS
++
++\ k_span: C_SPAN, before T_SPAN (Y = row, R_XL..R_XR: kept)
++.k_span
++ PHY
++ STY kty
++ LDA zR_XL
++ LSR A
++ LSR A
++ STA kt0
++ LDA zR_XR
++ LSR A
++ LSR A
++ STA kt1
++ JSR k_trow
++ PLY
++ RTS
++
++\ k_glyph: f_glyph (bank 6) is drawing a character at column Y (byte columns
++\ 2Y, 2Y+1), text row X (rows 8X .. 8X+7). A, Y kept.
++.k_glyph
++ PHA
++ PHY
++ TYA
++ ASL A
++ STA kt0
++ INC A
++ STA kt1
++ TXA
++ ASL A
++ ASL A
++ ASL A
++ TAY
++ ORA #7
++ STA kty
++ JSR k_trow
++ PLY
++ PLA
++ RTS
++
++\ k_leave: a command that may leave space mode or draw outside the frames
++\ (C_DIRECT, C_CLS, C_BOXC, C_CLYNS, C_INIT, C_ENTER, C_OSCLI): black every
++\ pending kept span in both buffers, forget them all
++.k_leave
++ LDA k_any
++ BEQ kle9
++ STZ k_any
++ LDA &F4
++ STA krom
++ LDA #RASTBANK
++ STA &F4
++ STA &FE30
++ LDA &FE34
++ AND #4
++ STA k4
++ LDA #4                 \ buffer 0: main RAM
++ TRB &FE34
++ LDA #0
++ JSR k_setb
++ JSR kflush
++ LDA #4                 \ buffer 1: shadow RAM
++ TSB &FE34
++ LDA #1
++ JSR k_setb
++ JSR kflush
++ LDA #4                 \ (ACCCON X as it was; D is the IRQ's)
++ TRB &FE34
++ LDA k4
++ TSB &FE34
++ LDA krom
++ STA &F4
++ STA &FE30
++ STZ k_infr
++ JSR k_clear
++.kle9
++ RTS
++
++\ k_clear: forget every kept span (hstart: HAZEL's arrays as found)
++.k_clear
++ LDY #0
++ TYA
++.kcl1
++ STA KL0,Y
++ STA KL0+&100,Y
++ INY
++ BNE kcl1
++ STZ k_any
++ STZ k_infr
++ RTS
++
++\ k3: 3 * column (the store runs: column c's STA at 3c - 3)
++.k3
++FOR c, 0, 63
++ EQUB 3 * c
++NEXT
++
++\ the array operands, patched per buffer by k_setb
++.kslo
++ EQUB LO(ks_l1+2), LO(ks_l2+2), LO(ks_l3+2), LO(ks_l4+2), LO(ks_l5+2), LO(ks_l6+2)
++ EQUB LO(ks_l7+2), LO(ks_l8+2), LO(ks_l9+2), LO(ks_l10+2), LO(ks_l11+2), LO(ks_l12+2)
++ EQUB LO(ks_l13+2), LO(ks_l14+2), LO(ks_l15+2), LO(ks_l16+2)
++ EQUB LO(ks_r1+2), LO(ks_r2+2), LO(ks_r3+2), LO(ks_r4+2), LO(ks_r5+2), LO(ks_r6+2)
++ EQUB LO(ks_r7+2), LO(ks_r8+2), LO(ks_r9+2), LO(ks_r10+2), LO(ks_r11+2), LO(ks_r12+2)
++ EQUB LO(ks_v1+2), LO(ks_v2+2), LO(ks_v3+2), LO(ks_v4+2), LO(ks_v5+2)
++.kshi
++ EQUB HI(ks_l1+2), HI(ks_l2+2), HI(ks_l3+2), HI(ks_l4+2), HI(ks_l5+2), HI(ks_l6+2)
++ EQUB HI(ks_l7+2), HI(ks_l8+2), HI(ks_l9+2), HI(ks_l10+2), HI(ks_l11+2), HI(ks_l12+2)
++ EQUB HI(ks_l13+2), HI(ks_l14+2), HI(ks_l15+2), HI(ks_l16+2)
++ EQUB HI(ks_r1+2), HI(ks_r2+2), HI(ks_r3+2), HI(ks_r4+2), HI(ks_r5+2), HI(ks_r6+2)
++ EQUB HI(ks_r7+2), HI(ks_r8+2), HI(ks_r9+2), HI(ks_r10+2), HI(ks_r11+2), HI(ks_r12+2)
++ EQUB HI(ks_v1+2), HI(ks_v2+2), HI(ks_v3+2), HI(ks_v4+2), HI(ks_v5+2)
++.ksbase
++ FOR i, 1, 16
++  EQUB HI(KL0)
++ NEXT
++ FOR i, 1, 12
++  EQUB HI(KR0)
++ NEXT
++ FOR i, 1, 5
++  EQUB HI(KV0)
++ NEXT
++KSN = ksbase - kshi
++ASSERT KSN = 33
++.kdrh EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
++.kdlh EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
++ASSERT LO(R_DIRTYR1) = LO(R_DIRTYR0) AND LO(R_DIRTYL1) = LO(R_DIRTYL0)

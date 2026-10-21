@@ -34,7 +34,8 @@ host.debugInstruction.add(pc => {
     if (!on) return false;
     const c = now();
     if (last !== null) { cnt.set(last, (cnt.get(last) || 0) + c - lastC); tot += c - lastC; }
-    if (pc >= 0xc000) last = "MOS";
+    if (pc >= 0xc300 && pc < 0xd000) last = "Z:" + near(pc, "m");   // (HAZEL: the kept spans, h-spank.asm)
+    else if (pc >= 0xc000) last = "MOS";
     else if (pc < 0x8000) last = near(pc, "m");
     else { const map = pc < 0x9000 && host.romsel & 0x80 ? "85" : String(host.romsel & 15); last = `${map}:${near(pc, map)}`; }
     lastC = c; return false;

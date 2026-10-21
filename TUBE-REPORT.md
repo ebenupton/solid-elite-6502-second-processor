@@ -210,3 +210,74 @@ Docking gains 7% (the host no longer walks edges; the 2 bytes a row it
 receives cost less than phase A did). Flight is 0.4% slower on the Master host
 (the parasite's extra work sits on the critical path when few rows are filled)
 and unchanged on the Model B; overall faster, so phase 3 is kept.
+
+## Experiment: kept spans (single-span rows, then "largest span as a resource") — not a win, kept out of the build
+
+Request: remember, per buffer and per pixel row, a filled span; on the next
+frame for that buffer don't erase it, and paint only what the new span does
+not already cover in the same colour. First as "rows holding exactly one
+span", then generalised (user refinement) to "the largest span of the row,
+trimmed by whatever else lands on it, gated on size".
+
+**Measurements (Master host, run1, the phase 3 build).** Frame buffers were
+dumped at each C_SYNC and compared with the same buffer's previous frame;
+polygon coverage per row came from hooking the host's C_POLY.
+
+| | docking 3420-3550 | flight 1000-1400 | 0-3418 |
+|---|---|---|---|
+| polygon spans drawn per frame | 353 | 0 (planet only) | 43 |
+| rows with polygons in both frames | 135 | 0 | — |
+| single-span rows (one polygon, one uniform run, both frames) | 33 (27 identical) | 0 (the 88 single-run rows are the disc, which has its own incremental code) | — |
+| single-span: stores saved (erase + paint) | 4,130 a frame (~17k cycles) | 0 | — |
+| largest span kept (pixel-level bound, KMIN 1 / 8 / 16 / 32 bytes) | 4,235 / 4,205 / 3,968 / 2,981 bytes a frame (~34k / 34k / 32k / 24k cycles at 8 cycles a byte) | 0 | — |
+| replay of the actual span sequences, first-touch rules (tube/experiments/spansim.py), KMIN 8 | 4,482 bytes kept, 137 rows settled, 308 of 353 spans land on a row with a kept span | 0 | 0.2 bytes a frame |
+
+Upper bound: the generalised version saves ~36k host cycles a docking frame of
+~244k (+15%, 8.20 -> ~9.6 it/s) if the bookkeeping were free; the single-span
+version about half that. Flight: nothing (1000-1400 draws no polygons; the
+rest of the run has small, moving ships: 0.2 bytes a frame kept).
+
+**Prototype (generalised, host-side bookkeeping, KMIN 8).** Built on the
+Master host (tube/experiments/kept-spans.patch: h-spank.asm in HAZEL
+&C300-&CA05 with its arrays at &D000-&D5FF, copied from bank 6 by hstart;
+hooks in phase B, r7_rowrep, f_glyph, and C_FB/C_FE/C_DISC/C_LINE/C_DOT/
+C_SPAN/C_FLARE; commands that leave space mode black every pending kept span
+and forget them). The pre-erase leaves kept bytes and marks the row pending;
+the frame's first write settles it (a polygon span: black only the kept
+bytes outside its interior, fill only the interior bytes not already kept in
+its colour; anything else: black the overlapping kept bytes); C_FE blacks
+what is still pending, then trims by the stars, sights and disc rows. Model B
+and the Master port unaffected (byte-identical).
+
+Bookkeeping lives on the host because the pre-erase, the dirty extents, the
+clipped span ends and the text/sight/star overlays are all host-side; the
+parasite would have to mirror all of them.
+
+Result: pixels exact over the docking window (3400-3560: 151 matched, 0
+mismatched; the full 0..4000 and SNG47 gates were not run, as the build is
+not kept), but **slower everywhere**:
+
+| it/s | flight 1000-1400 | docking 3420-3550 | 0-3550 |
+|---|---|---|---|
+| phase 3 (kept) | 21.81 | 8.20 | 22.08 |
+| kept-spans prototype | 18.41 | 5.34 | 18.92 |
+
+Why: docking overdraws heavily (353 spans a frame on 135 rows, ~2.6 a row),
+so almost every span lands on a row that has a kept span and pays the
+overlap/trim test (~50-120 cycles), and r7_rowrep's split of a kept row (two
+general-path row erasures) costs ~250 cycles against its ~4 cycles a byte
+saving. The cost model from the replayed sequences (spansim.py) puts host
+bookkeeping at ~110k cycles a frame against ~36k saved (KMIN 32: ~64k against
+~28k); raising KMIN does not close the gap. Moving the per-span tests to the
+parasite (idle ~70% at docking) would leave the host with the settles and the
+row splits, which the same model puts at ~35k against the ~36k saved:
+break-even at best, for docking only, at the cost of mirroring the host's
+overlay state on the parasite. Not pursued.
+
+Decision: not built in. The prototype is kept as a patch
+(tube/experiments/kept-spans.patch, against a6eb806) with the measurement
+tools (spanpix.py: pixel classification; spanbound.py: the largest-span
+bound; spanrec.mjs: record each frame's spans, lines and disc rows;
+spansim.py: replay them through the kept-span rules with a cycle model).
+tube/tools/thprof.mjs now labels HAZEL (&C300-&CFFF) code instead of lumping
+it in with the MOS.
