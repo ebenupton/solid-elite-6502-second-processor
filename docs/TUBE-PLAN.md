@@ -19,9 +19,10 @@ measured (phase 0).
   may use 65C12 code. This supersedes "both buffers in main RAM" for the
   Master host; the Model B host keeps its own layout (main-RAM buffers, the
   CRTC rupture, NMOS code). Full `STA abs` runs (one store per screen byte):
-  not on the Model B (two sets would need 75K), and on the Master host only in
-  phase 4's byte writer (TUBE-REPORT.md, "Evaluation: full STA abs screen
-  runs").
+  not on the Model B (two sets would need 75K); on the Master host they were
+  to serve phase 4's byte writer, which was not built (below), and through a
+  bank switch per call they save nothing at docking: not adopted
+  (TUBE-REPORT.md, "Evaluation: full STA abs screen runs").
 - Branch `tube` off `full-master`, worktree `~/elite-full-tube`.
 
 ## 1. The shape
@@ -136,3 +137,35 @@ cold code loaded from disc.
   Master port, and the docking approach (dockprof's window).
 - Real hardware (Model B plus sideways RAM, a Master host) before release;
   the CRTC rupture is the riskiest item there.
+
+## 7. What happened (2026-10-21)
+
+- Phase 0: as planned (tube/spike, harness/tlib.mjs). Register 1 polled: 20
+  host cycles a byte; register 3 by NMI loads the parasite 92%: not used.
+- Phase 1: the game and the frame layer on the parasite, the Master port's
+  rasteriser on a Master host first (not NMOS, not B-memory: the Model B host
+  came later as its own layout, below).
+- Phase 2: keys and joystick through requests (C_KEYS, C_DKS, C_IRB), sound
+  through C_NOISE/C_SOFLUSH, the panel by the Master port's own dashboard code
+  on the parasite writing bytes (C_SCEOR/C_SCSTA), disc commands through the
+  MOS's Tube code (C_OSCLI). Save files byte-identical (lockstep against SNG47
+  with saves); the disc menu checked with real key presses (tsavetest.mjs).
+- Phase 3 (done after phase 5, at the user's request): R_POLY's phase A on the
+  parasite, the host receiving the rows' tables and entering its rasteriser at
+  r_pcbd. Lines, dots and the dirty bookkeeping stay the host's.
+- Phase 4: not built as planned. The per-row merge needs a model of both
+  buffers' rows on the parasite, which has no room for it (626 bytes free
+  before the high area was taken); a first try instead computed the ships'
+  coverage on the parasite so the host could skip erasing what they repaint:
+  pixel-exact, but slower (the parasite's ~64k cycles of coverage maths
+  serialise with the host's drawing); taken out (in git history).
+- Phase 5: the host pre-erases the next back buffer in its idle time (docking
+  +5%); the Master host keeps shadow RAM and 65C12 code; a parasite clocked
+  at 24 MHz runs pixel-exact (TUBEMHZ).
+- The Model B host: built (section 3's spirit, not its letter): buffer 0 at
+  &1000, buffer 1 and the panel at the Master port's &4000 and &7000, the
+  rasteriser split over two banks D and P with the runs only in P (patched per
+  buffer on first use), main RAM taken from the MOS and swapped back for disc
+  commands, a loader that finds and patches the sideways RAM banks.
+- Verification: both hosts lockstep-clean against SNG47 over run1's 16002
+  iterations and pixel-exact against the Master port over 0..16000.
