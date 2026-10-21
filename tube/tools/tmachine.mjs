@@ -24,7 +24,7 @@ export class TubeEliteMachine extends EliteMachine {
     constructor(opts) { super(opts); this.hostKind = opts.host || "Master"; }
 
     async boot() {
-        const t = this.t = await bootTube({ host: this.hostKind, disc: this.disc });
+        const t = this.t = await bootTube({ host: this.hostKind, disc: this.disc, mhz: +(process.env.TUBEMHZ || 3) });
         // SHIFT+BREAK: the host boots the disc, its loader starts the parasite
         t.s.keyDown(16); t.s.reset(true); t.host.execute(2e6 * 2); t.s.keyUp(16);
         const par = t.par, host = t.host, self = this;

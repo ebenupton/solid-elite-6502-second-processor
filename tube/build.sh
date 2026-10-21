@@ -168,6 +168,8 @@ $NM build/elite-source-host.asm build/nmos/elite-source-host.asm --report build/
 grep -E "^(R_|RZ_)[A-Za-z0-9_]* *= *&|^r_op(STA|RTS) *=" src/gfx-raster.asm > build/hb-rzp.asm   # (the rasteriser's zero page names, for bank F)
 hbasm main
 $BEEBASM -D HBB=4 -i tsrc/hb-main.asm -d > build/hbmsyms.txt 2>/dev/null || true
+$BEEBASM -D HBB=4 -i tsrc/hb-d.asm -d > build/hbdsyms.txt 2>/dev/null || true
+$BEEBASM -D HBB=4 -i tsrc/hb-p.asm -d > build/hbpsyms.txt 2>/dev/null || true
 if [ -f build/HBRES1.bin ]; then cat build/HBRES1.bin build/HBRES2.bin > build/HBS.bin; fi
 # the bank numbers' operands: assembled again with the banks at 8-11, the bytes
 # that differ (by 4) are the loader's to patch (tube/src/loader-b.asm)
