@@ -27,7 +27,7 @@ await runElite({ disc: a.disc || `${ROOT}master/build/elite-master-sng47.ssd`, s
         cpu.debugInstruction.add(pc => {
             if (pc === sy.L_REC && cur % EVERY === 0 && m(sy.GNF)) {
                 const k = b6(sy.F_NSHIP), at = b6(sy.F_SPL + k) | b6(sy.F_SPH + k) << 8, nf = m(sy.GNF);
-                pend.push({ i: cur, type: m(sy.GTYPE), LL: [0, 1, 2].map(j => m(sy.LLT + j)),
+                pend.push({ i: cur, type: m(sy.GTYPE), LL: [0, 1, 2].map(j => b6(sy.LLT + j)),
                     h: Array.from({ length: 18 }, (_, j) => m(sy.INWK + 9 + j)), pos: Array.from({ length: 9 }, (_, j) => m(sy.INWK + j)),
                     raw: Array.from({ length: nf }, (_, j) => b6(at + j)), at, nf,
                     sun: Array.from({ length: 9 }, (_, j) => m(sy["K%"] + 37 + j)), frin1: m(sy.FRIN + 1) });
