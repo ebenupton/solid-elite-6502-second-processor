@@ -26,6 +26,10 @@ p_rowrep = P_ROWREPT
  INCLUDE "build/nmos/gfx-raster-d.asm"
  CPU 0
 .D_HIEND
+ INCLUDE "tsrc/h-merid.asm"     \ the meridian window (the beach ball's
+ INCLUDE "build/nmos/gfx-merid.asm" \ boundaries), beside the arrays it writes
+ CPU 0
+.D_MEND
  ORG &8000
  GUARD &9000
  INCLUDE "build/nmos/gfx-raster_disc.asm"
@@ -44,6 +48,10 @@ p_rowrep = P_ROWREPT
  HRX
  STA R_NDF
  BEQ ddi1
+ BMI ddi0               \ (&81: a beach ball, made here)
+ LDA #0                 \ (1: a crater's boundaries over the beach ball's rows)
+ STA PS_VALID
+.ddi0
  HRX
  STA R_DBE
  HRX
@@ -59,7 +67,8 @@ p_rowrep = P_ROWREPT
  HRX
  STA R_NDISCR,Y
  LDA R_NDF
- BEQ ddi4
+ CMP #1
+ BNE ddi4
  HRX
  STA R_NDP,Y
  HRX
@@ -87,6 +96,16 @@ p_rowrep = P_ROWREPT
  INY
  BNE ddi2
 .ddi9
+ LDA R_NDF              \ a beach ball: its boundaries from the spans (PM_MERID,
+ BPL ddi8               \ as the Master port's T_MERID)
+ LDA #1
+ STA R_NDF
+ BIT PM_OK
+ BVS ddi8
+ JSR PM_MERID
+ LDA #&80
+ STA PS_VALID
+.ddi8
  JMP R_DISCROWS
 .D_CODE_END
  GUARD &C000
@@ -97,6 +116,7 @@ p_rowrep = P_ROWREPT
  JMP R_RESETBUF
  JMP r_wclear
  JMP d_disc
- PRINT "Model B bank D: &8000-&", ~D_LOEND-1, " (free ", &9000-D_LOEND, "), &9000-&", ~D_HIEND-1, " (free ", DDATA-D_HIEND, "), data &", ~DDATA, "-&", ~DDATA_END-1
+ JMP h_merin
+ PRINT "Model B bank D: &8000-&", ~D_LOEND-1, " (free ", &9000-D_LOEND, "), &9000-&", ~D_HIEND-1, ", the meridian window to &", ~D_MEND-1, " (free ", DDATA-D_MEND, "), data &", ~DDATA, "-&", ~DDATA_END-1
  ASSERT D_CODE_END <= JT
  SAVE "build/HBD.bin", &8000, &C000, &8000

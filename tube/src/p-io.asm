@@ -218,9 +218,20 @@ ENDMACRO
  PSEND
  RTS
 
+\ T_MERID: f_bounds has a beach ball (PM_OK, G_MERHOOK): its boundaries are
+\ the host's meridian window's to make, from C_DISC's spans (R_NDF = &81)
+
+.T_MERID
+ PHA
+ LDA #&81
+ STA R_NDF
+ PLA
+ RTS
+
 \ T_DISCROWS: R_NDT, R_NDB, R_DCE, R_DCO, R_NDF (with R_DBE, R_DBO), then
-\ for each row R_NDT..R_NDB, R_NDISCL and R_NDISCR, and with R_NDF set also
-\ R_NDP, R_NDN and R_NDN of R_NDX0..R_NDX3
+\ for each row R_NDT..R_NDB, R_NDISCL and R_NDISCR, and with R_NDF = 1 also
+\ R_NDP, R_NDN and R_NDN of R_NDX0..R_NDX3 (R_NDF = &81: a beach ball, whose
+\ boundaries the host makes)
 
 .T_DISCROWS
  PHA
@@ -255,7 +266,8 @@ ENDMACRO
  LDA R_NDISCR,Y
  PSEND
  LDA R_NDF
- BEQ tdr4
+ CMP #1
+ BNE tdr4
  LDA R_NDP,Y
  PSEND
  LDA R_NDN,Y            \ (the count as it is, then at most 4 boundaries,

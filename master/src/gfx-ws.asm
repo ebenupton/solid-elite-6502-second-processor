@@ -16,6 +16,12 @@ RASTBANK = 5            \ the rasteriser: bank 5, its disc window (&8000-&8FFF) 
 RASTPOLY = &85          \ the shared region (&9000-&BFFF); ANDY over bank 5, its
                         \ polygon window
 GFXBANK = 6
+MERIDBANK = 7           \ the meridian window (gfx-merid.asm): bank 7, after the
+                        \ cold area
+MERIDHOLD = 0           \ a beach ball's orientation is taken one frame in
+                        \ MERIDHOLD + 1 (gfx-merid.asm, PM_HOOK): its spin (1/16
+                        \ radian an iteration) shows in steps; its position and
+                        \ size follow every frame (0: as the demo port)
 ELITEBANK = HOMEBANK
 
 NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)

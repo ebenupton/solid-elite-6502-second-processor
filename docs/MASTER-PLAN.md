@@ -396,8 +396,10 @@ palette); their layout matches the reference's.
 
 Known differences and open items:
 
-* Planet meridians (the beach ball) are not drawn (G_MERID returns): the
-  planet is a disc, with craters for crater planets.
+* Planet meridians are drawn as the demo port's beach ball (branch
+  beachball, BEACHBALL-REPORT.md), from the meridian window in bank 7; the
+  planet's spin (1/16 radian an iteration) shows in steps, one frame in
+  MERIDHOLD + 1 (3: four), where the demo showed it every frame.
 * The sun is a clean filled disc (no flickering fringe).
 * Face colour issues in harness/mshipshow.mjs's gallery (some faces of the
   asteroid, rock hermit, Adder, Cougar; the shuttle, Gecko and Dodo too

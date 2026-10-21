@@ -12,6 +12,8 @@
 \     renderer's glue and the command loop (h-main.asm);
 \   * the rasteriser in bank 5 and ANDY, the frame layer's host part (the text
 \     map, the text overlay, the sights) in bank 6, as the Master port's;
+\   * the meridian window (the beach ball's boundaries) in bank 7, as the
+\     Master port's MERIDBANK, with the quarter squares it multiplies with;
 \   * the screen: buffer 0 in main RAM, buffer 1 and the dashboard in shadow
 \     RAM, as the Master port's.
 \
@@ -85,3 +87,11 @@ ALIGN &100
 .B6_END
  PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, ")"
  SAVE "build/HBANK6.bin", &8000, B6_END, &8000
+
+ CLEAR &8000, &C000      \ bank 7 (MERIDBANK): the meridian window, the beach
+ ORG &8000              \ ball's boundaries (h-merid.asm)
+ INCLUDE "tsrc/h-merid.asm"
+ INCLUDE "src/gfx-merid.asm"
+.M7_END
+ PRINT "Host: bank 7 &8000-&", ~M7_END-1, " (the meridian window)"
+ SAVE "build/HMERID.bin", &8000, M7_END, &8000

@@ -101,7 +101,7 @@ HCTXN = 12
  EQUW h_sync, h_init, h_fb, h_fe, h_enter, h_disc, h_ddirty, h_span
  EQUW h_mark, h_poly, h_line, h_dot, h_flare, h_direct, h_char, h_keys
  EQUW h_dks, h_wscan, h_noise, h_soflush, h_dstar, h_sceor, h_scsta, h_cls
- EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli, h_swap
+ EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli, h_swap, h_merhook
 ASSERT P% - htab = C_MAX
 
 .hloop
@@ -147,7 +147,7 @@ ENDIF
 
 .hsafe                  \ per command: non-zero if it never draws in the buffers
  FOR i, 0, C_MAX - 1, 2
-  IF i=C_SYNC OR i=C_CHAR OR i=C_KEYS OR i=C_DKS OR i=C_WSCAN OR i=C_NOISE OR i=C_SOFLUSH OR i=C_SCEOR OR i=C_SCSTA OR i=C_CLRTEXT OR i=C_DET1 OR i=C_IRB
+  IF i=C_SYNC OR i=C_CHAR OR i=C_KEYS OR i=C_DKS OR i=C_WSCAN OR i=C_NOISE OR i=C_SOFLUSH OR i=C_SCEOR OR i=C_SCSTA OR i=C_CLRTEXT OR i=C_DET1 OR i=C_IRB OR i=C_MERHOOK
    EQUB 1, 1
   ELSE
    EQUB 0, 0
@@ -269,7 +269,7 @@ ENDIF
 .h_disc                 \ C_DISC
 IF _HOSTB                 \ (Model B: received into bank D, hb-d.asm)
  JMP hb_disc               \\ (main RAM: hb-res.asm)
-ENDIF
+ELSE
  HRX
  STA R_NDT
  HRX
@@ -281,6 +281,9 @@ ENDIF
  HRX
  STA R_NDF
  BEQ hdi1
+ BMI hdi0               \ (&81: a beach ball, made here)
+ STZ PS_VALID           \ (1: a crater's boundaries over the beach ball's rows)
+.hdi0
  HRX
  STA R_DBE
  HRX
@@ -296,7 +299,8 @@ ENDIF
  HRX
  STA R_NDISCR,Y
  LDA R_NDF
- BEQ hdi4
+ CMP #1
+ BNE hdi4
  HRX
  STA R_NDP,Y
  HRX
@@ -324,8 +328,29 @@ ENDIF
  INY
  BNE hdi2
 .hdi9
+ LDA R_NDF              \ a beach ball: its boundaries from the spans (the
+ BPL hdi8               \ meridian window, bank 7: h-merid.asm)
+ LDA #1
+ STA R_NDF
+ JSR T_MERID
+.hdi8
  JSR T_DISCROWS
  JMP hloop
+ENDIF
+
+.h_merhook              \ C_MERHOOK: the beach ball's constants (h-merid.asm)
+IF _HOSTB
+ JMP hb_merhook          \ (Model B: bank D's, hb-res.asm)
+ELSE
+ LDA #MERIDBANK
+ STA &F4
+ STA &FE30
+ JSR h_merin
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JMP hloop
+ENDIF
 
 .h_ddirty               \ C_DDIRTY
  JSR f_discdirty

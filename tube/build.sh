@@ -43,13 +43,14 @@ $BEEBASM -i tsrc/p-layout.asm -d > build/psyms.txt 2>/dev/null
 $BEEBASM -i tsrc/h-layout.asm -v > build/compile-h.txt 2>&1 || { grep -iE "error" -A3 build/compile-h.txt | head -30; exit 1; }
 $BEEBASM -i tsrc/h-layout.asm -d > build/hsyms.txt 2>/dev/null
 # build/hbanks.txt: the host's labels in sideways RAM and the ROMSEL value of
-# their bank (5: bank 5, 85: ANDY over bank 5, 6: bank 6), for the profilers
+# their bank (5: bank 5, 85: ANDY over bank 5, 6: bank 6, 7: bank 7), for the profilers
 python3 - <<'PY'
 import re
 with open("build/hbanks.txt", "w") as f:
     for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_rep.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-flare.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"), ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"),
-                      ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-flare6.asm", "6")):
+                      ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-flare6.asm", "6"),
+                      ("src/gfx-merid.asm", "7"), ("tsrc/h-merid.asm", "7")):
         for m in re.finditer(r"^\s*\.([A-Za-z_][\w%]*)", open(src, encoding="latin-1").read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
 PY
@@ -87,6 +88,7 @@ with open("build/tube-addresses.asm", "w") as f:
     f.write(" PSTART = &%04X\n PCODEAT = &%04X\n" % (p["p_start"], p["PWS_END"] and 0x1500))
     f.write(" hwrch = &%04X\n HMAINAT = &%04X\n" % (h["hwrch"], h["H_START"]))
     f.write(" B5LEN = &%04X\n B6LEN = &%04X\n RALEN = &%04X\n" % (h["B5_END"] - 0x8000, h["B6_END"] - 0x8000, h["RA_END"] - 0x8000))
+    f.write(" M7LEN = &%04X\n" % (h["M7_END"] - 0x8000))
     f.write(" GFXBANK = 6\n TUBEID = 4\n")
 PY
 $BEEBASM -i tsrc/loader.asm -v > build/compile-l.txt 2>&1 || { grep -iE "error" -A3 build/compile-l.txt | head; exit 1; }
@@ -123,6 +125,24 @@ $NM src/gfx-raster_lcold.asm build/nmos/gfx-raster_lcold.asm --report build/nmos
   LDX l_x0" --sub "  PLX
   DEC l_n=  LDX &E7
   DEC l_n" > /dev/null
+$NM src/gfx-merid.asm build/nmos/gfx-merid.asm --report build/nmos/gfx-merid.txt \
+  --sub ".PM_HOOK
+ PHP
+ PHA
+ PHX
+ PHY=.PM_HOOK
+ PHP
+ PHA
+ TXA                    \\ (NMOS: PHX, PHY; A dead after)
+ PHA
+ TYA
+ PHA" \
+  --sub " STA R_NDP,X
+ STZ R_NDN,X= STA R_NDP,X
+ TAY                    \\ (NMOS: STZ, A live, Y dead)
+ LDA #0
+ STA R_NDN,X
+ TYA" > /dev/null
 $NM src/gfx-flare.asm build/nmos/gfx-flare.asm --report build/nmos/gfx-flare.txt \
   --sub " BPL P%+5
  EOR #&FF
@@ -132,6 +152,8 @@ $NM src/gfx-flare.asm build/nmos/gfx-flare.asm --report build/nmos/gfx-flare.txt
  CLC
  ADC #1" > /dev/null
 : > build/hb-mainsyms.asm
+# (the beach ball's MERIDHOLD: hb-ws.asm's must be gfx-ws.asm's)
+[ "$(grep -E '^MERIDHOLD' src/gfx-ws.asm | awk '{print $3}')" = "$(grep -E '^MERIDHOLD' tsrc/hb-ws.asm | awk '{print $3}')" ] || { echo "MERIDHOLD: hb-ws.asm differs from gfx-ws.asm"; exit 1; }
 # (NMOS code is longer: out-of-range branches are made long, tools/longbr.py,
 # until the bank assembles)
 hbasm() {

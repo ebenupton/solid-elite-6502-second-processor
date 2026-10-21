@@ -36,7 +36,9 @@ C_FB       = 4          \ frame begin: F_BACK, GSIGHT
 C_FE       = 6          \ frame end: R_SN, the stars (x, y, size each), flip
 C_ENTER    = 8          \ the first space-mode frame since the screen was drawn
                         \ directly (f_enter2): GSTASH
-C_DISC     = 10         \ R_DISCROWS: rows, colours, spans, boundaries
+C_DISC     = 10         \ R_DISCROWS: rows, colours, spans, boundaries (R_NDF =
+                        \ 1), or none (0: a plain disc; &81: a beach ball, whose
+                        \ boundaries the host's meridian window makes)
 C_DDIRTY   = 12         \ f_discdirty: fold this buffer's disc into its dirty
 C_SPAN     = 14         \ R_SPAN: Y, XL, XR, COLE, COLO
 C_MARK     = 16         \ R_MARKDIRTY: Y, XL, XR
@@ -66,7 +68,12 @@ C_IRB      = 56         \ request: the System VIA's port B
 C_OSCLI    = 58         \ OSCLI (DOSCLI): the host's MOS runs the command
 C_SWAP     = 60         \ exchange the parasite's &F800-&FEEF with the host's copy
                         \ (the client OS's and the high code: byte for byte)
-C_MAX      = 62
+C_MERHOOK  = 62         \ H_MERID (a beach ball, gfx-hooks.asm): roofv and sidev
+                        \ (INWK+15..26), K3, K4, MCNT, PM_R: the host's meridian
+                        \ window computes the frame's constants (PM_HOOK), and
+                        \ C_DISC with R_NDF = &81 has it make the rows
+                        \ (PM_MERID) from the spans that C_DISC carries
+C_MAX      = 64
 
 TUBE_HIGH = TRUE        \ the parasite's &F800-&FEEF holds code (p-layout.asm's
                         \ PHIGH), swapped with the client OS's copy (C_SWAP)

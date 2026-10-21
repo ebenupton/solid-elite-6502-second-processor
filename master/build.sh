@@ -4,7 +4,8 @@
 #   build/BCODE.bin, BDATA.bin (with the commander checksum set),
 #   build/M128Elt.bin (loader), build/README.txt,
 #   build/BANK4.bin (Elite's home bank: the data and bank 4 code),
-#   build/COLD7.bin (the cold area, bank 7 from &8000),
+#   build/COLD7.bin (the cold area, bank 7 from &8000), build/MERID.bin (the
+#   renderer's meridian window, bank 7 after it),
 #   build/HICODE.bin (main RAM &7000-&7FFF: the high code, then the run),
 #   build/HAZEL.bin (HAZEL: the hot data), build/HZDATA.bin (the same, for
 #   the tools),
@@ -73,7 +74,8 @@ with open("build/banks.txt", "w") as f:
                       ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_rep.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"),
                       ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-flare.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"), ("src/gfx-hangar.asm", "6"),
-                      ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6")):
+                      ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
+                      ("src/gfx-merid.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
     # the main code continues into bank 4: the labels of the main files that are
@@ -106,12 +108,14 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" B5LEN = &%04X\n B6LEN = &%04X\n RALEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["RA_END"] - 0x8000))
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" C7LEN = &%04X\n" % (sy["COLD_END%"] - 0x8000))   # (the cold area, bank 7 from &8000)
+    f.write(" M7AT = &%04X\n M7LEN = &%04X\n" % (sy["MERID_START"], sy["MERID_END"] - sy["MERID_START"]))   # (the meridian window, bank 7 after it)
     f.write(" HILEN = &1000\n")   # (HICODE: main RAM &7000-&7FFF, the high code then the run)
 # build/images.txt: where the loader puts each image (harness/mboot.mjs checks
 # them): file, ROMSEL (hex; bit 7: ANDY) or main/shadow/hazel, start (hex), and
 # "v" for images holding variables or self-modified code
 with open("build/images.txt", "w") as f:
     for img, rs, at, v in (("BANK4.bin", "4", 0x8000, "v"), ("COLD7.bin", "7", 0x8000, ""),
+                           ("MERID.bin", "7", sy["MERID_START"], "v"),
                            ("BANK5.bin", "5", 0x8000, "v"), ("RASTA.bin", "85", 0x8000, "v"),
                            ("BANK6.bin", "6", 0x8000, "v"),
                            ("HAZEL.bin", "hazel", sy["HZ_START"], "v"), ("HICODE.bin", "main", 0x7000, "v")):

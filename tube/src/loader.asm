@@ -724,6 +724,10 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
+ EQUW MESS11            \ HMERID: the meridian window, bank 7
+ EQUB 7, %00001001
+ EQUW &8000, M7LEN
+
  EQUW 0
 
 .OSB
@@ -777,6 +781,11 @@ ENDIF
 .MESS10
 
  EQUS "L.HBANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
+ EQUB 13
+
+.MESS11
+
+ EQUS "L.HMERID FFFF1300"    \ Port (Tube): the meridian window, bank 7
  EQUB 13
 
 

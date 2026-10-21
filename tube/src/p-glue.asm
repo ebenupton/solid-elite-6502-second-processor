@@ -104,6 +104,41 @@
 .G_PPOINT
  JMP F_PPOINT           \ (it returns through gback)
 
+\ G_MERHOOK: H_MERID's beach ball (gfx-hooks.asm): the meridian window is the
+\ host's (tube/src/h-merid.asm), so its inputs go there (C_MERHOOK: roofv and
+\ sidev, K3, K4, MCNT, PM_R), and PM_OK says that f_bounds is to colour the
+\ disc as a beach ball (T_MERID: R_NDF = &81). Keeps X, Y and C, as PM_HOOK
+
+.G_MERHOOK
+ PHP
+ PHX
+ LDA #C_MERHOOK
+ JSR ptx
+ LDX #0
+.gmh1
+ LDA INWK+15,X
+ JSR ptx
+ INX
+ CPX #12
+ BNE gmh1
+ LDA K3
+ JSR ptx
+ LDA K3+1
+ JSR ptx
+ LDA K4
+ JSR ptx
+ LDA K4+1
+ JSR ptx
+ LDA MCNT
+ JSR ptx
+ LDA PM_R
+ JSR ptx
+ LDA #&80
+ STA PM_OK
+ PLX
+ PLP
+ JMP gback
+
 \ G_DSTAR: outside record mode PIXEL2 draws star Y directly; H_STAR (C set:
 \ hA = y, X = x, ZZ = distance) and H_STAROFF (C clear: off screen) note it
 \ here so that the first record-mode frame can remove it (the host's

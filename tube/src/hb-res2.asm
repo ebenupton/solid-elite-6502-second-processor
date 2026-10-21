@@ -41,6 +41,10 @@
  PAGE RASTBANK
  JSR D_DISC
  JMP hbloop
+.hb_merhook             \ C_MERHOOK: bank D's meridian window (h-merid.asm)
+ PAGE RASTBANK
+ JSR D_MERHOOK
+ JMP hbloop
 .hb_poly
  PAGE RASTPOLY
  JSR P_POLYIN
