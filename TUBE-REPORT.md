@@ -1,4 +1,109 @@
-# Tube Elite: report (work in progress)
+# Tube Elite: report
+
+Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
+`tube/build/elite-tube.ssd` (BBC Master host) and `tube/build/elite-tube-b.ssd`
+(BBC Micro Model B host with 64K of sideways RAM), both built by
+`sh tube/build.sh` (which also builds everything below; `sh master/build.sh` first).
+Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
+`docs/TUBE-PLAN.md` section 7.
+
+## Summary (candid)
+
+**Passed**
+- Game state: both hosts replay the curious run (run1) in lockstep with SNG47
+  for all 16002 iterations, no findings.
+- Pixels: both hosts' two buffers equal the Master port's at every frame over
+  run1's iterations 0..16000 (14611 distinct frames matched, 3 sampling gaps, 0
+  mismatched), and with the parasite at 24 MHz over 0..4000.
+- Disc menu with real key presses (save, load, the error path, the catalogue,
+  a launch afterwards) on both hosts; the saved file is the original's format
+  (and byte-identical saves against SNG47 in the phase 2 lockstep).
+- Speed: in flight both hosts beat SNG47 (12.7 it/s) and the Master port (19.1):
+  Master host 21.8, Model B host 20.0; combat 2.9-3.2x SNG47.
+
+**Not passed / not done**
+- Docking (3420-3550) is still slower than SNG47 (12.6 it/s): Master host 8.2,
+  Model B host 6.7 (the Master port 6.6). The plan's phase 4 (each byte written
+  once) was not built: it needs a per-row model of both buffers on a parasite
+  with no room for it; a cheaper coverage scheme was tried and was slower.
+- Phase 3 is a first cut: polygons only; lines, dots and the dirty bookkeeping
+  stay on the host.
+- Full STA abs runs: not adopted on either host (numbers below).
+- Not run on real hardware. The Model B host's CRTC rupture is proven only in
+  jsbeeb; the display rolls briefly during disc access on the Model B (DFS
+  keeps interrupts off), recovering afterwards.
+- Joystick and sound on the Model B host are wired (the Model B's ADC at &FEC0,
+  the SN76489 as the Master port drives it) but not checked by a test.
+
+## Speed (it/s, run1 windows; `node tube/tools/tspeed.mjs --log scratch/curious/run1/inputs.jsonl --kind ref|m|t [--host B] --cand DISC --csyms SYMS --windows 1000-1400,3420-3550,0-3550`)
+
+| | flight 1000-1400 | docking 3420-3550 | 0-3550 |
+|---|---:|---:|---:|
+| SNG47 (original) | 12.69 | 12.61 | 14.38 |
+| Master port | 19.09 | 6.64 | 18.23 |
+| Tube, Master host, phase 1 | 21.87 | 7.23 | 21.18 |
+| Tube, Master host, + pre-erase (phase 5) | 21.90 | 7.64 | 21.38 |
+| Tube, Master host, + phase 3 (final) | 21.81 | 8.20 | 22.08 |
+| Tube, Model B host, before phase 3 | 20.00 | 6.36 | 19.59 |
+| Tube, Model B host, final | 20.00 | 6.71 | 20.20 |
+| Tube, Master host, parasite at 24 MHz | 29.52 | 8.30 | 27.42 |
+| Tube, Model B host, parasite at 24 MHz | 22.41 | 6.76 | 22.71 |
+
+By pilot phase (`node harness/mcompare.mjs --iters 2000 --loose [--cand ... --csyms ... --tube Master|B]`,
+flight it/s, SNG47 / candidate): 
+
+| | combat | hyperspace | approach | all |
+|---|---:|---:|---:|---:|
+| SNG47 | 9.27 | 9.13 | 15.75 | 12.99 |
+| Master port | 24.77 | 21.78 | 13.93 | 15.99 |
+| Tube, Master host | 29.94 | 26.63 | 15.42 | 18.01 |
+| Tube, Model B host | 28.30 | 25.34 | 13.37 | 15.86 |
+
+(`MCOMPARE PASS` for all three: game state identical over the 2000 iterations with `--loose`.)
+
+## Verification commands
+
+- Lockstep: `TUBE=Master|B node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out DIR --until 16000 --noobserve --cand tube/build/elite-tube[-b].ssd --csyms tube/build/psyms.txt` → `REPLAY CLEAN ... 16002 iterations compared, 29887 reads, findings 0` (both hosts, final build).
+- Pixels: Master reference `node master/tools/agentplay/fbreplay.mjs --log scratch/curious/run1/inputs.jsonl --out scratch/fbref --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt --from 0 --to 16000`; candidate `node tube/tools/tfbreplay.mjs --log ... --out DIR --cand tube/build/elite-tube[-b].ssd --csyms tube/build/psyms.txt [--host B] --from 0 --to 16000`; compare `node tube/tools/fbcmp.mjs scratch/fbref/fb.json DIR/fb.json --to 15999` → `14611 matched, 3 sampling gaps, 0 mismatched` (both hosts). Sampling gaps are frames one side's hash point did not see (timing), not differences.
+- Faster parasite: `TUBEMHZ=24` before the tools above.
+- Disc menu: `node tube/tools/tsavetest.mjs --host Master|B` (exit 0; screenshots in scratch/tsave-*/).
+- Host profile: `node tube/tools/thprof.mjs ...` (Master host), parasite waits included.
+
+## Phases
+
+### Phase 0: spikes
+Harness: `harness/tlib.mjs` (jsbeeb Model B with sideways RAM in slots 4-7 and Master, each with the Tube65C02 at 3 MHz with fractional cycles and parasite hooks). Register 1 polled: 20 host cycles a byte (97 KB/s), 17.5 with dispatch. Register 3 by the parasite's NMI: 24.7 host cycles a byte but the parasite spends 92% in the NMI: not used. The CRTC vertical rupture works on both hosts (`tube/spike/rupture.*`, `screenshots/tube/rupture-front0/1.png`).
+
+### Phase 1: the parasite build
+The Master game and frame layer relinked flat on the parasite (`tube/src/p-*.asm`, `_TUBE`/`_TPART`), the Master port's rasteriser on the host; every T_ trampoline became a command. Playable end to end on a Master host (the Model B host came later, below).
+
+### Phase 2: host services
+Keys, joystick buttons and the vsync wait as requests; sound commands; Master's own dashboard code on the parasite writing bytes (C_SCEOR/C_SCSTA); disc commands through the MOS's Tube code (C_OSCLI, hwrch). Fixed in this session: hwrch lost X and Y (the DFS catalogue never ended), now kept, with the MOS's text cursor kept in step.
+
+### Phase 3: offload — see its section below.
+
+### Phase 4: not built as planned
+The per-row merge needs, on the parasite, both buffers' row contents (or at least a run model of each): there were 626 bytes free. Tried instead (commit 424e65e, then removed in 2b81b59): the parasite computed the ships' per-character-row coverage (conservative, 16-bit DDA) and the host's repair skipped covered bytes. Pixel-exact, but the docking window went from 276k to 303k host cycles an iteration: the coverage maths (~64k parasite cycles) ran while the host waited, for ~38k host cycles of erase saved.
+
+### Phase 5: polish
+- Pre-erase (2b81b59): the host blacks the next back buffer's old dirty rows in its idle time. Docking 7.22 → 7.64 it/s.
+- Master host options: shadow-RAM double buffering and 65C12 code (the Master port's).
+- Faster co-processors: pixel-exact at 24 MHz; speed above (the host is the limit at docking).
+- Pipelining beyond the pre-erase was not built: at docking the parasite already waits ~80% of its time for the host.
+
+### Phase 6: verification — see the summary and commands above.
+
+### The Model B host
+Built from the same sources (NMOS by `tube/tools/nmos.py`), four sideways banks (D, P, F, S), main RAM taken from the MOS and swapped for disc commands, buffer 0 at &1000, buffer 1 and the panel at the Master port's &4000 and &7000, the dashboard split by a CRTC rupture, a loader that finds and patches the sideways RAM banks. Details in `docs/TUBE-MAP.md`. Its single set of row runs is patched per buffer on first use, which costs ~27k cycles an iteration at docking (all 24 pages flip every frame); moving that into idle time did not help (the host is the bottleneck there).
+
+### Screenshots
+`screenshots/tube/`: `master-it1200.png`, `master-it3480.png` (Master host in flight and docking), `modelb-it1200.png`, `modelb-it3480.png`, `modelb-it5076.png` (Model B host; the short-range chart), `rupture-front0/1.png` (phase 0), `boot.png`; disc menu runs in `scratch/tsave-Master/`, `scratch/tsave-B/` (untracked).
+
+## Risks
+- Real hardware: the rupture's timing (timer 1 against the 6845's frames) and the DFS's interrupt-off periods; a Model B with sideways RAM in other slots (the loader patches the banks; tested only with slots 4-7); 8271 vs 1770 DFS (the Model B path assumes DFS 1.2's workspace at &0E00-&10FF).
+- The parasite's high area: the client OS's copy is swapped out during play; a BRK outside a disc command would land in game code.
+- nmos.py's liveness is conservative but not proven; the pixel and lockstep runs cover what run1 exercises.
+
 
 ## Evaluation: full `STA abs` screen runs on the host (user request, 2026-10-21)
 
@@ -49,11 +154,59 @@ of the above. Neither is worth its 37K. **Not adopted on the Model B.**
 **Recommendation and decision.** On the Master host one set fits (shadow RAM double
 buffering, as the user asked), but it buys ~2% at docking and nothing in flight, at the
 cost of 37K, a span routine moved to main RAM and a bank switch per span. It is not
-worth retrofitting into today's rasteriser (phases 1-3 keep the row runs). It is
-adopted as the Master host's store path in phase 4, when the host becomes a pure byte
-writer of the parasite's merged runs: there the stores are nearly all of the host's
-work, every run is entered from the host's own main-RAM loop anyway, and the phase 4
-section of this report gives its measured effect. The Master host keeps the
+worth retrofitting into today's rasteriser (phases 1-3 keep the row runs). It was to
+be the Master host's store path in phase 4's byte writer; phase 4's byte writer was
+not built (see "Phase 4" above), so **full STA runs are not adopted on either host**. The Master host keeps the
 shadow-RAM layout (buffer 0 main, buffer 1 shadow, ACCCON X for the CPU, D for the
 display), superseding "both buffers in main RAM" for the Master host only; the Model B
 host keeps its own layout.
+
+## Merge of full-master (2026-10-21, coordinator request)
+
+full-master d3b2125..7170894 merged into `tube` (merge commit db62379): b796a8b
+fills the Adder's back (faces 6-8; master/src/gfx-faces.asm, master/tools/faces.py)
+and 7170894 fixes harness/mlight.mjs. Clean merge. The Master build on `tube`
+is byte-identical to full-master 7170894's own build (built from a detached
+worktree), so scratch/master-ref.ssd was renewed from it. The pixel oracle's
+Master reference (fbreplay over run1) is regenerated from the merged build for
+the verification below, since frames with an Adder seen from behind change.
+
+## Phase 3: offload (coordinator priority, 2026-10-21) — commit 228c139
+
+**Built.** R_POLY's phase A (clipping and edge walking, both the 8-bit and the
+16-bit paths) runs on the parasite: the Master port's own code
+(`master/src/gfx-raster_poly.asm` assembled with `_TPART = 1`), in
+`tube/src/p-polya.asm` (R_POLY, r_pf8, the arithmetic, in the parasite's last
+free bytes below &F800) and `tube/src/p-polyb.asm` (from r_e8, plus `p_spans`,
+in the high area &F800-&FEEF, which is now used: `TUBE_HIGH`, swapped with the
+client OS's copy through the host around each disc command). `C_POLY` now
+carries the colours, the clip flag, the first and last rows and each row's
+left/right table entries (2 bytes a row); the host stores them and enters the
+rasteriser at `r_pcbd` (orientation, horizontal clip, trimming, the dirty row
+range, phase B) unchanged. Both hosts. Lines, dots and the per-buffer dirty
+bookkeeping stay the host's in this first cut (the bookkeeping is phase B's
+own per-row update, which needs the host's state; moving it would mean the
+parasite keeping both buffers' extents).
+
+**Gate.**
+- Pixels against the Master port (fbreplay over run1, reference regenerated
+  after the full-master merge): Master host 0..4000 3473/3475 distinct frames
+  matched, 2 sampling gaps, 0 mismatched; docking 3400..3600 151/151 matched.
+  Model B host 0..4000: 3473 matched, 0 mismatched.
+- Disc menu (`tube/tools/tsavetest.mjs --host Master|B`): passes on both.
+
+**Speed** (`node tube/tools/tspeed.mjs --log scratch/curious/run1/inputs.jsonl
+--kind t [--host B] --cand ... --csyms tube/build/psyms.txt --windows
+1000-1400,3420-3550,0-3550`), it/s:
+
+| | flight 1000-1400 | docking 3420-3550 | 0-3550 |
+|---|---:|---:|---:|
+| Master host, phase 5 (before) | 21.90 | 7.64 | 21.38 |
+| Master host, phase 3 | 21.81 | **8.20** | **22.08** |
+| Model B host, before | 20.00 | 6.36 | 19.59 |
+| Model B host, phase 3 | 20.00 | **6.71** | **20.20** |
+
+Docking gains 7% (the host no longer walks edges; the 2 bytes a row it
+receives cost less than phase A did). Flight is 0.4% slower on the Master host
+(the parasite's extra work sits on the critical path when few rows are filled)
+and unchanged on the Model B; overall faster, so phase 3 is kept.
