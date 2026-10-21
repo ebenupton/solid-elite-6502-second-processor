@@ -409,7 +409,13 @@ ENDIF
   LSR A
   LSR A
   AND #&FE
+IF _HOSTB
+  CLC                     \ (Model B: the buffer's screen base, R_SETBUF's)
+.^r_bs5
+  ADC #&40
+ELSE
   ORA #&40
+ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -915,7 +921,13 @@ ENDIF
   LSR A
   LSR A
   AND #&FE
+IF _HOSTB
+  CLC
+.^r_bs6
+  ADC #&40
+ELSE
   ORA #&40
+ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -1270,6 +1282,11 @@ ENDIF
   STA RZ_PA
   STA RZ_PB
   LDA r_ypg,X
+IF _HOSTB
+  CLC                     \ (Model B: less &40 for buffer 0's base, R_SETBUF's)
+.^r_bs4
+  ADC #0
+ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -1883,6 +1900,9 @@ c_BB  = &25
   LSR A
   LSR A
   ORA #HI(r_run0)         \ (= ADC: Y DIV 8 < 32)
+IF _HOSTB
+  JSR r_pgfix             \ (Model B: the page for the buffer)
+ENDIF
   STA fj+2
   STA RZ_PP+1
   LDA #&60
@@ -1945,6 +1965,9 @@ c_BB  = &25
   LSR A
   LSR A
   ORA #HI(r_run0)         \ (= ADC: Y DIV 8 < 32)
+IF _HOSTB
+  JSR r_pgfix             \ (Model B: the page for the buffer)
+ENDIF
   STA RZ_PP+1
   STA rj+2
   LDX c_NL
@@ -2012,7 +2035,13 @@ c_BB  = &25
   LSR A
   LSR A
   AND #&FE
+IF _HOSTB
+  CLC
+.^r_bs7
+  ADC #&40
+ELSE
   ORA #&40
+ENDIF
   CPX #0
   BEQ eg1
   INC A

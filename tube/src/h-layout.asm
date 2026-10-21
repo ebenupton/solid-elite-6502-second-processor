@@ -18,6 +18,8 @@
 \ ******************************************************************************
 
 _TPART = 2
+_HOSTB = FALSE          \ (not the Model B host: hb-*.asm)
+_RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
  INCLUDE "build/elite-source-ws.asm"

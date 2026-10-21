@@ -710,6 +710,10 @@
   INC RZ_PP+1
   INC r_jsr2_e+2
   INC r_jsr2_o+2         \ (Y = RZ_Y still)
+IF _HOSTB
+  LDA RZ_PP+1             \ (Model B: the page for the buffer)
+  JSR r_pgfix
+ENDIF
 .pb_tg                    \ (Y = RZ_Y) the next row pair's colours
   LDA RZ_CE
   EOR RZ_XE

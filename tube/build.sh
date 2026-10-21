@@ -92,3 +92,38 @@ PY
 $BEEBASM -i tsrc/loader.asm -v > build/compile-l.txt 2>&1 || { grep -iE "error" -A3 build/compile-l.txt | head; exit 1; }
 $BEEBASM -i tsrc/disc.asm -boot ELITE -do build/elite-tube.ssd -title "E L I T E" >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 grep -E "^(Parasite|Host)" build/compile-p.txt build/compile-h.txt | sed 's/^build\/compile-.\.txt://'
+# the Model B host (tube/src/hb-*.asm): the host's sources made NMOS
+# (tube/tools/nmos.py, with the hand fixes it asks for), then bank D, bank P
+# and the rest (hb-main.asm)
+mkdir -p build/nmos
+NM="python3 $TUBE_DIR/tools/nmos.py"
+$NM src/gfx-raster.asm build/nmos/gfx-raster.asm --report build/nmos/gfx-raster.txt > /dev/null
+$NM src/gfx-raster_disc.asm build/nmos/gfx-raster_disc.asm --report build/nmos/gfx-raster_disc.txt \
+  --sub "  LDX r_lo
+.m0
+.^r_pt110 STZ r_bdn,X
+.^r_pt111 STZ r_bdp,X=  LDX r_lo
+  LDA #0                  \\ (NMOS: STZ x 2, A dead)
+.m0
+.^r_pt110 STA r_bdn,X
+.^r_pt111 STA r_bdp,X" > /dev/null
+$NM src/gfx-raster_poly.asm build/nmos/gfx-raster_poly.asm --report build/nmos/gfx-raster_poly.txt > /dev/null
+$NM src/gfx-raster_line.asm build/nmos/gfx-raster_line.asm --report build/nmos/gfx-raster_line.txt > /dev/null
+$NM src/gfx-raster_lcold.asm build/nmos/gfx-raster_lcold.asm --report build/nmos/gfx-raster_lcold.txt \
+  --sub "  PHX
+  LDX l_x0=  STX &E7                 \\ (NMOS: PHX, A live)
+  LDX l_x0" --sub "  PLX
+  DEC l_n=  LDX &E7
+  DEC l_n" > /dev/null
+$NM src/gfx-flare.asm build/nmos/gfx-flare.asm --report build/nmos/gfx-flare.txt \
+  --sub " BPL P%+5
+ EOR #&FF
+ INC A=
+ BPL P%+7               \\ (NMOS: INC A)
+ EOR #&FF
+ CLC
+ ADC #1" > /dev/null
+: > build/hb-mainsyms.asm
+$BEEBASM -i tsrc/hb-d.asm -v > build/compile-hbd.txt 2>&1 || { echo "Model B bank D:"; grep -iE "error" -A3 build/compile-hbd.txt | head -8; }
+$BEEBASM -i tsrc/hb-p.asm -v > build/compile-hbp.txt 2>&1 || { echo "Model B bank P:"; grep -iE "error" -A3 build/compile-hbp.txt | head -8; }
+grep -h "^Model B" build/compile-hbd.txt build/compile-hbp.txt || true

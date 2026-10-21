@@ -20,6 +20,8 @@
 \ ******************************************************************************
 
 _TPART = 1
+_HOSTB = FALSE          \ (not the Model B host: hb-*.asm)
+_RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
 

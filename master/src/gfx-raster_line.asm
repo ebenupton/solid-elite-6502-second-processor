@@ -568,7 +568,13 @@
   LSR A
   LSR A
   AND #&FE
+IF _HOSTB
+  CLC                     \ (Model B: the buffer's screen base, R_SETBUF's)
+.^r_bs8
+  ADC #&40
+ELSE
   ORA #&40
+ENDIF
   STA RZ_PP+1
   LDA l_x
   AND #&FC

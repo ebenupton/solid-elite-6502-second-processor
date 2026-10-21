@@ -371,7 +371,10 @@ fl_mt = P% - 4          \ row masks of densities 1, 2, 4, 6, 8 / 16 (4x4
  STA fl_t
  ASL A
  STA fl_cl
- LDA #&20                \ (&40 + C)
+IF _HOSTB
+.r_bs9
+ENDIF
+ LDA #&20                \ (&40 + C; Model B: half the buffer's base, R_SETBUF's)
  ROL A
  STA fl_ch
  LDA R_XR
@@ -418,7 +421,10 @@ fl_mt = P% - 4          \ row masks of densities 1, 2, 4, 6, 8 / 16 (4x4
  AND #&FC               \ its byte's column (fl_cl, fl_ch), pixel mask
  ASL A
  STA fl_cl
- LDA #&20                \ (&40 + C)
+IF _HOSTB
+.r_bs10
+ENDIF
+ LDA #&20                \ (&40 + C; Model B: as r_bs9)
  ROL A
  STA fl_ch
  TYA
@@ -486,7 +492,12 @@ fl_mt = P% - 4          \ row masks of densities 1, 2, 4, 6, 8 / 16 (4x4
  LSR A
  LSR A
  AND #&FE
+IF _HOSTB
+ CLC                    \ (Model B: fl_ch is a base, not bits)
+ ADC fl_ch
+ELSE
  ORA fl_ch
+ENDIF
  STA fl_sp+1
                         \ (and on into fl_or)
 

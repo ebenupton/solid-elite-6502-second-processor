@@ -224,7 +224,13 @@ r_opRTS = &60
   LSR A
   LSR A
   AND #&FE
+IF _HOSTB
+  CLC                     \ (Model B: the buffer's screen base, R_SETBUF's)
+.r_bs1
+  ADC #&40
+ELSE
   ORA #&40
+ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -236,7 +242,11 @@ r_opRTS = &60
   ADC #HI(r_run0)
   STA RZ_PP+1
   STA r_jsr+2
+IF _HOSTB
+  JMP r_pgfix             \ (Model B: the run page patched for the buffer)
+ELSE
   RTS
+ENDIF
 \ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
 .r_dw
 {
@@ -327,6 +337,7 @@ r_bdx3 = R_BDX30
 \ ============================================================================
 \ R_SETBUF: A = buffer.  Patches every buffer-dependent operand (high byte).
 \ ============================================================================
+IF _HOSTB = 0
 .R_SETBUF
 {
   AND #1
@@ -405,6 +416,192 @@ r_bdx3 = R_BDX30
   STA r_pt153+2
   JMP r_sbpoly             \ (phase B's operands, in the polygon window)
 }
+ELSE
+.R_SETBUF                 \ (Model B: this bank's operands only; hb-main's
+{                         \ T_SETBUF runs bank D's and bank P's)
+  AND #1
+  CMP r_sbcur
+  BNE go
+  RTS
+.go
+  STA r_sbcur
+  STA r_buf
+  TAX
+  LDA r_sbh_dl,X          \ group r_dl
+  STA r_pt01+2
+  STA r_pt02+2
+  STA r_pt05+2
+  STA r_pt06+2
+  STA r_pt46+2
+  STA r_pt48+2
+IF _RBANK = 1
+  STA r_pt408+2
+  STA r_pt409+2
+  STA r_pt19+2
+  STA r_pt23+2
+  STA r_pt25+2
+  STA r_pt88+2
+ENDIF
+  LDA r_sbh_dr,X          \ group r_dr
+  STA r_pt03+2
+  STA r_pt04+2
+  STA r_pt07+2
+  STA r_pt08+2
+  STA r_pt47+2
+  STA r_pt49+2
+IF _RBANK = 1
+  STA r_pt20+2
+  STA r_pt24+2
+ENDIF
+IF _RBANK = 2
+  LDA r_sbh_s0a,X          \ group r_s0a
+  STA r_pt32+2
+  STA r_pt36+2
+  STA r_pt416+2
+  STA r_pt418+2
+  LDA r_sbh_s0b,X          \ group r_s0b
+  STA r_pt33+2
+  STA r_pt37+2
+  LDA r_sbh_s0x,X          \ group r_s0x
+  STA r_pt31+2
+  STA r_pt35+2
+  STA r_pt415+2
+  LDA r_sbh_s0y,X          \ group r_s0y
+  STA r_pt30+2
+  STA r_pt34+2
+  STA r_pt414+2
+ENDIF
+IF _RBANK = 1
+  LDA r_sbh_sl,X          \ group r_sl
+  STA r_pt17+2
+  STA r_pt21+2
+  STA r_pt26+2
+  STA r_pt45+2
+  STA r_pt50+2
+  STA r_pt53+2
+  STA r_pt54+2
+  STA r_pt89+2
+  STA r_pt97+2
+  STA r_pt131+2
+  STA r_pt132+2
+  STA r_pt144+2
+  STA r_pt150+2
+  STA r_pt152+2
+  STA r_pt399+2
+  LDA r_sbh_sr,X          \ group r_sr
+  STA r_pt18+2
+  STA r_pt22+2
+  STA r_pt27+2
+  STA r_pt51+2
+  STA r_pt52+2
+  STA r_pt55+2
+  STA r_pt90+2
+  STA r_pt133+2
+  STA r_pt140+2
+  STA r_pt145+2
+  STA r_pt151+2
+  STA r_pt153+2
+ENDIF
+  LDA r_sbbase,X          \ the buffer's screen base (&10 buffer 0, &40 buffer 1)
+  STA r_bs1+1
+  STA r_bs2+1
+IF _RBANK = 1
+  STA r_bs5+1
+  STA r_bs6+1
+  STA r_bs7+1
+ELSE
+  STA r_bs8+1
+  LSR A                   \ (the flare's: half of it)
+  STA r_bs9+1
+  STA r_bs10+1
+ENDIF
+  LDA r_sbdelta,X         \ and less &40 (&D0, 0)
+IF _RBANK = 1
+  STA r_bs4+1
+ELSE
+  STA r_bs3+1
+  JMP r_sbpoly            \ (phase B's operands: this bank's polygon window)
+ENDIF
+  RTS
+}
+.r_sbcur EQUB &FF         \ the buffer this bank's operands are for (none yet)
+.r_sbbase EQUB HI(BUF0), &40
+.r_sbdelta EQUB HI(BUF0) - &40, 0
+
+\ r_pgfix (Model B): A = a run page's high byte: if this bank's copy of the
+\ page is not for buffer r_buf, add or take &30 from the high byte of each
+\ of its 63 stores' addresses (the runs are assembled for &4000, buffer 1's;
+\ buffer 0's screen is &3000 lower). Keeps A, X, Y.
+.r_pgfix
+{
+  STA pfa
+  STX pfx
+  SEC
+  SBC #HI(r_run0)
+  TAX
+  LDA r_buf
+  CMP r_pgtag,X
+  BNE fix
+  LDA pfa
+  LDX pfx
+  RTS
+.fix
+  STA r_pgtag,X
+  STY pfy
+  TAX                     \ (X = the buffer)
+  LDA r_pgadd,X
+  STA a1+1
+  STA a2+1
+  STA a3+1
+  LDA pfa
+  STA l1+2
+  STA s1+2
+  STA l2+2
+  STA s2+2
+  STA l3+2
+  STA s3+2
+  LDY #180                \ the stores' high bytes: offsets 2, 5, .. 188
+.lp
+.l1
+  LDA &FF02,Y
+  CLC
+.a1
+  ADC #&30
+.s1
+  STA &FF02,Y
+.l2
+  LDA &FF05,Y
+  CLC
+.a2
+  ADC #&30
+.s2
+  STA &FF05,Y
+.l3
+  LDA &FF08,Y
+  CLC
+.a3
+  ADC #&30
+.s3
+  STA &FF08,Y
+  TYA
+  SEC
+  SBC #9
+  TAY
+  BCS lp
+  LDA pfa
+  LDX pfx
+  LDY pfy
+  RTS
+.pfa EQUB 0
+.pfx EQUB 0
+.pfy EQUB 0
+}
+.r_pgtag                  \ per run page: the buffer it is for (as assembled: 1)
+FOR i, 0, 23
+  EQUB 1
+NEXT
+.r_pgadd EQUB &D0, &30    \ to buffer 0: -&30; to buffer 1: +&30
+ENDIF
 \ ============================================================================
 \ r_spc: the span core.  Row set up (r_rowset), RZ_COL = colour byte,
 \ X = R_XL = left pixel, R_XR = right pixel, R_XL <= R_XR.  Clobbers A, X, Y,
@@ -512,12 +709,15 @@ r_bdx3 = R_BDX30
 \ ============================================================================
 
 
+IF _HOSTB = 0 OR _RBANK = 2
 \ R_SETBUF's last part: phase B's DIRTY operands, in the polygon window (ANDY:
 \ entered and left with ROMSEL RASTBANK, X = buffer)
 .r_sbpoly
+IF _HOSTB = 0
   LDA #RASTPOLY
   STA &F4
   STA &FE30
+ENDIF
   LDA r_sbh_dl,X          \ group r_dl
   STA r_pt60+2            \ bankcheck: ok (paged in above)
   STA r_pt410+2           \ bankcheck: ok (paged in above)
@@ -528,10 +728,13 @@ r_bdx3 = R_BDX30
   STA r_pt412+2           \ bankcheck: ok (paged in above)
   STA r_pt63+2            \ bankcheck: ok (paged in above)
   STA r_pt413+2           \ bankcheck: ok (paged in above)
+IF _HOSTB = 0
   LDA #RASTBANK
   STA &F4
   STA &FE30
+ENDIF
   RTS
+ENDIF
 
 
 \ ----------------------------------------------------------------------------
@@ -913,7 +1116,13 @@ R_ENDPAGE 14
   LSR A
   LSR A
   AND #&FE
+IF _HOSTB
+  CLC
+.^r_bs2
+  ADC #&40
+ELSE
   ORA #&40
+ENDIF
   CPX #&80
   ADC #0
   STA RZ_PP+1
@@ -1139,6 +1348,7 @@ R_ENDPAGE 21
 }
 R_ENDPAGE 22
 .r_run23 R_RUN 23
+IF _HOSTB = 0 OR _RBANK = 1
 .r_crep5                  \ R_DISCROWS: r7_crep (returns X = r_buf)
   STZ R_PRCWB
   LDA r_dyz
@@ -1155,6 +1365,7 @@ R_ENDPAGE 22
   STA r_wb
 .c5
   RTS
+ENDIF
 \ r_bcols: Y = row: r_cA, r_cB = colour A, B bytes of the row (keeps X, Y)
 .r_bcols
   TYA
@@ -1175,6 +1386,7 @@ R_ENDPAGE 23
 ASSERT (HI(r_run0) AND 31) = 0   \ (the repair: the row's run page is Y DIV 8 OR HI(r_run0))
 
 
+IF _HOSTB = 0 OR _RBANK = 2   \ (Model B: the stars are bank P's)
 \ ============================================================================
 \ R_STARERASE: black the pixels R_STARPLOT set last time in this buffer.
 \ Records: row (+&80: also the next byte), x, mask set in x's byte.
@@ -1293,7 +1505,10 @@ ASSERT (HI(r_run0) AND 31) = 0   \ (the repair: the row's run page is Y DIV 8 OR
   STA RZ_PP
   LDA r_ypg,Y
   CPX #&80
-  ADC #0
+IF _HOSTB
+.^r_bs3
+ENDIF
+  ADC #0                  \ (Model B: and the buffer's base less &40, R_SETBUF's)
   STA RZ_PP+1
   LDA (RZ_PP)             \ all black there?
   AND RZ_SB
@@ -1482,6 +1697,7 @@ ASSERT (HI(r_run0) AND 31) = 0   \ (the repair: the row's run page is Y DIV 8 OR
   RTS
 }
 
+ENDIF
 \ r_lput2: pixels RZ_SB .. RZ_TA+1 of row RZ_Y in RZ_COL (row pointers set).
 \ Clobbers A, X, Y.
 .r_lput2
@@ -1566,7 +1782,12 @@ NEXT
   SEC
   SBC R_XL
   CMP #48
+IF _HOSTB
+  BCC P%+5                \ (Model B: NMOS code is longer)
+  JMP span
+ELSE
   BCS span
+ENDIF
   LDA RZ_PP               \ (RZ_PP holds a planted RTS's address: keep it)
   PHA
   LDA RZ_PP+1
