@@ -31,6 +31,9 @@
  PHX
  PHY
  JSR G_FRAME
+IF _TPART = 1
+ JSR p_sync             \ (Tube: the frame's end, for the harness: p-io.asm)
+ENDIF
  PLY
  PLX
  PLA

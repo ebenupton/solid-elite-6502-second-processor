@@ -74,7 +74,10 @@ export class Session {
         // the builds as booted (summary.json's builds: which discs a session or replay ran)
         this.builds = { ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms };
         this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true });
-        this.cand = new EliteMachine({ name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
+        // (the Tube build: TUBE=Master or TUBE=B, the candidate is the parasite's game
+        // with that host, tube/tools/tmachine.mjs)
+        const Cand = process.env.TUBE ? (await import("../../../tube/tools/tmachine.mjs")).TubeEliteMachine : EliteMachine;
+        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
         await this.ref.boot();
         await this.cand.boot();
         this.cand.opts.seedFrom = this.ref;
@@ -174,7 +177,7 @@ export class Session {
             else if (e.poke !== undefined) for (const m of [this.ref, this.cand]) (m.pokes ||= new Map()).set(e.poke, e.v);
             else if (e.end) this.logEnd = e;
         }
-        this.lastPoll = Math.max(-1, ...this.rlog.keys());
+        this.lastPoll = -1; for (const k of this.rlog.keys()) if (k > this.lastPoll) this.lastPoll = k;   // (a long log has too many reads to spread)
     }
 
     finding(kind, text, extra = {}) {

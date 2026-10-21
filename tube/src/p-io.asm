@@ -266,6 +266,7 @@ ENDMACRO
  PSEND
  LDA R_NDF
  PSEND
+ LDA R_NDF              \ (PSEND's BIT has the flags)
  BEQ tdr1
  LDA R_DBE
  PSEND
@@ -429,14 +430,16 @@ ENDMACRO
 
 \ p_dks: DKS5: X = key A, with bit 7 set if the host has it held. Keeps Y and C
 
-.p_dks
+.p_dks                  \ (A is kept: the harness reads the key there)
  PHA
  LDA #C_DKS
  PSEND
  PLA
  PSEND
+ PHA
  JSR prx
  TAX
+ PLA
  RTS
 
 \ p_fillkl: FILLKL after ZEKTRAN (X = 0): the host sends the keys held, in
