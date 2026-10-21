@@ -168,44 +168,15 @@ ENDMACRO
  PLA
  RTS
 
-.T_POLY                 \ R_PN vertices (at most 16), the four colours
+.T_POLY                 \ R_POLY: phase A here (p-polya.asm), the rows to the host
  PHA
  PHX
- LDA #C_POLY
- PSEND
- LDA R_PN
- CMP #17
- BCC P%+4
- LDA #16
- STA tpn
- PSEND
- LDA R_COLE
- PSEND
- LDA R_COLO
- PSEND
- LDA R_COL2
- PSEND
- LDA R_COL3
- PSEND
- LDX #0
-.tpo1
- CPX tpn
- BCS tpo9
- LDA R_PXL,X
- PSEND
- LDA R_PXH,X
- PSEND
- LDA R_PYL,X
- PSEND
- LDA R_PYH,X
- PSEND
- INX
- BNE tpo1
-.tpo9
+ PHY
+ JSR R_POLY
+ PLY
  PLX
  PLA
  RTS
-.tpn EQUB 0
 
 .T_LINE                 \ R_X0, R_Y0, R_X1, R_Y1 (words), the four colours
  PHA

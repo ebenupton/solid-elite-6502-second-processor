@@ -55,6 +55,8 @@ PFRAME% = P%
  INCLUDE "src/gfx-frame_cold.asm"
  INCLUDE "src/gfx-flare6.asm"
  INCLUDE "src/gfx-hangar.asm"
+ INCLUDE "tsrc/p-polya.asm"    \ (phase 3: R_POLY's phase A, its first part)
+ CPU 1
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
 .F_HW   SKIP 256        \ planet half-widths
@@ -76,7 +78,8 @@ PRINT "Parasite: frame code end at &", ~P%
 \ p_swap exchanges them (at the start, and either side of a disc command)
  ORG &F800
 .PHIGH_START
- EQUB 0                 \ (none now: tube/src/p-cover.asm was here, git history)
+ INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
+ CPU 1
 .PHIGH_END
  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
  ASSERT PHIGH_END <= &FEF0

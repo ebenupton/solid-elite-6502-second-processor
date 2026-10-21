@@ -355,13 +355,10 @@ ENDIF
  JSR T_MARKDIRTY
  JMP hloop
 
-.h_poly                 \ C_POLY: n, the four colours, the vertices
-IF _HOSTB                 \ (Model B: received into bank P, hb-p.asm)
- JMP hb_poly               \\ (main RAM: hb-res.asm)
-ENDIF
- HRX
- STA R_PN
- STA hpn
+.h_poly                 \ C_POLY: phase A's rows (p-polya.asm): COLE, COLO, COL2,
+IF _HOSTB                 \ COL3, xclip, ystart, ylast, then left and right per row;
+ JMP hb_poly            \ then the rasteriser from r_pcbd (phase B)
+ELSE
  HRX
  STA zR_COLE
  HRX
@@ -370,24 +367,36 @@ ENDIF
  STA R_COL2
  HRX
  STA R_COL3
- LDX #0
+ HRX
+ STA R_PXC
+ HRX
+ STA R_PYS
+ TAY
+ HRX
+ STA R_PYL1
+ CLC
+ ADC #1
+ STA R_PYE
+ LDA zR_CR
+ CLC
+ ADC #1
+ STA R_PCR1
 .hpo1
- CPX hpn
- BCS hpo9
  HRX
- STA R_PXL,X
+ STA R_PTA,Y
  HRX
- STA R_PXH,X
- HRX
- STA R_PYL,X
- HRX
- STA R_PYH,X
- INX
- BNE hpo1
-.hpo9
- JSR T_POLY
+ STA R_PTB,Y
+ CPY R_PYL1
+ INY
+ BCC hpo1
+ STA tA
+ LDA #RASTPOLY
+ STA &F4
+ STA &FE30
+ JSR r_pcbd
+ JSR tback
  JMP hloop
-.hpn EQUB 0
+ENDIF
 
 .h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1
 IF _HOSTB

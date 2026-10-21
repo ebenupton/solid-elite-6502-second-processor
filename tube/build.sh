@@ -48,7 +48,7 @@ python3 - <<'PY'
 import re
 with open("build/hbanks.txt", "w") as f:
     for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_rep.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
-                      ("src/gfx-flare.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"),
+                      ("src/gfx-flare.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"), ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"),
                       ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-flare6.asm", "6")):
         for m in re.finditer(r"^\s*\.([A-Za-z_][\w%]*)", open(src, encoding="latin-1").read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
@@ -108,9 +108,13 @@ $NM src/gfx-raster_disc.asm build/nmos/gfx-raster_disc.asm --report build/nmos/g
 .^r_pt110 STA r_bdn,X
 .^r_pt111 STA r_bdp,X" > /dev/null
 $NM src/gfx-raster_pset.asm build/nmos/gfx-raster_pset.asm --report build/nmos/gfx-raster_pset.txt > /dev/null
+$NM src/gfx-raster_arith.asm build/nmos/gfx-raster_arith.asm --report build/nmos/gfx-raster_arith.txt > /dev/null
+$NM src/gfx-raster_polyb.asm build/nmos/gfx-raster_polyb.asm --report build/nmos/gfx-raster_polyb.txt > /dev/null
+sed -i '' 's|INCLUDE "src/gfx-raster_arith.asm"|INCLUDE "build/nmos/gfx-raster_arith.asm"|' build/nmos/gfx-raster.asm
 sed -i '' 's|INCLUDE "src/gfx-raster_pset.asm"|INCLUDE "build/nmos/gfx-raster_pset.asm"|' build/nmos/gfx-raster.asm
 $NM src/gfx-raster_rep.asm build/nmos/gfx-raster_rep.asm --report build/nmos/gfx-raster_rep.txt > /dev/null
 $NM src/gfx-raster_poly.asm build/nmos/gfx-raster_poly.asm --report build/nmos/gfx-raster_poly.txt > /dev/null
+sed -i '' 's|INCLUDE "src/gfx-raster_polyb.asm"|INCLUDE "build/nmos/gfx-raster_polyb.asm"|' build/nmos/gfx-raster_poly.asm
 $NM src/gfx-raster_lineb.asm build/nmos/gfx-raster_lineb.asm --report build/nmos/gfx-raster_lineb.txt > /dev/null
 $NM src/gfx-raster_line.asm build/nmos/gfx-raster_line.asm --report build/nmos/gfx-raster_line.txt > /dev/null
 $NM src/gfx-raster_lcold.asm build/nmos/gfx-raster_lcold.asm --report build/nmos/gfx-raster_lcold.txt \

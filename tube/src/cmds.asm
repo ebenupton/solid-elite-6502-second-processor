@@ -40,7 +40,8 @@ C_DISC     = 10         \ R_DISCROWS: rows, colours, spans, boundaries
 C_DDIRTY   = 12         \ f_discdirty: fold this buffer's disc into its dirty
 C_SPAN     = 14         \ R_SPAN: Y, XL, XR, COLE, COLO
 C_MARK     = 16         \ R_MARKDIRTY: Y, XL, XR
-C_POLY     = 18         \ R_POLY: n, COLE, COLO, COL2, COL3, the vertices
+C_POLY     = 18         \ R_POLY's rows (phase 3: p-polya.asm): COLE, COLO, COL2,
+                        \ COL3, xclip, ystart, ylast, then left and right per row
 C_LINE     = 20         \ R_LINE: COLE, COLO, X0, Y0, X1, Y1 (words)
 C_DOT      = 22         \ R_DOT: COLE, COLO, x, y, size
 C_FLARE    = 24         \ R_FLARE: fl_dx, fl_dy
@@ -67,5 +68,5 @@ C_SWAP     = 60         \ exchange the parasite's &F800-&FEEF with the host's co
                         \ (the client OS's and the high code: byte for byte)
 C_MAX      = 62
 
-TUBE_HIGH = FALSE       \ the parasite's &F800-&FEEF holds code (p-layout.asm's
+TUBE_HIGH = TRUE        \ the parasite's &F800-&FEEF holds code (p-layout.asm's
                         \ PHIGH), swapped with the client OS's copy (C_SWAP)

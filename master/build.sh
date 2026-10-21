@@ -70,7 +70,7 @@ with open("build/banks.txt", "w") as f:
                       ("build/dashtab-scan.asm", "4"), ("build/dashtab-dot.asm", "4"), ("build/dashtab-spbt.asm", "4"),
                       ("build/dashtab-ecbt.asm", "4"), ("build/dashtab-msbar.asm", "4"),
                       ("build/elite-source-cold.asm", "7"),
-                      ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_rep.asm", "5"), ("src/gfx-raster_poly.asm", "85"),
+                      ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_rep.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"),
                       ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-flare.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"), ("src/gfx-hangar.asm", "6"),
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6")):

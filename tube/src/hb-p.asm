@@ -34,11 +34,8 @@ _RBANK = 2
  CPU 0
  INCLUDE "build/nmos/gfx-raster_rep.asm"
  CPU 0
-.p_polyin               \ h_poly's receiving part: n, the four colours, the
- HRX                    \ vertices, then R_POLY
- STA R_PN
- STA ppn
- HRX
+.p_polyin               \ h_poly's receiving part: phase A's rows (p-polya.asm),
+ HRX                    \ then the rasteriser from r_pcbd
  STA &06                \ (R_COLE, R_COLO)
  HRX
  STA &07
@@ -46,23 +43,29 @@ _RBANK = 2
  STA R_COL2
  HRX
  STA R_COL3
- LDX #0
+ HRX
+ STA R_PXC
+ HRX
+ STA R_PYS
+ TAY
+ HRX
+ STA R_PYL1
+ CLC
+ ADC #1
+ STA R_PYE
+ LDA &0B                \ (R_CR)
+ CLC
+ ADC #1
+ STA R_PCR1
 .ppo1
- CPX ppn
- BCS ppo9
  HRX
- STA R_PXL,X
+ STA R_PTA,Y
  HRX
- STA R_PXH,X
- HRX
- STA R_PYL,X
- HRX
- STA R_PYH,X
- INX
- BNE ppo1
-.ppo9
- JMP R_POLY
-.ppn EQUB 0
+ STA R_PTB,Y
+ CPY R_PYL1
+ INY
+ BCC ppo1
+ JMP r_pcbd
 .p_linein               \ h_line's: the four colours, the end points, then R_LINE
  HRX
  STA &06
