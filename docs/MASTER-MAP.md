@@ -41,9 +41,15 @@ which spare RAM the port may take.
    region); bank 5's own &8000-&8FFF, paged as ROMSEL 5, is its disc window.
    Nothing calls between the two windows, and the shared region, which runs
    with either paged in, refers to neither (but where reviewed and marked).
-   **The renderer is in banks 5 and 6 and ANDY only**: the rasteriser in bank
-   5 and ANDY, the frame layer in bank 6. Bank 7 (ROMSEL 7) is the cold
-   area's alone: one run from &8000, the cold data first.
+   **The renderer is in banks 5 and 6 and ANDY, and in one window of bank
+   7**: the rasteriser in bank 5 and ANDY, the frame layer in bank 6, and the
+   meridian window (gfx-merid.asm, the beach ball planet's boundaries) in
+   bank 7 after the cold area, paged as ROMSEL MERIDBANK (7) by its two stubs
+   only (G_MERHOOK in game context, T_MERID during the frame). Bank 7 is
+   otherwise the cold area's: one run from &8000, the cold data first. (The
+   meridian window is the one exception to "the renderer in banks 5, 6 and
+   ANDY only", made for the beach ball, which needs about 3K that none of
+   those has.)
    &F4 always matches ROMSEL, bit 7 included: every write of ROMSEL writes &F4
    first (the far calls, the G_ and T_ stubs, R_SETBUF's r_sbpoly).
 5. **The game data is in HAZEL**, where every bank, the IRQ and code running
@@ -252,6 +258,7 @@ names. The harness finds cold routines by their _C names (DOSCLI_C, TITLE_C
 | High code, then the run | main &7000-&7FFF | the high code (elite-hi.asm, &7000-&73FF), with no counterpart in the original: the quarter-square tables QSL/QSH (page aligned at &7000); then the run's second part from &7400 (with 27 stubs of cold routines): TACTICS, DOCKIT and the tactics helpers, SESCP, SFS1, SFS2, STARS2, MU5, MULT3, the maths from MLS2, ..., running on into bank 4 | - (the run's free space is at its end, in bank 4) |
 | Bank 4 | &8000-&B0EF | Elite's home bank, code only: the run's continuation from main RAM, with the stubs of the cold routines whose places are in it (15), to F% (&8000-&A0BB: the maths to DVID4, DVID3B2 and its rare paths, LASLI, DOEXP, the planet and the sun, the main game loop, DEATH, WARP, DOKEY, TIDY and TIS2, SHPPT, LL5 to LL9 (recording only: its line drawing, LSPUT and LSCLR's erase are removed), LL9F and LL9B (the title's and the briefing's frames), MVEIT to PLUT, LOOK1, SIGHT, FILLKL, ZEKTRAN, the sounds, ...); then the blocks tagged bank 4 (&A0BC-&B0EF: Master's drawing, now for the docked screens' text and lines only, and the CMYK dashboard), in the original's order: ylookup, SCAN, LOIN, TWOS, TWOS2, LOINQ, HLOIN, TWFL, TWFR, orange, PIX1, PIXEL2, PIXEL, PXCL, DOT, ddot (at CPIXK's place), ECBLB2, ECBLB, SPBLB, SPBT, ECBT, MSBAR, TTX66, CLYNS, DIALS, PZW2, PZW, DIL (at DILX's place), DIL2, DILI, DSEG | 3856 |
 | Cold area | bank 7 &8000-&B08F | the cold emission ("The source and its emissions"), one run: the cold routines in the original's order, with the stubs out of the cold area (49) at their routines' places among them (&8000: the zero-page save, the start-up, DOENTRY, the extended token printing, the number printing, STATUS, ESCAPE, HME2, FRS1, FRMIS, ANGRY, FR1, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, the market table QQ23, equipment, the text printing (TT27 ...), SOLAR, YESNO, RESET and RES2, Ze, BAD, the title and start-up (TT170 ...), save and load (SVE, LOD, CATS, DELT ..., with RLINE, thislong, oldlong and the commands' strings CTLI, DELI, savosc, lodosc at their places), DKS3, MESS, OUCH, TT66, COLD, DOSCLI); then the cold data in the original's order: QQ18 (&9FCB), the extended tokens TKN1, RUPLA, RUGAL, RUTOK (to &B08F) | 3952 |
+| Meridian window | bank 7 &B090-&BD9D (ROMSEL 7; MERID, its own image) | gfx-merid.asm, the beach ball planet's colour boundaries: PM_HOOK (game context, from H_MERID through G_MERHOOK: the two great circles' constants, the orientation's one frame in MERIDHOLD + 1, else the radius's or the centre's only), PM_MERID (the frame, from f_bounds through T_MERID: the row loop, or pm_shift, the last rows moved), their workspace and the circles' blocks | 610 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FD9 (ROMSEL &85) | gfx-raster_poly.asm: R_POLY, the 8-bit polygons' phase A (r_pf8, r_pcbd, r_e8, the DDA loops), every polygon's phase B; the 16-bit polygons' phase A (r7_pf16..r7_esgen, r7_e8c, its variables); then gfx-raster_line.asm: R_LINE (its fast path, rl_gen's exact clipping, the line loops, rl_lpat) | 38 |
 | Rasteriser: disc window | bank 5 &8000-&8F76 (ROMSEL 5) | gfx-raster_disc.asm: R_DISCROWS and its row code (r_dbm, r_dq, r_dpe, r_dp2, r_drg ...), the dirty repair outside the disc rows (r7_crep, r7_rowrep, r7_j3); R_INIT, R_RESETBUF, r7_reset1 | 137 |
 | Rasteriser: shared region | bank 5 &9000-&BF7C (with either window) | gfx-raster.asm: the boundary arrays (R_BD*, both buffers, &9000-&997F, with r_rowset, r_dw and r_bstore in the 128 bytes between the buffers); R_SETBUF (and r_sbpoly, which pages the polygon window in for phase B's operands), r_spc; the polygon window's arithmetic (r_div8, r_dvq, rp_mul16, rp_div32 and their variables, &9B19-&9BF7); the per-x tables (&9C00); the 24 row-run pages (&A000-&B7FF, STA ...,Y with Y = the row; their 65-byte tails hold the star records, the variables, small routines such as R_SPAN, R_DOT, R_MARKDIRTY and the disc layer's r_dp1, r_bmn, the high-byte tables R_SETBUF patches from, R_LINE's variables (page 16), and the lens flare's half-width table and variables); the stars, r_lput2, r_ypg; the lens flare (gfx-flare.asm: R_FLARE); R_LINE's cold part (gfx-raster_lcold.asm: rl_mdq, rl_mdqa, rl_long, &BED9-&BF7C) | 131 (+ 8 at &9BF8; + 252 in the tails) |
@@ -325,7 +332,11 @@ workspace.
   the disc layer, the dirty repair, R_INIT and R_RESETBUF, which never call
   each other. The 24 row-run pages leave 65 bytes after each run, which hold
   variables and routines of under 65 bytes.
-* **Bank 7** is the cold area's: its code, then QQ18 and the extended tokens.
+* **Bank 7** is the cold area's: its code, then QQ18 and the extended tokens;
+  then the meridian window (MERID, its own image): the beach ball's per-frame
+  constants (PM_HOOK) and row loop (PM_MERID), which runs only while a
+  meridian planet is on screen and has nothing to share with banks 5 and 6
+  but the shared workspace (the disc layer's R_ND* arrays).
 * **HAZEL** is visible whatever bank is paged, so it holds the game data
   (rule 5), in the original's order, and the hangar's tables (which bank 6,
   the hangar's frame, reads: bank 6 is full); DOSCLI's
@@ -343,8 +354,8 @@ through a stub; the stubs are of four kinds.
 |---|---|---:|---|
 | far7 / far7j stubs (`.TT22 JSR far7 : EQUW TT22_C`), generated into the hot copies | the run, each at its cold routine's place (main RAM 32: 5 below &4000, 27 from &7400; bank 4 15) | 47 | the cold area in, the caller's bank back |
 | far4 / far4j stubs (`.x4_TT26 JSR far4 : EQUW TT26`), generated into the cold copy | the cold area, each at its hot routine's place | 49 | bank 4 in, the cold area back |
-| G_ stubs | main: the low area (gfx-gstubs.asm, 12; G_CHAR, G_DELCHAR, G_CLRTEXT in gfx-lowhooks.asm) | 15 | bank 6 in, bank 4 (or, for the text stubs, the caller's bank) back |
-| T_ trampolines | main: the low area (gfx-tramp.asm) | 12 | the rasteriser in (T_POLY, T_LINE: ROMSEL &85, ANDY over bank 5; the rest bank 5), bank 6 back |
+| G_ stubs | main: the low area (gfx-gstubs.asm, 13; G_CHAR, G_DELCHAR, G_CLRTEXT in gfx-lowhooks.asm) | 16 | bank 6 in (G_MERHOOK: the meridian window, bank 7), bank 4 (or, for the text stubs, the caller's bank) back |
+| T_ trampolines | main: the low area (gfx-tramp.asm) | 13 | the rasteriser in (T_POLY, T_LINE: ROMSEL &85, ANDY over bank 5; the rest bank 5), or the meridian window (T_MERID: bank 7), bank 6 back |
 
 far7, far4 and their jump forms are the only far-call helpers (elite-far.asm,
 in the low area).
@@ -646,6 +657,12 @@ variables and routines of under 66 bytes each.
 | HAZEL &DC40 block | 289 (to &E000) | - | - | - | - | - | - | - | - | - |
 | Shadow | 7, 3, 16 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 |
 | Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM | 11868 (+ 252 in tails); 7372 outside shadow RAM | 11871 (+ 252 in tails); 7375 outside shadow RAM | 12363 (+ 252 in tails); 7867 outside shadow RAM | 12373 (+ 252 in tails); 7877 outside shadow RAM | 12315 (+ 252 in tails); 7819 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 13803 (+ 252 in tails); 9307 outside shadow RAM |
+
+The beach ball (branch beachball, BEACHBALL-REPORT.md) added the meridian
+window to bank 7 after the cold area (3,342 bytes: bank 7's free space went
+from 3952 to 610), H_MERID, G_MERHOOK, T_MERID and four shared variables
+to the low area (free below &3000 509 -> 479), H_MERID's call in PL25 to
+bank 4 (3856 -> 3853) and f_bounds' test of PM_OK to bank 6 (65 -> 64).
 
 The lighting in bank 6 (MASTER-PLAN.md, "The lighting in bank 6") gained
 1082 bytes outside shadow RAM against 5b7b91e: bank 6 found 1082 (the
