@@ -45,14 +45,38 @@ IF _HOSTB = 0             \ (Model B: in main RAM, hb-res.asm)
  JMP hstart
 .hwr1
  STA hwa                \ printing in the MOS (a catalogue): CHPR with its zero
- JSR hctxsw             \ page swapped for the command's (hctx), which the MOS's
- LDA hwa                \ Tube code's zero page (&12-&15) overlaps
+ PHX                    \ page swapped for the command's (hctx), which the MOS's
+ PHY                    \ Tube code's zero page (&12-&15) overlaps; X and Y kept,
+ JSR hctxsw             \ as OSWRCH must (DFS's catalogue counts in Y)
+ LDA hwa
  JSR CHPR
+ JSR hwpos
  JSR hctxsw
+ PLY
+ PLX
  LDA hwa
  RTS
 .hwa EQUB 0
 ENDIF
+
+.hwpos                  \ the MOS's text cursor (&0318, VDU's: OSBYTE 134's POS
+ LDA hwa                \ plus the text window's left, &0308) as the characters
+ CMP #13                \ printed through hwrch would leave it (CHPR drops a
+ BNE hwp1               \ column of the catalogue, so its own XC would hold
+ LDA #0                 \ DFS's padding loop for ever)
+ STA hwcol
+ BEQ hwp2
+.hwp1
+ CMP #32
+ BCC hwp2
+ INC hwcol
+.hwp2
+ LDA hwcol
+ CLC
+ ADC &0308
+ STA &0318
+ RTS
+.hwcol EQUB 0
 
 .hctxsw                 \ exchange zero page &0A-&15 and W with hctx
  LDX #HCTXN-1

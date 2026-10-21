@@ -125,6 +125,25 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  RTS
 
 .hb_t1init              \ start the rupture (interrupts off; leaves them on)
+ LDY #23                \ (a field as one frame, vsync at row 34, whatever state a
+ LDA #31                \ disc command left the rupture in: R4 = 38 via hb_regs'
+ JSR hb_regs            \ frame A case, then R4, R7 by hand)
+ LDA #4
+ STA &FE00
+ LDA #38
+ STA &FE01
+ LDA #7
+ STA &FE00
+ LDA #34
+ STA &FE01
+ LDA #8                 \ no interlace (fields of 312 lines exactly: the timer's
+ STA &FE00              \ period) and no vertical adjust
+ LDA #0
+ STA &FE01
+ LDA #5
+ STA &FE00
+ LDA #0
+ STA &FE01
  LDA #%01111111         \ System VIA: timer 1 and CA1 (vsync) only, none from
  STA &FE4E              \ the User VIA
  LDA #%11000010
@@ -160,4 +179,5 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  JSR hctxsw             \ its zero page swapped for the command's (hctx)
  LDA hwa
  JSR CHPR
+ JSR hwpos
  JMP hctxsw
