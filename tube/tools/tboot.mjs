@@ -1,9 +1,9 @@
 import { bootTube } from "../../harness/tlib.mjs";
 import { writeFileSync, readFileSync } from "fs";
-const t = await bootTube({ host: process.argv[2] || "Master", disc: "tube/build/elite-tube.ssd" });
+const t = await bootTube({ host: process.argv[2] || "Master", disc: process.env.DISC || "tube/build/elite-tube.ssd" });
 t.s.keyDown(16); t.s.reset(true); t.host.execute(2e6*2); t.s.keyUp(16);
 const psy = {}; for (const m of readFileSync("tube/build/psyms.txt","utf8").matchAll(/'([^']+)':(\d+)/g)) psy[m[1]] ??= +m[2];
-const hsy = {}; for (const m of readFileSync("tube/build/hsyms.txt","utf8").matchAll(/'([^']+)':(\d+)/g)) hsy[m[1]] ??= +m[2];
+const hsy = {}; for (const m of readFileSync(process.env.HSYMS || "tube/build/hsyms.txt","utf8").matchAll(/'([^']+)':(\d+)/g)) hsy[m[1]] ??= +m[2];
 t.host.debugInstruction.add(pc => { if (pc === 0xfff7) { let a = t.host.x | t.host.y << 8, str = ""; for (let i = 0; i < 40; i++) { const c = t.hmem[a + i]; if (c === 13) break; str += String.fromCharCode(c); } console.log("OSCLI:", str, "at", (t.hostCycles()/2e6).toFixed(2)); } if (pc === 0x0406 && t.host.a !== 7) console.log("TUBE &0406 A=", t.host.a.toString(16), "X,Y", t.host.x.toString(16), t.host.y.toString(16), "at", (t.hostCycles()/2e6).toFixed(2)); if (pc === (t.hmem[0x202]|t.hmem[0x203]<<8) && t.hostCycles()>2e6*3) { let a=(t.hmem[0xfd]|t.hmem[0xfe]<<8)+1, str=""; for(let i=0;i<40;i++){const c=t.host.readmem(a+i); if(!c)break; str+=String.fromCharCode(c);} console.log("BRK:", str); } return false; });
 let iters = 0; t.addParHook(pc => { if (pc === psy.MLOOP) iters++; return false; });
 t.s._video.frameSkipCount = 1;

@@ -20,7 +20,16 @@
  DEX
  BPL hst0
  DEC hzpk
+IF _HOSTB
+ LDA IRQ1V              \ (Model B: the MOS's IRQ1V, for what is not ours)
+ STA hbirqv
+ LDA IRQ1V+1
+ STA hbirqv+1
+ENDIF
 .hst1
+IF _HOSTB
+ JSR hbswap             \ (Model B: our main RAM in, the MOS's out)
+ENDIF
  BIT hmos               \ back from a disc command: quieten the 1770, put the
  BPL hst2               \ minimal NMI handler back (DFS installed its own), and
  JSR HNMI               \ return the printing's zero page to the parasite
@@ -35,6 +44,15 @@
  HTX
  STZ hmos
 .hst2
+IF _HOSTB
+ LDA #LO(irqm)          \ (Model B: the rupture, hb-irq.asm)
+ STA IRQ1V
+ LDA #HI(irqm)
+ STA IRQ1V+1
+ CLD
+ JSR hb_t1init
+ JMP hloop
+ELSE
  LDA #%00111001         \ as SETINTS: no CB1, CB2, CA2 or T2 interrupts from the
  STA VIA+&4E            \ System VIA, none from the User VIA, IRQ1V = IRQ1
  LDA #%01111111
@@ -49,6 +67,7 @@
  CLD
  JSR T1SYNC             \ (CLIs)
  JMP hloop
+ENDIF
 
 .hzps SKIP &50          \ the MOS's Tube code's zero page (&00-&4F), as the host
                         \ took over from it
@@ -78,6 +97,9 @@
  BPL hos2
  LDA #&FF
  STA hmos
+IF _HOSTB
+ JSR hbswap             \ (Model B: the MOS's main RAM back, ours kept)
+ENDIF
  LDA #0                 \ (ready)
  HTX
  JMP &0032              \ (the MOS's Tube idle loop: LDX #&FF : TXS : CLI ...)
@@ -88,6 +110,9 @@
 \ PHA): the one write the host makes to page &0D
 
 .HNMI
+IF _HOSTB
+ RTS                    \ (Model B: DFS 1.2's 8271, no 1770 to quieten)
+ENDIF
  SEI
  LDA #&D0
  STA &FE28

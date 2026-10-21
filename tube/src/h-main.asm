@@ -16,23 +16,9 @@
 \
 \ ******************************************************************************
 
-\ the rasteriser's zero page (gfx-raster.asm, gfx-flare.asm, which are
-\ assembled after this file)
-zR_COLE = &06
-zR_COLO = &07
-zR_XL = &08
-zR_XR = &09
-zR_CL = &0A
-zR_CR = &0B
-zR_CT = &0C
-zR_CB = &0D
-zR_DCE = &0E
-zR_DCO = &0F
-zfl_dx = &10
-zfl_dy = &11
-zc_YE = &1E              \ (r7_rowrep's c_YE, for the pre-erase)
-
-hsp = &E4                \ (a pointer: zero page the game leaves free)
+IF _HOSTB = 0
+ INCLUDE "tsrc/h-zp.asm"
+ENDIF
 
 MACRO HRX               \ A = the next byte from the parasite (register 1)
  BIT HR1S
@@ -49,6 +35,7 @@ ENDMACRO
 \ hwrch: WRCHV while the MOS's Tube code runs the host: &FE from the parasite
 \ starts the command loop; anything else is printed (CHPR)
 
+IF _HOSTB = 0             \ (Model B: in main RAM, hb-res.asm)
 .hwrch
  CMP #&FE
  BNE hwr1
@@ -65,6 +52,7 @@ ENDMACRO
  LDA hwa
  RTS
 .hwa EQUB 0
+ENDIF
 
 .hctxsw                 \ exchange zero page &0A-&15 and W with hctx
  LDX #HCTXN-1
@@ -108,7 +96,16 @@ ASSERT P% - htab = C_MAX
  BNE hlp2
  JSR hpe_fin
 .hlp2
+IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
+ LDA htab,X
+ STA hlpj+1
+ LDA htab+1,X
+ STA hlpj+2
+.hlpj
+ JMP &FFFF
+ELSE
  JMP (htab,X)
+ENDIF
 
 .h_sync                 \ C_SYNC: a frame's end (the harness hashes the screen
  NOP                    \ here: at h_sync, or at h_syncb if its instruction hook
@@ -120,188 +117,10 @@ ASSERT P% - htab = C_MAX
 .hsy9
  JMP hloop
 
-\ The pre-erase (phase 5): while the parasite runs an iteration's game, the
-\ host blacks the next back buffer's old dirty rows outside its old disc rows
-\ (what R_DISCROWS' r7_crep would do at the frame's start: these rows are
-\ black whatever the new disc), a few rows at a time between commands, once
-\ the flip has hidden the buffer; it starts the frame's R_WL/R_WR as
-\ R_DISCROWS would (which then leaves them: hpe_w), and leaves the buffer's
-\ dirty row range to the old disc rows. Commands that may draw (any not in
-\ hsafe) finish it first, as does C_FB.
+IF _HOSTB = 0
+ INCLUDE "tsrc/h-hpe.asm"   \ (the pre-erase: main RAM; the Model B host's: hb-main.asm)
+ENDIF
 
-.hpe_start
- LDA F_BACK             \ (bank 6's)
- EOR #1
- STA hpe_b
- LDA #RASTBANK
- STA &F4
- STA &FE30
- JSR r_wclear           \ the frame's R_WL/R_WR (text2 has read the last's)
- LDA #&FF
- STA R_PRWT
- STZ R_PRWB
- LDA #1
- STA hpe_w
- LDX hpe_b
- LDA R_PRDYT,X          \ the dirty rows dyt..dyb, less the old disc rows
- STA hpe_y              \ dst..dsb: dyt..min(dyb, dst-1), max(dyt, dsb+1)..dyb
- LDA R_PRDYB,X
- STA hpe_e2
- CMP hpe_y
- BCS P%+5
- JMP hpa9               \ (no dirty rows)
- LDA R_PRDSB,X
- CMP R_PRDST,X
- BCS hpa2
- LDA hpe_e2             \ no disc rows: one part, and no dirty rows left
- STA hpe_e
- LDA #&FF
- STA hpe_y2
- STA R_PRDYT,X
- STZ R_PRDYB,X
- BRA hpa8
-.hpa2
- LDA R_PRDST,X          \ first part: dyt .. min(dyb, dst - 1)
- DEC A
- CMP hpe_e2
- BCC P%+5
- LDA hpe_e2
- STA hpe_e              \ (empty if dst = 0 or dyt >= dst: hpe_e < hpe_y)
- LDA R_PRDST,X
- BEQ hpa3
- CMP hpe_y
- BCS hpa4
-.hpa3
- LDA #&FF               \ (empty)
- STA hpe_e
-.hpa4
- LDA R_PRDSB,X          \ second part: max(dyt, dsb + 1) .. dyb
- INC A
- BEQ hpa5
- CMP hpe_y
- BCS P%+5
- LDA hpe_y
- CMP hpe_e2
- BEQ hpa6
- BCC hpa6
-.hpa5
- LDA #&FF
-.hpa6
- STA hpe_y2
- LDA R_PRDST,X          \ the dirty rows left: max(dyt, dst) .. min(dyb, dsb)
- CMP hpe_y
- BCS P%+5
- LDA hpe_y
- STA hpe_t
- LDA R_PRDSB,X
- CMP hpe_e2
- BCC P%+5
- LDA hpe_e2
- CMP hpe_t
- BCS hpa7
- LDA #&FF
- STA R_PRDYT,X
- STZ R_PRDYB,X
- BRA hpa7b
-.hpa7
- STA R_PRDYB,X
- LDA hpe_t
- STA R_PRDYT,X
-.hpa7b
- LDA hpe_e              \ an empty first part: straight to the second
- CMP #&FF
- BNE hpa8
- JSR hpe_next
- BRA hpa9
-.hpa8
- LDA #1
- STA hpe_on
-.hpa9
- LDA #GFXBANK
- STA &F4
- STA &FE30
- RTS
-
-.hpe_next               \ on to the second part (hpe_y2 = &FF: none): done?
- LDA hpe_y2
- CMP #&FF
- BEQ hnx9
- STA hpe_y
- LDA hpe_e2
- STA hpe_e
- LDA #&FF
- STA hpe_y2
- LDA #1
- STA hpe_on
- RTS
-.hnx9
- STZ hpe_on
- RTS
-
-.hpe_fin                \ finish it (waiting for the flip). Keeps X
- PHX
-.hfi1
- JSR hpe_step
- LDA hpe_on
- BNE hfi1
- PLX
- RTS
-
-.hpe_step               \ up to 4 rows (none until the flip)
- LDA GFLIP
- BNE hps9
- LDA #RASTBANK
- STA &F4
- STA &FE30
- LDA R_PRBUF
- PHA
- LDX hpe_b
- STX R_PRBUF
- BEQ hps1
- LDA #4                 \ (buffer 1: shadow RAM)
- TSB &FE34
-.hps1
- LDY hpe_y
- CPY R_PRWT             \ (the frame's written rows)
- BCS P%+5
- STY R_PRWT
- TYA                    \ rows Y .. min(Y + 3, e)
- CLC
- ADC #3
- CMP hpe_e
- BCC P%+5
- LDA hpe_e
- CMP R_PRWB
- BCC P%+5
- STA R_PRWB
- INC A
- STA zc_YE
- STA hpe_y
- JSR r7_rowrep
- LDA hpe_e
- CMP hpe_y
- BCS hps8
- JSR hpe_next
-.hps8
- LDA #4
- TRB &FE34
- PLA
- STA R_PRBUF
- LDA #GFXBANK
- STA &F4
- STA &FE30
-.hps9
- RTS
-
-.hpe_on  EQUB 0         \ rows to black
-.hpe_arm EQUB 0         \ after the next C_SYNC
-.hpe_w   EQUB 0         \ R_DISCROWS: the frame's R_WL/R_WR are started
-.hpe_b   EQUB 0         \ the buffer
-.hpe_y   EQUB 0         \ the part: next row, last row
-.hpe_e   EQUB 0
-.hpe_y2  EQUB 0         \ the second part (&FF: none)
-.hpe_e2  EQUB 0
-.hpe_t   EQUB 0
 .hsafe                  \ per command: non-zero if it never draws in the buffers
  FOR i, 0, C_MAX - 1, 2
   IF i=C_SYNC OR i=C_CHAR OR i=C_KEYS OR i=C_DKS OR i=C_WSCAN OR i=C_NOISE OR i=C_SOFLUSH OR i=C_SCEOR OR i=C_SCSTA OR i=C_CLRTEXT OR i=C_DET1 OR i=C_IRB
@@ -318,9 +137,15 @@ ASSERT P% - htab = C_MAX
 
 .h_init                 \ C_INIT: F_INIT's host part
  JSR T_INIT
+IF _HOSTB = 0
  LDA #4                 \ clear main RAM's screen (buffer 0)
  TRB &FE34
+ENDIF
+IF _HOSTB
+ LDA #HI(BUF0)          \ (Model B: buffer 0 at BUF0)
+ELSE
  LDA #&40
+ENDIF
  STA hin1+2
  LDA #0
  TAX
@@ -330,7 +155,11 @@ ASSERT P% - htab = C_MAX
  BNE hin1
  INC hin1+2
  LDY hin1+2
+IF _HOSTB
+ CPY #HI(BUF0)+&30
+ELSE
  CPY #&70
+ENDIF
  BNE hin1
  LDX #23+NDSTAR
 .hin2
@@ -363,8 +192,10 @@ ASSERT P% - htab = C_MAX
  BNE hfb1
  LDA F_BACK
  BEQ hfb2
+IF _HOSTB = 0
  LDA #4
  TSB &FE34
+ENDIF
 .hfb2
  JSR T_STARERASE
  JMP hloop
@@ -388,8 +219,10 @@ ASSERT P% - htab = C_MAX
  LDA #NOST+1
  STA R_SN
  JSR T_STARPLOT
+IF _HOSTB = 0
  LDA #4                 \ CPU back to main RAM, and flip at the next vsync
  TRB &FE34
+ENDIF
  LDA #%00000010
  STA &FE4E
  LDA F_BACK
@@ -410,6 +243,9 @@ ASSERT P% - htab = C_MAX
  JMP hloop
 
 .h_disc                 \ C_DISC
+IF _HOSTB                 \ (Model B: received into bank D, hb-d.asm)
+ JMP hb_disc               \\ (main RAM: hb-res.asm)
+ENDIF
  HRX
  STA R_NDT
  HRX
@@ -496,6 +332,9 @@ ASSERT P% - htab = C_MAX
  JMP hloop
 
 .h_poly                 \ C_POLY: n, the four colours, the vertices
+IF _HOSTB                 \ (Model B: received into bank P, hb-p.asm)
+ JMP hb_poly               \\ (main RAM: hb-res.asm)
+ENDIF
  HRX
  STA R_PN
  STA hpn
@@ -527,6 +366,9 @@ ASSERT P% - htab = C_MAX
 .hpn EQUB 0
 
 .h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1
+IF _HOSTB
+ JMP hb_line               \\ (main RAM: hb-res.asm)
+ENDIF
  HRX
  STA zR_COLE
  HRX
@@ -726,23 +568,31 @@ ASSERT P% - htab = C_MAX
 
 .h_sceor                \ C_SCEOR: address, value: EOR into shadow RAM (the
  JSR hscad              \ direct-mode screen and the dashboard, as Master's
+IF _HOSTB = 0
  LDA #4                 \ drawing writes them with ACCCON X set)
  TSB &FE34
+ENDIF
  TXA
  EOR (hsp)
  STA (hsp)
+IF _HOSTB = 0
  LDA #4
  TRB &FE34
+ENDIF
  JMP hloop
 
 .h_scsta                \ C_SCSTA
  JSR hscad
+IF _HOSTB = 0
  LDA #4
  TSB &FE34
+ENDIF
  TXA
  STA (hsp)
+IF _HOSTB = 0
  LDA #4
  TRB &FE34
+ENDIF
  JMP hloop
 
 .hscad                  \ hsp = the address, X = the value
@@ -755,8 +605,10 @@ ASSERT P% - htab = C_MAX
  RTS
 
 .h_cls                  \ C_CLS: TTX66's clear, shadow &4000-&6FFF
+IF _HOSTB = 0
  LDA #4
  TSB &FE34
+ENDIF
  LDA #&40
  STA hcl1+2
  LDA #0
@@ -769,24 +621,32 @@ ASSERT P% - htab = C_MAX
  LDY hcl1+2
  CPY #&70
  BNE hcl1
+IF _HOSTB = 0
  LDA #4
  TRB &FE34
+ENDIF
  JMP hloop
 
 .h_boxc                 \ C_BOXC: BOX's corners, in A
  HRX
  TAX
+IF _HOSTB = 0
  LDA #4
  TSB &FE34
+ENDIF
  STX &4000
  STX &41F8
+IF _HOSTB = 0
  LDA #4
  TRB &FE34
+ENDIF
  JMP hloop
 
 .h_clyns                \ C_CLYNS: CLYNS's clear of text rows 20-23
+IF _HOSTB = 0
  LDA #4
  TSB &FE34
+ENDIF
  LDA #&6A
  STA hsp+1
  LDA #0
@@ -808,8 +668,10 @@ ASSERT P% - htab = C_MAX
  INC hsp+1
  DEX
  BNE hcy1
+IF _HOSTB = 0
  LDA #4
  TRB &FE34
+ENDIF
  JMP hloop
 
 .h_clrtext              \ C_CLRTEXT: QQ11 OR GFORCE, GMODE: the text map's rows

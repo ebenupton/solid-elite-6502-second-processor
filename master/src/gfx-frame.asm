@@ -419,7 +419,9 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
  STA GLASV
  LDA #1
  STA GFRONT
+IF _HOSTB = 0             \ (Model B: the IRQ shows buffer GFRONT)
  TSB &FE34              \ ACCCON D = 1: show shadow RAM (X as it is)
+ENDIF
  CLI
  JSR f_tmclear          \ (A = 0; X only, so Y is kept)
  LDX #23+NDSTAR         \ the stars will be re-recorded too (and F_DSS
@@ -842,6 +844,53 @@ IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
                         \ writes main RAM), so it is left alone and repaired
                         \ incrementally by its next frame; only the border is
                         \ copied across (main RAM has none after F_INIT)
+IF _HOSTB                 \ (Tube, Model B host: buffer 1 is at &4000, buffer 0 at
+ LDA #&40                 \ BUF0: copy straight across)
+ STA fmb1+2
+ LDA #&41
+ STA fmb3+2
+ LDA #HI(BUF0)
+ STA fmb2+2
+ LDA #HI(BUF0)+1
+ STA fmb4+2
+.fmb0
+ LDX #7
+.fmb1
+ LDA &4000,X            \ column 0, lines 0-7 of this character row
+.fmb2
+ STA BUF0,X
+.fmb3
+ LDA &41F8,X            \ column 63
+.fmb4
+ STA BUF0+&1F8,X
+ DEX
+ BPL fmb1
+ CLC
+ LDA fmb1+2
+ ADC #2
+ STA fmb1+2
+ ADC #1
+ STA fmb3+2
+ LDA fmb2+2
+ ADC #2
+ STA fmb2+2
+ ADC #1
+ STA fmb4+2
+ LDA fmb1+2
+ CMP #&70
+ BNE fmb0
+ LDX #0                 \ line 0: every 8th byte of the first two pages
+.fmb5
+ LDA &4000,X
+ STA BUF0,X
+ LDA &4100,X
+ STA BUF0+&100,X
+ TXA
+ CLC
+ ADC #8
+ TAX
+ BNE fmb5
+ELSE
  LDA #HI(&4000)         \ copy byte columns 0 and 63 of every line, and the
  STA fen1+2             \ whole of line 0, from shadow RAM to main RAM
  STA fen2+2
@@ -908,6 +957,7 @@ IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
  TAX
  BNE fen8
 
+ENDIF
  LDA #1                 \ buffer 1's state: empty (TTX66 blacked it)
  STA F_BACK
  STZ F_SGS+1
@@ -980,7 +1030,49 @@ ENDMACRO
  STA ft_sr1+1
  STA ft_sr2+1
  STA ft_sr3+1
+IF _HOSTB                 \ (Model B: the back buffer's screen, BUF0 or &4000)
+ LDA fbp_b,X
+ STA fgl_b+1
+ LDA fbp_d,X
+ STA fz_t
+ CLC
+ LDA #&53
+ ADC fz_t
+ STA fsv1+2
+ CLC
+ LDA #&53
+ ADC fz_t
+ STA fsv2+2
+ CLC
+ LDA #&55
+ ADC fz_t
+ STA fsv3+2
+ CLC
+ LDA #&55
+ ADC fz_t
+ STA fsv4+2
+ CLC
+ LDA #&5B
+ ADC fz_t
+ STA fsv5+2
+ CLC
+ LDA #&5B
+ ADC fz_t
+ STA fsv6+2
+ CLC
+ LDA #&5D
+ ADC fz_t
+ STA fsv7+2
+ CLC
+ LDA #&5D
+ ADC fz_t
+ STA fsv8+2
+ ENDIF
  RTS
+IF _HOSTB
+.fbp_b EQUB HI(BUF0), &40
+.fbp_d EQUB HI(BUF0) - &40, 0
+ENDIF
 .fbp_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
 .fbp_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 .fbp_ol EQUB HI(R_DISCL0), HI(R_DISCL1)
@@ -2479,6 +2571,9 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
  STA fz_v3               \ nibble 0: no carry; ORA keeps C for the ROL)
  LDA fz_i                \ high byte = 2*row + carry + &40 (row <= 23, so
  ROL A                   \ ROL leaves C = 0 and the ADC cannot carry)
+IF _HOSTB
+.fgl_b                    \ (Model B: the back buffer's base, f_bufpatch's)
+ENDIF
  ADC #&40
  STA fz_nm+1
  STA fz_v3+1
@@ -2554,7 +2649,7 @@ FOR n, 0, 15
 NEXT
 
 F_FONT = FONT% * 256      \ Master port: Elite's own font in main RAM (the same
-ASSERT F_FONT + 768 <= &3000 \ 768 bytes), visible while ACCCON X is set
+ASSERT _HOSTB OR F_FONT + 768 <= &3000 \ 768 bytes), visible while ACCCON X is set
 
 
 \ ------------------------------------------------------------------------------
@@ -2687,29 +2782,53 @@ SGOUT = 20
  ASSERT SGY+SGIN = 107 AND SGY+SGOUT = 116
  LDY #3                 \ rows 76..79: &5304..&5307
 .fsg4
+IF _HOSTB
+.fsv1
+ENDIF
  LDA &5304,Y
  AND #&77
  ORA fz_t
+IF _HOSTB
+.fsv2
+ENDIF
  STA &5304,Y
  DEY
  BPL fsg4
  LDY #5                 \ rows 80..85: &5500..&5505
 .fsg5
+IF _HOSTB
+.fsv3
+ENDIF
  LDA &5500,Y
  AND #&77
  ORA fz_t
+IF _HOSTB
+.fsv4
+ENDIF
  STA &5500,Y
  DEY
  BPL fsg5
  LDY #4                 \ rows 107..111: &5B03..&5B07, rows 112..116: &5D00..&5D04
 .fsg6
+IF _HOSTB
+.fsv5
+ENDIF
  LDA &5B03,Y
  AND #&77
  ORA fz_t
+IF _HOSTB
+.fsv6
+ENDIF
  STA &5B03,Y
+IF _HOSTB
+.fsv7
+ENDIF
  LDA &5D00,Y
  AND #&77
  ORA fz_t
+IF _HOSTB
+.fsv8
+ENDIF
  STA &5D00,Y
  DEY
  BPL fsg6

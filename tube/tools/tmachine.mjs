@@ -139,5 +139,9 @@ export class TubeEliteMachine extends EliteMachine {
     }
 
     // the host's two screen buffers (main RAM's &4000-&6FFF, then shadow RAM's)
-    hostScreen() { const m = this.host.ramRomOs; return [m.subarray(0x4000, 0x7000), m.subarray(0xc000, 0xf000)]; }
+    hostScreen() {
+        const m = this.host.ramRomOs;
+        if (this.hostKind === "B") return [m.subarray(0x1000, 0x4000), m.subarray(0x4000, 0x7000)];   // (the Model B host: buffer 0 at &1000)
+        return [m.subarray(0x4000, 0x7000), m.subarray(0xc000, 0xf000)];
+    }
 }

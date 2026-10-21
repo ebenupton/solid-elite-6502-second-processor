@@ -23,11 +23,12 @@ ACCY = 8                \ (no ACCCON on a Model B: &FE34 is ROMSEL's)
 MAXSH = 13              \ ships per frame
 MAXLN = 48              \ lines per frame
 MAXDT = 64              \ dots per frame
-RASTBANK = 4            \ D: the disc window and the rasteriser's shared code
-RASTPOLY = 5            \ P: the polygon window, lines, stars, flare
-GFXBANK = 6             \ F: the frame layer's host part and the commands
-STASHBANK = 7           \ S: the MOS's main RAM while the game runs, ours while
-                        \ a disc command does
+RASTBANK = HBB          \ D: the disc window and the rasteriser's shared code
+RASTPOLY = HBB + 1      \ P: the polygon window, lines, stars, flare
+GFXBANK = HBB + 2       \ F: the frame layer's host part and the commands
+STASHBANK = HBB + 3     \ S: the MOS's main RAM while the game runs, ours while
+                        \ a disc command does (HBB: beebasm -D, 4; the build
+                        \ assembles again with 8 to find the operands to patch)
 ELITEBANK = HOMEBANK
 NDSTAR = NOST+1
 
@@ -43,7 +44,7 @@ PANEL = &7000
 RUNP = &0236            \ runp: a run of bank P's for bank D's r_spc (A colour, Y row)
 RUNPJ = RUNP + 21       \ (its JSR: bank D's r_jsr)
 P_ROWREPT = RUNP + 40   \ bank D's way to bank P's r7_rowrep
-MR_A = P_ROWREPT + 16   \ code and data: to &03F4
+MR_A = P_ROWREPT + 18   \ code and data: to &03F4
 MR_AEND = &03F5
 R_DIRTYL0 = &03F5       \ the per-buffer arrays, at the Master port's low bytes
 R_DIRTYR0 = R_DIRTYL0 + 192
@@ -183,8 +184,13 @@ P_FLARE    = JT + 30
 P_POLYIN   = JT + 33    \ h_poly's receiving part (hb-p.asm)
 P_LINEIN   = JT + 36    \ h_line's
 
+IF _RBANK                 \ (banks D and P; h-main.asm has its own)
 MACRO HRX               \ A = the next byte from the parasite (register 1)
  BIT &FEE0
  BPL P%-3
  LDA &FEE1
 ENDMACRO
+ENDIF
+
+HBS_IMG = &8000           \ the stash bank: main RAM's &0236-&0CFF, &0E00-&10FF
+HBS_LEN = &0DCA           \ (hb-res.asm's hbswap)

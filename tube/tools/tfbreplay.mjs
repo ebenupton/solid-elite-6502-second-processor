@@ -19,7 +19,7 @@ import { parseArgs } from "../../harness/args.mjs";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { createHash } from "crypto";
 
-const a = parseArgs({ log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value", dumpn: "value", master: "flag" });
+const a = parseArgs({ log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value", dumpn: "value", master: "flag", hsyms: "value" });
 const DUMP = a.dumpn ? a.dumpn.split("-").map(Number) : null;
 if (!a.log || !a.out || !a.cand || !a.csyms) { console.error("--log, --out, --cand and --csyms are required"); process.exit(2); }
 mkdirSync(a.out, { recursive: true });
@@ -47,7 +47,7 @@ const cand = new TubeEliteMachine({ host: a.host || "Master", name: "cand", disc
 await cand.boot();
 cand.pokes = L.pokes;
 const FROM = +(a.from || 0), TO = +(a.to || 1000);
-const hsy = loadSyms(a.csyms.replace(/psyms\.txt$/, "hsyms.txt"));
+const hsy = loadSyms(a.hsyms || a.csyms.replace(/psyms\.txt$/, a.host === "B" ? "hbmsyms.txt" : "hsyms.txt"));
 const q = [], res = {};
 let n = 0;
 cand.t.addParHook(pc => { if (pc === csy.p_sync) q.push(cand.iter); return false; });

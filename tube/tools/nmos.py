@@ -102,6 +102,7 @@ def regs_of(mn, op):
     if mn == "BIT" and op.startswith("#"): w = Z
     return r, w
 
+RTSNZ = [False]           # (PLX/PLY's case: N, Z at an RTS count as dead)
 def dead(k, want, depth=0, seen=None):
     """the subset of want (bits) that no path from line k on reads before
     writing it (conservative: unknown control flow counts as a read)"""
@@ -119,7 +120,7 @@ def dead(k, want, depth=0, seen=None):
         live |= r & pend
         pend &= ~r & ~w
         if not pend: break
-        if mn in ("RTS", "RTI", "BRK"): live |= pend; break
+        if mn in ("RTS", "RTI", "BRK"): live |= pend & ~((N | Z) if RTSNZ[0] and mn == "RTS" else 0); break
         if mn == "JMP" or mn in BRANCH:
             t = op.strip()
             if t not in labels or depth >= 40 or "(" in t: live |= pend; break
@@ -136,8 +137,27 @@ out, report, errors = [], [], []
 zero_reg = None             # a register known to hold 0 (a run of converted STZs)
 consumed = set()            # lines already emitted inside a (zp) block
 IZP = re.compile(r"^\(\s*([^,)]+)\s*\)$")
+# conditional blocks that the Model B host never assembles (IF ... _HOSTB = 0,
+# and the ELSE of IF _HOSTB): left as they are, without complaint
+INACT = set()
+stack = []
+for k, l in enumerate(lines):
+    t = l.split("\\")[0].strip()
+    if re.match(r"^IF\b", t):
+        cond = t[2:].strip()
+        off = (bool(re.search(r"_HOSTB\s*=\s*0\b", cond)) and "OR" not in cond) or \
+              bool(re.match(r"^_TPART\s*(<>\s*2|=\s*[01])\s*$", cond))   # (the host's _TPART is 2)
+        on = cond == "_HOSTB"
+        stack.append([off, on])
+    elif re.match(r"^ELSE\b", t) and stack:
+        off, on = stack[-1]; stack[-1] = [on, off]
+    elif re.match(r"^ENDIF\b", t) and stack:
+        stack.pop()
+    elif any(st[0] for st in stack):
+        INACT.add(k)
 for k, l in enumerate(lines):
     if k in consumed: continue
+    if k in INACT: out.append(l); continue
     lab, mn, op, com = P[k]
     ind = re.match(r"^(\s*)", l).group(1) or " "
     prefix = (lab + " ") if lab else ""
@@ -238,11 +258,16 @@ for k, l in enumerate(lines):
     if mn in ("PHX", "PHY"):
         r = "X" if mn == "PHX" else "Y"
         if is_dead(k, A | N | Z): emit(["T%sA" % r, "PHA"], ""); continue
-        errors.append("%d: %s (A live)" % (k + 1, mn)); out.append(l); continue
+        if is_dead(k, N | Z): emit(["STA " + TMP, "T%sA" % r, "PHA", "LDA " + TMP], "A kept in " + TMP); continue
+        errors.append("%d: %s (A and flags live)" % (k + 1, mn)); out.append(l); continue
     if mn in ("PLX", "PLY"):
         r = "X" if mn == "PLX" else "Y"
         if is_dead(k, A): emit(["PLA", "TA" + r], ""); continue
-        errors.append("%d: %s (A live)" % (k + 1, mn)); out.append(l); continue
+        if is_dead(k, N | Z): emit(["STA " + TMP, "PLA", "TA" + r, "LDA " + TMP], "A kept in " + TMP); continue
+        RTSNZ[0] = True; ok = is_dead(k, N | Z); RTSNZ[0] = False
+        if ok: emit(["STA " + TMP, "PLA", "TA" + r, "LDA " + TMP], "A kept in " + TMP + "; N, Z not returned"); continue
+        if is_dead(k, C): emit(["STA " + TMP, "PLA", "TA" + r, "LDA " + TMP, "CP%s #0" % r], "A kept in " + TMP + ", flags from " + r); continue
+        errors.append("%d: %s (A and all flags live)" % (k + 1, mn)); out.append(l); continue
     errors.append("%d: %s %s" % (k + 1, mn, op)); out.append(l)
 
 # a converted line whose label is referenced at an offset (a patched operand,

@@ -541,6 +541,7 @@ IF _RBANK = 1
 ELSE
   STA r_bs7+1
   STA r_bs8+1
+  STA r_bs11+1
   LSR A                   \ (the flare's: half of it)
   STA r_bs9+1
   STA r_bs10+1
@@ -1586,7 +1587,13 @@ ENDIF
   LSR A
   LSR A
   AND #&FE
+IF _HOSTB
+  CLC                     \ (Model B: the buffer's screen base, R_SETBUF's)
+.^r_bs11
+  ADC #&40
+ELSE
   ORA #&40
+ENDIF
   CPX #&80
   ADC #0
   STA RZ_PP+1

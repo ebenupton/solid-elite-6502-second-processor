@@ -2939,6 +2939,7 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _HOSTB = 0          \ (Tube, Model B host: its own IRQ, tube/src/hb-res.asm)
 .IRQ1
 
  PHY                    \ Store Y on the stack
@@ -3046,6 +3047,7 @@ ENDIF
  RTI                    \ Return from interrupts, so this interrupt is not
                         \ passed on to the next interrupt handler
 
+ENDIF
 \ ******************************************************************************
 \
 \       Name: VSCAN
@@ -3098,6 +3100,7 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _HOSTB = 0          \ (Tube, Model B host: its own, tube/src/hb-res.asm)
 .T1SYNC
 
  SEI                    \ Interrupts off while we wait for vsync
@@ -3124,6 +3127,7 @@ ENDIF
                         \ pending and runs now)
 
  RTS                    \ Return from the subroutine
+ENDIF
 \ ******************************************************************************
 \
 \       Name: DOVDU19
@@ -7453,7 +7457,7 @@ ENDIF
 
  TAY                    \ Set Y = the character to be printed
 
-IF _TPART <> 1         \ (Port, Tube: CHPR's drawing is the host's, through
+IF _TPART <> 1 AND _HOSTB = 0 \ (Port, Tube: CHPR's drawing is the host's, through
                         \ H_CHAR and H_DEL)
 
  LDA #4                 \ Set bit 2 (X) of the Access Control Register at
@@ -7745,7 +7749,7 @@ IF _SNG47
  JSR TTX66M             \ Otherwise we are off the bottom of the screen, so
                         \ clear the screen and draw a border box
 
-IF _TPART <> 1
+IF _TPART <> 1 AND _HOSTB = 0
 
  LDA #4                 \ Set bit 2 (X) of the Access Control Register at
  TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
@@ -7911,7 +7915,7 @@ ENDIF
 
 .RR4
 
-IF _TPART <> 1         \ (Port, Tube: no ACCCON; the flags are LDA K3's below)
+IF _TPART <> 1 AND _HOSTB = 0         \ (Port, Tube: no ACCCON; the flags are LDA K3's below)
 
  LDA #4                 \ Clear bit 2 (X) of the Access Control Register at
  TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF

@@ -204,9 +204,13 @@ IF _TPART <> 1             \ (Tube: the host's part)
 
 .f_b0new
  STZ GSTASH
+IF _HOSTB
+ LDA #HI(BUF0)          \ (Model B: buffer 0 at BUF0)
+ELSE
  LDA #4                 \ X = 0: main RAM
  TRB &FE34
  LDA #&40
+ENDIF
  STA fbn1+2
  LDA #0
  TAX
@@ -216,7 +220,11 @@ IF _TPART <> 1             \ (Tube: the host's part)
  BNE fbn1
  INC fbn1+2
  LDY fbn1+2
+IF _HOSTB
+ CPY #HI(BUF0)+&30
+ELSE
  CPY #&70
+ENDIF
  BNE fbn1
  STZ F_SGS              \ no sights drawn in it
  LDA #&FF               \ no disc colour
@@ -238,8 +246,10 @@ IF _TPART <> 1             \ (Tube: the host's part)
 \ them, so any text drawn over them stays intact. Main RAM must be visible.
 
 .f_unstar
+IF _HOSTB = 0
  LDA #4                 \ (Master port: the stars were drawn into shadow RAM)
  TSB &FE34
+ENDIF
  LDY #NDSTAR-1
 .fus1
  LDA F_DSS,Y
@@ -290,8 +300,10 @@ IF _TPART <> 1             \ (Tube: the host's part)
 .fus9
  DEY
  BPL fus1
+IF _HOSTB = 0
  LDA #4
  TRB &FE34
+ENDIF
  RTS
 
 .f_ysav2 EQUB 0

@@ -111,6 +111,7 @@
 \ D = 1 again, as the dashboard is in shadow RAM). Only D is touched, so the
 \ main code's ACCCON X is kept
 
+IF _HOSTB = 0             \ (Model B: hb-irq.asm's)
 .H_VSYNC
  LDA GFLIP
  BEQ hv0
@@ -131,4 +132,5 @@
 .hv2
  TRB &FE34
  RTS
+ENDIF
 
