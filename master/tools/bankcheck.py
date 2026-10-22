@@ -63,7 +63,8 @@ FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm
          "gfx-raster_line.asm": "bank5a", "gfx-raster_lcold.asm": "bank5",
          "gfx-frame.asm": "bank6", "gfx-faces.asm": "bank6", "gfx-light6.asm": "bank6", "gfx-light.asm": "bank6", "gfx-finit.asm": "bank6",
          "gfx-frame_cold.asm": "bank6", "gfx-flare6.asm": "bank6", "gfx-hangar.asm": "bank6", "gfx-hangar-hz.asm": "hazel", "gfx-flare.asm": "bank5",
-         "gfx-merid.asm": "bank7m"}
+         "gfx-merid.asm": "bank7m",
+         "gfx-raster_kept.asm": "bank5d", "gfx-kept7.asm": "bank7m", "gfx-kept-hz.asm": "hazel"}
 # the copies of elite-source.asm that tools/streams.py writes, one per area
 # (their line numbers are elite-source.asm's)
 SHOW = {"../build/elite-source-%s.asm" % a: "elite-source.asm" for a in ("run", "low", "bank4", "cold")}
