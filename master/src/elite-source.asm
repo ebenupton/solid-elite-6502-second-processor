@@ -17739,8 +17739,8 @@ ENDIF
 
 \ ******************************************************************************
 \
-\ Port: the main code continues in main RAM at &7000 from here, after the high
-\ code (elite-hi.asm), and runs on through &8000 into bank 4
+\ Port: the main code continues in main RAM at &7400 from here, after the
+\ quarter-square tables (elite-qs.asm, &7000-&73FF), and runs on through &8000 into bank 4
 \ (docs/MASTER-MAP.md), at a routine that nothing falls into. The part from
 \ CODE%, below screen buffer 0 (main RAM &4000-&6FFF), is saved as BCODE; the
 \ part from &7000 as HICODE and the rest, in bank 4, with the blocks tagged
@@ -17756,9 +17756,9 @@ ENDIF
  CLEAR &7000, &C000
  ORG &7000
 
- INCLUDE "src/elite-hi.asm"             \ the quarter squares
+ INCLUDE "src/elite-qs.asm"             \ the quarter-square tables
 
-.HI_RUN%
+.QS_RUN%
 
 \ ******************************************************************************
 \
@@ -20821,7 +20821,7 @@ ENDIF
  RTS                    \ Return from the subroutine
 
 \ Port: QMUL src, dst, mul (MULT3 and MLTU2): A = src * mul, 8-bit by 8-bit
-\ by quarter squares (QSL and QSH, elite-hi.asm), the low byte in dst; X and Y
+\ by quarter squares (QSL and QSH, elite-qs.asm), the low byte in dst; X and Y
 \ are clobbered
 
 MACRO QMUL src, dst, mul
@@ -20889,7 +20889,7 @@ ENDMACRO
 
 .MULT3
 
-                        \ Port: by quarter squares (QSL and QSH, elite-hi.asm):
+                        \ Port: by quarter squares (QSL and QSH, elite-qs.asm):
                         \ the three bytes' products by |Q|, added. Exactly the
                         \ original's results: K(3 2 1 0) with the sign of A
                         \ EOR Q, A = K+3, R = the argument A, Y kept, N and Z
@@ -21117,7 +21117,7 @@ ENDMACRO
 .MULTS
 
                         \ Port: the product by quarter squares (the tables QSL
-                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ and QSH, elite-qs.asm), with exactly the original's
                         \ results: (A P) = |A| * (P AND 31) with A's sign (the
                         \ shift-and-add only used bits 0-4 of P), Y kept (T,
                         \ T1, X, C, N, Z and V are left differently, but every
@@ -21378,7 +21378,7 @@ ENDMACRO
 .MU11
 
                         \ Port: the product by quarter squares (the tables QSL
-                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ and QSH, elite-qs.asm), with exactly the original's
                         \ results: (A P) = P * X (X = T + 1 = 1..255), T = X - 1,
                         \ X = 0, Y kept, C clear (callers use it)
 
@@ -21633,7 +21633,7 @@ ENDMACRO
 
 .MLTU2
 
-                        \ Port: by quarter squares (QSL and QSH, elite-hi.asm):
+                        \ Port: by quarter squares (QSL and QSH, elite-qs.asm):
                         \ (A P+1 P) = Q * (A ~P) as the two bytes' products,
                         \ added. Exactly the original's results: Q kept, C
                         \ clear (X, Y, N and Z differ: no caller reads them,
@@ -21805,7 +21805,7 @@ ENDMACRO
 .MULT1
 
                         \ Port: the product by quarter squares (the tables QSL
-                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ and QSH, elite-qs.asm), with exactly the original's
                         \ results: (A P) = |A| * |Q| with the sign of A EOR Q,
                         \ T = the sign, Y kept; |Q| = 0: A = P = 0, X = the
                         \ argument A, C = its bit 0, Z set; else X = 0, T1 =

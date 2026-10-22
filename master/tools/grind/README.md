@@ -42,7 +42,7 @@ INCLUDEs at its end):
 
 | segment | image (SAVE) | what |
 |---|---|---|
-| `main` | `BCODE` &1EDC-&3FFF, `HICODE` &7000-&7FFF | the main code and data in the original's order (it continues in bank 4), with the far7 stubs into the cold area at their cold routines' places; the high code: the quarter-square tables QSL/QSH at &7000, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the lighting's game half (gfx-light) |
+| `main` | `BCODE` &1EDC-&3FFF, `HICODE` &7000-&7FFF (the quarter-square tables, then run part 2) | the main code and data in the original's order (it continues in bank 4), with the far7 stubs into the cold area at their cold routines' places; the high code: the quarter-square tables QSL/QSH at &7000, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the lighting's game half (gfx-light) |
 | `B4` | `BANK4` | bank 4, Elite's home bank, code only: the main code's continuation (from DVL9a), then elite-bank4.asm (TACTICS, LL9, MVEIT, Master's drawing, the CMYK dashboard) |
 | `C7` | `COLD7` | the cold area, bank 7 from &8000 (ROMSEL 7): the cold code, with the far4 stubs out of the cold area at their hot routines' places, then QQ18 and the extended tokens (cold data) |
 | `HZ` | `HAZEL` (&C000-&DFFF) | HAZEL: the game data (INCBIN HZDATA1, HZDATA2: blueprints, XX21 ..., SNE, ACT), and at &C300 gvars, the T_ trampolines, the text and IRQ hooks |

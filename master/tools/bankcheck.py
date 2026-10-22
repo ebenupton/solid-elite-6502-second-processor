@@ -50,7 +50,7 @@ import re, sys
 
 SRC = "src/"
 FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm": "main",
-         "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "gfx-gstubs.asm": "main", "elite-hi.asm": "main", "gfx-hooks.asm": "main",
+         "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "gfx-gstubs.asm": "main", "elite-qs.asm": "main", "gfx-hooks.asm": "main",
          # elite-data.asm's hot data (in HAZEL) and cold data (in the cold area)
          "../build/elite-data-hot.asm": "hazel", "../build/elite-data-cold.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)

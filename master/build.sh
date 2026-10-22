@@ -6,7 +6,7 @@
 #   build/BANK4.bin (Elite's home bank: the data and bank 4 code),
 #   build/COLD7.bin (the cold area, bank 7 from &8000), build/MERID.bin (the
 #   renderer's meridian window, bank 7 after it),
-#   build/HICODE.bin (main RAM &7000-&7FFF: the high code, then the run),
+#   build/HICODE.bin (main RAM &7000-&7FFF: the quarter-square tables, then the run),
 #   build/HAZEL.bin (HAZEL: the hot data), build/HZDATA.bin (the same, for
 #   the tools),
 #   build/symbols.txt (beebasm -d symbol dump of elite-layout.asm; zero page,
@@ -105,7 +105,7 @@ with open("build/game-addresses.asm", "w") as f:
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" C7LEN = &%04X\n" % (sy["COLD_END%"] - 0x8000))   # (the cold area, bank 7 from &8000)
     f.write(" M7AT = &%04X\n M7LEN = &%04X\n" % (sy["MERID_START"], sy["MERID_END"] - sy["MERID_START"]))   # (the meridian window, bank 7 after it)
-    f.write(" HILEN = &1000\n")   # (HICODE: main RAM &7000-&7FFF, the high code then the run)
+    f.write(" HILEN = &1000\n")   # (HICODE: main RAM &7000-&7FFF, the quarter-square tables then the run)
 # build/images.txt: where the loader puts each image (harness/mboot.mjs checks
 # them): file, ROMSEL (hex; bit 7: ANDY) or main/shadow/hazel, start (hex), and
 # "v" for images holding variables or self-modified code
