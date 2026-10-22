@@ -45,11 +45,13 @@
 \
 \ ******************************************************************************
 
- CODE% = &1FDC          \ The address where the code will be run (Port: the
+ CODE% = &1E2C          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
-                        \ docs/MASTER-MAP.md; its low byte is chosen so that the
-                        \ font, at its place after ADDK, starts a page with no
-                        \ padding: the build prints the padding, FONTPAD%)
+                        \ docs/MASTER-MAP.md; the low area, elite-low.asm, starts
+                        \ here and the head follows it, and the low byte is
+                        \ chosen so that the font, at its place after ADDK,
+                        \ starts a page with no padding: the build prints the
+                        \ padding, FONTPAD%)
 
  LOAD% = CODE%          \ The address where the code will be loaded
 
@@ -2084,6 +2086,20 @@ ENDIF
  ORG CODE%              \ Set the assembly address to CODE%
 
  LOAD_A% = LOAD%
+
+\ ******************************************************************************
+\
+\ Port: the low area (elite-low.asm, docs/MASTER-MAP.md), first in the main
+\ code: the blocks of this source tagged low and the port's own code and
+\ variables that must be in main RAM outside the banks; then the head, the
+\ original's VEC to UP; then the run, from M%, straight after UP. All of the
+\ low area and the head are below &3000 (asserted after UP)
+\
+\ ******************************************************************************
+
+ INCLUDE "src/elite-low.asm"
+
+.HEAD_START%            \ Port: the head, the original's VEC to UP
 
 \ ******************************************************************************
 \
@@ -9263,29 +9279,19 @@ ENDIF
 
  PRINT "UP workspace from ", ~UP, "to ", ~P%-1, "inclusive"
 
-\ ******************************************************************************
-\
-\ Port: the end of the main code's head, which is in main RAM below &3000: the
-\ low area (elite-low.asm, docs/MASTER-MAP.md), the blocks of this source
-\ tagged low and the port's own code and variables that must be low
-\
-\ ******************************************************************************
+.HEAD_END%              \ Port: the end of the head, where the run starts (M%)
 
- INCLUDE "src/elite-low.asm"
-
-.HEAD_END%
-
- PRINT "Main code below &3000: ", ~CODE%, "-", ~LOW_END%-1, " free ", &3000-LOW_END%, " (the font's alignment: ", FONTPAD%, " bytes of padding); the low area's game-context part to ", ~HEAD_END%-1
- ASSERT LOW_END% <= &3000   \ Port: everything up to LOW_END% (elite-low.asm) must
-                        \ be below &3000, as it is used while ACCCON X = 1
-                        \ (shadow RAM at &3000-&7FFF), from interrupts or from
-                        \ MOS vectors with any ROM paged: the IRQ and sound
-                        \ code, CHPR and its font, the log tables (LOINQ),
-                        \ HANGFLAG (HANGER), ADDK (DIALS, PIX1), UP (CATF, FLH,
-                        \ COMC) and the low area's first part (NEWBRK, the far
-                        \ calls, the renderer's glue); after it, the G_ stubs
-                        \ and the hooks, called from game code only (ACCCON X
-                        \ clear), may cross &3000
+ PRINT "Low area: ", ~CODE%, "-", ~HEAD_START%-1, " (to ", ~LOW_END%-1, " used with ACCCON X set); head: ", ~HEAD_START%, "-", ~HEAD_END%-1, " (the font's alignment: ", FONTPAD%, " bytes of padding); free below &3000: ", &3000-HEAD_END%
+ ASSERT HEAD_END% <= &3000  \ Port: the low area and the head must be below
+                        \ &3000: they are used while ACCCON X = 1 (shadow RAM at
+                        \ &3000-&7FFF), from interrupts or from MOS vectors with
+                        \ any ROM paged: the low area's first part, to LOW_END%
+                        \ (NEWBRK, the far calls, the renderer's glue), the IRQ
+                        \ and sound code, CHPR and its font, the log tables
+                        \ (LOINQ), HANGFLAG (HANGER), ADDK (DIALS, PIX1) and UP
+                        \ (CATF, FLH, COMC); the low area's second part (the
+                        \ G_ stubs and the hooks, called from game code only)
+                        \ lies between them, so it is below &3000 too
 
 \ ******************************************************************************
 \
@@ -17307,28 +17313,6 @@ ENDIF
  PRINT "S.ELTB ", ~CODE_B%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_B%
 \SAVE "build/ELTB.bin", CODE_B%, P%, LOAD%
 
-\ ******************************************************************************
-\
-\ Port: the main code continues in main RAM at &7000 from here, after the high
-\ code (elite-hi.asm), and runs on through &8000 into bank 4
-\ (docs/MASTER-MAP.md), at a routine that nothing falls into. The part from
-\ CODE%, below screen buffer 0 (main RAM &4000-&6FFF), is saved as BCODE; the
-\ part from &7000 as HICODE and the rest, in bank 4, with the blocks tagged
-\ bank 4 after it, as BANK4 (elite-layout.asm)
-\
-\ ******************************************************************************
-
- PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
- ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0)
- PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
-
- CLEAR &7000, &C000
- ORG &7000
-
- INCLUDE "src/elite-hi.asm"             \ the quarter squares
-
-.HI_RUN%
 
 \ ******************************************************************************
 \
@@ -17754,6 +17738,29 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+
+\ ******************************************************************************
+\
+\ Port: the main code continues in main RAM at &7000 from here, after the high
+\ code (elite-hi.asm), and runs on through &8000 into bank 4
+\ (docs/MASTER-MAP.md), at a routine that nothing falls into. The part from
+\ CODE%, below screen buffer 0 (main RAM &4000-&6FFF), is saved as BCODE; the
+\ part from &7000 as HICODE and the rest, in bank 4, with the blocks tagged
+\ bank 4 after it, as BANK4 (elite-layout.asm)
+\
+\ ******************************************************************************
+
+ PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
+ ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0)
+ PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
+
+ CLEAR &7000, &C000
+ ORG &7000
+
+ INCLUDE "src/elite-hi.asm"             \ the quarter squares
+
+.HI_RUN%
 
 \ ******************************************************************************
 \
@@ -48733,7 +48740,7 @@ ENDIF
 \ holds a frame (the next space-mode frame clears it, f_b0new). DFS's and
 \ the MOS's lasting bytes (&C2C0-&C2FF, and &DFC0-&DFFF: the MOS's FSCV copy
 \ at &DFDA-&DFDB, and the ACCCON its error path puts back from &DFDC when
-\ &DFDD is non-zero) live in DFSST while the game runs (the loader takes
+\ &DFDD is non-zero) live in DFSST and DFSST2 while the game runs (the loader takes
 \ them after its last disc access): they go back before the command and are
 \ stashed again after it (or after its error, through DOSNMI), as *DIR and
 \ *DRIVE change them. Before the command the catalogue cache is invalidated
@@ -48782,7 +48789,7 @@ DOSBUF = &6000          \ the command's copy, in buffer 0 after HAZEL's stash
 .dosc1
  LDA DFSST,X
  STA &C2C0,X
- LDA DFSST+64,X
+ LDA DFSST2,X
  STA &DFC0,X
  DEX
  BPL dosc1
@@ -48846,7 +48853,7 @@ DOSBUF = &6000          \ the command's copy, in buffer 0 after HAZEL's stash
  LDA &C2C0,X
  STA DFSST,X
  LDA &DFC0,X
- STA DFSST+64,X
+ STA DFSST2,X
  DEX
  BPL dosn2
  LDX #&40

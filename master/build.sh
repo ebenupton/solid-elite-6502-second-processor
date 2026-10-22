@@ -100,7 +100,7 @@ with open("build/game-addresses.asm", "w") as f:
     # the renderer's files (elite-gfx.asm): HAZEL's code and their lengths
     f.write(" HZ_START = &%04X\n HZLEN = &%04X\n" % (sy["HZ_START"], sy["HZ_END"] - sy["HZ_START"]))
     f.write(" BCODEAT = &%s\n" % re.search(r"^S\.BCODE &([0-9A-F]+)", open("build/compile.txt").read(), re.M).group(1))
-    f.write(" DFSST = &%04X\n" % sy["DFSST"])
+    f.write(" DFSST = &%04X\n DFSST2 = &%04X\n DFSIN = &%04X\n" % (sy["DFSST"], sy["DFSST2"], sy["DFSIN"]))
     f.write(" B5LEN = &%04X\n B6LEN = &%04X\n RALEN = &%04X\n" % (sy["B5_END"] - 0x8000, sy["B6_END"] - 0x8000, sy["RA_END"] - 0x8000))
     f.write(" GINIT = &%04X\n" % sy["G_INIT"])
     f.write(" C7LEN = &%04X\n" % (sy["COLD_END%"] - 0x8000))   # (the cold area, bank 7 from &8000)

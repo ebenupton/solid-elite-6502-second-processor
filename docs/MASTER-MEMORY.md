@@ -90,9 +90,9 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
   &0CAA-&0CCE), with the commander file buffer at &087E: DFS
   loads and saves commander files there during a docked disc command. Nothing in page
   &0D. From &0E00 (OSHWM) up to the main code: the renderer's shared workspace
-  (&0E40-&1EE0, the main code starting at &1EE1); in a save, a load and a catalogue nothing but the game writes
+  (&0E00-&1E2B, the main code starting at &1E2C: docs/MASTER-MAP.md); in a save, a load and a catalogue nothing but the game writes
   &0E00-&1EFF once the game has started (traced in jsbeeb). The loader runs at &0E00
-  and its last part from &0400, as it fills DFSST and calls G_INIT.
+  and its last part from &0400, as it fills DFSST and DFSST2 and calls G_INIT.
 
 Short answer:
 
@@ -347,7 +347,7 @@ Envelopes are at &08C0 (OSWORD 8). The MOS's 100 Hz IRQ code reads &0804-&0807 a
 | &0D94-&0D9E | Unused by MOS 3.20 and DFS 2.24 in jsbeeb | **No** (see below) |
 | &0D9F-&0DEF | Extended vectors; DFS's 7 FS vectors at &0DBA-&0DCE | No |
 | &0DF0-&0DFF | ROM private-workspace table (&0DF9 = &DA for DFS, &0DFD = &D9 for ADFS); DFS reads it on every operation | No |
-| &0E00-&12FF | Master Elite's WP workspace and commander buffer (&0E7E) in the original; the port's WP is at &0841-&0CA9 (commander buffer &087E), and the renderer's shared workspace from &0E40 | Already used |
+| &0E00-&12FF | Master Elite's WP workspace and commander buffer (&0E7E) in the original; the port's WP is at &0841-&0CA9 (commander buffer &087E), and the renderer's shared workspace from &0E00 | Already used |
 
 ### Page &0D is off limits
 
