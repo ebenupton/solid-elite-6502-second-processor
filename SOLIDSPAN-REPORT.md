@@ -139,7 +139,9 @@ krow ~7k, commit ~2k, against ~100k of runs and repair no longer done.
 | low area (below &3000) | 479 | 46 | the trampolines' hooks, T_KFRAME, tk_line, T_KPRE, k_setbuf7, the variables |
 
 Nothing in shadow RAM, nothing in page &0D, nothing in HAZEL &DF00-&DFFF,
-no alignment padding. The low area is the biggest cost (433 bytes); T_KFRAME
+no alignment padding. (Later, 2026-10-22: KF moved from HAZEL to the shared workspace,
+&1E00-&1EBF, with CODE% a page up and the run's marker before HATB: HAZEL
+back to 268 free, below &3000 655, bank 4 3853 -> 3622; docs/MASTER-MAP.md.) The low area is the biggest cost (433 bytes); T_KFRAME
 and k_setbuf7 could move to bank 7 if room is found there.
 
 ## Tests
