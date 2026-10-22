@@ -100,7 +100,7 @@ which spare RAM the port may take.
 10. **Each bank keeps its private tables and variables**; the state that
    more than one bank, the IRQ handler or code running with ACCCON X set
    reads is the renderer's shared workspace, in main RAM below the main code
-   (one block, &0E40-&1EDB, ending where the main code starts), with DFSST;
+   (one block, &0E40-&1FDB, ending where the main code starts), with DFSST;
    the renderer's glue (its shared variables with initial values, the T_
    trampolines, the text and IRQ hooks) is in the main code's low area, below
    &3000 too. The rasteriser's windows share
@@ -278,7 +278,7 @@ The loader (`M128Elt`) loads each file to &1300 and copies it into place
 COLD7 (the cold area, to bank 7 &8000), RASTA (the
 rasteriser's polygon window, to ANDY with ROMSEL &85), BANK5, BANK6, HAZEL (staged at
 &4000), HICODE (the high code and the run's part in main RAM, to
-&7000-&7FFF); then it loads BCODE to &1EE1 (its address
+&7000-&7FFF); then it loads BCODE to &1FDC (its address
 from the build). The loader is at &0E00, in the shared workspace's place, so
 its last part runs from K% (&0400; the game sets K% up itself): it takes
 DFS's and the MOS's lasting bytes into DFSST after the last disc access,
@@ -296,7 +296,7 @@ workspace.
   is never written, and below that WP (Elite's own workspace) fills the
   MOS's buffers at &0840-&0CFF that the game never uses
   (docs/MASTER-MEMORY.md).
-* **The main code** runs in game context. Below &3000 (to HEAD_END%) is what
+* **The main code** runs in game context. Below &3000 (to LOW_END%) is what
   must be visible with X = 1 or from interrupts and MOS vectors (rules 1 and
   2), or whatever bank is paged: the original's head, VEC to UP, which its
   order puts there anyway, and the low area after it (the blocks tagged
