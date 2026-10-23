@@ -28,6 +28,9 @@
 OVL_D = 1               \ the overlays, by number (ovl_cur, C_OVLGET, C_OVLPUT)
 OVL_S = 2
 OVL_SS = 3              \ (overlay S's state, saved by the host)
+OVL_TM = 4              \ overlay S's kind tail (from TAIL_START): the meridian's
+OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
+                        \ (gfx-frame.asm's crater blocks); OVL_S itself is S's common part
 
 .ovl_cur EQUB OVL_D     \ the overlay in the region (0: none; the parasite's
                         \ image starts with overlay D in)
@@ -194,6 +197,8 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  LDA ovl_cur
  CMP #OVL_S
  BNE ovn8
+ LDA ovl_kw             \ S: its tail
+ JSR ovl_get
  BIT ovl_ssv            \ S: its state back, or buffer 0 afresh
  BPL ovn7
  STZ ovl_ssv
@@ -209,6 +214,37 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  RTS
 
 .ovl_ssv EQUB 0         \ bit 7: the host keeps overlay S's state
+.ovl_kw  EQUB OVL_TM    \ S's tail: the one in the region while S is, and the
+                        \ one S comes in with
+
+\ p_kind: G_PLANET's (H_CIRC and H_SUN): for a planet (TYPE 128, the meridian
+\ kind, or 130, the crater kind; the sun's TYPE is odd), S's tail for its kind:
+\ fetched now if S is in with the other, or noted for when S comes in. Every
+\ frame that draws a planet comes here before its curves (G_PCURVE, G_PPOINT),
+\ its meridians (G_MERHOOK) and its boundaries (F_FRAME's f_bounds). Keeps X
+\ and Y
+
+.p_kind
+ LDA TYPE
+ LSR A
+ BCS pk9                \ (the sun)
+ AND #1                 \ 0 meridian, 1 crater
+ ORA #OVL_TM
+ CMP ovl_kw
+ BEQ pk9
+ STA ovl_kw
+ LDA ovl_cur
+ CMP #OVL_S
+ BNE pk9
+ PHX
+ PHY
+ LDA ovl_kw
+ JSR ovl_get
+ PLY
+ PLX
+.pk9
+ RTS
+ ASSERT OVL_TC = OVL_TM + 1 AND (OVL_TM AND 1) = 0
 
 \ ovl_get: A = an overlay (or S's state): C_OVLGET, then its pages from the
 \ host into the region. Clobbers A, X, Y
@@ -221,7 +257,7 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  JSR ptx
  LDA ovlen-1,X          \ its end, as a page (whole pages are sent)
  STA ovn_n+1
- LDA #HI(OVL_START)
+ LDA ovst-1,X           \ its start
  STA ovn_d+2
  LDY #0
 .ovn1
@@ -241,4 +277,7 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  ASSERT LO(OVL_START) = 0
 
 .ovlen                  \ each overlay's end, as a page (OVL_START is page aligned)
- EQUB HI(OVL_D_END + 255), HI(OVL_S_END + 255), HI(S_STATE_END + 255)
+ EQUB HI(OVL_D_END + 255), HI(TAIL_START), HI(S_STATE_END + 255), HI(OVL_S_END + 255), HI(TC_END + 255)
+.ovst                   \ and its start
+ EQUB HI(OVL_START), HI(OVL_START), HI(OVL_START), HI(TAIL_START), HI(TAIL_START)
+ ASSERT LO(TAIL_START) = 0

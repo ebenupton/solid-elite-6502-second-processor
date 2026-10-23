@@ -632,6 +632,50 @@ def data(errors):
     return {a: sum(1 for b in bl if b[3] == a and b[2]) for a in DAREAS}
 
 
+# The Tube parasite's passes over the frame layer's files (FRAMEPASS): those
+# files have no block headers, so a block there starts at a lone tag line in
+# the headers' field syntax and runs to the next one:
+#
+#   \       Area: ovl S crater      (overlay S's crater tail, p-layout.asm)
+#   \       Area: frame             (back to the file's own place)
+#
+# Lines before the first tag line are the file's own place's. Each pass is
+# the file with every line outside its blocks blanked (line numbers stay the
+# file's): build/<file>-frame.asm (the resident frame layer) and
+# build/<file>-crater.asm (the tail). The Master port and the hosts assemble
+# the file itself, where the tag lines are comments
+FRAMEPASS = ("src/gfx-frame.asm",)
+FPASS = {"frame": "frame", "ovl S crater": "crater"}
+
+
+def frame_passes(path, errors):
+    lines = open(path, encoding="latin-1").read().split("\n")
+    tag, tags = "frame", []
+    for i, l in enumerate(lines):
+        m = AREA.match(l)
+        if m:
+            t = m.group(1).strip()
+            if t not in FPASS:
+                errors.append("%s:%d: unknown area %r" % (path, i + 1, t))
+                continue
+            tag = FPASS[t]
+        tags.append(tag)
+    k = 0                              # (each block's IF ... ENDIF balanced)
+    while k < len(lines):
+        e, depth = k, 0
+        while e < len(lines) and tags[e] == tags[k]:
+            c = code_part(lines[e]).upper()
+            depth += bool(re.match(r"^IF\b", c)) - bool(re.match(r"^ENDIF\b", c))
+            e += 1
+        if depth and tags[k] != "frame":   # (the file's own place keeps every line
+            errors.append("%s:%d: IF ... ENDIF not balanced in a %s block" % (path, k + 1, tags[k]))  # but the tails')
+        k = e
+    base = os.path.splitext(os.path.basename(path))[0]
+    for ps in set(FPASS.values()):
+        with open("build/%s-%s.asm" % (base, ps), "w", encoding="latin-1") as f:
+            f.write("\n".join(l if t == ps else "" for l, t in zip(lines, tags)))
+
+
 def main():
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
@@ -709,6 +753,9 @@ def main():
                 f.write("\n".join(c))
     nstubs = glue(copies, errors, lines, bl, falls)
     nd = data(errors)
+    if TUBE:
+        for fp in FRAMEPASS:
+            frame_passes(fp, errors)
     for a in AREAS:
         with open(OUT % a, "w", encoding="latin-1") as f:
             f.write("\n".join(copies[a]))

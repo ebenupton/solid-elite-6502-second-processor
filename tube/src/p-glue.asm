@@ -51,6 +51,7 @@
  JMP gback
 
 .G_PLANET
+ JSR p_kind             \ (overlay S's tail for the planet's kind, p-ovl.asm)
  JSR F_PLANET
  JMP gback
 
@@ -66,11 +67,19 @@
  JSR F_BOMB
  JMP gback
 
-.G_PCURVE
+.G_PCURVE               \ (F_PCURVE and F_PPOINT: overlay S's crater tail,
+ PHX                    \ which G_PLANET has chosen this frame)
+ LDA #OVL_S
+ JSR ovl_need
+ PLX
  JSR F_PCURVE
  JMP gback
 
 .G_PPOINT
+ PHX
+ LDA #OVL_S
+ JSR ovl_need
+ PLX
  JMP F_PPOINT           \ (it returns through gback)
 
 \ G_MERHOOK: H_MERID's beach ball (gfx-hooks.asm): PM_HOOK, the meridian

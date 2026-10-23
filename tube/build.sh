@@ -55,6 +55,12 @@ with open("build/povl.asm", "w") as f:
     f.write("OVLD_PAGES = %d\n" % ((sy["OVL_D_END"] + 255) // 256 - sy["OVL_START"] // 256))
     f.write("OVLS_PAGES = %d\n" % ((sy["OVL_S_END"] + 255) // 256 - sy["OVL_START"] // 256))
     f.write("OVLSS_PAGES = %d\n" % ((sy["S_STATE_END"] + 255) // 256 - sy["OVL_START"] // 256))
+    f.write("OVLSC_PAGES = %d\n" % (sy["TAIL_START"] // 256 - sy["OVL_START"] // 256))   # (S's common part)
+    f.write("OVLTC_PAGES = %d\n" % ((sy["TC_END"] + 255) // 256 - sy["TAIL_START"] // 256))
+# overlay S's crater tail goes after overlay D's image (the hosts keep both in one bank)
+d = open("build/HOVD.bin", "rb").read(); c = open("build/HOVSC.bin", "rb").read()
+assert len(d) % 256 == 0 and len(c) % 256 == 0
+open("build/HOVD.bin", "wb").write(d + c)
 PY
 # the host
 $BEEBASM -i tsrc/h-layout.asm -v > build/compile-h.txt 2>&1 || { grep -iE "error" -A3 build/compile-h.txt | head -30; exit 1; }

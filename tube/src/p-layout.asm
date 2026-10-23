@@ -42,7 +42,7 @@ PFRAME% = P%
  ORG PFRAME%
 
 .PF_START
- INCLUDE "src/gfx-frame.asm"
+ INCLUDE "build/gfx-frame-frame.asm"   \ (streams.py's frame pass: not the crater blocks)
  INCLUDE "src/gfx-faces.asm"
  INCLUDE "src/gfx-light6.asm"
  INCLUDE "src/gfx-light.asm"
@@ -115,12 +115,28 @@ ENDIF
  CPU 1
  INCLUDE "src/gfx-flare.asm"
  CPU 1
+ ALIGN &100             \ (the kind tail: the meridian's or the crater's,
+.TAIL_START             \ p-ovl.asm)
  INCLUDE "src/gfx-merid.asm"
  CPU 1
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to &F800: ", &F800-OVL_S_END
  ASSERT OVL_S_END <= &F800 OR MEASURE
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
+
+\ Overlay S's crater tail (p-ovl.asm's OVL_TC): the crater's code from the
+\ frame layer (gfx-frame.asm's blocks tagged "Area: ovl S crater", streams.py's
+\ crater pass), at TAIL_START in place of the
+\ meridian's (gfx-merid.asm). The host keeps its image after overlay D's
+\ (tube/build.sh appends HOVSC to HOVD)
+ CLEAR TAIL_START, &F800
+ ORG TAIL_START
+.TC_START
+ INCLUDE "build/gfx-frame-crater.asm"   \ (streams.py's crater pass)
+.TC_END
+ PRINT "Parasite: overlay S's common part &", ~OVL_START, "-&", ~TAIL_START-1, ", the meridian tail to &", ~OVL_S_END-1, " (", OVL_S_END-TAIL_START, " bytes), the crater tail to &", ~TC_END-1, " (", TC_END-TAIL_START, " bytes)"
+ ASSERT TC_END <= OVL_S_END OR MEASURE
+ SAVE "build/HOVSC.bin", TAIL_START, (TC_END + 255) AND &FF00
 
 \ The high code (PHIGH): &F800-&FEEF, where the client OS is until the boot
 \ (p_boot) copies it in from the staging area; then the page at &FF00 with

@@ -2358,6 +2358,12 @@ MAXPT = 40              \ points per frame: PLS22's step STP is at least 2
 .F_PXH SKIP MAXPT
 .F_PYL SKIP MAXPT
 .F_PYH SKIP MAXPT
+IF _TPART = 1            \ (Tube: F_NCV and F_NPT are bytes here, as F_PPOINT
+.F_NCV EQUB 0           \ is in overlay S's crater tail, and f_reset writes them)
+.F_NPT EQUB 0
+ENDIF
+
+\       Area: ovl S crater
 
 .F_PCURVE
  PHX
@@ -2375,11 +2381,17 @@ MAXPT = 40              \ points per frame: PLS22's step STP is at least 2
  RTS
 
 .F_PPOINT               \ (the current curve's F_CVE is set from F_NPT at fbd2)
+IF _TPART = 1
+ LDA F_NCV
+ BEQ fpp9
+ LDY F_NPT              \ (Y is not preserved: BLINE, the only caller, reloads
+ELSE                    \ Y on every path
  LDA #0                 \ operand = F_NCV
 F_NCV = P%-1
  BEQ fpp9
  LDY #0                 \ operand = F_NPT (Y is not preserved: BLINE, the
 F_NPT = P%-1            \ only caller, reloads Y on every path
+ENDIF
  CPY #MAXPT             \ before reading it; CLIP2 only saves/restores it)
  BCS fpp9
  LDA K6
@@ -2396,11 +2408,18 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
  JMP gback              \ (G_PPOINT tail-jumps here: page Elite's bank back in
                         \ and return to BLINE)
 
+\       Area: frame
+
 \ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
 
 .f_nobounds             \ (STZ: no caller reads A, which left room for
  STZ R_NDF              \ F_PPOINT's JMP gback)
+IF _TPART = 1
+.fnb9                   \ (Tube: f_bounds's RTS, as f_zerobounds's is in the tail)
+ENDIF
  RTS
+
+\       Area: ovl S crater
 
 .f_zerobounds           \ rows R_NDT..R_NDB: no boundaries yet (only caller
                         \ fbd1, where f_bounds has checked R_NDT <= R_NDB)
@@ -2425,8 +2444,12 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
 .fnb_e
  CPY #0                 \ patched: R_NDB+1
  BNE fnb1
+IF _TPART <> 1
 .fnb9
+ENDIF
  RTS
+
+\       Area: frame
 
 \ f_bounds: the planet's curves -> R_NDN/R_NDX0-3/R_NDP for rows
 \ R_NDT..R_NDB (which f_plrows has just set), and colour B
@@ -2449,6 +2472,13 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
 .fbd1
  LDX F_NCV              \ else a crater's curves (only a crater planet's are
  BEQ fnb9               \ recorded), colour B a dark crater
+IF _TPART = 1
+ JMP f_crater           \ (Tube: overlay S's crater tail)
+ENDIF
+
+\       Area: ovl S crater
+
+.f_crater
  STA R_NDF
  JSR f_zerobounds
  LDA #&50
@@ -2879,6 +2909,8 @@ F_NPT = P%-1            \ only caller, reloads Y on every path
  BCC P%+3
  RTS
  JMP fpa1
+
+\       Area: frame
 
 \ ------------------------------------------------------------------------------
 \ f_behind: is ship f_si behind the planet, with the first vertex of its first

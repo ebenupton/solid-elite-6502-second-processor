@@ -238,9 +238,9 @@ ELSE
  STA &FE30
  JMP hloop
 .hogn EQUB 0
-.h_ovlb EQUB OVLBANK, OVLSBANK, OVLSBANK    \ each overlay's bank, first page, pages
-.h_ovlh EQUB &80, &80, &80 + OVLS_PAGES
-.h_ovln EQUB OVLD_PAGES, OVLS_PAGES, OVLSS_PAGES
+.h_ovlb EQUB OVLBANK, OVLSBANK, OVLSBANK, OVLSBANK, OVLBANK   \ each overlay's bank, first page, pages:
+.h_ovlh EQUB &80, &80, &80 + OVLS_PAGES, &80 + OVLSC_PAGES, &80 + OVLD_PAGES   \ D, S's common part, S's
+.h_ovln EQUB OVLD_PAGES, OVLSC_PAGES, OVLSS_PAGES, OVLS_PAGES - OVLSC_PAGES, OVLTC_PAGES   \ state, the meridian tail, the crater tail
 ENDIF
 
 IF _HOSTB = 0             \ (the Model B host's: hb-res2.asm)
