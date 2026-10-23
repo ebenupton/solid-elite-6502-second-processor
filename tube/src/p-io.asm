@@ -110,7 +110,13 @@ ENDMACRO
  RTS
 
 .T_FLARE                \ the lens flare (gfx-flare.asm), X, Y: this buffer's
- JMP R_FLARE            \ dirty extents' pages
+ BIT KMODE              \ dirty extents' pages (K mode: no kept rows, p-kept.asm)
+ BPL tfl1
+ PHY
+ JSR k_clear
+ PLY
+.tfl1
+ JMP R_FLARE
 
 \ p_hloin: HLOIN3 (Master's drawing, the host's: C_HLOIN): a line from (X1, Y1)
 \ to (X2, Y1) in COL, leaving YSAV, X1, X2 and X as Master's does; keeps Y

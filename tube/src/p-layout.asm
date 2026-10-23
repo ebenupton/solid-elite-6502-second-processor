@@ -94,6 +94,7 @@ ASSERT F_ST = F_TM + &300
 .OVL_S_START
  INCLUDE "tsrc/p-rast.asm"
  INCLUDE "tsrc/p-emit.asm"              \ (the polygons' rows to the host as they are made)
+ INCLUDE "tsrc/p-kept.asm"              \ (kept solid rows)
 IF OPTUBE
  INCLUDE "src/gfx-raster_onepass.asm"   \ (R_POLY's 8-bit polygons in one pass)
  CPU 1
@@ -119,6 +120,7 @@ ENDIF
  INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
  CPU 1
  INCLUDE "tsrc/p-dash2.asm"    \ (the dashboard's parasite halves, their second part)
+ INCLUDE "tsrc/p-kept2.asm"    \ (kept solid rows: T_KFRAME)
 .PHIGH_END
  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
  ASSERT PHIGH_END <= &FEF0

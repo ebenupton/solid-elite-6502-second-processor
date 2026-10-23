@@ -260,10 +260,9 @@ NEXT
  PLA
  JMP RR4
 
-\ The kept solid rows' entry points (gfx-raster_kept.asm in the Master port):
-\ off on the Tube for now (KMODE stays 0, so T_KROWS is never reached)
-.T_KFRAME
-.T_KCOMMIT
+\ T_KOFF: (F_FRAME, not a space view: overlay S may be out) K mode off. Its
+\ kept rows are forgotten by the next frame's T_KFRAME (p-kept.asm), and
+\ until then nothing reads them but the disc layer's band (KANY)
 .T_KOFF
-.T_KROWS
+ STZ KMODE
  RTS

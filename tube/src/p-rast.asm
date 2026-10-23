@@ -72,6 +72,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .r_dst   EQUB 255, 255  \ per buffer: the rows of its disc
 .r_dsb   EQUB 0, 0
 .r_bmode EQUB 0, 0      \ per buffer: its disc rows may hold boundaries
+.KANY    EQUB 0         \ bit 7: a row may be kept (p-kept.asm: k_clear clears it)
 .r_wt    EQUB 255       \ rows of R_WL/R_WR that may be non-empty
 .r_wb    EQUB 0
 .r_nt    EQUB 0         \ R_DISCROWS: the new disc rows
@@ -98,6 +99,7 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 
 .T_INIT
 .R_INIT
+ JSR k_clear            \ (no kept rows)
  LDA #1                 \ (the clip window, as the Master port's R_INIT)
  STA R_CL
  STA R_CT
@@ -167,7 +169,8 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 .rsb_sr EQUB HI(R_DISCR0), HI(R_DISCR1)
 
 .T_RESETBUF
-.R_RESETBUF             \ the current buffer's state (not the screen)
+.R_RESETBUF             \ the current buffer's state (not the screen), and no
+ JSR k_clear            \ kept rows
  LDY #191
 .zprs1
  LDA #&FF
@@ -195,6 +198,7 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 \ ------------------------------------------------------------------------------
 
 .T_MARKDIRTY
+ JSR pk_y               \ (K mode: row Y not kept, p-kept.asm)
 .R_MARKDIRTY
  LDA R_XL
  CMP (pr_dl),Y
@@ -224,6 +228,7 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 \ ------------------------------------------------------------------------------
 
 .T_SPAN
+ JSR pk_y               \ (K mode: row Y not kept, p-kept.asm)
 .R_SPAN
  LDA R_XR
  CMP R_XL
@@ -353,6 +358,23 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
  RTS
 
 .T_DOT
+ BIT KMODE              \ (K mode: rows Y and Y + 1 not kept, p-kept.asm)
+ BPL R_DOT
+ CPY #192
+ BCS R_DOT
+ PHA
+ PHX
+ PHY
+ TYA
+ TAX
+ INX
+ CPX #192
+ BCC P%+3
+ DEX
+ JSR k_kill
+ PLY
+ PLX
+ PLA
 .R_DOT
  STA pr_e
  STX pr_f
@@ -420,6 +442,9 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 \ ------------------------------------------------------------------------------
 
 .T_LINE
+ BIT KMODE              \ (K mode: the line's rows not kept, p-kept.asm)
+ BPL R_LINE
+ JSR pk_line
 .R_LINE
  LDA #C_LINE
  JSR ptx
@@ -834,7 +859,12 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 .pdr5
  LDA (pr_dr),Y
  BEQ pdr5a
+ BIT KMODE              \ (K mode: a kept row is left pending, p-kept.asm)
+ BMI pdr5k
  JSR prep
+ BRA pdr5a
+.pdr5k
+ JSR pk_row
 .pdr5a
  INY
  BNE pdr4
@@ -852,6 +882,10 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
  STA pr_h
  LDA R_NDF
  STA r_bmode,X
+ BIT KANY               \ (rows that may be kept: none in the band, p-kept.asm)
+ BPL pdr6k
+ JSR pk_band
+.pdr6k
  LDY r_bt               \ the band's rows
  LDA r_bb
  CMP r_bt
