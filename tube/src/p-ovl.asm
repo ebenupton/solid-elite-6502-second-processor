@@ -5,7 +5,7 @@
 \ whose images the host keeps (storage only):
 \
 \   * overlay D, the direct-mode overlay: the cold blocks that run only on
-\     the screens drawn directly (tube/src/ovl-d.txt), with the extended
+\     the screens drawn directly (tagged "Tube: ovl D" in their headers), with the extended
 \     tokens they print;
 \
 \ Code outside an overlay reaches it only through stubs, which streams.py

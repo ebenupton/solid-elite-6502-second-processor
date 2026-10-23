@@ -36,7 +36,7 @@ shows.
 
 | Overlay | Size | Free | Holds |
 |---|---|---|---|
-| D (direct mode) | 7,294 bytes, &D400-&F07D | 1,922 | the cold blocks that run only on the screens drawn directly (tube/src/ovl-d.txt: the charts, the market, equipment, the status and disc screens, the title), with the extended tokens they print |
+| D (direct mode) | 7,294 bytes, &D400-&F07D | 1,922 | the cold blocks that run only on the screens drawn directly (the blocks tagged "Tube: ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title), with the extended tokens they print |
 | S (space mode) | 9,143 bytes, &D400-&F7B6 | 73 | the rasteriser's bookkeeping (p-rast.asm: its state first, 1,938 bytes to &DB91, then the disc layer, the dirty extents, the star records' relay through R_NDX2 (fetched before C_BUF by p_starget, sent back after it), the 16-bit polygons' rows), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), the text overlay and the sights (gfx-ftext.asm), the lens flare (p-flt.asm, gfx-flare.asm), the meridian window (gfx-merid.asm, with the run's quarter squares) |
 
 Code outside an overlay calls into D through stubs that streams.py writes at

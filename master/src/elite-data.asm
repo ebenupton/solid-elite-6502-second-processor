@@ -5092,6 +5092,7 @@ ENDMACRO
 \    Summary: Macro definition for jump tokens in the extended token table
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5121,6 +5122,7 @@ ENDMACRO
 \    Summary: Macro definition for characters in the extended token table
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5156,6 +5158,7 @@ ENDMACRO
 \    Summary: Macro definition for recursive tokens in the extended token table
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5186,6 +5189,7 @@ ENDMACRO
 \    Summary: Macro definition for two-letter tokens in the extended token table
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5383,6 +5387,7 @@ ENDMACRO
 \    Summary: Macro definition for random tokens in the extended token table
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5415,6 +5420,7 @@ ENDMACRO
 \    Summary: Macro definition for standard tokens in the extended token table
 \  Deep dive: Printing text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5459,6 +5465,7 @@ ENDMACRO
 \    Summary: The first extended token table for recursive tokens 0-255 (DETOK)
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8710,6 +8717,7 @@ ENDIF
 \             Extended text tokens
 \             The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8772,6 +8780,7 @@ ENDIF
 \             Extended text tokens
 \             The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8841,6 +8850,7 @@ ENDIF
 \             Extended text tokens
 \             The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \

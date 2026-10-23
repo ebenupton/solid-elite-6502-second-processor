@@ -75,7 +75,7 @@ ASSERT F_ST = F_TM + &300
 
 \ The overlay region (p-ovl.asm): from OVL_START, page aligned, to &F800. The
 \ parasite's image holds overlay D there (the cold area: the direct-mode
-\ blocks of tube/src/ovl-d.txt, then the extended tokens); the host keeps its
+\ blocks tagged "Tube: ovl D", then the extended tokens); the host keeps its
 \ image (HOVD), whole pages
  ORG (P% + 255) AND &FF00
 .OVL_START

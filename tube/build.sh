@@ -39,7 +39,7 @@ python3 - <<'PY'                     # the glyphs' W nibbles for the parasite's 
 f = open("src/fonts/P.FONT.bin", "rb").read()
 open("build/fontw.asm", "w").write(" EQUB " + ", ".join("&%02X" % (f[8 * i] & 15) for i in range(96)) + "\n")
 PY
-TUBE=1 TUBEOVL=tsrc/ovl-d.txt python3 tools/streams.py >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+TUBE=1 python3 tools/streams.py >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i build/elite-data-bdata.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 # the parasite
 $BEEBASM -D OPTEST=${OPTEST:-0} -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -v > build/compile-p.txt 2>&1 || { grep -iE "error" -A3 build/compile-p.txt | head -30; exit 1; }

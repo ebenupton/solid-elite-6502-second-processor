@@ -12150,6 +12150,7 @@ ENDIF
 \  Deep dive: Extended text tokens
 \             The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12189,6 +12190,7 @@ ENDIF
 \  Deep dive: Extended text tokens
 \             The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12227,6 +12229,7 @@ ENDIF
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12279,6 +12282,7 @@ ENDIF
 \    Summary: Print an extended recursive token from the TKN1 token table
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12430,6 +12434,7 @@ ENDIF
 \    Summary: Print an extended text token (1-255)
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12719,6 +12724,7 @@ ENDIF
 \    Summary: Tab to column 6 and start a new word when printing extended tokens
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12748,6 +12754,7 @@ ENDIF
 \    Summary: Clear the screen and set the current view type to 1
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12776,6 +12783,7 @@ ENDIF
 \    Summary: Switch to lower case when printing extended tokens
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12918,6 +12926,7 @@ ENDIF
 \    Summary: Print the selected system's adjective, e.g. Lavian for Lave
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12971,6 +12980,7 @@ ENDIF
 \    Summary: Print a random 1-8 letter word in Sentence Case
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -13017,6 +13027,7 @@ ENDIF
 \    Summary: Capitalise the next letter
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13040,6 +13051,7 @@ ENDIF
 \   Category: Text
 \    Summary: Test whether a character is a vowel
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13085,6 +13097,7 @@ ENDIF
 \    Summary: The extended token table for jump tokens 1-32 (DETOK)
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13658,6 +13671,7 @@ ENDIF
 \   Category: Keyboard
 \    Summary: Flush the keyboard buffer
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13679,6 +13693,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Print a title and draw a horizontal line at row 19 to box it in
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13702,6 +13717,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a horizontal line at pixel row 19 to box in a title
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13724,6 +13740,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a horizontal line at pixel row 23 to box in a title
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13758,6 +13775,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a screen-wide horizontal line at the pixel row in A
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -15775,6 +15793,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print text followed by a newline and indent of 6 characters
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -16330,6 +16349,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print an 8-bit number, left-padded to 3 digits, and optional point
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -17376,6 +17396,7 @@ ENDIF
 \   Category: Flight
 \    Summary: Launch our escape pod
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -17484,6 +17505,7 @@ ENDIF
 \   Category: Charts
 \    Summary: Search the galaxy for a system
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -17749,6 +17771,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Ship hangar
 \    Summary: Draw the ships in the ship hangar, then draw the hangar
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -17904,6 +17927,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Ship hangar
 \    Summary: Draw a ship in the ship hangar
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20053,6 +20077,7 @@ ENDIF
 \   Category: Tactics
 \    Summary: Launch a ship straight ahead of us, below the laser sights
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20587,6 +20612,7 @@ ENDIF
 \   Category: Drawing circles
 \    Summary: Make the hyperspace sound and draw the hyperspace tunnel
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -23595,6 +23621,7 @@ ENDMACRO
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24320,6 +24347,7 @@ ENDMACRO
 \    Summary: Lookup table for random tokens in the extended token table (0-37)
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24408,6 +24436,7 @@ ENDMACRO
 \   Category: Maths (Geometry)
 \    Summary: Scale the y-coordinate in A to 0.5 * A
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24438,6 +24467,7 @@ ENDMACRO
 \   Category: Maths (Geometry)
 \    Summary: Scale the y-coordinate in A (leave it unchanged)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24467,6 +24497,7 @@ ENDMACRO
 \   Category: Maths (Geometry)
 \    Summary: Scale the x-coordinate in A (leave it unchanged)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24494,6 +24525,7 @@ ENDMACRO
 \   Category: Drawing lines
 \    Summary: Draw a vertical line from (A, GCYT) to (A, GCYB)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24512,6 +24544,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Work out if we have space for one tonne of cargo
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24563,6 +24596,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Work out if we have space for a specific amount of cargo
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24684,6 +24718,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Move the text cursor to a specific column
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24706,6 +24741,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Move the text cursor to a specific row
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24887,6 +24923,7 @@ ENDMACRO
 \   Category: Universe
 \    Summary: Print the distance to the selected system in light years
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24933,6 +24970,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Print a text token and a paragraph break
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24961,6 +24999,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Print a paragraph break
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24983,6 +25022,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Set Sentence Case and print a newline
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -25020,6 +25060,7 @@ ENDMACRO
 \   Category: Universe
 \    Summary: Display "MAINLY " and jump to TT72
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -25042,6 +25083,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Print a text token followed by a space
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -25072,6 +25114,7 @@ ENDMACRO
 \  Deep dive: Generating system data
 \             Galaxy and system seeds
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -25496,6 +25539,7 @@ ENDMACRO
 \    Summary: Show the Long-range Chart (red key f4)
 \  Deep dive: A sense of scale
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -25626,6 +25670,7 @@ ENDMACRO
 \   Category: Drawing lines
 \    Summary: Draw a set of crosshairs
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -25772,6 +25817,7 @@ ENDMACRO
 \   Category: Drawing circles
 \    Summary: Draw a circle with crosshairs on a chart
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -25879,6 +25925,7 @@ ENDMACRO
 \    Summary: Draw a circle on a chart
 \  Deep dive: Drawing circles
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -25927,6 +25974,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Show the Buy Cargo screen (red key f1)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -26127,6 +26175,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Get a number from the keyboard
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -26291,6 +26340,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Print an "ITEM?" error, make a beep and rejoin the TT210 routine
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -26315,6 +26365,7 @@ ENDMACRO
 \   Category: Text
 \    Summary: Print the character in Q before returning to gnum
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -26336,6 +26387,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Show the Sell Cargo screen (red key f2)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -26367,6 +26419,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Show a list of current cargo in our hold, optionally to sell
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -26583,6 +26636,7 @@ ENDMACRO
 \   Category: Market
 \    Summary: Show the Inventory screen (red key f9)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -26623,6 +26677,7 @@ ENDMACRO
 \   Category: Keyboard
 \    Summary: Ask a question with a "Y/N?" prompt and return the response
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -26648,6 +26703,7 @@ ENDMACRO
 \   Category: Charts
 \    Summary: Move the crosshairs on a chart
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -26719,6 +26775,7 @@ ENDMACRO
 \   Category: Charts
 \    Summary: Draw a small set of crosshairs on a chart
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -26771,6 +26828,7 @@ ENDMACRO
 \   Category: Charts
 \    Summary: Move galactic coordinates by a signed delta
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -26842,6 +26900,7 @@ ENDMACRO
 \   Category: Charts
 \    Summary: Draw crosshairs on the Short-range Chart, with clipping
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28045,6 +28104,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print 16-bit number, left-padded to 5 digits, no point
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28075,6 +28135,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a 16-bit number, left-padded to 5 digits, and optional point
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28108,6 +28169,7 @@ ENDIF
 \   Category: Flight
 \    Summary: Print an error when a system is out of hyperspace range
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28127,6 +28189,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a text token followed by a question mark
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28158,6 +28221,7 @@ ENDIF
 \  Deep dive: Market item prices and availability
 \             Galaxy and system seeds
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28311,6 +28375,7 @@ ENDIF
 \   Category: Market
 \    Summary: Print the unit ("t", "kg" or "g") for a market item
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28366,6 +28431,7 @@ ENDIF
 \   Category: Market
 \    Summary: Print "t" (for tonne) and a space
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -28387,6 +28453,7 @@ ENDIF
 \   Category: Market
 \    Summary: Print "kg" (for kilograms)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -28405,6 +28472,7 @@ ENDIF
 \   Category: Market
 \    Summary: Print "g" (for grams)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -28423,6 +28491,7 @@ ENDIF
 \   Category: Market
 \    Summary: Print the headers for the table of market prices
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28449,6 +28518,7 @@ ENDIF
 \   Category: Market
 \    Summary: Show the Market Price screen (red key f7)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -28505,6 +28575,7 @@ ENDIF
 \   Category: Market
 \    Summary: Calculate QQ19+3 = economy * |economic_factor|
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28570,6 +28641,7 @@ ENDIF
 \   Category: Universe
 \    Summary: Process a jump to the system closest to (QQ9, QQ10)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28651,6 +28723,7 @@ ENDIF
 \  Deep dive: Market item prices and availability
 \             Galaxy and system seeds
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29082,6 +29155,7 @@ ENDIF
 \   Category: Maths (Arithmetic)
 \    Summary: Subtract an amount of cash from the cash pot
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29190,6 +29264,7 @@ ENDIF
 \   Category: Maths (Arithmetic)
 \    Summary: Calculate (Y X) = P * Q * 4
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29210,6 +29285,7 @@ ENDIF
 \   Category: Maths (Arithmetic)
 \    Summary: Calculate (Y X) = (A P) * 4
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29238,6 +29314,7 @@ ENDIF
 \   Category: Equipment
 \    Summary: Show the Equip Ship screen (red key f3)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29662,6 +29739,7 @@ ENDIF
 \    Summary: Print the amount of money we have left in the cash pot, then make
 \             a short, high beep and delay for 1 second
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -29682,6 +29760,7 @@ ENDIF
 \   Category: Text
 \    Summary: Make a short, high beep and delay for 0.5 seconds
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -29699,6 +29778,7 @@ ENDIF
 \   Category: Equipment
 \    Summary: Subtract the price of equipment from the cash pot
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29741,6 +29821,7 @@ ENDIF
 \   Category: Equipment
 \    Summary: Return the price of a piece of equipment
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29793,6 +29874,7 @@ ENDIF
 \   Category: Equipment
 \    Summary: Print a menu of the four space views, for buying lasers
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29890,6 +29972,7 @@ ENDIF
 \   Category: Charts
 \    Summary: Select the closest system and redraw the chart crosshairs
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29923,6 +30006,7 @@ ENDIF
 \   Category: Equipment
 \    Summary: Install a new laser, processing a refund if applicable
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30022,6 +30106,7 @@ ENDIF
 \   Category: Equipment
 \    Summary: Equipment prices
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30164,6 +30249,7 @@ ENDIF
 \   Category: Status
 \    Summary: Print the commander's name
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30204,6 +30290,7 @@ ENDIF
 \   Category: Universe
 \    Summary: Print the current system name
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30266,6 +30353,7 @@ ENDIF
 \   Category: Universe
 \    Summary: Print the current galaxy number
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30296,6 +30384,7 @@ ENDIF
 \   Category: Status
 \    Summary: Print fuel and cash levels
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30402,6 +30491,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a text token followed by a colon
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30423,6 +30513,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a colon
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -30682,6 +30773,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a recursive token in the range 128-145
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30710,6 +30802,7 @@ ENDIF
 \   Category: Text
 \    Summary: Tab to column 21 and print a colon
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -31617,6 +31710,7 @@ ENDIF
 \   Category: Universe
 \    Summary: Update the missile indicators, set up the planet data block
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -31651,6 +31745,7 @@ ENDIF
 \    Summary: Set up various aspects of arriving in a new system
 \  Deep dive: A sense of scale
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -34707,6 +34802,7 @@ ENDIF
 \   Category: Drawing circles
 \    Summary: Draw a circle (for the planet or chart)
 \  Deep dive: Drawing circles
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35586,6 +35682,7 @@ ENDIF
 \   Category: Keyboard
 \    Summary: Wait until either "Y" or "N" is pressed
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39021,6 +39118,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Copy the last saved commander's name from INWK to NA%
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -39055,6 +39153,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Copy the last saved commander's name from NA% to INWK
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -39082,6 +39181,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Fetch the name of a commander file to save or load
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39156,6 +39256,7 @@ ENDIF
 \    Summary: Fetch a line of text from the keyboard
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39330,6 +39431,7 @@ ENDIF
 \    Summary: Display the currently selected media (disk or tape)
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -39477,6 +39579,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Ask for a disc drive number and print a catalogue of that drive
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39573,6 +39676,7 @@ ENDIF
 \    Summary: Catalogue a disc, ask for a filename to delete, and delete the
 \             file
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39702,6 +39806,7 @@ ENDIF
 \  Deep dive: Commander save files
 \             The competition code
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -39935,6 +40040,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Contains the length of the most recently entered commander name
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -39963,6 +40069,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Get an ASCII disc drive number from the keyboard
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -40012,6 +40119,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Load a commander file
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -40075,6 +40183,7 @@ ENDIF
 \   Category: Utility routines
 \    Summary: Disable the keyboard, set the SVN flag to 0, and return with A = 0
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -40093,6 +40202,7 @@ ENDIF
 \   Category: Utility routines
 \    Summary: Delay by iterating through 5 * 256 (1280) empty loops
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -40111,6 +40221,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: The OS command string for cataloguing a disc
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -40135,6 +40246,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: The OS command string for deleting a file
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -40178,6 +40290,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: The OS command string for saving a commander file
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -40207,6 +40320,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: The OS command string for loading a commander file
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -40236,6 +40350,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Save the commander file
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -40377,6 +40492,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Load the commander file
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -49110,6 +49226,7 @@ ENDIF
 \    Summary: Port: OSCLI for the disc commands, with the renderer's HAZEL and
 \             NMI glue (docs/MASTER-MEMORY.md)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \

@@ -76,14 +76,12 @@
 import os, re, sys
 
 TUBE = os.environ.get("TUBE") == "1"     # the Tube parasite's build (tube/build.sh)
-# The Tube's overlay D (tube/src/ovl-d.txt, TUBEOVL): the cold blocks named
-# there are the parasite's direct-mode overlay, whose image the host keeps;
+# The Tube's overlay D: the cold blocks whose header says "Tube: ovl D" are
+# the parasite's direct-mode overlay, whose image the host keeps;
 # every other cold block (and data block) is resident in the parasite's run
 # (or hot data), and the stubs into the overlay go through povd (p-ovl.asm),
 # which loads it first if it is not in
-TUBEOVL = None
-if TUBE and os.environ.get("TUBEOVL"):
-    TUBEOVL = set(l.strip() for l in open(os.environ["TUBEOVL"]) if l.strip() and not l.startswith("#"))
+TUBEOVL = set() if TUBE else None      # (the names, filled in by blocks())
 
 SRC = "src/elite-source.asm"
 OUT = "build/elite-source-%s.asm"
@@ -98,7 +96,8 @@ AREA = re.compile(r"^\\       Area: (.*)$")
 # (Master's drawing too: its screen writes go to the host, SCEOR and SCSTA)
 # but where a header's "Tube:" field says otherwise: "host" (the IRQ, sound,
 # keyboard scanning) or "both" (CHPR, whose glyphs the host draws), or
-# "none" (the Master port's own, which neither side of the Tube uses). The
+# "none" (the Master port's own, which neither side of the Tube uses), or
+# "ovl D" (a cold block in the parasite's overlay D, above). The
 # host's copy, build/elite-source-host.asm, holds the host's blocks, and the
 # parasite's copies (run, low, bank4, cold) blank the host-only ones.
 TUBEF = re.compile(r"^\\       Tube: (.*)$")
@@ -122,6 +121,7 @@ def blocks(lines, tags=TAGS):
     """[(start, end, name, area)]: a block starts at a header (a line of
     stars followed by a lone backslash) or at a separator line of stars"""
     out = [[0, None, None, "run"]]
+    ovld = set()                       # (the blocks tagged "Tube: ovl D", by start)
     inh = False
     for i, l in enumerate(lines):
         if STAR.match(l):
@@ -151,11 +151,16 @@ def blocks(lines, tags=TAGS):
             m = TUBEF.match(l)
             if m:
                 t = m.group(1).strip()
+                if t == "ovl D":
+                    ovld.add(out[-1][0])
+                    continue
                 if t not in ("host", "both", "hostb", "bothb", "none"):
                     sys.exit("%d: unknown Tube field %r" % (i + 1, t))
                 TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
         b[1] = out[k + 1][0] if k + 1 < len(out) else len(lines)
+        if b[0] in ovld and TUBEOVL is not None:
+            TUBEOVL.add(b[2])
     return [tuple(b) for b in out]
 
 
