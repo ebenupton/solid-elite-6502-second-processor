@@ -267,7 +267,7 @@ ENDIF
 
 .h_dspans               \ C_DSPANS: rows of spans (p-rast.asm's R_DISCROWS), read
 IF _HOSTB                 \ and drawn by r_dspin (gfx-raster_lcold.asm): the row,
- JMP hb_dspans          \ then XL, XR, COLE, COLO for each of its spans, &FF ending
+ JMP hb_dspans          \ then XL, XR, the row's colour for each span, &FF ending
 ELSE                      \ the row; &FF for a row ends
  LDA #RASTBANK
  STA &F4
@@ -365,7 +365,10 @@ ENDIF
 \ order, then 0. As FILLKL (and fkdet): the columns with a key held in rows
 \ 1-7 first, then each row's keys in those columns
 
-.h_keys
+.h_keys                 \ (its body a subroutine: h4body calls it too)
+ JSR hk_body
+ JMP hloop
+.hk_body
  LDA #%00000010         \ (vsync masked during the scan, as FILLKL)
  STA VIA+&4E
  STZ hkn
@@ -420,14 +423,18 @@ ENDIF
  STA VIA+&4E
  LDA #0
  HTX
- JMP hloop
+ RTS
 .hkn EQUB 0
 .hkr EQUB 0
 .hkl SKIP 13
 
 .h_dks                  \ C_DKS: is key A held (DKS5): A with bit 7 if so
  HR2X
+ JSR hdks_body
+ JMP hloop
+.hdks_body              \ (PHP/PLP, not SEI/CLI: h4body runs it in the IRQ)
  LDX #3
+ PHP
  SEI
  STX VIA+&40
  LDX #%01111111
@@ -436,10 +443,55 @@ ENDIF
  LDX VIA+&4F
  LDA #%00001011
  STA VIA+&40
- CLI
+ PLP
  TXA
  HTX
- JMP hloop
+ RTS
+
+\ h4body: a fast request from register 4 (the parasite's preq4): C_KEYS,
+\ C_DKS with its key, or C_IRB, answered at once from the host's IRQ (the
+\ Tube's Q flag: register 4's data), wherever the host is (the Master host's
+\ h4irq below, the Model B host's irqm, hb-res3.asm). X and Y are the IRQ's
+
+.h4body
+ LDA HR4D
+ CMP #C_KEYS
+ BNE P%+5
+ JMP hk_body
+ CMP #C_IRB
+ BEQ h4i
+.h4d                    \ C_DKS: its key next, through register 4
+ BIT HR4S
+ BPL h4d
+ LDA HR4D
+ JMP hdks_body
+.h4i
+ LDA VIA+&40
+ HTX
+ RTS
+
+IF _HOSTB = 0
+\ h4irq: IRQ1V while the game runs (h4on bit 7): register 4's requests
+\ first, then the game's IRQ1. Off while the MOS runs a disc command, whose
+\ Tube traffic uses register 4 itself
+
+.h4irq
+ BIT h4on
+ BPL h4x
+ BIT HR4S
+ BMI h4r
+.h4x
+ JMP IRQ1
+.h4r
+ PHX
+ PHY
+ JSR h4body
+ PLY
+ PLX
+ LDA &FC
+ RTI
+.h4on EQUB 0
+ENDIF
 
 .h_wscan                \ C_WSCAN: answer at the next vsync
  STZ DL

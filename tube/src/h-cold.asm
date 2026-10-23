@@ -44,6 +44,10 @@ ENDIF
  HTX
  STZ hmos
 .hst2
+ LDA #&81               \ the Tube's Q: the host's IRQ from register 4's data
+ STA HR1S               \ (the fast requests, h4body), and those on (h4on)
+ LDA #&80
+ STA h4on
 IF _HOSTB
  LDA #LO(irqm)          \ (Model B: the rupture, hb-irq.asm)
  STA IRQ1V
@@ -57,9 +61,9 @@ ELSE
  STA VIA+&4E            \ System VIA, none from the User VIA, IRQ1V = IRQ1
  LDA #%01111111
  STA &FE6E
- LDA #LO(IRQ1)
+ LDA #LO(h4irq)         \ (register 4's requests first, h-main.asm)
  STA IRQ1V
- LDA #HI(IRQ1)
+ LDA #HI(h4irq)
  STA IRQ1V+1
  LDA #GFXBANK           \ (the resting bank: the frame layer's host part)
  STA &F4
@@ -74,6 +78,8 @@ ENDIF
 .hzpk EQUB 0            \ non-zero: hzps holds it
 
 .h_oscli
+ LDA #0                 \ (the MOS's register 4 from here: h4body off)
+ STA h4on
  HRX
  STA QQ11
  STZ GFORCE

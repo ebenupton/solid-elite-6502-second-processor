@@ -45,6 +45,17 @@ fl_t  = &0E
  STA PR2D
  RTS
 
+\ preq4: A to the host through register 4: the fast I/O requests (C_KEYS,
+\ C_DKS and its key, C_IRB), which the host's IRQ answers at once, wherever
+\ it is (h4irq, h-main.asm; Model B: hb-res3.asm's irqm), rather than at the
+\ command loop's next boundary (tube/proto/PROTO-REPORT.md, branch tubeproto)
+
+.preq4
+ BIT PR4S
+ BVC preq4
+ STA PR4D
+ RTS
+
 \ prx: A = the next byte from the host (register 4), waiting for it. Keeps X
 \ and Y (and C)
 
@@ -248,7 +259,7 @@ ENDMACRO
 
 .p_irb
  LDA #C_IRB
- JSR preq
+ JSR preq4
  JMP prx
 
 \ p_dks: DKS5: X = key A, with bit 7 set if the host has it held. Keeps Y and C
@@ -256,9 +267,9 @@ ENDMACRO
 .p_dks                  \ (A is kept: the harness reads the key there)
  PHA
  LDA #C_DKS
- JSR preq
+ JSR preq4
  PLA
- JSR preq
+ JSR preq4
  PHA
  JSR prx
  TAX
@@ -273,7 +284,7 @@ ENDMACRO
 
 .p_fillkl
  LDA #C_KEYS
- JSR preq
+ JSR preq4
  LDA #1
  STA pfkn
 .pfk1

@@ -27,8 +27,13 @@
  RTS
 .hwa EQUB 0
 
-.irqm                   \ IRQ1V: timer 1 or vsync are ours (bank F's hb_irq,
- LDA &FE4D              \ with the bank kept); anything else is the MOS's
+.irqm                   \ IRQ1V: register 4's requests (bank F's h4body, while
+ BIT h4on               \ h4on), timer 1 or vsync are ours (bank F's hb_irq,
+ BPL irq0               \ with the bank kept); anything else is the MOS's
+ BIT HR4S
+ BMI irq4
+.irq0
+ LDA &FE4D
  AND #%01000010
  BNE irq1
  JMP (hbirqv)
@@ -41,6 +46,7 @@
  PHA
  PAGE GFXBANK
  JSR hb_irq
+.irq9
  PLA
  STA &F4
  STA &FE30
@@ -51,6 +57,17 @@
  LDA &FC
  RTI
 .hbirqv EQUW 0          \ the MOS's IRQ1V, as hstart found it
+.h4on EQUB 0            \ bit 7: register 4's requests are ours (h4body)
+.irq4
+ TXA
+ PHA
+ TYA
+ PHA
+ LDA &F4
+ PHA
+ PAGE GFXBANK
+ JSR h4body
+ JMP irq9
 
 .hbswap                 \ exchange main RAM's &0236-&0CFF, &0E00-&10FF with the
  PAGE STASHBANK         \ stash bank's copy (the MOS's while the game runs,
