@@ -67,9 +67,12 @@ $BEEBASM -i build/elite-data-bdata.asm -v >> build/compile.txt 2>&1 || { tail -2
 $BEEBASM -i src/elite-layout.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i src/elite-layout.asm -d > build/symbols.txt 2>/dev/null
 # build/banks.txt: the labels of the code in sideways RAM and the ROMSEL value
-# of their bank (harness/mlib.mjs and tools/bankcheck.py read it)
+# of their bank (harness/mlib.mjs and tools/bankcheck.py read it). Each name
+# once, the first file's: the game's copies come first, and a name they share
+# with a scoped local label of the renderer's (.t2, .out ...) is the game's
 python3 - <<'PY'
 import re
+seen = set()
 with open("build/banks.txt", "w") as f:
     for src, bank in (("build/elite-source-hot3.asm", "4"), ("build/elite-data-hot4.asm", "4"),
                       ("build/dashtab-scan.asm", "4"), ("build/dashtab-dot.asm", "4"), ("build/dashtab-spbt.asm", "4"),
@@ -81,7 +84,9 @@ with open("build/banks.txt", "w") as f:
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
                       ("src/gfx-merid.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
-            f.write("%s %s\n" % (m.group(1), bank))
+            if m.group(1) not in seen:
+                seen.add(m.group(1))
+                f.write("%s %s\n" % (m.group(1), bank))
 PY
 # the loader takes the game's entry point from the game's symbols
 python3 - <<'PY'
