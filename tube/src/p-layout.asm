@@ -47,9 +47,7 @@ PFRAME% = P%
  INCLUDE "src/gfx-light6.asm"
  INCLUDE "src/gfx-light.asm"
  INCLUDE "src/gfx-frame_cold.asm"
- INCLUDE "src/gfx-flare6.asm"
  INCLUDE "src/gfx-hangar.asm"
- INCLUDE "tsrc/p-flt.asm"               \ (the lens flare's tables: resident, for S's room)
  CPU 1
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
@@ -72,8 +70,6 @@ ENDIF
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm), and what each buffer shows
 .F_ST   SKIP 768
 ASSERT F_ST = F_TM + &300
-.F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm)
-.F_DSY  SKIP NDSTAR
 .PRES_END                \ (the end of what is always resident)
 
 
@@ -159,7 +155,22 @@ ENDIF
 .pcrx EQUB 0
 .pcry EQUB 0
 .pcrs EQUB 0
+ INCLUDE "src/gfx-flare6.asm"           \ (resident code and tables, out of the
+ CPU 1                                  \ run: OVL_START is lower for them)
+ INCLUDE "tsrc/p-flt.asm"               \ (the lens flare's tables)
+.F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm)
+.F_DSY  SKIP NDSTAR
 .PFF_END
+ PRINT "Parasite: the page at &FF00 to &", ~PFF_END-1, ", free to &FFFA: ", &FFFA-PFF_END
+
+\ QSL, the quarter squares' low bytes (elite-qs.asm: QSH is in the run), in
+\ the client OS's pages 2 and 3 (its vectors and error buffer)
+ CLEAR &0200, &0400
+ ORG &0200
+.QSL
+FOR n, 0, 511
+ EQUB LO(n * n DIV 4)
+NEXT
  ASSERT PFF_END <= &FFFA
  ORG &FFFA
  EQUW p_nmi, p_start, p_crash
@@ -169,7 +180,7 @@ ENDIF
 
 \ The boot's staging area, above overlay D (S and the next C_OVLGET of D
 \ overwrite it; tube/build.sh appends it to PCODE): p_boot (p_start's first
-\ call), the high area's image and the page at &FF00. p_boot drains a stray byte from
+\ call), the high area's image, the page at &FF00 and pages 2 and 3. p_boot drains a stray byte from
 \ the host in register 1, then copies them in over the client OS, which the
 \ game never uses again
 
@@ -182,6 +193,10 @@ ENDIF
 .pbt1
  LDA PSTG_FF,X
  STA &FF00,X
+ LDA PSTG_LO,X
+ STA &0200,X
+ LDA PSTG_LO + 256,X
+ STA &0300,X
 FOR i, 0, 5
  LDA PSTG_HI + i * 256,X
  STA &F800 + i * 256,X
@@ -201,6 +216,9 @@ NEXT
  COPYBLOCK &FF00, &FFFF, P%
  ORG PSTG_FF + &FF
  EQUB HI(p_crash)       \ (&FFFF: COPYBLOCK's end is 16-bit)
+.PSTG_LO
+ COPYBLOCK &0200, &0400, P%
+ ORG PSTG_LO + &200
 .PSTG_END
  PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to &F800: ", &F800-PSTG_END
  ASSERT PSTG_END <= &F800 OR MEASURE

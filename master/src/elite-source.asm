@@ -14229,7 +14229,7 @@ ENDIF
  LDA #HI(QSL)-1
  ADC #0
  STA mlb3+2,X
- ADC #2                 \ (C = 0: no carry out of HI(QSL))
+ ADC #HI(QSH)-HI(QSL)   \ (C = 0: no carry out of HI(QSL))
  STA mlb5+2,X
  RTS
 
@@ -14730,7 +14730,7 @@ ENDIF
  JMP mu5                \ Join MU11 at mu5 with C = 1, P = |A|, Q = q and
                         \ X = |A| + q - 256, as MU11 arrives there
 
- ASSERT QSH = QSL + 512 AND LO(QSL) = 0
+ ASSERT (QSH = QSL + 512 OR _TUBE) AND LO(QSL) = 0 AND LO(QSH) = 0
 
 .MLS2A
 

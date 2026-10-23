@@ -40,11 +40,17 @@
  ASSERT LO(P%) = 0       \ (page aligned: the multiplications patch their
                         \ operands' low bytes, QSL+b and QSL-b, and index them)
 
+IF _TUBE AND _TPART = 1 \ Port (Tube): the parasite's QSL is at &0200-&03FF,
+                        \ the client OS's pages until the boot copies it in
+ELSE                    \ (tube/src/p-layout.asm)
+
 .QSL
 
 FOR n, 0, 511
  EQUB LO(n * n DIV 4)
 NEXT
+
+ENDIF
 
 .QSH
 
