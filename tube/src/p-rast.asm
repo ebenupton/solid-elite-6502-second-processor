@@ -1140,10 +1140,9 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 \ (C_STARERASE), and the host blacks those pixels
 \ ------------------------------------------------------------------------------
 
-.T_STARERASE
-.R_STARERASE            \ this buffer's records from the host (C_STARGET, where
- LDA #C_STARGET         \ C_STARS left them), then back to it to black those
- JSR preq               \ pixels (C_STARERASE)
+.p_starget              \ (F_FRAME, before C_BUF) this buffer's records from the
+ LDA #C_STARGET         \ host (C_STARGET, where C_STARS left them), into r_srec
+ JSR preq               \ and pr_c, pr_d for R_STARERASE
  LDA r_buf
  JSR preq
  JSR prx
@@ -1160,7 +1159,11 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
  CPY pr_c
  BNE pse0
 .pse2
- LDA #C_STARERASE
+ RTS
+
+.T_STARERASE
+.R_STARERASE            \ the records p_starget fetched, back to the host to black
+ LDA #C_STARERASE       \ those pixels (C_STARERASE)
  JSR ptx
  LDA pr_d
  JSR ptx

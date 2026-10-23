@@ -777,8 +777,9 @@ ELSE
  JSR f_sight1           \ and the sights, if they have gone
 
 IF _TDUMB
- LDA F_BACK             \ (Tube: the host waits for the last flip and draws into
- JSR p_buf              \ the back buffer from here: C_BUF)
+ JSR p_starget          \ (Tube: this buffer's star records from the host first,
+ LDA F_BACK             \ which it sends before it waits for the last flip; then
+ JSR p_buf              \ C_BUF: the host draws into the back buffer from here)
 ELSE
 .ff2
  LDA GFLIP              \ wait for the previous flip, so the back buffer is
