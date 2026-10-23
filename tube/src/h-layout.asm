@@ -16,6 +16,10 @@
 \     Master port's MERIDBANK, with the quarter squares it multiplies with;
 \   * the screen: buffer 0 in main RAM, buffer 1 and the dashboard in shadow
 \     RAM, as the Master port's.
+\   * &0400-&06FF (HLOW): the MOS's Tube code, which runs the boot and then
+\     is never called again (hstart clears &027A, and the disc commands are
+\     the host's own I/O, h_disc): free main RAM below &3000 for host code
+\     that hstart copies in (none yet).
 \
 \ ******************************************************************************
 
@@ -29,6 +33,9 @@ OVLBANK = 4             \ the parasite's overlays' images (storage only: h_ovlge
 OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "build/elite-source-ws.asm"
  INCLUDE "src/gfx-ws.asm"
+
+HLOW = &0400            \ (free after the boot: see above)
+HLOW_END = &0700
 
  ORG CODE%
  GUARD &3000

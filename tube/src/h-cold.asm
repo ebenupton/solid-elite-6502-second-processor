@@ -16,7 +16,9 @@
  DEC hzpk               \ again: the parasite has no client OS after its start
 .hst1
 IF _HOSTB
- JSR hbswap             \ (Model B: our main RAM in, the MOS's out)
+ JSR hbswap             \ (Model B: our main RAM in, the MOS's out; from now on
+ LDA #&4C               \ the disc commands' swaps leave &0400-&06FF ours: JMP)
+ STA hbsk
 ENDIF
 .hst2
  LDA #&81               \ the Tube's Q: the host's IRQ from register 4's data
