@@ -62,8 +62,13 @@ R_PCOL2 = R_COL2        \ (the polygon colours for rows y AND 3 = 2, 3)
 .R_DISCL1  SKIP 192
 .R_DISCR1  SKIP 192
 .R_BST     SKIP 192     \ per row, what each buffer's disc row holds (bits 0-3
-                        \ buffer 0, 4-7 buffer 1): 8 + 4p, one colour (A, or B if
-                        \ p), or 0, unknown (prow)
+                        \ buffer 0, 4-7 buffer 1): 8 + 4p + n, colour A or B (p)
+                        \ at its left end and n = 0..2 boundaries (R_BXib), or 0,
+                        \ unknown (prow)
+.R_BX00    SKIP 192     \ per buffer, a row's first two boundaries when R_BST
+.R_BX10    SKIP 192     \ says it holds n = 1 or 2 of them (8 + 4p + n: colour
+.R_BX01    SKIP 192     \ p at the span's left end, flipping at each x <= the
+.R_BX11    SKIP 192     \ pixel's); R_BXib: boundary i, buffer b
 .R_WL      SKIP 192     \ this frame's written extents (R_WR = 0: none)
 .R_WR      SKIP 192
 ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1) AND LO(R_DIRTYR0) = LO(R_DIRTYR1)
@@ -158,7 +163,23 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA pr_sl+1
  LDA rsb_sr,X
  STA pr_sr+1
+ LDA rsb_x0l,X          \ (the boundary arrays: pob's and prow's operands)
+ STA pob_x0+1
+ STA prb_x0+1
+ LDA rsb_x0h,X
+ STA pob_x0+2
+ STA prb_x0+2
+ LDA rsb_x1l,X
+ STA pob_x1+1
+ STA prb_x1+1
+ LDA rsb_x1h,X
+ STA pob_x1+2
+ STA prb_x1+2
  RTS
+.rsb_x0l EQUB LO(R_BX00), LO(R_BX01)
+.rsb_x0h EQUB HI(R_BX00), HI(R_BX01)
+.rsb_x1l EQUB LO(R_BX10), LO(R_BX11)
+.rsb_x1h EQUB HI(R_BX10), HI(R_BX11)
 .rsb_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
 .rsb_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 .rsb_sl EQUB HI(R_DISCL0), HI(R_DISCL1)
@@ -881,9 +902,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA pr_a
  STA pr_e
 .prw2
- LDA #8                 \ the row's new contents: one colour, A (8) or B (12),
- LDX R_NDF              \ or (0) two (then it is painted whole, pseg)
- BEQ pbd2
+ LDA #8                 \ the row's new contents, as R_BST's nibble: colour A
+ LDX R_NDF              \ (8) or B (12) at the left end, plus the boundaries,
+ BEQ pbd2               \ n = 1 or 2 (R_NDX0, R_NDX1), or 0 for more (unknown)
  CPY r_nt
  BCC pbd2
  CPY r_nb
@@ -891,6 +912,19 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BCS pbd2
  LDA R_NDN,Y
  BEQ pbd1
+ BIT PM_OK              \ (n is kept for a beach ball's rows only: pob)
+ BPL pbd0
+ CMP #3
+ BCS pbd0
+ STA pb_new
+ LDA R_NDP,Y
+ AND #1
+ ASL A
+ ASL A
+ ORA #8
+ ORA pb_new
+ BNE pbd2
+.pbd0
  LDA #0
  BEQ pbd2
 .pbd1
@@ -902,8 +936,10 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .pbd2
  STA pb_new
  STZ pb_two             \ one colour, and the old row was the same colour (or
- CMP #0                 \ had no disc): drawn as a change (R_BST), else whole
+ CMP #0                 \ had no disc): drawn as a change (the one-colour way)
  BEQ pbd4
+ BIT pb_m3
+ BNE pbd4
  LDA R_BST,Y
  LDX r_buf
  BEQ P%+6
@@ -918,9 +954,11 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP (pr_sl),Y
  BCC pbd5
 .pbd4
- LDA pr_h               \ (a two-colour frame now or last: whole)
- STA pb_two
+ LDA #&80               \ else segment by segment, less what the old row holds
+ STA pb_two             \ in the same colour (pseg, pdo)
 .pbd5
+ LDA R_BST,Y            \ (the old, for pob)
+ STA pb_ob
  LDA pb_new             \ the buffer's R_BST for the row: the new contents
  LDX r_buf
  BEQ pbd6
@@ -940,7 +978,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  ORA pr_g
  STA R_BST,Y
  LDA pb_two
- BNE prw3               \ (two colours: whole)
+ BNE prw3               \ (segment by segment)
  LDA (pr_dr),Y          \ one colour: unchanged, with no dirty extent?
  BNE prw3
  LDA pr_e
@@ -1020,7 +1058,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  JSR pspan
  BRA prw9
 .prw8
- JSR pseg               \ two colours: the whole new span, segment by segment
+ JSR pob                \ the old row's segments (if known)
+ JSR pseg               \ the new span, segment by segment, less the old's
 .prw9
  LDA pr_e               \ the buffer's disc span: the new one; no dirty extent
  STA (pr_sl),Y
@@ -1030,6 +1069,16 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA (pr_dl),Y
  LDA #0
  STA (pr_dr),Y
+ LDA pb_new             \ (its boundaries, for R_BST's n)
+ AND #3
+ BEQ prb9
+ LDA R_NDX0,Y
+.prb_x0
+ STA &FFFF,Y            \ (patched: R_BX0b)
+ LDA R_NDX1,Y
+.prb_x1
+ STA &FFFF,Y            \ (patched: R_BX1b)
+.prb9
  LDA pr_wr              \ R_WL/R_WR: what was written
  BEQ prw10
  STA R_WR,Y
@@ -1040,7 +1089,143 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  RTS
 
 .pb_new EQUB 0
+.pb_old EQUB 0
+.pb_ob  EQUB 0
 .pb_two EQUB 0
+.pb_m3  EQUB 3
+
+\ pob: row Y's old contents in this buffer as segments (pos_a..pos_b in
+\ colour pos_c, in order, pos_n of them), for pdo: none if R_BST does not
+\ know them (pb_old 0), the row had no span, or it has a dirty extent (what
+\ was drawn over it is not known). Keeps Y
+
+.pob
+ STZ pos_n
+ BIT PM_OK              \ (only a beach ball's rows: the host's cost of a
+ BPL pob9               \ crater's is smaller than the parasite's of this, and
+ LDA pb_ob              \ in flight the parasite is the one that waits less)
+ LDX r_buf              \ (this buffer's old nibble)
+ BEQ P%+6
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ AND #15
+ STA pb_old
+ BEQ pob9
+ LDA (pr_dr),Y
+ CMP (pr_dl),Y
+ BCS pob9
+ LDA (pr_sr),Y
+ STA pob_r
+ CMP (pr_sl),Y
+ BCC pob9
+ LDA (pr_sl),Y
+ STA pos_a
+ LDA pb_old
+ LSR A
+ LSR A
+ AND #1
+ STA pob_c
+ LDA pb_old
+ AND #3
+ STA pob_n
+ LDX #0                 \ (segment X)
+ LDA pob_n
+ BEQ pob5
+.pob_x0
+ LDA &FFFF,Y            \ (patched: R_BX0b)
+ JSR pob1
+ DEC pob_n
+ BEQ pob5
+.pob_x1
+ LDA &FFFF,Y            \ (patched: R_BX1b)
+ JSR pob1
+.pob5
+ LDA pob_r              \ the last segment, to the span's right end
+ STA pos_b,X
+ LDA pob_c
+ STA pos_c,X
+ INX
+ STX pos_n
+.pob9
+ RTS
+.pob1                   \ boundary A: at or before the segment's start, the
+ CMP pos_a,X            \ colour flips; past the span, nothing
+ BEQ pob2
+ BCC pob2
+ CMP pob_r
+ BEQ P%+4
+ BCS pob3
+ PHA                    \ (end segment X before it)
+ DEC A
+ STA pos_b,X
+ LDA pob_c
+ STA pos_c,X
+ PLA
+ INX
+ STA pos_a,X
+.pob2
+ LDA pob_c
+ EOR #1
+ STA pob_c
+.pob3
+ RTS
+.pob_r EQUB 0
+.pob_c EQUB 0
+.pob_n EQUB 0
+.pos_n EQUB 0
+.pos_a SKIP 3
+.pos_b SKIP 3
+.pos_c SKIP 3
+
+\ pdo: pr_a..pr_b in colour pr_c (pseg's segment), less the old segments of
+\ that colour (pob). Keeps X, Y
+
+.pdo
+ LDA pos_n              \ (none: the whole segment)
+ BNE P%+5
+ JMP psegc
+ PHX
+ LDX #0
+.pxo1
+ CPX pos_n
+ BCS pxo8
+ LDA pos_c,X
+ CMP pr_c
+ BNE pxo4
+ LDA pos_b,X            \ (ends before pr_a: next)
+ CMP pr_a
+ BCC pxo4
+ LDA pos_a,X            \ (starts after pr_b: none of the rest)
+ CMP pr_b
+ BEQ P%+4
+ BCS pxo8
+ CMP pr_a               \ pr_a .. its start - 1, if any
+ BEQ pxo2
+ BCC pxo2
+ LDA pr_b
+ PHA
+ LDA pos_a,X
+ DEC A
+ STA pr_b
+ JSR psegc
+ PLA
+ STA pr_b
+.pxo2
+ LDA pos_b,X            \ then from its end + 1
+ CMP pr_b
+ BCS pxo9
+ INC A
+ STA pr_a
+.pxo4
+ INX
+ BRA pxo1
+.pxo8
+ JSR psegc
+.pxo9
+ PLX
+ RTS
 
 \ pseg: the new span pr_e..pr_f of row Y in colours A (R_DCE, R_DCO) and B
 \ (R_DBE, R_DBO): pixel x takes colour R_NDP EOR the number of boundaries
@@ -1089,7 +1274,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  PHA
  DEC A
  STA pr_b
- JSR psegc
+ JSR pdo
  PLA
  STA pr_a
 .pseg4
@@ -1101,6 +1286,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .pseg5
  LDA pr_f
  STA pr_b
+ JMP pdo
 .psegc                  \ pr_a..pr_b in colour pr_c (keeps X, Y)
  LDA pr_c
  BNE psgc1
