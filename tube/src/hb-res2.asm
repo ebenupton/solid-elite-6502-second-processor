@@ -27,6 +27,10 @@
  PAGE RASTPOLY
  JSR P_POLYIN
  JMP hbloop
+.hb_dspans
+ PAGE RASTPOLY
+ JSR P_DSPANSIN
+ JMP hbloop
 .hb_line
  PAGE RASTPOLY
  JSR P_LINEIN

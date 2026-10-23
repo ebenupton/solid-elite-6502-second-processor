@@ -99,6 +99,45 @@
   RTS
 }
 
+IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
+\ r_dspin: C_DSPANS (tube/src/h-main.asm's h_dspans): the disc layer's rows of
+\ spans, read from the parasite as they come: the row (&FF: the end), then
+\ XL, XR, COLE, COLO for each span, &FF ending the row; each row set up once
+\ for all of its spans (r_rowset), each span by the span core (as R_SPAN)
+.r_dspin
+{
+.row
+  HRX
+  CMP #&FF
+  BEQ done
+  TAY
+  JSR r_rowset
+.span
+  HRX
+  CMP #&FF
+  BEQ row
+  STA R_XL
+  HRX
+  STA R_XR
+  HRX
+  STA R_COLE
+  HRX
+  STA R_COLO
+  LDA RZ_Y                \ the row's colour (even, odd)
+  LSR A
+  LDA R_COLE
+  BCC ev
+  LDA R_COLO
+.ev
+  STA RZ_COL
+  LDX R_XL
+  JSR r_spc               \ (keeps the row's set-up)
+  JMP span
+.done
+  RTS
+}
+ENDIF
+
 IF _TDUMB AND _TPART = 2 AND _HOSTB   \ (the Tube's dumb host: the star records' I/O,
  INCLUDE "src/gfx-raster_stio.asm"     \ Model B: bank P's, with the stars)
 ENDIF

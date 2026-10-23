@@ -172,7 +172,8 @@ PDATA_END = PDATA + &280
 
 JT = &BFC0
 P_PGFIX    = JT         \ bank P
-P_ROWREP   = JT + 3
+P_ROWREP   = JT + 3     \ (p_rowrepr's, never called now: the repair is the parasite's)
+P_DSPANSIN = JT + 3     \ C_DSPANS's rows of spans (r_dspin)
 P_POLY     = JT + 6
 P_LINE     = JT + 9
 P_SETBUF   = JT + 12

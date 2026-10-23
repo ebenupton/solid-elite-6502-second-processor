@@ -69,8 +69,7 @@ _RBANK = 2
  ORG JT
  GUARD &C000
  JMP r_pgfix
- BRK                    \ (P_ROWREP: the repair is the parasite's, gone)
- EQUW 0
+ JMP r_dspin            \ (P_DSPANSIN: C_DSPANS, gfx-raster_lcold.asm)
  BRK                    \ (P_POLY: phase A is the parasite's, gone)
  EQUW 0
  JMP R_LINE

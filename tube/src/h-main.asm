@@ -280,41 +280,17 @@ ENDIF
  JSR T_SPAN
  JMP hloop
 
-.h_dspans               \ C_DSPANS: rows of spans (p-rast.asm's R_DISCROWS): the
-IF _HOSTB = 0             \ row, then XL, XR, COLE, COLO for each of its spans
- LDA #RASTBANK          \ (R_SPAN each, bank 5 paged once), &FF ending the row;
- STA &F4                \ &FF for a row ends
+.h_dspans               \ C_DSPANS: rows of spans (p-rast.asm's R_DISCROWS), read
+IF _HOSTB                 \ and drawn by r_dspin (gfx-raster_lcold.asm): the row,
+ JMP hb_dspans          \ then XL, XR, COLE, COLO for each of its spans, &FF ending
+ELSE                      \ the row; &FF for a row ends
+ LDA #RASTBANK
+ STA &F4
  STA &FE30
-ENDIF
-.hds1
- HRX
- CMP #&FF
- BEQ hds9
- STA hds_y
-.hds2
- HRX
- CMP #&FF
- BEQ hds1
- STA zR_XL
- HRX
- STA zR_XR
- HRX
- STA zR_COLE
- HRX
- STA zR_COLO
- LDY hds_y
-IF _HOSTB
- JSR T_SPAN
-ELSE
- JSR R_SPAN
-ENDIF
- JMP hds2
-.hds9
-IF _HOSTB = 0
+ JSR r_dspin
  JSR tback
-ENDIF
  JMP hloop
-.hds_y EQUB 0
+ENDIF
 
 .h_spans                \ C_SPANS: polygon rows (p-emit.asm): COLE, COLO, COL2,
 IF _HOSTB                 \ COL3, the first row, then left and right (exclusive)
