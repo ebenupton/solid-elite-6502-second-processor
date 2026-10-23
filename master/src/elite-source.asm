@@ -45,7 +45,7 @@
 \
 \ ******************************************************************************
 
- CODE% = &1E15          \ The address where the code will be run (Port: the
+ CODE% = &1E24          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; the glue area, elite-glue.asm,
                         \ starts here and the low pass follows it, and the low
@@ -12567,7 +12567,6 @@ ENDIF
 \   Category: Text
 \    Summary: Switch to justified text when printing extended tokens
 \  Deep dive: Extended text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12595,7 +12594,6 @@ ENDIF
 \   Category: Text
 \    Summary: Switch to left-aligned text when printing extended tokens
 \  Deep dive: Extended text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12816,8 +12814,8 @@ ENDIF
  EQUW NLIN4             \ Token 11: Draw box around title (line at pixel row 19)
  EQUW x4_DASC           \ Token 12: Carriage return
  EQUW MT13              \ Token 13: Switch to lower case
- EQUW MT14              \ Token 14: Switch to justified text
- EQUW MT15              \ Token 15: Switch to left-aligned text
+ EQUW x4_MT14           \ Token 14: Switch to justified text
+ EQUW x4_MT15           \ Token 15: Switch to left-aligned text
  EQUW x4_MT16           \ Token 16: Print the character in DTW7 (drive number)
  EQUW MT17              \ Token 17: Print system name adjective in Sentence Case
  EQUW MT18              \ Token 18: Randomly print 1 to 4 two-letter tokens
@@ -17083,7 +17081,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Launch our escape pod
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -19722,7 +19719,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Launch a ship straight ahead of us, below the laser sights
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -19810,7 +19806,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Fire a missile from our ship
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -19860,7 +19855,6 @@ ENDIF
 \    Summary: Make a ship or station hostile, and if this is a ship then enable
 \             the ship's AI and give it a kick of speed
 \  Deep dive: Aggression and hostility in ship tactics
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -19943,7 +19937,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Display the "missile jammed" message
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20321,7 +20314,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing circles
 \    Summary: Draw the launch or hyperspace tunnel
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24652,7 +24644,6 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Set Sentence Case and print a newline
-\       Area: cold
 \
 \ ******************************************************************************
 
@@ -24669,7 +24660,6 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a newline
-\       Area: cold
 \
 \ ******************************************************************************
 
@@ -25047,7 +25037,6 @@ ENDMACRO
 \    Summary: Calculate system data from the system seeds
 \  Deep dive: Generating system data
 \             Galaxy and system seeds
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -27677,7 +27666,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Print the hyperspace countdown in the top-left of the screen
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -36407,7 +36395,6 @@ ENDIF
 \    Summary: Initialise the INWK workspace to a fairly aggressive ship
 \  Deep dive: Fixing ship positions
 \             Aggression and hostility in ship tactics
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -37574,7 +37561,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Calculate how bad we have been
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -47453,7 +47439,6 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Clear the screen and set the current view type
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -47483,7 +47468,6 @@ ENDMACRO
 \   Category: Drawing the screen
 \    Summary: Clear the top part of the screen, draw a border box and configure
 \             the specified view
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
