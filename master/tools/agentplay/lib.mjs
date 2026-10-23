@@ -225,6 +225,12 @@ export class EliteMachine {
     _callerAt(k, romsel = this.cpu.romsel) {
         let w = this._stackWord(k);
         for (;;) {
+            if (this.sy.farret !== undefined && w + 1 === this.sy.farret) {   // (an older build's far call)
+                romsel = this.rb(0x100 + ((this.cpu.s + k + 2) & 0xff));
+                k += 3;
+                w = this._stackWord(k);
+                continue;
+            }
             const b = stubBank(this.sy, w + 1);
             if (b === null) break;
             romsel = b;
