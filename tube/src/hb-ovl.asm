@@ -42,6 +42,6 @@
  LDY #0
  RTS
 .hbo_b EQUB OVLBANK, RASTBANK, RASTBANK, RASTBANK, OVLBANK   \ (D, S's common part, S's state, the
-.hbo_h EQUB HI(OVLD_AT), &80, &80 + OVLS_PAGES, &80 + OVLSC_PAGES, HI(OVLD_AT) + OVLD_PAGES   \ meridian tail,
-.hbo_n EQUB OVLD_PAGES, OVLSC_PAGES, OVLSS_PAGES, OVLS_PAGES - OVLSC_PAGES, OVLTC_PAGES   \ the crater tail)
+.hbo_h EQUB HI(OVLD_AT), &80 + OVLS0_PAGES, &80 + OVLS_PAGES, &80 + OVLSC_PAGES, HI(OVLD_AT) + OVLD_PAGES   \ meridian tail,
+.hbo_n EQUB OVLD_PAGES, OVLSC_PAGES - OVLS0_PAGES, OVLSS_PAGES, OVLS_PAGES - OVLSC_PAGES, OVLTC_PAGES   \ the crater tail; S from its state's last page, ovl_sinit)
 

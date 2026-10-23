@@ -191,56 +191,74 @@ IF _HOSTB
  JMP hb_ovlget          \ (Model B: main RAM, hb-ovl.asm)
 .h_ovlput
  JMP hb_ovlput
-ELSE
- HRX
- TAX
- LDA h_ovlh-1,X
- STA hog1+2
- LDA h_ovln-1,X
- STA hogn
- LDA h_ovlb-1,X
- STA &F4
- STA &FE30
- LDY #0
+ELSE                      \ (the Master host: page by page, wherever the build
+ HRX                    \ put each page, build/hstore.asm: main RAM with ACCCON
+ JSR hov_at             \ X clear, sideways RAM, ANDY or HAZEL)
+.hog0
+ JSR hov_pg
 .hog1
- LDA &8000,Y            \ (patched: the page)
+ LDA &FF00,Y            \ (patched: the page)
  HTX
  INY
  BNE hog1
- INC hog1+2
+ INC hogp
  DEC hogn
- BNE hog1
- JMP hogx
+ BNE hog0
+ BRA hogx
 
 .h_ovlput               \ C_OVLPUT: an overlay's pages (S's state) to keep
  HRX
- TAX
- LDA h_ovlh-1,X
- STA hop1+2
- LDA h_ovln-1,X
- STA hogn
- LDA h_ovlb-1,X
- STA &F4
- STA &FE30
- LDY #0
+ JSR hov_at
 .hop0
+ JSR hov_pg
+.hop0a
  HRX
 .hop1
- STA &8000,Y            \ (patched: the page)
+ STA &FF00,Y            \ (patched: the page)
  INY
- BNE hop0
- INC hop1+2
+ BNE hop0a
+ INC hogp
  DEC hogn
  BNE hop0
 .hogx
+ PLA                    \ (ACCCON as it was)
+ STA &FE34
  LDA #GFXBANK
  STA &F4
  STA &FE30
  JMP hloop
+.hov_at                 \ A = the overlay: its first page and count; ACCCON X
+ TAX                    \ clear (main RAM at &3000-&7FFF); returns with ACCCON
+ LDA h_ovf-1,X          \ on the stack under the return address
+ STA hogp
+ LDA h_ovn-1,X
+ STA hogn
+ PLA
+ STA hova
+ PLA
+ STA hova+1
+ LDA &FE34
+ PHA
+ AND #&FB
+ STA &FE34
+ LDA hova+1
+ PHA
+ LDA hova
+ PHA
+ RTS
+.hov_pg                 \ page hogp in: its ROMSEL, and its address into both
+ LDX hogp               \ loops; Y = 0
+ LDA st_rom,X
+ STA &FE30
+ LDA st_hi,X
+ STA hog1+2
+ STA hop1+2
+ LDY #0
+ RTS
+.hogp EQUB 0
 .hogn EQUB 0
-.h_ovlb EQUB OVLBANK, OVLSBANK, OVLSBANK, OVLSBANK, OVLBANK   \ each overlay's bank, first page, pages:
-.h_ovlh EQUB &80, &80, &80 + OVLS_PAGES, &80 + OVLSC_PAGES, &80 + OVLD_PAGES   \ D, S's common part, S's
-.h_ovln EQUB OVLD_PAGES, OVLSC_PAGES, OVLSS_PAGES, OVLS_PAGES - OVLSC_PAGES, OVLTC_PAGES   \ state, the meridian tail, the crater tail
+.hova EQUW 0
+ INCLUDE "build/hstore.asm"
 ENDIF
 
 IF _HOSTB = 0             \ (the Model B host's: hb-res2.asm)

@@ -724,13 +724,17 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
- EQUW MESS11            \ HMERID: the meridian window, bank 7
- EQUB 7, %00001001
- EQUW &8000, M7LEN
+ EQUW MESS13            \ HSTZ: the host's HAZEL (the overlays' storage there),
+ EQUB 6, %00001001      \ staged in main RAM at &4000 until LTRUN copies it in
+ EQUW &4000, &2000      \ (DFS uses HAZEL until the last disc access)
 
- EQUW MESS12            \ HOVD: the parasite's overlay D's image (storage
- EQUB 4, %00001001      \ only: h_ovlget), bank 4
- EQUW &8000, OVDLEN
+ EQUW MESS14            \ HSTM2: the overlays' storage in main RAM &7000-&7FFF
+ EQUB 6, %00001001
+ EQUW &7000, &1000
+
+ EQUW MESS15            \ HSTM1: and in main RAM &3000-&3DFF (last: the files
+ EQUB 6, %00001001      \ before it pass through &1300 up to &52FF)
+ EQUW &3000, &0E00
 
  EQUW 0
 
@@ -787,19 +791,20 @@ ENDIF
  EQUS "L.HBANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
  EQUB 13
 
-.MESS12
+.MESS13
 
- EQUS "L.HOVD FFFF1300"     \ Port (Tube): the parasite's overlay D, for bank 4
+ EQUS "L.HSTZ FFFF1300"     \ Port (Tube): the host's overlay storage
  EQUB 13
 
-.MESS11
+.MESS14
 
- EQUS "L.HOVS FFFF1300"      \ Port (Tube): the parasite's overlay S, bank 7
+ EQUS "L.HSTM2 FFFF1300"
  EQUB 13
 
+.MESS15
 
-
-
+ EQUS "L.HSTM1 FFFF1300"
+ EQUB 13
 
 .MESSP
  EQUS "L.PCODE 0000", STR$~(PCODEAT)   \ Port (Tube): the parasite's code, to its

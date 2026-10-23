@@ -206,7 +206,8 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
  JSR ovl_get
  BRA ovn8
 .ovn7
- LDA #&80
+ JSR ovl_sinit          \ (S's state as its image had it: the host keeps S's
+ LDA #&80               \ image from S_STATE_END's page on, not the state)
  STA GSTASH
 .ovn8
  PLY
@@ -214,6 +215,37 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
  RTS
 
 .ovl_ssv EQUB 0         \ bit 7: the host keeps overlay S's state
+
+\ ovl_sinit: overlay S's state (OVL_START to S_STATE_END) as S's image has it
+\ (tube/build.sh checks: zeros, but for the five bytes set here), for S
+\ coming in with no state kept: the host's image of S starts at S_STATE_END's
+\ page. Clobbers A, X, Y
+
+.ovl_sinit
+ LDA #HI(OVL_START)
+ STA osi1+2
+ LDA #0
+ TAY
+.osi1
+ STA OVL_START,Y        \ (patched: the page)
+ INY
+ BNE osi1
+ INC osi1+2
+ LDX osi1+2
+ CPX #HI(S_STATE_END)
+ BNE osi1
+.osi2
+ STA S_STATE_END AND &FF00,Y   \ (the last page, to S_STATE_END)
+ INY
+ CPY #LO(S_STATE_END)
+ BNE osi2
+ LDA #&FF
+ STA r_dyt
+ STA r_dyt+1
+ STA r_dst
+ STA r_dst+1
+ STA r_wt
+ RTS
 .ovl_kw  EQUB OVL_TM    \ S's tail: the one in the region while S is, and the
                         \ one S comes in with
 
@@ -283,5 +315,5 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
 .ovlen                  \ each overlay's end, as a page (OVL_START is page aligned)
  EQUB HI(OVL_D_END + 255), HI(TAIL_START), HI(S_STATE_END + 255), HI(OVL_S_END + 255), HI(TC_END + 255)
 .ovst                   \ and its start
- EQUB HI(OVL_START), HI(OVL_START), HI(OVL_START), HI(TAIL_START), HI(TAIL_START)
+ EQUB HI(OVL_START), HI(S_STATE_END), HI(OVL_START), HI(TAIL_START), HI(TAIL_START)
  ASSERT LO(TAIL_START) = 0

@@ -14,6 +14,21 @@
  BNE hst1               \ the host's MOS neither passes Escape, events or errors
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
+IF _HOSTB = 0
+ LDX #63                \ (Master: DFS's and the MOS's lasting bytes in HAZEL
+.hst4                   \ to DFSST and DFSST2, h_disc's hzout puts them back,
+ LDA &C2C0,X            \ then HAZEL's ours from the loader's staging copy at
+ STA DFSST,X            \ &4000, main RAM: hzin's second half)
+ LDA &DFC0,X
+ STA DFSST2,X
+ DEX
+ BPL hst4
+ LDA #4
+ TRB &FE34
+ LDX #&40
+ LDY #&C0
+ JSR hzmv
+ENDIF
 .hst1
 IF _HOSTB
  JSR hbswap             \ (Model B: our main RAM in, the MOS's out; from now on
@@ -117,6 +132,8 @@ IF _HOSTB
  SEI
  JSR hbswap             \ (Model B: the MOS's main RAM in, ours kept)
  CLI
+ELSE
+ JSR hzout              \ (Master: HAZEL's ours out, DFS's lasting bytes in)
 ENDIF
  LDX #LO(HDSTR)
  LDY #HI(HDSTR)
@@ -134,6 +151,12 @@ ENDIF
  STA BRKV+1
 IF _HOSTB
  JSR hbswap             \ (Model B: ours back)
+ELSE
+ LDA #4                 \ (Master: ACCCON X clear, Y set, whatever the MOS
+ TRB &FE34              \ left; then DFS's lasting bytes kept, HAZEL's ours
+ LDA #8                 \ back)
+ TSB &FE34
+ JSR hzin
 ENDIF
  JSR HNMI               \ (quieten the 1770, the minimal NMI handler back)
  JSR hdints             \ (the interrupts as hstart sets them: the MOS's command
@@ -207,6 +230,66 @@ ELSE
  LDA #%01111111
  STA &FE6E
  JMP T1SYNC             \ (CLIs)
+ENDIF
+
+IF _HOSTB = 0
+\ hzout, hzin: the host keeps the overlays' storage and its span code in HAZEL
+\ (&C000-&DFFF), which DFS and the MOS use during a disc command: as the
+\ Master port's DOSCLI, HAZEL goes to main RAM &4000-&5FFF (buffer 0, not on
+\ show in direct mode; the parasite's p_oscli has set GSTASH) for the command,
+\ with DFS's and the MOS's lasting bytes (DFSST: &C2C0-&C2FF, DFSST2:
+\ &DFC0-&DFFF, which the loader took) put back and DFS's catalogue cache
+\ invalidated; afterwards the lasting bytes are taken again and HAZEL comes
+\ back. ACCCON X is clear (h_disc)
+
+.hzout
+ LDX #&C0
+ LDY #&40
+ JSR hzmv
+ LDX #63
+.hzo1
+ LDA DFSST,X
+ STA &C2C0,X
+ LDA DFSST2,X
+ STA &DFC0,X
+ DEX
+ BPL hzo1
+ LDA #&FF
+ STA &C282
+ STA &C287
+ STA &C28B
+ STA &C28C
+ STA &C28D
+ STA &C28E
+ RTS
+
+.hzin
+ LDX #63
+.hzi1
+ LDA &C2C0,X
+ STA DFSST,X
+ LDA &DFC0,X
+ STA DFSST2,X
+ DEX
+ BPL hzi1
+ LDX #&40
+ LDY #&C0
+.hzmv                   \ 32 pages from page X to page Y
+ STX hzm1+2
+ STY hzm2+2
+ LDY #0
+ LDX #32
+.hzm1
+ LDA &FF00,Y            \ (patched)
+.hzm2
+ STA &FF00,Y            \ (patched)
+ INY
+ BNE hzm1
+ INC hzm1+2
+ INC hzm2+2
+ DEX
+ BNE hzm1
+ RTS
 ENDIF
 
 .hdm  EQUB 0
