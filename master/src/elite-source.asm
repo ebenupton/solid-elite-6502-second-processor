@@ -45,7 +45,7 @@
 \
 \ ******************************************************************************
 
- CODE% = &1E6F          \ The address where the code will be run (Port: the
+ CODE% = &1E15          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; the glue area, elite-glue.asm,
                         \ starts here and the low pass follows it, and the low
@@ -12795,9 +12795,9 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ Port: DETOK jumps to these routines from the cold area, so those outside it
-\ are entered through their stubs (x4_name, which tools/streams.py generates:
-\ elite-layout.asm).
+\ Port: DETOK jumps to these routines from the cold pass, so those outside it
+\ are entered through their stubs (x4_name, which tools/streams.py writes in
+\ build/elite-stubs.asm).
 \
 \ ******************************************************************************
 
@@ -12805,8 +12805,8 @@ ENDIF
 
  EQUW MT1               \ Token  1: Switch to ALL CAPS
  EQUW MT2               \ Token  2: Switch to Sentence Case
- EQUW TT27              \ Token  3: Print the selected system name
- EQUW TT27              \ Token  4: Print the commander's name
+ EQUW x4_TT27           \ Token  3: Print the selected system name
+ EQUW x4_TT27           \ Token  4: Print the commander's name
  EQUW MT5               \ Token  5: Switch to extended tokens
  EQUW MT6               \ Token  6: Switch to standard tokens, in Sentence Case
  EQUW x4_DASC           \ Token  7: Beep
@@ -12845,11 +12845,17 @@ ENDIF
 \   Category: Text
 \    Summary: The extended two-letter token lookup table
 \  Deep dive: Extended text tokens
-\       Area: cold
+\       Area: hot, runs on
 \
 \ ------------------------------------------------------------------------------
 \
 \ Two-letter token lookup table for extended tokens 215-227.
+\
+\ Port: DETOK2 reads the pairs of tokens 228 to 255 past the end of this
+\ table, in QQ16, which follows it ("runs on": tools/streams.py keeps QQ16
+\ after it). Both are in the hot pass, as TT27 reads QQ16, and in main RAM,
+\ which DETOK2 in the cold pass reads too (bankcheck.py would reject them in
+\ bank 4).
 \
 \ ******************************************************************************
 
@@ -12876,7 +12882,6 @@ ENDIF
 \   Category: Text
 \    Summary: The two-letter token lookup table
 \  Deep dive: Printing text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -16007,7 +16012,6 @@ ENDIF
 \   Category: Text
 \    Summary: A constant used when printing large numbers in BPRNT
 \  Deep dive: Printing decimal numbers
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -16036,7 +16040,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print an 8-bit number, left-padded to 3 digits, and optional point
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -16075,7 +16078,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a 16-bit number, left-padded to n digits, and optional point
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -16123,7 +16125,6 @@ ENDIF
 \    Summary: Print a 32-bit number, left-padded to a specific number of digits,
 \             with an optional decimal point
 \  Deep dive: Printing decimal numbers
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29750,7 +29751,6 @@ ENDIF
 \    Summary: Print the selected system name
 \  Deep dive: Generating system names
 \             Galaxy and system seeds
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29832,7 +29832,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Print the commander's name
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29872,7 +29871,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Print the current system name
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29934,7 +29932,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Print the current galaxy number
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29964,7 +29961,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Print fuel and cash levels
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30001,7 +29997,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Print the current amount of cash
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30047,7 +30042,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a text token followed by a newline
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30070,7 +30064,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a text token followed by a colon
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30091,7 +30084,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a colon
-\       Area: cold
 \
 \ ******************************************************************************
 
@@ -30107,7 +30099,6 @@ ENDIF
 \   Category: Text
 \    Summary: Print a text token
 \  Deep dive: Printing text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30233,7 +30224,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a letter in lower case
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30282,7 +30272,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a letter according to Sentence Case
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30350,7 +30339,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a recursive token in the range 128-145
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30378,7 +30366,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Tab to column 21 and print a colon
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30402,7 +30389,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a letter in lower case
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30457,7 +30443,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a character and switch to capitals
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30502,7 +30487,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a character
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30522,7 +30506,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a two-letter token or recursive token 0-95
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30600,7 +30583,6 @@ ENDIF
 \   Category: Text
 \    Summary: Print a recursive token
 \  Deep dive: Printing text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30755,7 +30737,6 @@ ENDIF
 \       Type: Variable
 \   Category: Text
 \    Summary: Port: where every 16th recursive token starts in QQ18, for ex
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41140,7 +41121,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Scan the keyboard until a key is pressed
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41211,7 +41191,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Erase an old in-flight message and display a new one
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41246,7 +41225,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Display an in-flight message
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41358,7 +41336,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Print a text token, possibly followed by " DESTROYED"
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41383,7 +41360,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Potentially lose cargo or equipment following damage
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41458,7 +41434,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Display "E.C.M.SYSTEM DESTROYED" as an in-flight message
-\       Area: cold
 \
 \ ******************************************************************************
 
@@ -41476,7 +41451,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Display "FUEL SCOOPS DESTROYED" as an in-flight message
-\       Area: cold
 \
 \ ******************************************************************************
 
