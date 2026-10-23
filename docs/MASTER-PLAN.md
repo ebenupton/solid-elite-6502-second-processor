@@ -1751,3 +1751,63 @@ gate cannot see, as the text map is not game state: f_clrtext0's new code
 used f_tmp, which holds its last row, and cleared rows past it); mbrief,
 every briefing's and debriefing's key-wait and end screens identical to
 5b7b91e's.
+
+## Three passes (after the kept solid rows, 87cf524; branch threepass)
+
+The original's source is emitted in three passes, each in the source's
+order: **low** (Elite's code that must be below &3000), **hot** (the rest
+of the game code, flowed through main RAM and then bank 4) and **cold**
+(bank 7). docs/MASTER-MAP.md, "The source and its passes" and "Calls between
+the passes", has the result. What changed, commit by commit:
+
+* **The glue area** (c9f534a): the port's own code below the head was the
+  "low area"; it is the glue area (elite-glue.asm, gfx-gluehooks.asm), so
+  that "low" names the pass. It is first at CODE%, below the low pass.
+* **Three passes, the hot pass flowed** (8acb21a): one rule instead of the
+  run, the low area's two blocks, the "bank 4" blocks hoisted after F% and
+  the marker before TACTICS. The head's blocks are tagged low, stackpt and
+  NEWBRK join them, and Master's drawing and dashboard blocks are ordinary
+  hot blocks tagged "Area: hot, ACCCON X", which the flow puts in bank 4.
+  streams.py measures the hot pass (elite-measure.asm) and flows its units
+  (runs of blocks that fall or branch into each other) through main RAM to
+  &4000, main RAM from &7400, then bank 4: the old layout came out, in the
+  new form.
+* **The low pass, only what must be low** (7840b34): VEC, T1SYNC, pxpatd,
+  pxpat, HANGFLAG to the hot pass; ADDK and the log tables (which align
+  themselves now; the flow is alignment-aware) to bank 4 as ACCCON X. 1207
+  bytes below &3000 for the stubs.
+* **Fast direct stubs** (4d020cb): one stub per target in the glue area (JSR
+  to7 : JSR X_C : JMP to4), 85 cycles a crossing against the far calls'
+  171; elite-far.asm goes. The cold pass calls the low routines that need
+  nothing of the hot side directly. TTX66M keeps the caller's bank for CHPR.
+  The harness sees through a stub by its address range.
+* **Checks the moves needed** (103e927, 9196653): a hot reference to a cold
+  label must be a call, a jump or its address, as a stub has no data (QQ16
+  was read through its stub); banks.txt names each label once, the game's
+  first (a scoped .t2 in the rasteriser made TT217's t2 look like bank 5's,
+  and the pilot waited at the Buy Cargo prompt).
+* **Text hot** (540d423): the token and number printers (TT27, ex, BPRNT,
+  MESS ...), QQ18, QQ16 and TKN2, which DETOK2 reads on into QQ16 ("Area: hot,
+  runs on"). The hot data flows past HAZEL into bank 4 (QQ18, SNE, ACT).
+  DETOK stays cold: its tables are 3.5K.
+* **More hot by measured heat** (560d29e): master/tools/grind/crossings.py
+  ranks the cold blocks by the crossings their move removes less those it
+  creates; the positive ones whose neighbours allow it moved (ee3, MT14 and
+  MT15, HFS2, Ze, FRS1 ... FR1, TT66 and TTX66K, TT69 and TT67, BAD, ESCAPE,
+  TT24). TT20 and TT54 (the charts call them 256 times a screen) and TT111
+  would create more than they remove.
+
+**Results.** Gate: VERIFY PASS 13.97 11.99 0.858 (87cf524: 11.98, 0.857).
+Flight 166769 cycles an iteration against 166935 (profile.mjs). Crossings
+between the passes: 0.0149 a flight iteration and 3738 off flight, at 85
+cycles, against 0.703 and 11455 at 171. The docked screens (harness/
+mdocktime.mjs, the busy cycles from the key to the screen drawn): 5152363
+against 5411007 (-4.8%), 3314.7 ms against 3454.6 ms. 373 bytes fewer free
+outside shadow RAM (the stubs' 700 bytes more than the far calls, the log
+tables' alignment), bank 7 2700 free (89), bank 4 810 (3853).
+
+**Not done.** The alignment pass: the code moved, and the page crossings
+were not measured again (profile.mjs --pagex). DETOK and its tables in the
+hot pass would remove the docked screens' remaining DASC crossings, but
+need 3.5K more of bank 4. INLINE stubs (70 cycles) are not worth it at
+0.015 crossings a flight iteration.

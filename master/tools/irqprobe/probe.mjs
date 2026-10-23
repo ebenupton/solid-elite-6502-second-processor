@@ -31,7 +31,7 @@ export function attachProbe(cpu, sy, opts = {}) {
     const rb = a => cpu.readmem(a);
     const now = () => sch.epoch;
     const pos = () => (vid.vertCounter * 8 + vid.scanlineCounter) * 128 + vid.horizCounter;
-    // the two instructions that matter, found in the code (main RAM: IRQ1 is at &2652)
+    // the two instructions that matter, found in the code (main RAM: IRQ1 is in the low pass, below &3000)
     const find = (from, bytes, n = 80) => { for (let a = from; a < from + n; a++) if (bytes.every((b, i) => ram[a + i] === b)) return a; return -1; };
     // (found when IRQ1 first runs: the probe may be attached before the game is loaded)
     let TSB = -1, T1W = -1;                                 // IRQ1: TSB VIA+&34; LINSCN: STA VIA+&45

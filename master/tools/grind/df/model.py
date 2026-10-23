@@ -17,14 +17,13 @@ Built from what master/tools/grind/mkbuild.sh leaves in a build directory:
 
 Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers it):
 
-  main  main RAM: BCODE &1E2C-&3FFF (with the far7 stubs at their cold routines'
-        places), HICODE &7000-&7FFF (QSL/QSH, renderer stubs and hooks, the
-        lighting's game half)
-  B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: the main code's
-        continuation, then elite-bank4.asm's code)
-  C7    COLD7.bin, bank 7 from &8000: the cold area (the cold code, with the far4
-        stubs at their hot routines' places, then QQ18 and the extended tokens;
-        ROMSEL 7)
+  main  main RAM: BCODE from CODE% to &3FFF (the glue area, with the stubs between
+        the passes; the low pass; the hot pass's first container), HICODE
+        &7000-&7FFF (QSL/QSH, then the hot pass's second container)
+  B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: the hot pass's third
+        container, then the hot data HAZEL has no room for)
+  C7    COLD7.bin, bank 7 from &8000: the cold pass (the cold code, then the
+        extended tokens; ROMSEL 7)
   B5    BANK5.bin (the rasteriser's shared region and disc window; ROMSEL 5)
   RA    RASTA.bin, ANDY (the rasteriser's polygon window: R_POLY, R_LINE; ROMSEL &85)
   B6    BANK6.bin (frame layer, faces, lighting)
