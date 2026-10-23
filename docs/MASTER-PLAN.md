@@ -1806,8 +1806,11 @@ against 5411007 (-4.8%), 3314.7 ms against 3454.6 ms. 373 bytes fewer free
 outside shadow RAM (the stubs' 700 bytes more than the far calls, the log
 tables' alignment), bank 7 2700 free (89), bank 4 810 (3853).
 
-**Not done.** The alignment pass: the code moved, and the page crossings
-were not measured again (profile.mjs --pagex). DETOK and its tables in the
+Page crossings (profile.mjs --pagex): 1108 cycles a flight iteration
+against 1140 at 87cf524, 1421 off flight against 1697.
+
+**Not done.** The alignment pass (the page crossings are measured, above,
+but nothing was aligned). DETOK and its tables in the
 hot pass would remove the docked screens' remaining DASC crossings, but
 need 3.5K more of bank 4. INLINE stubs (70 cycles) are not worth it at
 0.015 crossings a flight iteration.
