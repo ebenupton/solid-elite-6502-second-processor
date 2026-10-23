@@ -98,7 +98,11 @@ ASSERT F_ST = F_TM + &300
 \ Overlay S, the space-mode overlay: the rasteriser (p-rast.asm: its state
 \ first, then its code), the lens flare and the meridian window (the beach
 \ ball), from OVL_START (p-ovl.asm). The host keeps its image (HOVS)
- CLEAR OVL_START, &F800
+ IF MEASURE             \ (tube/build.sh MEASURE=1: sizes only, no usable image)
+  CLEAR OVL_START, &FFFF
+ ELSE
+  CLEAR OVL_START, &F800
+ ENDIF
  ORG OVL_START
 .OVL_S_START
  INCLUDE "tsrc/p-rast.asm"
@@ -117,14 +121,18 @@ ENDIF
  CPU 1
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to &F800: ", &F800-OVL_S_END
- ASSERT OVL_S_END <= &F800
+ ASSERT OVL_S_END <= &F800 OR MEASURE
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
 
 \ The high code (PHIGH): &F800-&FEEF, where the client OS's copy is but for
 \ the client's only use (the boot and disc commands, through the MOS's Tube
 \ code): the host keeps whichever of the two is not in the parasite, and
 \ p_swap exchanges them (at the start, and either side of a disc command)
- ORG &F800
+ IF MEASURE
+  ORG P%
+ ELSE
+  ORG &F800
+ ENDIF
 .PHIGH_START
  INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
  CPU 1
@@ -133,5 +141,5 @@ ENDIF
  INCLUDE "tsrc/p-onepass2.asm" \ (R_POLY in one pass: its second part)
 .PHIGH_END
  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
- ASSERT PHIGH_END <= &FEF0
+ ASSERT PHIGH_END <= &FEF0 OR MEASURE
  SAVE "build/PHIGH.bin", PHIGH_START, PHIGH_END

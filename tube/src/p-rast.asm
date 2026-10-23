@@ -61,6 +61,9 @@ R_PCOL2 = R_COL2        \ (the polygon colours for rows y AND 3 = 2, 3)
 .R_DIRTYR1 SKIP 192
 .R_DISCL1  SKIP 192
 .R_DISCR1  SKIP 192
+.R_BST     SKIP 192     \ per row, what each buffer's disc row holds (bits 0-3
+                        \ buffer 0, 4-7 buffer 1): 8 + 4p, one colour (A, or B if
+                        \ p), or 0, unknown (prow)
 .R_WL      SKIP 192     \ this frame's written extents (R_WR = 0: none)
 .R_WR      SKIP 192
 ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1) AND LO(R_DIRTYR0) = LO(R_DIRTYR1)
@@ -878,8 +881,66 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA pr_a
  STA pr_e
 .prw2
- LDA pr_h
- BNE prw3               \ (two colours: always)
+ LDA #8                 \ the row's new contents: one colour, A (8) or B (12),
+ LDX R_NDF              \ or (0) two (then it is painted whole, pseg)
+ BEQ pbd2
+ CPY r_nt
+ BCC pbd2
+ CPY r_nb
+ BEQ P%+4
+ BCS pbd2
+ LDA R_NDN,Y
+ BEQ pbd1
+ LDA #0
+ BEQ pbd2
+.pbd1
+ LDA R_NDP,Y
+ AND #1
+ ASL A
+ ASL A
+ ORA #8
+.pbd2
+ STA pb_new
+ STZ pb_two             \ one colour, and the old row was the same colour (or
+ CMP #0                 \ had no disc): drawn as a change (R_BST), else whole
+ BEQ pbd4
+ LDA R_BST,Y
+ LDX r_buf
+ BEQ P%+6
+ LSR A
+ LSR A
+ LSR A
+ LSR A
+ AND #15
+ CMP pb_new
+ BEQ pbd5
+ LDA (pr_sr),Y          \ (no old span: the change is all of it)
+ CMP (pr_sl),Y
+ BCC pbd5
+.pbd4
+ LDA pr_h               \ (a two-colour frame now or last: whole)
+ STA pb_two
+.pbd5
+ LDA pb_new             \ the buffer's R_BST for the row: the new contents
+ LDX r_buf
+ BEQ pbd6
+ ASL A
+ ASL A
+ ASL A
+ ASL A
+ STA pr_g
+ LDA R_BST,Y
+ AND #&0F
+ BRA pbd7
+.pbd6
+ STA pr_g
+ LDA R_BST,Y
+ AND #&F0
+.pbd7
+ ORA pr_g
+ STA R_BST,Y
+ LDA pb_two
+ BNE prw3               \ (two colours: whole)
  LDA (pr_dr),Y          \ one colour: unchanged, with no dirty extent?
  BNE prw3
  LDA pr_e
@@ -918,12 +979,20 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA pr_f               \ the new span, if any
  CMP pr_e
  BCC prw9
- LDA pr_h
+ LDA pb_two
  BNE prw8
- LDA R_DCE              \ one colour: the new span less the intact old span,
- STA pr_ce              \ i.e. (new less old) and (new and dirty)
- LDA R_DCO
- STA pr_co
+ LDA pb_new             \ one colour (A, or B: R_BST's p): the new span less the
+ AND #4                 \ intact old span, i.e. (new less old) and (new and
+ BEQ pcla               \ dirty)
+ LDA R_DBE
+ LDX R_DBO
+ BRA pclb
+.pcla
+ LDA R_DCE
+ LDX R_DCO
+.pclb
+ STA pr_ce
+ STX pr_co
  LDA pr_e
  STA pr_a
  LDA pr_f
@@ -969,6 +1038,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  JMP prw
 .prw10
  RTS
+
+.pb_new EQUB 0
+.pb_two EQUB 0
 
 \ pseg: the new span pr_e..pr_f of row Y in colours A (R_DCE, R_DCO) and B
 \ (R_DBE, R_DBO): pixel x takes colour R_NDP EOR the number of boundaries
