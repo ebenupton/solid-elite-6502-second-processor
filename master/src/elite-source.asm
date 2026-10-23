@@ -45,7 +45,7 @@
 \
 \ ******************************************************************************
 
- CODE% = &1E53          \ The address where the code will be run (Port: the
+ CODE% = &1DDB          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; the glue area, elite-glue.asm,
                         \ starts here and the low pass follows it, and the low
@@ -2095,7 +2095,6 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing the screen
 \    Summary: The original value of the IRQ1 vector
-\       Area: low
 \
 \ ******************************************************************************
 
@@ -3007,7 +3006,6 @@ ENDIF
 \   Category: Drawing the screen
 \    Summary: Port: start timer 1 running freely, once a frame, in step with
 \             vsync, for the split
-\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6300,7 +6298,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Stardust
 \    Summary: Set COL for the stardust, then pxpat
-\       Area: low
 \
 \ ******************************************************************************
 
@@ -6317,7 +6314,6 @@ ENDIF
 \    Summary: Patch PIX1's, H_STAR's and H_STAROFF's record-mode tests for a
 \             pass over the stardust (Port: the demo port's per-frame patching
 \             of the QQ11 OR GFORCE test, transfer item B12)
-\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7106,7 +7102,6 @@ ENDIF
 \    Summary: The number of ships being displayed in the ship hangar
 \             (Port: HALL still sets it, but nothing reads it: HANGER, which
 \             did, is removed, as the renderer draws the hangar)
-\       Area: low
 \
 \ ******************************************************************************
 
@@ -8805,7 +8800,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
 \    Summary: Calculate (A X) = (A P) + (S R)
-\       Area: low
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8925,10 +8920,7 @@ DCN_MARK = 6            \ roll / pitch marker
  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
 
  ALIGN &100             \ Port: the font must start on a page boundary, as only
-                        \ its page number is used (FONT%), and log must too (FMLTU
-                        \ reads it by an operand whose low byte is the argument);
-                        \ the font is three pages, so the log tables after it are
-                        \ page aligned with it
+                        \ its page number is used (FONT%)
 
  FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
 
@@ -8940,7 +8932,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \       Type: Variable
 \   Category: Maths (Arithmetic)
 \    Summary: Binary logarithm table (high byte)
-\       Area: low
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8957,6 +8949,11 @@ DCN_MARK = 6            \ roll / pitch marker
 \   32 * log2(n) * 256
 \
 \ ******************************************************************************
+
+ ALIGN &100             \ Port: log, logL and alogh must start a page, as
+                        \ FMLTU and LOINQ read them by operands whose low byte
+                        \ is the argument (in the original they follow the
+                        \ three-page font, which is page aligned)
 
 .log
 
@@ -9017,7 +9014,7 @@ ENDIF
 \       Type: Variable
 \   Category: Maths (Arithmetic)
 \    Summary: Binary logarithm table (low byte)
-\       Area: low
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9096,7 +9093,7 @@ ENDIF
 \       Type: Variable
 \   Category: Maths (Arithmetic)
 \    Summary: Binary antilogarithm table
-\       Area: low
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
