@@ -92,7 +92,7 @@ HCTXN = 12
  EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_oscli, h_swap, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
- EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_starget, h_hloin, h_pixel
+ EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_starget, h_hloin, h_pixel, h_dspans
 ASSERT P% - htab = C_MAX
 
 .hloop
@@ -264,6 +264,45 @@ ENDIF
  STA zR_COLO
  JSR T_SPAN
  JMP hloop
+
+.h_dspans               \ C_DSPANS: rows of spans (p-rast.asm's R_DISCROWS):
+IF _HOSTB = 0             \ the row, the count, then XL, XR, COLE, COLO each, R_SPAN
+ LDA #RASTBANK          \ each (bank 5 paged once); &FF ends
+ STA &F4
+ STA &FE30
+ENDIF
+.hds1
+ HRX
+ CMP #&FF
+ BEQ hds9
+ STA hds_y
+ HRX
+ STA hds_n
+.hds2
+ HRX
+ STA zR_XL
+ HRX
+ STA zR_XR
+ HRX
+ STA zR_COLE
+ HRX
+ STA zR_COLO
+ LDY hds_y
+IF _HOSTB
+ JSR T_SPAN
+ELSE
+ JSR R_SPAN
+ENDIF
+ DEC hds_n
+ BNE hds2
+ JMP hds1
+.hds9
+IF _HOSTB = 0
+ JSR tback
+ENDIF
+ JMP hloop
+.hds_y EQUB 0
+.hds_n EQUB 0
 
 .h_spans                \ C_SPANS: polygon rows (p-rast.asm's p_spans): COLE, COLO,
 IF _HOSTB                 \ COL2, COL3, the first and last rows, then left and right

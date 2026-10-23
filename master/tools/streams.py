@@ -418,7 +418,7 @@ def glue(copies, errors, lines, bl, falls):
                 if name in cold:
                     code = code[:a] + name + "_C" + code[b:]
             m = re.match(r"^(\s*(?:JSR|JMP)\s+)([A-Za-z_]\w*)(.*)$", code, re.I)
-            if m and m.group(2) in hot and m.group(2) not in cold:
+            if m and m.group(2) in hot and m.group(2) not in cold and not TUBE:
                 code = m.group(1) + ("j4_" if m.group(2) in NORETURN else "x4_") + m.group(2) + m.group(3)
             cc[i] = code + comment
             continue
@@ -426,6 +426,8 @@ def glue(copies, errors, lines, bl, falls):
         pos = 0
         for off, st in statements(code):
             m = re.match(r"^(\s*)(JSR|JMP)(\s+)([A-Za-z_][A-Za-z0-9_]*%?)(.*)$", st, re.I)
+            if m and TUBE:                         # (the Tube's parasite is flat: cold
+                m = None                           # code calls hot code directly)
             if not m and TUBEOVL is not None:     # (the Tube's overlay: a branch to a
                 m = re.match(r"^(\s*)(BCC|BCS|BEQ|BNE|BMI|BPL|BVC|BVS|BRA)(\s+)([A-Za-z_][A-Za-z0-9_]*%?)(\s*)$",
                              st, re.I)            # resident label goes through its stub)

@@ -87,6 +87,12 @@ STREC = 4 * 48          \ (at most 48 records of 4 bytes)
 .S_STATE_END             \ (the state: what p-ovl.asm saves when S goes out in space
                         \ mode)
 
+.pr_bat  EQUB 0          \ R_DISCROWS's batch (C_DSPANS): bit 7 on, bit 6 sent
+.pr_sy   EQUB 0          \ the row buffered, its spans' bytes, the spans (a, b, ce,
+.pr_sn   EQUB 0          \ co each)
+PSBUF = 4 * 16
+.pr_sb   SKIP PSBUF
+
 \ ------------------------------------------------------------------------------
 \ R_INIT, R_SETBUF, R_RESETBUF
 \ ------------------------------------------------------------------------------
@@ -243,6 +249,8 @@ STREC = 4 * 48          \ (at most 48 records of 4 bytes)
 \ R_WL/R_WR's extent for the row (pr_wl, pr_wr). Keeps X, Y
 
 .pspan
+ BIT pr_bat             \ (R_DISCROWS: into the row's batch)
+ BMI psb
  LDA #C_SPAN
  JSR ptx
  LDA pr_y
@@ -311,6 +319,71 @@ STREC = 4 * 48          \ (at most 48 records of 4 bytes)
 \ R_DOT: X = x, Y = y, A = size: the host draws it (C_DOT, as R_DOT); its
 \ pixels inside the clip window extend the dirty extents, as r_pclip's
 \ ------------------------------------------------------------------------------
+
+.psb                    \ the span into the batch's row buffer (another row's,
+ PHX                    \ or a full one: sent first)
+ LDX pr_sn
+ LDA pr_y
+ CMP pr_sy
+ BNE psb1
+ CPX #PSBUF
+ BCC psb2
+.psb1
+ JSR psflush
+ LDA pr_y
+ STA pr_sy
+ LDX #0
+.psb2
+ LDA pr_a
+ STA pr_sb,X
+ CMP pr_wl
+ BCS P%+4
+ STA pr_wl
+ LDA pr_b
+ STA pr_sb+1,X
+ CMP pr_wr
+ BCC P%+4
+ STA pr_wr
+ LDA pr_ce
+ STA pr_sb+2,X
+ LDA pr_co
+ STA pr_sb+3,X
+ TXA
+ CLC
+ ADC #4
+ STA pr_sn
+ PLX
+ RTS
+
+\ psflush: send the batch's buffered row, if any: the row, the spans' count,
+\ the spans (C_DSPANS first if the batch has sent nothing). Keeps Y
+
+.psflush
+ LDX pr_sn
+ BEQ psf9
+ BIT pr_bat
+ BVS psf1
+ LDA #C_DSPANS
+ JSR ptx
+ LDA #%11000000
+ STA pr_bat
+.psf1
+ LDA pr_sy
+ JSR ptx
+ TXA
+ LSR A
+ LSR A
+ JSR ptx
+ LDX #0
+.psf2
+ LDA pr_sb,X
+ JSR ptx
+ INX
+ CPX pr_sn
+ BNE psf2
+ STZ pr_sn
+.psf9
+ RTS
 
 .T_DOT
 .R_DOT
@@ -770,6 +843,19 @@ STREC = 4 * 48          \ (at most 48 records of 4 bytes)
 
 .T_DISCROWS
 .R_DISCROWS
+ LDA #%10000000         \ (its spans batched: C_DSPANS)
+ STA pr_bat
+ STZ pr_sn
+ JSR pdr0
+ JSR psflush
+ BIT pr_bat
+ STZ pr_bat
+ BVC pdr00
+ LDA #&FF               \ (the batch's end)
+ JMP ptx
+.pdr00
+ RTS
+.pdr0
  LDA R_NDT              \ the new rows, clamped to the window
  CMP R_CT
  BCS P%+4
