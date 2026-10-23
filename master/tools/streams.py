@@ -641,6 +641,7 @@ def data(errors):
 #
 #   \       Area: hazel             (the Master host's HAZEL: the code that
 #                                    enters the STA runs, tube/src/h-layout.asm)
+#   \       Area: ovl D             (the parasite's overlay D: p-layout.asm)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
@@ -650,8 +651,8 @@ def data(errors):
 # files it does not pass) the Master host assemble the file itself, where the
 # tag lines are comments
 FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-raster.asm", "src/gfx-raster_lcold.asm",
-             "src/gfx-raster_polyb.asm")
-FPASS = {"frame": "frame", "ovl S crater": "crater", "hazel": "hazel"}
+             "src/gfx-raster_polyb.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm")
+FPASS = {"frame": "frame", "ovl S crater": "crater", "hazel": "hazel", "ovl D": "ovld"}
 
 
 def frame_passes(path, errors):

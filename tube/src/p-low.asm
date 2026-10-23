@@ -18,8 +18,8 @@
  INCLUDE "build/elite-source-low.asm"   \ the blocks tagged low
 
  INCLUDE "src/gfx-gvars.asm"            \ the renderer's shared variables
- INCLUDE "tsrc/p-glue.asm"              \ the G_ stubs, the text hooks
+ INCLUDE "build/p-glue-frame.asm"       \ the G_ stubs, the text hooks (streams.py's pass)
  INCLUDE "src/gfx-hooks.asm"            \ the hooks in Elite's drawing code
- INCLUDE "tsrc/p-io.asm"                \ the Tube
+ INCLUDE "build/p-io-frame.asm"         \ the Tube (streams.py's pass)
  INCLUDE "tsrc/p-ovl.asm"               \ the overlay region's stubs' helpers
  INCLUDE "tsrc/p-dash.asm"              \ the dashboard's parasite halves

@@ -82,6 +82,8 @@ ASSERT F_ST = F_TM + &300
 .COLD_START%
  INCLUDE "build/elite-source-cold.asm"
  INCLUDE "build/elite-data-cold.asm"
+ INCLUDE "build/p-io-ovld.asm"          \ (the "ovl D" blocks of the Tube's files:
+ INCLUDE "build/p-glue-ovld.asm"        \ streams.py's ovld passes)
 .COLD_END%
 .OVL_D_END
 

@@ -107,8 +107,10 @@
  JSR F_DSTAR            \ (gfx-frame_cold.asm's: the noted stars are here)
  JMP gback
 
-.G_HANG0
- JSR F_HANG0
+\       Area: ovl D
+
+.G_HANG0                \ (G_HANG0 to G_HANGAR: called only from HALL and HAS1,
+ JSR F_HANG0            \ in overlay D)
  JMP gback
 
 \ G_HLL9: HAS1's LL9, with TYPE set while LL9 records the ship (as the Master
@@ -165,6 +167,8 @@ NEXT
 .G_HANGAR
  JSR F_HANGAR
  JMP gback
+
+\       Area: frame
 
 \ ******************************************************************************
 \

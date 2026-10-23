@@ -311,6 +311,8 @@ ENDMACRO
  RTS
 .pfkn EQUB 0
 
+\       Area: ovl D
+
 \ p_oscli: DOSCLI (the disc commands, Y X = the command, CR-ended): C_DISC,
 \ the host's MOS runs it as the host's own I/O (h_disc, h-cold.asm): the
 \ printing's context (QQ11 OR GFORCE, GMODE, CHPR's zero page, W, CATF), the
@@ -422,6 +424,8 @@ pv = &FA                \ (the command's pointer: zero page the game leaves free
  LDA #HI(R_NDX3)
  STA &FE
  JMP NEWBRK
+
+\       Area: frame
 
 \ p_dosnmi: NEWBRK's DOSNMI: nothing to do (the host is back in its command
 \ loop already). Keeps A and the flags
