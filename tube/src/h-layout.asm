@@ -94,7 +94,7 @@ HLOW_END = &0700
 \ phase B), then from HZ_STORE the overlays' storage (build/hstore.asm). The
 \ loader stages it in main RAM, hstart copies it in (DFS uses HAZEL until
 \ then) and h_disc moves it out and back around a disc command
-HZ_STORE = &CB00
+HZ_STORE = &CA00
  CLEAR &C000, &E000
  GUARD HZ_STORE
  ORG &C000

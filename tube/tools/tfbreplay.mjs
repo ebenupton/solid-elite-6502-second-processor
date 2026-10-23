@@ -19,7 +19,18 @@ import { parseArgs } from "../../harness/args.mjs";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { createHash } from "crypto";
 
-const a = parseArgs({ log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value", dumpn: "value", master: "flag", hsyms: "value" });
+const a = parseArgs({ inject: "value", log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value", dumpn: "value", master: "flag", hsyms: "value" });
+
+// --inject SPEC: forced inputs over the log (the same on any build, as they key on
+// the iteration and the read's site): items separated by ";":
+//   k:ITER:N:SITE:KEYS   rdkey reads from SITE in iterations ITER..ITER+N-1 get KEYS (a,b)
+//   d:ITER:N:KEY         dks5 reads of KEY in those iterations: held
+//   p:ITER:SYM:VALUE     at iteration ITER, poke SYM = VALUE (the build's own symbols)
+const INJ = (a.inject || "").split(";").filter(Boolean).map(s => s.split(":"));
+const injKeys = ctx => { for (const f of INJ) if (f[0] === "k" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.site === f[3]) return f[4].split(",").map(Number); return null; };
+const injDks = ctx => INJ.some(f => f[0] === "d" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.key === +f[3]);
+const injPoked = new Set();
+const injPoke = (m, sy) => { for (const f of INJ) if (f[0] === "p" && m.iter >= +f[1] && !injPoked.has(f.join(":"))) { injPoked.add(f.join(":")); m.ram[sy[f[2]]] = +f[3]; console.log(`poked ${f[2]} = ${f[3]} at iteration ${m.iter}`); } };
 const DUMP = a.dumpn ? a.dumpn.split("-").map(Number) : null;
 if (!a.log || !a.out || !a.cand || !a.csyms) { console.error("--log, --out, --cand and --csyms are required"); process.exit(2); }
 mkdirSync(a.out, { recursive: true });
@@ -40,8 +51,8 @@ await ref.boot();
 for (let k = 0; k < 10000 && !ref.started; k++) ref.run(CYCLES_PER_FRAME);
 const cand = new TubeEliteMachine({ host: a.host || "Master", name: "cand", disc: a.cand, syms: csy, rand, patch, seedFrom: ref,
     input: {
-        rdkey(ctx) { return L.rlog.get(ctx.poll)?.k || []; },
-        dks5(ctx) { const e = L.rlog.get(ctx.poll); return !!(e && e.t === "d"); },
+        rdkey(ctx) { return injKeys(ctx) || L.rlog.get(ctx.poll)?.k || []; },
+        dks5(ctx) { if (injDks(ctx)) return true; const e = L.rlog.get(ctx.poll); return !!(e && e.t === "d"); },
         joy(ctx) { const l = L.rjoy[ctx.which]; while (L.ptr[ctx.which] + 1 < l.length && l[L.ptr[ctx.which] + 1][0] <= ctx.joy) L.ptr[ctx.which]++; const e = l[L.ptr[ctx.which]]; return e && e[0] <= ctx.joy ? e[1] : 0x80; },
     } });
 await cand.boot();
@@ -50,7 +61,8 @@ const FROM = +(a.from || 0), TO = +(a.to || 1000);
 const hsy = loadSyms(a.hsyms || a.csyms.replace(/psyms\.txt$/, a.host === "B" ? "hbmsyms.txt" : "hsyms.txt"));
 const q = [], res = {}, dres = {};
 let n = 0;
-cand.t.addParHook(pc => { if (pc === csy.p_sync) q.push(cand.iter); return false; });
+const ovls = {};
+cand.t.addParHook(pc => { if (pc === csy.p_sync) q.push(cand.iter); if (pc === csy.ovl_get) { const k = cand.t.par.a; ovls[k] = (ovls[k] || 0) + 1; } return false; });
 const host = cand.host;
 let syncSeen = false;
 host.debugInstruction.add(pc => {
@@ -76,11 +88,13 @@ host.debugInstruction.add(pc => {
 });
 const t0 = Date.now();
 while (cand.iter < TO) {
+    injPoke(cand, csy);
     const r = cand.run(CYCLES_PER_FRAME);
     cand.snaps.length = 0;
     if (r === "blocked" && cand.blocked && cand.blocked.kind !== "tt170") { /* (the log has run out) */ if (cand.polls > Math.max(...L.rlog.keys())) break; }
 }
 writeFileSync(`${a.out}/fb.json`, JSON.stringify(res));
 writeFileSync(`${a.out}/dash.json`, JSON.stringify(dres));
+console.log("overlay loads (ovl_get by overlay: 1 D, 2 S, 3 S's state, 4/5 the tails):", JSON.stringify(ovls));
 console.log(`${Object.keys(res).length} frames hashed, iterations ${FROM}..${cand.iter}, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 process.exit(0);

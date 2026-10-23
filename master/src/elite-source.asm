@@ -15466,6 +15466,7 @@ ENDIF
 \    Summary: Show the Status Mode screen (red key f8)
 \  Deep dive: Combat rank
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -17660,6 +17661,7 @@ ENDIF
 \       Type: Variable
 \   Category: Ship hangar
 \    Summary: Ship hangar group table
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24777,6 +24779,7 @@ ENDMACRO
 \   Category: Drawing the screen
 \    Summary: Clear the screen and set up a trading screen
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -27005,6 +27008,7 @@ ENDMACRO
 \   Category: Charts
 \    Summary: Show the Short-range Chart (red key f5)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -42047,6 +42051,7 @@ ENDMACRO
 \             (Port: in the cold area, as only cold code reads it)
 \  Deep dive: Market item prices and availability
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \

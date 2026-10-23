@@ -6,7 +6,18 @@ import { parseArgs } from "../../../harness/args.mjs";
 import { readFileSync, writeFileSync, mkdirSync, openSync, readSync, fstatSync, closeSync, existsSync, appendFileSync } from "fs";
 import { spawn } from "child_process";
 
-const a = parseArgs({ log: "value", out: "value", cand: "value", csyms: "value", ref: "value", rsyms: "value", from: "value", to: "value", hashes: "value", follow: "flag", crf: "value", maxframes: "value", fps: "value", sparse: "value", journal: "value" });
+const a = parseArgs({ inject: "value", log: "value", out: "value", cand: "value", csyms: "value", ref: "value", rsyms: "value", from: "value", to: "value", hashes: "value", follow: "flag", crf: "value", maxframes: "value", fps: "value", sparse: "value", journal: "value" });
+
+// --inject SPEC: forced inputs over the log (the same on any build, as they key on
+// the iteration and the read's site): items separated by ";":
+//   k:ITER:N:SITE:KEYS   rdkey reads from SITE in iterations ITER..ITER+N-1 get KEYS (a,b)
+//   d:ITER:N:KEY         dks5 reads of KEY in those iterations: held
+//   p:ITER:SYM:VALUE     at iteration ITER, poke SYM = VALUE (the build's own symbols)
+const INJ = (a.inject || "").split(";").filter(Boolean).map(s => s.split(":"));
+const injKeys = ctx => { for (const f of INJ) if (f[0] === "k" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.site === f[3]) return f[4].split(",").map(Number); return null; };
+const injDks = ctx => INJ.some(f => f[0] === "d" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.key === +f[3]);
+const injPoked = new Set();
+const injPoke = (m, sy) => { for (const f of INJ) if (f[0] === "p" && m.iter >= +f[1] && !injPoked.has(f.join(":"))) { injPoked.add(f.join(":")); m.ram[sy[f[2]]] = +f[3]; console.log(`poked ${f[2]} = ${f[3]} at iteration ${m.iter}`); } };
 if (!a.log || !a.from || !a.to || !a.cand || !a.csyms) { console.error("--log, --out, --cand and --csyms are required"); process.exit(2); }
 if (!a.ref !== !a.rsyms) { console.error("--ref and --rsyms go together"); process.exit(2); }
 const FFMPEG = "/opt/homebrew/bin/ffmpeg";
@@ -69,12 +80,14 @@ const pending = [];     // the candidate's hashes not yet checked
 const cand = new EliteMachine({ name: "cand", disc: a.cand, syms: csy, rand, patch, seedFrom: ref, workarounds: H.workarounds || [],
     input: {
         rdkey(ctx) {
+            const fk = injKeys(ctx); if (fk) return fk;
             if (ctx.poll >= L.safePolls) return null;
             const e = L.rlog.get(ctx.poll);
             if (e && (e.t !== "r" || e.s !== ctx.site)) mismatch(ctx, e);
             return e?.k || [];
         },
         dks5(ctx) {
+            if (injDks(ctx)) return true;
             if (ctx.poll >= L.safePolls) return null;
             const e = L.rlog.get(ctx.poll);
             if (e && (e.t !== "d" || e.key !== ctx.key)) mismatch(ctx, e);
@@ -113,6 +126,7 @@ cpu.debugInstruction.add(pc => {
     return false;
 });
 for (;;) {
+    injPoke(cand, sy);
     const r = cand.run(CYCLES_PER_FRAME);
     cand.snaps.length = 0;
     if (cand.iter >= TO) break;

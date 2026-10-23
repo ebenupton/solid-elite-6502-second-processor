@@ -83,7 +83,7 @@ assert 4 * nss <= 64                    # bank 4's run pages, h-main.asm's hss)
 REG = [  # (ROMSEL, first page, pages): main RAM (ACCCON X clear), bank 5's
     (6, 0x30, 14), (6, 0x70, 16),       # tail, bank 6's tail (after its STA
     (5, 0xBB, 5), (6, 0xB7, 9),         # runs), ANDY's tail, HAZEL above the
-    (0x85, 0x86, 10), (6, 0xCB, 21)]    # code that enters the runs
+    (0x85, 0x86, 10), (6, 0xCA, 22)]    # code that enters the runs
 slots = [(r, h + i) for r, h, n in REG for i in range(n)]
 total = sum(n for _, _, n, in [(0, 0, x[3]) for x in ovs])
 assert total <= len(slots), "the overlays need %d pages, the regions hold %d" % (total, len(slots))
@@ -168,7 +168,7 @@ def put(fn, base, size, rom, lim):
             img[o:o + 256] = d
     return img
 h["RUN6"] = int(re.search(r"^RUN6 = &([0-9A-F]+)", open("tsrc/h-sta.asm").read(), re.M).group(1), 16)
-assert h["B5_END"] <= 0xBB00 and h["RA_END"] <= 0x8600 and h["RUN6"] + 24 * 256 <= 0xB700 and h["HZ_END"] <= 0xCB00, "the host's code runs into its storage"
+assert h["B5_END"] <= 0xBB00 and h["RA_END"] <= 0x8600 and h["RUN6"] + 24 * 256 <= 0xB700 and h["HZ_END"] <= 0xCA00, "the host's code runs into its storage"
 img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0xBB, 0xC0)); open("build/HBANK5.bin", "wb").write(img)
 img = put("build/HBANK6.bin", 0x8000, 0x4000, 6, (0xB7, 0xC0)); open("build/HBANK6.bin", "wb").write(img)
 img = put("build/HRASTA.bin", 0x8000, 0x1000, 0x85, (0x86, 0x90)); open("build/HRASTA.bin", "wb").write(img)
