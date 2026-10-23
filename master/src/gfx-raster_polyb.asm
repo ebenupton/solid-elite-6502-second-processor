@@ -286,20 +286,20 @@ ENDIF
 .pb_l2_e
   LDY R_XR
   LDA r_j-4,Y
-  CMP r_j,X
-  BEQ pb_norun_e
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  TAY                     \ (the Tube's Master host: the line's STA run, as
-  LDA r_j,X               \ r_spc's)
-  STA sjsr_e+1
+  STA RZ_PP               \ (the Tube's Master host: the line's STA run, as
+  LDA r_j,X               \ r_spc's; with no whole byte between, the JSR hits
+  STA sjsr_e+1           \ the RTS)
   LDA #r_opRTS
-  STA (RZ_PP),Y
+  STA (RZ_PP)
   LDA RZ_CE
 .sjsr_e
   JSR &FFFF
   LDA #s_opSTA
-  STA (RZ_PP),Y
+  STA (RZ_PP)
 ELSE
+  CMP r_j,X
+  BEQ pb_norun_e
   LDY r_j,X
   STY r_jsr2_e+1
   CMP RZ_PP
@@ -399,20 +399,20 @@ ENDIF
 .pb_l2_o
   LDY R_XR
   LDA r_j-4,Y
-  CMP r_j,X
-  BEQ pb_norun_o
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  TAY                     \ (the Tube's Master host: the line's STA run, as
-  LDA r_j,X               \ r_spc's)
-  STA sjsr_o+1
+  STA RZ_PP               \ (the Tube's Master host: the line's STA run, as
+  LDA r_j,X               \ r_spc's; with no whole byte between, the JSR hits
+  STA sjsr_o+1           \ the RTS)
   LDA #r_opRTS
-  STA (RZ_PP),Y
+  STA (RZ_PP)
   LDA RZ_CO
 .sjsr_o
   JSR &FFFF
   LDA #s_opSTA
-  STA (RZ_PP),Y
+  STA (RZ_PP)
 ELSE
+  CMP r_j,X
+  BEQ pb_norun_o
   LDY r_j,X
   STY r_jsr2_o+1
   CMP RZ_PP

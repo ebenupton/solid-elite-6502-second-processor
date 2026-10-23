@@ -267,12 +267,9 @@ ENDIF
   INC A
   STA RZ_PB+1
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  STZ RZ_PP               \ (the run is at its page's start: the entry and the
-  LDA s_pg,Y              \ plant are r_j's offsets in the page, no sums)
-  STA RZ_PP+1
-  STA sjsr+2
-  STA sjsr_e+2
-  STA sjsr_o+2
+  LDA s_pg,Y              \ (the run is at its page's start: the entry and the
+  STA RZ_PP+1             \ plant are r_j's offsets in the page, no sums; r_pcbs
+  STA sjsr+2              \ patches phase B's JSRs)
   LDA s_bk,Y
   STA s_rbk
   RTS
@@ -605,28 +602,24 @@ ENDIF
 .run
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   LDY R_XR                \ (the Tube's Master host: the line's STA run, in its
-  LDA r_j-4,Y             \ bank: plant an RTS at column xr DIV 4, enter at
-  CMP r_j,X               \ column xl DIV 4 + 1, both from RZ_PP, the line's
-  BEQ nrun                \ column 1; none if no whole byte lies between)
-  TAY
-  LDA r_j,X
-  STA sjsr+1
-  LDA #r_opRTS            \ (the line's bank is in: its caller paged it after
-  STA (RZ_PP),Y           \ r_rowset)
+  LDA r_j-4,Y             \ bank, which the caller paged: plant an RTS at
+  STA RZ_PP               \ column xr DIV 4, enter at column xl DIV 4 + 1, both
+  LDA r_j,X               \ in RZ_PP's page; with no whole byte between, the
+  STA sjsr+1              \ JSR hits the RTS, as the row runs')
+  LDA #r_opRTS
+  STA (RZ_PP)
   LDA RZ_COL
 .^sjsr
   JSR &FFFF
-  LDA #s_opSTA
-  STA (RZ_PP),Y
-.nrun
-  LDA RZ_COL
-  LDX R_XR                \ right edge (N = XR >= &80)
+  LDX R_XR                \ right edge (A = RZ_COL still; N = XR >= &80)
   BMI rb
   LDY r_xo,X
   EOR (RZ_PA),Y
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
+  LDA #s_opSTA            \ (the RTS out again)
+  STA (RZ_PP)
   RTS
 .rb
   LDY r_xo,X
@@ -634,6 +627,8 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
+  LDA #s_opSTA
+  STA (RZ_PP)
   RTS
 ELSE
   LDY R_XR

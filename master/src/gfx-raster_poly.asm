@@ -316,6 +316,10 @@ IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   LDA RZ_PP+1
   STA r_jsr2_e+2
   STA r_jsr2_o+2
+ELSE
+  LDA RZ_PP+1             \ (the Tube's Master host: phase B's JSRs into the
+  STA sjsr_e+2            \ first row's run)
+  STA sjsr_o+2
 ENDIF
   LDA r_yend
   STA pb_ye_e+1
