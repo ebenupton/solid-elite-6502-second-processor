@@ -50,10 +50,6 @@ OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "src/gfx-raster.asm"
  INCLUDE "src/gfx-raster_lcold.asm"
 .B5_END
- ORG &8000               \ (the disc layer, the repair and the lens flare are the
- INCLUDE "src/gfx-raster_stio.asm"   \ parasite's: p-rast.asm; the stars' records)
-.B5LO_END
- ASSERT B5LO_END <= &9000
  PRINT "Host: bank 5 &8000-&", ~B5_END-1
  SAVE "build/HBANK5.bin", &8000, B5_END, &8000
 

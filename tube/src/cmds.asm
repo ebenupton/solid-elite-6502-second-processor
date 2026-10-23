@@ -73,8 +73,9 @@ C_SPANS    = 80         \ polygon rows: COLE, COLO, COL2, COL3, first and last
                         \ row, then left and right (exclusive) per row
 C_ORSPAN   = 82         \ the lens flare: y, xl, xr, mask: OR the mask over the span
 C_STARS    = 84         \ R_SCOL, R_SN, then x, y, size each: plot (on black only);
-                        \ the host keeps the records for C_STARGET
-C_STARERASE = 86        \ the records' count, then the records: black those pixels
+                        \ the host keeps the records of the pixels it set
+C_STARERASE = 86        \ black the pixels the frame's buffer's records hold (the
+                        \ host's R_STARERASE: its one kept state, the stars')
 C_GLYPH    = 88         \ a text cell: the character, its column, its text row
 C_ENTERB   = 90         \ space mode: buffer 1's border to buffer 0, buffer 1 on show
 C_CLRBUF   = 92         \ clear buffer b's screen
@@ -84,8 +85,7 @@ C_OVLPUT   = 98         \ an overlay's (S's state's) pages to the host to keep: 
                         \ number, then its pages (p-ovl.asm)
 C_LOIN     = 100        \ a line (Master's LOINQ, the direct-mode screen): X1, Y1,
                         \ X2, Y2, COL
-C_STARGET  = 102        \ request (register 2): buffer b's star records (the count,
-                        \ then 4 bytes each), as the host's last C_STARS for it left them
+C_STARGET  = 102        \ (retired: the star records stay on the host)
 C_HLOIN    = 104        \ a horizontal line (Master's HLOIN3, the direct-mode
                         \ screen): X1, X2 (X1 < X2), Y1, COL
 C_PIXEL    = 106        \ a point (Master's PIXEL, the direct-mode screen): x,

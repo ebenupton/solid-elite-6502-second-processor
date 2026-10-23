@@ -92,7 +92,7 @@ HCTXN = 12
  EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_oscli, h_swap, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
- EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_starget, h_hloin, h_pixel, h_dspans
+ EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_bad, h_hloin, h_pixel, h_dspans
 ASSERT P% - htab = C_MAX
 
 .hloop
@@ -118,12 +118,6 @@ ENDIF
  JMP hdisp
 
 IF _HOSTB = 0             \ (the Model B host's: hb-ovl.asm)
-.hhrx                   \ (HRX, HTX as subroutines, for bank 5's star records:
- HRX                    \ gfx-raster_stio.asm; keep X, Y)
- RTS
-.hhtx
- HTX
- RTS
 ENDIF
 
 IF _HOSTB = 0
@@ -249,20 +243,11 @@ ELSE
 ENDIF
 
 IF _HOSTB = 0             \ (the Model B host's: hb-res2.asm)
-.T_STOUT                \ (h-prim.asm's: bank 5's star records to the parasite)
- STA tA
+.T_STERASE              \ (h-prim.asm's: bank 5's R_STARERASE)
  LDA #RASTBANK
  STA &F4
  STA &FE30
- LDA tA
- JSR r_stout
- JMP tback
-.T_STIN
- STA tA
- LDA #RASTBANK
- STA &F4
- STA &FE30
- JSR r_stin
+ JSR R_STARERASE
  JMP tback
 ENDIF
 

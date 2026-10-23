@@ -64,7 +64,7 @@ $BEEBASM -i tsrc/h-layout.asm -d > build/hsyms.txt 2>/dev/null
 python3 - <<'PY'
 import re
 with open("build/hbanks.txt", "w") as f:
-    for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_stio.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
+    for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"), ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"),
                       ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-ftext.asm", "6"), ("tsrc/h-cold.asm", "6"),
                       ("tsrc/h-panel.asm", "6"), ("tsrc/h-prim.asm", "6"), ("build/elite-source-hostb.asm", "6")):

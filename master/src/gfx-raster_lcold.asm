@@ -138,9 +138,6 @@ IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
 }
 ENDIF
 
-IF _TDUMB AND _TPART = 2 AND _HOSTB   \ (the Tube's dumb host: the star records' I/O,
- INCLUDE "src/gfx-raster_stio.asm"     \ Model B: bank P's, with the stars)
-ENDIF
 
 IF _HOSTB = FALSE          \ (the Tube's Model B host: tube/src/hb-ws.asm's)
 \ The rasteriser's private state (here, last in bank 5's shared region, which

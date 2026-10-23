@@ -88,7 +88,7 @@ ENDIF
  JMP hloop
 
 .h_stars                \ C_STARS: R_SCOL, R_SN, then x, y, size each: R_STARPLOT,
- HRX                    \ then its records back to the parasite (r_stout)
+ HRX                    \ which keeps the records of the pixels it set
  STA R_SCOL
  HRX
  STA R_SN
@@ -106,17 +106,12 @@ ENDIF
  CPX R_SN
  BNE hps1
 .hps2
- JSR T_STARPLOT         \ (its records stay in the stars' arrays until the
- JMP hloop              \ parasite fetches them: C_STARGET)
+ JSR T_STARPLOT         \ (its records stay in the buffer's star arrays for
+ JMP hloop              \ C_STARERASE)
 
-.h_starget              \ C_STARGET (a request): buffer b's star records to the
- HR2X                   \ parasite (r_stout, the buffer's arrays)
- JSR T_STOUT
- JMP hloop
-
-.h_starerase            \ C_STARERASE: the records, then R_STARERASE (r_stin)
- JSR T_STIN
- JMP hloop
+.h_starerase            \ C_STARERASE: R_STARERASE, the frame's buffer's records
+ JSR T_STERASE          \ (the one piece of state the host keeps: the user's
+ JMP hloop              \ exception, so that the stars need no round trip)
 
 \ h_orspan: C_ORSPAN: y, xl, xr, mask: OR the mask over pixels xl..xr of row y
 \ of the frame's buffer (the lens flare's fl_or)

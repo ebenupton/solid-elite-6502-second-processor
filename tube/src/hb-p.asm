@@ -84,7 +84,9 @@ _RBANK = 2
  EQUW 0
  JMP p_polyin
  JMP p_linein
- JMP r_stout
- JMP r_stin
+ BRK                    \ (P_STOUT, P_STIN: the star records' relay, gone:
+ EQUW 0                 \ the host keeps them, C_STARERASE)
+ BRK
+ EQUW 0
  PRINT "Model B bank P: &8000-&", ~P_LOEND-1, " (free ", PDATA-P_LOEND, "), &9000-&", ~P_HIEND-1, " (free ", &C000-P_HIEND, ")"
  SAVE "build/HBP.bin", &8000, &C000, &8000

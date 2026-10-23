@@ -80,13 +80,6 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .r_bt    EQUB 0         \ the band (old and new disc rows)
 .r_bb    EQUB 0
 
-\ the star records: the host's record bytes of the stars it set in a buffer
-\ (R_STARPLOT, h_stars), fetched and sent back to it to be blacked
-\ (R_STARERASE), through R_NDX2 (r_srec): free then, before the frame's
-\ discs (the beach ball's boundaries are made afresh each frame)
-STREC = 4 * 48          \ (at most 48 records of 4 bytes)
-r_srec = R_NDX2
-ASSERT STREC <= 192 AND MERIDHOLD = 0
 .S_STATE_END             \ (the state: what p-ovl.asm saves when S goes out in space
                         \ mode)
 
@@ -1135,49 +1128,16 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 \ ------------------------------------------------------------------------------
 \ The stars: the host plots them (C_STARS: R_SCOL, R_SN, then x, y and size
 \ each, as R_STARPLOT: a star's pixels in a byte only where they are all
-\ black) and sends back its records of the bytes it set (the count, then 4
-\ bytes each, h_stars), which this buffer keeps; R_STARERASE sends them back
-\ (C_STARERASE), and the host blacks those pixels
+\ black) and keeps its records of the bytes it set in each buffer; C_STARERASE
+\ (no operands) has it black those pixels in the frame's buffer (R_STARERASE
+\ on the host: the one piece of state the host keeps, by the user's decision
+\ of 2026-10-23, so that the stars need no round trip)
 \ ------------------------------------------------------------------------------
 
-.p_starget              \ (F_FRAME, before C_BUF) this buffer's records from the
- LDA #C_STARGET         \ host (C_STARGET, where C_STARS left them), into r_srec
- JSR preq               \ and pr_c, pr_d for R_STARERASE
- LDA r_buf
- JSR preq
- JSR prx
- STA pr_d
- ASL A
- ASL A
- STA pr_c
- BEQ pse2
- LDY #0
-.pse0
- JSR prx
- STA r_srec,Y
- INY
- CPY pr_c
- BNE pse0
-.pse2
- RTS
-
 .T_STARERASE
-.R_STARERASE            \ the records p_starget fetched, back to the host to black
- LDA #C_STARERASE       \ those pixels (C_STARERASE)
- JSR ptx
- LDA pr_d
- JSR ptx
- LDA pr_c
- BEQ pse9
- LDY #0
-.pse1
- LDA r_srec,Y
- JSR ptx
- INY
- CPY pr_c
- BNE pse1
-.pse9
- RTS
+.R_STARERASE
+ LDA #C_STARERASE
+ JMP ptx
 
 .T_STARPLOT
 .R_STARPLOT
@@ -1201,4 +1161,4 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
  CPX R_SN
  BNE pst1
 .pst2
- RTS                    \ (the host keeps the records until C_STARGET)
+ RTS                    \ (the host keeps the records: C_STARERASE)

@@ -185,8 +185,7 @@ P_STARPLOT = JT + 27
 P_FLARE    = JT + 30
 P_POLYIN   = JT + 33    \ h_poly's receiving part (hb-p.asm)
 P_LINEIN   = JT + 36    \ h_line's
-P_STOUT    = JT + 39    \ the star records to the parasite (gfx-raster_lcold.asm)
-P_STIN     = JT + 42    \ and from it
+                        \ (JT + 39, 42: the star records' relay, retired)
 
 OVLBANK = STASHBANK      \ the parasite's overlays' images (storage only: hb_ovlget),
 OVLD_AT = &8E00          \ after the stash, from the HBS file
