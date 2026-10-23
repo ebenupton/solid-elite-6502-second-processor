@@ -189,14 +189,10 @@ P_STARPLOT = JT + 27
 P_FLARE    = JT + 30
 P_POLYIN   = JT + 33    \ h_poly's receiving part (hb-p.asm)
 P_LINEIN   = JT + 36    \ h_line's
+P_STOUT    = JT + 39    \ the star records to the parasite (gfx-raster_lcold.asm)
+P_STIN     = JT + 42    \ and from it
 
-IF _RBANK                 \ (banks D and P; h-main.asm has its own)
-MACRO HRX               \ A = the next byte from the parasite (register 1)
- BIT &FEE0
- BPL P%-3
- LDA &FEE1
-ENDMACRO
-ENDIF
-
+OVLBANK = STASHBANK      \ the parasite's overlays' images (storage only: hb_ovlget),
+OVLD_AT = &8E00          \ after the stash, from the HBS file
 HBS_IMG = &8000           \ the stash bank: main RAM's &0236-&0CFF, &0E00-&10FF
 HBS_LEN = &0DCA           \ (hb-res.asm's hbswap)

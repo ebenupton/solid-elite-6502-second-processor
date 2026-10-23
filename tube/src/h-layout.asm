@@ -24,6 +24,9 @@ _HOSTB = FALSE          \ (not the Model B host: hb-*.asm)
 _RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
+ INCLUDE "build/povl.asm"
+OVLBANK = 4             \ the parasite's overlays' images (storage only: h_ovlget):
+OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "build/elite-source-ws.asm"
  INCLUDE "src/gfx-ws.asm"
 
@@ -67,6 +70,11 @@ _RBANK = 0
  INCLUDE "src/gfx-frame.asm"
  INCLUDE "src/gfx-frame_cold.asm"
  INCLUDE "tsrc/h-cold.asm"
+ INCLUDE "tsrc/h-panel.asm"
+ INCLUDE "tsrc/h-prim.asm"
+ ALIGN &100              \ (the log tables: page aligned)
+ INCLUDE "build/elite-source-hostb.asm"   \ the dashboard's drawing (p-dash.asm)
+ CPU 1
 .B6_CODE_END
 .F_HW   SKIP 256        \ (f_enter's buffer)
 .F_HW2  SKIP 256
@@ -88,10 +96,3 @@ ALIGN &100
  PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, ")"
  SAVE "build/HBANK6.bin", &8000, B6_END, &8000
 
- CLEAR &8000, &C000      \ bank 7 (MERIDBANK): the meridian window, the beach
- ORG &8000              \ ball's boundaries (h-merid.asm)
- INCLUDE "tsrc/h-merid.asm"
- INCLUDE "src/gfx-merid.asm"
-.M7_END
- PRINT "Host: bank 7 &8000-&", ~M7_END-1, " (the meridian window)"
- SAVE "build/HMERID.bin", &8000, M7_END, &8000

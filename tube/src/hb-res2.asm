@@ -6,21 +6,15 @@
  PAGE GFXBANK
  LDA tA
  RTS
-.T_SETBUF               \ both banks' operands for buffer A
- STA tA
- PAGE RASTBANK
- LDA tA
- JSR D_SETBUF
- PAGE RASTPOLY
- LDA tA
- JSR P_SETBUF
- JMP tback
+.T_SETBUF               \ bank P's operands for buffer A (bank D keeps the
+ TRAMPOLINE RASTPOLY, P_SETBUF  \ parasite's overlay S, hb-ovl.asm)
 .T_RESETBUF
- TRAMPOLINE RASTBANK, D_RESETBUF
 .T_INIT
- TRAMPOLINE RASTBANK, D_INIT
-.T_STARERASE
- TRAMPOLINE RASTPOLY, P_STARERASE
+ RTS
+.T_STOUT
+ TRAMPOLINE RASTPOLY, P_STOUT
+.T_STIN
+ TRAMPOLINE RASTPOLY, P_STIN
 .T_STARPLOT
  TRAMPOLINE RASTPOLY, P_STARPLOT
 .T_SPAN
@@ -35,16 +29,6 @@
  TRAMPOLINE RASTPOLY, P_POLY
 .T_LINE
  TRAMPOLINE RASTPOLY, P_LINE
-.T_DISCROWS
- TRAMPOLINE RASTBANK, D_DISCROWS
-.hb_disc                \ the commands received in bank D or P, then the loop
- PAGE RASTBANK
- JSR D_DISC
- JMP hbloop
-.hb_merhook             \ C_MERHOOK: bank D's meridian window (h-merid.asm)
- PAGE RASTBANK
- JSR D_MERHOOK
- JMP hbloop
 .hb_poly
  PAGE RASTPOLY
  JSR P_POLYIN

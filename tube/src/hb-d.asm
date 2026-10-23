@@ -14,6 +14,7 @@ _HOSTB = TRUE
 _RBANK = 1
 
  INCLUDE "tsrc/cmds.asm"
+ INCLUDE "build/povl.asm"
  INCLUDE "build/elite-source-ws.asm"
  INCLUDE "tsrc/hb-ws.asm"
 r_jsr = RUNPJ           \ (bank D's r_spc runs bank P's runs through runp)

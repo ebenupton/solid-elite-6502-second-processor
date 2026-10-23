@@ -58,7 +58,7 @@ PM_V  = INWK + 15
 PM_K3 = K3
 PM_K4 = K4
 PM_MCNT = MCNT
-PM_HELD = TRUE
+PM_HELD = MERIDHOLD > 0 OR _TPART = 0   \ (the Tube's parasite: as the host's)
 ENDIF
 
 pm_a  = &10             \ zero page workspace (Elite's, saved and restored):

@@ -76,6 +76,14 @@
 import os, re, sys
 
 TUBE = os.environ.get("TUBE") == "1"     # the Tube parasite's build (tube/build.sh)
+# The Tube's overlay D (tube/src/ovl-d.txt, TUBEOVL): the cold blocks named
+# there are the parasite's direct-mode overlay, whose image the host keeps;
+# every other cold block (and data block) is resident in the parasite's run
+# (or hot data), and the stubs into the overlay go through povd (p-ovl.asm),
+# which loads it first if it is not in
+TUBEOVL = None
+if TUBE and os.environ.get("TUBEOVL"):
+    TUBEOVL = set(l.strip() for l in open(os.environ["TUBEOVL"]) if l.strip() and not l.startswith("#"))
 
 SRC = "src/elite-source.asm"
 OUT = "build/elite-source-%s.asm"
@@ -142,7 +150,7 @@ def blocks(lines, tags=TAGS):
             m = TUBEF.match(l)
             if m:
                 t = m.group(1).strip()
-                if t not in ("host", "both"):
+                if t not in ("host", "both", "hostb", "bothb"):
                     sys.exit("%d: unknown Tube field %r" % (i + 1, t))
                 TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
@@ -418,6 +426,9 @@ def glue(copies, errors, lines, bl, falls):
         pos = 0
         for off, st in statements(code):
             m = re.match(r"^(\s*)(JSR|JMP)(\s+)([A-Za-z_][A-Za-z0-9_]*%?)(.*)$", st, re.I)
+            if not m and TUBEOVL is not None:     # (the Tube's overlay: a branch to a
+                m = re.match(r"^(\s*)(BCC|BCS|BEQ|BNE|BMI|BPL|BVC|BVS|BRA)(\s+)([A-Za-z_][A-Za-z0-9_]*%?)(\s*)$",
+                             st, re.I)            # resident label goes through its stub)
             if m and m.group(4) in hot and m.group(4) not in cold:
                 h = m.group(4)
                 if m.group(5).strip():
@@ -465,6 +476,10 @@ def glue(copies, errors, lines, bl, falls):
                         errors.append("%s:%d: %s is a cold label and a label of another file"
                                       % (SRC, i + 1, name))
                     continue
+                if TUBEOVL is not None and not re.match(r"^\s*(\.\S+\s+)?(JSR|JMP)\s+" + re.escape(name) + r"\b",
+                                                         split_code(l)[0], re.I):
+                    print("streams: (Tube overlay) %s:%d refers to %s, in overlay D, not by a call: %s"
+                          % (f, i + 1, name, split_code(l)[0].strip()))
                 if name not in seen7:
                     seen7.add(name)
                     out7.append(name)
@@ -534,7 +549,10 @@ def glue(copies, errors, lines, bl, falls):
                     # (the Tube's parasite is one flat 64K with no banks: a
                     # stub is a jump, which calls, jumps or falls into the
                     # routine as the far call did)
-                    text += (" JMP %s" % tgt) if TUBE else (" JSR %s : EQUW %s" % (far, tgt))
+                    if TUBE and TUBEOVL is not None and side == "cold":
+                        text += " JSR %s : EQUW %s" % ("povdj" if far == "far7j" else "povd", tgt)
+                    else:
+                        text += (" JMP %s" % tgt) if TUBE else (" JSR %s : EQUW %s" % (far, tgt))
                     n += 1
                 cur = copies[a][i]
                 if (a, i) in placed:
@@ -578,6 +596,8 @@ def data(errors):
     lines = open(DATA, encoding="latin-1").read().split("\n")
     bl = []
     for s, e, name, area in blocks(lines, DTAGS):
+        if TUBEOVL is not None and area == "cold" and name not in TUBEOVL:
+            area = "run"                   # (resident on the Tube's parasite)
         bl.append([s, e, name, ("hot" if area == "run" else area) if name else None])
     nxt = "bdata"
     for b in reversed(bl):                 # (unnamed blocks: the next named one's)
@@ -604,6 +624,9 @@ def data(errors):
 def main():
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
+    if TUBEOVL is not None:                # (the Tube: resident cold blocks join the run,
+        bl = [(s, e, n, "cold" if n in TUBEOVL else  # and the overlay's others the cold area)
+               "run" if a == "cold" else a) for s, e, n, a in bl]
     ACTIVE[:] = active_lines(lines)
     macros = set(m.group(1) for m in (re.match(r"^\s*MACRO\s+(\w+)", l) for l in lines) if m)
     errors = []
@@ -652,7 +675,7 @@ def main():
     for a in AREAS:
         copies[a] = []
         for s, e, name, area in bl:
-            on = area == a and not (TUBE and place(s, area) == "host")
+            on = area == a and not (TUBE and place(s, area) in ("host", "hostb"))
             copies[a] += [lines[i] if on else "" for i in range(s, e)]
     if TUBE:
         # the host's copies: the configuration and the workspaces at fixed
@@ -661,14 +684,16 @@ def main():
         # blocks (build/elite-source-host.asm), which tube/src/h-layout.asm
         # assembles at its own addresses
         WS = ("ZP", "XX3", "K%", "WP")
-        wsc, hostc = [], []
+        wsc, hostc, hostbc = [], [], []
         first = min(k for k, b in enumerate(bl) if b[2] in WS)    # (the configuration: the blocks before ZP)
         for k, (s, e, name, area) in enumerate(bl):
             ws = k < first or name in WS
-            on = not ws and place(s, area) != "parasite"
-            wsc += [lines[i] if ws else "" for i in range(s, e)]
+            on = not ws and place(s, area) in ("host", "both")
+            onb = not ws and place(s, area) in ("hostb", "bothb")  # (the host's sideways RAM copy:
+            wsc += [lines[i] if ws else "" for i in range(s, e)]     # the dashboard's drawing)
             hostc += [lines[i] if on else "" for i in range(s, e)]
-        for nm, c in (("ws", wsc), ("host", hostc)):
+            hostbc += [lines[i] if onb else "" for i in range(s, e)]
+        for nm, c in (("ws", wsc), ("host", hostc), ("hostb", hostbc)):
             with open(OUT % nm, "w", encoding="latin-1") as f:
                 f.write("\n".join(c))
     nstubs = glue(copies, errors, lines, bl, falls)

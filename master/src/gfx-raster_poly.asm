@@ -193,6 +193,7 @@ ELSE
   BCC os
   RTS                     \ no pixels
 .aleft
+.^r_pcbd0                 \ (the Tube's dumb host: the parasite's rows, ta left)
   LDX #0
   BRA ori
 .bleft

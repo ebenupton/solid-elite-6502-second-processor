@@ -37,12 +37,6 @@ PRINT "Parasite: run and Master's drawing end at &", ~P%
 .HZ_END
 
 PRINT "Parasite: data end at &", ~P%
-.COLD_START%
- INCLUDE "build/elite-source-cold.asm"
- INCLUDE "build/elite-data-cold.asm"
-.COLD_END%
-
-PRINT "Parasite: cold end at &", ~P%
 PFRAME% = P%
  INCLUDE "tsrc/p-ws.asm"                \ (ORG &0E00: the frame layer's inputs)
  ORG PFRAME%
@@ -66,11 +60,50 @@ PRINT "Parasite: frame code end at &", ~P%
  INCLUDE "src/gfx-finit.asm"
  SKIP F_DL + 1536 - P%
 .F_DLEND
+.F_TM   SKIP 768        \ the text map (gfx-frame.asm), and what each buffer shows
+.F_ST   SKIP 768
+ASSERT F_ST = F_TM + &300
+.F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm)
+.F_DSY  SKIP NDSTAR
+.PRES_END                \ (the end of what is always resident)
+
+\ The overlay region (p-ovl.asm): from OVL_START, page aligned, to &F800. The
+\ parasite's image holds overlay D there (the cold area: the direct-mode
+\ blocks of tube/src/ovl-d.txt, then the extended tokens); the host keeps its
+\ image (HOVD), whole pages
+ ORG (P% + 255) AND &FF00
+.OVL_START
+.COLD_START%
+ INCLUDE "build/elite-source-cold.asm"
+ INCLUDE "build/elite-data-cold.asm"
+.COLD_END%
+.OVL_D_END
 .PCODE_END
 
- PRINT "Parasite: code &", ~CODE%, "-&", ~PCODE_END-1, ", frame layer &", ~PF_START, "-&", ~PCODE_END-1, " (", PCODE_END-PF_START, " bytes), free to &F800: ", &F800-PCODE_END
+ PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_END-1, " (", PRES_END-PF_START, " bytes)"
+ PRINT "Parasite: overlay region &", ~OVL_START, "-&F7FF (", &F800-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to &F800: ", &F800-OVL_D_END
  ASSERT PCODE_END <= &F800
  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
+ SAVE "build/HOVD.bin", OVL_START, (OVL_D_END + 255) AND &FF00
+
+\ Overlay S, the space-mode overlay: the rasteriser (p-rast.asm: its state
+\ first, then its code), the lens flare and the meridian window (the beach
+\ ball), from OVL_START (p-ovl.asm). The host keeps its image (HOVS)
+ CLEAR OVL_START, &F800
+ ORG OVL_START
+.OVL_S_START
+ INCLUDE "tsrc/p-rast.asm"
+ INCLUDE "src/gfx-ftext.asm"
+ CPU 1
+ INCLUDE "tsrc/p-flt.asm"
+ INCLUDE "src/gfx-flare.asm"
+ CPU 1
+ INCLUDE "src/gfx-merid.asm"
+ CPU 1
+.OVL_S_END
+ PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to &F800: ", &F800-OVL_S_END
+ ASSERT OVL_S_END <= &F800
+ SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
 
 \ The high code (PHIGH): &F800-&FEEF, where the client OS's copy is but for
 \ the client's only use (the boot and disc commands, through the MOS's Tube
@@ -80,6 +113,7 @@ PRINT "Parasite: frame code end at &", ~P%
 .PHIGH_START
  INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
  CPU 1
+ INCLUDE "tsrc/p-dash2.asm"    \ (the dashboard's parasite halves, their second part)
 .PHIGH_END
  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
  ASSERT PHIGH_END <= &FEF0

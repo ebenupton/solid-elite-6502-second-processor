@@ -79,6 +79,7 @@
  JSR R_MARKDIRTY
  JMP tback
 
+IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_MERID                \ (the meridian window's row loop, gfx-merid.asm: bank 7;
  BIT PM_OK              \ not when PM_HOOK has kept the last rows, PM_OK = &C0)
  BVS tmer9
@@ -91,6 +92,7 @@
  JMP tback
 .tmer9
  RTS
+ENDIF
 
 .T_POLY                 \ (R_POLY is in the rasteriser's polygon window, ANDY)
  STA tA

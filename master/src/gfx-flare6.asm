@@ -47,7 +47,7 @@
  BCC flt9
  BEQ flt9
 .flt1
-IF _TPART = 1
+IF _TPART = 1 AND _TDUMB = FALSE
  JSR p_flare            \ (Tube: the host has this buffer's dirty extents)
 .flt9
  RTS                    \ (Tube: the text is the host's, in the frame's end)

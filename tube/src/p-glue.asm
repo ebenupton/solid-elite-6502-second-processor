@@ -50,37 +50,6 @@
 .gdir9
  JMP gback
 
-.F_DIRECT
- ASL GWARP              \ an in-system jump in space mode: the view stays, its
- BCC fdr1               \ text goes (the host's f_clrtext0, rows 0-23), the
- BIT GMODE              \ cursor to (1, 1)
- BPL fdr1
- STZ GSIGHT
- LDA #C_DIRECT
- JSR ptx
- LDA #1
- JSR ptx
- LDX #0
- LDY #0
- LDA #1
- STA XC
- STA YC
- RTS
-.fdr1                   \ (f_direct0 and the host's text map cleared)
- LDA #C_DIRECT
- JSR ptx
- LDA #0
- JSR ptx
- STA GMODE
- STA GSIGHT
- STA GLASV
- LDX #23+NDSTAR         \ (no stars recorded, as f_direct0)
-.fdr2
- STA R_SS,X
- DEX
- BPL fdr2
- RTS
-
 .G_PLANET
  JSR F_PLANET
  JMP gback
@@ -109,34 +78,14 @@
 \ sidev, K3, K4, MCNT, PM_R), and PM_OK says that f_bounds is to colour the
 \ disc as a beach ball (T_MERID: R_NDF = &81). Keeps X, Y and C, as PM_HOOK
 
-.G_MERHOOK
- PHP
+.G_MERHOOK              \ (PM_HOOK, in the overlay S: keeps A, X, Y and C)
+ PHA
  PHX
- LDA #C_MERHOOK
- JSR ptx
- LDX #0
-.gmh1
- LDA INWK+15,X
- JSR ptx
- INX
- CPX #12
- BNE gmh1
- LDA K3
- JSR ptx
- LDA K3+1
- JSR ptx
- LDA K4
- JSR ptx
- LDA K4+1
- JSR ptx
- LDA MCNT
- JSR ptx
- LDA PM_R
- JSR ptx
- LDA #&80
- STA PM_OK
+ LDA #OVL_S
+ JSR ovl_need
  PLX
- PLP
+ PLA
+ JSR PM_HOOK
  JMP gback
 
 \ G_DSTAR: outside record mode PIXEL2 draws star Y directly; H_STAR (C set:
@@ -146,27 +95,7 @@
 \ star noted, ZZ >= 80), A = ELITEBANK
 
 .G_DSTAR
- PHA
- LDA #C_DSTAR
- JSR ptx
- LDA #0                 \ C into bit 0
- ROL A
- JSR ptx
- TYA
- JSR ptx
- TXA
- JSR ptx
- LDA hA
- JSR ptx
- LDA ZZ
- JSR ptx
- PLA
- BCC gds1               \ (the clear path returns C set)
- LDA ZZ
- CMP #80
- JMP gback
-.gds1
- SEC
+ JSR F_DSTAR            \ (gfx-frame_cold.asm's: the noted stars are here)
  JMP gback
 
 .G_HANG0
@@ -242,21 +171,15 @@ NEXT
 
 .hA EQUB 0
 
-.G_CHAR                 \ (the host's: C_CHAR has them)
+.G_CHAR                 \ the text map (gfx-frame_cold.asm's F_CHAR ...)
+ JMP F_CHAR
 .G_DELCHAR
- RTS
-
-.G_CLRTEXT              \ CLYNS's (H_CLYNS): the host clears the text map's
- LDA #C_CLRTEXT         \ rows 21-23 (A, X and Y are not kept, as the Master
- JSR ptx                \ port's)
- LDA QQ11
- ORA GFORCE
- JSR ptx
- LDA GMODE
- JMP ptx
+ JMP F_DELCHAR
+.G_CLRTEXT
+ JMP F_CLRTEXT
 
 \ pchr: send C_CHAR: A = the character, X = the cursor column CHPR was
-\ entered with
+\ entered with: the host's CHPR draws it
 
 .pchr
  PHA
@@ -281,14 +204,23 @@ NEXT
  JMP ptx
 
 \ H_CHAR: CHPR (RR3) is about to draw the character in K3 at (XC-1, YC), with
-\ A = YC
+\ A = YC: the text map has it, and outside record and space mode the host
+\ draws it; CHPR then carries on as in record mode, leaving what RR3, RREN
+\ and RRL1 leave
 
 .H_CHAR
  STA hA
+ JSR G_CHAR
+ LDA QQ11
+ ORA GFORCE
+ BEQ hcr1
+ BIT GMODE
+ BMI hcr1
  LDX XC
  DEX
  LDA K3
  JSR pchr
+.hcr1
  PLA
  PLA
  LDA hA                 \ leave SC(1 0), P(3 2) and W as RR3, RREN and RRL1 do
@@ -302,20 +234,27 @@ NEXT
  STA P+2
  LDA SC+1
  STA P+3
- LDY #0
- LDA (P),Y
- AND #%00001111
+ LDA K3                 \ W = the low nibble of the glyph's first byte (RRL1's
+ AND #&7F               \ (P),Y with Y = 0), from PFONTW: the font is the host's
+ TAY                    \ only (elite-source.asm)
+ LDA PFONTW-32,Y
  STA W
  JMP RR4
 
-\ H_DEL: CHPR is deleting the character at (XC, YC) (after its DEC XC)
+\ H_DEL: CHPR is deleting the character at (XC, YC) (after its DEC XC): the
+\ text map too, and outside record mode the host blanks it
 
 .H_DEL
  PHA
+ JSR G_DELCHAR
+ LDA QQ11
+ ORA GFORCE
+ BEQ hdl1
  LDX XC
  INX
  LDA #127
  JSR pchr
+.hdl1
  PLA                    \ (A, and the return address: record mode's exit)
  PLA
  PLA

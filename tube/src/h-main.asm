@@ -20,18 +20,6 @@ IF _HOSTB = 0
  INCLUDE "tsrc/h-zp.asm"
 ENDIF
 
-MACRO HRX               \ A = the next byte from the parasite (register 1)
- BIT HR1S
- BPL P%-3
- LDA HR1D
-ENDMACRO
-
-MACRO HTX               \ send A to the parasite (register 4)
- BIT HR4S
- BVC P%-3
- STA HR4D
-ENDMACRO
-
 \ hwrch: WRCHV while the MOS's Tube code runs the host: &FE from the parasite
 \ starts the command loop; anything else is printed (CHPR)
 
@@ -98,28 +86,20 @@ HCTXN = 12
 
 
 .htab
- EQUW h_sync, h_init, h_fb, h_fe, h_enter, h_disc, h_ddirty, h_span
- EQUW h_mark, h_poly, h_line, h_dot, h_flare, h_direct, h_char, h_keys
- EQUW h_dks, h_wscan, h_noise, h_soflush, h_dstar, h_sceor, h_scsta, h_cls
- EQUW h_boxc, h_clyns, h_clrtext, h_det1, h_irb, h_oscli, h_swap, h_merhook
+ EQUW h_sync, h_init, h_bad, h_bad, h_bad, h_bad, h_bad, h_span
+ EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_keys
+ EQUW h_dks, h_wscan, h_noise, h_soflush, h_bad, h_sceor, h_scsta, h_cls
+ EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_oscli, h_swap, h_bad
+ EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
+ EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
+ EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin
 ASSERT P% - htab = C_MAX
 
 .hloop
  BIT HR1S
- BMI hlp1
- LDA hpe_on             \ (idle: the pre-erase, a step at a time)
- BEQ hloop
- JSR hpe_step
- BRA hloop
-.hlp1
+ BPL hloop
  LDA HR1D
  TAX
- LDA hpe_on             \ a command that may draw finishes the pre-erase first
- BEQ hlp2
- LDA hsafe,X
- BNE hlp2
- JSR hpe_fin
-.hlp2
 IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
  LDA htab,X
  STA hlpj+1
@@ -131,28 +111,22 @@ ELSE
  JMP (htab,X)
 ENDIF
 
+IF _HOSTB = 0             \ (the Model B host's: hb-ovl.asm)
+.hhrx                   \ (HRX, HTX as subroutines, for bank 5's star records:
+ HRX                    \ gfx-raster_stio.asm; keep X, Y)
+ RTS
+.hhtx
+ HTX
+ RTS
+ENDIF
+
+.h_bad                  \ (the commands of the host that kept the rasteriser's
+ JMP hloop              \ state: none now)
+
 .h_sync                 \ C_SYNC: a frame's end (the harness hashes the screen
  NOP                    \ here: at h_sync, or at h_syncb if its instruction hook
 .h_syncb                \ missed h_sync, as jsbeeb's does on a slice's first
- LDA hpe_arm            \ instruction); after a space frame, the pre-erase of
- BEQ hsy9               \ the next back buffer
- STZ hpe_arm
- JSR hpe_start
-.hsy9
- JMP hloop
-
-IF _HOSTB = 0
- INCLUDE "tsrc/h-hpe.asm"   \ (the pre-erase: main RAM; the Model B host's: hb-main.asm)
-ENDIF
-
-.hsafe                  \ per command: non-zero if it never draws in the buffers
- FOR i, 0, C_MAX - 1, 2
-  IF i=C_SYNC OR i=C_CHAR OR i=C_KEYS OR i=C_DKS OR i=C_WSCAN OR i=C_NOISE OR i=C_SOFLUSH OR i=C_SCEOR OR i=C_SCSTA OR i=C_CLRTEXT OR i=C_DET1 OR i=C_IRB OR i=C_MERHOOK
-   EQUB 1, 1
-  ELSE
-   EQUB 0, 0
-  ENDIF
- NEXT
+ JMP hloop              \ instruction)
 
 \ h_oscli: C_OSCLI: QQ11 OR GFORCE, GMODE, CHPR's zero page and W, CATF: go
 \ back to the MOS's Tube code (its idle loop, with its zero page back), where
@@ -193,168 +167,82 @@ ENDIF
  JSR f_tmclear
  JMP hloop
 
-.h_fb                   \ C_FB: F_BACK, GSIGHT
- HRX
- STA F_BACK
- HRX
- STA GSIGHT
- JSR f_bufpatch
- LDA #2
- STA zR_CL
- LDA #253
- STA zR_CR
- LDA #1
- STA zR_CT
- LDA #191
- STA zR_CB
- LDA F_BACK
- JSR T_SETBUF
- JSR f_text1
- JSR f_sight1
-.hfb1
- LDA GFLIP              \ wait for the previous flip
- BNE hfb1
- LDA F_BACK
- BEQ hfb2
-IF _HOSTB = 0
- LDA #4
- TSB &FE34
-ENDIF
-.hfb2
- JSR T_STARERASE
- JMP hloop
+\ h_ovlget: C_OVLGET: overlay A's image (the parasite's p-ovl.asm), whole pages
+\ from its place in the host's storage (h_ovl: storage only), through register 4
 
-.h_fe                   \ C_FE: GSIGHT, the stars
- HRX
- STA GSIGHT
- LDX #0
-.hfe1
- HRX
- STA R_SX,X
- HRX
- STA R_SY,X
- HRX
- STA R_SS,X
- INX
- CPX #NOST+1
- BNE hfe1
- JSR f_text2
- JSR f_sight2
- LDA #NOST+1
- STA R_SN
- JSR T_STARPLOT
-IF _HOSTB = 0
- LDA #4                 \ CPU back to main RAM, and flip at the next vsync
- TRB &FE34
-ENDIF
- LDA #%00000010
- STA &FE4E
- LDA F_BACK
- STA GPEND
- LDA #&FF
- STA GFLIP
- LDA #%10000010
- STA &FE4E
- LDA #1                 \ (the pre-erase of the other buffer, after C_SYNC)
- STA hpe_arm
- JMP hloop
-
-.h_enter                \ C_ENTER: GSTASH
- HRX
- STA GSTASH
- STZ QQ11
- JSR f_enter2
- JMP hloop
-
-.h_disc                 \ C_DISC
-IF _HOSTB                 \ (Model B: received into bank D, hb-d.asm)
- JMP hb_disc               \\ (main RAM: hb-res.asm)
-ELSE
- HRX
- STA R_NDT
- HRX
- STA R_NDB
- HRX
- STA zR_DCE
- HRX
- STA zR_DCO
- HRX
- STA R_NDF
- BEQ hdi1
- BMI hdi0               \ (&81: a beach ball, made here)
- STZ PS_VALID           \ (1: a crater's boundaries over the beach ball's rows)
-.hdi0
- HRX
- STA R_DBE
- HRX
- STA R_DBO
-.hdi1
- LDY R_NDT
-.hdi2
- CPY R_NDB
- BEQ P%+4
- BCS hdi9
- HRX
- STA R_NDISCL,Y
- HRX
- STA R_NDISCR,Y
- LDA R_NDF
- CMP #1
- BNE hdi4
- HRX
- STA R_NDP,Y
- HRX
- STA R_NDN,Y
- CMP #5
- BCC P%+4
- LDA #4
- TAX
- BEQ hdi4
- HRX
- STA R_NDX0,Y
- DEX
- BEQ hdi4
- HRX
- STA R_NDX1,Y
- DEX
- BEQ hdi4
- HRX
- STA R_NDX2,Y
- DEX
- BEQ hdi4
- HRX
- STA R_NDX3,Y
-.hdi4
- INY
- BNE hdi2
-.hdi9
- LDA R_NDF              \ a beach ball: its boundaries from the spans (the
- BPL hdi8               \ meridian window, bank 7: h-merid.asm)
- LDA #1
- STA R_NDF
- JSR T_MERID
-.hdi8
- JSR T_DISCROWS
- JMP hloop
-ENDIF
-
-.h_merhook              \ C_MERHOOK: the beach ball's constants (h-merid.asm)
+.h_ovlget
 IF _HOSTB
- JMP hb_merhook          \ (Model B: bank D's, hb-res.asm)
+ JMP hb_ovlget          \ (Model B: main RAM, hb-ovl.asm)
+.h_ovlput
+ JMP hb_ovlput
 ELSE
- LDA #MERIDBANK
+ HRX
+ TAX
+ LDA h_ovlh-1,X
+ STA hog1+2
+ LDA h_ovln-1,X
+ STA hogn
+ LDA h_ovlb-1,X
  STA &F4
  STA &FE30
- JSR h_merin
+ LDY #0
+.hog1
+ LDA &8000,Y            \ (patched: the page)
+ HTX
+ INY
+ BNE hog1
+ INC hog1+2
+ DEC hogn
+ BNE hog1
+ JMP hogx
+
+.h_ovlput               \ C_OVLPUT: an overlay's pages (S's state) to keep
+ HRX
+ TAX
+ LDA h_ovlh-1,X
+ STA hop1+2
+ LDA h_ovln-1,X
+ STA hogn
+ LDA h_ovlb-1,X
+ STA &F4
+ STA &FE30
+ LDY #0
+.hop0
+ HRX
+.hop1
+ STA &8000,Y            \ (patched: the page)
+ INY
+ BNE hop0
+ INC hop1+2
+ DEC hogn
+ BNE hop0
+.hogx
  LDA #GFXBANK
  STA &F4
  STA &FE30
  JMP hloop
+.hogn EQUB 0
+.h_ovlb EQUB OVLBANK, OVLSBANK, OVLSBANK    \ each overlay's bank, first page, pages
+.h_ovlh EQUB &80, &80, &80 + OVLS_PAGES
+.h_ovln EQUB OVLD_PAGES, OVLS_PAGES, OVLSS_PAGES
 ENDIF
 
-.h_ddirty               \ C_DDIRTY
- JSR f_discdirty
- JMP hloop
+IF _HOSTB = 0             \ (the Model B host's: hb-res2.asm)
+.T_STOUT                \ (h-prim.asm's: bank 5's star records to the parasite)
+ STA tA
+ LDA #RASTBANK
+ STA &F4
+ STA &FE30
+ JSR r_stout
+ JMP tback
+.T_STIN
+ STA tA
+ LDA #RASTBANK
+ STA &F4
+ STA &FE30
+ JSR r_stin
+ JMP tback
+ENDIF
 
 .h_span                 \ C_SPAN: Y, XL, XR, COLE, COLO
  HRX
@@ -370,20 +258,10 @@ ENDIF
  JSR T_SPAN
  JMP hloop
 
-.h_mark                 \ C_MARK: Y, XL, XR
- HRX
- TAY
- HRX
- STA zR_XL
- HRX
- STA zR_XR
- JSR T_MARKDIRTY
- JMP hloop
-
-.h_poly                 \ C_POLY: phase A's rows (p-polya.asm): COLE, COLO, COL2,
-IF _HOSTB                 \ COL3, xclip, ystart, ylast, then left and right per row;
- JMP hb_poly            \ then the rasteriser from r_pcbd (phase B)
-ELSE
+.h_spans                \ C_SPANS: polygon rows (p-rast.asm's p_spans): COLE, COLO,
+IF _HOSTB                 \ COL2, COL3, the first and last rows, then left and right
+ JMP hb_poly            \ (exclusive) per row, left in R_PTA, clipped: phase B's
+ELSE                      \ fill (gfx-raster_poly.asm, from r_pcbd0)
  HRX
  STA zR_COLE
  HRX
@@ -392,8 +270,7 @@ ELSE
  STA R_COL2
  HRX
  STA R_COL3
- HRX
- STA R_PXC
+ STZ R_PXC
  HRX
  STA R_PYS
  TAY
@@ -414,11 +291,10 @@ ELSE
  CPY R_PYL1
  INY
  BCC hpo1
- STA tA
  LDA #RASTPOLY
  STA &F4
  STA &FE30
- JSR r_pcbd
+ JSR r_pcbd0
  JSR tback
  JMP hloop
 ENDIF
@@ -461,29 +337,6 @@ ENDIF
  JMP hloop
 .hdx EQUB 0
 .hdy EQUB 0
-
-.h_flare                \ C_FLARE: zfl_dx, zfl_dy (this buffer's dirty extents
- HRX                    \ from f_bufpatch, in bank 6)
- STA zfl_dx
- HRX
- STA zfl_dy
- LDX fsw_d1+2
- LDY fsw_d2+2
- JSR T_FLARE
- JMP hloop
-
-.h_direct               \ C_DIRECT: 1 = an in-system jump (space mode kept),
- HRX                    \ 0 = F_DIRECT's f_direct0
- BEQ hdr1
- JSR f_sync
- LDX #0
- LDY #23
- JSR f_clrtext0
- JMP hloop
-.hdr1
- JSR f_direct0
- STZ f_dtext
- JMP hloop
 
 .h_char                 \ C_CHAR: the character, XC, YC, COL, CATF, QQ17, QQ11
  HRX                    \ OR GFORCE, GMODE: CHPR as the parasite's ran it, but
@@ -608,22 +461,6 @@ ENDIF
  JSR SOFLUSH
  JMP hloop
 
-.h_dstar                \ C_DSTAR: C, star Y, x, y, ZZ: F_DSTAR
- HRX
- STA hch
- HRX
- TAY
- HRX
- TAX
- HRX
- STA hA
- HRX
- STA ZZ
- LDA hch
- LSR A
- JSR F_DSTAR
- JMP hloop
-
 .h_sceor                \ C_SCEOR: address, value: EOR into shadow RAM (the
  JSR hscad              \ direct-mode screen and the dashboard, as Master's
 IF _HOSTB = 0
@@ -730,15 +567,6 @@ IF _HOSTB = 0
  LDA #4
  TRB &FE34
 ENDIF
- JMP hloop
-
-.h_clrtext              \ C_CLRTEXT: QQ11 OR GFORCE, GMODE: the text map's rows
- HRX                    \ 21-23
- STA QQ11
- STZ GFORCE
- HRX
- STA GMODE
- JSR G_CLRTEXT
  JMP hloop
 
 .h_det1                 \ C_DET1: 6845 R6 = X

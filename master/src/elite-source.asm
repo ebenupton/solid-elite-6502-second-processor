@@ -2093,6 +2093,11 @@ ENDIF
                         \ DOT, MSBAR and their helpers, in bank 4), here as they
                         \ run with ACCCON X set (shadow RAM at &3000-&7FFF)
 
+IF _HOSTB                \ (Tube, Model B host: these are in bank F, as its main
+ DASHV_S% = P%          \ RAM holds its own code here, DASHV_B in tube/src/cmds.asm)
+ ORG DASHV_B
+ENDIF
+
 .DASHV
 
 .dpE    SKIP 1          \ the current colour pair (even, odd lines)
@@ -2122,6 +2127,23 @@ ENDIF
 .dX1    SKIP 1          \ the dot's x-coordinate (SCAN, DOT)
 .dlen   SKIP 1          \ SCAN: the stick's length (signed)
 .dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
+
+IF _HOSTB               \ (Tube, Model B host: DIALS' and DOT's inputs from WP,
+.dQQ14   SKIP 1         \ which h-panel.asm receives into these)
+.dCABTMP SKIP 1
+.dGNTMP  SKIP 1
+.dALTIT  SKIP 1
+.dCOMX   SKIP 1
+.dCOMY   SKIP 1
+ ORG DASHV_S%
+ELSE
+ dQQ14 = QQ14
+ dCABTMP = CABTMP
+ dGNTMP = GNTMP
+ dALTIT = ALTIT
+ dCOMX = COMX
+ dCOMY = COMY
+ENDIF
 
  PRINT "WP workspace from ", ~WP, "to ", ~P%-1, "inclusive"
 
@@ -3335,6 +3357,7 @@ ENDIF
 \    Summary: Lookup table for converting pixel y-coordinate to page number of
 \             screen address
 \       Area: bank 4
+\       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3541,6 +3564,7 @@ ENDIF
 \    Summary: Display the current ship on the scanner
 \  Deep dive: The 3D scanner
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3557,6 +3581,8 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the host draws from SCAND; the parasite's SCAN
+                        \ is tube/src/p-dash.asm's)
 .scr1
  RTS
 
@@ -3619,8 +3645,13 @@ ENDIF
  LDA #246
  STA Y1
 
+ENDIF
+.SCAND                  \ (Tube: the host's SCAN draws from here, its inputs
+                        \ dX1, Y1, Y2 and TYPE from the parasite: p-dash.asm)
  LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard)
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TSB VIA+&34
+ENDIF
 
  LDX TYPE               \ X = the dot tables' index: 4 * class + (dX1 AND 3)
  LDA dtcls,X
@@ -3699,7 +3730,9 @@ ENDIF
  LDX #0
  SEC
  LDA #4                 \ Main RAM back at &3000-&7FFF
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TRB VIA+&34
+ENDIF
  LDA #%00001001         \ (A as Master leaves it, its ACCCON value)
  RTS
 
@@ -3723,7 +3756,9 @@ ENDIF
  LDX #0
  CLC
  LDA #4
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TRB VIA+&34
+ENDIF
  LDA #%00001001
  RTS
 
@@ -3737,6 +3772,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a one-segment line
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3775,6 +3811,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Ready-made single-pixel character row bytes for mode 1
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3820,6 +3857,7 @@ ENDIF
 \    Summary: Draw a line: Calculate the line gradient in the form of deltas
 \  Deep dive: Elite's line-drawing algorithm
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3924,6 +3962,7 @@ ENDIF
 \    Summary: Draw a line: Line has a shallow gradient, step right along x-axis
 \  Deep dive: Elite's line-drawing algorithm
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -4080,6 +4119,7 @@ ENDIF
 \    Summary: Draw a shallow line going right and up or left and down
 \  Deep dive: Elite's line-drawing algorithm
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -4364,6 +4404,7 @@ ENDIF
 \    Summary: Draw a shallow line going right and down or left and up
 \  Deep dive: Elite's line-drawing algorithm
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -4679,6 +4720,7 @@ ENDIF
 \    Summary: Draw a line: Line has a steep gradient, step up along y-axis
 \  Deep dive: Elite's line-drawing algorithm
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -4839,6 +4881,7 @@ ENDIF
 \    Summary: Draw a steep line going up and left or down and right
 \  Deep dive: Elite's line-drawing algorithm
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -5416,6 +5459,7 @@ ENDIF
 \    Summary: Draw a steep line going up and right or down and left
 \  Deep dive: Elite's line-drawing algorithm
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6811,6 +6855,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Draw a dash on the compass
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6825,8 +6870,10 @@ ENDIF
 
 .DOT
  LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard)
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TSB VIA+&34
- LDA COMX
+ENDIF
+ LDA dCOMX
  STA X1
  CMP #186               \ dX1 = COMX kept inside the compass ring (186..204,
  BCS P%+4               \ so its pixels stay left of the panel divider at
@@ -6837,7 +6884,7 @@ ENDIF
  STA dX1
  AND #3
  TAX
- LDA COMY
+ LDA dCOMY
  STA Y1
  CMP #195               \ the lower line, COMY kept to 195..213, inside the
  BCS P%+4               \ ring and off the dashboard's first two lines
@@ -6869,7 +6916,9 @@ ENDIF
  JSR ddot
 .dot9
  LDA #4                 \ Main RAM back at &3000-&7FFF
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TRB VIA+&34
+ENDIF
  LDA #%00001001         \ (A as Master's DOT leaves it)
  RTS
 
@@ -6880,6 +6929,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Port: draw a dot on the dashboard, in place of CPIXK
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6968,6 +7018,7 @@ ENDIF
 \    Summary: Start up the E.C.M. (light up the indicator, start the countdown
 \             and make the E.C.M. sound)
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6990,6 +7041,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Light up the E.C.M. indicator bulb ("E") on the dashboard
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7004,7 +7056,9 @@ ENDIF
  STA SC+1
  LDY #15
  LDA #4
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TSB VIA+&34
+ENDIF
 .bul1
  LDA ECBT,Y
  SCEOR
@@ -7020,6 +7074,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Light up the space station indicator ("S") on the dashboard
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7034,7 +7089,9 @@ ENDIF
  STA SC+1
  LDY #15
  LDA #4
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TSB VIA+&34
+ENDIF
 .bul2
  LDA SPBT,Y
  SCEOR
@@ -7043,7 +7100,9 @@ ENDIF
  BPL bul2
 .bul3
  LDA #4
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TRB VIA+&34
+ENDIF
  LDA #%00001001
  RTS
 
@@ -7054,6 +7113,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: The bitmap definition for the space station indicator bulb
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7070,6 +7130,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: The character bitmap for the E.C.M. indicator bulb
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7086,6 +7147,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Draw a specific indicator in the dashboard's missile bar
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -7134,7 +7196,9 @@ ENDIF
  STA dpO
 
  LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard)
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TSB VIA+&34
+ENDIF
  LDX #0                 \ X = the index into the shape's masks
  LDY #1                 \ Y = the line, 1 to 5
 .msb1
@@ -7164,7 +7228,9 @@ ENDIF
  LDX dsx                \ X preserved, Y = 0, as Master
  LDY #0
  LDA #4
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TRB VIA+&34
+ENDIF
  LDA #%00001001
  CLC                    \ C clear, as Master (the CPY above left it set)
  RTS
@@ -8310,6 +8376,7 @@ ENDIF
 \    Summary: Update the dashboard
 \  Deep dive: The dashboard indicators
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8362,7 +8429,9 @@ DCN_MARK = 6            \ roll / pitch marker
 
 .DIALS
  LDA #4                 \ Shadow RAM at &3000-&7FFF (the dashboard), as Master
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TSB VIA+&34            \ (and not Master's store to HAZEL &DDEB: HAZEL is the
+ENDIF
                         \ renderer's)
 
  LDA #&A0               \ SC(1 0) = &71A0: the speed indicator (right panel,
@@ -8393,7 +8462,9 @@ DCN_MARK = 6            \ roll / pitch marker
  LSR A
  ORA ALP2
  EOR #%10000000
+IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
  JSR ADDK
+ENDIF                  \ the game's, the parasite's)
 
                         \ The roll marker: at 15 -/+ ALP1 / 2 (0..30), on the
                         \ side Master's ADD put it
@@ -8418,7 +8489,9 @@ DCN_MARK = 6            \ roll / pitch marker
  LDX BET1
  BEQ P%+4
  SBC #1
+IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
  JSR ADDK
+ENDIF                  \ the game's, the parasite's)
 
                         \ The pitch marker: at 15 +/- (2 * BET1 - 1), with
                         \ BETA's sign (sign-magnitude), 15 when BET1 = 0
@@ -8536,7 +8609,7 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA #DCN_FUEL
  STA dK
  STA dK1
- LDA QQ14
+ LDA dQQ14
  LSR A
  JSR DIL
 
@@ -8550,12 +8623,12 @@ DCN_MARK = 6            \ roll / pitch marker
  STX T1
  LDA #22                \ danger from 22 pixels (Master's 11 of 16)
  STA dT
- LDA CABTMP
+ LDA dCABTMP
  LSR A
  LSR A
  LSR A
  JSR DIL
- LDA GNTMP
+ LDA dGNTMP
  LSR A
  LSR A
  LSR A
@@ -8570,16 +8643,22 @@ DCN_MARK = 6            \ roll / pitch marker
  LDA #DCN_ALT
  STA dK
  STA dK1
- LDA ALTIT
+ LDA dALTIT
  LSR A
  LSR A
  LSR A
  JSR DIL
 
  LDA #4                 \ Main RAM back at &3000-&7FFF
+IF _HOSTB = 0          \ (Tube, Model B host: no ACCCON, &FE34 is ROMSEL)
  TRB VIA+&34
+ENDIF
 
+IF _TPART = 2          \ (Tube: the host draws only: the parasite runs
+ RTS                    \ COMPAS, tube/src/p-dash.asm)
+ELSE
  JMP COMPAS             \ and the compass, returning from there
+ENDIF
 
 \ ******************************************************************************
 \
@@ -8589,6 +8668,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \    Summary: Fetch the current dashboard colours for non-striped indicators, to
 \             support flashing
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8611,6 +8691,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \   Category: Dashboard
 \    Summary: Fetch the current dashboard colours, to support flashing
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8640,6 +8721,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \    Summary: Update a bar-based indicator on the dashboard
 \  Deep dive: The dashboard indicators
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8722,6 +8804,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \    Summary: Update the roll or pitch indicator on the dashboard
 \  Deep dive: The dashboard indicators
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8790,6 +8873,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \   Category: Dashboard
 \    Summary: Port: the cache index of a dashboard indicator, and the caches
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8827,6 +8911,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \   Category: Dashboard
 \    Summary: Port: draw a segment of a dashboard indicator
 \       Area: bank 4
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9036,6 +9121,11 @@ DCN_MARK = 6            \ roll / pitch marker
 \
 \ ******************************************************************************
 
+IF _TPART = 1           \ Port (Tube): the parasite's glyph nibbles for H_CHAR
+.PFONTW                 \ (tube/src/p-glue.asm): the parasite has no font (the
+ INCLUDE "build/fontw.asm"  \ host draws the glyphs)
+ENDIF
+
  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
 
  ALIGN &100             \ Port: the font must start on a page boundary, as only
@@ -9046,7 +9136,9 @@ DCN_MARK = 6            \ roll / pitch marker
 
  FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
 
- INCBIN "src/fonts/P.FONT.bin"
+IF _TPART <> 1          \ Port (Tube: the parasite draws no glyphs, the host
+ INCBIN "src/fonts/P.FONT.bin"  \ does: its H_CHAR reads only W's nibble of a
+ENDIF                   \ glyph, from PFONTW above)
 
 \ ******************************************************************************
 \
@@ -9055,6 +9147,7 @@ DCN_MARK = 6            \ roll / pitch marker
 \   Category: Maths (Arithmetic)
 \    Summary: Binary logarithm table (high byte)
 \
+\       Tube: bothb
 \ ------------------------------------------------------------------------------
 \
 \ At byte n, the table contains the high byte of:
@@ -9131,6 +9224,7 @@ ENDIF
 \   Category: Maths (Arithmetic)
 \    Summary: Binary logarithm table (low byte)
 \
+\       Tube: bothb
 \ ------------------------------------------------------------------------------
 \
 \ Byte n contains the low byte of:
@@ -9209,6 +9303,7 @@ ENDIF
 \   Category: Maths (Arithmetic)
 \    Summary: Binary antilogarithm table
 \
+\       Tube: bothb
 \ ------------------------------------------------------------------------------
 \
 \ At byte n, the table contains:

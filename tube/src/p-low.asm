@@ -21,3 +21,5 @@
  INCLUDE "tsrc/p-glue.asm"              \ the G_ stubs, the text hooks
  INCLUDE "src/gfx-hooks.asm"            \ the hooks in Elite's drawing code
  INCLUDE "tsrc/p-io.asm"                \ the Tube
+ INCLUDE "tsrc/p-ovl.asm"               \ the overlay region's stubs' helpers
+ INCLUDE "tsrc/p-dash.asm"              \ the dashboard's parasite halves

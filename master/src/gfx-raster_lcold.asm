@@ -98,3 +98,7 @@
 .done
   RTS
 }
+
+IF _TDUMB AND _TPART = 2 AND _HOSTB   \ (the Tube's dumb host: the star records' I/O,
+ INCLUDE "src/gfx-raster_stio.asm"     \ Model B: bank P's, with the stars)
+ENDIF

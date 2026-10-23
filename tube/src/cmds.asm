@@ -73,7 +73,53 @@ C_MERHOOK  = 62         \ H_MERID (a beach ball, gfx-hooks.asm): roofv and sidev
                         \ window computes the frame's constants (PM_HOOK), and
                         \ C_DISC with R_NDF = &81 has it make the rows
                         \ (PM_MERID) from the spans that C_DISC carries
-C_MAX      = 64
+C_OVLGET   = 64         \ request: an overlay's image (p-ovl.asm): the number;
+                        \ the host sends its whole pages through register 4
+C_PDIALS   = 66         \ the panel (p-dash.asm, the host's dashboard routines): DIALS'
+                        \ inputs (DELTA, ALP1, ALP2, BETA, BET1, MCNT, ENERGY,
+                        \ FSH, ASH, QQ14, CABTMP, GNTMP, ALTIT, FLH)
+C_PDOT     = 68         \ the compass dot: COMX, COMY, COMC
+C_PSCAN    = 70         \ a ship on the scanner: dX1, Y1, Y2, TYPE
+C_PMSBAR   = 72         \ a missile indicator: X, Y (MSBAR's)
+C_PBULB    = 74         \ a bulb: 0 E.C.M., 1 space station
+\ the dumb host's primitives (p-rast.asm, h-prim.asm): the parasite decides,
+\ the host draws
+C_BUF      = 76         \ the frame's buffer: b (the host waits for the last flip,
+                        \ then draws into b)
+C_FLIP     = 78         \ show the frame's buffer at the next vsync
+C_SPANS    = 80         \ polygon rows: COLE, COLO, COL2, COL3, first and last
+                        \ row, then left and right (exclusive) per row
+C_ORSPAN   = 82         \ the lens flare: y, xl, xr, mask: OR the mask over the span
+C_STARS    = 84         \ R_SCOL, R_SN, then x, y, size each: plot (on black only);
+                        \ the host sends back its records (count, 4 bytes each)
+C_STARERASE = 86        \ the records' count, then the records: black those pixels
+C_GLYPH    = 88         \ a text cell: the character, its column, its text row
+C_ENTERB   = 90         \ space mode: buffer 1's border to buffer 0, buffer 1 on show
+C_CLRBUF   = 92         \ clear buffer b's screen
+C_EORDOT   = 94         \ EOR a directly drawn star away (buffer 1): x, y, size
+C_DIRECTD  = 96         \ direct mode (the display: shadow RAM, buffer 1, on show)
+C_OVLPUT   = 98         \ an overlay's (S's state's) pages to the host to keep: the
+                        \ number, then its pages (p-ovl.asm)
+C_LOIN     = 100        \ a line (Master's LOINQ, the direct-mode screen): X1, Y1,
+                        \ X2, Y2, COL
+C_MAX      = 102
+
+DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
 
 TUBE_HIGH = TRUE        \ the parasite's &F800-&FEEF holds code (p-layout.asm's
                         \ PHIGH), swapped with the client OS's copy (C_SWAP)
+
+\ the host's Tube I/O
+
+MACRO HRX               \ A = the next byte from the parasite (register 1)
+ BIT HR1S
+ BPL P%-3
+ LDA HR1D
+ENDMACRO
+
+MACRO HTX               \ send A to the parasite (register 4)
+ BIT HR4S
+ BVC P%-3
+ STA HR4D
+ENDMACRO
+

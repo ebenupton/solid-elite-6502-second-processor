@@ -23,6 +23,7 @@ _HOSTB = TRUE
 _RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
+ INCLUDE "build/povl.asm"
  INCLUDE "build/elite-source-ws.asm"
  INCLUDE "tsrc/hb-ws.asm"
  INCLUDE "tsrc/hb-res.asm"
@@ -51,7 +52,7 @@ _RBANK = 0
 
  ORG MR_D
  GUARD MR_DEND
- INCLUDE "build/nmos/h-hpe.asm"
+ INCLUDE "tsrc/hb-ovl.asm"
  CPU 0
 .MR_D_END
  PRINT "Model B &0E00 part: &", ~MR_D, "-&", ~MR_D_END-1, " (free ", MR_DEND-MR_D_END, ")"
@@ -81,6 +82,13 @@ _RBANK = 0
  INCLUDE "build/nmos/gfx-frame.asm"
  CPU 0
  INCLUDE "build/nmos/gfx-frame_cold.asm"
+ CPU 0
+ INCLUDE "build/nmos/h-panel.asm"
+ CPU 0
+ INCLUDE "build/nmos/h-prim.asm"
+ CPU 0
+ ALIGN &100              \ (the log tables: page aligned)
+ INCLUDE "build/nmos/elite-source-hostb.asm"   \ the dashboard's drawing (p-dash.asm)
  CPU 0
 .F_CODE_END
 .F_HW   SKIP 256        \ (f_enter's buffer)

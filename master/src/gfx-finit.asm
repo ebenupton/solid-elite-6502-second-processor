@@ -9,7 +9,7 @@
 \
 \ ******************************************************************************
 
-IF _TPART = 1
+IF _TPART = 1 AND _TDUMB = FALSE
 
 .F_INIT                 \ (Tube: the rasteriser's state, buffer 0's picture and
  LDA #C_INIT            \ the text map are the host's: tube/src/h-frame.asm)
@@ -29,6 +29,10 @@ IF _TPART = 1
 ELSE
 
 .F_INIT
+IF _TDUMB
+ LDA #OVL_S             \ (Tube: the rasteriser is in the overlay S)
+ JSR ovl_need
+ENDIF
  LDX #&21               \ R_INIT uses &06-&27: keep Elite's values (in F_DL,
 .fin0                   \ before this code)
  LDA &06,X
@@ -42,6 +46,10 @@ ELSE
  STA &06,X
  DEX
  BPL fin4
+IF _TDUMB
+ LDA #C_INIT            \ (Tube: the host clears buffer 0)
+ JSR ptx
+ELSE
  LDA #4                 \ Master port: clear main RAM's screen (buffer 0);
  TRB &FE34              \ shadow RAM's (buffer 1, Master's direct-mode screen,
  LDA #&40               \ on show) is cleared by TTX66
@@ -56,6 +64,7 @@ ELSE
  LDY fin3+2
  CPY #&70
  BNE fin3
+ENDIF
  LDA #0
  STA F_NSHIP
  STA F_NLINE

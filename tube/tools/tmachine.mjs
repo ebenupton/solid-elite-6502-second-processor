@@ -68,7 +68,11 @@ export class TubeEliteMachine extends EliteMachine {
         // the hooks, on the parasite (one table test per instruction)
         t.addParHook(pc => {
             const c = self.cpu; c.oldPcIndex = (c.oldPcIndex + 1) & 255; c.oldPcArray[c.oldPcIndex] = pc;
-            return self.hookTab[pc] ? self.tab(pc) : false;
+            if (!self.hookTab[pc]) return false;
+            // (a hook in the overlay region, p-ovl.asm: only while the overlay
+            // it was set in, D, is there)
+            if (sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < 0xf800 && par.memory[sy.ovl_cur] !== 1) return false;
+            return self.tab(pc);
         });
         this.s = t.s;
         this.s._video.frameSkipCount = +(process.env.FRAMESKIP || 25);
@@ -83,6 +87,16 @@ export class TubeEliteMachine extends EliteMachine {
         this.labs = { m: labs };
     }
     labelOf(a) {
+        // (the overlay region, p-ovl.asm: the labels of the overlay in it, D's
+        // being the cold copy's, name_C, S's the others)
+        const sy = this.sy;
+        if (sy.OVL_START !== undefined && a >= sy.OVL_START && a < 0xf800) {
+            const d = this.ram[sy.ovl_cur] === 1;
+            const lab = (this.labsOvl ||= this.labs.m.filter(([k, v]) => v >= sy.OVL_START && v < 0xf800));
+            let r = null;
+            for (const [k, v] of lab) if (v <= a && k.endsWith("_C") === d) r = k;
+            return r && r.endsWith("_C") ? r.slice(0, -2) : r;
+        }
         const lab = this.labs.m;
         let lo = 0, hi = lab.length - 1, r = null;
         while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }

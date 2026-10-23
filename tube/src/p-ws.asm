@@ -14,6 +14,7 @@ MAXDT = 64              \ dots per frame
 GFXBANK = 6             \ (the frame layer's bank on the Master: unused here)
 ELITEBANK = HOMEBANK
 NDSTAR = NOST+1
+MERIDHOLD = 0           \ (gfx-ws.asm's: tube/build.sh checks that they agree)
 
 ORG &0E00
 .PWS_START
@@ -48,6 +49,9 @@ ASSERT LO(R_NDISCL) = 0 AND HI(R_PXL) = HI(R_PYH + 15)
 .R_NDX1     SKIP 192
 .R_NDX2     SKIP 192
 .R_NDX3     SKIP 192
+.F_TMR      SKIP 24         \ the text map's rows' counts (gfx-frame.asm)
+.F_SHR0     SKIP 24
+.F_SHR1     SKIP 24
 .PWS_END
 ASSERT F_DSS = R_SS + 24 AND R_Y1 = R_Y0 + 4
 PRINT "Parasite workspace: &", ~PWS_START, "-&", ~PWS_END-1, ", free ", CODE%-PWS_END

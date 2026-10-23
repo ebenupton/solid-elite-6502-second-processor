@@ -14,6 +14,7 @@ _HOSTB = TRUE
 _RBANK = 2
 
  INCLUDE "tsrc/cmds.asm"
+ INCLUDE "build/povl.asm"
  INCLUDE "build/elite-source-ws.asm"
  INCLUDE "tsrc/hb-ws.asm"
 
@@ -43,7 +44,7 @@ _RBANK = 2
  STA R_COL2
  HRX
  STA R_COL3
- HRX
+ LDA #0                 \ (C_SPANS: the parasite has clipped the rows)
  STA R_PXC
  HRX
  STA R_PYS
@@ -65,7 +66,7 @@ _RBANK = 2
  CPY R_PYL1
  INY
  BCC ppo1
- JMP r_pcbd
+ JMP r_pcbd0
 .p_linein               \ h_line's: the four colours, the end points, then R_LINE
  HRX
  STA &06
@@ -99,5 +100,7 @@ _RBANK = 2
  JMP R_FLARE
  JMP p_polyin
  JMP p_linein
+ JMP r_stout
+ JMP r_stin
  PRINT "Model B bank P: &8000-&", ~P_LOEND-1, " (free ", PDATA-P_LOEND, "), &9000-&", ~P_HIEND-1, " (free ", &C000-P_HIEND, ")"
  SAVE "build/HBP.bin", &8000, &C000, &8000

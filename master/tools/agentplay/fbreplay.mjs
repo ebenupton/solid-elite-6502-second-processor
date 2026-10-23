@@ -101,12 +101,14 @@ const at = (n, o = 0) => ram[(sy[n] + o) & 0xffff];
 // ---- the screen buffers after each frame (hframe's return from G_FRAME), hashed
 import { createHash } from "crypto";
 const cpu = cand.cpu, FROM = +a.from, TO = +a.to, HF = cand.sy.hframe + 7;
-const res = {}; let n = 0;
+const res = {}, dres = {}; let n = 0;
 cpu.debugInstruction.add(pc => {
     if (pc === HF && cand.iter >= FROM) {
         const h = createHash("sha1");
         h.update(cpu.ramRomOs.subarray(0x4000, 0x7000)); h.update(cpu.ramRomOs.subarray(0xc000, 0xf000));
-        res[`${cand.iter}.${n++}`] = h.digest("hex").slice(0, 16);
+        res[`${cand.iter}.${n}`] = h.digest("hex").slice(0, 16);
+        // (and the dashboard, shadow RAM &7000-&7DFF: dash.json, the same keys)
+        dres[`${cand.iter}.${n++}`] = createHash("sha1").update(cpu.ramRomOs.subarray(0xf000, 0xfe00)).digest("hex").slice(0, 16);
     }
     return false;
 });
@@ -117,5 +119,6 @@ for (;;) {
     if (r === "blocked") { readLog(); if (L.end && cand.polls >= L.safePolls) break; }
 }
 writeFileSync(`${OUT}/fb.json`, JSON.stringify(res));
+writeFileSync(`${OUT}/dash.json`, JSON.stringify(dres));
 console.log(`${Object.keys(res).length} frames hashed, iterations ${FROM}..${cand.iter}`);
 process.exit(0);

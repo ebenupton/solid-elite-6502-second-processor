@@ -30,7 +30,7 @@
   STA r_nt
   STZ r_nb
 .t3
-IF _TPART = 2             \ (Tube: the host's pre-erase has started them,
+IF _TPART = 2 AND _TDUMB = FALSE  \ (Tube: the host's pre-erase has started them,
   LDA hpe_w               \ tube/src/h-main.asm)
   BEQ t3a
   STZ hpe_w
@@ -41,7 +41,7 @@ ENDIF
   LDA #&FF
   STA r_wt
   STZ r_wb
-IF _TPART = 2
+IF _TPART = 2 AND _TDUMB = FALSE
 .t3b
 ENDIF
   \ lo..hi = old disc rows + dirty rows + new disc rows
@@ -1966,3 +1966,7 @@ ENDIF
   STZ R_PRECNT,X
   STZ R_PRBMODE,X
   RTS
+
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0   \ (the Tube's dumb host, Master host: the
+ INCLUDE "src/gfx-raster_stio.asm"         \ star records' I/O, bank 5)
+ENDIF

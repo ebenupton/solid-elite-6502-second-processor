@@ -14,7 +14,7 @@
 \
 \ ******************************************************************************
 
-IF _TPART <> 1             \ (Tube: the host's part; docs/TUBE-MAP.md)
+IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's too)
 \ F_CHAR: TT26's character K3 at (XC-1, YC) (see f_char0)
 
 .F_CHAR
@@ -139,7 +139,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part)
  ASSERT R_Y0 = R_X0 + 2 AND R_X1 = R_X0 + 4 AND R_Y1 = R_X0 + 6
 
 ENDIF
-IF _TPART <> 1             \ (Tube: the host's part)
+IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's too)
 \ f_enter2: the first record-mode frame since F_DIRECT. Main RAM is visible
 \ (X = 0): remove the directly drawn stars before f_enter copies the border
 \ to shadow RAM, then give buffer 0's shown map (which f_enter clears) the
@@ -204,6 +204,12 @@ IF _TPART <> 1             \ (Tube: the host's part)
 
 .f_b0new
  STZ GSTASH
+IF _TPART = 1             \ (Tube: the screen is the host's: C_CLRBUF 0)
+ LDA #C_CLRBUF
+ JSR ptx
+ LDA #0
+ JSR ptx
+ELSE
 IF _HOSTB
  LDA #HI(BUF0)          \ (Model B: buffer 0 at BUF0)
 ELSE
@@ -226,6 +232,7 @@ ELSE
  CPY #&70
 ENDIF
  BNE fbn1
+ENDIF
  STZ F_SGS              \ no sights drawn in it
  LDA #&FF               \ no disc colour
  STA F_DCOL
@@ -246,6 +253,27 @@ ENDIF
 \ them, so any text drawn over them stays intact. Main RAM must be visible.
 
 .f_unstar
+IF _TPART = 1             \ (Tube: the host EORs them away: C_EORDOT x, y, size)
+ LDY #NDSTAR-1
+.fus1p
+ LDA F_DSS,Y
+ BEQ fus9p
+ PHA
+ LDA #0
+ STA F_DSS,Y
+ LDA #C_EORDOT
+ JSR ptx
+ LDA F_DSX,Y
+ JSR ptx
+ LDA F_DSY,Y
+ JSR ptx
+ PLA
+ JSR ptx
+.fus9p
+ DEY
+ BPL fus1p
+ RTS
+ELSE
 IF _HOSTB = 0
  LDA #4                 \ (Master port: the stars were drawn into shadow RAM)
  TSB &FE34
@@ -306,6 +334,7 @@ IF _HOSTB = 0
 ENDIF
  RTS
 
+ENDIF
 .f_ysav2 EQUB 0
 .f_twos  EQUB %10001000 AND DUST, %01000100 AND DUST, %00100010 AND DUST, %00010001 AND DUST
 .f_twos2 EQUB %11001100 AND DUST, %01100110 AND DUST, %00110011 AND DUST, %00110011 AND DUST

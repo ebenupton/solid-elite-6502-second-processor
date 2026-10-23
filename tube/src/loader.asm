@@ -728,6 +728,10 @@ ENDIF
  EQUB 7, %00001001
  EQUW &8000, M7LEN
 
+ EQUW MESS12            \ HOVD: the parasite's overlay D's image (storage
+ EQUB 4, %00001001      \ only: h_ovlget), bank 4
+ EQUW &8000, OVDLEN
+
  EQUW 0
 
 .OSB
@@ -783,9 +787,14 @@ ENDIF
  EQUS "L.HBANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
  EQUB 13
 
+.MESS12
+
+ EQUS "L.HOVD FFFF1300"     \ Port (Tube): the parasite's overlay D, for bank 4
+ EQUB 13
+
 .MESS11
 
- EQUS "L.HMERID FFFF1300"    \ Port (Tube): the meridian window, bank 7
+ EQUS "L.HOVS FFFF1300"      \ Port (Tube): the parasite's overlay S, bank 7
  EQUB 13
 
 

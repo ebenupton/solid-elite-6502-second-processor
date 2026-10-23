@@ -38,9 +38,15 @@
 
 fl_lq   = &06           \ a span's first byte's mask (before the row's)
 fl_rq   = &07           \ its last byte's
+IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's, as gfx-flare6.asm reads it first)
 fl_t    = &0E
+ENDIF
+IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's, as gfx-flare6.asm reads it first)
 fl_dx   = &10           \ the sun's x - 128 (signed)
+ENDIF
+IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's, as gfx-flare6.asm reads it first)
 fl_dy   = &11           \ the sun's y - 96 (signed; fl_dx + 1)
+ENDIF
 fl_u    = &12           \ the ghost's ink
 fl_i    = &13           \ the next ghost's number
 fl_ymin = &14           \ the rows written
@@ -484,6 +490,19 @@ ENDIF
  BCC P%+5
 .fl_dr2
  STA R_DIRTYR0,Y
+IF _TPART = 1             \ (Tube: the host ORs it: C_ORSPAN y, XL, XR, the mask)
+ LDA #C_ORSPAN
+ JSR ptx
+ TYA
+ JSR ptx
+ LDA R_XL
+ JSR ptx
+ LDA R_XR
+ JSR ptx
+ LDA fl_m
+ AND fl_u
+ JMP ptx
+ELSE
  TYA                    \ &4000 + (y DIV 8) * &200 + (y MOD 8) + 8 * (XL DIV 4)
  AND #7
  ORA fl_cl
@@ -530,6 +549,7 @@ ENDIF
  ORA (fl_sp)
  STA (fl_sp)
  RTS
+ENDIF
 
 .fl_dk  EQUB 0, 3, 2, 4, 2, 1, 2, 2 \ the k steps 8 -> 5 -> 3 -> -1 -> -3 ->
                                     \ -4 -> -6 -> -8, by ghost

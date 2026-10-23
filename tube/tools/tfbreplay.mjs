@@ -48,7 +48,7 @@ await cand.boot();
 cand.pokes = L.pokes;
 const FROM = +(a.from || 0), TO = +(a.to || 1000);
 const hsy = loadSyms(a.hsyms || a.csyms.replace(/psyms\.txt$/, a.host === "B" ? "hbmsyms.txt" : "hsyms.txt"));
-const q = [], res = {};
+const q = [], res = {}, dres = {};
 let n = 0;
 cand.t.addParHook(pc => { if (pc === csy.p_sync) q.push(cand.iter); return false; });
 const host = cand.host;
@@ -65,6 +65,9 @@ host.debugInstruction.add(pc => {
             const h = createHash("sha1"), [b0, b1] = cand.hostScreen();
             h.update(b0); h.update(b1);
             res[`${it}.${n}`] = h.digest("hex").slice(0, 16);
+            // (and the dashboard, &7000-&7DFF: shadow RAM on the Master host, main RAM on the Model B's)
+            const m = cand.host.ramRomOs, d0 = a.host === "B" ? 0x7000 : 0xf000;
+            dres[`${it}.${n}`] = createHash("sha1").update(m.subarray(d0, d0 + 0xe00)).digest("hex").slice(0, 16);
             if (DUMP && it >= DUMP[0] && it <= DUMP[1]) writeFileSync(`${a.out}/it-${it}-${n}.raw`, Buffer.concat([b0, b1]));
         }
         n++;
@@ -78,5 +81,6 @@ while (cand.iter < TO) {
     if (r === "blocked" && cand.blocked && cand.blocked.kind !== "tt170") { /* (the log has run out) */ if (cand.polls > Math.max(...L.rlog.keys())) break; }
 }
 writeFileSync(`${a.out}/fb.json`, JSON.stringify(res));
+writeFileSync(`${a.out}/dash.json`, JSON.stringify(dres));
 console.log(`${Object.keys(res).length} frames hashed, iterations ${FROM}..${cand.iter}, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 process.exit(0);
