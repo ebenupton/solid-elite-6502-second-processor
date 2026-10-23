@@ -45,8 +45,14 @@ class Par:
         self.syms = {m.group(1): int(m.group(2)) for m in re.finditer(r"'([^']+)':(\d+)", s)}
         mem = bytearray(65536)
         pc = open(os.path.join(d, 'PCODE.bin'), 'rb').read()
-        code = self.syms['PCODE_END'] - len(pc)
+        code = self.syms.get('PSTG_END', self.syms['PCODE_END']) - len(pc)   # (with the boot's staging)
         mem[code:code + len(pc)] = pc
+        if 'PSTG_FF' in self.syms:              # (p_boot's copies: the page at &FF00, pages 2 and 3)
+            f = self.syms['PSTG_FF']
+            mem[0xFF00:0x10000] = mem[f:f + 256]
+            if 'PSTG_LO' in self.syms:
+                lo = self.syms['PSTG_LO']
+                mem[0x200:0x400] = mem[lo:lo + 512]
         ov = open(os.path.join(d, 'HOVS.bin'), 'rb').read()
         o = self.syms['OVL_START']
         mem[o:o + len(ov)] = ov

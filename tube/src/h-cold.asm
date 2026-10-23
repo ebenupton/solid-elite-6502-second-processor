@@ -2,8 +2,7 @@
 \
 \ h-cold.asm - the host's rarely run code, in bank 6 (the resting bank, so
 \ the command loop reaches it directly): the command loop's start (from
-\ hwrch, which pages bank 6), the disc command's way into the MOS and back,
-\ and the exchange of the parasite's high area
+\ hwrch, which pages bank 6) and the disc command (the host's own OSCLI)
 \
 \ ******************************************************************************
 
@@ -11,38 +10,14 @@
  LDX #&FF
  TXS
  SEI
- LDA hzpk               \ the first time, keep the MOS's Tube code's zero page
- BNE hst1               \ (its transfer state and idle loop) for the disc
- LDX #&4F               \ commands
-.hst0
- LDA &00,X
- STA hzps,X
- DEX
- BPL hst0
- DEC hzpk
-IF _HOSTB
- LDA IRQ1V              \ (Model B: the MOS's IRQ1V, for what is not ours)
- STA hbirqv
- LDA IRQ1V+1
- STA hbirqv+1
-ENDIF
+ LDA hzpk               \ the first time: the MOS's Tube-present flag off, so
+ BNE hst1               \ the host's MOS neither passes Escape, events or errors
+ STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
+ DEC hzpk               \ again: the parasite has no client OS after its start
 .hst1
 IF _HOSTB
  JSR hbswap             \ (Model B: our main RAM in, the MOS's out)
 ENDIF
- BIT hmos               \ back from a disc command: quieten the 1770, put the
- BPL hst2               \ minimal NMI handler back (DFS installed its own), and
- JSR HNMI               \ return the printing's zero page to the parasite
- LDX #0
-.hst3
- LDA hctx,X
- HTX
- INX
- CPX #HCTXN+1
- BNE hst3
- LDA CATF
- HTX
- STZ hmos
 .hst2
  LDA #&81               \ the Tube's Q: the host's IRQ from register 4's data
  STA HR1S               \ (the fast requests, h4body), and those on (h4on)
@@ -73,9 +48,7 @@ ELSE
  JMP hloop
 ENDIF
 
-.hzps SKIP &50          \ the MOS's Tube code's zero page (&00-&4F), as the host
-                        \ took over from it
-.hzpk EQUB 0            \ non-zero: hzps holds it
+.hzpk EQUB 0            \ non-zero: after the first entry
 
 \ h_disc: C_DISC (p_oscli): the printing's context (QQ11 OR GFORCE, GMODE,
 \ CHPR's zero page and W, CATF), the mode (1 SAVE, 2 LOAD, else 0), for those
@@ -238,7 +211,6 @@ ENDIF
 .hdst EQUB 0
 .hdsp EQUB 0
 .hdbv EQUW 0
-.hmos EQUB 0
 
 \ HNMI: after a disc command, as the Master port's DOSNMI: 1770 Force
 \ Interrupt, then the minimal NMI handler at &0D00 (RTI, then its body, then
@@ -272,33 +244,3 @@ ENDIF
  STA &0D00
  RTS
 .HNMI_END
-
-
-\ h_swap: C_SWAP: exchange the parasite's &F800-&FEEF with HSW (bank 6, the
-\ resting bank), a byte at a time: the parasite's byte in, ours out
-
-.h_swap
- LDA #HI(HSW)
- STA hsw1+2
- STA hsw2+2
- LDY #0
-.hsw0
- HRX
- TAX
-.hsw1
- LDA HSW AND &FF00,Y    \ (patched)
- HTX
- TXA
-.hsw2
- STA HSW AND &FF00,Y    \ (patched)
- INY
- BNE hsw3
- INC hsw1+2
- INC hsw2+2
-.hsw3
- LDA hsw1+2             \ the last page's &F0 bytes
- CMP #HI(HSW) + 6
- BNE hsw0
- CPY #&F0
- BNE hsw0
- JMP hloop

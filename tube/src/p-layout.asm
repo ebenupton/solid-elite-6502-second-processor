@@ -76,6 +76,7 @@ ASSERT F_ST = F_TM + &300
 .F_DSY  SKIP NDSTAR
 .PRES_END                \ (the end of what is always resident)
 
+
 \ The overlay region (p-ovl.asm): from OVL_START, page aligned, to &F800. The
 \ parasite's image holds overlay D there (the cold area: the direct-mode
 \ blocks of tube/src/ovl-d.txt, then the extended tokens); the host keeps its
@@ -87,6 +88,7 @@ ASSERT F_ST = F_TM + &300
  INCLUDE "build/elite-data-cold.asm"
 .COLD_END%
 .OVL_D_END
+
 .PCODE_END
 
  PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_END-1, " (", PRES_END-PF_START, " bytes)"
@@ -124,15 +126,12 @@ ENDIF
  ASSERT OVL_S_END <= &F800 OR MEASURE
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
 
-\ The high code (PHIGH): &F800-&FEEF, where the client OS's copy is but for
-\ the client's only use (the boot and disc commands, through the MOS's Tube
-\ code): the host keeps whichever of the two is not in the parasite, and
-\ p_swap exchanges them (at the start, and either side of a disc command)
- IF MEASURE
-  ORG P%
- ELSE
-  ORG &F800
- ENDIF
+\ The high code (PHIGH): &F800-&FEEF, where the client OS is until the boot
+\ (p_boot) copies it in from the staging area; then the page at &FF00 with
+\ the vectors (&FFFA-&FFFF): NMI an RTI (the host never writes register 3
+\ again), RESET p_start, IRQ and BRK p_crash (interrupts stay off, so only a
+\ BRK can come here: a crash)
+ ORG &F800
 .PHIGH_START
  INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
  CPU 1
@@ -143,3 +142,66 @@ ENDIF
  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
  ASSERT PHIGH_END <= &FEF0 OR MEASURE
  SAVE "build/PHIGH.bin", PHIGH_START, PHIGH_END
+ CLEAR &FF00, &10000       \ (and its guard, elite-source-run.asm's &FEF0)
+ ORG &FF00
+.PFF_START
+.p_crash                \ a BRK (a crash): A, X, Y and S kept here (the stack's
+ STA pcra               \ top at &0101+S: the flags, then the BRK's address+2)
+ STX pcrx
+ STY pcry
+ TSX
+ STX pcrs
+.pcr1
+ JMP pcr1
+.p_nmi
+ RTI
+.pcra EQUB 0
+.pcrx EQUB 0
+.pcry EQUB 0
+.pcrs EQUB 0
+.PFF_END
+ ASSERT PFF_END <= &FFFA
+ ORG &FFFA
+ EQUW p_nmi, p_start, p_crash
+
+ CLEAR OVL_D_END, &F800
+ ORG OVL_D_END
+
+\ The boot's staging area, above overlay D (S and the next C_OVLGET of D
+\ overwrite it; tube/build.sh appends it to PCODE): p_boot (p_start's first
+\ call), the high area's image and the page at &FF00. p_boot drains a stray byte from
+\ the host in register 1, then copies them in over the client OS, which the
+\ game never uses again
+
+.p_boot
+ LDA &FEF8
+ BPL pbt0
+ LDA &FEF9
+.pbt0
+ LDX #0
+.pbt1
+ LDA PSTG_FF,X
+ STA &FF00,X
+FOR i, 0, 5
+ LDA PSTG_HI + i * 256,X
+ STA &F800 + i * 256,X
+NEXT
+ CPX #&F0
+ BCS pbt2
+ LDA PSTG_HI + &600,X
+ STA &FE00,X
+.pbt2
+ INX
+ BNE pbt1
+ RTS
+.PSTG_HI
+ COPYBLOCK &F800, &FEF0, P%
+ ORG PSTG_HI + &6F0
+.PSTG_FF
+ COPYBLOCK &FF00, &FFFF, P%
+ ORG PSTG_FF + &FF
+ EQUB HI(p_crash)       \ (&FFFF: COPYBLOCK's end is 16-bit)
+.PSTG_END
+ PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to &F800: ", &F800-PSTG_END
+ ASSERT PSTG_END <= &F800 OR MEASURE
+ SAVE "build/PSTAGE.bin", OVL_D_END, PSTG_END

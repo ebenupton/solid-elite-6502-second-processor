@@ -78,6 +78,7 @@ sy = {}
 for m in re.finditer(r"'([^']+)':(\d+)", open("build/psyms.txt").read()):
     sy.setdefault(m.group(1), int(m.group(2)))
 img = bytearray(open("build/PCODE.bin", "rb").read())
+img += open("build/PSTAGE.bin", "rb").read()   # (the boot's staging, p-layout.asm)
 base = int(re.search(r"Parasite: code &&?([0-9A-F]+)", open("build/compile-p.txt").read()).group(1), 16)
 cs = sy["NA2%"] - base
 CH, CY = 0x4B - 2, 0

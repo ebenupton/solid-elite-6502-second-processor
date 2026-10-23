@@ -49077,6 +49077,10 @@ ENDIF
 
 .COLD
 
+IF _TUBE = 0            \ Port (Tube): no vectors on the parasite (no client OS
+                        \ after the boot: a disc error comes back as data and
+                        \ p_oscli jumps to NEWBRK, tube/src/p-io.asm)
+
  LDA #LO(NEWBRK)        \ Set BRKV to point to the NEWBRK routine
  STA BRKV
  LDA #HI(NEWBRK)
@@ -49086,6 +49090,8 @@ ENDIF
  STA WRCHV
  LDA #HI(CHPR)
  STA WRCHV+1
+
+ENDIF
 
  JSR setzp              \ Call setzp to copy the top part of zero page into
                         \ the buffer at &3000

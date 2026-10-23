@@ -54,7 +54,6 @@ C_DET1     = 54         \ DET1: 6845 R6 = X
 C_IRB      = 56         \ request: the System VIA's port B
 C_DISC     = 58         \ a disc command (DOSCLI): the host's MOS runs it as the
                         \ host's I/O (p_oscli, h_disc)
-C_SWAP     = 60         \ exchange the parasite's &F800-&FEEF with the host's copy
                         \ (the client OS's and the high code: byte for byte)
 C_OVLGET   = 64         \ request: an overlay's image (p-ovl.asm): the number;
                         \ the host sends its whole pages through register 4
@@ -99,8 +98,6 @@ C_MAX      = 110
 
 DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
 
-TUBE_HIGH = TRUE        \ the parasite's &F800-&FEEF holds code (p-layout.asm's
-                        \ PHIGH), swapped with the client OS's copy (C_SWAP)
 
 \ the host's Tube I/O
 

@@ -76,10 +76,6 @@ OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
 .F_HW2  SKIP 256
 .F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
-ALIGN &100
-.HSW                    \ the parasite's &F800-&FEEF that is not in it (h_swap):
- INCBIN "build/PHIGH.bin" \ the high code at first, the client OS's while it runs
- SKIP HSW + &6F0 - P%
 .B6_END
  PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, ")"
  SAVE "build/HBANK6.bin", &8000, B6_END, &8000

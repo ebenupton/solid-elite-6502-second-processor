@@ -95,7 +95,7 @@ HCTXN = 12
  EQUW h_sync, h_init, h_bad, h_bad, h_bad, h_bad, h_bad, h_span
  EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_keys
  EQUW h_dks, h_wscan, h_noise, h_soflush, h_bad, h_bad, h_bad, h_cls
- EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_disc, h_swap, h_bad
+ EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_disc, h_bad, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
  EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_bad, h_hloin, h_pixel, h_dspans

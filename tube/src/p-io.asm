@@ -440,51 +440,20 @@ pv = &FA                \ (the command's pointer: zero page the game leaves free
 
 
 
-\ p_start: the parasite's entry (the loader starts it through the MOS's Tube
-\ code): interrupts off for good (the client OS's handlers would take the
-\ host's replies in register 4), wake the host's command loop with &FE (the
-\ host's WRCHV, as the MOS's Tube code passes the byte to OSWRCH), then the
-\ renderer's initialisation (G_INIT, as the Master port's loader calls it)
-\ and the game (S%)
+\ p_start: the parasite's entry (the loader starts it through the client
+\ OS's Tube code, its only use): the boot (p_boot, in the staging area above
+\ overlay D, p-layout.asm) takes the parasite's memory over, then wakes the
+\ host's command loop with &FE (the host's WRCHV, as the MOS's Tube code
+\ passes the byte to OSWRCH), then the renderer's initialisation (G_INIT,
+\ as the Master port's loader calls it) and the game (S%)
 
 .p_start
  SEI
  CLD
  LDX #&FF
  TXS
+ JSR p_boot
  LDA #&FE
  JSR ptx
-IF TUBE_HIGH
- JSR p_swap             \ the high code in, the client OS out
-ENDIF
  JSR G_INIT
  JMP S%
-
-\ p_swap: exchange &F800-&FEEF with the host's copy (h_swap): the client OS
-\ for the high code (p-layout.asm), or back. Keeps nothing
-
-.p_swap
- LDA #C_SWAP
- JSR ptx
- LDA #&F8
- STA psw1+2
- STA psw2+2
- LDY #0
-.psw0
-.psw1
- LDA &F800,Y            \ (patched)
- JSR ptx
- JSR prx
-.psw2
- STA &F800,Y            \ (patched)
- INY
- BNE psw3
- INC psw1+2
- INC psw2+2
-.psw3
- LDA psw1+2
- CMP #&FE
- BNE psw0
- CPY #&F0
- BNE psw0
- RTS

@@ -95,10 +95,6 @@ _RBANK = 0
 .F_HW2  SKIP 256
 .F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
-ALIGN &100
-.HSW                    \ the parasite's &F800-&FEEF that is not in it (h_swap)
- INCBIN "build/PHIGH.bin"
- SKIP HSW + &6F0 - P%
 .F_END
  PRINT "Model B bank F: &8000-&", ~F_END-1, " (code to &", ~F_CODE_END-1, ")"
  SAVE "build/HBF.bin", &8000, F_END, &8000
