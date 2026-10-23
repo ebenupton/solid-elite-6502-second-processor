@@ -49,7 +49,7 @@ PFRAME% = P%
  INCLUDE "src/gfx-frame_cold.asm"
  INCLUDE "src/gfx-flare6.asm"
  INCLUDE "src/gfx-hangar.asm"
- INCLUDE "tsrc/p-polya.asm"    \ (phase 3: R_POLY's phase A, its first part)
+ INCLUDE "tsrc/p-flt.asm"               \ (the lens flare's tables: resident, for S's room)
  CPU 1
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
@@ -104,12 +104,13 @@ ASSERT F_ST = F_TM + &300
  INCLUDE "tsrc/p-rast.asm"
  INCLUDE "tsrc/p-emit.asm"              \ (the polygons' rows to the host as they are made)
  INCLUDE "tsrc/p-kept.asm"              \ (kept solid rows)
+ INCLUDE "tsrc/p-polya.asm"             \ (R_POLY's set-up and arithmetic, C_DSPANS's
+ CPU 1                                  \ encoder: only ever run with S in)
 IF OPTEST = 0
  INCLUDE "tsrc/p-onepass.asm"           \ (R_POLY in one pass)
 ENDIF
  INCLUDE "src/gfx-ftext.asm"
  CPU 1
- INCLUDE "tsrc/p-flt.asm"
  INCLUDE "src/gfx-flare.asm"
  CPU 1
  INCLUDE "src/gfx-merid.asm"

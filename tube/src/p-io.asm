@@ -80,7 +80,7 @@ ENDMACRO
 .p_sync
  PHA
  LDA #C_SYNC
- PSEND
+ JSR ptx
  PLA
  RTS
 
@@ -144,16 +144,16 @@ ENDMACRO
  TAX
 .phl1
  LDA #C_HLOIN
- PSEND
+ JSR ptx
  TXA
- PSEND
+ JSR ptx
  LDA X2
- PSEND
+ JSR ptx
  DEC X2                 \ (as Master's: no pixel at the end)
  LDA Y1
- PSEND
+ JSR ptx
  LDA COL
- PSEND
+ JSR ptx
  LDA X2
  AND #3
  TAX
@@ -167,15 +167,15 @@ ENDMACRO
  STY T1
  PHA
  LDA #C_PIXEL
- PSEND
+ JSR ptx
  TXA
- PSEND
+ JSR ptx
  PLA
- PSEND
+ JSR ptx
  LDA ZZ
- PSEND
+ JSR ptx
  LDA COL
- PSEND
+ JSR ptx
  TXA
  AND #3
  TAX
@@ -184,7 +184,7 @@ ENDMACRO
 .p_cls                  \ TTX66's screen clear (the direct-mode buffer)
  PHP
  LDA #C_CLS
- PSEND
+ JSR ptx
  PLP
  RTS
 
@@ -192,9 +192,9 @@ ENDMACRO
  PHP
  PHA
  LDA #C_BOXC
- PSEND
+ JSR ptx
  PLA
- PSEND
+ JSR ptx
  PLP
  RTS
 
@@ -202,7 +202,7 @@ ENDMACRO
  PHP
  PHA
  LDA #C_CLYNS
- PSEND
+ JSR ptx
  PLA
  PLP
  RTS
@@ -248,9 +248,9 @@ ENDMACRO
 
 .p_det1
  LDA #C_DET1
- PSEND
+ JSR ptx
  TXA
- PSEND
+ JSR ptx
  LDA #6
  RTS
 
@@ -334,23 +334,23 @@ ENDIF
  LDA #&80
  STA GSTASH
  LDA #C_OSCLI
- PSEND
+ JSR ptx
  LDA QQ11
  ORA GFORCE
- PSEND
+ JSR ptx
  LDA GMODE
- PSEND
+ JSR ptx
  LDX #0
 .pos1
  LDA PCTX,X
- PSEND
+ JSR ptx
  INX
  CPX #PCTXN
  BNE pos1
  LDA W
- PSEND
+ JSR ptx
  LDA CATF
- PSEND
+ JSR ptx
  JSR prx                \ (the host is in the MOS's idle loop)
  LDA #&FF
  STA pmos
@@ -388,7 +388,7 @@ ENDIF
  BPL prs9
  STZ pmos
  LDA #&FE
- PSEND
+ JSR ptx
  LDX #0
 .prs1
  JSR prx
@@ -441,7 +441,7 @@ ENDIF
 
 .p_swap
  LDA #C_SWAP
- PSEND
+ JSR ptx
  LDA #&F8
  STA psw1+2
  STA psw2+2
@@ -449,7 +449,7 @@ ENDIF
 .psw0
 .psw1
  LDA &F800,Y            \ (patched)
- PSEND
+ JSR ptx
  JSR prx
 .psw2
  STA &F800,Y            \ (patched)
