@@ -238,8 +238,13 @@ ELSE
 .R_BDX30 SKIP 192
 ENDIF
 \ (the 128 bytes up to buffer 1's arrays)
+
+\       Area: hazel
+
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
-\ (RZ_PP+1 and r_jsr+2).  Clobbers A.
+\ (RZ_PP+1 and r_jsr+2).  Clobbers A.  (The Tube's Master host, whose STA
+\ runs are one per line in sideways RAM, tube/src/h-sta.asm: RZ_PP = the
+\ line's run + 3 (column 1's STA), s_rbk = its bank; nothing is paged here)
 .r_rowset
   STY RZ_Y
   TYA
@@ -260,6 +265,15 @@ ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  LDA s_lo,Y
+  STA RZ_PP
+  LDA s_hi,Y
+  STA RZ_PP+1
+  LDA s_bk,Y
+  STA s_rbk
+  RTS
+ELSE
   TYA
   LSR A
   LSR A
@@ -277,6 +291,10 @@ IF _HOSTB AND _RBANK = 2
 ELSE                      \ D's runp has bank P's do it)
   RTS
 ENDIF
+ENDIF
+
+\       Area: frame
+
 \ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
 .r_dw
 {
@@ -561,6 +579,8 @@ ENDIF
 .r_sbdelta EQUB HI(BUF0) - &40, 0
 
 ENDIF
+\       Area: hazel
+
 \ ============================================================================
 \ r_spc: the span core.  Row set up (r_rowset), RZ_COL = colour byte,
 \ X = R_XL = left pixel, R_XR = right pixel, R_XL <= R_XR.  Clobbers A, X, Y,
@@ -580,6 +600,50 @@ ENDIF
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
 .run
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  LDY R_XR                \ (the Tube's Master host: the line's STA run, in its
+  LDA r_j-4,Y             \ bank: plant an RTS at column xr DIV 4, enter at
+  CMP r_j,X               \ column xl DIV 4 + 1, both from RZ_PP, the line's
+  BEQ nrun                \ column 1; none if no whole byte lies between)
+  TAY
+  LDA r_j,X
+  CLC
+  ADC RZ_PP
+  STA sjsr+1
+  LDA RZ_PP+1
+  ADC #0
+  STA sjsr+2
+  LDA s_rbk
+  STA &FE30
+  LDA #r_opRTS
+  STA (RZ_PP),Y
+  LDA RZ_COL
+.sjsr
+  JSR &FFFF
+  LDA #s_opSTA
+  STA (RZ_PP),Y
+.nrun
+  LDA RZ_COL
+  LDX R_XR                \ right edge (N = XR >= &80)
+  BMI rb
+  LDY r_xo,X
+  EOR (RZ_PA),Y
+  AND r_rm,X
+  EOR (RZ_PA),Y
+  STA (RZ_PA),Y
+  LDA #RASTPOLY           \ (the rasteriser's two windows back, for the callers
+  STA &FE30               \ in them: the line code's long spans)
+  RTS
+.rb
+  LDY r_xo,X
+  EOR (RZ_PB),Y
+  AND r_rm,X
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  LDA #RASTPOLY
+  STA &FE30
+  RTS
+ELSE
   LDY R_XR
   LDA r_j-4,Y             \ plant: column xr DIV 4
   STA RZ_PP
@@ -620,6 +684,7 @@ IF _HOSTB = 0 OR _RBANK <> 1
   STA (RZ_PP)
 ENDIF
   RTS
+ENDIF
 .lb                       \ xl >= &80 (A = xl)
   EOR R_XR
   CMP #4
@@ -653,6 +718,9 @@ ENDIF
   STA (RZ_PB),Y
   RTS
 }
+
+\       Area: frame
+
 
 \ ============================================================================
 \ R_SPAN: Y = row, R_XL..R_XR, colour pair R_COLE/R_COLO.
@@ -712,6 +780,8 @@ ENDIF
 \ (free to the per-x tables)
 .r_tfree
 
+\       Area: hazel
+
 \ ============================================================================
 \ Page-aligned per-x tables
 \ ============================================================================
@@ -739,6 +809,8 @@ FOR x, 0, 255
   EQUB ((&F0 << (3 - (x AND 3))) AND &F0) OR ((&0F << (3 - (x AND 3))) AND &0F)
 NEXT
 
+\       Area: frame
+
 \ ============================================================================
 \ The store runs: one page per character row r (24), STA &4000+&200r+8c-8r,Y (Y =
 \ the row: the same form as bank 7's r7_rrun) for
@@ -746,6 +818,7 @@ NEXT
 \ ============================================================================
 MACRO R_RUN r
 IF _HOSTB AND _RBANK = 1        \ (Model B, bank D: no runs, bank P's are used)
+ELIF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: STA runs, h-sta.asm)
 ELSE
   FOR c, 1, 63
     STA &4000 + r * &200 + c * 8 - r * 8, Y
@@ -763,6 +836,9 @@ ELSE
 ENDIF
 ENDMACRO
 
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: the per-x
+ ALIGN &100                                  \ tables before here are in HAZEL)
+ENDIF
 .r_run0 R_RUN 0
 .r_s0y SKIP 48          \ star records, buffer 0: row
 .r_dsz EQUB 0           \ R_DOT
@@ -940,6 +1016,9 @@ IF _HOSTB = 0
 ENDIF
 R_ENDPAGE 15
 .r_run16 R_RUN 16
+
+\       Area: hazel
+
 .R_SPAN
 {
   LDA R_XR
@@ -958,6 +1037,9 @@ R_ENDPAGE 15
 .out
   RTS
 }
+
+\       Area: frame
+
 \ R_LINE's variables (gfx-raster_line.asm, gfx-raster_lcold.asm)
 .rl_lct SKIP 8          \ R_LINE: colour byte by row AND 7
 .rl_lbuf EQUB &FF       \ buffer R_LINE's DIRTY operands are patched for
@@ -1173,7 +1255,7 @@ ENDIF
   STA r_cB
   RTS
 R_ENDPAGE 23
-IF _HOSTB = 0 OR _RBANK = 2
+IF (_HOSTB = 0 OR _RBANK = 2) AND _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
 ASSERT (HI(r_run0) AND 31) = 0
 ENDIF
 IF _HOSTB AND _RBANK = 2

@@ -28,6 +28,7 @@ IF _HOSTB = 0
  LDX #&40
  LDY #&C0
  JSR hzmv
+ JSR s_gen              \ (the STA runs, h-sta.asm, in banks 4, 7 and 6)
 ENDIF
 .hst1
 IF _HOSTB

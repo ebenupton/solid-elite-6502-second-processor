@@ -80,9 +80,10 @@ ovs = [  # (name, number, first page sent, pages)
     ("TM", 4, pg(sy["TAIL_START"]), pg(sy["OVL_S_END"] + 255) - pg(sy["TAIL_START"])),
     ("SS", 3, o, pg(sy["S_STATE_END"] + 255) - o)]
 REG = [  # (ROMSEL, first page, pages): main RAM (ACCCON X clear), bank 5's
-    (6, 0x30, 14), (6, 0x70, 16),       # disc window, bank 6's tail, ANDY's
-    (5, 0x80, 16), (6, 0xB1, 15),       # tail, HAZEL above the span code
-    (0x85, 0x88, 8), (6, 0xCA, 22)]
+    (6, 0x30, 14), (6, 0x70, 16),       # disc window and tail, bank 6's tail
+    (5, 0x80, 16), (5, 0xB9, 7),        # (after its STA runs), ANDY's tail,
+    (6, 0xB2, 14), (0x85, 0x86, 10),    # HAZEL above the code that enters the
+    (6, 0xCB, 21)]                      # runs
 slots = [(r, h + i) for r, h, n in REG for i in range(n)]
 total = sum(n for _, _, n, in [(0, 0, x[3]) for x in ovs])
 assert total <= len(slots), "the overlays need %d pages, the regions hold %d" % (total, len(slots))
@@ -165,13 +166,19 @@ def put(fn, base, size, rom, lim):
             assert img[o:o + 256] == bytes(256), (fn, hex(hi))
             img[o:o + 256] = d
     return img
-assert h["B5_END"] <= 0xBD00 and h["RA_END"] <= 0x8800 and h["B6_END"] <= 0xB100, "the host's code runs into its storage"
+h["RUN6"] = int(re.search(r"^RUN6 = &([0-9A-F]+)", open("tsrc/h-sta.asm").read(), re.M).group(1), 16)
+assert h["B5_END"] <= 0xB900 and h["RA_END"] <= 0x8600 and h["RUN6"] + 193 * 24 <= 0xB200 and h["HZ_END"] <= 0xCB00, "the host's code runs into its storage"
 img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0x80, 0x90)); open("build/HBANK5.bin", "wb").write(img)
-img = put("build/HBANK6.bin", 0x8000, 0x4000, 6, (0xB1, 0xC0)); open("build/HBANK6.bin", "wb").write(img)
-img = put("build/HRASTA.bin", 0x8000, 0x1000, 0x85, (0x88, 0x90)); open("build/HRASTA.bin", "wb").write(img)
+img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0xB9, 0xC0)); open("build/HBANK5.bin", "wb").write(img)
+img = put("build/HBANK6.bin", 0x8000, 0x4000, 6, (0xB2, 0xC0)); open("build/HBANK6.bin", "wb").write(img)
+img = put("build/HRASTA.bin", 0x8000, 0x1000, 0x85, (0x86, 0x90)); open("build/HRASTA.bin", "wb").write(img)
 open("build/HSTM1.bin", "wb").write(put(None, 0x3000, 0xE00, 6, (0x30, 0x3E)))
 open("build/HSTM2.bin", "wb").write(put(None, 0x7000, 0x1000, 6, (0x70, 0x80)))
-open("build/HSTZ.bin", "wb").write(put(None, 0xC000, 0x2000, 6, (0xC0, 0xE0)))
+img = put(None, 0xC000, 0x2000, 6, (0xC0, 0xE0))
+hz = open("build/HHAZ.bin", "rb").read()        # (HAZEL's code, h-layout.asm, below the storage)
+assert img[:len(hz)] == bytes(len(hz))
+img[:len(hz)] = hz
+open("build/HSTZ.bin", "wb").write(img)
 PY
 # the loader (the Master port's, tube/src/loader.asm), with the addresses it
 # needs from the two assemblies

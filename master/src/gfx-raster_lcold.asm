@@ -99,6 +99,8 @@
   RTS
 }
 
+\       Area: hazel
+
 IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
 \ r_dspin: C_DSPANS (tube/src/h-main.asm's h_dspans): the disc layer's rows of
 \ spans, read from the parasite as they come: the row (&FF: the end), then
@@ -128,6 +130,8 @@ IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
   RTS
 }
 ENDIF
+
+\       Area: frame
 
 
 IF _HOSTB = FALSE          \ (the Tube's Model B host: tube/src/hb-ws.asm's)

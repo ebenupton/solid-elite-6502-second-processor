@@ -175,6 +175,9 @@ ENDIF
 
 
 ENDIF
+
+\       Area: hazel
+
 IF _TPART <> 1             \ (Tube: phase B is the host's)
 \ ----------------------------------------------------------------------------
 \ Phase B: rows RZ_Y.., RZ_SA of them; left table r_pbl1, right (exclusive)
@@ -205,6 +208,7 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   JMP pb_skip_e
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
 .pb_plant_e
   TAY
   LDA #r_opSTA
@@ -213,6 +217,7 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
   LDA #r_opRTS
   STA (RZ_PP)
   JMP pb_go_e
+ENDIF
 .pb_lb_e
   LDA (RZ_PB),Y
   EOR RZ_CE
@@ -283,6 +288,25 @@ ENDIF
   LDA r_j-4,Y
   CMP r_j,X
   BEQ pb_norun_e
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  TAY                     \ (the Tube's Master host: the line's STA run, as
+  LDA r_j,X               \ r_spc's)
+  CLC
+  ADC RZ_PP
+  STA sjsr_e+1
+  LDA RZ_PP+1
+  ADC #0
+  STA sjsr_e+2
+  LDA s_rbk
+  STA &FE30
+  LDA #r_opRTS
+  STA (RZ_PP),Y
+  LDA RZ_CE
+.sjsr_e
+  JSR &FFFF
+  LDA #s_opSTA
+  STA (RZ_PP),Y
+ELSE
   LDY r_j,X
   STY r_jsr2_e+1
   CMP RZ_PP
@@ -292,6 +316,7 @@ ENDIF
   LDA RZ_CE
 .r_jsr2_e
   JSR &FFFF
+ENDIF
 .pb_norun_e
   LDX R_XR                \ N = (XR >= &80)
   BMI pb_rb_e
@@ -306,11 +331,24 @@ ENDIF
   INY
 .pb_ye_e
   CPY #0                  \ (patched: the end row)
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  BNE P%+5                \ (the Tube's Master host: out of a branch's reach)
+  JMP pb_end
+ELSE
   BEQ pb_end_j
+ENDIF
 .pb_c_e
   STY RZ_Y
   INC RZ_PA
   INC RZ_PB
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  LDA s_lo,Y              \ (the line's run and bank)
+  STA RZ_PP
+  LDA s_hi,Y
+  STA RZ_PP+1
+  LDA s_bk,Y
+  STA s_rbk
+ENDIF
 IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
 .r_pbx_o                  \ makes it, p-emit.asm: left, then right exclusive; a
   BIT HR1S                \ left of &FF ends the polygon)
@@ -355,7 +393,12 @@ ENDIF
   BCC pb_one_o
   LDY r_xo,X
   CPX #&80
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  BCC P%+5
+  JMP pb_lb_o
+ELSE
   BCS pb_lb_o
+ENDIF
   LDA (RZ_PA),Y
   EOR RZ_CO
   AND r_lm,X
@@ -366,6 +409,25 @@ ENDIF
   LDA r_j-4,Y
   CMP r_j,X
   BEQ pb_norun_o
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  TAY                     \ (the Tube's Master host: the line's STA run, as
+  LDA r_j,X               \ r_spc's)
+  CLC
+  ADC RZ_PP
+  STA sjsr_o+1
+  LDA RZ_PP+1
+  ADC #0
+  STA sjsr_o+2
+  LDA s_rbk
+  STA &FE30
+  LDA #r_opRTS
+  STA (RZ_PP),Y
+  LDA RZ_CO
+.sjsr_o
+  JSR &FFFF
+  LDA #s_opSTA
+  STA (RZ_PP),Y
+ELSE
   LDY r_j,X
   STY r_jsr2_o+1
   CMP RZ_PP
@@ -375,6 +437,7 @@ ENDIF
   LDA RZ_CO
 .r_jsr2_o
   JSR &FFFF
+ENDIF
 .pb_norun_o
   LDX R_XR                \ N = (XR >= &80)
   BMI pb_rb_o
@@ -393,6 +456,14 @@ ENDIF
   BEQ pb_end
 .pb_c_o
   STY RZ_Y
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  LDA s_lo,Y              \ (the line's run and bank)
+  STA RZ_PP
+  LDA s_hi,Y
+  STA RZ_PP+1
+  LDA s_bk,Y
+  STA s_rbk
+ENDIF
   TYA                     \ RZ_PA/RZ_PB lo = row AND 7
   AND #7
   BEQ pb_cr               \ (pb_cr zeroes them itself)
@@ -426,7 +497,11 @@ ENDIF
   AND r_lm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  JMP pb_l2_o
+ELSE
   BRA pb_l2_o
+ENDIF
 .pb_rb_o
   LDY r_xo,X
   LDA (RZ_PB),Y
@@ -435,6 +510,7 @@ ENDIF
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   BRA pb_skip_o
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
 .pb_plant_o
   TAY
   LDA #r_opSTA
@@ -443,15 +519,20 @@ ENDIF
   LDA #r_opRTS
   STA (RZ_PP)
   JMP pb_go_o
+ENDIF
 .pb_end
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   LDA #r_opSTA            \ take the RTS out again
   STA (RZ_PP)
+ENDIF
   RTS
 .pb_cr
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   LDA #r_opSTA            \ next character row: new run page
   STA (RZ_PP)
   LDA #190
   STA RZ_PP
+ENDIF
   STZ RZ_PA
   STZ RZ_PB
   LDA RZ_PA+1
@@ -460,9 +541,11 @@ ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   INC RZ_PP+1
   INC r_jsr2_e+2
   INC r_jsr2_o+2         \ (Y = RZ_Y still)
+ENDIF
 IF _HOSTB
   LDA RZ_PP+1             \ (Model B: the page for the buffer)
   JSR r_pgfix
@@ -476,6 +559,8 @@ ENDIF
   STA RZ_CO
   JMP r_pbx_e
 ENDIF
+
+\       Area: frame
 
 
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)

@@ -573,6 +573,10 @@ ENDIF
 IF _HOSTB = 0
  LDA #4
  TSB &FE34
+ JSR s_clr              \ (the Master host: through the STA runs, h-sta.asm)
+ LDA #4
+ TRB &FE34
+ JMP hloop
 ENDIF
  LDA #&40
  STA hcl1+2

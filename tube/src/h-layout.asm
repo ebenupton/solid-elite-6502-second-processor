@@ -54,8 +54,8 @@ HLOW_END = &0700
  CLEAR &8000, &C000      \ bank 5: the rasteriser's shared region and disc window
  GUARD &C000
  ORG &9000
- INCLUDE "src/gfx-raster.asm"
- INCLUDE "src/gfx-raster_lcold.asm"
+ INCLUDE "build/gfx-raster-frame.asm"         \ (streams.py's passes: the blocks
+ INCLUDE "build/gfx-raster_lcold-frame.asm"   \ tagged "Area: hazel" are in HAZEL)
 .B5_END
  PRINT "Host: bank 5 &8000-&", ~B5_END-1
  SAVE "build/HBANK5.bin", &8000, B5_END, &8000
@@ -84,6 +84,26 @@ HLOW_END = &0700
 .F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
 .B6_END
- PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, ")"
+ PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, "), its STA runs from &", ~RUN6
+ ASSERT B6_END <= RUN6
  SAVE "build/HBANK6.bin", &8000, B6_END, &8000
+
+\ HAZEL (&C000-&DFFF, ACCCON Y): the STA runs' tables and generator
+\ (h-sta.asm) and the code that enters the runs (the "Area: hazel" blocks of
+\ the rasteriser's files: r_rowset, r_spc, R_SPAN, the per-x tables, r_dspin,
+\ phase B), then from HZ_STORE the overlays' storage (build/hstore.asm). The
+\ loader stages it in main RAM, hstart copies it in (DFS uses HAZEL until
+\ then) and h_disc moves it out and back around a disc command
+HZ_STORE = &CB00
+ CLEAR &C000, &E000
+ GUARD HZ_STORE
+ ORG &C000
+.HZ_START
+ INCLUDE "tsrc/h-sta.asm"
+ INCLUDE "build/gfx-raster-hazel.asm"
+ INCLUDE "build/gfx-raster_lcold-hazel.asm"
+ INCLUDE "build/gfx-raster_polyb-hazel.asm"
+.HZ_END
+ PRINT "Host: HAZEL &C000-&", ~HZ_END-1, ", free to the storage at &", ~HZ_STORE, ": ", HZ_STORE-HZ_END
+ SAVE "build/HHAZ.bin", &C000, HZ_END, &C000
 
