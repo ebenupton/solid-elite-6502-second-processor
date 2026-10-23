@@ -217,7 +217,7 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
 .ovl_kw  EQUB OVL_TM    \ S's tail: the one in the region while S is, and the
                         \ one S comes in with
 
-\ p_kind: G_PLANET's (H_CIRC and H_SUN): for a planet (TYPE 128, the meridian
+\ p_kind: G_PLANET's (H_CIRC and H_SUN), and p_kinda SOS1's: for a planet (TYPE 128, the meridian
 \ kind, or 130, the crater kind; the sun's TYPE is odd), S's tail for its kind:
 \ fetched now if S is in with the other, or noted for when S comes in. Every
 \ frame that draws a planet comes here before its curves (G_PCURVE, G_PPOINT),
@@ -226,6 +226,8 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
 
 .p_kind
  LDA TYPE
+.p_kinda                \ (SOS1's prefetch: A = the new planet's TYPE; keeps A)
+ PHA
  LSR A
  BCS pk9                \ (the sun)
  AND #1                 \ 0 meridian, 1 crater
@@ -236,6 +238,7 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
  LDA ovl_cur
  CMP #OVL_S
  BNE pk9
+.pk_fetch               \ (tube/tools/tkind.mjs counts these)
  PHX
  PHY
  LDA ovl_kw
@@ -243,6 +246,7 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
  PLY
  PLX
 .pk9
+ PLA
  RTS
  ASSERT OVL_TC = OVL_TM + 1 AND (OVL_TM AND 1) = 0
 

@@ -20,7 +20,7 @@ import { parseArgs } from "../../harness/args.mjs";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { createHash } from "crypto";
 
-const a = parseArgs({ log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value", dumpn: "value", master: "flag", hsyms: "value" });
+const a = parseArgs({ flip: "value", log: "value", out: "value", cand: "value", csyms: "value", from: "value", to: "value", host: "value", dumpn: "value", master: "flag", hsyms: "value" });
 const DUMP = a.dumpn ? a.dumpn.split("-").map(Number) : null;
 if (!a.log || !a.cand || !a.csyms) { console.error("--log, --out, --cand and --csyms are required"); process.exit(2); }
 
@@ -48,17 +48,36 @@ const cand = new TubeEliteMachine({ host: a.host || "Master", name: "cand", disc
 await cand.boot();
 cand.pokes = L.pokes;
 const TO = +(a.to || 1000);
-let runs = [], cur = null, ovl = {};
+let pend = false, checks = [], badc = 0; let runs = [], cur = null, ovl = {}, last = "", fetch = {};
 cand.t.addParHook(pc => {
     if (pc === csy.G_PLANET) { const ty = cand.t.par.memory[csy.TYPE]; if (ty === 128 || ty === 130) {
         if (!cur || cur.ty !== ty) { cur = { ty, from: cand.iter, to: cand.iter, n: 0 }; runs.push(cur); } cur.to = cand.iter; cur.n++; } }
+    if (pc === csy.SOS1) last = "SOS1";
+    if (pc === csy.G_PLANET) last = "G_PLANET";
+    if (csy.pk_fetch && pc === csy.pk_fetch) { fetch[last] = (fetch[last] || []); fetch[last].push(cand.iter); }
+    if (pc === csy.pk_fetch) pend = true;
+    if (pend && pc === csy.pk9) { pend = false; const pm = cand.t.par.memory, ts = csy.TAIL_START, os = csy.OVL_START;
+        const img = pm[csy.ovl_kw] === 4 ? HOVS.subarray(ts - os) : HOVSC; let bad = 0;
+        for (let i = 0; i < img.length && ts + i < 0xF800; i++) if (pm[ts + i] !== img[i]) bad++;
+        checks.push(`fetch at ${cand.iter}: tail ${pm[csy.ovl_kw]}, ${bad} bytes differ from the host's image`); if (bad) badc++; }
     if (pc === csy.ovl_get) { const k = cand.t.par.a; ovl[k] = (ovl[k] || 0) + 1; }
     return false; });
+// --flip N: at iteration N (in flight, a crater planet, S in) turn the planet
+// into the other kind (FRIN's slot 0, TYPE 128 <-> 130): a test of p_kind's fetch
+// of the other tail with S in; the tail must then match HOVS's, and the game
+// must go on
+const HOVS = readFileSync(a.csyms.replace(/psyms\.txt$/, "HOVS.bin")), HOVSC = readFileSync(a.csyms.replace(/psyms\.txt$/, "HOVSC.bin"));
+const FLIP = a.flip ? +a.flip : null; let flipped = false;
 while (cand.iter < TO) {
+    if (FLIP !== null && !flipped && cand.iter >= FLIP) { const pm = cand.t.par.memory;
+        if ((pm[csy.FRIN] === 130 || pm[csy.FRIN] === 128) && pm[csy.ovl_cur] === 2) { pm[csy.FRIN] ^= 2; flipped = cand.iter; console.log(`flipped at iteration ${cand.iter}`); } }
     const r = cand.run(CYCLES_PER_FRAME);
     cand.snaps.length = 0;
     if (r === "blocked" && cand.blocked && cand.blocked.kind !== "tt170") { if (cand.polls > Math.max(...L.rlog.keys())) break; }
 }
 for (const r of runs) console.log(`TYPE ${r.ty} (${r.ty === 128 ? "meridian" : "crater"}): iterations ${r.from}-${r.to}, ${r.n} frames`);
 console.log("ovl_get calls by overlay:", JSON.stringify(ovl));
+console.log("p_kind's tail fetches (pk_fetch), by the last of SOS1 and G_PLANET before them, at iterations:", JSON.stringify(fetch));
+for (const c of checks) console.log(c);
+if (FLIP !== null) { console.log(flipped !== false && checks.length && !badc ? "flip: the other tail fetched intact, the game went on" : "flip: FAILED"); process.exit(flipped !== false && checks.length && !badc ? 0 : 1); }
 process.exit(0);

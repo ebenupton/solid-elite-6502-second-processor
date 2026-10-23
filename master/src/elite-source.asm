@@ -31732,6 +31732,14 @@ ENDIF
  AND #%00000010         \ tech level in tek
  ORA #%10000000
 
+IF _TUBE AND _TPART = 1
+
+ JSR p_kinda            \ Port (Tube): overlay S's tail for the new planet's
+                        \ kind, fetched now (between frames) or noted for when
+                        \ S comes in (tube/src/p-ovl.asm); A is kept
+
+ENDIF
+
  JMP NWSHP              \ Add a new planet to our local bubble of universe,
                         \ with the planet type defined by A (128 is a planet
                         \ with an equator and meridian, 130 is a planet with
