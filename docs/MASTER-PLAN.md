@@ -1814,3 +1814,61 @@ but nothing was aligned). DETOK and its tables in the
 hot pass would remove the docked screens' remaining DASC crossings, but
 need 3.5K more of bank 4. INLINE stubs (70 cycles) are not worth it at
 0.015 crossings a flight iteration.
+
+## The 25 fps cap (after the three passes, e878d4a; branch cap25)
+
+The double-buffered space view is capped at 25 frames a second: a frame is
+on show for at least two fields. Before, a frame quicker than a field was
+shown for one field and the next for two or more, so motion judders, and
+10.7% of the gate's frames were shown for a single field (1062 of 9929).
+
+**How.** H_VSYNC (gfx-gluehooks.asm), which the vsync interrupt calls every
+field, holds a pending flip for one field when the vsync before it flipped
+(GVLAST, set at a flip and cleared at every vsync that does not flip). The
+wait is at the flip only: F_FRAME queues the flip and returns, the next
+main-loop iteration's game code and its frame's set-up run, and only the
+drawing waits (F_FRAME's existing wait for GFLIP before it touches the back
+buffer). A frame slower than two fields flips at the first vsync after it
+is queued, as before. Cost: 4 cycles at a vsync with nothing to flip, 15
+at a flip, 1 fewer at a held flip; 13 bytes and one variable in the glue
+area, with CODE% 14 bytes lower (&1E16) to keep the font page aligned, so
+nothing after the glue area moved. The timer 1 split is untouched
+(irqprobe over the gate's 10,000 iterations: late 0, early 0, T1 latency
+p99 51, max 53).
+
+**Every flip follows it**: the flight loop, the escape pod's drift, the
+title screens and the briefing's Constrictor all flip through F_FRAME and
+H_VSYNC. The docked screens draw directly and never flip (QQ11 non-zero:
+F_FRAME only empties its lists), and the hangar flips once a visit. The
+title's ship is the one visible difference outside flight: its approach
+from z = 96, quicker than two fields a frame while the ship is small, ran
+at about 48 frames a second for the first second and now runs at 25, so it
+arrives in about 3.5 s rather than 2.3 s (the original, drawing wireframes,
+takes about 1 s); from then on the title runs below 25 frames a second and
+is unchanged.
+
+**Measured** (harness/mflips.mjs: each flip's interval in fields over the
+gate's 10,000 iterations, flown as the gate flies them):
+
+| | e878d4a | cap |
+|---|---:|---:|
+| frames shown 1 field | 1062 (10.7%) | 0 |
+| frames shown 2 fields | 1608 (16.2%) | 2741 (27.6%) |
+| shown 3 fields or more | 7259 (73.1%) | 7186 (72.4%) |
+| mean (fields; frames a second) | 4.28 (11.7) | 4.38 (11.4) |
+| approach / combat / hyperspace, frames a second | 13.0 / 7.8 / 8.3 | 12.7 / 7.7 / 8.1 |
+| verify (ref, cand it/s, ratio) | 13.97 11.99 0.858 | 13.97 11.73 0.840 |
+| docked screens' busy cycles (mdocktime) | 5152363 | 5153018 (+655: 4 a vsync) |
+
+The game state still matches SNG47 at every iteration (the cap changes
+only when frames are shown, and the game is iteration-driven), and the
+pilot's run takes 902.1 emulated seconds rather than 881.5. A dozen
+intervals in each run span a vsync interrupt held off for over a field,
+before and after alike; mflips lists them, and they only lengthen a
+frame.
+
+**Checked**: test_raster seeds 1-14, master/verify.sh (above), irqprobe,
+mdocktime, and an agentplay campaign against SNG47 with fresh seeds
+(6000-6103: flight, combat, docking, the docked screens and the disc
+menu): 19 sessions, 256 game minutes, 207,193 iterations compared, no
+findings, 163 save-file checks identical.
