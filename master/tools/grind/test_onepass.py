@@ -4,6 +4,18 @@ master/src/gfx-raster_onepass.asm), against the reference and against R_POLY's
 two-phase path.
 
     GRIND_TREE=<tree> python3 master/tools/grind/test_onepass.py [--seed N] [--n 3000]
+    python3 master/tools/grind/test_onepass.py --tube REF CAND [--seed N] [--n N]
+        [--kinds k,..] [--corpus F]
+
+The --tube mode (master/tools/grind/tube_onepass.py) is a differential test
+of the Tube parasite's R_POLY: two builds' parasite images (REF, CAND: tube
+build directories with PCODE.bin, HOVS.bin, PHIGH.bin and psyms.txt) run in
+py65 on the same polygons, and every byte each sends the host (register 1)
+and the rasteriser's state after each polygon (the dirty extents, the disc
+spans' arrays, which hold the kept rows) must be the same.  Its kinds add
+self-crossing and thin polygons (slivers whose rounded vertices cross) to
+test_raster's, in 8-bit and 16-bit coordinates, and --corpus replays the
+polygons recorded from a run (tube/tools/tpolycap.mjs).
 
 Assembles the rasteriser as test_raster.py does, with ONEPASS = TRUE (r_e8's
 DDA entries divert into the generator when it asks) and the generator in the
@@ -14,9 +26,13 @@ returns, against the two-phase path doing the same job (R_POLY up to its
 phase B, r_pdirty: edge tables, orientation, clip, trim; then a loop reading
 the tables and handing each row on to the same emitter).
 """
-import os, sys, random, argparse, importlib.util
+import os, sys, random, argparse, importlib.util, re, math, json
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.dont_write_bytecode = True
+if '--tube' in sys.argv:                         # (the Tube mode needs no Master assembly)
+    sys.path.insert(0, HERE)
+    import tube_onepass
+    sys.exit(tube_onepass.main(sys.argv[1:]))
 _spec = importlib.util.spec_from_file_location('mtest_raster', os.path.join(HERE, 'test_raster.py'))
 mt = importlib.util.module_from_spec(_spec)      # the Master adapter (it imports the
 _spec.loader.exec_module(mt)                     # demo's test_raster itself)
