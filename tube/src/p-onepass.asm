@@ -254,6 +254,23 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  LDA ow                 \ (no edge at the middle row: undecided)
  ORA ow+1
  BMI ooo_u
+ BIT op16               \ (8-bit: first the edges' x ranges; disjoint ones
+ BMI ooo_x              \ decide with no evaluation)
+ LDX #0
+ JSR oo_rng
+ STA ov
+ LDA ftmp
+ STA ov+1
+ LDX #1
+ JSR oo_rng
+ CMP ov+1               \ B's low > A's high: A is left
+ BEQ P%+4
+ BCS ooo_a
+ LDA ov                 \ A's low > B's high: B is left
+ CMP ftmp
+ BEQ ooo_x
+ BCS ooo_b
+.ooo_x
  LDX #0                 \ the x values at the middle row
  JSR oo_val
  STA ov
@@ -298,6 +315,28 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  BEQ P%+4
  LDA #dcl-(ck+2)
  STA ock
+ RTS
+
+\ oo_rng: an 8-bit polygon's chain X's edge at the middle row: A = its ends'
+\ lower x, ftmp the higher
+
+.oo_rng
+ STX ofch
+ LDA ow,X
+ PHA
+ JSR fnxt
+ TAY
+ PLX
+ LDA R_PXL,X
+ CMP R_PXL,Y
+ BCC oor1
+ STA ftmp
+ LDA R_PXL,Y
+ RTS
+.oor1
+ LDA R_PXL,Y
+ STA ftmp
+ LDA R_PXL,X
  RTS
 
 \ oclamp: A = (X A), a 16-bit x, clamped into CL..CR+1
