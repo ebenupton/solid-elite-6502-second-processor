@@ -7,6 +7,124 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## full-master 87cf524, kept rows on the parasite, streamed spans (branch `dumbhost`, 2026-10-23, second pass)
+
+Everything new in the full Master port (87cf524) is in the Tube build, the
+kept solid rows run on the parasite, the polygons' and the disc layer's spans
+reach the host as they are made, and the hosts draw them with less overhead.
+The hosts still only draw, do the I/O and store the overlays: every change on
+the host side is in how a span or a line is drawn, none keeps state.
+
+**Commits** (on `dumbhost`, after 4233af7; not pushed), each gated on both
+hosts as it was made:
+
+| Commit | What |
+|---|---|
+| cfaf5a5 | Merge of full-master 87cf524 (kept rows, the smaller workspace and the low area first, the hangar tables to bank 6, elite-qs.asm, the test_raster seed fix). Master port byte-identical to a fresh build of 87cf524; scratch/master-ref.ssd, scratch/fbref and scratch/dashref regenerated from it (its pixels equal the old reference's: 14,607 frames matched, 0 mismatched). |
+| cb4cde4 | Polygon rows streamed: p_emit (tube/src/p-emit.asm) sends each row's span as it is produced; the host's phase B reads it from register 1 as it fills (r_pcbs), with no tables and no dirty extents of its own. The star records' relay buffer moved to R_NDX2 (S's state 386 bytes smaller). The one-pass generator (onepass b2a6182) imported and wired to p_emit, but off (below). |
+| c340204 | The disc layer's spans streamed (C_DSPANS without the parasite's row buffer). |
+| bda7941 | Kept solid rows on the parasite (p-kept.asm, p-kept2.asm). |
+| 160216f | Hosts: C_DSPANS drawn by one loop in the rasteriser's bank (r_dspin: each row set up once; on the Model B host no trampoline per span). |
+| 96d146e | Hosts: the line loops keep no dirty extents (nothing on the dumb host read them). |
+| f1ed4fb | The star records fetched before C_BUF, not behind its wait for the flip. |
+| (this) | TUBE-MAP.md and this report. |
+
+**Gates, at every commit, both hosts** (the last: scratch/g-s6): the Master
+port byte-identical to 87cf524; lockstep `REPLAY CLEAN`, 16,002 iterations,
+0 findings; pixels 14,610 matched, 4 sampling gaps, 0 mismatched over
+iterations 0..16000 (docking 3400-3600 and both beach-ball windows inside);
+dashboard 3,528 matched, 0 mismatched; tsavetest exit 0. Model B pixel
+checks of single steps were also run by frame key. test_raster was not run:
+this branch's file split (gfx-ws.asm, gfx-raster_pset/_polyb/_lineb.asm)
+predates this work and its harness does not follow it; the Master port's
+rasteriser is byte-identical to 87cf524's, where it passes.
+
+**Speed (it/s, run1 windows, `tube/tools/tspeed.mjs`):**
+
+| | flight 1000-1400 | docking 3420-3550 | 0-3550 | beach 300-403 | beach 5355-5457 |
+|---|---:|---:|---:|---:|---:|
+| Master host, `tube` (before the dumb host) | 21.14 | 8.17 | 20.70 | 6.43 | 5.06 |
+| Master host, 4233af7 | 16.52 | 6.91 | 17.42 | 6.55 | 6.29 |
+| merge (cfaf5a5) | 16.49 | 6.92 | 17.42 | 6.55 | 6.29 |
+| + polygon rows streamed (cb4cde4) | 16.50 | 7.30 | 17.55 | 6.55 | 6.29 |
+| + disc spans streamed (c340204) | 16.93 | 7.31 | 17.79 | 6.59 | 6.33 |
+| + kept rows (bda7941) | 16.93 | 8.47 | 18.00 | 6.59 | 6.33 |
+| + r_dspin (160216f) | 17.86 | 8.53 | 18.56 | 7.01 | 6.91 |
+| + lines without dirty extents (96d146e) | 17.91 | 8.64 | 18.61 | 7.04 | 6.92 |
+| + star records before C_BUF (f1ed4fb) | **18.02** | **8.65** | **18.70** | **7.04** | **6.92** |
+| Model B host, `tube` | 19.13 | 6.71 | 18.84 | 5.89 | 4.50 |
+| Model B host, 4233af7 | 12.61 | 5.95 | 14.53 | 5.35 | 4.97 |
+| merge (cfaf5a5) | 12.60 | 5.96 | 14.53 | 5.35 | 4.97 |
+| + polygon rows streamed | 12.61 | 6.25 | 14.62 | 5.35 | 4.97 |
+| + disc spans streamed | 12.66 | 6.26 | 14.66 | 5.37 | 4.98 |
+| + kept rows | 12.65 | 7.32 | 14.84 | 5.37 | 4.98 |
+| + r_dspin | 14.17 | 7.49 | 16.02 | 6.17 | 5.98 |
+| + lines without dirty extents | 14.18 | 7.59 | 16.05 | 6.18 | 5.98 |
+| + star records before C_BUF | **14.78** | **7.60** | **16.42** | **6.23** | **6.01** |
+
+Against 4233af7: Master host flight +9.1%, docking +25.2%, 0-3550 +7.3%,
+the beach balls +7.5% and +10.0%; Model B host flight +17.2%, docking +27.7%,
+0-3550 +13.0%, the beach balls +16.4% and +20.9%. Docking and the beach
+balls are now faster than on `tube` (before the dumb host) on both hosts;
+flight is still below it (18.02 against 21.14, 14.78 against 19.13).
+
+**What each piece cost or saved:**
+- *The merge*: nothing (±0.03). On the Tube, kept rows were off until
+  bda7941 (KMODE stayed 0).
+- *Polygon rows streamed*: docking +5.5% (Master host) / +4.9% (Model B):
+  the host fills a polygon's rows while the parasite produces the next
+  ones, and no longer receives tables first. Flight unchanged: polygons are
+  small there.
+- *One-pass polygons*: kept out. Wired to p_emit, they measured flight 16.50
+  (no change) and docking 7.40 against the streamed two-phase path's 7.30
+  (Master host), but they are not exact: for a bow-tie sliver (vertex x
+  rounding) the one-pass walk fills both lobes, the two-phase path only the
+  lobe of its middle row (2 title-screen frames differed). An exact form has
+  to buffer each polygon's first half; with ~600 bytes of overlay S for
+  ~1% that space went to the kept rows instead. In the tree under
+  OPTUBE = FALSE (gfx-raster_onepass.asm, test_onepass.py,
+  ONEPASS-REPORT.md); the Master port has ONEPASS = FALSE.
+- *Disc spans streamed* (the one-pass form for disc and beach-ball spans:
+  each span leaves as it is made, no row buffer): flight +2.6% on the Master
+  host, beach balls +0.6%; the Model B host, the slower, gained little until
+  r_dspin.
+- *Kept rows*: docking +15.9% (Master host) / +16.9% (Model B); nothing
+  elsewhere (K mode only runs near a station).
+- *r_dspin*: flight +5.5% / +12.0%, beach balls +6.4%..+9.2% / +14.9%..+20.1%.
+- *Lines without dirty extents*: docking +1.3%.
+- *Star records before C_BUF*: flight +0.6% / +4.2%.
+- *Stars otherwise*: no one-pass form. The parasite cannot know which star
+  pixels the host found black, so the records must come from the host; a
+  one-way "erase what you plotted" would have the host keep per-buffer
+  records, which the rule forbids. The relay stays, only earlier.
+
+**Kept rows on the Tube** (docs/TUBE-MAP.md): as full-master's, but the state
+needs no array: a kept row is never a disc row, so its R_DISCL is 255 and
+its R_DISCR free; kept = (255, the colour byte v), pending = (0, v). The
+Master port reads v from the screen, which here is the host's. A pending
+row's settle sends nothing when the span and colour are unchanged, black for
+the old pixels outside the new span (after the polygon's stream), and of the
+new span only what the row lacks. One deviation, invisible in the pixels:
+rows that are disc rows of the buffer are never kept (on the Master port
+they can be, and the next frame's band forgets them).
+
+**Parasite free bytes** (were: resident 28, overlay S 248, overlay D 1,922,
+high area 188): resident 13 (&D3F3-&D3FF), overlay S 73, overlay D 1,922,
+high area 9, the workspace (p-ws.asm) 9. Hosts: Master main RAM 1,273 free
+to &3000; Model B bank P &8000-&84AC (4,179 free), main RAM 194.
+
+**Not done, and why:**
+- An exact one-pass polygon form (see above): no overlay S left for it.
+- More parasite space, if it is wanted next: TT151, TT163 and TT16 (195
+  bytes) run only on direct-mode screens and could join overlay D; the
+  quarter squares' and the log tables' page alignment leave 84 and 26 bytes
+  of padding in the resident run; 243 bytes freed there move the overlay
+  region down a page (+256 bytes for overlay S).
+- Flight is limited by the parasite (the host idles ~40% of an iteration):
+  the game itself plus the disc layer's bookkeeping. Faster flight now needs
+  parasite cycles.
+- Not run on real hardware.
+
 ## The dumb host (branch `dumbhost`, 2026-10-23)
 
 The host now only draws (lines, points, spans, text, the panel), does the I/O
