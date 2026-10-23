@@ -33,8 +33,9 @@ _RBANK = 2
  CPU 0
  INCLUDE "build/nmos/gfx-raster_lineb.asm"
  CPU 0
- INCLUDE "build/nmos/gfx-raster_rep.asm"
- CPU 0
+.r_bs7                  \ (the repair is the parasite's: r_sbuf's patch of its
+                        \ operand lands here)
+ SKIP 3
 .p_polyin               \ h_poly's receiving part: phase A's rows (p-polya.asm),
  HRX                    \ then the rasteriser from r_pcbd
  STA &06                \ (R_COLE, R_COLO)
@@ -88,16 +89,20 @@ _RBANK = 2
  ORG JT
  GUARD &C000
  JMP r_pgfix
- JMP r7_rowrep
- JMP R_POLY
+ BRK                    \ (P_ROWREP: the repair is the parasite's, gone)
+ EQUW 0
+ BRK                    \ (P_POLY: phase A is the parasite's, gone)
+ EQUW 0
  JMP R_LINE
  JMP R_SETBUF
  JMP R_SPAN
- JMP R_MARKDIRTY
+ BRK                    \ (P_MARKDIRTY: the parasite's, gone)
+ EQUW 0
  JMP R_DOT
  JMP R_STARERASE
  JMP R_STARPLOT
- JMP R_FLARE
+ BRK                    \ (P_FLARE: the parasite's, gone)
+ EQUW 0
  JMP p_polyin
  JMP p_linein
  JMP r_stout

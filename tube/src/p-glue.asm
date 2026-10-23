@@ -73,10 +73,10 @@
 .G_PPOINT
  JMP F_PPOINT           \ (it returns through gback)
 
-\ G_MERHOOK: H_MERID's beach ball (gfx-hooks.asm): the meridian window is the
-\ host's (tube/src/h-merid.asm), so its inputs go there (C_MERHOOK: roofv and
-\ sidev, K3, K4, MCNT, PM_R), and PM_OK says that f_bounds is to colour the
-\ disc as a beach ball (T_MERID: R_NDF = &81). Keeps X, Y and C, as PM_HOOK
+\ G_MERHOOK: H_MERID's beach ball (gfx-hooks.asm): PM_HOOK, the meridian
+\ window's frame constants (gfx-merid.asm, in the overlay S, with the quarter
+\ squares), and PM_OK says that f_bounds is to colour the disc as a beach ball
+\ (T_MERID). Keeps X, Y and C, as PM_HOOK
 
 .G_MERHOOK              \ (PM_HOOK, in the overlay S: keeps A, X, Y and C)
  PHA

@@ -7,6 +7,65 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The dumb host (branch `dumbhost`, 2026-10-23)
+
+The host now only draws (lines, points, spans, text, the panel), does the I/O
+and stores the parasite's overlay images; everything that decides what to
+draw is the parasite's (DUMB-HOST-AUDIT.md; maps and protocol in
+docs/TUBE-MAP.md). Commits on `dumbhost` (not pushed): 7864497 (phases 1-3:
+overlays, the panel on the host, the renderer's bookkeeping on the parasite),
+7780c71 (phase 4: requests on register 2, HLOIN and PIXEL on the host),
+37e8fc7 (phase 5: the disc layer's spans batched, no x4_ stubs), and phase 6
+(the host shrink).
+
+**Moved to the parasite:** the disc layer with its repair (two-colour rows
+repainted whole), phase B's row bookkeeping and the dirty extents, the star
+records' scheduling, the beach ball's meridian window (with the run's quarter
+squares), the lens flare's geometry, the sights, the text map and its diff
+against each buffer, the frame's buffer choice and flip. **Moved to the
+host:** the panel's drawing, Master's LOINQ, HLOIN3 and PIXEL (the parasite
+draws nothing: SCEOR and SCSTA are assembly errors there).
+
+**Overlays:** D (direct-mode cold code, 7,294 bytes) or S (the renderer's
+parasite part, 8,968 bytes with 2,323 of state) in &D400-&F7FF. A load is
+84-89 ms of host time; 13 loads in run1's iterations 0-4000.
+
+**Host code left:** Master host main RAM &1EDC-&2B8E (1,137 bytes free to
+&3000), bank 5 &8000-&8073 and &9000-&BC6A (the row runs, R_SPAN, R_DOT, the
+stars, the line code's cold part), ANDY &8000-&88C9 (phase B's fill, the
+line loops), bank 6 code &8000-&9BA3; banks 4 and 7 hold the overlay images.
+Removed: the disc layer, the repair and the flare (5K of bank 5), phase A
+(1.8K of ANDY), the text map, text overlay, sights and their 1.6K of maps
+(bank 6), the meridian window (bank 7). Model B host: bank P &8000-&863C
+(3,779 free) and &9000-&BF8D, bank F code to &A698; bank D and the end of bank
+S hold the overlay images; the old bank D code (disc layer, meridian) is gone.
+
+**Parasite free bytes:** resident 28 (&D3E4-&D3FF), workspace 9, high area 188,
+overlay D 1,922, overlay S 248.
+
+**Gates (scratch/g-p7):** the Master port byte-identical to master-ref; lockstep
+clean over 16,002 iterations, pixels 0 mismatched over 0..16000 (14,611
+frames), the dashboard 0 mismatched, tsavetest passing, on both hosts.
+
+**Speed (it/s), before (branch `tube`) and after:**
+
+| | flight 1000-1400 | docking 3420-3550 | 0-3550 | beach 300-403 | beach 5355-5457 |
+|---|---:|---:|---:|---:|---:|
+| Master host, before | 21.14 | 8.17 | 20.70 | 6.43 | 5.06 |
+| Master host, after | 16.52 | 6.91 | 17.42 | 6.55 | 6.29 |
+| Model B host, before | 19.13 | 6.71 | 18.84 | 5.89 | 4.50 |
+| Model B host, after | 12.61 | 5.95 | 14.53 | 5.35 | 4.97 |
+
+Slower, except at the beach balls on both hosts' second window and the
+Master host's first: the work the host used to do in parallel (the disc
+layer, the repair, the dirty bookkeeping) is now the parasite's, so the two
+processors mostly take turns. In flight the host waits for the parasite about
+38% of the time and the parasite for the host about 14%. By phase, Master
+flight: phases 1-3 15.80, phase 4 15.79, phase 5 (batched disc spans) 16.47,
+phase 6 16.52. Not done: packing F_ST (the text map's shown state: no space
+is short now that the overlays exist), and folding the G_ stubs (about 80
+bytes).
+
 ## Summary (candid)
 
 **Passed**

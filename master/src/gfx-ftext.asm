@@ -8,6 +8,7 @@
 
 F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 
+IF _TPART <> 2             \ (the Tube's dumb host: f_glyph and f_nib only)
 \ f_rowptr: X = text row -> fz_p = F_TM + 32*row, fz_q = F_ST + 32*row
 
 .f_rowptr
@@ -271,6 +272,7 @@ F_TCOL = &FF            \ text ink: yellow (logical colour 3)
 .f_wr EQUB 0
 .ft_end EQUB 0
 
+ENDIF
 \ f_glyph: draw character A at column Y, text row fz_i, ink F_TCOL, only on
 \ the glyph's pixels and only inside the clip window
 
@@ -402,6 +404,7 @@ ASSERT _HOSTB OR F_FONT + 768 <= &3000 \ 768 bytes), visible while ACCCON X is s
 \ and only redrawn when something was written over them (like the text)
 \ ------------------------------------------------------------------------------
 
+IF _TPART <> 2             \ (the Tube's dumb host: the sights are the parasite's)
 SGX = 128
 SGY = 96
 SGIN = 11               \ arms run from SGIN to SGOUT pixels from the centre
@@ -607,4 +610,4 @@ ENDIF
 ENDIF
  SEC                    \ C = 1 on exit, as before
  RTS
-
+ENDIF

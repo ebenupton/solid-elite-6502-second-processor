@@ -9,6 +9,7 @@
 \ gfx-raster.asm.
 \ ============================================================================
 
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)
 \ ============================================================================
 \ R_POLY
 \ ============================================================================
@@ -167,6 +168,9 @@ ENDIF
   LDX r_i1
   BRA cb
 .cbd
+ELSE
+{
+ENDIF
 IF _TPART = 1
   JMP p_spans             \ (Tube: the rest is the host's)
 }

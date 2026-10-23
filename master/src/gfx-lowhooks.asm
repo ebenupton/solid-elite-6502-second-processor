@@ -17,6 +17,7 @@
 \ live below &3000 as CHPR runs with ACCCON X set. A, X, Y are not kept (F_CHAR
 \ and F_DELCHAR keep Y, F_CLRTEXT X and Y)
 
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: no text map, the parasite's)
 .G_CHAR
  LDA &F4
  PHA
@@ -54,10 +55,14 @@
 \ text is printed in view types 13 and 1 while LL9B draws the ship as a
 \ frame), return through RR4 instead of drawing it (A = YC and C clear
 \ otherwise, as RR3 is entered)
+ENDIF
+
 
 .H_CHAR
  STA hA
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: no text map, the parasite's)
  JSR G_CHAR
+ENDIF
  LDA QQ11
  ORA GFORCE
  BEQ hcr
@@ -92,7 +97,9 @@
 
 .H_DEL
  PHA
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: no text map, the parasite's)
  JSR G_DELCHAR
+ENDIF
  LDA QQ11
  ORA GFORCE
  BNE hdl9

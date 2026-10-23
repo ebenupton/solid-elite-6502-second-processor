@@ -60,14 +60,14 @@ PY
 $BEEBASM -i tsrc/h-layout.asm -v > build/compile-h.txt 2>&1 || { grep -iE "error" -A3 build/compile-h.txt | head -30; exit 1; }
 $BEEBASM -i tsrc/h-layout.asm -d > build/hsyms.txt 2>/dev/null
 # build/hbanks.txt: the host's labels in sideways RAM and the ROMSEL value of
-# their bank (5: bank 5, 85: ANDY over bank 5, 6: bank 6, 7: bank 7), for the profilers
+# their bank (5: bank 5, 85: ANDY over bank 5, 6: bank 6), for the profilers
 python3 - <<'PY'
 import re
 with open("build/hbanks.txt", "w") as f:
-    for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_rep.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
-                      ("src/gfx-flare.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"), ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"),
-                      ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-flare6.asm", "6"),
-                      ("src/gfx-merid.asm", "7"), ("tsrc/h-merid.asm", "7")):
+    for src, bank in (("src/gfx-raster.asm", "5"), ("src/gfx-raster_stio.asm", "5"), ("src/gfx-raster_lcold.asm", "5"),
+                      ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"), ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"),
+                      ("src/gfx-frame.asm", "6"), ("src/gfx-frame_cold.asm", "6"), ("src/gfx-ftext.asm", "6"), ("tsrc/h-cold.asm", "6"),
+                      ("tsrc/h-panel.asm", "6"), ("tsrc/h-prim.asm", "6"), ("build/elite-source-hostb.asm", "6")):
         for m in re.finditer(r"^\s*\.([A-Za-z_][\w%]*)", open(src, encoding="latin-1").read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
 PY
@@ -187,7 +187,6 @@ hbasm() {
 # (bank D packs the run pages' tails, without the runs: the stars' records
 # and the flare's tables there are bank P's, so their alignment is not D's)
 sed -e 's/^\(ASSERT .*r_s[01][abxykr]\)/\\ \1/' -e 's/^\(ASSERT HI(fl_htab)\)/\\ \1/' build/nmos/gfx-raster.asm > build/nmos/gfx-raster-d.asm
-hbasm d
 hbasm p
 # bank F and main RAM (hb-main.asm): the host's handlers, the frame layer's host
 # part, the game's host blocks
@@ -199,7 +198,7 @@ $NM src/gfx-frame_cold.asm build/nmos/gfx-frame_cold.asm --report build/nmos/gfx
  JMP fsg3= PLA
  TAY
  JMP fsg3" > /dev/null
-for f in tsrc/h-main.asm tsrc/h-cold.asm tsrc/h-panel.asm tsrc/h-prim.asm tsrc/h-hpe.asm src/gfx-lowhooks.asm src/gfx-gvars.asm src/gfx-frame.asm src/gfx-ftext.asm; do
+for f in tsrc/h-main.asm tsrc/h-cold.asm tsrc/h-panel.asm tsrc/h-prim.asm src/gfx-lowhooks.asm src/gfx-gvars.asm src/gfx-frame.asm src/gfx-ftext.asm; do
   b=$(basename $f .asm); $NM $f build/nmos/$b.asm --report build/nmos/$b.txt > /dev/null
 done
 sed -i '' 's|INCLUDE "src/gfx-ftext.asm"|INCLUDE "build/nmos/gfx-ftext.asm"|' build/nmos/gfx-frame.asm
@@ -214,7 +213,6 @@ $NM build/elite-source-hostb.asm build/nmos/elite-source-hostb.asm --report buil
 grep -E "^(R_|RZ_)[A-Za-z0-9_]* *= *&|^r_op(STA|RTS) *=" src/gfx-raster.asm > build/hb-rzp.asm   # (the rasteriser's zero page names, for bank F)
 hbasm main
 $BEEBASM -D HBB=4 -i tsrc/hb-main.asm -d > build/hbmsyms.txt 2>/dev/null || true
-$BEEBASM -D HBB=4 -i tsrc/hb-d.asm -d > build/hbdsyms.txt 2>/dev/null || true
 $BEEBASM -D HBB=4 -i tsrc/hb-p.asm -d > build/hbpsyms.txt 2>/dev/null || true
 # (bank D: the parasite's overlay S's image, and the room for its state;
 # bank S: the stash, then from &8E00 the parasite's overlay D's image, OVLD_AT)
@@ -225,7 +223,7 @@ if [ -f build/HBRES1.bin ]; then hbs build; fi
 # the bank numbers' operands: assembled again with the banks at 8-11, the bytes
 # that differ (by 4) are the loader's to patch (tube/src/loader-b.asm)
 mkdir -p build/hb8
-for b in d p main; do
+for b in p main; do
   sed 's|"build/HB|"build/hb8/HB|' tsrc/hb-$b.asm > build/hb8/hb-$b.asm
   $BEEBASM -D HBB=8 -i build/hb8/hb-$b.asm > /dev/null 2>&1 || echo "Model B: the bank-8 assembly of $b failed"
 done
@@ -247,7 +245,7 @@ open("build/hb-patch.asm", "w").write("\n".join(out) + "\n")
 print("Model B: bank operands to patch:", sum(1 for l in out if l.startswith(" EQUW") and "FFFF" not in l))
 PY
 grep -h "^Model B" build/compile-hbmain.txt || true
-grep -h "^Model B" build/compile-hbd.txt build/compile-hbp.txt || true
+grep -h "^Model B" build/compile-hbp.txt || true
 # the Model B loader and disc
 python3 - <<'PY'
 import re, os

@@ -207,8 +207,14 @@ r_opRTS = &60
 \ ============================================================================
 IF _HOSTB AND _RBANK = 2      \ (Model B, bank P: no boundary arrays; the
 .R_BDN0                       \ flare and the lines' cold part instead)
+IF _TDUMB = FALSE             \ (the Tube's dumb host: the flare is the parasite's)
  INCLUDE "build/nmos/gfx-flare.asm"
  CPU 1
+ELSE
+.r_bs9                        \ (r_sbuf's patches of the flare's operands: here)
+.r_bs10
+ SKIP 3
+ENDIF
  INCLUDE "build/nmos/gfx-raster_lcold.asm"
  CPU 1
  SKIP R_BDN0 + &480 - P%

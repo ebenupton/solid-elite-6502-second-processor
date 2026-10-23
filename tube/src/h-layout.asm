@@ -41,17 +41,17 @@ OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
 .H_END
  PRINT "Host: main code &", ~H_START, "-&", ~H_END-1, ", free to &3000: ", &3000-H_END
  SAVE "build/HMAIN.bin", H_START, H_END, hwrch
+ INCLUDE "tsrc/h-dead.asm"
 
 
  CLEAR &8000, &C000      \ bank 5: the rasteriser's shared region and disc window
  GUARD &C000
  ORG &9000
  INCLUDE "src/gfx-raster.asm"
- INCLUDE "src/gfx-flare.asm"
  INCLUDE "src/gfx-raster_lcold.asm"
 .B5_END
- ORG &8000
- INCLUDE "src/gfx-raster_disc.asm"
+ ORG &8000               \ (the disc layer, the repair and the lens flare are the
+ INCLUDE "src/gfx-raster_stio.asm"   \ parasite's: p-rast.asm; the stars' records)
 .B5LO_END
  ASSERT B5LO_END <= &9000
  PRINT "Host: bank 5 &8000-&", ~B5_END-1
@@ -78,16 +78,8 @@ OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
 .B6_CODE_END
 .F_HW   SKIP 256        \ (f_enter's buffer)
 .F_HW2  SKIP 256
-.F_TM   SKIP 768
-.F_ST   SKIP 768
-ASSERT F_ST = F_TM + &300
-.F_TMR  SKIP 24
-.F_SHR0 SKIP 24
-.F_SHR1 SKIP 24
-.F_DSX  SKIP NDSTAR
+.F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
-.f_hwr  EQUB 0          \ (the parasite's half-width cache tags, which f_enter2
-.f_hw2r EQUB 0          \ clears: unused here)
 ALIGN &100
 .HSW                    \ the parasite's &F800-&FEEF that is not in it (h_swap):
  INCBIN "build/PHIGH.bin" \ the high code at first, the client OS's while it runs

@@ -113,6 +113,7 @@ IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's t
 
 F_STM = 1               \ F_ST: buffer 0 shows the cell's character
 F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: none of the text map's)
 
 .f_tmclear              \ clear the text map and buffer 1's shown cells (Master
  LDX #0                 \ port: buffer 1, shadow RAM, is the direct-mode screen,
@@ -405,6 +406,7 @@ F_STN = 4               \ F_ST: buffer 0 shows a character (buffer 1: x 2)
  LDY f_ysav
  RTS
 
+ENDIF
 \ ------------------------------------------------------------------------------
 \ f_direct0 (F_DIRECT, frame_cold.asm): the screen is about to be cleared and
 \ drawn directly (TT66): cancel double buffering, show and access main RAM.
@@ -433,7 +435,11 @@ IF _HOSTB = 0             \ (Model B: the IRQ shows buffer GFRONT)
 ENDIF
  CLI
 ENDIF
+IF _TPART <> 2 OR _TDUMB = FALSE
  JSR f_tmclear          \ (A = 0; X only, so Y is kept)
+ELSE
+ LDA #0                 \ (the dumb host: no text map)
+ENDIF
  LDX #23+NDSTAR         \ the stars will be re-recorded too (and F_DSS
 .fdi1                   \ after R_SS: no direct-mode stars noted)
  STA R_SS,X
@@ -444,6 +450,10 @@ ENDIF
 ENDIF
 IF _TPART = 1 AND _TDUMB = FALSE
 .f_ysav EQUB 0          \ (the text map's, which is the host's, but F_FRAME's too)
+.f_tmp  EQUB 0
+ENDIF
+IF _TPART = 2 AND _TDUMB
+.f_ysav EQUB 0          \ (the dumb host: f_unstar's)
 .f_tmp  EQUB 0
 ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
@@ -994,8 +1004,11 @@ ENDIF
 ENDIF
  LDA #1                 \ buffer 1's state: empty (TTX66 blacked it)
  STA F_BACK
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host keeps no state of the screen)
  STZ F_SGS+1
+ENDIF
  JSR T_SETBUF
+IF _TPART <> 2 OR _TDUMB = FALSE
  JSR T_RESETBUF
  LDA #&FF
  STA F_DCOL+1
@@ -1007,6 +1020,7 @@ ENDIF
  DEX
  BPL fen9
  JSR f_tchall
+ENDIF
  STZ F_BACK             \ buffer 1 is on show: draw into buffer 0 first
  STZ GFLIP
  LDA #&80
@@ -1042,6 +1056,7 @@ ENDMACRO
 
 .f_bufpatch             \ (each array's two copies differ only in the high byte)
  LDX F_BACK
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: the glyphs' base only)
  LDA fbp_dl,X
  STA fdc_dl1+2
  STA fdc_dl2+2
@@ -1064,9 +1079,11 @@ ENDMACRO
  STA ft_sr1+1
  STA ft_sr2+1
  STA ft_sr3+1
+ENDIF
 IF _HOSTB                 \ (Model B: the back buffer's screen, BUF0 or &4000)
  LDA fbp_b,X
  STA fgl_b+1
+IF _TDUMB = FALSE
  LDA fbp_d,X
  STA fz_t
  CLC
@@ -1101,12 +1118,14 @@ IF _HOSTB                 \ (Model B: the back buffer's screen, BUF0 or &4000)
  LDA #&5D
  ADC fz_t
  STA fsv8+2
+ENDIF
  ENDIF
  RTS
 IF _HOSTB
 .fbp_b EQUB HI(BUF0), &40
 .fbp_d EQUB HI(BUF0) - &40, 0
 ENDIF
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: the glyphs' base only)
 .fbp_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
 .fbp_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 .fbp_ol EQUB HI(R_DISCL0), HI(R_DISCL1)
@@ -1115,6 +1134,7 @@ ENDIF
 .fbp_srl EQUB LO(F_SHR0), LO(F_SHR1)
 ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1) AND LO(R_DIRTYR0) = LO(R_DIRTYR1)
 ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
+ENDIF
 
 ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)

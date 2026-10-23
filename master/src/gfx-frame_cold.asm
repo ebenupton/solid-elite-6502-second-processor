@@ -15,6 +15,7 @@
 \ ******************************************************************************
 
 IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's too)
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ F_CHAR: TT26's character K3 at (XC-1, YC) (see f_char0)
 
 .F_CHAR
@@ -67,6 +68,7 @@ IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's t
  JSR f_direct0          \ (which clears F_DSS with R_SS: no stars noted)
  STZ f_dtext
  RTS
+ENDIF
 
 ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part)
@@ -140,6 +142,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part)
 
 ENDIF
 IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's too)
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ f_enter2: the first record-mode frame since F_DIRECT. Main RAM is visible
 \ (X = 0): remove the directly drawn stars before f_enter copies the border
 \ to shadow RAM, then give buffer 0's shown map (which f_enter clears) the
@@ -195,6 +198,7 @@ IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's t
  RTS
 
 .f_dtext EQUB 0
+ENDIF
 
 \ f_b0new: a disc command has used buffer 0 (main RAM &4000-&5FFF) to stash
 \ HAZEL (DOSCLI, elite-source.asm), so it no longer holds the last frame of
@@ -233,6 +237,7 @@ ELSE
 ENDIF
  BNE fbn1
 ENDIF
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  STZ F_SGS              \ no sights drawn in it
  LDA #&FF               \ no disc colour
  STA F_DCOL
@@ -246,6 +251,7 @@ ENDIF
  STA F_SHR0,X
  DEX
  BPL fbn3
+ENDIF
  RTS
 
 \ f_unstar: EOR away the stars PIXEL drew directly into main RAM since
@@ -340,6 +346,7 @@ ENDIF
 .f_twos2 EQUB %11001100 AND DUST, %01100110 AND DUST, %00110011 AND DUST, %00110011 AND DUST
                         \ (Master port: TWOS2 AND DUST, as PIXEL draws stardust)
 
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ F_DSTAR: outside record mode PIXEL2 draws star Y straight into main RAM;
 \ H_STAR (C set: hA = y, X = x, ZZ = distance) and H_STAROFF (C clear: off
 \ screen) come here (via G_DSTAR) to note it, so that f_unstar can remove it.
@@ -402,5 +409,6 @@ ENDIF
 .fsgs3
  PLY
  JMP fsg3
+ENDIF
 
 ENDIF

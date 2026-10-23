@@ -93,16 +93,8 @@ _RBANK = 0
 .F_CODE_END
 .F_HW   SKIP 256        \ (f_enter's buffer)
 .F_HW2  SKIP 256
-.F_TM   SKIP 768
-.F_ST   SKIP 768
-ASSERT F_ST = F_TM + &300
-.F_TMR  SKIP 24
-.F_SHR0 SKIP 24
-.F_SHR1 SKIP 24
-.F_DSX  SKIP NDSTAR
+.F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
-.f_hwr  EQUB 0
-.f_hw2r EQUB 0
 ALIGN &100
 .HSW                    \ the parasite's &F800-&FEEF that is not in it (h_swap)
  INCBIN "build/PHIGH.bin"

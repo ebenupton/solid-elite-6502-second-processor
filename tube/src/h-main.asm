@@ -126,6 +126,12 @@ IF _HOSTB = 0             \ (the Model B host's: hb-ovl.asm)
  RTS
 ENDIF
 
+IF _HOSTB = 0
+.hdead                  \ (h-dead.asm's names: never run; R_SETBUF's patches of
+ BRK                    \ their operands write here)
+ EQUB 0, 0, 0
+ENDIF
+
 .h_bad                  \ (the commands of the host that kept the rasteriser's
  JMP hloop              \ state: none now)
 
@@ -139,8 +145,18 @@ ENDIF
 \ the parasite's OSCLI runs the command; the parasite's &FE through register 1
 \ comes back through hwrch to hstart
 
-.h_init                 \ C_INIT: F_INIT's host part
- JSR T_INIT
+.h_init                 \ C_INIT: F_INIT's host part: the drawing code's state
+IF _HOSTB = 0             \ (R_INIT's part that the drawing reads: the stars'
+ LDA #&FF               \ colour, no stars, no polygon rows, buffer 0's patches;
+ STA R_SCOL             \ the Model B host's are set per command, and its R_PN
+ LDA #0                 \ is bank P's)
+ STA R_SN
+ STA R_PN
+ LDA #1
+ STA R_PRBUF
+ LDA #0
+ JSR T_SETBUF
+ENDIF
 IF _HOSTB = 0
  LDA #4                 \ clear main RAM's screen (buffer 0)
  TRB &FE34
@@ -170,7 +186,6 @@ ENDIF
  STA R_SS,X
  DEX
  BPL hin2
- JSR f_tmclear
  JMP hloop
 
 \ h_ovlget: C_OVLGET: overlay A's image (the parasite's p-ovl.asm), whole pages

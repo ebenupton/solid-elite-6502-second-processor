@@ -1,6 +1,7 @@
 \ (gfx-raster_poly.asm's second part, from r_e8: its own file so that the Tube's
 \ parasite can place the two parts apart, tube/src/p-polya.asm)
 
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)
 \ r_e8: edge r_i0 -> r_i1 of an 8-bit polygon into the table at (RZ_T4)
 .r_e8
 {
@@ -153,6 +154,7 @@
 }
 
 
+ENDIF
 IF _TPART <> 1             \ (Tube: phase B is the host's)
 \ ----------------------------------------------------------------------------
 \ Phase B: rows RZ_Y.., RZ_SA of them; left table r_pbl1, right (exclusive)
@@ -418,6 +420,7 @@ ENDIF
 ENDIF
 
 
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)
 \ R_POLY's phase A for 16-bit coordinates: its variables (its 32-bit maths,
 \ rp_mul16 and rp_div32, are in the shared region, gfx-raster.asm)
 .rp_ov SKIP 17          \ phase A's edge set-up (r7_edy .. r7_eb)
@@ -1061,5 +1064,4 @@ r7_eb = rp_ov + 15
 .install
   RTS
 }
-
-
+ENDIF

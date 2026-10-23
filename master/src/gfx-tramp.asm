@@ -27,6 +27,7 @@
  JSR R_SETBUF
  JMP tback
 
+IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_RESETBUF
  STA tA
  LDA #RASTBANK
@@ -35,6 +36,7 @@
  LDA tA
  JSR R_RESETBUF
  JMP tback
+ENDIF
 
 .T_STARERASE
  STA tA
@@ -45,6 +47,7 @@
  JSR R_STARERASE
  JMP tback
 
+IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_DISCROWS
  STA tA
  LDA #RASTBANK
@@ -53,6 +56,7 @@
  LDA tA
  JSR R_DISCROWS
  JMP tback
+ENDIF
 
 .T_SPAN
  STA tA
@@ -63,13 +67,16 @@
  JSR R_SPAN
  JMP tback
 
+IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_FLARE                \ (the lens flare, gfx-flare.asm; X and Y passed)
  LDA #RASTBANK
  STA &F4
  STA &FE30
  JSR R_FLARE
  JMP tback
+ENDIF
 
+IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_MARKDIRTY
  STA tA
  LDA #RASTBANK
@@ -78,6 +85,7 @@
  LDA tA
  JSR R_MARKDIRTY
  JMP tback
+ENDIF
 
 IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_MERID                \ (the meridian window's row loop, gfx-merid.asm: bank 7;
@@ -94,6 +102,7 @@ IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
  RTS
 ENDIF
 
+IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_POLY                 \ (R_POLY is in the rasteriser's polygon window, ANDY)
  STA tA
  LDA #RASTPOLY
@@ -102,6 +111,7 @@ ENDIF
  LDA tA
  JSR R_POLY
  JMP tback
+ENDIF
 
 .T_LINE                 \ (R_LINE is in the polygon window, ANDY, too)
  STA tA
@@ -130,6 +140,7 @@ ENDIF
  JSR R_STARPLOT
  JMP tback
 
+IF _TDUMB = FALSE          \ (the Tube's dumb host: h-main.asm's h_init)
 .T_INIT
  STA tA
  LDA #RASTBANK
@@ -138,3 +149,4 @@ ENDIF
  LDA tA
  JSR R_INIT
  JMP tback
+ENDIF

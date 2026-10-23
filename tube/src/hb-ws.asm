@@ -169,13 +169,6 @@ PDATA_END = PDATA + &280
 \ ------------------------------------------------------------------------------
 
 JT = &BFC0
-D_DISCROWS = JT         \ bank D
-D_SETBUF   = JT + 3
-D_INIT     = JT + 6
-D_RESETBUF = JT + 9
-D_WCLEAR   = JT + 12
-D_DISC     = JT + 15    \ h_disc's receiving part (hb-d.asm)
-D_MERHOOK  = JT + 18    \ C_MERHOOK's: the meridian window (h-merid.asm)
 P_PGFIX    = JT         \ bank P
 P_ROWREP   = JT + 3
 P_POLY     = JT + 6
