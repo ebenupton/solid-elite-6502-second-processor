@@ -4,13 +4,15 @@
 \ The line loops: Bresenham along the major axis from the left / top end, a
 \ pixel per step.  Pointer RZ_PP (+ Y = row AND 7), pixel mask l_m, colour
 \ by row AND 7 (rl_lct); X = row; DIRTY[b][row] extended per pixel (the
-\ buffer's row range is the caller's).  l_n pixels (0: 256), all inside the
+\ buffer's row range is the caller's; not on the Tube's dumb host, whose
+\ parasite keeps the dirty extents).  l_n pixels (0: 256), all inside the
 \ window.
 \ ============================================================================
 
 \ rl_lpat: X = buffer: patch R_LINE's DIRTY operands for it
 .rl_lpat
   STX rl_lbuf
+IF _TDUMB = FALSE          \ (the Tube's dumb host keeps no dirty extents)
   LDA r_sbh_dl,X
   STA lyl_p0+2
   STA lyl_p1+2
@@ -29,6 +31,7 @@
   STA lxu_p3+2
   STA lxd_p2+2
   STA lxd_p3+2
+ENDIF
   RTS
 
 \ rl_line: R_LINE with both ends inside the window (8-bit); rl_lgo: a line
@@ -155,6 +158,7 @@ ENDIF
   AND l_m
   EOR (RZ_PP),Y
   STA (RZ_PP),Y
+IF _TDUMB = FALSE          \ (the Tube's dumb host keeps no dirty extents)
   LDA l_x
 .^lyl_p0 CMP R_DIRTYL0,X
   BCS lyl_1
@@ -163,6 +167,7 @@ ENDIF
 .^lyl_p2 CMP R_DIRTYR0,X
   BCC lyl_2
 .^lyl_p3 STA R_DIRTYR0,X
+ENDIF
 .lyl_2
   DEC l_n
   BEQ lyl_d
@@ -202,6 +207,7 @@ ENDIF
   AND l_m
   EOR (RZ_PP),Y
   STA (RZ_PP),Y
+IF _TDUMB = FALSE          \ (the Tube's dumb host keeps no dirty extents)
   LDA l_x
 .^lyr_p0 CMP R_DIRTYL0,X
   BCS lyr_1
@@ -210,6 +216,7 @@ ENDIF
 .^lyr_p2 CMP R_DIRTYR0,X
   BCC lyr_2
 .^lyr_p3 STA R_DIRTYR0,X
+ENDIF
 .lyr_2
   DEC l_n
   BEQ lyr_d
@@ -248,6 +255,7 @@ ENDIF
   AND l_m
   EOR (RZ_PP),Y
   STA (RZ_PP),Y
+IF _TDUMB = FALSE          \ (the Tube's dumb host keeps no dirty extents)
   LDA l_x
 .^lxu_p0 CMP R_DIRTYL0,X
   BCS lxu_1
@@ -256,6 +264,7 @@ ENDIF
 .^lxu_p2 CMP R_DIRTYR0,X
   BCC lxu_2
 .^lxu_p3 STA R_DIRTYR0,X
+ENDIF
 .lxu_2
   DEC l_n
   BEQ lxu_d
@@ -295,6 +304,7 @@ ENDIF
   AND l_m
   EOR (RZ_PP),Y
   STA (RZ_PP),Y
+IF _TDUMB = FALSE          \ (the Tube's dumb host keeps no dirty extents)
   LDA l_x
 .^lxd_p0 CMP R_DIRTYL0,X
   BCS lxd_1
@@ -303,6 +313,7 @@ ENDIF
 .^lxd_p2 CMP R_DIRTYR0,X
   BCC lxd_2
 .^lxd_p3 STA R_DIRTYR0,X
+ENDIF
 .lxd_2
   DEC l_n
   BEQ lxd_d
