@@ -40183,7 +40183,12 @@ ENDIF
 
 .savosc
 
-IF _SNG47
+IF _SNG47 AND _TUBE      \ Port (Tube): from the host's buffer (tube/src/h-cold.asm's
+                        \ HDBUF), where the host's own disc command saves it
+ EQUS "SAVE :1.E.JAMESON  FFFF3F00 +100 0 0"
+ EQUB 13
+
+ELIF _SNG47
 
  EQUS "SAVE :1.E.JAMESON  ", STR$~(commbuf), " +100 0 0"
  EQUB 13
@@ -40207,7 +40212,12 @@ ENDIF
 
 .lodosc
 
-IF _SNG47
+IF _SNG47 AND _TUBE      \ Port (Tube): into the host's buffer (HDBUF)
+
+ EQUS "LOAD :1.E.JAMESON  FFFF3F00"
+ EQUB 13
+
+ELIF _SNG47
 
  EQUS "LOAD :1.E.JAMESON  ", STR$~(commbuf)
  EQUB 13

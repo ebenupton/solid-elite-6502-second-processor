@@ -45,6 +45,12 @@ IF _HOSTB = 0             \ (Model B: in main RAM, hb-res.asm)
  LDA hwa
  RTS
 .hwa EQUB 0
+
+.hdbrk                  \ (BRKV during h_disc's OSCLI: the bank of h_derr)
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JMP h_derr
 ENDIF
 
 .hwpos                  \ the MOS's text cursor (&0318, VDU's: OSBYTE 134's POS
@@ -89,7 +95,7 @@ HCTXN = 12
  EQUW h_sync, h_init, h_bad, h_bad, h_bad, h_bad, h_bad, h_span
  EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_keys
  EQUW h_dks, h_wscan, h_noise, h_soflush, h_bad, h_bad, h_bad, h_cls
- EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_oscli, h_swap, h_bad
+ EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_disc, h_swap, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
  EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_bad, h_hloin, h_pixel, h_dspans
@@ -133,11 +139,6 @@ ENDIF
  NOP                    \ here: at h_sync, or at h_syncb if its instruction hook
 .h_syncb                \ missed h_sync, as jsbeeb's does on a slice's first
  JMP hloop              \ instruction)
-
-\ h_oscli: C_OSCLI: QQ11 OR GFORCE, GMODE, CHPR's zero page and W, CATF: go
-\ back to the MOS's Tube code (its idle loop, with its zero page back), where
-\ the parasite's OSCLI runs the command; the parasite's &FE through register 1
-\ comes back through hwrch to hstart
 
 .h_init                 \ C_INIT: F_INIT's host part: the drawing code's state
 IF _HOSTB = 0             \ (R_INIT's part that the drawing reads: the stars'

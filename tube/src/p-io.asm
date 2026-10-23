@@ -311,29 +311,28 @@ ENDMACRO
  RTS
 .pfkn EQUB 0
 
-\ p_oscli: DOSCLI (the disc commands, Y X = the command): the host's MOS runs
-\ it through its own Tube code, which the host goes back to for it (h_oscli):
-\ this side sends what the host's CHPR needs to print during the command (a
-\ catalogue), waits for the host to be in the MOS's idle loop, then calls
-\ the client OS's OSCLI with interrupts on (the MOS's transfers to and from
-\ the parasite's memory, *SAVE and *LOAD, run through the client OS's IRQ and
-\ NMI handlers), and finally brings the host back to the command loop
-\ (p_resume). As DOSCLI: A and the flags are OSCLI's, and GSTASH is set (the
-\ Master port's next space-mode frame clears buffer 0)
+\ p_oscli: DOSCLI (the disc commands, Y X = the command, CR-ended): C_DISC,
+\ the host's MOS runs it as the host's own I/O (h_disc, h-cold.asm): the
+\ printing's context (QQ11 OR GFORCE, GMODE, CHPR's zero page, W, CATF), the
+\ mode (1 SAVE, 2 LOAD, else 0) with, for those, commbuf's 256 bytes (the
+\ host saves from and loads into its buffer at &3F00, which savosc and lodosc
+\ name), then the command. The host answers through register 4: 0, or &FF
+\ and the error's number, message and 0 (then NEWBRK prints it, as after the
+\ MOS's BRK); then the printing's context back, and for a load commbuf. As
+\ DOSCLI: GSTASH is set (the Master port's next space-mode frame clears
+\ buffer 0, which the host's disc command may use)
 
 PCTX = &0A              \ CHPR's zero page: SC, SCH, P(4), XC, COL, YC, QQ17, K3, K3+1
 PCTXN = 12
+\ (the error block: R_NDX3, free outside space mode)
+pv = &FA                \ (the command's pointer: zero page the game leaves free)
 
 .p_oscli
- PHA
- PHX
- PHY
-IF TUBE_HIGH
- JSR p_swap             \ the client OS back (for OSCLI and the MOS's Tube code)
-ENDIF
+ STX pv
+ STY pv+1
  LDA #&80
  STA GSTASH
- LDA #C_OSCLI
+ LDA #C_DISC
  JSR ptx
  LDA QQ11
  ORA GFORCE
@@ -351,62 +350,87 @@ ENDIF
  JSR ptx
  LDA CATF
  JSR ptx
- JSR prx                \ (the host is in the MOS's idle loop)
- LDA #&FF
- STA pmos
- PLY
- PLX
- PLA
- CLI
- JSR OSCLI
- SEI
- PHP
- PHA
- JSR p_resume
- PLA
- PLP
- RTS
-
-\ p_dosnmi: NEWBRK's DOSNMI, after a disc command's error (which the MOS's Tube
-\ code has brought here): back to the command loop. Keeps A and the flags
-
-.p_dosnmi
- SEI
- PHP
- PHA
- JSR p_resume
- PLA
- PLP
- RTS
-
-\ p_resume: if the host is in the MOS (pmos), wake its command loop (&FE through
-\ register 1, which the MOS's idle loop passes to the host's WRCHV, hwrch) and
-\ take back CHPR's zero page, W and CATF as the host's printing left them
-
-.p_resume
- BIT pmos
- BPL prs9
- STZ pmos
- LDA #&FE
- JSR ptx
+ LDY #0                 \ the mode: SAVE 1, LOAD 2, else 0
+ LDA (pv),Y
+ LDX #1
+ CMP #'S'
+ BEQ pos2
+ INX
+ CMP #'L'
+ BEQ pos2
  LDX #0
-.prs1
+.pos2
+ STX pdm
+ TXA
+ JSR ptx
+ LDA pdm
+ BEQ pos4
+ LDY #0                 \ commbuf
+.pos3
+ LDA commbuf,Y
+ JSR ptx
+ INY
+ BNE pos3
+.pos4
+ LDY #0                 \ the command, to its CR
+.pos5
+ LDA (pv),Y
+ JSR ptx
+ INY
+ CMP #13
+ BNE pos5
+ JSR prx                \ 0, or &FF: an error
+ STA pdst
+ BEQ pos7
+ LDY #0                 \ the error's number, message and 0, into R_NDX3
+.pos6
+ JSR prx
+ STA R_NDX3,Y
+ INY
+ CMP #0
+ BNE pos6
+ CPY #1                 \ (the number byte itself may be 0)
+ BEQ pos6
+.pos7
+ LDX #0                 \ the printing's context back
+.pos8
  JSR prx
  STA PCTX,X
  INX
  CPX #PCTXN
- BNE prs1
+ BNE pos8
  JSR prx
  STA W
  JSR prx
  STA CATF
-IF TUBE_HIGH
- JSR p_swap             \ the high code back (keeps nothing: callers save A)
-ENDIF
-.prs9
+ LDA pdm                \ a load: commbuf back (as the host's buffer is, also
+ CMP #2                 \ after an error)
+ BNE pos10
+ LDY #0
+.pos9
+ JSR prx
+ STA commbuf,Y
+ INY
+ BNE pos9
+.pos10
+ LDA pdst
+ BNE pos11
+ RTS
+.pos11
+ LDA #LO(R_NDX3)         \ the error: as the MOS's BRK leaves it, (&FD) at the
+ STA &FD                \ number, the message after it
+ LDA #HI(R_NDX3)
+ STA &FE
+ JMP NEWBRK
+
+\ p_dosnmi: NEWBRK's DOSNMI: nothing to do (the host is back in its command
+\ loop already). Keeps A and the flags
+
+.p_dosnmi
  RTS
 
-.pmos EQUB 0
+.pdm  EQUB 0
+.pdst EQUB 0
 
 .T1SYNC                 \ (BEGIN's: the host's, at its start)
  RTS

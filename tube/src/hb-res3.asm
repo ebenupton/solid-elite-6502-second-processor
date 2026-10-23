@@ -27,6 +27,10 @@
  RTS
 .hwa EQUB 0
 
+.hdbrk                  \ (BRKV during h_disc's OSCLI: the bank of h_derr)
+ PAGE GFXBANK
+ JMP h_derr
+
 .irqm                   \ IRQ1V: register 4's requests (bank F's h4body, while
  BIT h4on               \ h4on), timer 1 or vsync are ours (bank F's hb_irq,
  BPL irq0               \ with the bank kept); anything else is the MOS's

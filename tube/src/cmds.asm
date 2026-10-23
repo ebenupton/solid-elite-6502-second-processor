@@ -52,7 +52,8 @@ C_BOXC     = 48         \ BOX: its two corners, in COL
 C_CLYNS    = 50         \ CLYNS: clear text rows 20-23 on the screen
 C_DET1     = 54         \ DET1: 6845 R6 = X
 C_IRB      = 56         \ request: the System VIA's port B
-C_OSCLI    = 58         \ OSCLI (DOSCLI): the host's MOS runs the command
+C_DISC     = 58         \ a disc command (DOSCLI): the host's MOS runs it as the
+                        \ host's I/O (p_oscli, h_disc)
 C_SWAP     = 60         \ exchange the parasite's &F800-&FEEF with the host's copy
                         \ (the client OS's and the high code: byte for byte)
 C_OVLGET   = 64         \ request: an overlay's image (p-ovl.asm): the number;
