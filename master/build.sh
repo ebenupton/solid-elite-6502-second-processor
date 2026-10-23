@@ -50,11 +50,19 @@ EOF
 # the dashboard image and its tables (build/DIALS1.bin, build/dashtab.asm)
 python3 tools/dashboard.py build > /dev/null
 rm -f build/data-addresses.asm build/symbols-data.txt build/HZDATA1.bin build/HZDATA2.bin build/COLDD.bin
-# elite-source.asm's areas: one copy per area (build/elite-source-run.asm, -low.asm,
-# -bank4.asm, -cold.asm), which elite-layout.asm assembles in turn, and
-# elite-data.asm's (build/elite-data-hot.asm, -cold.asm, which elite-layout.asm
-# assembles too, and -bdata.asm, the dashboard image, BDATA, assembled here)
-python3 tools/streams.py >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+rm -f build/elite-source-*.asm build/elite-data-*.asm build/measure-symbols.txt build/flow.txt
+# elite-source.asm's passes, low, hot and cold (docs/MASTER-MAP.md, "The source
+# and its passes"): streams.py writes the copies for the measure (the hot pass
+# in one copy, build/elite-source-measure.asm, and the hot data in one,
+# build/elite-data-measure.asm), elite-measure.asm gives each block's size
+# (build/measure-symbols.txt), then streams.py flows the hot pass and the hot
+# data through their containers by those sizes and writes the copies that
+# elite-layout.asm assembles (build/elite-source-config.asm, -low, -hot1,
+# -hot2, -hot3, -cold; build/elite-data-hot.asm, -hot4, -cold and -bdata, the
+# dashboard image, BDATA, assembled here), and build/flow.txt
+python3 tools/streams.py measure >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+$BEEBASM -i src/elite-measure.asm -d > build/measure-symbols.txt 2>> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+python3 tools/streams.py place >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i build/elite-data-bdata.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i src/elite-layout.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i src/elite-layout.asm -d > build/symbols.txt 2>/dev/null
@@ -63,7 +71,7 @@ $BEEBASM -i src/elite-layout.asm -d > build/symbols.txt 2>/dev/null
 python3 - <<'PY'
 import re
 with open("build/banks.txt", "w") as f:
-    for src, bank in (("build/elite-source-bank4.asm", "4"),
+    for src, bank in (("build/elite-source-hot3.asm", "4"), ("build/elite-data-hot4.asm", "4"),
                       ("build/dashtab-scan.asm", "4"), ("build/dashtab-dot.asm", "4"), ("build/dashtab-spbt.asm", "4"),
                       ("build/dashtab-ecbt.asm", "4"), ("build/dashtab-msbar.asm", "4"),
                       ("build/elite-source-cold.asm", "7"),
@@ -74,15 +82,6 @@ with open("build/banks.txt", "w") as f:
                       ("src/gfx-merid.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
-    # the main code continues into bank 4: the labels of the main files that are
-    # assembled at &8000-&BFFF are in bank 4
-    sy = {}
-    for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
-        sy.setdefault(m.group(1), int(m.group(2)))
-    for src in ("build/elite-source-run.asm",):
-        for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
-            if 0x8000 <= sy.get(m.group(1), 0) < 0xC000:
-                f.write("%s 4\n" % m.group(1))
 PY
 # the loader takes the game's entry point from the game's symbols
 python3 - <<'PY'

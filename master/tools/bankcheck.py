@@ -2,12 +2,12 @@
 # bankcheck.py: check the banking rules of the relocated Master Elite
 # (docs/MASTER-MAP.md, master/src/elite-far.asm). Run by build.sh from master/.
 #
-# Areas: "main" (elite-source.asm's run, build/elite-source-run.asm, its low
-# area, build/elite-source-low.asm, and the files they INCLUDE in main RAM:
-# elite-far.asm; their labels
-# assembled at &8000-&BFFF, where the main code continues, are in bank 4),
-# "bank4" (elite-source.asm's blocks in bank 4, build/elite-source-bank4.asm,
-# with the CMYK dashboard), "cold" (elite-source.asm's cold blocks,
+# Areas: "main" (elite-source.asm's configuration, its low pass and the hot
+# pass's containers in main RAM, build/elite-source-config.asm, -low.asm,
+# -hot1.asm and -hot2.asm, and the files in main RAM: the glue area,
+# elite-far.asm ...), "bank4" (the hot pass's container in bank 4,
+# build/elite-source-hot3.asm, with the CMYK dashboard, and the hot data that
+# follows it, build/elite-data-hot4.asm), "cold" (elite-source.asm's cold blocks,
 # build/elite-source-cold.asm and build/elite-data-cold.asm: ROMSEL COLDBANK,
 # bank 7). Each side's far-call stubs are in its own copy, at their targets'
 # places (tools/streams.py). Main RAM and bank 4 see each other (bank 4 is paged
@@ -49,10 +49,12 @@
 import re, sys
 
 SRC = "src/"
-FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm": "main",
-         "../build/elite-source-bank4.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "gfx-gstubs.asm": "main", "elite-qs.asm": "main", "gfx-hooks.asm": "main",
-         # elite-data.asm's hot data (in HAZEL) and cold data (in the cold area)
-         "../build/elite-data-hot.asm": "hazel", "../build/elite-data-cold.asm": "cold",
+FILES = {"../build/elite-source-config.asm": "main", "../build/elite-source-low.asm": "main",
+         "../build/elite-source-hot1.asm": "main", "../build/elite-source-hot2.asm": "main",
+         "../build/elite-source-hot3.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "gfx-gstubs.asm": "main", "elite-qs.asm": "main", "gfx-hooks.asm": "main",
+         # elite-data.asm's hot data (in HAZEL, and in bank 4 what HAZEL has no
+         # room for) and cold data (in the cold pass)
+         "../build/elite-data-hot.asm": "hazel", "../build/elite-data-hot4.asm": "bank4", "../build/elite-data-cold.asm": "cold",
          # the renderer: its HAZEL glue (stubs, trampolines, hooks, shared state)
          # and its banks
          "elite-glue.asm": "main",
@@ -67,8 +69,8 @@ FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm
          "gfx-raster_kept.asm": "bank5d", "gfx-kept7.asm": "bank7m", "gfx-kept-hz.asm": "hazel"}
 # the copies of elite-source.asm that tools/streams.py writes, one per area
 # (their line numbers are elite-source.asm's)
-SHOW = {"../build/elite-source-%s.asm" % a: "elite-source.asm" for a in ("run", "low", "bank4", "cold")}
-SHOW.update({"../build/elite-data-%s.asm" % a: "elite-data.asm" for a in ("hot", "cold")})
+SHOW = {"../build/elite-source-%s.asm" % a: "elite-source.asm" for a in ("config", "low", "hot1", "hot2", "hot3", "cold")}
+SHOW.update({"../build/elite-data-%s.asm" % a: "elite-data.asm" for a in ("hot", "hot4", "cold")})
 RENDER = ("bank5", "bank5d", "bank5a", "bank6", "bank7m")
 # the rasteriser's bank 5: its shared region (bank5, &9000-&BFFF) is seen with
 # either window, the disc window (bank5d, ROMSEL 5) or the polygon window
@@ -148,10 +150,6 @@ try:
         addr.setdefault(m.group(1), int(m.group(2)))
 except FileNotFoundError:
     pass
-for l, a in list(area.items()):           # the main code continues into bank 4:
-    if a == "main" and 0x8000 <= addr.get(l, 0) < 0xC000:   # the main files' labels
-        area[l] = "bank4"                  # assembled there are in bank 4
-
 errors = []
 for f, a in FILES.items():
     prev, prevop = None, None

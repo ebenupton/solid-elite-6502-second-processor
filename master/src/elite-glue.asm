@@ -1,20 +1,16 @@
 \ ******************************************************************************
 \
 \ elite-glue.asm - the glue area, first in the main code, in main RAM below
-\ the head (docs/MASTER-MAP.md)
+\ the low pass (docs/MASTER-MAP.md)
 \
-\ Port: INCLUDEd by elite-source.asm at CODE%, before the head (VEC to UP),
-\ which the run follows. One area, all of it below &3000 (asserted after
-\ UP), so it is visible whatever is paged at &8000-&BFFF and whatever
-\ ACCCON X is (the IRQ handler, the MOS vectors, entered with any ROM paged,
-\ and code that runs with ACCCON X set use much of it):
+\ Port: INCLUDEd by elite-layout.asm at CODE%, before the low pass (Elite's
+\ code that must be below &3000: the head, VEC to UP, then stackpt and
+\ NEWBRK). All of it is below &3000 (asserted after the low pass), so it is
+\ visible whatever is paged at &8000-&BFFF and whatever ACCCON X is (the IRQ
+\ handler, the MOS vectors, entered with any ROM paged, and code that runs
+\ with ACCCON X set use much of it). It holds the port's own code only:
 \
-\   * the blocks of elite-source.asm tagged low (build/elite-source-low.asm,
-\     which tools/streams.py writes): stackpt and NEWBRK, which the MOS enters
-\     through BRKV with the ROM that raised the error paged in, and whose
-\     original place is later in the run (in bank 4);
-\
-\   * the far calls between Elite's home bank and the cold area
+\   * the far calls between Elite's home bank and the cold pass
 \     (elite-far.asm), which page the banks;
 \
 \   * the renderer's glue: the variables that the game, the IRQ handler and
@@ -26,8 +22,6 @@
 \     (gfx-hooks.asm).
 \
 \ ******************************************************************************
-
- INCLUDE "build/elite-source-low.asm"   \ the blocks tagged low
 
  INCLUDE "src/elite-far.asm"            \ far calls to and from the cold area
 
