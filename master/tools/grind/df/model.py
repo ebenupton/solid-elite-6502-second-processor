@@ -17,7 +17,7 @@ Built from what master/tools/grind/mkbuild.sh leaves in a build directory:
 
 Segments (a record's segment is its CLEAR epoch plus the SAVE whose range covers it):
 
-  main  main RAM: BCODE &1EDC-&3FFF (with the far7 stubs at their cold routines'
+  main  main RAM: BCODE &1E2C-&3FFF (with the far7 stubs at their cold routines'
         places), HICODE &7000-&7FFF (QSL/QSH, renderer stubs and hooks, the
         lighting's game half)
   B4    BANK4.bin, sideways RAM bank 4 (Elite's home bank: the main code's

@@ -37,6 +37,7 @@ SRCH = os.path.join(ROOT, 'src', 'raster_hz.asm')
 SRC7 = os.path.join(ROOT, 'src', 'raster7.asm')
 HZ = 0xDC00                        # raster_hz.asm (HAZEL code in the real build)
 ROMSEL, ROMSELCOPY = 0xFE30, 0xF4
+NSTARS = 24                        # stars the rasteriser is given at most (R_SN; the Master: NDSTAR)
 EXTRA = []                         # (name, Tester method, count, (args)): run after the rest
 
 
@@ -733,7 +734,7 @@ class Tester:
             rad = rnd.uniform(150, 250)
             cx, cy = rnd.uniform(60, 200), rnd.uniform(150, 300)
         vx, vy, vr = rnd.uniform(-2, 2), rnd.uniform(-2, 2), rnd.uniform(-0.5, 0.5)
-        stars = [(rnd.randrange(256), rnd.randrange(192), rnd.randrange(1, 4)) for _ in range(rnd.randrange(0, 25))]
+        stars = [(rnd.randrange(256), rnd.randrange(192), rnd.randrange(1, 4)) for _ in range(rnd.randrange(0, NSTARS + 1))]
         ships = [(rnd.uniform(0, 256), rnd.uniform(0, 192), rnd.uniform(-3, 3), rnd.uniform(-3, 3)) for _ in range(rnd.randrange(0, 4))]
         dce, dco = rnd.randrange(256), rnd.randrange(256)
         dbe, dbo = rnd.randrange(256), rnd.randrange(256)
@@ -771,7 +772,14 @@ class Tester:
                 cx, cy, rad = rnd.uniform(-50, 300), rnd.uniform(-50, 250), rnd.uniform(0, 120)
             has_disc = sc != 'none' and (sc != 'mixed' or (f // 7) % 2 == 0)
             spans = {}
-            if has_disc:
+            if has_disc and beach:      # the game's disc: the integer circle the
+                ir = max(6, min(250, int(rad)))     # meridian window is given (the
+                for y in range(max(int(cy) - ir, 1), min(int(cy) + ir, 191) + 1):   # frame
+                    h = math.isqrt(ir * ir - (y - int(cy)) ** 2)   # layer's half-widths)
+                    l, r = max(int(cx) - h, 1), min(int(cx) + h, 254)
+                    if l <= r:
+                        spans[y] = (l, r)
+            elif has_disc:
                 for y in range(0, 192):
                     dy = y + 0.5 - cy
                     if abs(dy) < rad:
@@ -1130,18 +1138,18 @@ def bench(m, rnd):
     # stars
     m.call('R_SETBUF', a=0)
     m.clearall()
-    m.wr('R_SN', 24)
-    for i in range(24):
+    m.wr('R_SN', NSTARS)
+    for i in range(NSTARS):
         m.wr('R_SX', rnd.randrange(256), i); m.wr('R_SY', rnd.randrange(192), i); m.wr('R_SS', rnd.randrange(1, 4), i)
-    out.append('R_STARPLOT 24 stars (mixed sizes): %d cycles' % m.call('R_STARPLOT'))
-    out.append('R_STARERASE 24 stars (mixed sizes): %d cycles' % m.call('R_STARERASE'))
+    out.append('R_STARPLOT %d stars (mixed sizes): %d cycles' % (NSTARS, m.call('R_STARPLOT')))
+    out.append('R_STARERASE %d stars (mixed sizes): %d cycles' % (NSTARS, m.call('R_STARERASE')))
     for sz in (1, 2, 3):
-        for i in range(24):
+        for i in range(NSTARS):
             m.wr('R_SS', sz, i)
         m.call('R_DISCROWS')
         c = m.call('R_STARPLOT')
         e = m.call('R_STARERASE')
-        out.append('  stars of size %d: plot %4.0f, erase %3.0f cycles per star' % (sz, c / 24, e / 24))
+        out.append('  stars of size %d: plot %4.0f, erase %3.0f cycles per star' % (sz, c / NSTARS, e / NSTARS))
     out.append('R_RESETBUF: %d cycles' % m.call('R_RESETBUF'))
     out.append('R_SETBUF switch: %d cycles' % m.call('R_SETBUF', a=1))
     if 'R_CLEARALL' in m.syms:

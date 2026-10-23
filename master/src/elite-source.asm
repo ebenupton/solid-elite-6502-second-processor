@@ -56,12 +56,17 @@ ENDIF
 
 IF _TPART = 1
  CODE% = &1500          \ Port (Tube): the parasite's (tube/src/p-ws.asm below)
+ELIF _TPART = 2
+ CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
+                        \ the renderer's shared workspace below it (gfx-ws.asm)
 ELSE
- CODE% = &1EDC          \ The address where the code will be run (Port: the
+ CODE% = &1E2C          \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
-                        \ docs/MASTER-MAP.md; its low byte is chosen so that the
-                        \ font, at its place after ADDK, starts a page with no
-                        \ padding: the build prints the padding, FONTPAD%)
+                        \ docs/MASTER-MAP.md; the low area, elite-low.asm, starts
+                        \ here and the head follows it, and the low byte is
+                        \ chosen so that the font, at its place after ADDK,
+                        \ starts a page with no padding: the build prints the
+                        \ padding, FONTPAD%)
 ENDIF
 
  LOAD% = CODE%          \ The address where the code will be loaded
@@ -2162,6 +2167,24 @@ ENDIF
  ORG CODE%              \ Set the assembly address to CODE%
 
  LOAD_A% = LOAD%
+
+\ ******************************************************************************
+\
+\ Port: the low area (elite-low.asm, docs/MASTER-MAP.md), first in the main
+\ code: the blocks of this source tagged low and the port's own code and
+\ variables that must be in main RAM outside the banks; then the head, the
+\ original's VEC to UP; then the run, from M%, straight after UP. All of the
+\ low area and the head are below &3000 (asserted after UP)
+\
+\ ******************************************************************************
+
+IF _TUBE = FALSE         \ (Tube: the parasite's low area, p-low.asm, at the head's end)
+
+ INCLUDE "src/elite-low.asm"
+
+ENDIF
+
+.HEAD_START%            \ Port: the head, the original's VEC to UP
 
 \ ******************************************************************************
 \
@@ -7422,7 +7445,7 @@ ENDIF
 
                         \ Port: removed (unreachable: its only caller was
                         \ HANGER, removed as the renderer draws the hangar; the
-                        \ floor's rows are a table, HFY, gfx-hangar-hz.asm)
+                        \ floor's rows are a table, HFY, gfx-hangar6.asm)
 
 \ ******************************************************************************
 \
@@ -9549,32 +9572,28 @@ ENDIF
 
 \ ******************************************************************************
 \
-\ Port: the end of the main code's head, which is in main RAM below &3000: the
-\ low area (elite-low.asm, docs/MASTER-MAP.md), the blocks of this source
-\ tagged low and the port's own code and variables that must be low
+\ Port (Tube): the parasite's low area (tube/src/p-low.asm), at the end of the
+\ head, where the Master port's was before it moved ahead of the head
 \
 \ ******************************************************************************
 
 IF _TUBE
 
- INCLUDE "tsrc/p-low.asm"               \ Port (Tube): the parasite's low area
-
-ELSE
-
- INCLUDE "src/elite-low.asm"
+ INCLUDE "tsrc/p-low.asm"
 
 ENDIF
 
-.HEAD_END%
+.HEAD_END%              \ Port: the end of the head, where the run starts (M%)
 
- PRINT "Main code below &3000: ", ~CODE%, "-", ~HEAD_END%-1, " free ", &3000-HEAD_END%, " (the font's alignment: ", FONTPAD%, " bytes of padding)"
- ASSERT P% <= &3000 OR _TUBE     \ Port: everything up to here must be below &3000, as it
-                        \ is used while ACCCON X = 1 (shadow RAM at &3000-&7FFF),
-                        \ from interrupts or from MOS vectors with any ROM paged:
-                        \ the IRQ and sound code, CHPR and its font, the log
-                        \ tables (LOINQ), HANGFLAG (HANGER), ADDK (DIALS, PIX1),
-                        \ UP (CATF, FLH, COMC) and the low area (NEWBRK, the far
-                        \ calls, the renderer's glue)
+ PRINT "Low area: ", ~CODE%, "-", ~HEAD_START%-1, "; head: ", ~HEAD_START%, "-", ~HEAD_END%-1, " (the font's alignment: ", FONTPAD%, " bytes of padding); free below &3000: ", &3000-HEAD_END%
+ ASSERT HEAD_END% <= &3000 OR _TUBE \ Port: the low area and the head must be below
+                        \ &3000: they are used while ACCCON X = 1 (shadow RAM at
+                        \ &3000-&7FFF), from interrupts or from MOS vectors with
+                        \ any ROM paged: the low area (NEWBRK, the far calls,
+                        \ the renderer's glue and hooks), the IRQ and sound
+                        \ code, CHPR and its font, the log tables (LOINQ),
+                        \ HANGFLAG (HANGER), ADDK (DIALS, PIX1) and UP (CATF,
+                        \ FLH, COMC)
 
 \ ******************************************************************************
 \
@@ -17596,6 +17615,7 @@ ENDIF
  PRINT "S.ELTB ", ~CODE_B%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_B%
 \SAVE "build/ELTB.bin", CODE_B%, P%, LOAD%
 
+
 \ ******************************************************************************
 \
 \ ELITE C FILE
@@ -18020,10 +18040,11 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+
 \ ******************************************************************************
 \
-\ Port: the main code continues in main RAM at &7000 from here, after the high
-\ code (elite-hi.asm), and runs on through &8000 into bank 4
+\ Port: the main code continues in main RAM at &7400 from here, after the
+\ quarter-square tables (elite-qs.asm, &7000-&73FF), and runs on through &8000 into bank 4
 \ (docs/MASTER-MAP.md), at a routine that nothing falls into. The part from
 \ CODE%, below screen buffer 0 (main RAM &4000-&6FFF), is saved as BCODE; the
 \ part from &7000 as HICODE and the rest, in bank 4, with the blocks tagged
@@ -18039,7 +18060,7 @@ IF _TUBE
 
  ALIGN &100
 
- INCLUDE "src/elite-hi.asm"             \ the quarter squares
+ INCLUDE "src/elite-qs.asm"             \ the quarter-square tables
 
 ELSE
 
@@ -18051,11 +18072,11 @@ ELSE
  CLEAR &7000, &C000
  ORG &7000
 
- INCLUDE "src/elite-hi.asm"             \ the quarter squares
+ INCLUDE "src/elite-qs.asm"             \ the quarter-square tables
 
 ENDIF
 
-.HI_RUN%
+.QS_RUN%
 
 \ ******************************************************************************
 \
@@ -21118,7 +21139,7 @@ ENDIF
  RTS                    \ Return from the subroutine
 
 \ Port: QMUL src, dst, mul (MULT3 and MLTU2): A = src * mul, 8-bit by 8-bit
-\ by quarter squares (QSL and QSH, elite-hi.asm), the low byte in dst; X and Y
+\ by quarter squares (QSL and QSH, elite-qs.asm), the low byte in dst; X and Y
 \ are clobbered
 
 MACRO QMUL src, dst, mul
@@ -21186,7 +21207,7 @@ ENDMACRO
 
 .MULT3
 
-                        \ Port: by quarter squares (QSL and QSH, elite-hi.asm):
+                        \ Port: by quarter squares (QSL and QSH, elite-qs.asm):
                         \ the three bytes' products by |Q|, added. Exactly the
                         \ original's results: K(3 2 1 0) with the sign of A
                         \ EOR Q, A = K+3, R = the argument A, Y kept, N and Z
@@ -21414,7 +21435,7 @@ ENDMACRO
 .MULTS
 
                         \ Port: the product by quarter squares (the tables QSL
-                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ and QSH, elite-qs.asm), with exactly the original's
                         \ results: (A P) = |A| * (P AND 31) with A's sign (the
                         \ shift-and-add only used bits 0-4 of P), Y kept (T,
                         \ T1, X, C, N, Z and V are left differently, but every
@@ -21675,7 +21696,7 @@ ENDMACRO
 .MU11
 
                         \ Port: the product by quarter squares (the tables QSL
-                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ and QSH, elite-qs.asm), with exactly the original's
                         \ results: (A P) = P * X (X = T + 1 = 1..255), T = X - 1,
                         \ X = 0, Y kept, C clear (callers use it)
 
@@ -21930,7 +21951,7 @@ ENDMACRO
 
 .MLTU2
 
-                        \ Port: by quarter squares (QSL and QSH, elite-hi.asm):
+                        \ Port: by quarter squares (QSL and QSH, elite-qs.asm):
                         \ (A P+1 P) = Q * (A ~P) as the two bytes' products,
                         \ added. Exactly the original's results: Q kept, C
                         \ clear (X, Y, N and Z differ: no caller reads them,
@@ -22102,7 +22123,7 @@ ENDMACRO
 .MULT1
 
                         \ Port: the product by quarter squares (the tables QSL
-                        \ and QSH, elite-hi.asm), with exactly the original's
+                        \ and QSH, elite-qs.asm), with exactly the original's
                         \ results: (A P) = |A| * |Q| with the sign of A EOR Q,
                         \ T = the sign, Y kept; |Q| = 0: A = P = 0, X = the
                         \ argument A, C = its bit 0, Z set; else X = 0, T1 =
@@ -49076,7 +49097,7 @@ ENDIF
 \ holds a frame (the next space-mode frame clears it, f_b0new). DFS's and
 \ the MOS's lasting bytes (&C2C0-&C2FF, and &DFC0-&DFFF: the MOS's FSCV copy
 \ at &DFDA-&DFDB, and the ACCCON its error path puts back from &DFDC when
-\ &DFDD is non-zero) live in DFSST while the game runs (the loader takes
+\ &DFDD is non-zero) live in DFSST and DFSST2 while the game runs (the loader takes
 \ them after its last disc access): they go back before the command and are
 \ stashed again after it (or after its error, through DOSNMI), as *DIR and
 \ *DRIVE change them. Before the command the catalogue cache is invalidated
@@ -49138,7 +49159,7 @@ ELSE
 .dosc1
  LDA DFSST,X
  STA &C2C0,X
- LDA DFSST+64,X
+ LDA DFSST2,X
  STA &DFC0,X
  DEX
  BPL dosc1
@@ -49202,7 +49223,7 @@ ELSE
  LDA &C2C0,X
  STA DFSST,X
  LDA &DFC0,X
- STA DFSST+64,X
+ STA DFSST2,X
  DEX
  BPL dosn2
  LDX #&40

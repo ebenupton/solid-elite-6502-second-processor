@@ -40,6 +40,8 @@ INCLUDE "src/gfx-raster_lcold.asm"   \ R_LINE's cold part
 ASSERT B5_END <= &C000
 ORG &8000
 INCLUDE "src/gfx-raster_disc.asm"
+INCLUDE "src/gfx-raster_kept.asm"   \ kept solid rows: bank 5's part
+
 .B5LO_END
 ASSERT B5LO_END <= &9000
 PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", &9000-B5LO_END, "), shared &9000-", ~B5_END-1, " free ", &C000-B5_END, " (+ ", r_tables-r_tfree, " at ", ~r_tfree, ")"
@@ -49,6 +51,7 @@ CLEAR COLD_END%, &C000  \ bank 7 after the cold area (ROMSEL MERIDBANK): the
 ORG COLD_END%           \ meridian window, the beach ball planet's boundaries
 .MERID_START
 INCLUDE "src/gfx-merid.asm"
+INCLUDE "src/gfx-kept7.asm"    \ kept solid rows: the polygons' part (SOLIDSPAN-REPORT.md)
 .MERID_END
 ASSERT MERID_END <= &C000
 PRINT "Bank 7: meridian window ", ~MERID_START, "-", ~MERID_END-1, ", bank 7 free ", &C000-MERID_END
@@ -87,8 +90,10 @@ ASSERT F_ST = F_TM + &300
 .F_SHR0 SKIP 24
 .F_SHR1 SKIP 24
 .F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm's F_DSTAR,
-.F_DSY  SKIP NDSTAR     \ f_unstar): x and y (F_DSS, their sizes, in the
-                        \ shared workspace after R_SS, cleared with it)
+.F_DSY  SKIP NDSTAR     \ f_unstar): x and y (their sizes, F_DSS, in the shared
+                        \ workspace)
+ INCLUDE "src/gfx-hangar6.asm"   \ the hangar's tables (f_hback; data
+                        \ before them stays at its place)
 .B6_END
 PRINT "Bank 6: frame layer &8000-", ~B6_CODE_END-1, ", data ", ~F_HW, "-", ~B6_END-1, " free ", &C000-B6_END
 ASSERT B6_END <= &C000

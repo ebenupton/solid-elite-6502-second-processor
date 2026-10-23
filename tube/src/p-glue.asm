@@ -259,3 +259,11 @@ NEXT
  PLA
  PLA
  JMP RR4
+
+\ The kept solid rows' entry points (gfx-raster_kept.asm in the Master port):
+\ off on the Tube for now (KMODE stays 0, so T_KROWS is never reached)
+.T_KFRAME
+.T_KCOMMIT
+.T_KOFF
+.T_KROWS
+ RTS

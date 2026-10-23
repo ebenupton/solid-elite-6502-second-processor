@@ -17,8 +17,8 @@
 \
 \   * the run: the configuration and the workspaces, then the main code from
 \     CODE% in main RAM (saved as BCODE) to its split, below screen buffer 0
-\     at &4000, continuing at &7000 after the high code (elite-hi.asm: the
-\     quarter squares and the lighting) and running on into bank 4 at &8000
+\     at &4000, continuing at &7400 after the quarter-square tables
+\     (elite-qs.asm, &7000-&73FF) and running on into bank 4 at &8000
 \     (main RAM from &7000 saved as HICODE);
 \
 \   * bank 4: the blocks that must be in bank 4, after the run;
@@ -38,7 +38,7 @@
 
  ASSERT P% >= &8000     \ (the run's part from &7000 fills main RAM to &8000)
 
- PRINT "High code: &7000-", ~HI_RUN%-1, ", then the run from ", ~HI_RUN%, " to &7FFF"
+ PRINT "Quarter-square tables: &7000-", ~QS_RUN%-1, ", then the run from ", ~QS_RUN%, " to &7FFF"
  SAVE "build/HICODE.bin", &7000, &8000, &7000
 
 \ ******************************************************************************
@@ -64,8 +64,7 @@
 \ E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's, SNE and
 \ ACT. DOSCLI stashes all of HAZEL in screen buffer 0 around each disc
 \ command, so the data may sit anywhere in it; nothing the IRQ handler or
-\ CHPR uses during a command is here. After the data, the hangar's tables
-\ (gfx-hangar-hz.asm). Saved as HAZEL (it ends below &DF00: the MOS's own
+\ CHPR uses during a command is here. Saved as HAZEL (it ends below &DF00: the MOS's own
 \ bytes from &DF00 on are left as the loader's disc accesses left them, and
 \ are not for the game's data), which the loader copies into place after its last disc
 \ access (and the data as HZDATA, for the tools).
@@ -81,11 +80,9 @@
 
 .HZDATA_END%
 
- INCLUDE "src/gfx-hangar-hz.asm"    \ Port: the hangar's tables
-
 .HZ_END
 
- PRINT "HAZEL: game data &C000-", ~HZDATA_END%-1, ", the hangar's tables to ", ~HZ_END-1, ", free ", &DF00-HZ_END, " (+ 256 at &DF00, the MOS's)"
+ PRINT "HAZEL: game data &C000-", ~HZDATA_END%-1, ", free ", &DF00-HZ_END, " (+ 256 at &DF00, the MOS's)"
  ASSERT HZ_END <= &DF00  \ (&DF00-&DFFF is the MOS's: its FS numbers and
                         \ filing-system names, its lasting state)
  SAVE "build/HZDATA.bin", &C000, HZDATA_END%, &C000

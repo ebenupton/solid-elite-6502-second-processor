@@ -118,21 +118,11 @@ grep -E "^(Parasite|Host)" build/compile-p.txt build/compile-h.txt | sed 's/^bui
 mkdir -p build/nmos
 NM="python3 $TUBE_DIR/tools/nmos.py"
 $NM src/gfx-raster.asm build/nmos/gfx-raster.asm --report build/nmos/gfx-raster.txt > /dev/null
-$NM src/gfx-raster_disc.asm build/nmos/gfx-raster_disc.asm --report build/nmos/gfx-raster_disc.txt \
-  --sub "  LDX r_lo
-.m0
-.^r_pt110 STZ r_bdn,X
-.^r_pt111 STZ r_bdp,X=  LDX r_lo
-  LDA #0                  \\ (NMOS: STZ x 2, A dead)
-.m0
-.^r_pt110 STA r_bdn,X
-.^r_pt111 STA r_bdp,X" > /dev/null
 $NM src/gfx-raster_pset.asm build/nmos/gfx-raster_pset.asm --report build/nmos/gfx-raster_pset.txt > /dev/null
 $NM src/gfx-raster_arith.asm build/nmos/gfx-raster_arith.asm --report build/nmos/gfx-raster_arith.txt > /dev/null
 $NM src/gfx-raster_polyb.asm build/nmos/gfx-raster_polyb.asm --report build/nmos/gfx-raster_polyb.txt > /dev/null
 sed -i '' 's|INCLUDE "src/gfx-raster_arith.asm"|INCLUDE "build/nmos/gfx-raster_arith.asm"|' build/nmos/gfx-raster.asm
 sed -i '' 's|INCLUDE "src/gfx-raster_pset.asm"|INCLUDE "build/nmos/gfx-raster_pset.asm"|' build/nmos/gfx-raster.asm
-$NM src/gfx-raster_rep.asm build/nmos/gfx-raster_rep.asm --report build/nmos/gfx-raster_rep.txt > /dev/null
 $NM src/gfx-raster_poly.asm build/nmos/gfx-raster_poly.asm --report build/nmos/gfx-raster_poly.txt > /dev/null
 sed -i '' 's|INCLUDE "src/gfx-raster_polyb.asm"|INCLUDE "build/nmos/gfx-raster_polyb.asm"|' build/nmos/gfx-raster_poly.asm
 $NM src/gfx-raster_lineb.asm build/nmos/gfx-raster_lineb.asm --report build/nmos/gfx-raster_lineb.txt > /dev/null

@@ -440,9 +440,10 @@ IF _TPART <> 2 OR _TDUMB = FALSE
 ELSE
  LDA #0                 \ (the dumb host: no text map)
 ENDIF
- LDX #23+NDSTAR         \ the stars will be re-recorded too (and F_DSS
-.fdi1                   \ after R_SS: no direct-mode stars noted)
+ LDX #NDSTAR-1          \ the stars will be re-recorded too (and no
+.fdi1                   \ direct-mode stars noted: F_DSS)
  STA R_SS,X
+ STA F_DSS,X
  DEX
  BPL fdi1
  RTS
@@ -725,6 +726,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STY f_ysav
  LDA QQ11
  BEQ ff1
+ JSR T_KOFF             \ (no kept rows: SOLIDSPAN-REPORT.md)
  JMP f_reset            \ not a space view: just forget what was recorded
 
 .ff1
@@ -767,6 +769,8 @@ IF _TPART = 1 AND _TDUMB = FALSE
  JSR p_fb               \ (Tube: the host does all of that's screen work, as
                         \ below, up to the stars' erasure: tube/src/h-frame.asm)
 ELSE
+ LDA F_BACK              \ K mode: kept solid rows (gfx-raster_kept.asm)
+ JSR T_KFRAME
  LDA F_BACK
  JSR T_SETBUF
  JSR f_text1            \ text cells to be erased: background them (old dirty)
@@ -794,6 +798,7 @@ ENDIF
 .ff_lin                 \ (F_HANGAR points this call at f_hback for its frame)
  JSR f_lines            \ planet meridians, craters, enemy lasers
  JSR f_ships            \ filled ships, far to near
+ JSR T_KCOMMIT          \ (K mode: the kept rows still pending blacked)
  JSR f_dots             \ particles, distant ships
  JSR f_lasers           \ our laser beams and the sights
  JSR f_flt              \ the lens flare (gfx-flare6.asm), then the text on top

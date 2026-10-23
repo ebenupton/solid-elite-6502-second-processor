@@ -277,6 +277,24 @@ ENDIF
 \ the glyph's pixels and only inside the clip window
 
 .f_glyph
+IF _TPART <> 2            \ (the Tube's host: no kept rows, they are the parasite's)
+ BIT KMODE              \ K mode: the cell's rows are not kept
+ BPL fgk
+ PHA
+ PHY
+ LDA fz_i               \ (rows 8 * row .. + 7)
+ ASL A
+ ASL A
+ ASL A
+ PHA
+ ADC #7                 \ (C = 0)
+ TAX
+ PLA
+ JSR T_KROWS
+ PLY
+ PLA
+.fgk
+ENDIF
 IF _TPART = 1             \ (Tube: the host draws it: C_GLYPH, the character, the
  PHA                    \ column, the text row; keeps Y)
  LDA #C_GLYPH

@@ -1,7 +1,7 @@
 \ gfx-raster_stio.asm - the Tube's dumb host: the star records go to the parasite,
 \ which keeps them (tube/src/h-prim.asm's h_stars, h_starerase), INCLUDEd
 \ with the stars' bank. A record is 4 bytes, sent last array first (r_s0b,
-\ r_s0a, r_s0x, r_s0y), for this buffer (r_buf: buffer 1's arrays are buffer
+\ r_s0a, r_s0x, r_s0y), for this buffer (R_PRBUF: buffer 1's arrays are buffer
 \ 0's + &300)
 
 MACRO RSTX                \ (HTX: the Master host's bank 5 has no room for it)
@@ -21,7 +21,7 @@ ENDMACRO
 
 .r_stout                  \ buffer A's records to the parasite: the count,
   TAX                     \ then the records
-  LDA r_scnt,X
+  LDA R_PRSCNT,X
   RSTX
   JSR r_stn
 .rso1
@@ -42,8 +42,8 @@ ENDMACRO
 
 .r_stin                   \ the parasite's records for this buffer, then
   HRX                     \ R_STARERASE
-  LDX r_buf
-  STA r_scnt,X
+  LDX R_PRBUF
+  STA R_PRSCNT,X
   JSR r_stn
 .rsi1
   CPX RZ_T0

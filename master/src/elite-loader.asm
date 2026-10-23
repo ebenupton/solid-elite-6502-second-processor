@@ -548,10 +548,10 @@ ENDIF
  LDA &C2C0,X
  STA DFSST,X
  LDA &DFC0,X
- STA DFSST+64,X
+ STA DFSST2,X
  DEX
  BPL DFST
- STZ DFSST+128          \ (DFSIN: no disc command under way)
+ STZ DFSIN              \ (no disc command under way)
 
  LDX #0
  LDY #HI(HZLEN+255)     \ (whole pages)
@@ -822,8 +822,8 @@ ENDIF
  EQUW &4000, HZLEN      \ HAZEL after the last disc access (see LDEND), as DFS
                         \ uses HAZEL
 
- EQUW MESS14            \ HICODE: the high code (the quarter squares, the
- EQUB HOMEBANK, %00001001 \ renderer's stubs and hooks), main RAM &7000-&7FFF
+ EQUW MESS14            \ HICODE: the quarter-square tables, then the
+ EQUB HOMEBANK, %00001001 \ run's second part, main RAM &7000-&7FFF
  EQUW &7000, HILEN
 
  EQUW 0

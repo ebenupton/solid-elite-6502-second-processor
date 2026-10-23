@@ -33,7 +33,7 @@ PRINT "Parasite: run and Master's drawing end at &", ~P%
 .HZ_START
  INCLUDE "build/elite-data-hot.asm"
 .HZDATA_END%
- INCLUDE "src/gfx-hangar-hz.asm"
+ INCLUDE "src/gfx-hangar6.asm"
 .HZ_END
 
 PRINT "Parasite: data end at &", ~P%

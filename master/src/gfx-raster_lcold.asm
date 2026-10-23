@@ -102,3 +102,26 @@
 IF _TDUMB AND _TPART = 2 AND _HOSTB   \ (the Tube's dumb host: the star records' I/O,
  INCLUDE "src/gfx-raster_stio.asm"     \ Model B: bank P's, with the stars)
 ENDIF
+
+IF _HOSTB = FALSE          \ (the Tube's Model B host: tube/src/hb-ws.asm's)
+\ The rasteriser's private state (here, last in bank 5's shared region, which
+\ both its windows see; only the rasteriser reads or writes it, and R_INIT
+\ sets it up): the state the disc window and the polygon window share
+.R_PRBUF    SKIP 1
+.R_PRDYT    SKIP 2
+.R_PRDYB    SKIP 2
+.R_PRDST    SKIP 2
+.R_PRDSB    SKIP 2
+.R_PRSCNT   SKIP 2
+.R_PRECNT   SKIP 2
+.R_PRWT     SKIP 1
+.R_PRWB     SKIP 1
+.R_PRBMODE  SKIP 2
+.R_PRNT     SKIP 1          \ R_DISCROWS' scalars
+.R_PRNB     SKIP 1
+.R_PRLO     SKIP 1
+.R_PRHI     SKIP 1
+.R_PRDYA    SKIP 1
+.R_PRDYZ    SKIP 1
+.R_PRCWB    SKIP 1
+ENDIF

@@ -221,7 +221,7 @@ export function attachProbe(cpu, sy, opts = {}) {
         if (addr >= 0x7000 && addr < 0x7e00) {
             if (!page) {
                 fr.dashMainBytes++;
-                if (addr >= (sy.QSL ?? 0x7200)) fr.beyondCopy++;   // (the high code: from &7000 since the copy of the dashboard's first row went)
+                if (addr >= (sy.QSL ?? 0x7200)) fr.beyondCopy++;   // (the quarter-square tables: from &7000 since the copy of the dashboard's first row went)
                 if (lineSeen[line] !== fno) { lineSeen[line] = fno; fr.dashMain++; fr.lateMainLines.push(line); }
             }
         }

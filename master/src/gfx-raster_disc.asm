@@ -17,83 +17,73 @@
   BCS t1
   LDA R_CT
 .t1
-  STA r_nt
+  STA R_PRNT
   LDA R_NDB
   CMP R_CB
   BCC t2
   LDA R_CB
 .t2
-  STA r_nb
-  CMP r_nt
+  STA R_PRNB
+  CMP R_PRNT
   BCS t3
   LDA #&FF
-  STA r_nt
-  STZ r_nb
+  STA R_PRNT
+  STZ R_PRNB
 .t3
-IF _TPART = 2 AND _TDUMB = FALSE  \ (Tube: the host's pre-erase has started them,
-  LDA hpe_w               \ tube/src/h-main.asm)
-  BEQ t3a
-  STZ hpe_w
-  BRA t3b
-.t3a
-ENDIF
   JSR r_wclear            \ clear last frame's WL/WR rows
   LDA #&FF
-  STA r_wt
-  STZ r_wb
-IF _TPART = 2 AND _TDUMB = FALSE
-.t3b
-ENDIF
+  STA R_PRWT
+  STZ R_PRWB
   \ lo..hi = old disc rows + dirty rows + new disc rows
-  LDX r_buf
-  LDA r_dst,X
-  CMP r_dyt,X
+  LDX R_PRBUF
+  LDA R_PRDST,X
+  CMP R_PRDYT,X
   BCC t4
-  LDA r_dyt,X
+  LDA R_PRDYT,X
 .t4
-  CMP r_nt
+  CMP R_PRNT
   BCC t5
-  LDA r_nt
+  LDA R_PRNT
 .t5
-  STA r_lo
-  LDA r_dsb,X
-  CMP r_dyb,X
+  STA R_PRLO
+  LDA R_PRDSB,X
+  CMP R_PRDYB,X
   BCS t6
-  LDA r_dyb,X
+  LDA R_PRDYB,X
 .t6
-  CMP r_nb
+  CMP R_PRNB
   BCS t7
-  LDA r_nb
+  LDA R_PRNB
 .t7
-  STA r_hi
-  LDA r_dyt,X             \ dirty rows (for the loop split)
-  STA r_dya
-  LDA r_dyb,X
-  STA r_dyz
+  STA R_PRHI
+  LDA R_PRDYT,X             \ dirty rows (for the loop split)
+  STA R_PRDYA
+  LDA R_PRDYB,X
+  STA R_PRDYZ
   JSR r_crep5             \ dirty rows that are no disc rows: bank 7
-  LDA r_nt
-  STA r_dst,X
-  LDA r_nb
-  STA r_dsb,X
+  LDA R_PRNT
+  STA R_PRDST,X
+  LDA R_PRNB
+  STA R_PRDSB,X
   LDA #&FF
-  STA r_dyt,X
-  STZ r_dyb,X
-  LDA r_hi
-  CMP r_lo
+  STA R_PRDYT,X
+  STZ R_PRDYB,X
+  LDA R_PRHI
+  CMP R_PRLO
   BCS go
   JMP stars
 .go
   \ rows of lo..hi outside nt..nb: new = empty
-  LDX r_hi
+  LDX R_PRHI
   INX
   STX RZ_T0               \ hi + 1
-  LDA r_nt                \ lo .. min(nt, hi+1) - 1
+  LDA R_PRNT                \ lo .. min(nt, hi+1) - 1
   CMP RZ_T0
   BCC pa
   LDA RZ_T0
 .pa
   STA pe1+1
-  LDX r_lo
+  LDX R_PRLO
   CPX pe1+1
   BCS pb
   LDA #&FF
@@ -105,14 +95,14 @@ ENDIF
   CPX #0
   BNE pf1
 .pb
-  LDA r_nt                \ no new disc: done
+  LDA R_PRNT                \ no new disc: done
   CMP #&FF
   BEQ pf5
-  LDX r_nb                \ max(nb+1, lo) .. hi
+  LDX R_PRNB                \ max(nb+1, lo) .. hi
   INX
-  CPX r_lo
+  CPX R_PRLO
   BCS pc
-  LDX r_lo
+  LDX R_PRLO
 .pc
   CPX RZ_T0
   BCS pf5
@@ -127,42 +117,42 @@ ENDIF
   CPX #0
   BNE pf4
 .pf5
-  LDX r_buf               \ boundaries this frame or last time: r_dbm
+  LDX R_PRBUF               \ boundaries this frame or last time: r_dbm
   LDA R_NDF
-  ORA r_bmode,X
+  ORA R_PRBMODE,X
   BEQ plain
   JMP r_dbm
 .plain
   \ split lo..hi at the dirty rows: A-loop (no dirty) / B-loop
-  LDA r_dyz
-  CMP r_dya
+  LDA R_PRDYZ
+  CMP R_PRDYA
   BCC alla                \ no dirty rows
-  LDA r_dya               \ clip the dirty rows to lo..hi
-  CMP r_lo
+  LDA R_PRDYA               \ clip the dirty rows to lo..hi
+  CMP R_PRLO
   BCS s1
-  LDA r_lo
-  STA r_dya
+  LDA R_PRLO
+  STA R_PRDYA
 .s1
-  LDA r_dyz
-  CMP r_hi
+  LDA R_PRDYZ
+  CMP R_PRHI
   BCC s2
-  LDA r_hi
-  STA r_dyz
+  LDA R_PRHI
+  STA R_PRDYZ
 .s2
-  LDX r_lo                \ lo .. dyt-1
-  LDA r_dya
+  LDX R_PRLO                \ lo .. dyt-1
+  LDA R_PRDYA
   JSR r_dla
-  LDX r_dya               \ dyt .. dyb
-  LDA r_dyz
+  LDX R_PRDYA               \ dyt .. dyb
+  LDA R_PRDYZ
   INC A
   JSR r_dlb
-  LDX r_dyz               \ dyb+1 .. hi
+  LDX R_PRDYZ               \ dyb+1 .. hi
   INX
   BRA tail
 .alla
-  LDX r_lo
+  LDX R_PRLO
 .tail
-  LDA r_hi
+  LDA R_PRHI
   INC A
   JSR r_dla
 .stars
@@ -178,7 +168,7 @@ ENDIF
 \ ============================================================================
 .r_dbm
 {
-  LDX r_buf               \ the boundary arrays' operands: patched only here
+  LDX R_PRBUF               \ the boundary arrays' operands: patched only here
   CPX r_sbbdb             \ (two-colour discs only)
   BNE pp
   JMP pt
@@ -228,42 +218,42 @@ ENDIF
   STA r_pt406+2
   STA r_pt407+2
 .pt
-  LDX r_buf
-  LDA r_bmode,X           \ plain last time: its rows had no boundaries
+  LDX R_PRBUF
+  LDA R_PRBMODE,X           \ plain last time: its rows had no boundaries
   BNE m1
-  LDX r_lo
+  LDX R_PRLO
 .m0
 .^r_pt110 STZ r_bdn,X
 .^r_pt111 STZ r_bdp,X
-  CPX r_hi
+  CPX R_PRHI
   INX
   BCC m0
-  LDX r_buf
+  LDX R_PRBUF
 .m1
   LDA R_NDF
-  STA r_bmode,X
+  STA R_PRBMODE,X
   LDA #1
   STA r_bon
   LDA R_NDF               \ rows without new boundaries: count 0, colour A
   BNE z0
-  LDX r_lo                \ (no boundaries this frame: all of lo..hi)
-  LDY r_hi
+  LDX R_PRLO                \ (no boundaries this frame: all of lo..hi)
+  LDY R_PRHI
   JSR zr
   BRA z9
 .z0
-  LDX r_lo                \ lo .. nt-1
-  LDY r_nt
+  LDX R_PRLO                \ lo .. nt-1
+  LDY R_PRNT
   BEQ z5
   DEY
-  CPY r_hi
+  CPY R_PRHI
   BCC z4
-  LDY r_hi
+  LDY R_PRHI
 .z4
   JSR zr
 .z5
-  LDX r_nb                \ nb+1 .. hi
+  LDX R_PRNB                \ nb+1 .. hi
   INX
-  LDY r_hi
+  LDY R_PRHI
   JSR zr
   BRA z9
 .zr                       \ rows X .. Y (none if X > Y)
@@ -282,8 +272,8 @@ ENDIF
 .zx
   RTS
 .z9
-  LDX r_lo
-  LDA r_hi
+  LDX R_PRLO
+  LDA R_PRHI
   INC A
   JSR r_dmb
   STZ r_bon
@@ -319,15 +309,15 @@ ENDIF
   CPX #0
   BNE lp
   DEX                     \ rows st .. end-1 may have WL/WR (r_dq leaves
-  CPX r_wb                \ r_wt/r_wb to this)
+  CPX R_PRWB                \ R_PRWT/R_PRWB to this)
   BCC e1
-  STX r_wb
+  STX R_PRWB
 .e1
 .st
   LDX #0
-  CPX r_wt
+  CPX R_PRWT
   BCS e2
-  STX r_wt
+  STX R_PRWT
 .e2
   RTS
 .smd
@@ -409,13 +399,7 @@ ENDIF
   LSR A
   LSR A
   AND #&FE
-IF _HOSTB
-  CLC                     \ (Model B: the buffer's screen base, R_SETBUF's)
-.^r_bs5
-  ADC #&40
-ELSE
   ORA #&40
-ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -921,13 +905,7 @@ ENDIF
   LSR A
   LSR A
   AND #&FE
-IF _HOSTB
-  CLC
-.^r_bs6
-  ADC #&40
-ELSE
   ORA #&40
-ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -1011,11 +989,11 @@ ENDIF
   STA R_WR,Y
   LDA r_wmin
   STA R_WL,Y
-  CPY r_wt
+  CPY R_PRWT
   BCS wz
-  STY r_wt
+  STY R_PRWT
 .wz
-  STY r_wb
+  STY R_PRWB
 .none
   RTS
 }
@@ -1161,18 +1139,18 @@ ENDIF
 
 
 \ ============================================================================
-\ r_wclear: R_WR[r_wt .. r_wb] = 0, in blocks of 8 rows from (r_wb OR 7) down
-\ to (r_wt AND &F8): the rows of those blocks outside r_wt..r_wb are 0
+\ r_wclear: R_WR[R_PRWT .. R_PRWB] = 0, in blocks of 8 rows from (R_PRWB OR 7) down
+\ to (R_PRWT AND &F8): the rows of those blocks outside R_PRWT..R_PRWB are 0
 \ already.  Clobbers A, X.
 \ ============================================================================
 .r_wclear
 {
-  LDA r_wb
-  CMP r_wt
+  LDA R_PRWB
+  CMP R_PRWT
   BCC none
   ORA #7
   TAX
-  LDA r_wt
+  LDA R_PRWT
   AND #&F8
   STA lim+1
 .lp
@@ -1282,11 +1260,6 @@ ENDIF
   STA RZ_PA
   STA RZ_PB
   LDA r_ypg,X
-IF _HOSTB
-  CLC                     \ (Model B: less &40 for buffer 0's base, R_SETBUF's)
-.^r_bs4
-  ADC #0
-ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
@@ -1421,11 +1394,11 @@ ENDIF
 .fin2
   LDA r_wmin              \ R_WL: the bytes written
   STA R_WL,X
-  CPX r_wt
+  CPX R_PRWT
   BCS w1
-  STX r_wt
+  STX R_PRWT
 .w1
-  STX r_wb                \ rows go upwards
+  STX R_PRWB                \ rows go upwards
 .none
   RTS
 .onew0                    \ old span empty: nothing noted yet
@@ -1727,13 +1700,13 @@ ENDIF
   BEQ nw
   LDA r_wmin
   STA R_WL,Y
-  CPY r_wt
+  CPY R_PRWT
   BCS w1
-  STY r_wt
+  STY R_PRWT
 .w1
-  CPY r_wb
+  CPY R_PRWB
   BCC nw
-  STY r_wb
+  STY R_PRWB
 .nw
   RTS
 }
@@ -1745,7 +1718,7 @@ ENDIF
 \ the new ones hold nothing but black under their dirty extents, so each such
 \ row's extent, widened to whole bytes, is blacked by one row run through
 \ the row runs, its R_WL/R_WR set to that and its DIRTY emptied; R_DISCROWS' row
-\ loop then only visits the disc rows (r_lo..r_hi and r_dya..r_dyz are
+\ loop then only visits the disc rows (R_PRLO..R_PRHI and R_PRDYA..R_PRDYZ are
 \ narrowed to them).  Byte columns 0 and 63 hold the border: their bytes are
 \ masked.  (Byte-column runs were measured against these row runs on a
 \ capture of the game, with the same row handling either side: rows won; see
@@ -1791,6 +1764,18 @@ c_BB  = &25
 .none
   RTS
 .band
+  BIT KMODE               \ K mode: the band's rows are not kept (the row
+  BPL k9                  \ loop below repaints them as before)
+  LDX c_BT
+.k1
+  LDA KF,X
+  AND KBITN
+  STA KF,X
+  CPX c_BB
+  INX
+  BCC k1
+  LDY R_PRDYA
+.k9
   CPY c_BT                \ dya .. min(dyz, bt - 1)
   BCS p2
   LDA c_BT
@@ -1856,17 +1841,245 @@ c_BB  = &25
   BCS r1
   STY R_PRWT
 .r1
-IF _HOSTB
-  JMP p_rowrep            \ (Model B: in bank P, with the runs; hb-main.asm)
-ELSE
   JMP r7_rowrep
-ENDIF
 }
 
-IF _HOSTB = 0
- INCLUDE "src/gfx-raster_rep.asm"
-ENDIF
+\ r7_rowrep: rows Y .. c_YE - 1 (see above)
+.r7_rowrep
+{
+  LDX R_PRBUF
+  LDA dlh,X
+  STA ld1+2
+  STA sd1+2
+  STA fl1+2
+  STA fs1+2
+  STA r_kd1+2
+  LDA drh,X
+  STA ld2+2
+  STA sd2+2
+  STA fl2+2
+  STA fs2+2
+  STA r_kd3+2
+  LDA #LO(frow-fnb-2)     \ the loop: frow, or in K mode krow (kept rows:
+  BIT KMODE               \ raster_kept.asm), which hands the other rows to
+  BPL k0                  \ frow's body
+  LDA #LO(krow-fnb-2)
+.k0
+  STA fnb+1
+  BIT KMODE
+  BMI krow
+.frow                     \ fast path: extent inside columns 1..62
+.fl2
+  LDA R_DIRTYR0,Y
+  BEQ fnx
+  CMP #252
+  BCS slow
+  TAX
+  ORA #3
+  STA R_WR,Y
+  LDA r_j,X             \ plant the RTS after column R DIV 4
+  STA RZ_PP
+.fl1
+  LDA R_DIRTYL0,Y
+  AND #&FC                \ L AND &FC = 0 <=> L < 4
+  BEQ slow
+  STA R_WL,Y
+  TAX
+  LDA r_j-4,X           \ enter at column L DIV 4
+  STA fj+1
+  LDA #&FF
+.fs1
+  STA R_DIRTYL0,Y
+  TYA                     \ the run page of row Y
+  LSR A
+  LSR A
+  LSR A
+  ORA #HI(r_run0)         \ (= ADC: Y DIV 8 < 32)
+  STA fj+2
+  STA RZ_PP+1
+  LDA #&60
+  STA (RZ_PP)
+  LDA #0
+.fs2
+  STA R_DIRTYR0,Y
+.fj
+  JSR &FFFF               \ patched: straight into the row run (the run keeps Y)
+  LDA #r_opSTA
+  STA (RZ_PP)
+.fnx
+  INY
+  CPY c_YE
+.fnb
+  BCC frow                \ (patched: frow or krow)
+  RTS
+.slow                     \ an end in column 0 or 63: the general row code
+  JSR row1
+  BRA fnx
+\ K mode (raster_kept.asm): a row kept in this buffer is left as it is,
+\ pending (KF bit 7), its old extent in DIRTY and its WL/WR as if blacked;
+\ the other rows go through frow's body
+.krow
+  LDA KF,Y
+  AND KBIT
+  BEQ frow
+.kp
+  EOR KF,Y                \ (A = KBIT) KBIT off, pending on
+  ORA #&80
+  STA KF,Y
+  INC KREC                \ (counted for T_KFRAME)
+.^r_kd3
+  LDA R_DIRTYR0,Y         \ (patched) WL, WR as row1 would set them
+  ORA #3
+  STA R_WR,Y
+.^r_kd1
+  LDA R_DIRTYL0,Y         \ (patched)
+  AND #&FC
+  STA R_WL,Y
+  CPY KPLO
+  BCS kp1
+  STY KPLO
+.kp1
+  CPY KPHI
+  BCC fnx
+  STY KPHI
+  BRA fnx
+\ row1: row Y, general (the border columns' bytes masked)
+.row1
+.^r_row1                  \ (raster_kept.asm's k_rows: a pending row blacked)
+.ld2
+  LDA R_DIRTYR0,Y
+  STA c_R
+  ORA #3
+  STA R_WR,Y
+.ld1
+  LDX R_DIRTYL0,Y
+  STX c_L
+  TXA
+  AND #&FC
+  STA R_WL,Y
+  LDA #&FF
+.sd1
+  STA R_DIRTYL0,Y
+  LDA #0
+.sd2
+  STA R_DIRTYR0,Y
+  TXA                     \ first byte column (0: the border's)
+  LSR A
+  LSR A
+  BEQ e0
+.nl1
+  STA c_NL
+  LDA c_R                 \ last byte column (63: the border's)
+  LSR A
+  LSR A
+  CMP #63
+  BEQ e63
+.nr1
+  INC A
+  CMP c_NL
+  BEQ nx
+  BCC nx
+  ASL A                   \ plant the RTS at column NR (r_jm at 4 NR: 3 (NR - 1))
+  ASL A
+  TAX
+  LDA r_jm,X
+  STA RZ_PP
+  TYA                     \ the run page of row Y
+  LSR A
+  LSR A
+  LSR A
+  ORA #HI(r_run0)         \ (= ADC: Y DIV 8 < 32)
+  STA RZ_PP+1
+  STA rj+2
+  LDA c_NL
+  ASL A
+  ASL A
+  TAX
+  LDA r_jm,X
+  STA rj+1
+  LDA #&60
+  STA (RZ_PP)
+  STY RZ_Y
+  LDA #0
+  JSR rj
+  LDA #r_opSTA
+  STA (RZ_PP)
+  LDY RZ_Y
+.nx
+  RTS
+.rj
+  JMP &FFFF
+.e0
+  STY RZ_Y
+  JSR edge0
+  LDY RZ_Y
+  LDA #1
+  BRA nl1
+.e63
+  STY RZ_Y
+  JSR edge63
+  LDY RZ_Y
+  LDA #62
+  BRA nr1
+\ edge0 / edge63: black pixels c_L .. c_R of row RZ_Y within column 0 / 63
+.edge0
+  LDX c_R
+  CPX #4
+  BCC e0a
+  LDX #3
+.e0a
+  LDA r_rm,X
+  LDX c_L
+  AND r_lm,X
+  LDX #0
+  BRA eg
+.edge63
+  LDA c_L
+  CMP #252
+  BCS e6a
+  LDA #252
+.e6a
+  AND #3
+  TAX
+  LDA c_R                 \ (>= 252)
+  AND #3
+  TAY
+  LDA r_lm,X
+  AND r_rm,Y
+  LDX #&F8
+.eg
+  EOR #&FF
+  STA c_M
+  STX c_CO
+  LDA RZ_Y
+  AND #7
+  ORA c_CO
+  STA RZ_PA
+  LDA RZ_Y
+  LSR A
+  LSR A
+  AND #&FE
+  ORA #&40
+  CPX #0
+  BEQ eg1
+  INC A
+.eg1
+  STA RZ_PA+1
+  LDA (RZ_PA)
+  AND c_M
+  STA (RZ_PA)
+  RTS
+.dlh EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
+.drh EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
+}
 
+
+
+
+
+\ ============================================================================
+\ R_INIT
+\ ============================================================================
 \ ============================================================================
 \ R_INIT
 \ ============================================================================
@@ -1882,39 +2095,31 @@ ENDIF
   LDA #&FF
   STA R_SCOL
   STA R_NDT
+  STA R_PRWT
   STZ R_NDB
   STZ R_NDF
   STZ R_SN
   STZ R_PN
-  LDA #1                  \ R_SETBUF 0 (forcing the patch)
-  STA R_PRBUF
-  LDA #0
+  STZ R_PRWB
+  STZ R_PRBUF             \ buffer 1's state, then buffer 0's (each R_SETBUF
+  LDA #1                  \ patching), ending with buffer 0
+.ib
+  PHA
   JSR R_SETBUF
+  JSR R_RESETBUF
+  PLA
+  DEC A
+  BPL ib
+  JSR k_clear             \ no kept rows
   LDY #191
 .il
   LDA #&FF
-  STA R_DIRTYL0,Y
-  STA R_DISCL0,Y
-  STA R_DIRTYL1,Y
-  STA R_DISCL1,Y
   STA R_WL,Y
   LDA #0
-  STA R_DIRTYR0,Y
-  STA R_DISCR0,Y
-  STA R_DIRTYR1,Y
-  STA R_DISCR1,Y
   STA R_WR,Y
   DEY
   CPY #&FF
   BNE il
-  LDX #1
-.ib
-  JSR r7_reset1
-  DEX
-  BPL ib
-  LDA #&FF
-  STA R_PRWT
-  STZ R_PRWB
   RTS
 }
 
@@ -1966,7 +2171,3 @@ ENDIF
   STZ R_PRECNT,X
   STZ R_PRBMODE,X
   RTS
-
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0   \ (the Tube's dumb host, Master host: the
- INCLUDE "src/gfx-raster_stio.asm"         \ star records' I/O, bank 5)
-ENDIF

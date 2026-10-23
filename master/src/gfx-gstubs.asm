@@ -7,7 +7,7 @@
 \ port: in the low area (elite-low.asm), with the renderer's other glue, as
 \ code that pages a bank in must be outside the banks; they are only ever
 \ called from game code, with ACCCON X clear (the frame sets X itself, inside
-\ F_FRAME).
+\ F_FRAME), but sit in the one low area with the rest (below &3000).
 \
 \ ******************************************************************************
 

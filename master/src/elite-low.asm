@@ -1,12 +1,13 @@
 \ ******************************************************************************
 \
-\ elite-low.asm - the low area, at the end of the main code's head, in main
-\ RAM below &3000 (docs/MASTER-MAP.md)
+\ elite-low.asm - the low area, first in the main code, in main RAM below
+\ the head (docs/MASTER-MAP.md)
 \
-\ Port: INCLUDEd by elite-source.asm after UP, before HEAD_END%. What is here
-\ is visible whatever is paged at &8000-&BFFF and whatever ACCCON X is, so
-\ the IRQ handler, the MOS vectors (entered with any ROM paged) and code that
-\ runs with ACCCON X set can use it:
+\ Port: INCLUDEd by elite-source.asm at CODE%, before the head (VEC to UP),
+\ which the run follows. One area, all of it below &3000 (asserted after
+\ UP), so it is visible whatever is paged at &8000-&BFFF and whatever
+\ ACCCON X is (the IRQ handler, the MOS vectors, entered with any ROM paged,
+\ and code that runs with ACCCON X set use much of it):
 \
 \   * the blocks of elite-source.asm tagged low (build/elite-source-low.asm,
 \     which tools/streams.py writes): stackpt and NEWBRK, which the MOS enters
@@ -20,9 +21,8 @@
 \     the renderer's banks share, with their initial values (gfx-gvars.asm),
 \     the trampolines from the frame layer into the rasteriser
 \     (gfx-tramp.asm), the hooks that CHPR (WRCHV: any ROM paged, ACCCON X
-\     set) and IRQ1 call (gfx-lowhooks.asm), and, needing only game context
-\     but outside the banks they page, the G_ stubs that page the frame layer
-\     in (gfx-gstubs.asm) and the hooks in Elite's drawing code
+\     set) and IRQ1 call (gfx-lowhooks.asm), the G_ stubs that page the
+\     frame layer in (gfx-gstubs.asm) and the hooks in Elite's drawing code
 \     (gfx-hooks.asm).
 \
 \ ******************************************************************************
@@ -34,5 +34,7 @@
  INCLUDE "src/gfx-gvars.asm"            \ the renderer's glue: shared variables,
  INCLUDE "src/gfx-tramp.asm"            \ the trampolines into the rasteriser,
  INCLUDE "src/gfx-lowhooks.asm"         \ the text map's and the IRQ's hooks
+
+
  INCLUDE "src/gfx-gstubs.asm"           \ the stubs that page the frame layer in
  INCLUDE "src/gfx-hooks.asm"            \ the hooks in Elite's drawing code
