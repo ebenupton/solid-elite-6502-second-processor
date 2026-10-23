@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # bankcheck.py: check the banking rules of the relocated Master Elite
-# (docs/MASTER-MAP.md, master/src/elite-far.asm). Run by build.sh from master/.
+# (docs/MASTER-MAP.md, master/src/elite-stubs.asm). Run by build.sh from master/.
 #
 # Areas: "main" (elite-source.asm's configuration, its low pass and the hot
 # pass's containers in main RAM, build/elite-source-config.asm, -low.asm,
-# -hot1.asm and -hot2.asm, and the files in main RAM: the glue area,
-# elite-far.asm ...), "bank4" (the hot pass's container in bank 4,
+# -hot1.asm and -hot2.asm, and the files in main RAM: the glue area ...), "bank4" (the hot pass's container in bank 4,
 # build/elite-source-hot3.asm, with the CMYK dashboard, and the hot data that
 # follows it, build/elite-data-hot4.asm), "cold" (elite-source.asm's cold blocks,
 # build/elite-source-cold.asm and build/elite-data-cold.asm: ROMSEL COLDBANK,
@@ -17,10 +16,14 @@
 # another:
 #  * branches never cross areas;
 #  * cold code reaches main or bank 4 code only through stubs (x4_name,
-#    j4_name: JSR far4 / far4j : EQUW name), and never reads bank 4 data
-#    (it may take an address: #LO/#HI);
-#  * main and bank 4 code reach cold code only through stubs (JSR far7 /
-#    far7j : EQUW name_C), and never read cold data;
+#    j4_name, in build/elite-stubs.asm: "stubs"), or, for the low pass's
+#    routines that need nothing of the hot side, directly (streams.py's
+#    build/direct.txt), and never reads bank 4 data (it may take an
+#    address: #LO/#HI);
+#  * main and bank 4 code reach cold code only through stubs (name, in
+#    build/elite-stubs.asm, whose body is name_C), and never read cold data;
+#  * the stubs (src/elite-stubs.asm and build/elite-stubs.asm) may refer to
+#    anything, and every area may call them;
 #  * data in shadow RAM ("shadow": the extended tokens) is only read with
 #    ACCCON X set, by readers marked "bankcheck: ok"; other references to it
 #    must be immediate (#LO/#HI: its address);
@@ -51,7 +54,7 @@ import re, sys
 SRC = "src/"
 FILES = {"../build/elite-source-config.asm": "main", "../build/elite-source-low.asm": "main",
          "../build/elite-source-hot1.asm": "main", "../build/elite-source-hot2.asm": "main",
-         "../build/elite-source-hot3.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-far.asm": "main", "gfx-gstubs.asm": "main", "elite-qs.asm": "main", "gfx-hooks.asm": "main",
+         "../build/elite-source-hot3.asm": "bank4", "../build/elite-source-cold.asm": "cold", "elite-layout.asm": "main", "elite-stubs.asm": "stubs", "../build/elite-stubs.asm": "stubs", "gfx-gstubs.asm": "main", "elite-qs.asm": "main", "gfx-hooks.asm": "main",
          # elite-data.asm's hot data (in HAZEL, and in bank 4 what HAZEL has no
          # room for) and cold data (in the cold pass)
          "../build/elite-data-hot.asm": "hazel", "../build/elite-data-hot4.asm": "bank4", "../build/elite-data-cold.asm": "cold",
@@ -144,6 +147,11 @@ for f, a in FILES.items():
         m = re.match(r"^(MACRO\s+\w+|FOR)\s+(.*)$", op.strip(), re.I)
         if m:                              # (macro parameters and loop variables)
             own[f].update(IDENT.findall(m.group(2).split(",")[0] if m.group(1).upper() == "FOR" else m.group(2)))
+direct = set()                             # the low pass's labels the cold pass calls
+try:                                       # directly (tools/streams.py)
+    direct = set(open("build/direct.txt").read().split())
+except FileNotFoundError:
+    pass
 addr = {}                                  # the labels' addresses (build/symbols.txt)
 try:
     for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
@@ -161,13 +169,11 @@ for f, a in FILES.items():
             continue                       # (an assignment defines a constant)
         if mn is None and re.match(r"^(PRINT|SAVE|ASSERT|IF|ELIF|SKIP|ORG|CLEAR|ALIGN|GUARD|INCLUDE|INCBIN|R_TO7)\b", op.strip(), re.I):
             continue                       # (assembler directives; R_TO7: the call to bank 7)
-        if mn is None and re.match(r"^EQUW\b", op.strip(), re.I) and prev in ("JSR",) and prevop in ("far4", "far4j", "far7", "far7j"):
-            prev, prevop = None, None
-            continue                       # the EQUW of a far-call stub
         for x in idents(op):
             b = "self" if x in own[f] else area.get(x)
-            if b is None or b == a or b == "self" or x in ("far4", "far4j", "far7", "far7j"):
-                continue                   # (the far-call code is callable from anywhere)
+            if b is None or b == a or b == "self" or a == "stubs" or b == "stubs":
+                continue                   # (the stubs are callable from anywhere, and
+                                           # reach both sides)
             where = "%s:%d" % (SHOW.get(f, f), n)
             if b == "shadow":
                 if not op.strip().startswith("#"):
@@ -196,8 +202,10 @@ for f, a in FILES.items():
                     continue               # (an address, not a read)
                 if b in ("bank4", "cold"):
                     errors.append("%s: %s code refers to %s label %s" % (where, a, b, x))
-                elif mn in ("JSR", "JMP"):
+                elif mn in ("JSR", "JMP") and x not in direct:
                     errors.append("%s: %s code calls %s in %s directly (use a stub)" % (where, a, x, b))
+                elif mn in ("JSR", "JMP") and addr.get(x, 0x10000) >= 0x3000:
+                    errors.append("%s: %s code calls %s directly, which is not below &3000" % (where, a, x))
             else:
                 if b == "cold":
                     errors.append("%s: %s refers to cold label %s (use a stub)" % (where, a, x))

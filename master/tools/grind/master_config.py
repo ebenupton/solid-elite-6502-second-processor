@@ -14,13 +14,13 @@ SCREEN_POINTERS = ('SC',)           # Elite's screen pointer (SC, SCH)
 # R_LINE's included, call each other directly)
 CROSS_CALLS = {}
 CROSS_SCRATCH = ()
-# the far calls between the home bank and the cold area (elite-far.asm):
-# JSR far7 : EQUW target (ROMSEL COLDBANK, from elite-far.asm), JSR far4 : EQUW target (bank 4)
-import os as _os, re as _re
-_COLD = int(_re.search(r'^COLDBANK\s*=\s*&?([0-9A-Fa-f]+)', open(_os.path.join(
-    _os.path.dirname(_os.path.abspath(__file__)), '..', '..', 'src', 'elite-far.asm')).read(), _re.M).group(1), 16)
-FAR_CALLS = {'far7': _COLD, 'far7j': _COLD, 'far4': 0x04, 'far4j': 0x04}
-FAR_SCRATCH = ('fA', 'fX', 'fB', 'ft', 'ft+1', 0xF4)
+# the stubs between the passes (elite-stubs.asm, build/elite-stubs.asm) are
+# ordinary code, one per target (JSR to7 : JSR TT22_C : JMP to4): to7 and to4
+# page the bank (STA VIA+&30), and the JSR names its target, which the model
+# resolves by the label's segment; so there are no far calls of the inline
+# form (JSR helper : EQUW target) left to model
+FAR_CALLS = {}
+FAR_SCRATCH = ()
 # SED is used only locally (BCD printing), CLD before leaving: D = 0 at every entry
 DECIMAL_ASSUME_CLEAR = True
 OBJECTS = None

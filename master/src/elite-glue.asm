@@ -10,8 +10,9 @@
 \ handler, the MOS vectors, entered with any ROM paged, and code that runs
 \ with ACCCON X set use much of it). It holds the port's own code only:
 \
-\   * the far calls between Elite's home bank and the cold pass
-\     (elite-far.asm), which page the banks;
+\   * the stubs between the hot side and the cold pass (elite-stubs.asm,
+\     with build/elite-stubs.asm, which tools/streams.py writes), one per
+\     target, which page the banks;
 \
 \   * the renderer's glue: the variables that the game, the IRQ handler and
 \     the renderer's banks share, with their initial values (gfx-gvars.asm),
@@ -23,7 +24,7 @@
 \
 \ ******************************************************************************
 
- INCLUDE "src/elite-far.asm"            \ far calls to and from the cold area
+ INCLUDE "src/elite-stubs.asm"          \ the stubs to and from the cold pass
 
  INCLUDE "src/gfx-gvars.asm"            \ the renderer's glue: shared variables,
  INCLUDE "src/gfx-tramp.asm"            \ the trampolines into the rasteriser,
