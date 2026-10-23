@@ -245,8 +245,8 @@ rules ("Calls between the passes").
 |---|---|---|---:|
 | Zero page, stack, K% | &0000-&00E3, &0100-&01FF, &0400-&07FF | Elite's workspaces, as Master Elite | - |
 | WP | main &0841-&0CCE | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E; then the CMYK dashboard's variables DASHV (&0CAA-&0CCE, after JOPOS: the dashboard runs with ACCCON X set) | 50 (&0840, &0CCF-&0CFF) |
-| Shared workspace | main &0E00-&1DD4 | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, raster_vars (&1133), R_SN, R_SCOL, KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0) | 105 (5, 30, 70) and 79 before CODE% |
-| Glue area | main &1E24-&2868 | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 &1E50-&1F9C, 38 into the cold pass; STUBS4 &1F9D-&2197, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &2198), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
+| Shared workspace | main &0E00-&1DD4 | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, raster_vars (&1133), R_SN, R_SCOL, KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0) | 105 (5, 30, 70) and 65 before CODE% |
+| Glue area | main &1E16-&2868 | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 &1E42-&1F8E, 38 into the cold pass; STUBS4 &1F8F-&2189, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &218A), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
 | Low pass | main &2869-&2E48 | Elite's code that must be below &3000, in the source's order: WSCAN, DELAY, the sound (BOOP, BEEP, SOFH ... SOINT, the sound variables and the SFX tables), IRQ1 (&29CA), VSCAN, DOVDU19, cls, TT67K, CHPR (&2A19), ZES1, ZES2, the font (FONT%, &2B00-&2DFF), UP (&2E00), stackpt, NEWBRK | 439 below &3000 (used by the hot pass) |
 | Hot pass: main RAM | main &2E49-&3F92 | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB, HALL, HAS1 | 109 |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
@@ -269,7 +269,7 @@ COLD7 (the cold pass, to bank 7 &8000), RASTA (the
 rasteriser's polygon window, to ANDY with ROMSEL &85), BANK5, BANK6, HAZEL (staged at
 &4000), HICODE (the quarter-square tables and the hot pass's part from &7400, to
 &7000-&7FFF); then it loads BCODE (the glue area, the low pass and the hot
-pass's main RAM part) to CODE% (&1E24, from the build). The loader is at &0E00, in the shared workspace's place, so
+pass's main RAM part) to CODE% (&1E16, from the build). The loader is at &0E00, in the shared workspace's place, so
 its last part runs from K% (&0400; the game sets K% up itself): it takes
 DFS's and the MOS's lasting bytes into DFSST and DFSST2 after the last
 disc access,
@@ -455,7 +455,7 @@ What remains out of that order, each with a `Port:` note where it applies:
   and its tables, gfx-hangar6.asm, at the end of bank 6's image), the CMYK
   dashboard's tables (generated, build/dashtab-*.asm, each INCLUDEd in its
   routine's block) and its variables DASHV (after WP).
-* **Placement by the build, not the source**: CODE% (&1E24) is chosen so the
+* **Placement by the build, not the source**: CODE% (&1E16) is chosen so the
   font starts a page without padding; the hot pass's containers and the hot
   data's are filled by the flow (build/flow.txt), not by markers.
 
@@ -668,7 +668,7 @@ their run pages' tails, for variables and routines of under 66 bytes each.
 | Region | At d090015 | At cb2c8e5 | At 9cafcd9 | At d23e427 | At e932f77 | At 0bd6fc4 | At b583ecc | At 7e822e5 | At 5b7b91e | At the lighting in bank 6 | At 87cf524 | Now |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Low code (then); WP's pages &0840-&0CFF (now: &0840, &0CAA-&0CFF) | 14 | 87 | 87 | 87 | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) | 50 (DASHV at &0CAA-&0CCE) |
-| Shared workspace &0E00-&1EFF | - | 179 (64 below it; 47, 6, 62 in it) | 179 | 179 | 148 (64; 47, 6, 31: it ends at &1EE0) | 138 (64; 47, 6, 21: it ends at &1ED6) | 143 (64; 47, 6, 26: it ends at &1EDB) | 143 (64; 47, 6, 26) | 143 (64; 47, 6, 26) | 143 (64; 47, 6, 26) | 192 (5, 30, 70; 87 below CODE%) | 184 (5, 30, 70; 79 below CODE%, &1E24) |
+| Shared workspace &0E00-&1EFF | - | 179 (64 below it; 47, 6, 62 in it) | 179 | 179 | 148 (64; 47, 6, 31: it ends at &1EE0) | 138 (64; 47, 6, 21: it ends at &1ED6) | 143 (64; 47, 6, 26: it ends at &1EDB) | 143 (64; 47, 6, 26) | 143 (64; 47, 6, 26) | 143 (64; 47, 6, 26) | 192 (5, 30, 70; 87 below CODE%) | 170 (5, 30, 70; 65 below CODE%, &1E16) |
 | Main code (BCODE) | 72 | 213 (1808 below &3000) | 213 | 63 (1784 below &3000) | 218 (1376 below &3000; from &1EE1) | 183 (1376 below &3000; from &1ED7) | 188 (1376 below &3000; from &1EDC) | 192 (1371 below &3000; the briefing's H_CHAR test 5, HAS1's heap pointer 9 back) | 639 (545 below &3000: the G_ stubs and the hooks, 826, in the low area; the run split before TACTICS) | 653 (559 below &3000: G_HANG0 lost the hangar's light) | 316 (222 below &3000 after the head, used by the run) | 109 (the hot pass in main RAM, from &2E49; 439 below &3000, after the glue area and the low pass, used by it) |
 | High code | 137 | 565 | 565 | 565 | 1077 (from &7000) | 1317 (from &7000; the far7 stubs left) | 1196 (the hangar's G_HANG0, G_HLL9 and HSUB, G_HANGAR) | 1244 (H_EE31's test, H_LSCLR and H_SHPPT gone) | - (&7000-&77E9: the quarter squares and the lighting; then the run) | - (&7000-&73FF: the quarter squares; then the run) | - (&7000-&73FF: the quarter squares; then the run, into bank 4) | 194 (the hot pass from &7400: its units end there, before bank 4) |
 | Bank 4 | 30 | 1901 | 1901 | 2054 | 1897 (to &C000: HANGHEAP left) | 1704 | 1704 | 2057 (LL9's line drawing, LSPUT, LSCLR's erase and Shpt gone; LL9B) | 2854 (the run from &77EA: the main code's and the high code's free space with it) | 3856 (the lighting gone from main RAM: the run starts at &7400) | 3853 | 810 (the ACCCON X blocks first, the log tables page aligned, 140 bytes of padding; the text printers; QQ18, SNE, ACT) |
@@ -682,7 +682,7 @@ their run pages' tails, for variables and routines of under 66 bytes each.
 | HAZEL state | 1726 (to &D900) | - | - | - | - | - | - | - | - | - | - | - |
 | HAZEL &DC40 block | 289 (to &E000) | - | - | - | - | - | - | - | - | - | - | - |
 | Shadow | 7, 3, 16 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 |
-| Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM | 11868 (+ 252 in tails); 7372 outside shadow RAM | 11871 (+ 252 in tails); 7375 outside shadow RAM | 12363 (+ 252 in tails); 7867 outside shadow RAM | 12373 (+ 252 in tails); 7877 outside shadow RAM | 12315 (+ 252 in tails); 7819 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 13803 (+ 252 in tails); 9307 outside shadow RAM | 9449 (+ 252 in tails); 4953 outside shadow RAM | 9076 (+ 252 in tails); 4580 outside shadow RAM |
+| Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM | 11868 (+ 252 in tails); 7372 outside shadow RAM | 11871 (+ 252 in tails); 7375 outside shadow RAM | 12363 (+ 252 in tails); 7867 outside shadow RAM | 12373 (+ 252 in tails); 7877 outside shadow RAM | 12315 (+ 252 in tails); 7819 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 13803 (+ 252 in tails); 9307 outside shadow RAM | 9449 (+ 252 in tails); 4953 outside shadow RAM | 9062 (+ 252 in tails); 4566 outside shadow RAM |
 
 The three passes (MASTER-PLAN.md, "Three passes") moved code between every
 region and cost 373 free bytes outside shadow RAM against 87cf524 (4953 to
@@ -699,6 +699,10 @@ crossings.py ranked moved from bank 7 to the hot pass (bank 7 89 to 2700,
 bank 4 3853 to 810, with the stubs' cost and the padding); SNE and ACT
 followed QQ18 into bank 4 (HAZEL 283 to 363); CODE% moved from &1E2C to
 &1E24, keeping the font page aligned (the shared workspace 192 to 184 free).
+The 25 fps cap (MASTER-PLAN.md, "The 25 fps cap") added 14 bytes to the glue
+area (H_VSYNC's test, GVLAST), and CODE% moved from &1E24 to &1E16 to keep
+the font page aligned (the shared workspace 184 to 170 free); nothing after
+the glue area moved.
 
 The beach ball (branch beachball, BEACHBALL-REPORT.md) added the meridian
 window to bank 7 after the cold area (3,342 bytes: bank 7's free space went
