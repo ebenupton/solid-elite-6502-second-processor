@@ -93,6 +93,11 @@ ASSERT F_ST = F_TM + &300
  ORG OVL_START
 .OVL_S_START
  INCLUDE "tsrc/p-rast.asm"
+ INCLUDE "tsrc/p-emit.asm"              \ (the polygons' rows to the host as they are made)
+IF OPTUBE
+ INCLUDE "src/gfx-raster_onepass.asm"   \ (R_POLY's 8-bit polygons in one pass)
+ CPU 1
+ENDIF
  INCLUDE "src/gfx-ftext.asm"
  CPU 1
  INCLUDE "tsrc/p-flt.asm"

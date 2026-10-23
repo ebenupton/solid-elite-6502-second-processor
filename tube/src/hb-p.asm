@@ -45,29 +45,9 @@ _RBANK = 2
  STA R_COL2
  HRX
  STA R_COL3
- LDA #0                 \ (C_SPANS: the parasite has clipped the rows)
- STA R_PXC
- HRX
- STA R_PYS
- TAY
- HRX
- STA R_PYL1
- CLC
- ADC #1
- STA R_PYE
- LDA &0B                \ (R_CR)
- CLC
- ADC #1
- STA R_PCR1
-.ppo1
- HRX
- STA R_PTA,Y
- HRX
- STA R_PTB,Y
- CPY R_PYL1
- INY
- BCC ppo1
- JMP r_pcbd0
+ HRX                    \ (C_SPANS: the first row; the rows follow, which
+ STA R_PYS              \ phase B reads as it goes: r_pcbs)
+ JMP r_pcbs
 .p_linein               \ h_line's: the four colours, the end points, then R_LINE
  HRX
  STA &06

@@ -687,6 +687,7 @@ IF _HOSTB = 0
   STA &F4
   STA &FE30
 ENDIF
+IF _TDUMB = FALSE          \ (the dumb host's phase B keeps no dirty extents)
   LDA r_sbh_dl,X          \ group r_dl
   STA r_pt60+2            \ bankcheck: ok (paged in above)
   STA r_pt410+2           \ bankcheck: ok (paged in above)
@@ -697,6 +698,7 @@ ENDIF
   STA r_pt412+2           \ bankcheck: ok (paged in above)
   STA r_pt63+2            \ bankcheck: ok (paged in above)
   STA r_pt413+2           \ bankcheck: ok (paged in above)
+ENDIF
 IF _HOSTB = 0
   LDA #RASTBANK
   STA &F4

@@ -79,11 +79,13 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .r_bt    EQUB 0         \ the band (old and new disc rows)
 .r_bb    EQUB 0
 
-\ the star records: per buffer, the host's record bytes of the stars it set
-\ (R_STARPLOT, h_stars), sent back to it to be blacked (R_STARERASE)
+\ the star records: the host's record bytes of the stars it set in a buffer
+\ (R_STARPLOT, h_stars), fetched and sent back to it to be blacked
+\ (R_STARERASE), through R_NDX2 (r_srec): free then, before the frame's
+\ discs (the beach ball's boundaries are made afresh each frame)
 STREC = 4 * 48          \ (at most 48 records of 4 bytes)
-.r_scnt  EQUB 0, 0
-.r_srec  SKIP 2 * STREC
+r_srec = R_NDX2
+ASSERT STREC <= 192 AND MERIDHOLD = 0
 .S_STATE_END             \ (the state: what p-ovl.asm saves when S goes out in space
                         \ mode)
 
@@ -187,7 +189,6 @@ PSBUF = 4 * 16
  STA r_dst,X
  STZ r_dyb,X
  STZ r_dsb,X
- STZ r_scnt,X
  STZ r_bmode,X
  RTS
 
@@ -705,11 +706,10 @@ PSBUF = 4 * 16
  RTS
 
 \ ------------------------------------------------------------------------------
-\ R_POLY's phase B (p_spans, after phase A: p-polya.asm, p-polyb.asm): the
-\ left table, the horizontal clip, the rows trimmed, the dirty extents, as
-\ the Master port's r_pcbd; the host fills the rows (C_SPANS: the four
-\ colours, the first and last rows, then each row's left and right, right
-\ exclusive, both clipped)
+\ R_POLY's phase B for 16-bit polygons (p_spans, after phase A: p-polya.asm,
+\ p-polyb.asm): the left table, then each row's span, clipped, to the host as
+\ it is read (p_emit, p-emit.asm, which also takes the dirty extents), as the
+\ one-pass generator sends the 8-bit polygons' rows
 \ ------------------------------------------------------------------------------
 
 .p_spans
@@ -744,10 +744,22 @@ PSBUF = 4 * 16
  CPY r_yend
  BCC pps3
 .pps2
- LDA r_xclip            \ the horizontal clip: both into CL..CR+1
- BEQ pps6
- LDY r_ystart
-.pps4
+ LDY r_ystart           \ each row with pixels to the host (p_emit), clipped to
+ LDA r_xclip            \ CL..CR+1 if some x is outside it
+ BNE ppc
+.ppn
+ LDA r_tb,Y
+ CMP r_ta,Y
+ BEQ ppn1
+ BCC ppn1
+ LDX r_ta,Y
+ JSR p_emit
+.ppn1
+ INY
+ CPY r_yend
+ BCC ppn
+ JMP p_spend
+.ppc
  LDA r_ta,Y
  CMP R_CL
  BCS P%+4
@@ -755,7 +767,7 @@ PSBUF = 4 * 16
  CMP r_cr1
  BCC P%+5
  LDA r_cr1
- STA r_ta,Y
+ STA pr_a
  LDA r_tb,Y
  CMP R_CL
  BCS P%+4
@@ -763,78 +775,16 @@ PSBUF = 4 * 16
  CMP r_cr1
  BCC P%+5
  LDA r_cr1
- STA r_tb,Y
- INY
- CPY r_yend
- BCC pps4
-.pps6
- LDY r_ystart           \ trim the empty rows at the top and the bottom
-.pps7
- LDA r_ta,Y
- CMP r_tb,Y
- BNE pps8
- INY
- CPY r_yend
- BCC pps7
- RTS
-.pps8
- STY r_ystart
- LDY r_ylast
-.pps9
- LDA r_ta,Y
- CMP r_tb,Y
- BNE pps10
- DEY
- BRA pps9
-.pps10
- STY r_ylast
- LDX r_buf              \ this buffer's dirty row range
- LDA r_ystart
- CMP r_dyt,X
- BCS P%+5
- STA r_dyt,X
- TYA
- CMP r_dyb,X
- BCC P%+5
- STA r_dyb,X
- LDA #C_SPANS           \ the rows to the host
- JSR ptx
- LDA R_COLE
- JSR ptx
- LDA R_COLO
- JSR ptx
- LDA R_COL2
- JSR ptx
- LDA R_COL3
- JSR ptx
- LDA r_ystart
- JSR ptx
- LDA r_ylast
- JSR ptx
- LDY r_ystart
-.pps11
- LDA r_ta,Y             \ (the row's dirty extent, if it has pixels: left ..
- JSR ptx                \ right - 1)
- TAX
- LDA r_tb,Y
- JSR ptx
- STX pr_a
  CMP pr_a
- BEQ pps12
- BCC pps12
- DEC A
- CMP (pr_dr),Y
- BCC P%+4
- STA (pr_dr),Y
- TXA
- CMP (pr_dl),Y
- BCS pps12
- STA (pr_dl),Y
-.pps12
- CPY r_ylast
+ BEQ ppc1
+ BCC ppc1
+ LDX pr_a
+ JSR p_emit
+.ppc1
  INY
- BCC pps11
- RTS
+ CPY r_yend
+ BCC ppc
+ JMP p_spend
 
 \ ------------------------------------------------------------------------------
 \ R_DISCROWS: the disc layer for this buffer (R_NDT, R_NDB, R_NDISCL/R, R_DCE
@@ -1189,26 +1139,12 @@ PSBUF = 4 * 16
 \ (C_STARERASE), and the host blacks those pixels
 \ ------------------------------------------------------------------------------
 
-.prec                   \ pr_dl... no: pr_a(2) = this buffer's records
- LDA #LO(r_srec)
- LDX r_buf
- BEQ P%+4
- LDA #LO(r_srec + STREC)
- STA pr_a
- LDA #HI(r_srec)
- CPX #0
- BEQ P%+4
- LDA #HI(r_srec + STREC)
- STA pr_b
- RTS
-
 .T_STARERASE
 .R_STARERASE            \ this buffer's records from the host (C_STARGET, where
  LDA #C_STARGET         \ C_STARS left them), then back to it to black those
  JSR preq               \ pixels (C_STARERASE)
  LDA r_buf
  JSR preq
- JSR prec
  JSR prx
  STA pr_d
  ASL A
@@ -1218,7 +1154,7 @@ PSBUF = 4 * 16
  LDY #0
 .pse0
  JSR prx
- STA (pr_a),Y
+ STA r_srec,Y
  INY
  CPY pr_c
  BNE pse0
@@ -1231,7 +1167,7 @@ PSBUF = 4 * 16
  BEQ pse9
  LDY #0
 .pse1
- LDA (pr_a),Y
+ LDA r_srec,Y
  JSR ptx
  INY
  CPY pr_c

@@ -23,6 +23,9 @@ MERIDHOLD = 0           \ a beach ball's orientation is taken one frame in
                         \ radian an iteration) shows in steps; its position and
                         \ size follow every frame (0: as the demo port)
 ELITEBANK = HOMEBANK
+ONEPASS = FALSE         \ the one-pass span generator (gfx-raster_onepass.asm): the
+OPTUBE = FALSE          \ Tube's parasite only (tube/src/p-ws.asm), and the prototype's
+                        \ test (master/tools/grind/test_onepass.py)
 
 NDSTAR = NOST+1         \ stars 1..NOSTM (Master port: NOSTM <= NOST = 20)
 

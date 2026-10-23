@@ -30,6 +30,8 @@ STASHBANK = HBB + 3     \ S: the MOS's main RAM while the game runs, ours while
                         \ a disc command does (HBB: beebasm -D, 4; the build
                         \ assembles again with 8 to find the operands to patch)
 ELITEBANK = HOMEBANK
+ONEPASS = FALSE         \ (the parasite's: p-ws.asm)
+OPTUBE = FALSE
 NDSTAR = NOST+1
 MERIDHOLD = 0           \ (gfx-ws.asm's, the beach ball's: tube/build.sh checks
                         \ that they agree)

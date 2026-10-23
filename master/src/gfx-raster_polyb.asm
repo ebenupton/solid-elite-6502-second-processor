@@ -97,6 +97,12 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is th
 .zloop
 .zloop1
 .^r_pzl1
+IF ONEPASS                \ (the one-pass generator loads the DDA instead,
+  BIT fdiv                \ gfx-raster_onepass.asm)
+  BPL zl0
+  JMP fz
+.zl0
+ENDIF
   STA r_lz_a+1
   LDA RZ_T2
   STA r_lz_e+1
@@ -119,6 +125,12 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is th
   STZ RZ_TA
 .shallow1
 .^r_psh1
+IF ONEPASS
+  BIT fdiv
+  BPL sh0
+  JMP fsh
+.sh0
+ENDIF
   DEC A
   STA r_lsh_a+1
   DEX
@@ -208,6 +220,24 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   JMP pb_skip_e
+IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
+.r_pbx_e                  \ makes it, p-emit.asm: left, then right exclusive; a
+  BIT HR1S                \ left of &FF ends the polygon)
+  BPL r_pbx_e
+  LDX HR1D
+  CPX #&FF
+  BNE pbr_e
+  JMP pb_end
+.pbr_e
+  BIT HR1S
+  BPL pbr_e
+  LDA HR1D
+  DEC A
+  STA R_XR
+  CPX R_XR
+  BEQ pb_d2_e
+  BCS pb_skip_e+2         \ empty row (left > right): Y = RZ_Y already
+ELSE
 .r_pbx_e
 .r_pbl1_e
   LDA &FFFF,Y
@@ -226,6 +256,7 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
 .r_pt62 CMP r_dr,Y
   BCC pb_d2_e
 .r_pt63 STA r_dr,Y
+ENDIF
 .pb_d2_e
   TXA
   EOR R_XR
@@ -272,6 +303,24 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
   STY RZ_Y
   INC RZ_PA
   INC RZ_PB
+IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
+.r_pbx_o                  \ makes it, p-emit.asm: left, then right exclusive; a
+  BIT HR1S                \ left of &FF ends the polygon)
+  BPL r_pbx_o
+  LDX HR1D
+  CPX #&FF
+  BNE pbr_o
+  JMP pb_end
+.pbr_o
+  BIT HR1S
+  BPL pbr_o
+  LDA HR1D
+  DEC A
+  STA R_XR
+  CPX R_XR
+  BEQ pb_d2_o
+  BCS pb_skip_o+2         \ empty row (left > right): Y = RZ_Y already
+ELSE
 .r_pbx_o
 .r_pbl1_o
   LDA &FFFF,Y
@@ -290,6 +339,7 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
 .r_pt412 CMP r_dr,Y
   BCC pb_d2_o
 .r_pt413 STA r_dr,Y
+ENDIF
 .pb_d2_o
   TXA
   EOR R_XR

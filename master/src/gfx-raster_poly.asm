@@ -35,7 +35,13 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is th
   BPL hl
   TAX
   BNE p16
+IF OPTUBE
+  JSR r_pf8               \ (the Tube: r_pf8's set-up, then one pass, each row's span
+  JMP p_spend             \ to the host as it is made: gfx-raster_onepass.asm,
+                          \ tube/src/p-emit.asm)
+ELSE
   JMP r_pf8
+ENDIF
 .p16                      \ some coordinate outside 0..255: phase A (r7_pf16)
   JSR r7_pf16
   CMP #0                  \ (A = 0: nothing to draw)
@@ -112,6 +118,11 @@ ENDIF
   STA r_ylast
   INC A
   STA r_yend
+IF OPTUBE
+  JMP r_sp8b              \ (the Tube: the one-pass generator from here)
+.out
+  RTS
+ELSE
   \ chain A: forward into r_ta
   LDA #LO(r_ta)
   STA r_lsh_t+1
@@ -168,6 +179,7 @@ ENDIF
   LDX r_i1
   BRA cb
 .cbd
+ENDIF
 ELSE
 {
 ENDIF
@@ -175,7 +187,8 @@ IF _TPART = 1
   JMP p_spans             \ (Tube: the rest is the host's)
 }
 ELSE
-.^r_pcbd
+IF _TDUMB = FALSE          \ (the dumb host: the rows come one by one from the
+.^r_pcbd                  \ parasite, already clipped, from r_pcbs)
   \ which table is the left one?
   LDA r_ystart
   CLC
@@ -197,7 +210,6 @@ ELSE
   BCC os
   RTS                     \ no pixels
 .aleft
-.^r_pcbd0                 \ (the Tube's dumb host: the parasite's rows, ta left)
   LDX #0
   BRA ori
 .bleft
@@ -283,12 +295,15 @@ ELSE
   BCC d2
   STA R_PRDYB,X
 .d2
-IF _TDUMB = FALSE          \ (the Tube: kept rows are the parasite's)
   BIT KMODE               \ K mode: the kept rows' pass (gfx-raster_kept.asm)
   BPL d3
   LDA r_pbl1_e+1
   JSR T_KPRE              \ (the low area: k_pre in bank 7)
 .d3
+ELSE
+.^r_pcbs                  \ (the dumb host: C_SPANS, rows from r_ystart, each read
+  LDA #192                \ from the parasite in phase B's loop until its end mark,
+  STA r_yend              \ or past row 191, which has none: h-main.asm)
 ENDIF
   \ phase B set-up
   LDY r_ystart
@@ -325,8 +340,10 @@ ENDIF
   JMP r_pbx_o             \ odd first row (Y = RZ_Y)
 .ev
   JMP r_pbx_e             \ even first row
+IF _TDUMB = FALSE
 .otab
   EQUW r_ta, r_tb, r_ta
+ENDIF
 }
 ENDIF
 

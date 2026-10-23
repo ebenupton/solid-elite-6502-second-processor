@@ -319,10 +319,10 @@ ENDIF
 .hds_y EQUB 0
 .hds_n EQUB 0
 
-.h_spans                \ C_SPANS: polygon rows (p-rast.asm's p_spans): COLE, COLO,
-IF _HOSTB                 \ COL2, COL3, the first and last rows, then left and right
- JMP hb_poly            \ (exclusive) per row, left in R_PTA, clipped: phase B's
-ELSE                      \ fill (gfx-raster_poly.asm, from r_pcbd0)
+.h_spans                \ C_SPANS: polygon rows (p-emit.asm): COLE, COLO, COL2,
+IF _HOSTB                 \ COL3, the first row, then left and right (exclusive)
+ JMP hb_poly            \ per row, clipped, which phase B's fill reads as it
+ELSE                      \ goes, to the end mark (gfx-raster_poly.asm's r_pcbs)
  HRX
  STA zR_COLE
  HRX
@@ -331,31 +331,12 @@ ELSE                      \ fill (gfx-raster_poly.asm, from r_pcbd0)
  STA R_COL2
  HRX
  STA R_COL3
- STZ R_PXC
  HRX
  STA R_PYS
- TAY
- HRX
- STA R_PYL1
- CLC
- ADC #1
- STA R_PYE
- LDA zR_CR
- CLC
- ADC #1
- STA R_PCR1
-.hpo1
- HRX
- STA R_PTA,Y
- HRX
- STA R_PTB,Y
- CPY R_PYL1
- INY
- BCC hpo1
  LDA #RASTPOLY
  STA &F4
  STA &FE30
- JSR r_pcbd0
+ JSR r_pcbs
  JSR tback
  JMP hloop
 ENDIF
