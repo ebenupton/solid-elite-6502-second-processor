@@ -4,7 +4,8 @@
 # parallel: the Master port byte-identical to scratch/master-ref.ssd, the
 # lockstep replay of run1 against SNG47, the pixels against the Master port's
 # oracle (scratch/fbref), the disc menu, and the speed windows (flight
-# 1000-1400, docking 3420-3550, 0-3550, the beach balls 300-403, 5355-5457).
+# 1000-1400, docking 3420-3550, 0-3550, the beach balls 300-403, 5355-5457),
+# the Master host's at a 4 MHz parasite, the Model B's at 3 MHz.
 # Run from the repository root after master/build.sh and tube/build.sh.
 # TO=N limits the lockstep and pixel runs to N iterations (default 16000).
 set -u
@@ -20,7 +21,8 @@ for H in Master B; do
     node tube/tools/fbcmp.mjs scratch/fbref/fb.json $D/fb$H/fb.json --to $((TO - 1)) > $D/pixels-$H.txt 2>&1
     node tube/tools/fbcmp.mjs scratch/dashref/dash.json $D/fb$H/dash.json --to $((TO - 1)) > $D/dash-$H.txt 2>&1 ) &
   ( node tube/tools/tsavetest.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tsave-$H > $D/tsave-$H.txt 2>&1; echo "exit $?" >> $D/tsave-$H.txt ) &
-  ( node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,3420-3550,0-3550,300-403,5355-5457 > $D/speed-$H.txt 2>&1 ) &
+  M=3; [ $H = Master ] && M=4   # (the target clocks: the Master host's internal 4 MHz co-processor, a 3 MHz one on the Model B)
+  ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,3420-3550,0-3550,300-403,5355-5457 > $D/speed-$H.txt 2>&1 ) &
 done
 wait
 cat $D/master.txt
