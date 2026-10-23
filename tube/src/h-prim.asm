@@ -106,7 +106,11 @@ ENDIF
  CPX R_SN
  BNE hps1
 .hps2
- JSR T_STARPLOT
+ JSR T_STARPLOT         \ (its records stay in the stars' arrays until the
+ JMP hloop              \ parasite fetches them: C_STARGET)
+
+.h_starget              \ C_STARGET (a request): buffer b's star records to the
+ HR2X                   \ parasite (r_stout, the buffer's arrays)
  JSR T_STOUT
  JMP hloop
 

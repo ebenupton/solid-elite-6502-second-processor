@@ -19,8 +19,8 @@ ELSE
 ENDIF
 ENDMACRO
 
-.r_stout                  \ this buffer's records to the parasite: the count,
-  LDX r_buf               \ then the records
+.r_stout                  \ buffer A's records to the parasite: the count,
+  TAX                     \ then the records
   LDA r_scnt,X
   RSTX
   JSR r_stn
@@ -61,11 +61,12 @@ ENDMACRO
 .rsi9
   JMP R_STARERASE
 
-.r_stn                    \ RZ_T0 = A (the count), RZ_T1 = 3 * r_buf, X = 0
-  STA RZ_T0
-  LDA r_buf
+.r_stn                    \ RZ_T0 = A (the count), RZ_T1 = 3 * X (the buffer),
+  STA RZ_T0               \ X = 0
+  STX RZ_T1
+  TXA
   ASL A
-  ADC r_buf
+  ADC RZ_T1
   STA RZ_T1
   LDX #0
   RTS

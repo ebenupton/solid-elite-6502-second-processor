@@ -304,10 +304,8 @@ ENDIF
 
                         \ Port: SCEOR and SCSTA are Master's drawing's screen
                         \ writes, EOR (SC),Y : STA (SC),Y and STA (SC),Y. The
-                        \ Tube's parasite sends them to the host, which owns
-                        \ the screen (tube/src/p-io.asm): A (not the EORed
-                        \ value, which no caller reads), X, Y and the flags are
-                        \ kept
+                        \ Tube's parasite has none: its drawing is the host's
+                        \ (C_LOIN, C_HLOIN, C_PIXEL, the panel's commands)
 
 IF _TPART = 1
  ZPSAVE = &0D00 - &90 + &80     \ Port (Tube): setzp and getzp's buffer for zero
@@ -319,8 +317,7 @@ ENDIF
 
 MACRO SCEOR
 IF _TPART = 1
- JSR p_sceor            \ (with a NOP, four bytes, as the two instructions: LOINQ
- NOP                    \ enters its pixel loops at label+6)
+ ERROR "SCEOR: the parasite draws nothing (Tube: the host's drawing)"
 ELSE
  EOR (SC),Y
  STA (SC),Y
@@ -329,7 +326,7 @@ ENDMACRO
 
 MACRO SCSTA
 IF _TPART = 1
- JSR p_scsta
+ ERROR "SCSTA: the parasite draws nothing (Tube: the host's drawing)"
 ELSE
  STA (SC),Y
 ENDIF
@@ -3834,6 +3831,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Ready-made double-pixel character row bytes for mode 1
 \       Area: bank 4
+\       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6034,6 +6032,7 @@ ENDIF
 \    Summary: Draw a horizontal line from (X1, Y1) to (X2, Y1)
 \  Deep dive: Drawing colour pixels on the BBC Micro
 \       Area: bank 4
+\       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6058,6 +6057,8 @@ ENDIF
 
 .HLOIN
 
+IF _TPART <> 2          \ (Tube: the host draws from HLOIN3, X1, X2, Y1 and COL
+                        \ from the parasite, whose HLOIN3 is p-io.asm's p_hloin)
  JSR H_HLOIN            \ Port: in record mode the renderer fills the sun, so
                         \ return at once (gfx-hooks.asm)
 
@@ -6070,13 +6071,21 @@ ENDIF
 
  STA COL                \ Store the correct orange colour in COL
 
+ENDIF
+
 .HLOIN3
+
+IF _TPART = 1
+ JMP p_hloin
+ELSE
 
  STY YSAV               \ Store Y into YSAV, so we can preserve it across the
                         \ call to this subroutine
 
+IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
  LDY #%00001111         \ Set bits 1 and 2 of the Access Control Register at
  STY VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ENDIF
 
  LDX X1                 \ Set X = X1
 
@@ -6239,8 +6248,10 @@ ENDIF
 
 .HL6
 
+IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
  LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
  STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ENDIF
 
  LDY YSAV               \ Restore Y from YSAV, so that it's preserved
 
@@ -6291,8 +6302,10 @@ ENDIF
                         \ SC(1 0), using EOR logic so it merges with whatever is
                         \ already on-screen
 
+IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
  LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
  STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ENDIF
 
  LDY YSAV               \ Restore Y from YSAV, so that it's preserved
 
@@ -6322,6 +6335,8 @@ ENDIF
                         \ set, which this instruction reverts)
 
  JMP HL10               \ Jump back to HL10, just after the instruction that
+
+ENDIF
                         \ called HL9
 
 \ ******************************************************************************
@@ -6331,6 +6346,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Ready-made character rows for the left end of a horizontal line
 \       Area: bank 4
+\       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6356,6 +6372,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Ready-made character rows for the right end of a horizontal line
 \       Area: bank 4
+\       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6381,6 +6398,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Lookup table for two-pixel mode 1 orange pixels for the sun
 \       Area: bank 4
+\       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6662,6 +6680,7 @@ ENDIF
 \    Summary: Draw a one-pixel dot, two-pixel dash or four-pixel square
 \  Deep dive: Drawing colour pixels on the BBC Micro
 \       Area: bank 4
+\       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6702,14 +6721,21 @@ ENDIF
 
 .PIXEL
 
- JSR H_DOT              \ Port: in record mode, record the dot (an explosion
+IF _TPART <> 2          \ (Tube: the host draws from PIXEL's body, X, A, ZZ and
+ JSR H_DOT              \ COL from the parasite: p-io.asm's p_pixel)
+ENDIF
+IF _TPART = 1
+ JMP p_pixel
+ELSE              \ Port: in record mode, record the dot (an explosion
                         \ particle) for the renderer and return (gfx-hooks.asm)
 
  STY T1                 \ Store Y in T1 so we can restore it at the end of the
                         \ subroutine
 
+IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
  LDY #%00001111         \ Set bits 1 and 2 of the Access Control Register at
  STY VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ENDIF
 
  TAY                    \ Copy the screen y-coordinate from A into Y
 
@@ -6763,8 +6789,10 @@ ENDIF
                         \ remove it later without ruining the background that's
                         \ already on-screen
 
+IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
  LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
  STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ENDIF
 
  LDY T1                 \ Restore Y from T1, so Y is preserved by the routine
 
@@ -6805,16 +6833,22 @@ ENDIF
                         \ remove it later without ruining the background that's
                         \ already on-screen
 
+IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
  LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
  STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ENDIF
 
  LDY T1                 \ Restore Y from T1, so Y is preserved by the routine
 
  RTS                    \ Return from the subroutine
 
+ENDIF
+
+IF _TPART <> 2
 .PXOFF
 
  JMP H_STAROFF          \ Port: PIXEL2's star Y is off screen (gfx-hooks.asm)
+ENDIF
 
 \ ******************************************************************************
 \

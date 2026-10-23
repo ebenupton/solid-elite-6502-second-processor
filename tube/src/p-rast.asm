@@ -1117,18 +1117,32 @@ STREC = 4 * 48          \ (at most 48 records of 4 bytes)
  RTS
 
 .T_STARERASE
-.R_STARERASE
+.R_STARERASE            \ this buffer's records from the host (C_STARGET, where
+ LDA #C_STARGET         \ C_STARS left them), then back to it to black those
+ JSR preq               \ pixels (C_STARERASE)
+ LDA r_buf
+ JSR preq
+ JSR prec
+ JSR prx
+ STA pr_d
+ ASL A
+ ASL A
+ STA pr_c
+ BEQ pse2
+ LDY #0
+.pse0
+ JSR prx
+ STA (pr_a),Y
+ INY
+ CPY pr_c
+ BNE pse0
+.pse2
  LDA #C_STARERASE
  JSR ptx
- JSR prec
- LDX r_buf
- LDA r_scnt,X
- STZ r_scnt,X
+ LDA pr_d
  JSR ptx
- ASL A
- ASL A
+ LDA pr_c
  BEQ pse9
- STA pr_c
  LDY #0
 .pse1
  LDA (pr_a),Y
@@ -1161,20 +1175,4 @@ STREC = 4 * 48          \ (at most 48 records of 4 bytes)
  CPX R_SN
  BNE pst1
 .pst2
- JSR prec               \ the records back
- JSR prx
- LDX r_buf
- STA r_scnt,X
- ASL A
- ASL A
- BEQ pst9
- STA pr_c
- LDY #0
-.pst3
- JSR prx
- STA (pr_a),Y
- INY
- CPY pr_c
- BNE pst3
-.pst9
- RTS
+ RTS                    \ (the host keeps the records until C_STARGET)

@@ -92,3 +92,45 @@ IF _HOSTB = 0
  TRB &FE34
 ENDIF
  JMP hloop
+
+.h_hloin                \ C_HLOIN: X1, X2, Y1, COL, then Master's HLOIN3 (in
+ HRX                    \ this bank, "Tube: bothb"), into shadow RAM
+ STA X1
+ HRX
+ STA X2
+ HRX
+ STA Y1
+ HRX
+ STA COL
+IF _HOSTB = 0
+ LDA #4
+ TSB &FE34
+ENDIF
+ JSR HLOIN3
+.hhl9
+IF _HOSTB = 0
+ LDA #4
+ TRB &FE34
+ENDIF
+ JMP hloop
+
+.h_pixel                \ C_PIXEL: x, y, ZZ, COL, then Master's PIXEL (in this
+ HRX                    \ bank, "Tube: bothb"), into shadow RAM
+ PHA
+ HRX
+ PHA
+ HRX
+ STA ZZ
+ HRX
+ STA COL
+IF _HOSTB = 0
+ LDA #4
+ TSB &FE34
+ENDIF
+ PLA
+ TAY
+ PLA
+ TAX
+ TYA
+ JSR PIXEL
+ JMP hhl9

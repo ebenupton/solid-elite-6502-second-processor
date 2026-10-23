@@ -88,17 +88,20 @@ HCTXN = 12
 .htab
  EQUW h_sync, h_init, h_bad, h_bad, h_bad, h_bad, h_bad, h_span
  EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_keys
- EQUW h_dks, h_wscan, h_noise, h_soflush, h_bad, h_sceor, h_scsta, h_cls
+ EQUW h_dks, h_wscan, h_noise, h_soflush, h_bad, h_bad, h_bad, h_cls
  EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_oscli, h_swap, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
- EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin
+ EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_starget, h_hloin, h_pixel
 ASSERT P% - htab = C_MAX
 
 .hloop
+ BIT HR2S               \ a request (register 2) first, then the next command
+ BMI hreq
  BIT HR1S
  BPL hloop
  LDA HR1D
+.hdisp
  TAX
 IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
  LDA htab,X
@@ -110,6 +113,9 @@ IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
 ELSE
  JMP (htab,X)
 ENDIF
+.hreq
+ LDA HR2D
+ JMP hdisp
 
 IF _HOSTB = 0             \ (the Model B host's: hb-ovl.asm)
 .hhrx                   \ (HRX, HTX as subroutines, for bank 5's star records:
@@ -233,6 +239,7 @@ IF _HOSTB = 0             \ (the Model B host's: hb-res2.asm)
  LDA #RASTBANK
  STA &F4
  STA &FE30
+ LDA tA
  JSR r_stout
  JMP tback
 .T_STIN
@@ -426,7 +433,7 @@ ENDIF
 .hkl SKIP 13
 
 .h_dks                  \ C_DKS: is key A held (DKS5): A with bit 7 if so
- HRX
+ HR2X
  LDX #3
  SEI
  STX VIA+&40
@@ -460,44 +467,6 @@ ENDIF
 .h_soflush              \ C_SOFLUSH
  JSR SOFLUSH
  JMP hloop
-
-.h_sceor                \ C_SCEOR: address, value: EOR into shadow RAM (the
- JSR hscad              \ direct-mode screen and the dashboard, as Master's
-IF _HOSTB = 0
- LDA #4                 \ drawing writes them with ACCCON X set)
- TSB &FE34
-ENDIF
- TXA
- EOR (hsp)
- STA (hsp)
-IF _HOSTB = 0
- LDA #4
- TRB &FE34
-ENDIF
- JMP hloop
-
-.h_scsta                \ C_SCSTA
- JSR hscad
-IF _HOSTB = 0
- LDA #4
- TSB &FE34
-ENDIF
- TXA
- STA (hsp)
-IF _HOSTB = 0
- LDA #4
- TRB &FE34
-ENDIF
- JMP hloop
-
-.hscad                  \ hsp = the address, X = the value
- HRX
- STA hsp
- HRX
- STA hsp+1
- HRX
- TAX
- RTS
 
 .h_cls                  \ C_CLS: TTX66's clear, shadow &4000-&6FFF
 IF _HOSTB = 0

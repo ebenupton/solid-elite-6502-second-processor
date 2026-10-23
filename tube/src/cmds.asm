@@ -17,6 +17,8 @@
 \ Tube registers, as the parasite sees them
 PR1S = &FEF8            \ register 1 status: bit 7 data from the host, bit 6 room
 PR1D = &FEF9
+PR2S = &FEFA            \ register 2 status: bit 6 room
+PR2D = &FEFB
 PR4S = &FEFE            \ register 4 status: bit 7 data from the host
 PR4D = &FEFF
 
@@ -102,7 +104,13 @@ C_OVLPUT   = 98         \ an overlay's (S's state's) pages to the host to keep: 
                         \ number, then its pages (p-ovl.asm)
 C_LOIN     = 100        \ a line (Master's LOINQ, the direct-mode screen): X1, Y1,
                         \ X2, Y2, COL
-C_MAX      = 102
+C_STARGET  = 102        \ request (register 2): buffer b's star records (the count,
+                        \ then 4 bytes each), as the host's last C_STARS for it left them
+C_HLOIN    = 104        \ a horizontal line (Master's HLOIN3, the direct-mode
+                        \ screen): X1, X2 (X1 < X2), Y1, COL
+C_PIXEL    = 106        \ a point (Master's PIXEL, the direct-mode screen): x,
+                        \ y, ZZ, COL
+C_MAX      = 108
 
 DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
 
@@ -123,3 +131,9 @@ MACRO HTX               \ send A to the parasite (register 4)
  STA HR4D
 ENDMACRO
 
+
+MACRO HR2X              \ A = the next byte from the parasite's register 2 (a
+ BIT HR2S               \ request's operand)
+ BPL P%-3
+ LDA HR2D
+ENDMACRO

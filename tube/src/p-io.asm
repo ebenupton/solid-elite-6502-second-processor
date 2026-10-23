@@ -34,6 +34,17 @@ fl_t  = &0E
  STA PR1D
  RTS
 
+\ preq: send A to the host through register 2, waiting for room: the
+\ requests (keys, a key test, the vsync, port B, the star records), which the
+\ host answers between commands, ahead of those queued in register 1. Keeps
+\ A, X and Y (and C)
+
+.preq
+ BIT PR2S
+ BVC preq
+ STA PR2D
+ RTS
+
 \ prx: A = the next byte from the host (register 4), waiting for it. Keeps X
 \ and Y (and C)
 
@@ -101,36 +112,57 @@ ENDMACRO
 .T_FLARE                \ the lens flare (gfx-flare.asm), X, Y: this buffer's
  JMP R_FLARE            \ dirty extents' pages
 
-\ ******************************************************************************
-\
-\ Master's drawing's screen writes (the SCEOR and SCSTA macros, elite-source.asm):
-\ the address SC(1 0) + Y and the value A. Keep A, X, Y and the flags
-\
-\ ******************************************************************************
+\ p_hloin: HLOIN3 (Master's drawing, the host's: C_HLOIN): a line from (X1, Y1)
+\ to (X2, Y1) in COL, leaving YSAV, X1, X2 and X as Master's does; keeps Y
 
-.p_sceor
- PHP
+.p_hloin
+ STY YSAV
+ LDX X1
+ CPX X2
+ BEQ phl9
+ BCC phl1
+ LDA X2                 \ (X1 on the left)
+ STA X1
+ STX X2
+ TAX
+.phl1
+ LDA #C_HLOIN
+ PSEND
+ TXA
+ PSEND
+ LDA X2
+ PSEND
+ DEC X2                 \ (as Master's: no pixel at the end)
+ LDA Y1
+ PSEND
+ LDA COL
+ PSEND
+ LDA X2
+ AND #3
+ TAX
+.phl9
+ RTS
+
+\ p_pixel: PIXEL's drawing (the host's: C_PIXEL): a point at (X, A) sized by
+\ ZZ, in COL, leaving T1 and X (x AND 3) as Master's does; keeps Y
+
+.p_pixel
+ STY T1
  PHA
- LDA #C_SCEOR
-.psc1
+ LDA #C_PIXEL
  PSEND
- TYA
- CLC
- ADC SC
- PSEND
- LDA SC+1
- ADC #0
+ TXA
  PSEND
  PLA
  PSEND
- PLP
+ LDA ZZ
+ PSEND
+ LDA COL
+ PSEND
+ TXA
+ AND #3
+ TAX
  RTS
-
-.p_scsta
- PHP
- PHA
- LDA #C_SCSTA
- BNE psc1
 
 .p_cls                  \ TTX66's screen clear (the direct-mode buffer)
  PHP
@@ -169,7 +201,7 @@ ENDMACRO
 
 .p_wscan
  LDA #C_WSCAN
- PSEND
+ JSR preq
  JSR prx
  LDA #72
  STA DL
@@ -210,7 +242,7 @@ ENDMACRO
 
 .p_irb
  LDA #C_IRB
- PSEND
+ JSR preq
  JMP prx
 
 \ p_dks: DKS5: X = key A, with bit 7 set if the host has it held. Keeps Y and C
@@ -218,9 +250,9 @@ ENDMACRO
 .p_dks                  \ (A is kept: the harness reads the key there)
  PHA
  LDA #C_DKS
- PSEND
+ JSR preq
  PLA
- PSEND
+ JSR preq
  PHA
  JSR prx
  TAX
@@ -235,7 +267,7 @@ ENDMACRO
 
 .p_fillkl
  LDA #C_KEYS
- PSEND
+ JSR preq
  LDA #1
  STA pfkn
 .pfk1
