@@ -243,8 +243,9 @@ ENDIF
 
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
 \ (RZ_PP+1 and r_jsr+2).  Clobbers A.  (The Tube's Master host, whose STA
-\ runs are one per line in sideways RAM, tube/src/h-sta.asm: RZ_PP = the
-\ line's run + 3 (column 1's STA), s_rbk = its bank; nothing is paged here)
+\ runs are one per line, each at a page's start in sideways RAM,
+\ tube/src/h-sta.asm: RZ_PP = the run's page, the JSRs into it patched for
+\ it, s_rbk = its bank; nothing is paged here)
 .r_rowset
   STY RZ_Y
   TYA
@@ -266,10 +267,12 @@ ENDIF
   INC A
   STA RZ_PB+1
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  LDA s_lo,Y
-  STA RZ_PP
-  LDA s_hi,Y
+  STZ RZ_PP               \ (the run is at its page's start: the entry and the
+  LDA s_pg,Y              \ plant are r_j's offsets in the page, no sums)
   STA RZ_PP+1
+  STA sjsr+2
+  STA sjsr_e+2
+  STA sjsr_o+2
   LDA s_bk,Y
   STA s_rbk
   RTS
@@ -607,18 +610,11 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   BEQ nrun                \ column 1; none if no whole byte lies between)
   TAY
   LDA r_j,X
-  CLC
-  ADC RZ_PP
   STA sjsr+1
-  LDA RZ_PP+1
-  ADC #0
-  STA sjsr+2
-  LDA s_rbk
-  STA &FE30
-  LDA #r_opRTS
-  STA (RZ_PP),Y
+  LDA #r_opRTS            \ (the line's bank is in: its caller paged it after
+  STA (RZ_PP),Y           \ r_rowset)
   LDA RZ_COL
-.sjsr
+.^sjsr
   JSR &FFFF
   LDA #s_opSTA
   STA (RZ_PP),Y
@@ -631,8 +627,6 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
-  LDA #RASTPOLY           \ (the rasteriser's two windows back, for the callers
-  STA &FE30               \ in them: the line code's long spans)
   RTS
 .rb
   LDY r_xo,X
@@ -640,8 +634,6 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-  LDA #RASTPOLY
-  STA &FE30
   RTS
 ELSE
   LDY R_XR
@@ -818,7 +810,8 @@ NEXT
 \ ============================================================================
 MACRO R_RUN r
 IF _HOSTB AND _RBANK = 1        \ (Model B, bank D: no runs, bank P's are used)
-ELIF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: STA runs, h-sta.asm)
+ELIF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: a line's STA
+  SKIP 191                                     \ run here, h-sta.asm's s_gen makes it)
 ELSE
   FOR c, 1, 63
     STA &4000 + r * &200 + c * 8 - r * 8, Y
@@ -1025,6 +1018,10 @@ R_ENDPAGE 15
   CMP R_XL
   BCC out
   JSR r_rowset
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  LDA s_rbk               \ (the Tube's Master host: the line's run's bank)
+  STA &FE30
+ENDIF
   TYA
   LSR A
   LDA R_COLE
@@ -1740,7 +1737,11 @@ ENDIF
   LDY RZ_Y                \ a span (r_rowset for the run page)
   JSR r_rowset
   LDX R_XL
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  JMP s_lspan             \ (the Tube's Master host: in HAZEL, h-sta.asm: the
+ELSE                      \ line's bank in, and this window back after)
   JMP r_spc
+ENDIF
 }
 ELSE
 }

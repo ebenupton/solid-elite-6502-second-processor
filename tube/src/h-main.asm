@@ -193,7 +193,10 @@ IF _HOSTB
  JMP hb_ovlput
 ELSE                      \ (the Master host: page by page, wherever the build
  HRX                    \ put each page, build/hstore.asm: main RAM with ACCCON
- JSR hov_at             \ X clear, sideways RAM, ANDY or HAZEL)
+ CMP #3                 \ X clear, sideways RAM, ANDY or HAZEL; S's state in
+ BNE P%+5               \ 64-byte pieces, hss)
+ JMP hss_get
+ JSR hov_at
 .hog0
  JSR hov_pg
 .hog1
@@ -208,6 +211,9 @@ ELSE                      \ (the Master host: page by page, wherever the build
 
 .h_ovlput               \ C_OVLPUT: an overlay's pages (S's state) to keep
  HRX
+ CMP #3
+ BNE P%+5
+ JMP hss_put
  JSR hov_at
 .hop0
  JSR hov_pg
@@ -254,6 +260,51 @@ ELSE                      \ (the Master host: page by page, wherever the build
  STA hog1+2
  STA hop1+2
  LDY #0
+ RTS
+\ hss_get, hss_put: S's state, in 64-byte pieces at bytes 192-255 of bank 4's
+\ pages from &8000 (the STA runs, tube/src/h-sta.asm, end at byte 189)
+
+.hss_get
+ JSR hss_at
+.hsg1
+ LDA &8000,Y            \ (patched: the page)
+ HTX
+ INY
+ BNE hsg1
+ LDY #&C0
+ INC hsg1+2
+ DEX
+ BNE hsg1
+ BRA hss_x
+.hss_put
+ JSR hss_at
+.hsp1
+ HRX
+.hsp2
+ STA &8000,Y            \ (patched: the page)
+ INY
+ BNE hsp1
+ LDY #&C0
+ INC hsp2+2
+ DEX
+ BNE hsp1
+.hss_x
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JMP hloop
+.hss_at                 \ bank 4, the first page, X = the pieces, Y = &C0
+ LDA #4
+ STA &FE30
+ LDA #&80
+ STA hsg1+2
+ STA hsp2+2
+ LDA h_ovn+2
+ ASL A
+ ASL A
+ TAX
+ LDY #&C0
+ LDA #0                 \ (the patched operands' low bytes stay &00: Y does it)
  RTS
 .hogp EQUB 0
 .hogn EQUB 0

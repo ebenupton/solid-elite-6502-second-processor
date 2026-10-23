@@ -114,6 +114,10 @@ IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
   BEQ done
   TAY
   JSR r_rowset
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  LDA s_rbk               \ (the Tube's Master host: the line's run's bank)
+  STA &FE30
+ENDIF
 .span
   HRX
   CMP #&FF

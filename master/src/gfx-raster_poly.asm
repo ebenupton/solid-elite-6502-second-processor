@@ -345,9 +345,17 @@ ENDIF
   TYA
   LSR A
   BCC ev
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  JMP s_pbxo              \ (the Tube's Master host: the line's bank in, HAZEL)
+ELSE
   JMP r_pbx_o             \ odd first row (Y = RZ_Y)
+ENDIF
 .ev
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+  JMP s_pbxe
+ELSE
   JMP r_pbx_e             \ even first row
+ENDIF
 IF _TDUMB = FALSE
 .otab
   EQUW r_ta, r_tb, r_ta

@@ -77,13 +77,13 @@ ovs = [  # (name, number, first page sent, pages)
     ("D", 1, o, pg(sy["OVL_D_END"] + 255) - o),
     ("TC", 5, pg(sy["TAIL_START"]), pg(sy["TC_END"] + 255) - pg(sy["TAIL_START"])),
     ("S", 2, pg(sy["S_STATE_END"]), pg(sy["TAIL_START"]) - pg(sy["S_STATE_END"])),
-    ("TM", 4, pg(sy["TAIL_START"]), pg(sy["OVL_S_END"] + 255) - pg(sy["TAIL_START"])),
-    ("SS", 3, o, pg(sy["S_STATE_END"] + 255) - o)]
+    ("TM", 4, pg(sy["TAIL_START"]), pg(sy["OVL_S_END"] + 255) - pg(sy["TAIL_START"]))]
+nss = pg(sy["S_STATE_END"] + 255) - o   # (S's state: in 64-byte pieces, bytes 192-255 of
+assert 4 * nss <= 64                    # bank 4's run pages, h-main.asm's hss)
 REG = [  # (ROMSEL, first page, pages): main RAM (ACCCON X clear), bank 5's
-    (6, 0x30, 14), (6, 0x70, 16),       # disc window and tail, bank 6's tail
-    (5, 0x80, 16), (5, 0xB9, 7),        # (after its STA runs), ANDY's tail,
-    (6, 0xB2, 14), (0x85, 0x86, 10),    # HAZEL above the code that enters the
-    (6, 0xCB, 21)]                      # runs
+    (6, 0x30, 14), (6, 0x70, 16),       # tail, bank 6's tail (after its STA
+    (5, 0xBB, 5), (6, 0xB7, 9),         # runs), ANDY's tail, HAZEL above the
+    (0x85, 0x86, 10), (6, 0xCB, 21)]    # code that enters the runs
 slots = [(r, h + i) for r, h, n in REG for i in range(n)]
 total = sum(n for _, _, n, in [(0, 0, x[3]) for x in ovs])
 assert total <= len(slots), "the overlays need %d pages, the regions hold %d" % (total, len(slots))
@@ -95,13 +95,14 @@ with open("build/hstore.asm", "w") as f:
     f.write("HST_PAGES = %d\n" % total)
     f.write(".st_rom EQUB %s\n" % ", ".join("&%02X" % slots[i][0] for i in range(total)))
     f.write(".st_hi EQUB %s\n" % ", ".join("&%02X" % slots[i][1] for i in range(total)))
+    first[3] = (0, nss)
     f.write(".h_ovf EQUB %s\n" % ", ".join(str(first[n][0]) for n in range(1, 6)))
     f.write(".h_ovn EQUB %s\n" % ", ".join(str(first[n][1]) for n in range(1, 6)))
 # the pages' contents, by slot (build/hstore.bin: ROMSEL, page, 256 bytes each)
 hovd = open("build/HOVD.bin", "rb").read()
 srcs = {"D": hovd[:256 * ovs[0][3]], "TC": hovd[256 * ovs[0][3]:],
         "S": img[256 * (pg(sy["S_STATE_END"]) - o):256 * (pg(sy["TAIL_START"]) - o)],
-        "TM": img[256 * (pg(sy["TAIL_START"]) - o):], "SS": bytes(256 * ovs[4][3])}
+        "TM": img[256 * (pg(sy["TAIL_START"]) - o):]}
 out = bytearray()
 k = 0
 for name, num, p0, n in ovs:
@@ -167,10 +168,9 @@ def put(fn, base, size, rom, lim):
             img[o:o + 256] = d
     return img
 h["RUN6"] = int(re.search(r"^RUN6 = &([0-9A-F]+)", open("tsrc/h-sta.asm").read(), re.M).group(1), 16)
-assert h["B5_END"] <= 0xB900 and h["RA_END"] <= 0x8600 and h["RUN6"] + 193 * 24 <= 0xB200 and h["HZ_END"] <= 0xCB00, "the host's code runs into its storage"
-img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0x80, 0x90)); open("build/HBANK5.bin", "wb").write(img)
-img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0xB9, 0xC0)); open("build/HBANK5.bin", "wb").write(img)
-img = put("build/HBANK6.bin", 0x8000, 0x4000, 6, (0xB2, 0xC0)); open("build/HBANK6.bin", "wb").write(img)
+assert h["B5_END"] <= 0xBB00 and h["RA_END"] <= 0x8600 and h["RUN6"] + 24 * 256 <= 0xB700 and h["HZ_END"] <= 0xCB00, "the host's code runs into its storage"
+img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0xBB, 0xC0)); open("build/HBANK5.bin", "wb").write(img)
+img = put("build/HBANK6.bin", 0x8000, 0x4000, 6, (0xB7, 0xC0)); open("build/HBANK6.bin", "wb").write(img)
 img = put("build/HRASTA.bin", 0x8000, 0x1000, 0x85, (0x86, 0x90)); open("build/HRASTA.bin", "wb").write(img)
 open("build/HSTM1.bin", "wb").write(put(None, 0x3000, 0xE00, 6, (0x30, 0x3E)))
 open("build/HSTM2.bin", "wb").write(put(None, 0x7000, 0x1000, 6, (0x70, 0x80)))

@@ -291,14 +291,7 @@ ENDIF
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   TAY                     \ (the Tube's Master host: the line's STA run, as
   LDA r_j,X               \ r_spc's)
-  CLC
-  ADC RZ_PP
   STA sjsr_e+1
-  LDA RZ_PP+1
-  ADC #0
-  STA sjsr_e+2
-  LDA s_rbk
-  STA &FE30
   LDA #r_opRTS
   STA (RZ_PP),Y
   LDA RZ_CE
@@ -342,12 +335,11 @@ ENDIF
   INC RZ_PA
   INC RZ_PB
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  LDA s_lo,Y              \ (the line's run and bank)
-  STA RZ_PP
-  LDA s_hi,Y
+  LDA s_pg,Y              \ (the line's run's page and bank)
   STA RZ_PP+1
+  STA sjsr_o+2
   LDA s_bk,Y
-  STA s_rbk
+  STA &FE30
 ENDIF
 IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
 .r_pbx_o                  \ makes it, p-emit.asm: left, then right exclusive; a
@@ -412,14 +404,7 @@ ENDIF
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   TAY                     \ (the Tube's Master host: the line's STA run, as
   LDA r_j,X               \ r_spc's)
-  CLC
-  ADC RZ_PP
   STA sjsr_o+1
-  LDA RZ_PP+1
-  ADC #0
-  STA sjsr_o+2
-  LDA s_rbk
-  STA &FE30
   LDA #r_opRTS
   STA (RZ_PP),Y
   LDA RZ_CO
@@ -457,12 +442,11 @@ ENDIF
 .pb_c_o
   STY RZ_Y
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  LDA s_lo,Y              \ (the line's run and bank)
-  STA RZ_PP
-  LDA s_hi,Y
+  LDA s_pg,Y              \ (the line's run's page and bank)
   STA RZ_PP+1
+  STA sjsr_e+2
   LDA s_bk,Y
-  STA s_rbk
+  STA &FE30
 ENDIF
   TYA                     \ RZ_PA/RZ_PB lo = row AND 7
   AND #7
