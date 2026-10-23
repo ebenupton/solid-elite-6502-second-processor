@@ -97,6 +97,9 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is th
 .zloop
 .zloop1
 .^r_pzl1
+IF OPTUBE                 \ (the Tube's one-pass generator loads the side's DDA
+  JMP fz                  \ instead: tube/src/p-onepass.asm; no tables)
+ELSE
 IF ONEPASS                \ (the one-pass generator loads the DDA instead,
   BIT fdiv                \ gfx-raster_onepass.asm)
   BPL zl0
@@ -120,11 +123,15 @@ ENDIF
   CPY #0
   BCC r_lz
   RTS
+ENDIF
 \ shallow: X = b, A = a  (falls into r_lsh)
 .shallow
   STZ RZ_TA
 .shallow1
 .^r_psh1
+IF OPTUBE
+  JMP fsh
+ELSE
 IF ONEPASS
   BIT fdiv
   BPL sh0
@@ -163,6 +170,7 @@ ENDIF
   CPY #0
   BCC r_lsh
   RTS
+ENDIF
 }
 
 
@@ -630,9 +638,13 @@ r7_eb = rp_ov + 15
   LDA #0
   RTS
 .go                       \ (into r7_pf16b)
+IF OPTUBE
+  JMP op_16               \ (the Tube: the one-pass generator, tube/src/p-onepass.asm)
+ENDIF
 }
 
 
+IF OPTUBE = FALSE          \ (the Tube: p-onepass.asm walks the chains)
 \ ----------------------------------------------------------------------------
 \ r7_pf16b: R_POLY with some coordinate outside 0..255 (rows r_ystart..r_ylast
 \ already found).  Phase A as r_pf8 (chain A forward into r_ta, chain B
@@ -908,6 +920,8 @@ r7_eb = rp_ov + 15
 .sw1
   JMP r_psh1
 }
+
+ENDIF
 
 \ ----------------------------------------------------------------------------
 \ r7_esgen: set up edge r7_i0 -> r7_i1 (y1 > row >= y0) for side r7_side4 at row

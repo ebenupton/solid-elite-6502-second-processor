@@ -14,9 +14,9 @@ MAXDT = 64              \ dots per frame
 GFXBANK = 6             \ (the frame layer's bank on the Master: unused here)
 ELITEBANK = HOMEBANK
 ONEPASS = FALSE         \ R_POLY's 8-bit polygons by the one-pass span generator
-OPTUBE = FALSE          \ (gfx-raster_onepass.asm, sending each row's span as it is
-                        \ made, p-emit.asm): off, as it measured no faster than the
-                        \ two-phase path's rows streamed through p_emit (TUBE-REPORT.md)
+OPTUBE = TRUE           \ the Tube's: every polygon in one pass (p-onepass.asm, each
+                        \ row's span to the host as it is made, p-emit.asm), exactly
+                        \ as the two-phase path; no edge tables
 NDSTAR = NOST+1
 MERIDHOLD = 0           \ (gfx-ws.asm's: tube/build.sh checks that they agree)
 

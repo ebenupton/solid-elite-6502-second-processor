@@ -97,7 +97,8 @@ AREA = re.compile(r"^\\       Area: (.*)$")
 # The Tube build (TUBE=1, tube/build.sh): every block is the parasite's
 # (Master's drawing too: its screen writes go to the host, SCEOR and SCSTA)
 # but where a header's "Tube:" field says otherwise: "host" (the IRQ, sound,
-# keyboard scanning) or "both" (CHPR, whose glyphs the host draws). The
+# keyboard scanning) or "both" (CHPR, whose glyphs the host draws), or
+# "none" (the Master port's own, which neither side of the Tube uses). The
 # host's copy, build/elite-source-host.asm, holds the host's blocks, and the
 # parasite's copies (run, low, bank4, cold) blank the host-only ones.
 TUBEF = re.compile(r"^\\       Tube: (.*)$")
@@ -150,7 +151,7 @@ def blocks(lines, tags=TAGS):
             m = TUBEF.match(l)
             if m:
                 t = m.group(1).strip()
-                if t not in ("host", "both", "hostb", "bothb"):
+                if t not in ("host", "both", "hostb", "bothb", "none"):
                     sys.exit("%d: unknown Tube field %r" % (i + 1, t))
                 TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
@@ -680,7 +681,7 @@ def main():
     for a in AREAS:
         copies[a] = []
         for s, e, name, area in bl:
-            on = area == a and not (TUBE and place(s, area) in ("host", "hostb"))
+            on = area == a and not (TUBE and place(s, area) in ("host", "hostb", "none"))
             copies[a] += [lines[i] if on else "" for i in range(s, e)]
     if TUBE:
         # the host's copies: the configuration and the workspaces at fixed

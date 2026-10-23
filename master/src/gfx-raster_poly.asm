@@ -37,11 +37,12 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is th
   BNE p16
 IF OPTUBE
   JSR r_pf8               \ (the Tube: r_pf8's set-up, then one pass, each row's span
-  JMP p_spend             \ to the host as it is made: gfx-raster_onepass.asm,
-                          \ tube/src/p-emit.asm)
+  JMP p_spend             \ to the host as it is made: tube/src/p-onepass.asm,
+.p16                      \ tube/src/p-emit.asm; the same for 16-bit polygons
+  JSR r7_pf16             \ after r7_pf16's set-up)
+  JMP p_spend
 ELSE
   JMP r_pf8
-ENDIF
 .p16                      \ some coordinate outside 0..255: phase A (r7_pf16)
   JSR r7_pf16
   CMP #0                  \ (A = 0: nothing to draw)
@@ -53,6 +54,7 @@ ELSE
 ENDIF
 .out
   RTS
+ENDIF
 }
 
 \ ============================================================================
@@ -119,7 +121,7 @@ ENDIF
   INC A
   STA r_yend
 IF OPTUBE
-  JMP r_sp8b              \ (the Tube: the one-pass generator from here)
+  JMP op_8                \ (the Tube: the one-pass generator from here)
 .out
   RTS
 ELSE
@@ -184,7 +186,9 @@ ELSE
 {
 ENDIF
 IF _TPART = 1
+IF OPTUBE = FALSE
   JMP p_spans             \ (Tube: the rest is the host's)
+ENDIF
 }
 ELSE
 IF _TDUMB = FALSE          \ (the dumb host: the rows come one by one from the

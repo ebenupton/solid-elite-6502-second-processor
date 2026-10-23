@@ -2307,7 +2307,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound chip data mask for choosing a tone channel in the range 0-2
-\       Tube: both
+\       Tube: host
 \
 \ ******************************************************************************
 
@@ -3377,7 +3377,7 @@ ENDIF
 \    Summary: Lookup table for converting pixel y-coordinate to page number of
 \             screen address
 \       Area: bank 4
-\       Tube: bothb
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3854,7 +3854,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Ready-made double-pixel character row bytes for mode 1
 \       Area: bank 4
-\       Tube: bothb
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6369,7 +6369,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Ready-made character rows for the left end of a horizontal line
 \       Area: bank 4
-\       Tube: bothb
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6395,7 +6395,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Ready-made character rows for the right end of a horizontal line
 \       Area: bank 4
-\       Tube: bothb
+\       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6881,6 +6881,7 @@ ENDIF
 \    Summary: A four-colour mode 1 pixel byte that represents a dot's distance
 \       Area: bank 4
 \
+\       Tube: none
 \ ------------------------------------------------------------------------------
 \
 \ The following table contains colour bytes for two-pixel mode 1 pixels, with
@@ -8233,7 +8234,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: Zero-fill the page whose number is in X
-\       Tube: both
+\       Tube: host
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9934,6 +9935,7 @@ ENDIF
 \    Summary: Masks for updating sprite bits in VIC+&10 for the top bit of the
 \             9-bit x-coordinates of the Trumble sprites
 \
+\       Tube: none
 \ ******************************************************************************
 
 .SPMASK
@@ -31581,6 +31583,7 @@ ENDIF
 \   Category: Drawing ships
 \    Summary: A table to shift X left by one place when X is 0 or 1
 \
+\       Tube: none
 \ ******************************************************************************
 
 .exlook
@@ -38953,6 +38956,7 @@ ENDIF
 \             block (Commodore 64 and Apple II versions only)
 \       Area: cold
 \
+\       Tube: none
 \ ******************************************************************************
 
 .CHECK2
@@ -42380,6 +42384,7 @@ ENDMACRO
 \    Summary: An unused key logger buffer that's left over from the 6502 Second
 \             Processor version of Elite
 \
+\       Tube: none
 \ ******************************************************************************
 
 .buf

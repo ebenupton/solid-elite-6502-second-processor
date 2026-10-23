@@ -53,12 +53,21 @@ PFRAME% = P%
  CPU 1
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
+IF OPTEST                \ (a test build for test_onepass.py --tube only: the
+.F_HW                   \ one-pass generator over the frame layer's buffers)
+ INCLUDE "tsrc/p-onepass.asm"
+ SKIP F_HW + 2048 - P%
+F_HW2 = F_HW + 256
+F_DL = F_HW + 512
+F_INIT = F_HW
+ELSE
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
 .F_DL                   \ ship records: XX2 then XX3 copies (1536 bytes)
  SKIP &22
  INCLUDE "src/gfx-finit.asm"
  SKIP F_DL + 1536 - P%
+ENDIF
 .F_DLEND
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm), and what each buffer shows
 .F_ST   SKIP 768
@@ -95,9 +104,8 @@ ASSERT F_ST = F_TM + &300
  INCLUDE "tsrc/p-rast.asm"
  INCLUDE "tsrc/p-emit.asm"              \ (the polygons' rows to the host as they are made)
  INCLUDE "tsrc/p-kept.asm"              \ (kept solid rows)
-IF OPTUBE
- INCLUDE "src/gfx-raster_onepass.asm"   \ (R_POLY's 8-bit polygons in one pass)
- CPU 1
+IF OPTEST = 0
+ INCLUDE "tsrc/p-onepass.asm"           \ (R_POLY in one pass)
 ENDIF
  INCLUDE "src/gfx-ftext.asm"
  CPU 1
@@ -121,6 +129,7 @@ ENDIF
  CPU 1
  INCLUDE "tsrc/p-dash2.asm"    \ (the dashboard's parasite halves, their second part)
  INCLUDE "tsrc/p-kept2.asm"    \ (kept solid rows: T_KFRAME)
+ INCLUDE "tsrc/p-onepass2.asm" \ (R_POLY in one pass: its second part)
 .PHIGH_END
  PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
  ASSERT PHIGH_END <= &FEF0

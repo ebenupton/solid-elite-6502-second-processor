@@ -191,7 +191,7 @@ def main(argv):
         cols = [rnd.randrange(256) for _ in range(4)]
         polys.append((k, dict(xs=[p[0] for p in P], ys=[p[1] for p in P], clip=clip, cols=cols,
                               buf=rnd.random() < 0.02)))
-    stats, bad, cyc = {}, {}, [0, 0]
+    stats, bad, cyc, kcyc = {}, {}, [0, 0], {}
     for i, (k, d) in enumerate(polys):
         n = len(d['xs'])
         res = []
@@ -212,16 +212,28 @@ def main(argv):
             c0 = m.mpu.processorCycles
             m.call('T_POLY')
             cyc[mi] += m.mpu.processorCycles - c0
+            kcyc.setdefault(k, [0, 0])[mi] += m.mpu.processorCycles - c0
             res.append((list(m.out), m.state()))
         st = stats.setdefault(k, [0, 0])
         st[0] += 1
         if res[0] != res[1]:
+            if not bad:                        # (the first: in detail, as the state
+                o0, o1 = res[0][0], res[1][0]  # carries on from it)
+                j = next((q for q in range(min(len(o0), len(o1))) if o0[q] != o1[q]), min(len(o0), len(o1)))
+                print('FIRST DIFFERENCE: polygon %d (%s) %s' % (i, k, json.dumps(d)))
+                print('  bytes from %d: ref %s\n                 cand %s' % (j, o0[j:j + 24], o1[j:j + 24]))
+                names = ['%s%s' % (n, b) for b in '01' for n in ('R_DIRTYL', 'R_DIRTYR', 'R_DISCL', 'R_DISCR')] + ['r_dyt', 'r_dyb']
+                for nm, x0, x1 in zip(names, res[0][1], res[1][1]):
+                    if x0 != x1:
+                        q = [r for r in range(len(x0)) if x0[r] != x1[r]]
+                        print('  state %s differs at %s: ref %s cand %s' % (nm, q[:6], [x0[r] for r in q[:6]], [x1[r] for r in q[:6]]))
             st[1] += 1
             if k not in bad:
                 bad[k] = (d, res[0][0][:40], res[1][0][:40])
     print('polygons %d (%s)' % (len(polys), ', '.join('%s %d' % (k, v[0]) for k, v in sorted(stats.items()))))
     if a.cycles:
         print('cycles: ref %d, cand %d (%.1f%%)' % (cyc[0], cyc[1], 100.0 * cyc[1] / max(1, cyc[0])))
+        print('  by kind (a polygon): ' + ', '.join('%s %d/%d' % (k, v[0] // stats[k][0], v[1] // stats[k][0]) for k, v in sorted(kcyc.items())))
     if not bad:
         print('identical: every polygon\'s bytes to the host and the state after it')
         return 0
