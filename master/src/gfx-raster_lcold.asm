@@ -102,7 +102,7 @@
 IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
 \ r_dspin: C_DSPANS (tube/src/h-main.asm's h_dspans): the disc layer's rows of
 \ spans, read from the parasite as they come: the row (&FF: the end), then
-\ XL, XR, COLE, COLO for each span, &FF ending the row; each row set up once
+\ XL, XR and the row's colour byte for each span, &FF ending the row; each row set up once
 \ for all of its spans (r_rowset), each span by the span core (as R_SPAN)
 .r_dspin
 {
@@ -119,17 +119,8 @@ IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
   STA R_XL
   HRX
   STA R_XR
-  HRX
-  STA R_COLE
-  HRX
-  STA R_COLO
-  LDA RZ_Y                \ the row's colour (even, odd)
-  LSR A
-  LDA R_COLE
-  BCC ev
-  LDA R_COLO
-.ev
-  STA RZ_COL
+  HRX                     \ the colour byte for this row (the parasite chose it
+  STA RZ_COL              \ by the row's parity)
   LDX R_XL
   JSR r_spc               \ (keeps the row's set-up)
   JMP span

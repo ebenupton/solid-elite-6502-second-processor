@@ -91,7 +91,8 @@ C_HLOIN    = 104        \ a horizontal line (Master's HLOIN3, the direct-mode
 C_PIXEL    = 106        \ a point (Master's PIXEL, the direct-mode screen): x,
                         \ y, ZZ, COL
 C_DSPANS   = 108        \ the disc layer's spans (R_DISCROWS), sent as made: per
-                        \ row, the row, then XL, XR, COLE, COLO for each span, &FF
+                        \ row, the row, then XL, XR and the row's colour byte (COLE
+                        \ on even rows, COLO on odd) for each span, &FF
                         \ ending the row; &FF for a row ends
 C_MAX      = 110
 

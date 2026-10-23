@@ -344,8 +344,10 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP pr_wr
  BCC P%+4
  STA pr_wr
+ LDA pr_y                \ the row's colour byte only (even rows pr_ce, odd
+ LSR A                  \ pr_co): the host fills with it as it is
  LDA pr_ce
- PSEND
+ BCC P%+4
  LDA pr_co
  PSEND
  RTS
