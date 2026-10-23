@@ -9381,6 +9381,10 @@ ENDIF
 
  NEXT
 
+IF _TUBE AND _TPART = 1 \ Port (Tube): the parasite's quarter squares follow the
+ INCLUDE "src/elite-qs.asm"  \ log tables, page aligned with them, so that the
+ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
+
 \ ******************************************************************************
 \
 \       Name: UP
@@ -18055,12 +18059,13 @@ ENDIF
 IF _TUBE
 
                         \ Port (Tube): the parasite has no screen and no banks,
-                        \ so the run goes straight on, with the quarter squares
-                        \ page aligned here (docs/TUBE-MAP.md)
-
+                        \ so the run goes straight on (its quarter squares are
+                        \ after the log tables, docs/TUBE-MAP.md)
+IF _TPART <> 1
  ALIGN &100
 
  INCLUDE "src/elite-qs.asm"             \ the quarter-square tables
+ENDIF
 
 ELSE
 

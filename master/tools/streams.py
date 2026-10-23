@@ -413,6 +413,9 @@ def glue(copies, errors, lines, bl, falls):
         code, comment = split_code(l)
         if not code.strip():
             continue
+        if TUBEOVL is not None and re.match(r"^\s*BNE\s+TT162\+2\s*$", code):
+            code = " JMP TT27"                 # (TT163 in the Tube's overlay D: TT162+2
+                                               # is JMP TT27, and A is never zero here)
         if not act[i]:                     # (a branch the build leaves out: the
             for a, b, name in reversed(tokens(code)):   # names, but no stubs)
                 if name in cold:
