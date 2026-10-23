@@ -89,11 +89,8 @@ ASSERT STREC <= 192 AND MERIDHOLD = 0
 .S_STATE_END             \ (the state: what p-ovl.asm saves when S goes out in space
                         \ mode)
 
-.pr_bat  EQUB 0          \ R_DISCROWS's batch (C_DSPANS): bit 7 on, bit 6 sent
-.pr_sy   EQUB 0          \ the row buffered, its spans' bytes, the spans (a, b, ce,
-.pr_sn   EQUB 0          \ co each)
-PSBUF = 4 * 16
-.pr_sb   SKIP PSBUF
+.pr_bat  EQUB 0          \ R_DISCROWS's batch (C_DSPANS): bit 7 on, bit 6 begun
+.pr_sy   EQUB 0          \ the batch's open row (&FF: none)
 
 \ ------------------------------------------------------------------------------
 \ R_INIT, R_SETBUF, R_RESETBUF
@@ -321,69 +318,38 @@ PSBUF = 4 * 16
 \ pixels inside the clip window extend the dirty extents, as r_pclip's
 \ ------------------------------------------------------------------------------
 
-.psb                    \ the span into the batch's row buffer (another row's,
- PHX                    \ or a full one: sent first)
- LDX pr_sn
- LDA pr_y
- CMP pr_sy
- BNE psb1
- CPX #PSBUF
- BCC psb2
-.psb1
- JSR psflush
- LDA pr_y
+.psb                    \ the span into the batch's stream, as it is made: its
+ LDA pr_y               \ row first if another (the open one closed with &FF, or
+ CMP pr_sy              \ C_DSPANS first if the batch has sent nothing)
+ BEQ psb2
  STA pr_sy
- LDX #0
+ BIT pr_bat
+ BVS psb1
+ LDA #%11000000
+ STA pr_bat
+ LDA #C_DSPANS
+ BNE psb0
+.psb1
+ LDA #&FF
+.psb0
+ PSEND
+ LDA pr_y
+ PSEND
 .psb2
  LDA pr_a
- STA pr_sb,X
+ PSEND
  CMP pr_wl
  BCS P%+4
  STA pr_wl
  LDA pr_b
- STA pr_sb+1,X
+ PSEND
  CMP pr_wr
  BCC P%+4
  STA pr_wr
  LDA pr_ce
- STA pr_sb+2,X
+ PSEND
  LDA pr_co
- STA pr_sb+3,X
- TXA
- CLC
- ADC #4
- STA pr_sn
- PLX
- RTS
-
-\ psflush: send the batch's buffered row, if any: the row, the spans' count,
-\ the spans (C_DSPANS first if the batch has sent nothing). Keeps Y
-
-.psflush
- LDX pr_sn
- BEQ psf9
- BIT pr_bat
- BVS psf1
- LDA #C_DSPANS
- JSR ptx
- LDA #%11000000
- STA pr_bat
-.psf1
- LDA pr_sy
- JSR ptx
- TXA
- LSR A
- LSR A
- JSR ptx
- LDX #0
-.psf2
- LDA pr_sb,X
- JSR ptx
- INX
- CPX pr_sn
- BNE psf2
- STZ pr_sn
-.psf9
+ PSEND
  RTS
 
 .T_DOT
@@ -793,15 +759,16 @@ PSBUF = 4 * 16
 
 .T_DISCROWS
 .R_DISCROWS
- LDA #%10000000         \ (its spans batched: C_DSPANS)
+ LDA #%10000000         \ (its spans streamed: C_DSPANS)
  STA pr_bat
- STZ pr_sn
+ LDA #&FF
+ STA pr_sy
  JSR pdr0
- JSR psflush
  BIT pr_bat
  STZ pr_bat
  BVC pdr00
- LDA #&FF               \ (the batch's end)
+ LDA #&FF               \ (the open row's end, then the batch's)
+ JSR ptx
  JMP ptx
 .pdr00
  RTS
