@@ -28864,6 +28864,7 @@ ENDIF
 \   Category: Flight
 \    Summary: Process a mis-jump into witchspace
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28945,6 +28946,7 @@ ENDIF
 \   Category: Flight
 \    Summary: Try to initiate a jump into hyperspace
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -29124,6 +29126,7 @@ ENDIF
 \   Category: Charts
 \    Summary: Display either the Long-range or Short-range Chart
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
