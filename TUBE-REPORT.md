@@ -7,6 +7,154 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## One-pass polygons, no client OS, planet-kind tails (branch `dumbhost`, 2026-10-23, third pass)
+
+This pass starts from 9a3b541. It did four things:
+- made every polygon one-pass, exactly as the two-phase path;
+- moved the fast I/O to register 4;
+- replaced the Tube client OS with the game's own runtime, following
+  `~/elite-tubeproto/tube/proto/CLIENTOS-REPORT.md` (C1-C5, P1-P4);
+- drew a beach ball's two-colour rows as changes.
+
+The hosts still only draw, do the I/O and store the overlays. The one
+approved exception is that the host keeps the star records.
+
+**Commits** (on `dumbhost`, not pushed). Each one was gated on both hosts as it was made.
+
+| Commit | What |
+|---|---|
+| a06a951 | The host keeps the star records; no round trip (C_STARGET retired). |
+| bce3070 | Parasite space: TT151, TT163 and TT16 to overlay D; the quarter squares after the log tables; the overlay region a page lower. |
+| b4a94a0 | Tools: test_onepass.py --tube (a differential py65 test of the parasite's R_POLY); tpolycap.mjs. |
+| fe18a8f | Every polygon in one pass, exactly as the two-phase path (p-onepass.asm, p-onepass2.asm). |
+| d24378b | The fast I/O requests go through register 4, answered at once by a host IRQ (both hosts). |
+| 7e6dcca | C_DSPANS sends one colour byte per span (the row's). |
+| de334c9 | One-pass: an 8-bit polygon's orientation from its edges' x ranges first. |
+| 0640b14 | Sound and the vsync wait go through register 4 too. |
+| a1d2958 | Parasite space: R_POLY's set-up into overlay S, the flare's tables resident, p-io's sends through ptx. |
+| b95ef52 | One-colour rows of two-colour frames drawn as changes (R_BST). |
+| d33c71b | tgate.sh measures speed at the target clocks: a 4 MHz parasite on the Master host, 3 MHz on the Model B. |
+| 408fdb5 | **C1**: C_DISC. The host's MOS runs a disc command as the host's own I/O: OSCLI from the host, commbuf through HDBUF=&3F00 (savosc/lodosc name FFFF3F00), and a disc error comes back as data that p_oscli passes to NEWBRK. The client OS takes no part. |
+| 7978343 | **C2**: the boot takes the parasite over. p_boot (staged above overlay D, appended to PCODE) copies in the high code, and the page at &FF00 with the vectors (NMI an RTI, RESET p_start, IRQ/BRK the crash reporter p_crash). p_swap, h_swap, C_SWAP and HSW (1,776 bytes on each host) are gone. hstart clears &027A. tcrash.mjs checks that a deliberate BRK reaches p_crash. |
+| 4d03ba1 | **C3**: QSL at &0200-&03FF. gfx-flare6, p-flt and F_DSX/F_DSY in the &FF00 page. OVL_START &CE00 -> &CB00. |
+| 49b3a6f | **C5**: the Model B's hbswap leaves &0400-&06FF alone after the boot. The Master's &0400-&06FF is declared free host RAM (HLOW). C4 (setzp/getzp as no-ops) was not done: it is optional and would save 49 run bytes, which gains no page. |
+| a6651d5, fc03c9f | P1 as first done (the crater code split into new files), then reverted on the user's direction: code is placed by tags in place plus passes, never by moving it into new files. |
+| 01cef6d | Overlay D is chosen by `\       Tube: ovl D` header tags (127 blocks) instead of the hand-made list tube/src/ovl-d.txt. Every output is byte-identical. |
+| 2b2da4b | **P1+P2**: overlay S becomes a common part plus a page-aligned kind tail. The meridian tail is gfx-merid.asm. The crater tail is a streams.py pass over gfx-frame.asm, whose crater blocks carry `\       Area: ovl S crater` tag lines. F_NCV/F_NPT are resident bytes. p_kind (in G_PLANET) picks the tail by TYPE. The host stores the crater tail after overlay D's image. OVL_START -> &C800. |
+| 0a53ee1 | **P3**: SOS1 prefetches the tail for the new planet's kind. tkind.mjs counts the fetches and checks them against the host's image (--flip tests the fetch in flight). |
+| 150a7b4 | **P4**: a beach ball's two-colour rows drawn as changes. R_BST's nibble becomes 8 + 4p + n, the boundary x are kept in R_BXib (768 bytes of S's state), pob gives the old row's segments and pdo paints the new segments less the old same-coloured ones. |
+
+**Gates, at every commit, both hosts** (`sh tube/tools/tgate.sh`, the last
+scratch/g-pk4):
+- the Master port byte-identical to 87cf524;
+- lockstep `REPLAY CLEAN`, 16,002 iterations, 0 findings;
+- pixels: 14,610 matched, 4 sampling gaps, 0 mismatched;
+- dashboard: 3,528 matched, 0 mismatched;
+- tsavetest exit 0, with E.TESTA byte-identical and the catalogue entry's name and attributes identical;
+- from C2 on, tcrash (a BRK reaches p_crash).
+
+Extra checks:
+- the planet tails against the pre-tail build over run1 16,000-40,000: 22,617 frames and 7,048 dashboard frames matched, 0 mismatched;
+- tkind --flip in both directions: the fetched tail is identical to the host's image;
+- test_onepass --tube: 300 polygons identical.
+
+**Speed (it/s; flight 1000-1400 / docking 3420-3550 / 0-3550 / beach 300-403 / beach 5355-5457):**
+
+| Build | Master host | Model B host |
+|---|---|---|
+| 9a3b541, 3 MHz parasite (the baseline) | 18.02 / 8.65 / 18.70 / 7.04 / 6.92 | 14.78 / 7.60 / 16.42 / 6.23 / 6.01 |
+| 150a7b4, 3 MHz parasite | 21.41 / 9.25 / 20.88 / 6.95 / 6.90 | 19.19 / 8.03 / 19.24 / 6.86 / 6.76 |
+| a1d2958, target clocks (Master 4 MHz, Model B 3 MHz) | 22.40 / 10.03 / 22.87 / 8.19 / 8.16 | 17.16 / 8.05 / 18.20 / 6.63 / 6.44 |
+| b95ef52 (R_BST), target clocks | 25.41 / 10.02 / 24.19 / 8.30 / 8.16 | 19.43 / 8.03 / 19.31 / 6.75 / 6.44 |
+| C1-C5, P1-P3, target clocks | 25.36 / 10.02 / 24.19 / 8.31 / 8.18 | 19.37 / 8.03 / 19.30 / 6.76 / 6.45 |
+| **150a7b4 (P4), target clocks** | **25.22 / 10.02 / 24.17 / 8.47 / 8.66** | **19.19 / 8.03 / 19.24 / 6.86 / 6.76** |
+
+Against 9a3b541 at the same 3 MHz parasite:
+- Master: flight +18.8%, docking +6.9%, 0-3550 +11.7%, beach -1.3% and -0.3%;
+- Model B: flight +29.8%, docking +5.7%, 0-3550 +17.2%, beach +10.1% and +12.5%.
+
+The client-OS work (C1-C5) changes no frame. It saves about 100 ms per
+disc command (no two 1,776-byte swaps; this figure is counted, not
+measured) and about 50 ms at boot.
+
+P4 trades a little flight for the beach balls:
+- with the change path on for craters too, flight lost about 1%, so craters keep the whole repaint;
+- even so, the per-row bookkeeping costs flight 0.6% (Master) and 0.9% (Model B).
+
+**Host idle** (thprof, Master host, 4 MHz parasite, 150a7b4; share of
+host cycles in hloop):
+- flight 36.4%;
+- docking 17.5%;
+- beach 300-403 40.7%.
+
+The parasite waits as follows:
+- In flight it waits 28K of its 119K cycles per iteration, mostly in
+  x4_csh and ptx (the frame's end and the command FIFO). The polls inside
+  the disc layer are 4.6% of its instructions (tpprof). Flight is
+  parasite-bound, so the host-side items below would not help it.
+- In docking it waits 190K of 299K cycles, mostly for the polygon rows
+  (pem_send) and the command FIFO.
+- In the beach windows it waits on register 4 (prx, 62K) and register 1.
+
+**Parasite free bytes** (150a7b4):
+
+| Region | Free |
+|---|---|
+| Resident run (&1500-&C751) | 174 bytes to OVL_START &C800 |
+| Overlay S, common part + meridian tail | 302 bytes to &F800 (common &C800-&EBFF; meridian tail 2,770 bytes; the crater tail is 982 bytes, so a crater system leaves 1,788 more unused) |
+| Overlay D | 4,365 bytes to &F800 (D is 7,923 bytes) |
+| High area &F800-&FEEF | 6 bytes |
+| Page &FF00 | 9 bytes (p_crash, gfx-flare6, p-flt, F_DSX/F_DSY, the vectors) |
+| Pages 2-3 | 0 (QSL) |
+
+Overall, OVL_START went &CE00 -> &C800 (6 pages): 3 from the client OS's
+holes and 3 from the crater tail.
+
+**Remaining buffers and why:**
+- *Parasite, overlay S's state* (2,898 bytes, saved to the host when S
+  goes out in space mode): each buffer's disc spans and dirty extents
+  (R_DISCLb/R_DISCRb, R_DIRTYLb/R_DIRTYRb), R_BST, R_BXib, R_WL/R_WR. The
+  host keeps no per-buffer state, so the parasite must know what each
+  buffer holds to draw only changes.
+- *Parasite workspace &0E00-&14F6* (p-ws.asm): the disc layer's inputs
+  (R_NDISCL/R, R_NDN, R_NDP, R_NDX0-3), the polygon vertices, the stars,
+  the text map's row counts. These are the frame layer's per-frame inputs.
+  R_NDX2/R_NDX3 double as the one-pass generator's variables and the disc
+  error block.
+- *Parasite resident frame-layer buffers*: F_HW/F_HW2, F_DL (with
+  gfx-finit inside it), F_TM/F_ST (the text map and what each buffer
+  shows), and the crater's recorded points (169 bytes). The points stay
+  resident so that a mid-frame overlay D call cannot lose them.
+- *Host*:
+  - the star records (approved);
+  - f_enter's F_HW/F_HW2 and F_DSX/F_DSY (bank 6 / bank F);
+  - HDBUF/HDSTR/HDERR (&3E00-&3FFF), used only during a disc command;
+  - the overlays' images (D plus the crater tail in bank 4 / bank S; S
+    and its state in bank 7 / bank D), stored and never run.
+
+**Tried and not adopted this pass:**
+- the host ring, versions 1-3: 10.5, 15.8 and 16.7 it/s against 20.41;
+- the compact C_DSPANS encoding: 17.24 / 14.69 against 20.41 / 17.16;
+- disc rows made on the fly: -3.5%;
+- P4's change path for craters: flight -1%;
+- a narrow-row threshold and an unchanged-row shortcut for P4: no gain.
+
+The Model B 512-byte parasite FIFO is parked: a hang at iteration 19
+with overlay D in during T_POLY, unresolved. The patches are in
+scratch/ring-attempt/.
+
+**Not done, and why:**
+- *The host's per-span overhead.* r_dspin and phase B's row read are
+  already one polling read per byte plus the span core. Flight is
+  parasite-bound, so only docking (17.5% host idle, the parasite waiting
+  on pem_send) could gain, and only by the part of the host's work that
+  is overhead rather than stores.
+- *Full STA abs runs.* The earlier evaluation ("Evaluation: full STA abs
+  screen runs") stands: 37.6K per set, about 2% at docking and nothing in
+  flight. On the Master host, banks 4 and 7 now also hold the overlays'
+  images (D plus the crater tail, 35 pages; S plus its state, 59 pages),
+  so no bank is free for the runs.
+
 ## full-master 87cf524, kept rows on the parasite, streamed spans (branch `dumbhost`, 2026-10-23, second pass)
 
 Everything new in the full Master port (87cf524) is in the Tube build, the
