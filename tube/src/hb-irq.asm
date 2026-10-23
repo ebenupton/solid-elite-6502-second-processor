@@ -31,6 +31,13 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  LDA &FE41              \ vsync: clear CA1's flag
  LDA #72                \ (VSCAN+1, as the Master port's LINSCN)
  STA DL
+ BIT hwsp               \ a pending C_WSCAN answered (h4body)
+ BPL hbi_w
+ LDA #0
+ STA hwsp
+ LDA #72
+ HTX
+.hbi_w
  LDA &FEC0              \ the joystick: the finished channel's value, then
  AND #3                 \ the next channel's conversion (8-bit)
  TAY

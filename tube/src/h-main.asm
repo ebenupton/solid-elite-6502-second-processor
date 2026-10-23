@@ -460,6 +460,12 @@ ENDIF
  JMP hk_body
  CMP #C_IRB
  BEQ h4i
+ CMP #C_WSCAN           \ C_WSCAN: pending, the next vsync interrupt answers it
+ BEQ h4w                \ (H_VSYNC; Model B: hb_irq)
+ CMP #C_NOISE
+ BEQ h4n
+ CMP #C_SOFLUSH
+ BEQ h4f
 .h4d                    \ C_DKS: its key next, through register 4
  BIT HR4S
  BPL h4d
@@ -469,6 +475,37 @@ ENDIF
  LDA VIA+&40
  HTX
  RTS
+.h4w
+ LDA #&80
+ STA hwsp
+ RTS
+.h4n                    \ C_NOISE: Y, DNOIZ next, through register 4
+ BIT HR4S
+ BPL h4n
+ LDA HR4D
+ TAY
+.h4n1
+ BIT HR4S
+ BPL h4n1
+ LDA HR4D
+ STA DNOIZ
+ LDA VIA+&4E            \ (NOISE unmasks the vsync interrupt as it ends: mask it
+ PHA                    \ again if the interrupted code had)
+ JSR NOISE
+.h4f9
+ PLA
+ AND #%00000010
+ BNE h4f8
+ LDA #%00000010
+ STA VIA+&4E
+.h4f8
+ RTS
+.h4f                    \ C_SOFLUSH
+ LDA VIA+&4E
+ PHA
+ JSR SOFLUSH
+ JMP h4f9
+.hwsp EQUB 0            \ bit 7: a C_WSCAN waits for the next vsync
 
 IF _HOSTB = 0
 \ h4irq: IRQ1V while the game runs (h4on bit 7): register 4's requests

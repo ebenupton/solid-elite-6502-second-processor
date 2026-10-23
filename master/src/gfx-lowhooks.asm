@@ -120,6 +120,14 @@ ENDIF
 
 IF _HOSTB = 0             \ (Model B: hb-irq.asm's)
 .H_VSYNC
+IF _TDUMB AND _TPART = 2   \ (the Tube's host: a pending C_WSCAN answered, h4body)
+ BIT hwsp
+ BPL hv9
+ STZ hwsp
+ LDA #72
+ HTX
+.hv9
+ENDIF
  LDA GFLIP
  BEQ hv0
  LDA GPEND

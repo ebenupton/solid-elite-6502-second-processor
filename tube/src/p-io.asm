@@ -217,8 +217,8 @@ ENDMACRO
 \ 72, as WSCAN's loop leaves them (the IRQ's LINSCN sets DL to VSCAN+1)
 
 .p_wscan
- LDA #C_WSCAN
- JSR preq
+ LDA #C_WSCAN           \ (register 4: the host's IRQ marks it pending, its next
+ JSR preq4              \ vsync interrupt answers it)
  JSR prx
  LDA #72
  STA DL
@@ -228,13 +228,13 @@ ENDMACRO
 \ own sound buffers and IRQ, then free every channel here, so that NOISE goes
 \ on as the harness makes the original (docs/TUBE-MAP.md): keeps X and Y
 
-.p_noise
- LDA #C_NOISE
- PSEND
+.p_noise                \ (register 4: made at once by the host's IRQ, never
+ LDA #C_NOISE           \ behind the drawing)
+ JSR preq4
  TYA
- PSEND
+ JSR preq4
  LDA DNOIZ
- PSEND
+ JSR preq4
  STZ SOPR
  STZ SOPR+1
  STZ SOPR+2
@@ -242,8 +242,7 @@ ENDMACRO
 
 .p_soflush
  LDA #C_SOFLUSH
- PSEND
- RTS
+ JMP preq4
 
 \ p_det1: DET1: 6845 R6 = X; returns as DET1 (A = 6)
 
