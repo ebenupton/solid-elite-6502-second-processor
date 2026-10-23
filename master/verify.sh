@@ -60,7 +60,7 @@ fi
 grep "Game state identical" "$LOG/compare.log"
 echo "compare: PASS"
 # ---- 4. regressions: with real key presses, dock, launch, dock again (the
-# hangar's ships once wrote over the low code), and save, load, a load error,
+# hangar's ships once wrote over the glue code), and save, load, a load error,
 # catalogue (the disc glue); with the pilot, changes of view
 node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
 grep -E "^docking|^REDOCK" "$LOG/redock.log"

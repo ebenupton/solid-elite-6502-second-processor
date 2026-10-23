@@ -12,7 +12,7 @@
 \ with ACCCON X set reads is in main RAM below &3000 (the shared workspace,
 \ below the main code), which every bank sees whatever ACCCON X is; so is
 \ the glue (the cross-bank trampolines and hooks, the shared variables with
-\ initial values), in the main code's low area (elite-low.asm), as the IRQ
+\ initial values), in the main code's glue area (elite-glue.asm), as the IRQ
 \ and text hooks run during disc commands too. HAZEL holds the game data
 \ (the ship blueprints, elite-data.asm: elite-layout.asm). Produces:
 \
