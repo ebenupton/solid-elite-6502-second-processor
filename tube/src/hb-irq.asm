@@ -50,6 +50,7 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  STY &FEC0
  JMP SOINT              \ (bank F; returns to irqm)
 
+.hb_vl EQUB 0           \ (point 1: non-zero if the last field flipped)
 .hbi_t
  LDA hb_phase
  EOR #1
@@ -83,14 +84,22 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  LDA #7
  LDY #14
  JSR hb_regs
- LDA GFLIP              \ (as H_VSYNC: a pending flip)
- BEQ hbi_1a
- LDA hb_flip
+ LDA GFLIP              \ (as H_VSYNC: a pending flip; 25 frames a second at
+ BEQ hbi_1n             \ most, as the Master port's cap: a flip pending at the
+ LDA hb_flip            \ field straight after the last flip is held one field)
  BNE hbi_1a
+ LDA hb_vl
+ BNE hbi_1n
  LDA GPEND
+.hbi_flip               \ (tube/tools/tflips.mjs counts the flips here)
  STA GFRONT
  LDA #1
  STA hb_flip
+ STA hb_vl
+ BNE hbi_1a
+.hbi_1n
+ LDA #0
+ STA hb_vl
 .hbi_1a
  BIT GMODE              \ not double buffered: buffer 1, the direct screen
  BMI hbi_1b
