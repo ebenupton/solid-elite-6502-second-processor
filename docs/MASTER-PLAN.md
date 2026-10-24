@@ -1872,3 +1872,42 @@ mdocktime, and an agentplay campaign against SNG47 with fresh seeds
 (6000-6103: flight, combat, docking, the docked screens and the disc
 menu): 19 sessions, 256 game minutes, 207,193 iterations compared, no
 findings, 163 save-file checks identical.
+
+## The planet's z in the depth test (after the 25 fps cap, e695bc2; branch planetz)
+
+A ship drawn with faces is hidden when it is further away than the planet
+and the first vertex of its first visible face is inside the planet's disc
+(f_behind, gfx-frame.asm; since e1aa028, 2026-10-15, "Depth: hide ships
+behind the planet"). F_PLANET recorded the planet's z as (INWK+7 INWK+6)
+only and dropped INWK+8, so a planet 65536 or more away read as its z less
+65536. A ship drawn with faces is always nearer than 4096, so the station
+was hidden whenever the planet was 65536-69631 away and the station was
+over its disc: typical on a docking run with the planet behind the station
+(found on the Tube build, branch stationfix f05ec0e; the user's save state
+had the planet at z = &10636, read as 1590, and the station at 3619).
+
+**Fix.** A planet with INWK+8 non-zero is recorded with z_hi = &FF, further
+than any ship drawn with faces (the Tube's f05ec0e code, without its
+_TPART = 1 condition). 6 bytes in bank 6 (12 to 6 free); bank 6's labels
+after F_PLANET move up 6, and outside bank 6 only the G_ stubs' targets
+and the loader's bank 6 length change. CODE%, the glue area, the three
+passes and the font are where they were.
+
+**Regression**: harness/mstation.mjs (in master/verify.sh) puts the save
+state's ship slots into a freshly launched game, as the Tube's tstation.mjs
+does, and checks that every frame recording the station draws it: before,
+0 of 8; after, 8 of 8.
+
+**Checked**: test_raster seeds 1-14; master/verify.sh: VERIFY PASS 13.97
+11.73 0.839 (game state identical to SNG47 at all 10,000 iterations, page
+&0D, redock, save/load, station, views); irqprobe: split late 0, early 0, T1
+latency p99 51, max 55 (55 before as well, in buffer 1); mdocktime
+5,153,381 busy cycles (5,153,018; +363, bank 6's code after F_PLANET moved
+6 bytes); an agentplay campaign against SNG47 with fresh seeds (7000-7103:
+docking, flight, combat, the disc menu, loads): 15 sessions, 199 game
+minutes, 164,232 iterations compared, no findings, 134 save-file checks
+identical. Over run1 (scratch/curious/run1, the Tube's pixel oracle) the
+frames change only in iterations 13973-14037: the station, a few pixels at
+the sights during a docking run, is now drawn in front of the planet (the
+fix's build and the Tube tree's Master build with it give the same pixels
+there; screenshots/planetz).

@@ -257,7 +257,7 @@ rules ("Calls between the passes").
 | Rasteriser: polygon window | ANDY &8000-&8FE4 (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 27 |
 | Rasteriser: disc window | bank 5 &8000-&8FEF (ROMSEL 5) | gfx-raster_disc.asm, gfx-raster_kept.asm | 16 |
 | Rasteriser: shared region | bank 5 &9000-&BF94 (with either window) | gfx-raster.asm, gfx-flare.asm, gfx-raster_lcold.asm | 107 (+ 8 at &9BF8; + 252 in the tails) |
-| Frame layer | bank 6 &8000-&BFF3 | gfx-frame.asm, faces, lighting, frame_cold, the flare's step, the hangar's frame and tables | 12 |
+| Frame layer | bank 6 &8000-&BFF9 | gfx-frame.asm, faces, lighting, frame_cold, the flare's step, the hangar's frame and tables | 6 |
 | HAZEL | &C000-&DD94 | the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's | 363 (&DD95-&DEFF), 256 (&DF00-&DFFF: the MOS's) |
 | Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
 | Buffer 1, dashboard | shadow &4000-&7DFF | the screen (rule 6) | - |
@@ -675,14 +675,14 @@ their run pages' tails, for variables and routines of under 66 bytes each.
 | ANDY (the cold area's then; the rasteriser's polygon window now) | 5 | 1313 | 38 | 38 | 38 | 38 | 38 | 38 | 38 | 38 | 27 | 27 |
 | Bank 7 cold area (&8000-, from COLD7LO) | 271 | 77, 397 | 77, 397 | 3802 (one run from &8000) | 3693 | 3701 | 3952 (the wireframe hangar left) | 3952 | 3952 | 3952 | 89 (bank 7's end, after the meridian window) | 2700 (bank 7's end, after the meridian window: the text printers and the blocks crossings.py ranked went hot) |
 | Bank 5 (now: disc window, shared region) | 809 (+ 350 in tails) | 317, 295 (+ 291 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 137, 131 + 8 (+ 252 in tails) | 16, 107 + 8 (+ 252 in tails) | 16, 107 + 8 (+ 252 in tails) |
-| Bank 6 | 274 | 187 | 187 | 187 | 187 | 187 | 4 (185 at 9905a11; the hangar's frame) | 5 (f_direct0's Y, f_sync's test) | 5 (f_direct0's Y, f_sync's test) | 71 (MAXPT 40, F_ST, F_INIT in F_DL, three pads and F_CPO gone; the lighting, 1002, and F_HANG0's light in) | 12 | 12 |
+| Bank 6 | 274 | 187 | 187 | 187 | 187 | 187 | 4 (185 at 9905a11; the hangar's frame) | 5 (f_direct0's Y, f_sync's test) | 5 (f_direct0's Y, f_sync's test) | 71 (MAXPT 40, F_ST, F_INIT in F_DL, three pads and F_CPO gone; the lighting, 1002, and F_HANG0's light in) | 12 |6 (F_PLANET's planet z test) |
 | Bank 7 rasteriser (then: R_LINE and bank 7's other rasteriser code; at cb2c8e5 the extended tokens and R_LINE; now the extended tokens), to COLD7LO | 43 (+ 723 in tails) | 111 | 3328 | - (in the cold area's run) | - | - | - | - | - | - | - | - |
 | HAZEL scratch (then), read-only game data zone (d23e427), free (now) | 112 (to &C300) | 82 (&C2AE-&C2FF) | 82 | 82 | 283 (&DDE5-&DDFF, &DF00-&DFFF) | 283 (&DDE5-&DDFF, &DF00-&DFFF) | 268 (&DDF4-&DDFF: the hangar's tables before it; &DF00-&DFFF, the MOS's, see the map) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) | 268 (&DDF4-&DEFF: HANGHEAP gone; &DF00-&DFFF is the MOS's and is no longer counted) | 283 (&DDE5-&DEFF) | 363 (&DD95-&DEFF: SNE and ACT went to bank 4 after QQ18) |
 | HAZEL code (then), glue (now) | 48 | 42 (to XX21) | 42 | 42 | - (the glue is in the low area) | - | - | - | - | - | - | - |
 | HAZEL state | 1726 (to &D900) | - | - | - | - | - | - | - | - | - | - | - |
 | HAZEL &DC40 block | 289 (to &E000) | - | - | - | - | - | - | - | - | - | - | - |
 | Shadow | 7, 3, 16 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 | 512, 3840, 144 |
-| Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM | 11868 (+ 252 in tails); 7372 outside shadow RAM | 11871 (+ 252 in tails); 7375 outside shadow RAM | 12363 (+ 252 in tails); 7867 outside shadow RAM | 12373 (+ 252 in tails); 7877 outside shadow RAM | 12315 (+ 252 in tails); 7819 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 13803 (+ 252 in tails); 9307 outside shadow RAM | 9449 (+ 252 in tails); 4953 outside shadow RAM | 9062 (+ 252 in tails); 4566 outside shadow RAM |
+| Total | 3856 (+ 1073 in tails) | 10262 (+ 291 in tails); 5766 outside shadow RAM | 11868 (+ 252 in tails); 7372 outside shadow RAM | 11871 (+ 252 in tails); 7375 outside shadow RAM | 12363 (+ 252 in tails); 7867 outside shadow RAM | 12373 (+ 252 in tails); 7877 outside shadow RAM | 12315 (+ 252 in tails); 7819 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 12721 (+ 252 in tails); 8225 outside shadow RAM | 13803 (+ 252 in tails); 9307 outside shadow RAM | 9449 (+ 252 in tails); 4953 outside shadow RAM | 9056 (+ 252 in tails); 4560 outside shadow RAM |
 
 The three passes (MASTER-PLAN.md, "Three passes") moved code between every
 region and cost 373 free bytes outside shadow RAM against 87cf524 (4953 to
@@ -703,6 +703,10 @@ The 25 fps cap (MASTER-PLAN.md, "The 25 fps cap") added 14 bytes to the glue
 area (H_VSYNC's test, GVLAST), and CODE% moved from &1E24 to &1E16 to keep
 the font page aligned (the shared workspace 184 to 170 free); nothing after
 the glue area moved.
+The planet's z in the depth test (MASTER-PLAN.md, "The planet's z in the
+depth test") added 6 bytes to F_PLANET in bank 6 (12 to 6 free); bank 6's
+labels after it moved up 6, and only the G_ stubs' targets and the loader's
+bank 6 length changed outside it.
 
 The beach ball (branch beachball, BEACHBALL-REPORT.md) added the meridian
 window to bank 7 after the cold area (3,342 bytes: bank 7's free space went

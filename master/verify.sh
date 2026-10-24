@@ -61,11 +61,18 @@ grep "Game state identical" "$LOG/compare.log"
 echo "compare: PASS"
 # ---- 4. regressions: with real key presses, dock, launch, dock again (the
 # hangar's ships once wrote over the glue code), and save, load, a load error,
-# catalogue (the disc glue); with the pilot, changes of view
+# catalogue (the disc glue); the station in front of a far planet; with the
+# pilot, changes of view
 node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
 grep -E "^docking|^REDOCK" "$LOG/redock.log"
 grep -q "^REDOCK PASS" "$LOG/redock.log" || { echo "redock: FAIL"; fail redock; }
 node harness/msavetest.mjs --out "$LOG/save" > "$LOG/save.log" 2>&1 || { tail -5 "$LOG/save.log"; echo "savetest: FAIL"; fail savetest; }
+# the station in front of a planet just over 65536 away (a docking run with the
+# planet behind the station) must be drawn: F_PLANET once kept 16 bits of the
+# planet's z, and f_behind hid the station behind it
+node harness/mstation.mjs --out "$LOG/station" > "$LOG/station.log" 2>&1
+grep -E "^[0-9]+ iterations" "$LOG/station.log"
+grep -q "^STATION PASS" "$LOG/station.log" || { echo "station: FAIL"; fail station; }
 # changes of space view in flight (the gate's pilot never changes view): the
 # pilot looks rear, left, right and front again every 50 flight iterations,
 # against the reference over 1500 iterations (LOOK1 once fell into DEATH)
@@ -73,7 +80,7 @@ node harness/mcompare.mjs --iters 1500 $LOOSE --views --maxsecs 400 \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/views" > "$LOG/views.log" 2>&1
 grep -q "^MCOMPARE PASS" "$LOG/views.log" || { grep -A8 "FIRST DIVERGENCE" "$LOG/views.log" | head -10; echo "views: FAIL"; fail views; }
-echo "regressions: PASS (redock, savetest, views)"
+echo "regressions: PASS (redock, savetest, station, views)"
 ALL=$(grep -E "^ +all " "$LOG/compare.log")
 echo "speed (flight it/s, ref cand cand/ref): $ALL"
 set -- $ALL
