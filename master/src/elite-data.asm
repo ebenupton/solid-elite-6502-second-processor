@@ -442,8 +442,12 @@ ENDMACRO
 
 MACRO EDGE vertex1, vertex2, face1, face2, visibility
 
- f = face1 + (face2 << 4)
- EQUB visibility, f, vertex1 << 2, vertex2 << 2
+IF _TUBE = 0            \ Port (Tube): no edge lists on the parasite, where
+                        \ nothing reads them: the frame layer fills the faces
+ f = face1 + (face2 << 4)   \ and LL9's edge parts are removed (the blueprints'
+ EQUB visibility, f, vertex1 << 2, vertex2 << 2   \ edge offsets then point at
+                        \ their faces; the edge counts, byte #9, stay)
+ENDIF
 
 ENDMACRO
 
