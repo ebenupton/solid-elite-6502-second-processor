@@ -97,4 +97,5 @@ _RBANK = 0
 .F_DSY  SKIP NDSTAR
 .F_END
  PRINT "Model B bank F: &8000-&", ~F_END-1, " (code to &", ~F_CODE_END-1, ")"
+ ASSERT F_END <= HBF_SS AND HBF_SS + OVLSS_PAGES * 256 <= &C000   \ (S's state after it)
  SAVE "build/HBF.bin", &8000, F_END, &8000

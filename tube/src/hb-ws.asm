@@ -188,6 +188,7 @@ P_LINEIN   = JT + 36    \ h_line's
                         \ (JT + 39, 42: the star records' relay, retired)
 
 OVLBANK = STASHBANK      \ the parasite's overlays' images (storage only: hb_ovlget),
+HBF_SS = &A900           \ overlay S's state, in bank F after its code (hb-ovl.asm)
 OVLD_AT = &8E00          \ after the stash, from the HBS file
 HBS_IMG = &8000           \ the stash bank: main RAM's &0236-&0CFF, &0E00-&10FF
 HBS_LEN = &0DCA           \ (hb-res.asm's hbswap)

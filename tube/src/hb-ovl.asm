@@ -1,6 +1,7 @@
 \ hb-ovl.asm - the Model B host's storage of the parasite's overlays (p-ovl.asm),
 \ in main RAM (MR_D: it pages the banks that hold them): overlay D in bank S
-\ from OVLD_AT, overlay S and its state in bank D
+\ from OVLD_AT, overlay S in bank D, S's state in bank F from HBF_SS (bank
+\ D has no room for both)
 
 .hb_ovlget              \ C_OVLGET (h-main.asm's): overlay A's pages, through
  HRX                    \ register 4
@@ -41,7 +42,7 @@
  TAX
  LDY #0
  RTS
-.hbo_b EQUB OVLBANK, RASTBANK, RASTBANK, RASTBANK, OVLBANK   \ (D, S's common part, S's state, the
-.hbo_h EQUB HI(OVLD_AT), &80 + OVLS0_PAGES, &80 + OVLS_PAGES, &80 + OVLSC_PAGES, HI(OVLD_AT) + OVLD_PAGES   \ meridian tail,
+.hbo_b EQUB OVLBANK, RASTBANK, GFXBANK, RASTBANK, OVLBANK   \ (D, S's common part, S's state, the
+.hbo_h EQUB HI(OVLD_AT), &80 + OVLS0_PAGES, HI(HBF_SS), &80 + OVLSC_PAGES, HI(OVLD_AT) + OVLD_PAGES   \ meridian tail,
 .hbo_n EQUB OVLD_PAGES, OVLSC_PAGES - OVLS0_PAGES, OVLSS_PAGES, OVLS_PAGES - OVLSC_PAGES, OVLTC_PAGES   \ the crater tail; S from its state's last page, ovl_sinit)
 
