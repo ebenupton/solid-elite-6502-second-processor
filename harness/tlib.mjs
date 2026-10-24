@@ -96,6 +96,28 @@ export async function bootTube(opts = {}) {
         t.par.write = (a, b) => { if (t.host.acccon & 0x10) wr(a, b); };
         t.intube = true;
     }
+    // TEDGETRAP=psyms.txt: count the parasite's reads of the ships' edge lists
+    // (SHIP_x_EDGES up to SHIP_x_FACES), reported when the process exits
+    if (process.env.TEDGETRAP) {
+        const { readFileSync } = await import("fs");
+        const sy = {};
+        for (const m of readFileSync(process.env.TEDGETRAP, "utf8").matchAll(/'([^']+)':(\d+)/g)) if (!(m[1] in sy)) sy[m[1]] = +m[2];
+        const R = [];
+        for (const k of Object.keys(sy)) { const m = /^SHIP_(.*)_EDGES$/.exec(k); if (m && sy[`SHIP_${m[1]}_FACES`] > sy[k]) R.push([sy[k], sy[`SHIP_${m[1]}_FACES`], m[1]]); }
+        const hit = new Uint8Array(65536); for (const [lo, hi] of R) hit.fill(1, lo, hi);
+        const reads = new Map(); const rm = t.par.readmem.bind(t.par);
+        let shown = 0; const lastPcs = [];
+        t.addParHook0 = pc => { lastPcs.push(pc); if (lastPcs.length > 6) lastPcs.shift(); };
+        t.par.readmem = a => { if (hit[a & 0xffff]) { const k = `${(a & 0xffff).toString(16)}@${t.par.pc.toString(16)}`; reads.set(k, (reads.get(k) || 0) + 1);
+            if ((t.par.pc < 0x7000 || t.par.pc >= 0x9000) && t.par.pc < 0xf800 && shown++ < 12 && process.env.TEDGEDBG) console.log(`edge read &${(a & 0xffff).toString(16)}: pc &${t.par.pc.toString(16)} a ${t.par.a.toString(16)} x ${t.par.x.toString(16)} y ${t.par.y.toString(16)}; last pcs ${lastPcs.map(p => p.toString(16)).join(" ")}; mem ${[...t.pmem.slice(0xe95c, 0xe976)].map(b => b.toString(16)).join(" ")}`); }
+            return rm(a); };
+        process.on("exit", () => { const top = [...reads.entries()].sort((x, y) => y[1] - x[1]).slice(0, 10); console.log(`edge-list trap: ${R.length} ships' edge lists, ${hit.reduce((x, y) => x + y, 0)} bytes; reads: ${[...reads.values()].reduce((x, y) => x + y, 0)} ${JSON.stringify(top)}`); });
+    }
+    // TWTRAP=addr: report the parasite's writes to that address (pc, value)
+    if (process.env.TWTRAP) {
+        const wa = parseInt(process.env.TWTRAP, 16), wm = t.par.writemem.bind(t.par); let n = 0;
+        t.par.writemem = (a, b) => { if ((a & 0xffff) === wa && n++ < 20) console.log(`write &${wa.toString(16)} = ${b.toString(16)} from pc &${t.par.pc.toString(16)}`); return wm(a, b); };
+    }
     t.addParHook = fn => { t.parHooks.push(fn); return { remove: () => { const i = t.parHooks.indexOf(fn); if (i >= 0) t.parHooks.splice(i, 1); } }; };
     // run the machine for n host cycles (2 MHz), or until a parasite hook stops it
     t.run = n => { t.stopped = false; t.host.execute(n); return !t.stopped; };
@@ -109,6 +131,7 @@ export async function bootTube(opts = {}) {
     t.hostPoke = (a, bytes) => { for (let i = 0; i < bytes.length; i++) t.hmem[a + i] = bytes[i]; };
     t.bankPoke = (bank, a, bytes) => { for (let i = 0; i < bytes.length; i++) t.hmem[t.host.romOffset + bank * 16384 + a - 0x8000 + i] = bytes[i]; };
     t.parPoke = (a, bytes) => { for (let i = 0; i < bytes.length; i++) t.pmem[(a + i) & 0xffff] = bytes[i]; };
+    if (t.addParHook0 && process.env.TEDGEDBG) t.addParHook(pc => { t.addParHook0(pc); return false; });
     if (opts.boot !== false) {
         await s._machine.runFor(2e6 * (opts.bootSecs || 3));
         s.drainOutput();

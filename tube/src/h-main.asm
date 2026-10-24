@@ -147,8 +147,12 @@ IF _HOSTB = 0             \ (R_INIT's part that the drawing reads: the stars'
  LDA #0                 \ is bank P's)
  STA R_SN
  STA R_PN
- LDA #1
+ LDA #RASTBANK           \ (R_PRBUF is in bank 5's shared region: with bank 6
+ STA &FE30              \ paged, this store went into bank 6, where the
+ LDA #1                 \ overlays' storage now is)
  STA R_PRBUF
+ LDA #GFXBANK
+ STA &FE30
  LDA #0
  JSR T_SETBUF
 ENDIF

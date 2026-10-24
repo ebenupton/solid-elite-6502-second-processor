@@ -12,12 +12,15 @@
 set -u
 D=$1; TO=${TO:-16000}
 mkdir -p $D
-cp tube/build/elite-tube.ssd tube/build/elite-tube-b.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt $D/
+cp tube/build/elite-tube.ssd tube/build/elite-tube-b.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt tube/build/hstore.bin $D/
 if cmp -s master/build/elite-master-sng47.ssd scratch/master-ref.ssd; then echo "master: byte-identical" > $D/master.txt; else echo "master: DIFFERS" > $D/master.txt; fi
 LOG=scratch/curious/run1/inputs.jsonl
 for H in Master B; do
   S=$D/elite-tube.ssd; [ $H = B ] && S=$D/elite-tube-b.ssd
   ( TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rp$H --until $TO --noobserve --cand $S --csyms $D/psyms.txt > $D/lockstep-$H.txt 2>&1 ) &
+  if [ $H = Master ]; then   # (the Master host's overlay storage untouched by anything else after the run)
+    ( node tube/tools/tstore.mjs --log $LOG --cand $S --csyms $D/psyms.txt --store $D/hstore.bin --host $H --to $TO 2>&1 | tail -1 > $D/store-$H.txt ) &
+  fi
   if [ $H = Master ]; then   # (the Master's internal co-processor, reachable only with ACCCON's ITU set: harness/tlib.mjs TUBEINT=1)
     ( TUBEINT=1 TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rpint --until 600 --noobserve --cand $S --csyms $D/psyms.txt > $D/lockint-$H.txt 2>&1 ) &
   fi
@@ -36,6 +39,7 @@ for H in Master B; do
   echo "== $H"
   grep -h "REPLAY" $D/lockstep-$H.txt | tail -1
   [ $H = Master ] && echo "internal co-processor (TUBEINT=1): $(grep -h "REPLAY" $D/lockint-$H.txt | tail -1)"
+  [ $H = Master ] && cat $D/store-$H.txt
   cat $D/pixels-$H.txt
   echo "dashboard: $(cat $D/dash-$H.txt)"
   tail -1 $D/tsave-$H.txt
