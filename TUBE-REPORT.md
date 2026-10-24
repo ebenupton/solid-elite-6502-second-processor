@@ -7,6 +7,86 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## STA runs, OVLD, 25 fps cap, 4-boundary state (branch `dumbhost`, 2026-10-24, fourth pass)
+
+This pass continues from c841656. Every commit was gated on both hosts with
+tube/tools/tgate.sh: Master port byte-identical, lockstep, pixels, dashboard,
+tsavetest and tcrash. Later commits add tstation and a TUBEINT=1 lockstep.
+
+**Commits:**
+
+| Commit | What |
+|---|---|
+| cb5953b | Master host: overlay storage is page by page through a table (build/hstore.asm), in main RAM, bank 5, bank 6, ANDY and HAZEL. HAZEL moves to main RAM around each disc command, as the Master port's DOSCLI does. S's image is stored without its state pages; the parasite's ovl_sinit rebuilds them. |
+| 77dd7fa | Master host: full `STA abs` runs, 192 lines × 64 + RTS, made at the host's start. The code that enters them is in HAZEL, placed by "Area: hazel" tags and streams.py passes. The erases go through them too. Measured slower: 24.68 / 9.65 against 25.22 / 10.02. |
+| 0009281 | Each line's run at the start of its own page (the coordinator's layout). Entry and plant are r_j offsets with no sums. The bank is paged once per row. S's state goes in the run pages' spare bytes. Back to 25.26 / 10.02. |
+| da712b2, 8607399, 9369154, b187e5b | OVLD-PLAN groups 1-4: 20 game blocks by "Tube: ovl D" tags, p_oscli and G_HANG0..G_HANGAR by "ovl D" passes. OVL_START goes from &C800 to &C300 and overlay S has 1,582 bytes free. Targeted forced-input checks (tforce.sh): f8 and f5 in flight, the chart up when the countdown ends, a mis-jump, the debrief, the mission-2 brief, H while docked. All pixel-identical to the Master port on both hosts, with no extra D or S loads. Separately, the Master host hung when storage reached HAZEL's last page, &DF00, which holds the MOS's and DFS's lasting bytes; storage now stops at &DEFF. |
+| b74e5f0 | Span core trim: no empty-run test; right edge before the unplant; plant via RZ_PP's low byte; fewer per-row patches. Fixed cost per span is 47 cycles against the old row runs' 50, and stores are 4 cycles a byte, not 5. |
+| e2a8818 | 25 fps cap on both hosts, as the Master port's (GVLAST, and hb_vl on the Model B). No 1-field frames. |
+| f963b3b | The full 4-boundary incremental two-colour state (R_BX2b/R_BX3b, a nibble encoding for n = 4). On the Model B host, S's state moves to bank F; it had overrun bank D. |
+| 25daa58 | stationfix (cherry-picked): F_PLANET keeps the planet's z high byte; tstation.mjs added to the gate. |
+| 30c3a8f, 8b25dc9 | hangfix merged: the loader keeps ITU and refuses to boot without a co-processor; harness TUBEINT=1. |
+| 192eee2 | Host code never writes ACCCON whole. LOIN cleared ITU; h_ovlget's save and restore could undo the IRQ's D. tgate.sh adds a TUBEINT=1 lockstep. |
+
+**Speed (it/s: flight / docking / 0-3550 / beach / beach):**
+
+| Build | Master host, 4 MHz | Model B host, 3 MHz |
+|---|---|---|
+| c841656 (start of this pass) | 25.22 / 10.02 / 24.17 / 8.47 / 8.66 | 19.19 / 8.03 / 19.24 / 6.86 / 6.76 |
+| b187e5b, STA runs (trimmed) + OVLD, no cap | 25.52 / 10.20 / 24.33 / 8.60 / 8.75 | 19.19 / 8.03 / 19.23 / 6.84 / 6.73 |
+| e2a8818, 25 fps cap (**the new baseline**) | 20.83 / 9.92 / 19.89 / 8.60 / 8.75 | 17.14 / 7.88 / 17.28 / 6.84 / 6.73 |
+| 192eee2, + 4-boundary state, fixes (HEAD) | 20.83 / 9.92 / 19.86 / 8.49 / 8.59 | 17.14 / 7.89 / 17.26 / 6.75 / 6.61 |
+
+The cap holds a frame for at least two fields. In flight the parasite then
+waits on a full register 1 while the host holds the flip: pwait shows
+r1full.hostflip at 18.9% of wall time, against 1.0% without the cap. The
+parasite's game work is the same 50.4M cycles over the window.
+- C_BUF goes out at F_FRAME's start, after the game code, so only the
+  drawing waits, as on the Master port.
+- Frames that need slightly more than two fields now take three:
+  Master flip intervals over 0-3550 are 2330 × 2 fields, 572 × 3, 291 × 4
+  and so on.
+
+The 4-boundary state costs the beach windows 1.3-1.8%. S's state is now 15
+pages, and both windows end in a hyperspace jump, where it goes to the host
+and back. tbshare.mjs over the beach windows: 2.9% and 4.8% of rows have
+3 boundaries, and none has 4.
+
+**Host idle (Master host, 4 MHz, capped, pwait):**
+- flight: busy 41.2%, idle 31.1%, waiting for vsync 27.7%;
+- docking: busy 78.4%, idle 18.4%, waiting for vsync 3.2%.
+
+**Parasite (HEAD):**
+- resident run to &C2FE;
+- OVL_START &C300;
+- overlay S has 814 bytes free (its state 3,666 bytes; the meridian tail
+  2,770);
+- overlay D is 9,117 bytes, with 4,451 free;
+- the high area has 6 bytes free and the page at &FF00 has 9.
+
+**Pixels.** 51 frames in iterations 13973-14037 differ from fbref. This
+is the stationfix window: the Master port has the same bug until the
+planetz branch regenerates the references. Outside the window there are
+0 mismatches on both hosts.
+
+**Not done:**
+- **BREAK recovery.** tube/tools/tbreak.mjs (new) presses BREAK or
+  SHIFT+BREAK in flight.
+  - On the Model B host, SHIFT+BREAK reboots the disc and the game runs
+    again.
+  - On the Master host, both the Tube build and the Master port end in a
+    garbled screen with the host in a ROM, and no reboot, under jsbeeb.
+  - A BREAK intercept (&0287) that puts DFS's and the MOS's HAZEL bytes
+    back was called twice per BREAK but changed nothing visible, so it is
+    not committed.
+  - What the Master needs, and what the original 6502SP Elite does on a
+    BREAK, is still to be found.
+- **The ship edge lists.** Dropped on the user's direction. A trial on
+  the Tube (an empty EDGE macro, as nothing on the parasite reads them)
+  lowered OVL_START to &B900, freeing 2,596 bytes. It was reverted and not
+  gated.
+- **The text-stall question.** Parked.
+
 ## One-pass polygons, no client OS, planet-kind tails (branch `dumbhost`, 2026-10-23, third pass)
 
 This pass starts from 9a3b541. It did four things:
