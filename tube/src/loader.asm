@@ -300,6 +300,32 @@ ENDIF
  ASSERT ENTRY = &0E55   \ Port: the execution address that elite-disc.asm gives
                         \ M128Elt (the CMYK palette made B% 18 bytes longer)
 
+ LDA VIA+&34            \ Port (Tube): keep ACCCON's ITU and IFJ (bits 4 and 5)
+ AND #%00110000         \ as the MOS set them, in every value the loader writes:
+ STA ACCHI              \ ITU chooses the Tube that &FEE0-&FEFF reach, the
+                        \ Master's internal co-processor (ITU = 1) or one on
+                        \ the Tube connector (ITU = 0), so writing 0 there cuts
+                        \ the host off from an internal 65C102
+
+ LDA #&EA               \ Port (Tube): stop with a message if the MOS has no
+ LDX #0                 \ Tube (no co-processor, or *CONFIGURE NOTUBE): OSBYTE
+ LDY #&FF               \ &EA reads its Tube flag, &FF with one
+ JSR OSBYTE
+ INX
+ BEQ TUBOK
+ LDY #0
+.TUB1
+ LDA TUBEM,Y
+ BEQ P%
+ JSR OSWRCH
+ INY
+ BNE TUB1
+.TUBEM
+ EQUB 22, 7
+ EQUS "This ELITE needs a 6502 co-processor:", 13, 10
+ EQUS "*CONFIGURE TUBE, then SHIFT+BREAK.", 13, 10, 0
+.TUBOK
+
  JSR CHKRAM             \ Port: first of all, check that sideways RAM banks 4
                         \ to 7, which the game and the renderer use, are all
                         \ RAM (before the screen mode, palette or ACCCON are
@@ -374,12 +400,13 @@ ENDIF
  BNE LOOP               \ all (the number of bytes was set in N% above)
 
  LDA #%00001111         \ Set the Access Control latch at SHEILA &34, as
- STA VIA+&34            \ follows:
+ ORA ACCHI              \ follows (Port (Tube): bits 4 and 5 as they were):
+ STA VIA+&34
                         \
                         \   * Bit 7 = IRR = 0: Do not IRQ the CPU with this
                         \   * Bit 6 = TST = 0: Must be set to 0
-                        \   * Bit 5 = IFJ = 0: &FC00-&FDFF maps to the 1Mhz bus
-                        \   * Bit 4 = ITU = 0: CPU can access external co-pro
+                        \   * Bit 5 = IFJ: kept
+                        \   * Bit 4 = ITU: kept (internal or external co-pro)
                         \   * Bit 3 = Y = 1: &C000-&DFFF set to 8K private RAM
                         \   * Bit 2 = X = 1: &3000-&7FFF set to 20K shadow RAM
                         \   * Bit 1 = E = 1: All shadow RAM locations accessible
@@ -394,7 +421,8 @@ ENDIF
  JSR PLL1               \ Call PLL1 to draw Saturn
 
  LDA #%00001001         \ Clear bits 1 and 2 of the Access Control latch at
- STA VIA+&34            \ SHEILA &34, which changes the following:
+ ORA ACCHI              \ SHEILA &34, which changes the following:
+ STA VIA+&34
                         \
                         \   * Bit 2 = X = 0: &3000-&7FFF set to main RAM
                         \   * Bit 1 = E = 0: VDU shadow RAM locations accessible
@@ -439,6 +467,7 @@ ENDIF
  STA LATCH
  STA VIA+&30
  LDA FTAB+3,X
+ ORA ACCHI
  STA VIA+&34
 
  STZ ZP                 \ ZP(1 0) = &1300, the source
@@ -477,7 +506,8 @@ ENDIF
  BNE LDC
 
  LDA #%00001001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
- STA VIA+&34            \ it)
+ ORA ACCHI              \ it)
+ STA VIA+&34
 
  CLI
 
@@ -518,6 +548,7 @@ ENDIF
 
  SEI
  LDA #%00001001
+ ORA ACCHI
  STA VIA+&34
 
  LDA #&D0               \ 1770 Force Interrupt, no conditions: terminate any
@@ -608,6 +639,8 @@ ENDIF
  JMP &0406
 .PSTB
  EQUD PSTART
+.ACCHI                  \ (ACCCON's bits 4 and 5 at the start)
+ EQUB 0
 .NMIH                   \ Port: the minimal NMI handler's body at &0D01, after
 
  LDA FDC                \ the PHA at &0D00: acknowledge the 1770 (reading its

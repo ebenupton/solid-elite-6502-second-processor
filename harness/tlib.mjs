@@ -80,6 +80,22 @@ export async function bootTube(opts = {}) {
     t.tube = t.par.tube;
     t.mult = t.mhz / 2;
     patchParasite(t);
+    // opts.intube (or TUBEINT=1): the Master's internal co-processor, as a real
+    // Master (and b2) has it. jsbeeb's Tube answers at &FEE0-&FEFF whatever
+    // ACCCON holds; a Master reaches its internal co-processor only while
+    // ACCCON's ITU (bit 4) is set, and with ITU clear reaches the Tube
+    // connector (nothing there: the bus floats, read here as &FE). The CMOS is
+    // made INTUBE (byte 30, bit 2 clear: jsbeeb's default is EXTUBE), so the
+    // MOS sets ITU at its reset
+    if (host === "Master" && (opts.intube ?? process.env.TUBEINT === "1")) {
+        const cm = t.host.cmos;
+        cm.store = cm.store.slice();    // (jsbeeb's default array is shared)
+        cm.store[30] &= ~4;
+        const rd = t.par.read.bind(t.par), wr = t.par.write.bind(t.par);
+        t.par.read = a => (t.host.acccon & 0x10 ? rd(a) : 0xfe);
+        t.par.write = (a, b) => { if (t.host.acccon & 0x10) wr(a, b); };
+        t.intube = true;
+    }
     t.addParHook = fn => { t.parHooks.push(fn); return { remove: () => { const i = t.parHooks.indexOf(fn); if (i >= 0) t.parHooks.splice(i, 1); } }; };
     // run the machine for n host cycles (2 MHz), or until a parasite hook stops it
     t.run = n => { t.stopped = false; t.host.execute(n); return !t.stopped; };

@@ -40,6 +40,24 @@ BUF = &1C00             \ where each image is loaded before its copy
 .BEND
 
 .ENTRY
+ LDA #&EA               \ no Tube (OSBYTE &EA: the MOS's Tube flag, &FF with
+ LDX #0                 \ one): say so, and stop
+ LDY #&FF
+ JSR OSBYTE
+ INX
+ BEQ tub1
+ LDY #0
+.tub0
+ LDA TUBEM,Y
+ BEQ P%
+ JSR OSWRCH
+ INY
+ BNE tub0
+.TUBEM
+ EQUB 22, 7
+ EQUS "This ELITE needs a 6502 Second", 13, 10
+ EQUS "Processor.", 13, 10, 0
+.tub1
  LDA #16                \ the ADC: no channels sampled by the MOS
  LDX #0
  JSR OSB
