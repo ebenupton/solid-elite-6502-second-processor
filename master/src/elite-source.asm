@@ -21801,6 +21801,7 @@ ENDMACRO
 \   Category: Maths (Arithmetic)
 \    Summary: Calculate A = K * sin(A)
 \  Deep dive: The sine, cosine and arctan tables
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -23772,6 +23773,7 @@ ENDMACRO
 \    Summary: Start mission 2
 \  Deep dive: The Thargoid Plans mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -23795,6 +23797,7 @@ ENDMACRO
 \   Category: Missions
 \    Summary: Print an extended token and show the Status Mode screen
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -23825,6 +23828,7 @@ ENDMACRO
 \    Summary: Receive the briefing and plans for mission 2
 \  Deep dive: The Thargoid Plans mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -23852,6 +23856,7 @@ ENDMACRO
 \    Summary: Finish mission 2
 \  Deep dive: The Thargoid Plans mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -23885,6 +23890,7 @@ ENDMACRO
 \    Summary: Finish mission 1
 \  Deep dive: The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -27665,6 +27671,7 @@ ENDMACRO
 \    Summary: Print a message to say there is no hyperspacing allowed inside the
 \             station
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -36797,6 +36804,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Display the dashboard's missile indicators in green
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -38461,6 +38469,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Loader
 \    Summary: Initialise the configuration variables and start the game
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -38701,6 +38710,7 @@ ENDIF
 \   Category: Start and end
 \    Summary: Reset the current commander data block to the last saved commander
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -39010,6 +39020,7 @@ ENDIF
 \    Summary: Calculate the checksum for the last saved commander data block
 \  Deep dive: Commander save files
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39102,6 +39113,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Restore the default JAMESON commander
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
