@@ -255,8 +255,8 @@ rules ("Calls between the passes").
 | Cold pass | bank 7 &8000-&A65C | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data in the original's order (the extended tokens TKN1, RUPLA, RUGAL, RUTOK) | - (bank 7's end) |
 | Meridian window | bank 7 &A65D-&B573 (ROMSEL 7; MERID, its own image, with gfx-kept7.asm after it) | gfx-merid.asm, the beach ball planet's boundaries (PM_HOOK, PM_MERID) | 2700 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FE4 (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 27 |
-| Rasteriser: disc window | bank 5 &8000-&8FEF (ROMSEL 5) | gfx-raster_disc.asm, gfx-raster_kept.asm | 16 |
-| Rasteriser: shared region | bank 5 &9000-&BF94 (with either window) | gfx-raster.asm, gfx-flare.asm, gfx-raster_lcold.asm | 107 (+ 8 at &9BF8; + 252 in the tails) |
+| Rasteriser: disc window | bank 5 &8000-&8F00 (ROMSEL 5) | gfx-raster_disc.asm, gfx-raster_kept.asm | 255 |
+| Rasteriser: shared region | bank 5 &9000-&BF94 (with either window) | gfx-raster.asm, gfx-flare.asm, gfx-raster_lcold.asm | 107 (+ 808 at &98D8, below the per-x tables at &9C00; + 256 in the tails) |
 | Frame layer | bank 6 &8000-&BFF9 | gfx-frame.asm, faces, lighting, frame_cold, the flare's step, the hangar's frame and tables | 6 |
 | HAZEL | &C000-&DD94 | the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's | 363 (&DD95-&DEFF), 256 (&DF00-&DFFF: the MOS's) |
 | Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
@@ -563,8 +563,8 @@ byte, fl_or and fl_or1 sharing a page, each pair of boundary arrays (R_BD*)
 sharing a low byte, raster_vars' fixed place (f_sight2), R_NDISCL page
 aligned (R_NDISCL,X), and the zero-page and table
 assertions next to the code that depends on them. Alignment for speed alone
-was taken out; what the order of things gives for nothing is kept (R_BDN,
-R_BDP and R_BDX0 at low bytes &00, &40 and &00 in the boundary block; r7_jr
+was taken out; what the order of things gives for nothing is kept (R_BDN
+and R_BDX0 at low bytes &00 and &40 in the boundary block; r7_jr
 four bytes into a page; the shared workspace's arrays at the low bytes they
 had in HAZEL, R_NDN, R_WL and R_WR whole in a page). This is what alignment
 would be worth now, from profile.mjs --pagex (cycles per flight iteration of
@@ -582,7 +582,7 @@ the gate's run, 804 in all):
 | STL1's SZ,Y (WP: the stardust's z) and stl_dvr, stld (the stardust loop, at a new place) | 28 |
 | bank 4: EE3K 11, LL51L's LDY lfr2s table 10 | 27 |
 | phase B's reads of r_tb (R_PTB at &10CB: r_pbr1/r_pbr2) | 20 |
-| r_bstore's stores to R_BDX1, R_BDX2, R_BDX3 (low bytes &C0, &80, &C0 in the boundary block) | 17 |
+| r_bstore's stores to R_BDX1 (low byte &C0 in the boundary block; R_BDX2 and R_BDX3 are gone, two boundaries are kept) | 17 before |
 | MU8, DVID3B, DVL9a, mad1's BPL add1, SOUL8/SOUL3 (the sound IRQ) | 14 |
 | new with the lighting in bank 6 (bank 6's code moved): f_text1's row loop, its BEQ ft18x and BPL ft11 across a page (about 23 each), and the run's code from &7400 and in bank 4 moved by 1K (MLTU2c, MAD, PLL4F, DVL9l: about 70) | about 115 |
 | new with the garbage collection (bank 4's code moved down 1-36 bytes): LL132 2.9, DOT 1.1, MV3 0.8 (it removed more crossings than it made: LL57S 10.8, r_pt416 11.5, R_STARPLOT 5.7, r_dp2 5.2, mlt3 2.5, LL69 1.9, scd2 1.4 fewer) | 5 |
