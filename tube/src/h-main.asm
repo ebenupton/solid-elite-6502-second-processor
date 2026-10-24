@@ -227,30 +227,23 @@ ELSE                      \ (the Master host: page by page, wherever the build
  DEC hogn
  BNE hop0
 .hogx
- PLA                    \ (ACCCON as it was)
- STA &FE34
+ LDA hova               \ (ACCCON's X as it was)
+ TSB &FE34
  LDA #GFXBANK
  STA &F4
  STA &FE30
  JMP hloop
 .hov_at                 \ A = the overlay: its first page and count; ACCCON X
- TAX                    \ clear (main RAM at &3000-&7FFF); returns with ACCCON
- LDA h_ovf-1,X          \ on the stack under the return address
+ TAX                    \ clear (main RAM at &3000-&7FFF), its old value in
+ LDA h_ovf-1,X          \ hova
  STA hogp
  LDA h_ovn-1,X
  STA hogn
- PLA
+ LDA &FE34              \ (only X is touched: TRB/TSB, never a whole write)
+ AND #4
  STA hova
- PLA
- STA hova+1
- LDA &FE34
- PHA
- AND #&FB
- STA &FE34
- LDA hova+1
- PHA
- LDA hova
- PHA
+ LDA #4
+ TRB &FE34
  RTS
 .hov_pg                 \ page hogp in: its ROMSEL, and its address into both
  LDX hogp               \ loops; Y = 0
@@ -308,7 +301,7 @@ ELSE                      \ (the Master host: page by page, wherever the build
  RTS
 .hogp EQUB 0
 .hogn EQUB 0
-.hova EQUW 0
+.hova EQUB 0
  INCLUDE "build/hstore.asm"
 ENDIF
 

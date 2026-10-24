@@ -18,6 +18,9 @@ LOG=scratch/curious/run1/inputs.jsonl
 for H in Master B; do
   S=$D/elite-tube.ssd; [ $H = B ] && S=$D/elite-tube-b.ssd
   ( TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rp$H --until $TO --noobserve --cand $S --csyms $D/psyms.txt > $D/lockstep-$H.txt 2>&1 ) &
+  if [ $H = Master ]; then   # (the Master's internal co-processor, reachable only with ACCCON's ITU set: harness/tlib.mjs TUBEINT=1)
+    ( TUBEINT=1 TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rpint --until 600 --noobserve --cand $S --csyms $D/psyms.txt > $D/lockint-$H.txt 2>&1 ) &
+  fi
   ( node tube/tools/tfbreplay.mjs --log $LOG --out $D/fb$H --cand $S --csyms $D/psyms.txt --host $H --from 0 --to $TO > $D/fb-$H.log 2>&1;
     node tube/tools/fbcmp.mjs scratch/fbref/fb.json $D/fb$H/fb.json --to $((TO - 1)) > $D/pixels-$H.txt 2>&1
     node tube/tools/fbcmp.mjs scratch/dashref/dash.json $D/fb$H/dash.json --to $((TO - 1)) > $D/dash-$H.txt 2>&1 ) &
@@ -32,6 +35,7 @@ cat $D/master.txt
 for H in Master B; do
   echo "== $H"
   grep -h "REPLAY" $D/lockstep-$H.txt | tail -1
+  [ $H = Master ] && echo "internal co-processor (TUBEINT=1): $(grep -h "REPLAY" $D/lockint-$H.txt | tail -1)"
   cat $D/pixels-$H.txt
   echo "dashboard: $(cat $D/dash-$H.txt)"
   tail -1 $D/tsave-$H.txt

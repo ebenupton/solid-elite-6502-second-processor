@@ -3812,13 +3812,35 @@ ENDIF
 
  STY YSAV               \ Store Y in YSAV so we can retrieve it below
 
+IF _TUBE
+
+IF _HOSTB = 0
+ LDA #%00000110         \ Port (Tube): set bits 1 and 2 of ACCCON only (the
+ TSB VIA+&34            \ host never writes it whole: bit 4, ITU, must stay set
+ENDIF                   \ for an internal co-processor, and the IRQ owns D; the
+                        \ Model B host has no ACCCON)
+ELSE
+
  LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
  STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
 
+ENDIF
+
  JSR LOINQ              \ Draw a line from (X1, Y1) to (X2, Y2)
+
+IF _TUBE
+
+IF _HOSTB = 0
+ LDA #%00000110         \ Port (Tube): and clear them again
+ TRB VIA+&34
+ENDIF
+
+ELSE
 
  LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
  STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+
+ENDIF
 
  LDY YSAV               \ Retrieve the value of Y we stored above
 
