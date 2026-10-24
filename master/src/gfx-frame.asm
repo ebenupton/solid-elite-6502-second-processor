@@ -667,14 +667,11 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STA F_PLR
  LDA TYPE
  STA F_PLT
-IF _TPART = 1             \ (Tube: the planet's z is 24-bit, and a ship drawn
- LDA INWK+8             \ with faces is nearer than 4096: a planet 65536 or
- BEQ P%+4               \ more away is held as z_hi = &FF, further than any
- LDA #&FF               \ such ship. The Master port keeps (INWK+7 INWK+6),
- ORA INWK+7             \ so it hides a near ship in front of a planet
-ELSE                    \ 65536-69631 away: the station on a docking run with
- LDA INWK+7             \ the planet behind it)
-ENDIF
+ LDA INWK+8             \ the planet's z is 24-bit, and a ship drawn with
+ BEQ P%+4               \ faces is nearer than 4096: a planet 65536 or more
+ LDA #&FF               \ away is held as z_hi = &FF, further than any such
+ ORA INWK+7             \ ship (with INWK+7 alone, a planet 65536-69631 away
+                        \ hid the station in front of it on a docking run)
  STA F_PLZH
  LDA INWK+6
  STA F_PLZL

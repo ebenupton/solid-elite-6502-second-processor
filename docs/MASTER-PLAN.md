@@ -1751,3 +1751,163 @@ gate cannot see, as the text map is not game state: f_clrtext0's new code
 used f_tmp, which holds its last row, and cleared rows past it); mbrief,
 every briefing's and debriefing's key-wait and end screens identical to
 5b7b91e's.
+
+## Three passes (after the kept solid rows, 87cf524; branch threepass)
+
+The original's source is emitted in three passes, each in the source's
+order: **low** (Elite's code that must be below &3000), **hot** (the rest
+of the game code, flowed through main RAM and then bank 4) and **cold**
+(bank 7). docs/MASTER-MAP.md, "The source and its passes" and "Calls between
+the passes", has the result. What changed, commit by commit:
+
+* **The glue area** (c9f534a): the port's own code below the head was the
+  "low area"; it is the glue area (elite-glue.asm, gfx-gluehooks.asm), so
+  that "low" names the pass. It is first at CODE%, below the low pass.
+* **Three passes, the hot pass flowed** (8acb21a): one rule instead of the
+  run, the low area's two blocks, the "bank 4" blocks hoisted after F% and
+  the marker before TACTICS. The head's blocks are tagged low, stackpt and
+  NEWBRK join them, and Master's drawing and dashboard blocks are ordinary
+  hot blocks tagged "Area: hot, ACCCON X", which the flow puts in bank 4.
+  streams.py measures the hot pass (elite-measure.asm) and flows its units
+  (runs of blocks that fall or branch into each other) through main RAM to
+  &4000, main RAM from &7400, then bank 4: the old layout came out, in the
+  new form.
+* **The low pass, only what must be low** (7840b34): VEC, T1SYNC, pxpatd,
+  pxpat, HANGFLAG to the hot pass; ADDK and the log tables (which align
+  themselves now; the flow is alignment-aware) to bank 4 as ACCCON X. 1207
+  bytes below &3000 for the stubs.
+* **Fast direct stubs** (4d020cb): one stub per target in the glue area (JSR
+  to7 : JSR X_C : JMP to4), 85 cycles a crossing against the far calls'
+  171; elite-far.asm goes. The cold pass calls the low routines that need
+  nothing of the hot side directly. TTX66M keeps the caller's bank for CHPR.
+  The harness sees through a stub by its address range.
+* **Checks the moves needed** (103e927, 9196653): a hot reference to a cold
+  label must be a call, a jump or its address, as a stub has no data (QQ16
+  was read through its stub); banks.txt names each label once, the game's
+  first (a scoped .t2 in the rasteriser made TT217's t2 look like bank 5's,
+  and the pilot waited at the Buy Cargo prompt).
+* **Text hot** (540d423): the token and number printers (TT27, ex, BPRNT,
+  MESS ...), QQ18, QQ16 and TKN2, which DETOK2 reads on into QQ16 ("Area: hot,
+  runs on"). The hot data flows past HAZEL into bank 4 (QQ18, SNE, ACT).
+  DETOK stays cold: its tables are 3.5K.
+* **More hot by measured heat** (560d29e): master/tools/grind/crossings.py
+  ranks the cold blocks by the crossings their move removes less those it
+  creates; the positive ones whose neighbours allow it moved (ee3, MT14 and
+  MT15, HFS2, Ze, FRS1 ... FR1, TT66 and TTX66K, TT69 and TT67, BAD, ESCAPE,
+  TT24). TT20 and TT54 (the charts call them 256 times a screen) and TT111
+  would create more than they remove.
+
+**Results.** Gate: VERIFY PASS 13.97 11.99 0.858 (87cf524: 11.98, 0.857).
+Flight 166769 cycles an iteration against 166935 (profile.mjs). Crossings
+between the passes: 0.0149 a flight iteration and 3738 off flight, at 85
+cycles, against 0.703 and 11455 at 171. The docked screens (harness/
+mdocktime.mjs, the busy cycles from the key to the screen drawn): 5152363
+against 5411007 (-4.8%), 3314.7 ms against 3454.6 ms. 373 bytes fewer free
+outside shadow RAM (the stubs' 700 bytes more than the far calls, the log
+tables' alignment), bank 7 2700 free (89), bank 4 810 (3853).
+
+Page crossings (profile.mjs --pagex): 1108 cycles a flight iteration
+against 1140 at 87cf524, 1421 off flight against 1697.
+
+**Not done.** The alignment pass (the page crossings are measured, above,
+but nothing was aligned). DETOK and its tables in the
+hot pass would remove the docked screens' remaining DASC crossings, but
+need 3.5K more of bank 4. INLINE stubs (70 cycles) are not worth it at
+0.015 crossings a flight iteration.
+
+## The 25 fps cap (after the three passes, e878d4a; branch cap25)
+
+The double-buffered space view is capped at 25 frames a second: a frame is
+on show for at least two fields. Before, a frame quicker than a field was
+shown for one field and the next for two or more, so motion judders, and
+10.7% of the gate's frames were shown for a single field (1062 of 9929).
+
+**How.** H_VSYNC (gfx-gluehooks.asm), which the vsync interrupt calls every
+field, holds a pending flip for one field when the vsync before it flipped
+(GVLAST, set at a flip and cleared at every vsync that does not flip). The
+wait is at the flip only: F_FRAME queues the flip and returns, the next
+main-loop iteration's game code and its frame's set-up run, and only the
+drawing waits (F_FRAME's existing wait for GFLIP before it touches the back
+buffer). A frame slower than two fields flips at the first vsync after it
+is queued, as before. Cost: 4 cycles at a vsync with nothing to flip, 15
+at a flip, 1 fewer at a held flip; 13 bytes and one variable in the glue
+area, with CODE% 14 bytes lower (&1E16) to keep the font page aligned, so
+nothing after the glue area moved. The timer 1 split is untouched
+(irqprobe over the gate's 10,000 iterations: late 0, early 0, T1 latency
+p99 51, max 53).
+
+**Every flip follows it**: the flight loop, the escape pod's drift, the
+title screens and the briefing's Constrictor all flip through F_FRAME and
+H_VSYNC. The docked screens draw directly and never flip (QQ11 non-zero:
+F_FRAME only empties its lists), and the hangar flips once a visit. The
+title's ship is the one visible difference outside flight: its approach
+from z = 96, quicker than two fields a frame while the ship is small, ran
+at about 48 frames a second for the first second and now runs at 25, so it
+arrives in about 3.5 s rather than 2.3 s (the original, drawing wireframes,
+takes about 1 s); from then on the title runs below 25 frames a second and
+is unchanged.
+
+**Measured** (harness/mflips.mjs: each flip's interval in fields over the
+gate's 10,000 iterations, flown as the gate flies them):
+
+| | e878d4a | cap |
+|---|---:|---:|
+| frames shown 1 field | 1062 (10.7%) | 0 |
+| frames shown 2 fields | 1608 (16.2%) | 2741 (27.6%) |
+| shown 3 fields or more | 7259 (73.1%) | 7186 (72.4%) |
+| mean (fields; frames a second) | 4.28 (11.7) | 4.38 (11.4) |
+| approach / combat / hyperspace, frames a second | 13.0 / 7.8 / 8.3 | 12.7 / 7.7 / 8.1 |
+| verify (ref, cand it/s, ratio) | 13.97 11.99 0.858 | 13.97 11.73 0.840 |
+| docked screens' busy cycles (mdocktime) | 5152363 | 5153018 (+655: 4 a vsync) |
+
+The game state still matches SNG47 at every iteration (the cap changes
+only when frames are shown, and the game is iteration-driven), and the
+pilot's run takes 902.1 emulated seconds rather than 881.5. A dozen
+intervals in each run span a vsync interrupt held off for over a field,
+before and after alike; mflips lists them, and they only lengthen a
+frame.
+
+**Checked**: test_raster seeds 1-14, master/verify.sh (above), irqprobe,
+mdocktime, and an agentplay campaign against SNG47 with fresh seeds
+(6000-6103: flight, combat, docking, the docked screens and the disc
+menu): 19 sessions, 256 game minutes, 207,193 iterations compared, no
+findings, 163 save-file checks identical.
+
+## The planet's z in the depth test (after the 25 fps cap, e695bc2; branch planetz)
+
+A ship drawn with faces is hidden when it is further away than the planet
+and the first vertex of its first visible face is inside the planet's disc
+(f_behind, gfx-frame.asm; since e1aa028, 2026-10-15, "Depth: hide ships
+behind the planet"). F_PLANET recorded the planet's z as (INWK+7 INWK+6)
+only and dropped INWK+8, so a planet 65536 or more away read as its z less
+65536. A ship drawn with faces is always nearer than 4096, so the station
+was hidden whenever the planet was 65536-69631 away and the station was
+over its disc: typical on a docking run with the planet behind the station
+(found on the Tube build, branch stationfix f05ec0e; the user's save state
+had the planet at z = &10636, read as 1590, and the station at 3619).
+
+**Fix.** A planet with INWK+8 non-zero is recorded with z_hi = &FF, further
+than any ship drawn with faces (the Tube's f05ec0e code, without its
+_TPART = 1 condition). 6 bytes in bank 6 (12 to 6 free); bank 6's labels
+after F_PLANET move up 6, and outside bank 6 only the G_ stubs' targets
+and the loader's bank 6 length change. CODE%, the glue area, the three
+passes and the font are where they were.
+
+**Regression**: harness/mstation.mjs (in master/verify.sh) puts the save
+state's ship slots into a freshly launched game, as the Tube's tstation.mjs
+does, and checks that every frame recording the station draws it: before,
+0 of 8; after, 8 of 8.
+
+**Checked**: test_raster seeds 1-14; master/verify.sh: VERIFY PASS 13.97
+11.73 0.839 (game state identical to SNG47 at all 10,000 iterations, page
+&0D, redock, save/load, station, views); irqprobe: split late 0, early 0, T1
+latency p99 51, max 55 (55 before as well, in buffer 1); mdocktime
+5,153,381 busy cycles (5,153,018; +363, bank 6's code after F_PLANET moved
+6 bytes); an agentplay campaign against SNG47 with fresh seeds (7000-7103:
+docking, flight, combat, the disc menu, loads): 15 sessions, 199 game
+minutes, 164,232 iterations compared, no findings, 134 save-file checks
+identical. Over run1 (scratch/curious/run1, the Tube's pixel oracle) the
+frames change only in iterations 13973-14037: the station, a few pixels at
+the sights during a docking run, is now drawn in front of the planet (the
+fix's build and the Tube tree's Master build with it give the same pixels
+there; screenshots/planetz).
