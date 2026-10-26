@@ -63,8 +63,10 @@ which spare RAM the port may take.
    with X = 1 see it, in the original's order from XX21 at &C000 (NWSHP reads
    past E%, E%-1,Y for the planet and the sun, into the missile's blueprint,
    as in the original), as far as it fits: the hot data flows through HAZEL,
-   then bank 4 after the hot code. QQ18 (the recursive tokens, which the hot
-   text printers read), SNE and ACT, which only hot code reads, are in bank 4.
+   then bank 4 after the hot code. Since the ships' edge lists went (nothing
+   reads them, "What is not in the original's order"), all of it fits in
+   HAZEL, QQ18 (the recursive tokens, which the hot text printers read), SNE
+   and ACT included.
 6. **The screen and the split.** Main &4000-&6FFF is buffer 0 and shadow
    &4000-&6FFF buffer 1; shadow &7000-&7DFF is the dashboard. Main RAM under
    the dashboard (&7000-&7FFF) is never on show, as the split is never late
@@ -251,14 +253,14 @@ rules ("Calls between the passes").
 | Hot pass: main RAM | main &2E49-&3F92 | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB, HALL, HAS1 | 109 |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
 | Quarter-square tables, then the hot pass | main &7000-&7F3D | QSL and QSH (elite-qs.asm, &7000-&73FF); the hot pass's second container from &7400: TACTICS, DOCKIT, the tactics helpers, HITCH, FRS1, FRMIS, ANGRY, FR1, SESCP, SFS1, SFS2, HFS2, STARS2, MU5, MULT3, the maths from MLS2 to DVID3B2 | 194 |
-| Bank 4 | &8000-&BCD5 | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (&8000-&9074: ylookup, SCAN, LOIN, TWOS, TWOS2, LOINQ, HLOIN, TWFL, TWFR, orange, PIX1, PIXEL2, PIXEL, PXCL, DOT, ddot, ECBLB2, ECBLB, SPBLB, SPBT, ECBT, MSBAR, TTX66, CLYNS, DIALS, PZW2, PZW, DILX, DIL2, DILI, DSEG, ADDK; log, logL, alogh page aligned at &9100-&93FF), then the rest of the hot pass in the source's order (cntr ... LASLI, GINF, TT69, TT67, TT24, ee3, the text printers cpl to ex and QQ18IX, DOEXP, the planet and the sun, the main game loop, Ze, BAD, DEATH, WARP, DOKEY, TT217, me1, MESS, mes9, OUCH, TIDY ... LL9, MVEIT to PLUT, LOOK1, SIGHT, TT66, TTX66K, FILLKL, ZEKTRAN ... EXNO, F% at &B8C6); then the hot data HAZEL has no room for (QQ18 &B8C6, SNE &BC86, ACT &BCB6) | 810 |
+| Bank 4 | &8000-&BCD5 | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (&8000-&9074: ylookup, SCAN, LOIN, TWOS, TWOS2, LOINQ, HLOIN, TWFL, TWFR, orange, PIX1, PIXEL2, PIXEL, PXCL, DOT, ddot, ECBLB2, ECBLB, SPBLB, SPBT, ECBT, MSBAR, TTX66, CLYNS, DIALS, PZW2, PZW, DILX, DIL2, DILI, DSEG, ADDK; log, logL, alogh page aligned at &9100-&93FF), then the rest of the hot pass in the source's order (cntr ... LASLI, GINF, TT69, TT67, TT24, ee3, the text printers cpl to ex and QQ18IX, DOEXP, the planet and the sun, the main game loop, Ze, BAD, DEATH, WARP, DOKEY, TT217, me1, MESS, mes9, OUCH, TIDY ... LL9, MVEIT to PLUT, LOOK1, SIGHT, TT66, TTX66K, FILLKL, ZEKTRAN ... EXNO, F% at &B8C6); then any hot data HAZEL has no room for (none) | 1850 |
 | Cold pass | bank 7 &8000-&A65C | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data in the original's order (the extended tokens TKN1, RUPLA, RUGAL, RUTOK) | - (bank 7's end) |
 | Meridian window | bank 7 &A65D-&B573 (ROMSEL 7; MERID, its own image, with gfx-kept7.asm after it) | gfx-merid.asm, the beach ball planet's boundaries (PM_HOOK, PM_MERID) | 2700 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FE4 (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 27 |
 | Rasteriser: disc window | bank 5 &8000-&8F2F (ROMSEL 5) | gfx-raster_disc.asm, gfx-raster_kept.asm | 208 |
 | Rasteriser: shared region | bank 5 &9000-&BF94 (with either window) | gfx-raster.asm, gfx-flare.asm, gfx-raster_lcold.asm | 107 (+ 808 at &98D8, below the per-x tables at &9C00; + 256 in the tails) |
 | Frame layer | bank 6 &8000-&BFF9 | gfx-frame.asm, faces, lighting, frame_cold, the flare's step, the hangar's frame and tables | 6 |
-| HAZEL | &C000-&DD94 | the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's | 363 (&DD95-&DEFF), 256 (&DF00-&DFFF: the MOS's) |
+| HAZEL | &C000-&D780 | the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's (without their edge lists), QQ18, SNE, ACT | 1919 (&D781-&DEFF), 256 (&DF00-&DFFF: the MOS's) |
 | Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
 | Buffer 1, dashboard | shadow &4000-&7DFF | the screen (rule 6) | - |
 | Shadow &7E00-&7FFF | | unused (not displayed) | 512 |
@@ -440,7 +442,12 @@ What remains out of that order, each with a `Port:` note where it applies:
   bank 4 itself; the log tables align themselves (`ALIGN &100`: they followed
   the three-page font); JMTB names its hot targets' stubs (x4_TT27, x4_MT14,
   x4_MT15, x4_DASC, x4_MT16, x4_CLYNS); TKN2 runs on into QQ16.
-* **Removed**: the original's direct drawing of ships, as every LL9
+* **Removed**: the ships' edge lists (the EDGE macro assembles nothing, with
+  a `Port:` note: every ship is drawn from its faces, and a read watch over
+  the gate's run, the title's ships, the briefings, docking with the hangar,
+  the escape pod, death and redocking found no game code reading them; the
+  blueprints' headers, edge counts and offsets included, are as they were),
+  the original's direct drawing of ships, as every LL9
   records (LL9's line drawing in parts 9 to 11 and its LSNUM/LSNUM2 set-up,
   LSPUT, LSCLR's erase loop and Shpt, each original routine with its
   header and a `Port: removed` note), the original's unreachable code (each
