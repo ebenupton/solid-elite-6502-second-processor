@@ -1942,3 +1942,65 @@ Each was judged here, measured on this port, and made where it won
 * **Not done**: full STA runs, one page a line (37.6K, or 48K page per
   line, against about 7.7K free in all; at most 3.5% in docking, 0.2% in
   flight, 1 cycle a byte stored); one-pass polygons (rejected before).
+
+## The lens flare and occlusion (after the lessons, fa36d40; branch flarevis)
+
+The flare used to be all or nothing on one test: the sun's centre on the
+screen and not inside the planet's disc. A ship in front of the sun, the
+planet over most of it, or a sun half off the screen still got the full
+flare. Now R_FLARE (gfx-flare.asm, bank 5) first looks at the back buffer
+as drawn so far, at nine points of the sun's disc. These are the centre and
+eight points round it at about 0.62 R (left, right, up, down and the
+diagonals; offsets a = R/2 + R/8 and b = R/2 - R/16, with R capped at 127).
+The planet, ships, dots and lasers are drawn by then; the text, sights and
+stars come after the flare.
+
+* A probe outside the clip window (x 2..253, y 1..191) is out of sight.
+* A probe inside is in sight if its pixel is still the sun's colour for its
+  row: FC_SUNE on even rows, FC_SUNO on odd ones. A dithered row is compared
+  with its own colour byte, pixel by pixel (fl_pxm).
+* ACCCON X is as the frame layer has it, so the reads see this buffer.
+* None in sight: no flare, and nothing marked dirty. In K mode the kept rows
+  are forgotten only when the flare draws (k_clear moved from T_FLARE into
+  R_FLARE, after the probes).
+* Otherwise every ghost's density steps down the ladder by 0 (all 9 in
+  sight), 1 (7 or 8), 2 (4 to 6) or 3 (1 to 3) more rungs (fl_vred). fl_lev
+  now holds the level less 3 less that, and the ghost's density is its index
+  plus fl_lev.
+
+f_flt's tests in bank 6 are unchanged: the front view, the centre on the
+screen, and the centre not inside the planet's disc. (When the planet is
+the bigger disc, the sun is drawn over it as the secondary disc, so the
+probes alone would see it.)
+
+Space: the probes are 184 bytes in bank 5's shared region, which had 107
+free. R_LINE's cold part (gfx-raster_lcold.asm, 188 bytes, with the
+rasteriser's private state) moved to the room below the per-x tables:
+elite-gfx.asm assembles it from r_tfree after a CLEAR. The shared region
+then has 111 free, and the room below the tables 620. The glue is 8 bytes
+shorter (T_FLARE's K-mode test), and the font's padding takes them up.
+
+Cost: the probes take 1,200-1,280 cycles a flared frame (636-960 when the
+sun is half off the screen; up to 1,450 when an interrupt lands in them).
+A fully hidden sun's flare now costs about 1,440 cycles, against
+14,000-28,000 for a drawn flare, before the repair the next frame on the
+buffer would need. Nothing on the gate: its pilot never has the sun in front.
+
+Scenes (harness/mflarevis.mjs, the gate's pilot, then the sun placed on a
+path; master/tools/flarevis.py draws the dumped back buffers):
+screenshots/flarevis/planet-full-reduced-off.png (the sun sliding behind
+the planet: 9, 6, then off by f_flt's centre test),
+ship-full-reduced-off.png (an asteroid across the sun: 9, 4, 0),
+edge-full-reduced-off.png (the sun leaving the screen: 9, 6, 3, then off),
+ship-hidden-before-after.png (the same hidden frame before and after).
+
+Seen in passing, and not changed: when the planet is hidden in one step
+while the sun stays (scene.mjs --hideplanet), planet-coloured pixels stay
+on the sun's disc for many frames. fa36d40 does the same.
+
+**Checked**: test_raster seeds 1-14; master/verify.sh: VERIFY PASS 13.97
+11.82 0.846, as before (game state identical to SNG47 at all 10,000
+iterations; redock, save/load, station, views); irqprobe: split late 0,
+early 0, T1 latency p99 51, max 57 (fa36d40: the same); mdocktime
+5,157,674 busy cycles (fa36d40: the same); mflips min=2, the histogram
+identical to fa36d40's.
