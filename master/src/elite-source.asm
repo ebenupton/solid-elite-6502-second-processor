@@ -3009,6 +3009,10 @@ IF _HOSTB = 0          \ (Tube, Model B host: its own IRQ, tube/src/hb-res.asm)
  LDA #1
  TSB VIA+&34
 
+IF _TDUMB AND _TPART = 2   \ Tube: the Tube's Master host decides a pending flip
+ JSR H_SPLIT            \ here, at the panel's top, and frees the old front
+ENDIF                     \ buffer (gfx-lowhooks.asm)
+
 IF _COMPACT
 
  LDA MOS                \ If MOS = 0 then this is a Master Compact, so jump to

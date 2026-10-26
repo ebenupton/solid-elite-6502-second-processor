@@ -3,7 +3,7 @@
 \ gfx-lowhooks.asm - the hooks that must live in main RAM below &3000 (the
 \ low area, elite-low.asm): the text map's (CHPR runs as WRCHV with any ROM
 \ paged and with ACCCON X set, which hides main RAM above &3000) and the
-\ IRQ's (H_VSYNC); split from gfx-hooks.asm
+\ IRQ's (H_VSYNC, H_SPLIT); split from gfx-hooks.asm
 \
 \ ******************************************************************************
 
@@ -120,7 +120,32 @@ ENDIF
 
 IF _HOSTB = 0             \ (Model B: hb-irq.asm's)
 IF _TDUMB AND _TPART = 2
-.GVLAST EQUB 0          \ (H_VSYNC: non-zero if the last vsync flipped)
+.GVLAST EQUB 0          \ (H_SPLIT: non-zero if the last split flipped)
+
+\ H_SPLIT: the Tube's Master host, called by IRQ1 at the panel's top (timer 1,
+\ A only). The panel is single buffered, so the 3D view's front buffer is not
+\ read again this field: a pending flip is decided here, GPEND becomes the
+\ front buffer (shown from the next field: H_VSYNC sets ACCCON D from GFRONT
+\ at the vsync) and the old front buffer is free to draw into at once
+\ (GFLIP clear). 25 frames a second at most, as the Master port's cap: a flip
+\ pending at the split straight after the last flip is held one field, so a
+\ frame is on show for two fields at least
+
+.H_SPLIT
+ LDA GFLIP
+ BEQ hsp0
+ LDA GVLAST
+ BNE hsp0
+ LDA GPEND
+.hv_flip                \ (tube/tools/tflips.mjs counts the flips here)
+ STA GFRONT
+ STZ GFLIP
+ LDA #&FF               \ (this split flipped)
+ STA GVLAST
+ RTS
+.hsp0
+ STZ GVLAST             \ (no flip at this split)
+ RTS
 ENDIF
 .H_VSYNC
 IF _TDUMB AND _TPART = 2   \ (the Tube's host: a pending C_WSCAN answered, h4body)
@@ -131,26 +156,15 @@ IF _TDUMB AND _TPART = 2   \ (the Tube's host: a pending C_WSCAN answered, h4bod
  HTX
 .hv9
 ENDIF
+IF _TDUMB = FALSE OR _TPART <> 2   \ (the Tube's Master host: H_SPLIT flips)
  LDA GFLIP
-IF _TDUMB AND _TPART = 2   \ (the Tube's Master host: 25 frames a second at most,
- BEQ hvc0               \ as the Master port's cap: a flip pending at the vsync
- LDA GVLAST             \ straight after the last flip is held one field, so a
- BNE hvc0               \ frame is on show for two fields at least)
-ELSE
  BEQ hv0
-ENDIF
  LDA GPEND
 .hv_flip                \ (tube/tools/tflips.mjs counts the flips here)
  STA GFRONT
  STZ GFLIP
-IF _TDUMB AND _TPART = 2
- LDA #&FF               \ (this vsync flipped)
- STA GVLAST
- BRA hv0
-.hvc0
- STZ GVLAST             \ (no flip at this vsync)
-ENDIF
 .hv0
+ENDIF
  BIT GMODE
  BMI hv1
  LDA #1

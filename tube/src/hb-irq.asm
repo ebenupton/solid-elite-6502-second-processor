@@ -14,7 +14,9 @@
 \     panel's address for frame B;
 \   point 1, line 196 (frame B has started): frame B's, and the address of
 \     the buffer to show next (GFRONT: 0 BUF0, 1 &4000), which is where a flip
-\     takes effect (GFLIP is cleared at the next point 2, when it is shown).
+\     takes effect. Frame A has ended, and the panel is single buffered, so
+\     the old front buffer is not read again this field: GFLIP is cleared
+\     here, and the host draws into it at once.
 \ The vsync interrupt (CA1) does what the Master port's does: the sound
 \ (SOINT), DL, and one joystick channel (the Model B's ADC at &FEC0).
 \
@@ -56,13 +58,7 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  EOR #1
  STA hb_phase
  BEQ hbi_p1
- LDA hb_flip            \ point 2: frame A shows the flipped buffer now
- BEQ hbi_2a
- LDA #0
- STA GFLIP
- STA hb_flip
-.hbi_2a
- LDX #4
+ LDX #4                 \ point 2
  LDA hb_r6a
  LDY #23
  JSR hb_regs
@@ -84,17 +80,16 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  LDA #7
  LDY #14
  JSR hb_regs
- LDA GFLIP              \ (as H_VSYNC: a pending flip; 25 frames a second at
- BEQ hbi_1n             \ most, as the Master port's cap: a flip pending at the
- LDA hb_flip            \ field straight after the last flip is held one field)
- BNE hbi_1a
- LDA hb_vl
- BNE hbi_1n
+ LDA GFLIP              \ (a pending flip, as the Master host's H_SPLIT; 25
+ BEQ hbi_1n             \ frames a second at most, as the Master port's cap: a
+ LDA hb_vl              \ flip pending at the field straight after the last
+ BNE hbi_1n             \ flip is held one field)
  LDA GPEND
 .hbi_flip               \ (tube/tools/tflips.mjs counts the flips here)
  STA GFRONT
+ LDA #0                 \ (the old front buffer is free now)
+ STA GFLIP
  LDA #1
- STA hb_flip
  STA hb_vl
  BNE hbi_1a
 .hbi_1n
@@ -181,12 +176,10 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  STA &FE47
  LDA #0
  STA hb_phase
- STA hb_flip
  CLI
  RTS
 
 .hb_phase EQUB 0
-.hb_flip  EQUB 0        \ a flip is set up, shown from the next point 2
 .hb_r6a   EQUB 24       \ frame A's R6 (DET1's)
 .hb_sah EQUB HI(BUF0 DIV 8), HI(&4000 DIV 8)
 .hb_sal EQUB LO(BUF0 DIV 8), LO(&4000 DIV 8)
