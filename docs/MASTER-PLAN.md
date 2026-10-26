@@ -1911,3 +1911,34 @@ frames change only in iterations 13973-14037: the station, a few pixels at
 the sights during a docking run, is now drawn in front of the planet (the
 fix's build and the Tube tree's Master build with it give the same pixels
 there; screenshots/planetz).
+
+## Lessons from the Tube (after the planet's z, edd060d; branch lessons)
+
+The Tube build (branch dumbhost, TUBE-REPORT.md) measured and tried
+things on its parasite and hosts that this port shares or could share.
+Each was judged here, measured on this port, and made where it won
+(LESSONS-REPORT.md in the branch's worktree has the numbers in full):
+
+* **Two boundaries a row, not four** (the disc layer's per-buffer state
+  for the beach ball): over the gate's run 2.5% of a beach ball's rows
+  have three boundaries and 0.004% four; keeping two, with an unknown
+  count for more (a full repaint next time), costs less than the stores
+  and loads of the other two: the gate's beach rows -1.8%, run1's beach
+  windows +0.6% and +2.1%, and bank 5 1,039 bytes freed. (Three
+  boundaries was measured too and is slower.)
+* **One-colour rows of a two-colour frame** (the Tube's R_BST) were
+  already drawn as changes here; colour B rows and rows the disc leaves
+  took slow paths, now r_dp2's: the gate's beach rows -0.9%.
+* **The ships' edge lists** are read by nothing (a read watch over the
+  gate and the forced paths): 2,596 bytes of HAZEL; the hot data now all
+  fits there, so bank 4 has 1,850 bytes free and HAZEL 1,919.
+* **ACCCON**: no whole writes in the game (TSB/TRB of X and E, as the
+  original's comments say), the loader's masked: ITU and IFJ are kept.
+* **The span core's trims**: r_spc had them; phase B's empty-run test
+  went (docking -0.46%).
+* **BREAK**: the port hung in the MOS's reset after BREAK or SHIFT+BREAK;
+  with *FX200,3 BREAK is a power-on reset and SHIFT+BREAK reboots the
+  game, as the original does.
+* **Not done**: full STA runs, one page a line (37.6K, or 48K page per
+  line, against about 7.7K free in all; at most 3.5% in docking, 0.2% in
+  flight, 1 cycle a byte stored); one-pass polygons (rejected before).
