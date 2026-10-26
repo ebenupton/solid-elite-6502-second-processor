@@ -255,7 +255,7 @@ rules ("Calls between the passes").
 | Cold pass | bank 7 &8000-&A65C | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data in the original's order (the extended tokens TKN1, RUPLA, RUGAL, RUTOK) | - (bank 7's end) |
 | Meridian window | bank 7 &A65D-&B573 (ROMSEL 7; MERID, its own image, with gfx-kept7.asm after it) | gfx-merid.asm, the beach ball planet's boundaries (PM_HOOK, PM_MERID) | 2700 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FE4 (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 27 |
-| Rasteriser: disc window | bank 5 &8000-&8F00 (ROMSEL 5) | gfx-raster_disc.asm, gfx-raster_kept.asm | 255 |
+| Rasteriser: disc window | bank 5 &8000-&8F2F (ROMSEL 5) | gfx-raster_disc.asm, gfx-raster_kept.asm | 208 |
 | Rasteriser: shared region | bank 5 &9000-&BF94 (with either window) | gfx-raster.asm, gfx-flare.asm, gfx-raster_lcold.asm | 107 (+ 808 at &98D8, below the per-x tables at &9C00; + 256 in the tails) |
 | Frame layer | bank 6 &8000-&BFF9 | gfx-frame.asm, faces, lighting, frame_cold, the flare's step, the hangar's frame and tables | 6 |
 | HAZEL | &C000-&DD94 | the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's | 363 (&DD95-&DEFF), 256 (&DF00-&DFFF: the MOS's) |
