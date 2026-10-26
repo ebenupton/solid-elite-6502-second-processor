@@ -61,8 +61,8 @@ BUF = &1C00             \ where each image is loaded before its copy
  LDA #16                \ the ADC: no channels sampled by the MOS
  LDX #0
  JSR OSB
- LDA #200               \ ESCAPE off, no memory clearing on BREAK
- LDX #1
+ LDA #200               \ ESCAPE off, and memory cleared on BREAK (X = 3, as the
+ LDX #3                 \ Master port's fa36d40: a BREAK is a power-on reset)
  JSR OSB
  LDA #13                \ events off
  LDX #0
