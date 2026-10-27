@@ -108,3 +108,20 @@ HZ_STORE = &CA00
  PRINT "Host: HAZEL &C000-&", ~HZ_END-1, ", free to the storage at &", ~HZ_STORE, ": ", HZ_STORE-HZ_END
  SAVE "build/HHAZ.bin", &C000, HZ_END, &C000
 
+
+\ The recursive tokens (QQ18, as stored: build/HQQ18.bin) and where each
+\ starts (build/htokix.asm), at HAZEL's top below the MOS's page &DF00: data
+\ that h4body's C_TOKEN sends to the parasite (elite-source.asm's ex), as the
+\ overlays' images are kept. HAZEL is mapped wherever the host's IRQ finds it
+\ (h_disc moves it out and back around a disc command, while the parasite
+\ waits)
+HZ_TEXT = &DA00
+ CLEAR HZ_TEXT, &DF00
+ GUARD &DF00
+ ORG HZ_TEXT
+.HQQ18
+ INCBIN "build/HQQ18.bin"
+ INCLUDE "build/htokix.asm"
+.HZ_TEXT_END
+ PRINT "Host: the recursive tokens &", ~HZ_TEXT, "-&", ~HZ_TEXT_END-1, ", free to &DF00: ", &DF00-HZ_TEXT_END
+ SAVE "build/HTEXT.bin", HZ_TEXT, HZ_TEXT_END, HZ_TEXT

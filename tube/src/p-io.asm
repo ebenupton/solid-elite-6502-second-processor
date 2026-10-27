@@ -717,8 +717,9 @@ NEXT
  RTS
 
 \ prx: A = the next byte from the host (register 4), waiting for it. Keeps X
-\ and Y (and C)
+\ and Y (and C). (prx4: the game's code calls it so: its own prx is TT151's)
 
+.prx4
 .prx
  BIT PR4S
  BPL prx

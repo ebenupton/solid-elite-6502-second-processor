@@ -7,6 +7,88 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## Text to the hosts: the recursive tokens (branch `tubeplanets`, 2026-10-27, second pass)
+
+**Measured first** (tube/tools/ttext.mjs: per screen, the bytes through
+register 1 and the text's share, the draw time from TT66 to the next key
+poll and to the host's drain, the host's idle time; per flight window, bytes
+an iteration).
+
+Text on the parasite at 4129fd4:
+* resident (so in space mode): QQ18, the recursive tokens, 960 bytes; QQ18IX
+  20; ex's scan 49; QQ16 (two-letter tokens, 70), PFONTW (96: CHPR's W, which
+  the lockstep compares), TT27 and the printers (needed for the generated
+  text: system names, the commander, numbers); the text map F_TM/F_ST, 1,536;
+* overlay D (direct mode only): TKN1 (the extended tokens), RUPLA, RUGAL,
+  RUTOK and DETOK's code, about 3.9K. No font: the hosts draw the glyphs.
+
+Text bandwidth (run1, Master host): in flight 0 bytes an iteration in
+1000-1400 and 2.5 of 564 over 0-3550 (C_GLYPH cells, only when a cell
+changes). On the docked screens the text is 90-97% of the bytes (C_CHAR, 9
+bytes a character): status 1.6K, market and buy 0.8-2.0K, equipment 3.0K, data
+on a system 2.6-2.8K, the long-range chart 0.15K. But the host is busy 97-99%
+of each screen's draw (idle 1-5 ms of 100-300 ms but for the data screen's
+justification), drawing, so the transfer is not what limits those screens:
+reading a C_CHAR is about 135 host cycles (nine polled reads), against
+CHPR's drawing of the glyph and the screen's clear.
+
+**Why not "draw token N" commands.** What the original's printing changes
+and the game later reads is a function of the characters themselves: XC and
+YC, QQ17's case bits, the DTW flags, and BUF, the justified line buffer of
+the extended tokens (90 bytes in WP, compared by the lockstep). In space mode
+the text map (the parasite's, as the host keeps no screen state) needs every
+character too. So the parasite must have the characters whatever the host
+draws, and tables of lengths and case effects would not cover BUF's
+contents. The design is the overlays': the host stores the data, the
+parasite fetches it.
+
+**The design** (one commit):
+* QQ18 is the hosts' (elite-data.asm's block tagged "Tube: host"; streams.py
+  writes build/elite-data-host.asm, tube/build.sh assembles it alone into
+  build/HQQ18.bin and writes where each token starts, build/htokix.asm).
+  Master host: HAZEL &DA00-&DEE9 (the overlays' storage there 21 pages to 16;
+  80 of 88 slots used); Model B host: bank F from &A9B9 (to &AEA2). 1,258
+  bytes on each host, plus 22 bytes of code in h4body.
+* C_TOKEN n through register 4: the host's IRQ (h4body) sends token n's bytes
+  as stored, its null included. Data only: the host expands nothing and
+  needs no game state (so it is "storage", as C_OVLGET).
+* ex (elite-source.asm, IF _TUBE): fetches the token into TBUF at tbp and
+  runs the original loop at TT50 on it with V(1 0) = TBUF, Y = its offset;
+  a token printing a token fetches above it, tbp goes back after the loop.
+  TT27, the control codes, case flags, DTW, BUF, XC and YC are the original
+  code's, run on the same characters, so the game state is the same by
+  construction. TBUF is 35 bytes: the deepest chain (token 126, through the
+  control codes 5 and 0), which tube/build.sh checks against the table.
+  C and V reach TT50's first TT27 as before; ex returns A = 0, Z set; X is the
+  last TT27's; V and Y are pointers (excluded from the lockstep as before).
+
+**Freed**: the resident run ends at &B962 (was &BD40): 990 bytes. In space
+mode the free room is 157 (to &BA00) + 1,210 (overlay S to the ring) = 1,367
+bytes, against 377. The bandwidth through register 1 is unchanged
+(2,089,958 bytes over 0-3700 against 2,089,958); the fetches add 2,942 bytes
+through register 4 over 0-3700 (64-289 a docked screen, 15-22 a launch or
+jump).
+
+**Speed** (it/s, capped: flight / docking / 0-3550 / beach / beach): Master
+host 18.82 / 10.64 / 19.10 / 9.28 / 9.35 (4129fd4: 18.82 / 10.64 / 19.09 /
+9.30 / 9.37); Model B host 14.10 / 8.79 / 15.93 / 7.33 / 7.19 (14.10 / 8.79 /
+15.94 / 7.34 / 7.19). The 13 docked screens of run1 0-3700, to the drain:
+Master 2,430 to 2,475 ms (+1.9%), Model B 3,201 to 3,280 ms (+2.5%): the
+fetches' IRQs take host time, which those screens are short of.
+
+**Gates** (scratch/gt1, both hosts): Master port byte-identical; lockstep
+16002 clean, TUBEINT 602 clean; storage 80 pages, 0 differ; pixels 14607
+and dashboard 3529 matched, 0 mismatched; tsavetest, tcrash, tstation ok;
+tforce 0 mismatched, overlay loads equal to 4129fd4's; ttear 0 on both;
+tmoon matched but the poke's own frames, as before; test_raster seed 1 ok.
+
+**Not enough for the disc rule.** S_SUN (1,103 bytes on the Master port)
+with R_DISC2 (799 bytes of code, and per buffer the second disc's spans,
+2 x 192 x 2 bytes) needs about 1.8K with a compact span store, 2.7K with the
+Master's; changed-rows-only surface redraw needs about 1.5K. 1,367 bytes are
+free: about 0.4K short of the first (1.3K with the Master's spans) and 1.9K
+short of both. The next sources, by speed cost (below), were not taken.
+
 ## Planets on the parasite, paging removed, the map tidied (branch `tubeplanets`, 2026-10-27)
 
 From `dumbhost` 9fe84cb. The Master port's planet work (planetfold 96c66d4 ..

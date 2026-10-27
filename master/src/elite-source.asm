@@ -31037,6 +31037,8 @@ ENDIF
  JMP TT27               \ Print the second letter and return from the
                         \ subroutine
 
+IF _TUBE = FALSE         \ (Tube: the recursive tokens are the host's, below)
+
 .TT51w
 
                         \ Port: TT51w and TT49w are here, out of the way, so
@@ -31053,6 +31055,8 @@ ENDIF
  INC TT51+2             \ V+1 (and the LDA operand) so that V points to the
  BNE TT59               \ start of the new page, and go on to count the token
                         \ (this BNE is always taken)
+
+ENDIF
 
 .TT47
 
@@ -31095,6 +31099,45 @@ ENDIF
 \ ******************************************************************************
 
 .ex
+
+IF _TUBE                 \ Port (Tube): the recursive token table, QQ18, is the
+                        \ host's (stored data, as the overlays' images): the
+ LDY tbp                \ host sends token A's bytes as they are stored, up to
+ PHY                    \ and including the null at its end (C_TOKEN, through
+ PHP                    \ register 4, h-main.asm's h4body), into TBUF from
+ PHA                    \ tbp (p-glue.asm), and the loop at TT50 prints them
+ LDA #C_TOKEN           \ from there with V(1 0) = TBUF and Y = their offset,
+ JSR preq4              \ just as it prints them from QQ18. A token that the
+ PLA                    \ loop meets is fetched above this one's null, and
+ JSR preq4              \ tbp is put back after the loop, so TBUF is a stack
+                        \ (its depth: p-glue.asm). C and V reach TT50 as the
+.ext1                   \ scan leaves them (PHP ... PLP), and the routine
+                        \ returns with A = 0 and Z set, as it does (X is the
+ JSR prx4               \ last TT27's, Y the null's offset: as before, a
+ STA TBUF,Y             \ pointer's)
+ INY
+ TAX
+ BNE ext1
+ STY tbp
+
+ LDA #LO(TBUF)
+ STA V
+ LDA #HI(TBUF)
+ STA V+1
+
+ TSX                    \ Y = the token's offset, pushed first
+ LDY &0102,X
+
+ PLP
+
+ JSR TT50
+
+ PLA                    \ Put tbp back
+ STA tbp
+ LDA #0
+ RTS
+
+ELSE
 
  TAX                    \ Copy the token number into X
 
@@ -31162,6 +31205,8 @@ ENDIF
 
                         \ Otherwise we have found the token, so fall through
                         \ into TT50 to print it
+
+ENDIF
 
 .TT50
 
@@ -31235,6 +31280,8 @@ ENDIF
 
 .QQ18IX
 
+IF _TUBE = FALSE         \ (Tube: the host's, h-main.asm's h_tokat)
+
  EQUB HI(QQ18 + &000 - LO(QQ18))   \ Token 0
  EQUB HI(QQ18 + &069 - LO(QQ18))   \ Token 16
  EQUB HI(QQ18 + &0E1 - LO(QQ18))   \ Token 32
@@ -31256,6 +31303,8 @@ ENDIF
  EQUB LO(QQ18 + &2C8 - LO(QQ18))   \ Token 112
  EQUB LO(QQ18 + &340 - LO(QQ18))   \ Token 128
  EQUB LO(QQ18 + &397 - LO(QQ18))   \ Token 144
+
+ENDIF
 
 \ ******************************************************************************
 \

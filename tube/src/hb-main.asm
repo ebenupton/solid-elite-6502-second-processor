@@ -104,5 +104,9 @@ _RBANK = 0
 .F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
 .F_END
- PRINT "Model B bank F: &8000-&", ~F_END-1, " (code to &", ~F_CODE_END-1, ")"
- SAVE "build/HBF.bin", &8000, F_END, &8000
+HQQ18 = F_END           \ the recursive tokens (QQ18, as stored) and where each
+ INCBIN "build/HQQ18.bin"   \ starts: data that h4body's C_TOKEN sends (in the IRQ,
+ INCLUDE "build/htokix.asm" \ with bank F paged)
+.F_TEXT_END
+ PRINT "Model B bank F: &8000-&", ~F_TEXT_END-1, " (code to &", ~F_CODE_END-1, ", the recursive tokens from &", ~F_END, ")"
+ SAVE "build/HBF.bin", &8000, F_TEXT_END, &8000

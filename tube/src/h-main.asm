@@ -581,6 +581,8 @@ ENDIF
  CMP #C_KEYS
  BNE P%+5
  JMP hk_body
+ CMP #C_TOKEN
+ BEQ h4t
  CMP #C_IRB
  BEQ h4i
  CMP #C_WSCAN           \ C_WSCAN: pending, the next vsync interrupt answers it
@@ -597,6 +599,22 @@ ENDIF
 .h4i
  LDA VIA+&40
  HTX
+ RTS
+.h4t                    \ C_TOKEN: the token's number next; its bytes as stored,
+ BIT HR4S               \ the null included (the host keeps QQ18 as it keeps
+ BPL h4t                \ the overlays' images: data only, build/HQQ18.bin, and
+ LDX HR4D               \ where each token starts, build/htokix.asm)
+ LDA HTOKL,X
+ STA h4tl+1
+ LDA HTOKH,X
+ STA h4tl+2
+ LDY #0
+.h4tl
+ LDA &FFFF,Y            \ (patched)
+ HTX
+ INY
+ TAX
+ BNE h4tl
  RTS
 .h4w
  LDA #&80

@@ -54,6 +54,11 @@ zp_end, = printed(r"ZP workspace from &([0-9A-F]+) to &([0-9A-F]+)")[1:]
 k_end, = printed(r"K% workspace from &[0-9A-F]+ to &([0-9A-F]+)")
 wp0, wp_end = printed(r"WP workspace from &([0-9A-F]+) to &([0-9A-F]+)")
 RING = const(os.path.join(SRC, "p-io.asm"), "RING")
+m = re.search(r"IF _PLANET_RINGS\s*\nRING\s*=\s*&([0-9A-F]+).*?\nELSE.*?\nRING\s*=\s*&([0-9A-F]+)",
+              open(os.path.join(SRC, "p-io.asm"), encoding="latin-1").read(), re.S)
+if m:                                  # (RING by the build's RINGS switch)
+    rings = "_PLANET_RINGS=TRUE" in open(os.path.join(B, "elite-build-options.asm")).read()
+    RING = int(m.group(1 if rings else 2), 16)
 VIA = const(os.path.join(MSRC, "elite-source.asm"), "VIA")
 ZPSAVE = const(os.path.join(MSRC, "elite-source.asm"), "ZPSAVE")
 b4 = first_label(os.path.join(B, "elite-source-bank4.asm"))

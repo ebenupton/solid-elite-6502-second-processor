@@ -38,6 +38,8 @@ HR4D = &FEE7
 C_SYNC     = 0          \ the end of a main-loop iteration's frame: nothing to do
                         \ (the harness's frame marker)
 C_INIT     = 2          \ F_INIT: the drawing code's state, buffer 0 cleared
+C_TOKEN    = 4          \ request (register 4): recursive token n's bytes as stored
+                        \ in QQ18, its null included (elite-source.asm's ex)
 C_SPAN     = 14         \ a span: Y, XL, XR, COLE, COLO (R_SPAN)
 C_LINE     = 20         \ a line: COLE, COLO, COL2, COL3, X0, Y0, X1, Y1 (words:
                         \ R_LINE)

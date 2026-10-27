@@ -30,8 +30,8 @@ shows.
 | The moon's place | &0CCF-&0CEE | MN_E, MN_OK and MN_TURN's variables (gfx-mnturn.asm; never loaded: the first MN_TURN finds the system changed); 25 bytes free to &0D07 |
 | Dummy SHEILA | &0D08 | the one SHEILA byte Master's code still writes on the parasite (ACCCON, VIA + &34) |
 | Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm: the polygon and line inputs, the stars, the text map's row counts (F_TMR, F_SHR0/1), then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page) |
-| Resident code and data | &1400-&BDF3 (12 free to &BDFF) | the run (with p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves p-dash.asm, T_KOFF), Master's drawing's game halves, the game data, the cold blocks that run in flight, the frame layer's parasite part (&96AF-), F_TM and F_ST (the text map, &CDC9-&D3C8); 13 bytes free |
-| Overlay region | &BE00-&F3FF | overlay D or overlay S (below); in direct mode &F390-&F3FF, above D, is getzp's buffer (ZPSAVE) |
+| Resident code and data | &1400-&B962 (157 free to &B9FF) | the run (with p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves p-dash.asm, T_KOFF), Master's drawing's game halves, the game data (not QQ18, the recursive tokens: the hosts keep them, below), the cold blocks that run in flight, the frame layer's parasite part, TBUF (the tokens being printed, 35 bytes), F_TM and F_ST (the text map) |
+| Overlay region | &BA00-&F0FF | overlay D or overlay S (below; S ends at &EC45, 1,210 bytes below the ring); in direct mode ZPSAVE, above D, is getzp's buffer |
 | The ring | &F400-&F7FF | 4 pages (11 until the planet's engine joined overlay S: tubeplanets), above both overlays and the boot's staging (p-layout.asm asserts it): the commands buffered while register 1 is full (p-io.asm; "The ring" below) |
 | High area | &F800-&FEE6 | phase A's second part (p-polyb.asm), the panel's second part (p-dash2.asm), the kept rows' T_KFRAME and pk_line (p-kept2.asm); 9 bytes free to &FEEF. The client OS's copy lives here too: the host keeps whichever of the two is out (C_SWAP) |
 
@@ -93,7 +93,7 @@ through register 4.
 | Text | C_GLYPH (a cell: character, column, row; space mode), C_CHAR (CHPR, direct mode), C_CLS, C_BOXC, C_CLYNS |
 | Panel | C_PDIALS (the dials' inputs), C_PDOT (the compass), C_PSCAN (a ship on the scanner), C_PMSBAR (a missile), C_PBULB (a bulb) |
 | I/O | C_NOISE, C_SOFLUSH (sound), C_DET1 (6845 R6), C_OSCLI (a disc command: the host's MOS runs it), C_SWAP (&F800-&FEEF with the host's copy) |
-| Requests (register 2) | C_KEYS (the keys held), C_DKS (one key), C_WSCAN (the next vsync), C_IRB (port B), C_STARGET (a buffer's star records) |
+| Requests (register 4, answered by the host's IRQ) | C_KEYS (the keys held), C_DKS (one key), C_WSCAN (the next vsync), C_IRB (port B), C_NOISE, C_SOFLUSH, C_TOKEN n (recursive token n's bytes as QQ18 stores them, its null included: elite-source.asm's ex prints them from TBUF with the original loop) |
 | Storage | C_OVLGET n (request: overlay n's pages), C_OVLPUT n (S's state's pages to keep) |
 
 The opcodes of the commands the dumb host no longer has (the frame begin and
@@ -145,6 +145,7 @@ in shadow RAM at the same addresses (ACCCON X), the dashboard in shadow
 | ANDY | &8000-&8776 | phase B's fill (entered at r_pcbs; each row's span read from register 1 as it fills, no dirty extents) and the line loops (R_LINE; no dirty extents); phase A (1.8K) is gone |
 | Bank 6 | &8000-&9BA3 | f_glyph, f_enter, f_b0new's clear, f_unstar, f_direct0, the panel's drawing (h-panel.asm with the "Tube: hostb" blocks: DIALS, SCAN's dot and stick, DOT, MSBAR, the bulbs, LOINQ, HLOIN3, PIXEL), the primitives' handlers (h-prim.asm), the rarely run code (h-cold.asm); then f_enter's buffer and HSW (the high area's copy) to &A4EF |
 | Banks 4, 7 | &8000-&BFFF | the STA runs (h-sta.asm); bytes 192-255 of their pages: S's state (bank 4) and overlay pages kept as four 64-byte pieces (bank 7, HSTB7 on the disc) |
+| HAZEL | &C000-&DEE9 | the STA runs' tables and the code that enters them, the overlays' storage from &CA00 to &D9FF, then from &DA00 the recursive tokens (QQ18 as stored) and where each starts: h4body's C_TOKEN reads them in the IRQ, wherever the host is (HAZEL is mapped but around a disc command, while the parasite waits). &DF00-&DFFF, the MOS's, is untouched |
 
 ## The Model B host (64K sideways RAM)
 
@@ -162,7 +163,7 @@ differ (no ACCCON; the screen base; the banks).
 | Bank S | &8000- | the swapped main RAM, then overlay D's image from &8E00 (storage only) |
 | Bank D | &8000- | overlay S's image and its saved state (storage only) |
 | Bank P | &8000-&84AC, &9000-&BF8D | phase B's fill and the line loops; the shared region with the row runs (patched per buffer on first use: r_pgfix), R_SPAN, R_DOT, the stars, the line code's cold part, r_dspin; the polygon stream's entry (p_polyin); jump table at &BFC0 (P_POLY, P_MARKDIRTY, P_FLARE retired: BRK; JT + 3, once P_ROWREP, is P_DSPANSIN) |
-| Bank F | &8000-&A698, to &AFEF | the command loop and handlers, f_glyph, f_enter, f_unstar, the panel's drawing, CHPR and its font, the sound, the interrupts (hb-irq.asm); then f_enter's buffer and HSW |
+| Bank F | &8000-&AEA2 | the command loop and handlers, f_glyph, f_enter, f_unstar, the panel's drawing, CHPR and its font, the sound, the interrupts (hb-irq.asm); then f_enter's buffer, then from &A9B9 the recursive tokens (QQ18 as stored, 960 bytes) and where each starts (298 bytes), which h4body's C_TOKEN reads in the IRQ (bank F paged) |
 
 The dashboard split is a CRTC vertical rupture (tube/spike/rupture.asm): two
 CRTC frames per field, timer 1 firing twice a field to set each frame's

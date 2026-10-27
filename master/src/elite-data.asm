@@ -3583,6 +3583,7 @@ ENDMACRO
 \    Summary: Macro definition for characters in the recursive token table
 \  Deep dive: Printing text tokens
 \       Area: cold
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3618,6 +3619,7 @@ ENDMACRO
 \    Summary: Macro definition for two-letter tokens in the token table
 \  Deep dive: Printing text tokens
 \       Area: cold
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3777,6 +3779,7 @@ ENDMACRO
 \    Summary: Macro definition for control codes in the recursive token table
 \  Deep dive: Printing text tokens
 \       Area: cold
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3806,6 +3809,7 @@ ENDMACRO
 \    Summary: Macro definition for recursive tokens in the recursive token table
 \  Deep dive: Printing text tokens
 \       Area: cold
+\       Tube: both
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3850,6 +3854,7 @@ ENDMACRO
 \    Summary: The recursive token table for tokens 0-148
 \  Deep dive: Printing text tokens
 \       Area: cold
+\       Tube: host
 \
 \ ------------------------------------------------------------------------------
 \

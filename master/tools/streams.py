@@ -611,10 +611,20 @@ def glue(copies, errors, lines, bl, falls):
 
 
 def data(errors):
-    """the data source's copies, one per area (DAREAS)"""
+    """the data source's copies, one per area (DAREAS); for the Tube, the
+    blocks whose header says "Tube: host" are the host's only (QQ18, the
+    recursive tokens, which the host stores and sends: elite-source.asm's ex)
+    and "Tube: both" the host's too (the token table's macros): the host's
+    copy is build/elite-data-host.asm"""
     lines = open(DATA, encoding="latin-1").read().split("\n")
     bl = []
-    for s, e, name, area in blocks(lines, DTAGS):
+    stag = dict(TUBETAG)                   # (the code source's tags, by its line
+    TUBETAG.clear()                        # numbers: kept apart from the data's)
+    dbl = blocks(lines, DTAGS)
+    dtag = dict(TUBETAG)
+    TUBETAG.clear()
+    TUBETAG.update(stag)
+    for s, e, name, area in dbl:
         if TUBEOVL is not None and area == "cold" and name not in TUBEOVL:
             area = "run"                   # (resident on the Tube's parasite)
         bl.append([s, e, name, ("hot" if area == "run" else area) if name else None])
@@ -634,8 +644,16 @@ def data(errors):
     for a in DAREAS:
         out = []
         for s, e, name, area in bl:
-            out += [lines[i] if area == a else "" for i in range(s, e)]
+            on = area == a and not (TUBE and dtag.get(s) == "host")
+            out += [lines[i] if on else "" for i in range(s, e)]
         with open(DOUT % a, "w", encoding="latin-1") as f:
+            f.write("\n".join(out))
+    if TUBE:
+        out = []
+        for s, e, name, area in bl:
+            on = dtag.get(s) in ("host", "both")
+            out += [lines[i] if on else "" for i in range(s, e)]
+        with open(DOUT % "host", "w", encoding="latin-1") as f:
             f.write("\n".join(out))
     return {a: sum(1 for b in bl if b[3] == a and b[2]) for a in DAREAS}
 

@@ -167,6 +167,15 @@ NEXT
 
 .hA EQUB 0
 
+\ The recursive tokens' buffer (elite-source.asm's ex): the tokens being
+\ printed, each fetched from the host above the one that printed it, so at
+\ most the deepest chain of tokens printing tokens (token 126's, through the
+\ control codes 5 and 0 too, is 35 bytes: tube/build.sh checks it)
+
+TBUFN = 35
+.tbp  EQUB 0            \ the next token's offset in TBUF
+.TBUF SKIP TBUFN
+
 .G_CHAR                 \ the text map (gfx-frame_cold.asm's F_CHAR ...)
  JMP F_CHAR
 .G_DELCHAR
