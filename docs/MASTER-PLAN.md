@@ -2557,3 +2557,29 @@ RG_N, RG_X, RG_Y, RG_F (the shared workspace, 193) are assembled out.
 test_raster assembles them with rings on (RINGS=off in its environment for
 the default; pfhook checks the dots against tools/planet_caps.py's pf_ring,
 or none), and the model's RINGS follows it.
+
+## Commander Claude's moon mode, and the film (after the rings)
+
+elite-agent's moon mode (MOON=1, its branch moon-avoid: docs/MOON.md there)
+places the moon as the port does (moon_track: made at the arrival or
+launch, turned by ALPHA and BETA for each MCNT step it sees) and steers
+clear of it; agentplay runs it as --mode moon (master/tools/agentplay:
+build.sh, agentd.c, styles.mjs). moonmovie.mjs films an arrival in a moon
+system to the docking, reading the port's MN_E and ss_d. The system was
+chosen by search: the moon's place at the arrival (SOLAR puts the planet
+ahead to the upper right, and the moon on its spin axis on the side h bit 4
+gives: with bit 4 set, behind the planet and towards the view's centre) for
+every moon system with a start in jump range, checked against probes of the
+real arrivals; (155, 60) from (156, 57) (h = &71: D = 3, the biggest
+radius) puts the moon beside the planet in the front view at the arrival.
+The film's own director takes the stick for two shots, the moon as we come
+near it and the sun once S_SUN draws it (a stretch each, held in the front
+view; the agent flies the rest), and empties the tank at the arrival so
+that the agent docks there. Every sun is behind the arrival point, so the
+sun is never in one frame with the planet on the way in: the sun shot
+shows it beside the station, with the flare, before the docking. The film
+fails its own check unless the moon and the sun are each on the screen for
+8 s or more (this one: the moon 59.6 s, the sun 43.8 s; frames are flagged
+at F_FRAME's end); the cruise between the shots is sped up (1 frame in 64)
+and the published film 1.6 times: screenshots/moon/approach.mp4 (85.5 s),
+approach.gif, approach-sheet.png, approach.json.

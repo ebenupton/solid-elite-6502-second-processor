@@ -112,10 +112,24 @@ Pixels are never compared.
   The choices are:
   - `jameson`, `trader`, `equipped`, `rich`, `deadly`, `mission2` and `wanted`;
   - for the missions: `debrief1` (the Constrictor destroyed), `galaxy3` (Ceerdi, with mission
-    1 done) and `debrief2` (Birera, with the plans).
+    1 done) and `debrief2` (Birera, with the plans);
+  - `diso`: at Diso, all fitted, with Quator (14, 137), a system with a moon, selected (the
+    moon movie's start, `moonmovie.mjs`).
 - `--mode`: elite-agent's own modes. The choices are `efficient`, `curious`, `fair`,
-  `keyboard` (keys rather than the stick), `nosave`, `nomission`, and `load`, which loads
-  CLAUDE from a disc that `--savediscs` wrote.
+  `keyboard` (keys rather than the stick), `nosave`, `nomission`, `load`, which loads
+  CLAUDE from a disc that `--savediscs` wrote, and `moon` (MOON=1): the port's moons are
+  solid (elite-moon.asm), so the agent works out where each is, as the port places it
+  (from the system's seeds and the planet's spin axis at the arrival or launch, then
+  fixed in space), and steers clear of it. The moon mode is in
+  elite-agent's branch `moon-avoid` (its docs/MOON.md): build an agentd from it with
+  `ELITE_AGENT=<that checkout> OUT=<path> sh master/tools/agentplay/build.sh` and run with
+  `AGENTD=<path>`. The original has no moons, so with the mode on the agent steers round
+  the port's moons in both machines alike and the lockstep holds; without it, a flight
+  into a moon kills the port's commander only, a divergence (MASTER-PLAN, "The moon is
+  solid": or build the port with MOON=scenery). build.sh compiles the elite-agent it is
+  given: newer ones need a C23 compiler (gcc-15 from Homebrew, if there), are told they are
+  on a Master, and take its address table as they find it (they look for Moxon's
+  flicker-free build's bytes, not the release's).
 - `--chaos`: a seeded overlay of extra keys and pokes, for what the agent rarely does on
   its own. It covers E.C.M., the energy bomb, the escape pod, the views, missiles, the
   galactic hyperdrive, hyperspace, in-system jumps, the docking computer and the charts.
