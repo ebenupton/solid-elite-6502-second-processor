@@ -63,10 +63,11 @@ which spare RAM the port may take.
    with X = 1 see it, in the original's order from XX21 at &C000 (NWSHP reads
    past E%, E%-1,Y for the planet and the sun, into the missile's blueprint,
    as in the original), as far as it fits: the hot data flows through HAZEL,
-   then bank 4 after the hot code. Since the ships' edge lists went (nothing
-   reads them, "What is not in the original's order"), all of it fits in
-   HAZEL, QQ18 (the recursive tokens, which the hot text printers read), SNE
-   and ACT included.
+   then bank 4 after the hot code. **HAZEL holds the game data only**: the
+   renderer makes no use of it at all (no code, tables, variables or stubs
+   of its own there; bankcheck.py fails the build on a renderer label or
+   constant in &C000-&DFFF), and &DF00-&DFFF, the MOS's, is off limits to
+   everything. All the hot data fits in &C000-&DEFF.
 6. **The screen and the split.** Main &4000-&6FFF is buffer 0 and shadow
    &4000-&6FFF buffer 1; shadow &7000-&7DFF is the dashboard. Main RAM under
    the dashboard (&7000-&7FFF) is never on show, as the split is never late

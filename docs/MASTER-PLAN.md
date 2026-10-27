@@ -2015,3 +2015,14 @@ key presses and compares E.TESTB, read from the emulated drive's image, and
 its catalogue entry: identical (256 bytes, load and execution addresses
 &0). master/verify.sh runs it with the regressions, with the discs and
 symbols passed explicitly.
+
+## HAZEL holds the game data only (after the saves)
+
+HAZEL (&C000-&DFFF) holds the game data only: XX21 and the blueprints from
+&C000 and the rest of BDATA's hot data. The renderer makes no use of it (no
+code, tables, variables or stubs), and &DF00-&DFFF, the MOS's, is off
+limits to everything. bankcheck.py fails the build on any label or
+constant of elite-gfx.asm or a gfx- file in &C000-&DFFF, and on any label
+in &DF00-&DFFF (docs/MASTER-MAP.md, rule 5). The test harness's stand-ins
+at &DF00 are the test machine's only; bankcheck's stale gfx-kept-hz.asm
+entry is gone.
