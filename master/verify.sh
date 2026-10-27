@@ -62,7 +62,7 @@ echo "compare: PASS"
 # ---- 4. regressions: with real key presses, dock, launch, dock again (the
 # hangar's ships once wrote over the glue code), and save, load, a load error,
 # catalogue (the disc glue); the station in front of a far planet; with the
-# pilot, changes of view
+# pilot, changes of view; the ships the ship audit flagged, posed
 node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
 grep -E "^docking|^REDOCK" "$LOG/redock.log"
 grep -q "^REDOCK PASS" "$LOG/redock.log" || { echo "redock: FAIL"; fail redock; }
@@ -80,7 +80,13 @@ node harness/mcompare.mjs --iters 1500 $LOOSE --views --maxsecs 400 \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/views" > "$LOG/views.log" 2>&1
 grep -q "^MCOMPARE PASS" "$LOG/views.log" || { grep -A8 "FIRST DIVERGENCE" "$LOG/views.log" | head -10; echo "views: FAIL"; fail views; }
-echo "regressions: PASS (redock, savetest, station, views)"
+# the ship audit's flagged poses (the missile's fins, the splinter's faces),
+# in flight, in both handednesses: nothing drawn outside the ship, its body
+# covered, its front faces and no others filled
+node harness/mshippose.mjs --disc master/build/elite-master-sng47.ssd --syms master/build/symbols.txt \
+    --out "$LOG/shippose" > "$LOG/shippose.log" 2>&1
+grep -q "^SHIPPOSE PASS" "$LOG/shippose.log" || { grep "BAD" "$LOG/shippose.log" | head -10; echo "shippose: FAIL"; fail shippose; }
+echo "regressions: PASS (redock, savetest, station, views, shippose)"
 ALL=$(grep -E "^ +all " "$LOG/compare.log")
 echo "speed (flight it/s, ref cand cand/ref): $ALL"
 set -- $ALL
