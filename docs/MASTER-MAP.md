@@ -50,9 +50,10 @@ which spare RAM the port may take.
    with either paged in, refers to neither (but where reviewed and marked).
    **The renderer is in banks 5 and 6 and ANDY, and in one window of bank
    7**: the rasteriser in bank 5 and ANDY, the frame layer in bank 6, and the
-   meridian window (gfx-merid.asm, the beach ball planet's boundaries) in
-   bank 7 after the cold pass, paged as ROMSEL MERIDBANK (7) by its two stubs
-   only (G_MERHOOK in game context, T_MERID during the frame). Bank 7 is
+   meridian window (gfx-merid.asm, the beach ball planet's boundaries, and
+   gfx-flare.asm, the lens flare) in bank 7 after the cold pass, paged as
+   ROMSEL MERIDBANK (7) by its stubs only (G_MERHOOK in game context, T_MERID
+   and T_FLARE during the frame). Bank 7 is
    otherwise the cold pass's: one run from &8000, the cold code, then the
    cold data. (The meridian window is the one exception to "the renderer in
    banks 5, 6 and ANDY only", made for the beach ball, which needs about 3K

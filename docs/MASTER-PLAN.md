@@ -2037,3 +2037,18 @@ bank 7 their 696 bytes for the renderer. RUTOK uses the extended tokens'
 macros (ETOK, ECHR ..., defined in the cold data's blocks), so
 elite-layout.asm assembles HAZEL after the cold pass, as elite-measure.asm
 does.
+
+## The lens flare in bank 7 (after RUPLA, RUGAL and RUTOK)
+
+R_FLARE and its tables (gfx-flare.asm, 1,014 bytes) are in the meridian
+window in bank 7, after gfx-kept7.asm, with the half-width table fl_htab
+and the flare's variables (74 bytes that were in bank 5's run pages'
+tails), instead of at the end of bank 5's shared region, which they leave
+to the second disc. T_FLARE pages bank 7 for R_FLARE, and does its two
+bank 5 calls afterwards: in K mode k_clear (the flare's rows are not
+kept), and R_MARKDIRTY for the rows written, which R_FLARE returns (C set:
+the sun was in sight, Y .. X the rows). bankcheck checks gfx-flare.asm as
+bank 7's, and build.sh's banks.txt lists it in bank 7 (with
+gfx-raster_kept.asm and gfx-kept7.asm), for the harness. The pixels are
+the same (harness/mfbcmp.mjs: 1,961 frames over 6,000 gate iterations, the
+flare's windows included, identical).

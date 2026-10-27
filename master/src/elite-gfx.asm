@@ -17,7 +17,7 @@
 \ (the ship blueprints, elite-data.asm: elite-layout.asm). Produces:
 \
 \   build/BANK5.bin  sideways RAM bank 5: the rasteriser's shared region and
-\                    disc window (gfx-raster.asm, gfx-flare.asm,
+\                    disc window (gfx-raster.asm,
 \                    gfx-raster_lcold.asm; gfx-raster_disc.asm)
 \   build/RASTA.bin  ANDY: the rasteriser's polygon window (gfx-raster_poly.asm,
 \                    gfx-raster_line.asm)
@@ -114,8 +114,7 @@ ASSERT HI(R_WR) = HI(R_WR + 191)
 
 CLEAR &8000, &C000      \ bank 5: the shared region from &9000 (the per-x tables,
 ORG &9000               \ the row runs, the boundary arrays, the stars, the lens
-INCLUDE "src/gfx-raster.asm"   \ flare ...), then the disc window at &8000
-INCLUDE "src/gfx-flare.asm"    \ the lens flare (its step in bank 6: gfx-flare6.asm)
+INCLUDE "src/gfx-raster.asm"   \ ...), then the disc window at &8000
 .B5_END
 ASSERT B5_END <= &C000
 CLEAR r_tfree, r_tables \ (gfx-raster.asm skips it)
@@ -137,6 +136,8 @@ ORG COLD_END%           \ meridian window, the beach ball planet's boundaries
 .MERID_START
 INCLUDE "src/gfx-merid.asm"
 INCLUDE "src/gfx-kept7.asm"    \ kept solid rows: the polygons' part (SOLIDSPAN-REPORT.md)
+INCLUDE "src/gfx-flare.asm"    \ the lens flare (T_FLARE; its step in bank 6:
+                               \ gfx-flare6.asm)
 .MERID_END
 ASSERT MERID_END <= &C000
 PRINT "Bank 7: meridian window ", ~MERID_START, "-", ~MERID_END-1, ", bank 7 free ", &C000-MERID_END
@@ -158,7 +159,7 @@ INCLUDE "src/gfx-faces.asm"
 INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
 INCLUDE "src/gfx-light.asm"    \ the lighting's L_SUN and L_REC
 INCLUDE "src/gfx-frame_cold.asm"
-INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step (the flare: gfx-flare.asm, bank 5)
+INCLUDE "src/gfx-flare6.asm"   \ the lens flare's step (the flare: gfx-flare.asm, bank 7)
 INCLUDE "src/gfx-hangar.asm"   \ the hangar's frame (HALL; its tables are in HAZEL)
 .B6_CODE_END
 .F_HW   SKIP 256        \ planet half-widths
