@@ -43,6 +43,8 @@ grep "^BCODE" "$LOG/build.log"
 python3 master/tools/crc32.py master/reference/sng47 master/build > "$LOG/crc32.txt"
 SAME=$(grep -c " Yes " "$LOG/crc32.txt")
 echo "build: PASS ($SAME of 5 binaries identical to the SNG47 reference)"
+# the lens flare's tables as their generator makes them (master/tools/flare.py)
+python3 master/tools/flare.py --verify > "$LOG/flare.log" 2>&1 || { cat "$LOG/flare.log"; echo "flare tables: FAIL"; fail flare; }
 
 # ---- 2 and 3. determinism and speed
 LOOSE=--loose; [ "${STRICT:-0}" = 1 ] && LOOSE=

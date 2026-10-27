@@ -453,19 +453,20 @@ than by bank:
 ## Lens flare (after the lighting)
 
 The demo port's lens flare (its docs/FLARE.md, src/flare*.asm, model
-tools/flare.py), ported with the same recipe, arithmetic and pixels: when
-SUN has drawn the sun this frame, in the front view (VIEW = 0), with its
-centre on the screen (x 1..255, y 0..191) and not inside the planet's disc
-(F_HW, the planet's half-widths), eight ghosts at C + k D / 8 (C = (128,
-96), D = sun - C, k = 8, 5, 3, -1, -3, -4, -6, -8): six dithered discs and
-two dotted rings (the one round the sun only for a sun of radius 26 or
-less). Each disc pixel of its 4x4 Bayer mask is ORed in its ink (OR lifts
-K = 00, C = 01, M = 10, Y = 11 upwards: additive light); three levels by
-|dx| + |dy| (< 96, < 192, more) step every density down the ladder 0 1 2 4
-6 8 / 16. It is drawn after the lasers and before the text, sights and
-stars, and every span extends this buffer's dirty extent for its row (the
-rows' range goes to R_MARKDIRTY), so the next frame on this buffer repairs
-it like any other shape. It never touches game state.
+tools/flare.py, which is master/tools/flare.py here), ported with the same
+recipe, arithmetic and pixels: when SUN has drawn the sun this frame, in
+the front view (VIEW = 0), with its centre on the screen (x 1..255, y
+0..191) and not inside the planet's disc (F_HW, the planet's half-widths),
+eight ghosts at C + k D / 8 (C = (128, 96), D = sun - C, k = 8, 5, 3, -1,
+-3, -4, -6, -8): six dithered discs and two dotted rings (the one round
+the sun only for a sun of radius 26 or less). Each disc pixel of its 4x4
+Bayer mask is ORed in its ink (OR lifts K = 00, C = 01, M = 10, Y = 11
+upwards: additive light); three levels by |dx| + |dy| (< 96, < 192, more)
+step every density down the ladder 0 1 2 4 6 8 / 16. It is drawn after the
+lasers and before the text, sights and stars, and every span extends this
+buffer's dirty extent for its row (the rows' range goes to R_MARKDIRTY),
+so the next frame on this buffer repairs it like any other shape. It never
+touches game state.
 
 Layout (master/src/gfx-flare6.asm, gfx-flare.asm):
 * F_FRAME's `JSR f_text2` is `JSR f_flt` (bank 6, at its end): without the
@@ -502,13 +503,14 @@ from 14 to 23 + 43; HAZEL data from 163 + 40 to 121 + 19.
 Checks (headless, scratch scripts: the gate's pilot to iteration 1000,
 then the sun placed in front of the ship along a path each iteration, the
 back buffer dumped as each frame finishes, against the same run of the
-build without the flare with the demo's tools/flare.py applied): 0 pixels
-differ from the model over 704 frames (514 with the flare: levels 1, 2
-and 3, the sun behind the planet, leaving the screen), apart from text,
-sights and stars drawn after it; every frame without the flare is byte for
-byte the other build's (no residue); game state identical. Screenshots:
-/Users/ebenupton/elite-full/screenshots/flare/ (montage.png, compare-*.png:
-port | model | differences, display-*.png: jsbeeb's display).
+build without the flare with the model, master/tools/flare.py, applied): 0
+pixels differ from the model over 704 frames (514 with the flare: levels
+1, 2 and 3, the sun behind the planet, leaving the screen), apart from
+text, sights and stars drawn after it; every frame without the flare is
+byte for byte the other build's (no residue); game state identical.
+Screenshots: /Users/ebenupton/elite-full/screenshots/flare/ (montage.png,
+compare-*.png: port | model | differences, display-*.png: jsbeeb's
+display).
 
 Cost: nothing on the gate (the pilot never has the sun in front: verify.sh
 1.236, 17.27 it/s before and after). As first ported, with the sun on
@@ -2052,3 +2054,12 @@ bank 7's, and build.sh's banks.txt lists it in bank 7 (with
 gfx-raster_kept.asm and gfx-kept7.asm), for the harness. The pixels are
 the same (harness/mfbcmp.mjs: 1,961 frames over 6,000 gate iterations, the
 flare's windows included, identical).
+
+## The lens flare's tables: flare.py (after the lens flare in bank 7)
+
+gfx-flare.asm's tables come from the demo port's model, which is
+master/tools/flare.py, with --tables (fl_rad, fl_ink, fl_ni, fl_mt, fl_dk,
+fl_ring and fl_htab from its GHOSTS, LADDER, BAYER, RING and hw_table) and
+--verify (the source's literal tables, and fl_htab as assembled into
+MERID.bin, byte for byte: all identical); master/verify.sh runs --verify
+after the build.
