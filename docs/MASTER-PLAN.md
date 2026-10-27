@@ -2084,3 +2084,62 @@ own (lv_t, lv_s, in bank 4). streams.py keeps bank 4's room for the
 renderer's routines there (R4_START% .. R4_END%), and the measure
 assembles them once for their size. Bank 6 gains 649 bytes. The light is
 the same: LLT at each of 2,938 frames of the gate's run as at b0abf71.
+
+## One circle engine for the planet's surface (after L_SUN)
+
+Every feature of a planet's surface is a circle on its sphere, the boundary
+of {p : m.p >= d}: a meridian or the equator is a great circle (d = 0), a
+crater a small cap, a band the region between two latitude circles about
+the spin axis. The beach ball's code (PM_HOOK, PM_MERID) is replaced by one
+engine (gfx-merid.asm) and a few lines of style each (gfx-planet7.asm):
+
+* **pc_circ** (game context, from PF_HOOK) makes one circle's record (24
+  bytes) from its axis, cosine and the body: the ellipse's a, K0, K2 and
+  s0 (as the beach ball had them: pms_core is unchanged), its centre line
+  C0 at the centre row Yc (to the nearest pixel, so that rows Yc +/- k are
+  symmetric about it), and **two threshold rows**. Along a row f = m.p - d
+  is concave on the visible hemisphere, so the X- crossing is a boundary
+  iff f <= 0 at the row's left limb point, X+ iff at its right one, and the
+  row starts in the region iff f > 0 at its left limb point; along the limb
+  f changes sign only at the circle's two nodes, Ys = A -/+ sqrt(B)
+  (A = m^y' d / q2, B = v (r^2 - d^2 / q2), q2 = m^x^2 + m^y'^2), each on
+  the left limb or the right. So every per-row test becomes one rule: from
+  the top of the disc, each node toggles one limb's flag (which one from
+  the signs of f at the top and the bottom). For d = 0 this is exactly the
+  beach ball's uP/uM rule.
+* **PC_ROWS** (the frame) fills the rows with the base colour EOR the left
+  limbs' toggles (one pass, a list of at most six toggle rows), then for
+  each record walks k from Yc out, stepping D, s and C as the beach ball's
+  loop did, with the flags of rows Yc + k and Yc - k recomputed only at the
+  k where one changes (pr_seg: eight thresholds in k). A hidden circle (no
+  node, the limb wholly inside) keeps no record.
+* **The styles** are records and a base colour (PF_HOOK): the beach ball is
+  the great circles normal to roofv and sidev with base 1 (colour B where
+  the surface is on the same side of both).
+
+The unit axis is m >> 3 times 2^24 over its nominal length (Elite keeps its
+vectors of length &6000), not divided by its measured length; pf_tilt
+shifts a magnitude before applying its sign, so a vector alone is exactly
+halved. tools/planet_caps.py models the engine bit for bit.
+
+PF_HOOK runs from H_CIRC through G_PFHOOK, in game context, and makes the
+class (PF_CLS: 0 a meridian planet, 1 craters, 2 bands; bit 7 the detail
+made this frame) and the records; f_bounds runs T_CAPS (PC_ROWS) when
+PF_CLS bit 7 is set. Gone with the beach ball's own code: the held
+orientation and row shifting (MERIDHOLD was 0), PM_OK, PS_VALID, PM_R,
+G_MERHOOK, T_MERID.
+
+The beach ball's rows are those of tools/planet_analytic.py pixel for pixel
+(but for a pair of equal boundaries where both of a row's crossings meet,
+which PM_MERID gave and the engine leaves out). The gate's run
+(harness/mfbcmp.mjs, 3,000 iterations, every fifth frame, both buffers: 587
+frames, Lave's beach ball and the crater system) is pixel for pixel as at
+b0abf71. test_raster: merid (PF_HOOK and PC_ROWS against both models),
+beachball, and caps (the engine alone: random circles). The beach ball's
+hook costs a little more (22.7K to 25.5K cycles at Lave), its rows about
+the same.
+
+Keeping rows between frames would be cheap for a body whose records did
+not change (the rows depend only on the records and the spans), but the
+planet spins every frame, so it would only pay for a hidden or edge-on
+circle; not done.
