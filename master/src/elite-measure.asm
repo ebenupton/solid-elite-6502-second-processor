@@ -79,6 +79,7 @@
 .R4_START%
  INCLUDE "src/gfx-ssun.asm"
  INCLUDE "build/gfx-light-4.asm"
+ INCLUDE "src/elite-moon.asm"
 .R4_END%
 
  INCLUDE "src/elite-gfx.asm"

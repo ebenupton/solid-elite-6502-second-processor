@@ -2499,3 +2499,33 @@ front of the planet, behind it, off the screen's side) and 18 random ones
 cost (f_moon, f_moon0 and T_DISCROWS, the frame's mean): a still moon
 25,603 cycles, 29% less than drawn whole; moving, within -6% to +8% of
 drawn whole.
+
+## The moon is solid (after the moon)
+
+Flying into the moon kills us as flying into the planet does: the main
+flight loop's part 15 (MA22) calls MOONHIT (master/src/elite-moon.asm, at
+bank 4's end with S_SUN and L_SUN) before the planet's altitude test, and
+on C set jumps to MA28, the planet's crash (DEATH: the same sound, the same
+death screen). MOONHIT tests on the planet's altitude iteration (MCNT mod
+32 = 10), in systems with a moon (h bits 0-1 = 1): the moon's centre M = P
++ (MN_E >> 8) (P the planet's position; MN_TURN's place, turned first if
+this iteration has not turned it), in the coordinates' high bytes, and we
+have crashed if |M|^2 < (rho 96)^2 (the radius 18, 21, 24 or 27). Between
+two tests a ship moves at most 5 of these units. It writes no zero page and
+nothing of the game's but by crashing: in a system without a moon it
+returns at once.
+
+harness/mmoonhit.mjs puts the moon's centre at (0, 0, m) from us (the
+planet placed accordingly, our speed 0): for seeds covering every D, rho
+and side, m = +/-(radius - 2) crashes and m = radius + 2 does not; seeds
+without a moon never crash.
+
+**The lockstep waiver.** SNG47 has no moons, so in a system with one a run
+that flies into the moon diverges from SNG47 at that iteration (our DEATH);
+nothing else differs (MOONHIT reads game state only). The gate's systems
+have no moon (Lave, h = &EF; the crater system and the third likewise), so
+master/verify.sh is unaffected and needs no waiver. For a lockstep
+comparison in a moon system (an agentplay campaign against SNG47), build
+with MOON=scenery (build.sh: _MOON_SOLID FALSE, no call of MOONHIT): the
+moon is drawn but is not solid, and the game state stays SNG47's there
+too.
