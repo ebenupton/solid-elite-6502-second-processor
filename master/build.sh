@@ -31,6 +31,10 @@
 #   BANDS=on      banded planets (a quarter of the crater planets, by the seed:
 #                 gfx-planet7.asm's pf_bands); off by default, when no planet
 #                 has bands and their code is assembled out
+#   RINGS=on      planet rings (an eighth of the systems, by the seed:
+#                 gfx-planet7.asm's pf_ring, gfx-frame.asm's f_ring); off by
+#                 default, when no planet has a ring and their code and
+#                 variables are assembled out
 #
 # The checksum script is given the F%, G% and NA2% that the assembler prints,
 # so a changed source still gets a correct commander checksum.
@@ -40,6 +44,7 @@ BEEBASM=${BEEBASM:-../tools/beebasm}
 MATCH=${MATCH:-yes}
 MOON=${MOON:-solid}
 BANDS=${BANDS:-off}
+RINGS=${RINGS:-off}
 mkdir -p build
 rm -f build/*.bin build/*.ssd build/README.txt
 
@@ -53,6 +58,7 @@ _MATCH_ORIGINAL_BINARIES=$MO
 _MAX_COMMANDER=FALSE
 _MOON_SOLID=$( [ "$MOON" = scenery ] && echo FALSE || echo TRUE )
 _PLANET_BANDS=$( [ "$BANDS" = on ] && echo TRUE || echo FALSE )
+_PLANET_RINGS=$( [ "$RINGS" = on ] && echo TRUE || echo FALSE )
 EOF
 
 : > build/compile.txt

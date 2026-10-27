@@ -2529,3 +2529,31 @@ comparison in a moon system (an agentplay campaign against SNG47), build
 with MOON=scenery (build.sh: _MOON_SOLID FALSE, no call of MOONHIT): the
 moon is drawn but is not solid, and the game state stays SNG47's there
 too.
+
+## Planet rings (after the solid moon)
+
+An eighth of the systems (h bits 4-6 = 4; none of the gate's) can have a
+ring: a dotted ellipse in the plane of the planet's equator, normal to the
+spin axis nosev - sidev (MVEIT's pitch and roll turn the planet about it),
+so its shape on the screen stays put while the planet turns. pf_ring uses
+conjugate diameters: no angle, no table of angles, no latch. Two conjugate
+radii, roofv and (nosev + sidev) / sqrt(2), scaled to the ring's radius on
+the screen (1.6 to 2.2 planet radii, h bits 2-3; 12.4 pixels), give its
+points P(t) = cos t A1 + sin t A2 and -P(t), t = i pi / 32 (i in steps of
+2, or of 1 for a ring of radius 120 pixels or more: 32 or 64 dots); the
+points at t and pi - t share their products. A point is behind the
+planet's centre if its z (from the radii's high bytes) is negative. The
+dots on the screen go to RG_X, RG_Y, RG_F (the shared workspace); the frame
+layer's f_ring draws them in yellow (T_DOT, marked dirty) after the moon,
+but a dot behind the planet's centre and inside its disc, which the planet
+hides: the back half is hidden behind the disc and the front half crosses
+it. The ring is not a region, so it is not a circle of the engine, though
+pf_ring uses pf_tilt and the engine's arithmetic.
+
+Rings are a build switch, RINGS=on (master/build.sh, _PLANET_RINGS), off by
+default, as the bands are: pf_ring and its helpers, tables and variables
+(bank 7, 1,024 bytes), f_ring and its call and reset (bank 6, 169) and
+RG_N, RG_X, RG_Y, RG_F (the shared workspace, 193) are assembled out.
+test_raster assembles them with rings on (RINGS=off in its environment for
+the default; pfhook checks the dots against tools/planet_caps.py's pf_ring,
+or none), and the model's RINGS follows it.
