@@ -2004,3 +2004,14 @@ iterations; redock, save/load, station, views); irqprobe: split late 0,
 early 0, T1 latency p99 51, max 57 (fa36d40: the same); mdocktime
 5,157,674 busy cycles (fa36d40: the same); mflips min=2, the histogram
 identical to fa36d40's.
+
+## Saves byte-identical (after the lens flare and occlusion)
+
+harness/msavetest.mjs only round-trips a save on our build.
+harness/msavebytes.mjs makes the same commander on SNG47 and on the build
+(new game, docked at Lave; CASH, fuel, two cargo bays and the legal status
+poked by each disc's own symbols), saves it through the disc menu with real
+key presses and compares E.TESTB, read from the emulated drive's image, and
+its catalogue entry: identical (256 bytes, load and execution addresses
+&0). master/verify.sh runs it with the regressions, with the discs and
+symbols passed explicitly.
