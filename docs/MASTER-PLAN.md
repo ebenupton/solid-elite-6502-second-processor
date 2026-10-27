@@ -2584,6 +2584,68 @@ at F_FRAME's end); the cruise between the shots is sped up (1 frame in 64)
 and the published film 1.6 times: screenshots/moon/approach.mp4 (85.5 s),
 approach.gif, approach-sheet.png, approach.json.
 
+## What each style costs (after the film)
+
+harness/mplanet.mjs, the planet at the screen's centre, pose 20,30,0, 16
+frames at 22.5 degrees of spin each about the spin axis, the mean cycles a
+frame: set-up is G_PFHOOK (PF_HOOK and its pc_circ calls), rows T_CAPS
+(PC_ROWS), disc T_DISCROWS (the disc layer's spans and boundaries,
+incremental between frames), total their sum. Crater planets of 1, 2 and 3
+caps are as the seed gives them (a cap on the far side costs its set-up
+only: crater 1's cap is hidden in 6 of the 16 frames, 2's and 3's caps in
+some). The plain disc is the frames with no detail (a crater planet whose
+only crater is hidden; its set-up is that crater's pc_circ, about 17K: a
+featureless planet's hook is about 1K). The bands are a BANDS=on build's.
+
+| style | r | set-up | rows | disc | total |
+|---|---|---|---|---|---|
+| plain disc | 30 / 60 / 90 | 18.0K | 0 | 27.5K / 34.8K / 43.0K | 45.5K / 52.8K / 60.9K |
+| beach ball | 30 / 60 / 90 | 25.6K | 29.4K / 53.4K / 77.7K | 69.2K / 132.9K / 200.6K | 124.2K / 211.9K / 303.9K |
+| crater, 1 cap | 30 / 60 / 90 | 18.2K | 6.8K / 11.4K / 16.3K | 33.6K / 56.3K / 80.6K | 58.7K / 85.9K / 115.0K |
+| crater, 2 caps | 30 / 60 / 90 | 36.1K | 11.7K / 19.6K / 27.5K | 46.6K / 83.8K / 125.2K | 94.5K / 139.5K / 188.8K |
+| crater, 3 caps | 30 / 60 / 90 | 53.8K | 18.0K / 29.8K / 41.6K | 56.6K / 104.4K / 156.7K | 128.5K / 187.9K / 252.0K |
+| bands | 30 / 60 / 90 | 38.7K | 33.8K / 60.3K / 87.1K | 26.7K / 43.5K / 59.4K | 99.3K / 142.5K / 185.1K |
+
+The beach ball is the dearest: its two great circles cross every row, and
+as the planet spins every boundary moves, so the disc layer repaints most
+of the disc each frame. The bands cost about as much in rows (two circles
+across every row) but stand still under the spin, so the disc layer has
+little to repair. A cap's rows scale with its size, not the disc's.
+
+## Every disc, incremental (after what each style costs)
+
+* The planet and the sun as the disc layer (R_DISCROWS): incremental (each
+  buffer's spans and boundaries).
+* The smaller of them, the second disc (R_DISC2, bank 5): incremental.
+* The moon: incremental by rows ("The moon", above).
+* The ring: dots, not a disc (drawn and marked dirty each frame).
+* Explosions: particles (dots); the explode branch's clouds are not merged.
+* The hangar: rectangles and lines, no discs.
+* The lens flare: its ghosts are dithered discs and dotted rings ORed over
+  the frame (additive light), marked dirty and repaired by the layer next
+  frame. Not incremental: an OR over whatever is under it has to be
+  redrawn wherever that changes, and it keeps nothing on the screen by
+  design.
+* The hyperspace and launch rings, the charts' circles: lines.
+
+## Free space (after every disc incremental)
+
+In bytes, as master/build.sh prints them: bank 4 6 (S_SUN, MN_TURN, L_SUN
+and MOONHIT at its end); bank 5 2 in the disc window (before R_S2R0), 7 in
+the shared region (before R_S2R1), 42 + 64 + 64 in the room below the
+per-x tables, and the run pages' tails; bank 6 472; bank 7 1,218 (the
+meridian window to the bank's end); ANDY 37; main RAM 183 below &3000 (used
+by the hot pass), 53 to &4000, 180 to &8000, and the shared workspace 44 in
+its gaps and 210 before CODE% (&1EE8); HAZEL 1,223 (&DA39-&DEFF), with
+&DF00-&DFFF the MOS's, off limits. BANDS=on takes 81 bytes of bank 7;
+RINGS=on 1,024 of bank 7, 169 of bank 6 and 193 of the shared workspace.
+
+The gate: VERIFY PASS 13.97 10.29 0.736 (game state identical to SNG47 at
+all 10,000 iterations; the regressions redock, savetest, savebytes,
+station, views and shippose), against 11.82 and 0.846 at b0abf71; most of the difference is
+the crater system's windows (800-2799), where two caps cost more than the
+polygon crater did.
+
 ## Stills (after the free space)
 
 master/tools/stills.sh [planets] [sunnear] makes the stills from the build
