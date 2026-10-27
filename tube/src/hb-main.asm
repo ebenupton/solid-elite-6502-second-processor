@@ -61,6 +61,14 @@ _RBANK = 0
  GUARD MR_EEND
  INCLUDE "tsrc/hb-res3.asm"
 .MR_E_END
+ ASSERT P% <= hrw
+ ORG hrw                \ (cmds.asm's hrw, at its fixed place: h-main.asm's
+ BIT HR1S               \ Master copy says what it does)
+ BMI P%+9
+ BVC hrw
+ STA HR1D
+ BVS hrw
+ RTS
  PRINT "Model B &7E00 part: &", ~MR_E, "-&", ~MR_E_END-1, " (free ", MR_EEND-MR_E_END, ")"
  SAVE "build/HBRES1.bin", &0236, &0D00
  SAVE "build/HBRES2.bin", &0E00, &1100

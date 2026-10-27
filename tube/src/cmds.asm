@@ -10,7 +10,8 @@
 \ dispatches through a table of words) and its operands. The host answers
 \ the requests (keys, a key test, a wait for vsync) through register 4 (host
 \ to parasite), which the parasite polls (bit 7: data). The parasite runs with
-\ interrupts off.
+\ interrupts off, but while it buffers commands in its ring (p-io.asm), when
+\ the host's doorbell (register 1, host to parasite) asks for more.
 \
 \ ******************************************************************************
 
@@ -101,11 +102,16 @@ DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
 
 \ the host's Tube I/O
 
-MACRO HRX               \ A = the next byte from the parasite (register 1)
- BIT HR1S
- BPL P%-3
+MACRO HRX               \ A = the next byte from the parasite (register 1); if
+ BIT HR1S               \ it is empty, hrw rings the parasite's doorbell while
+ BMI P%+5               \ it stays so (p-io.asm's ring)
+ JSR hrw
  LDA HR1D
 ENDMACRO
+
+IF _HOSTB                 \ (the Model B host: hrw in main RAM, beyond the panel,
+ hrw = &7FE0              \ which banks F and P both call; hb-main.asm)
+ENDIF
 
 MACRO HTX               \ send A to the parasite (register 4)
  BIT HR4S

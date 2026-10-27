@@ -30,6 +30,7 @@ shows.
 | Frame layer's inputs | &0E00-&14F6 | tube/src/p-ws.asm: the disc spans, the polygon and line inputs, the stars, the text map's row counts (F_TMR, F_SHR0/1); 9 bytes free |
 | Resident code and data | &1500-&D3F2 | the run (with p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves p-dash.asm, T_KOFF), Master's drawing's game halves, the game data, the cold blocks that run in flight, the frame layer's parasite part (&96AF-), F_TM and F_ST (the text map, &CDC9-&D3C8); 13 bytes free |
 | Overlay region | &D400-&F7FF | overlay D or overlay S (below) |
+| The ring | &ED00-&F7FF | above both overlays and the boot's staging (p-layout.asm asserts it): the commands buffered while register 1 is full (p-io.asm; "The ring" below) |
 | High area | &F800-&FEE6 | phase A's second part (p-polyb.asm), the panel's second part (p-dash2.asm), the kept rows' T_KFRAME and pk_line (p-kept2.asm); 9 bytes free to &FEEF. The client OS's copy lives here too: the host keeps whichever of the two is out (C_SWAP) |
 
 ### The overlays (tube/src/p-ovl.asm)
@@ -67,8 +68,9 @@ use: kept is R_DISCL 255 with the colour byte in R_DISCR; pending is R_DISCL
 
 ## The protocol (tube/src/cmds.asm)
 
-Commands go through register 1 (the parasite polls its room bit; the host's
-loop polls its data bit): an even opcode, which the host dispatches through a
+Commands go through register 1 (the parasite polls its room bit, or
+buffers in the ring: above; the host's loop polls its data bit, ringing the
+parasite's doorbell while it is empty): an even opcode, which the host dispatches through a
 table, then the operands. Requests that need an answer go through register 2
 (preq), which the host's loop reads before the next command, and are answered
 through register 4.
@@ -88,6 +90,35 @@ The opcodes of the commands the dumb host no longer has (the frame begin and
 end, the disc layer's state, dirty marks, the polygon's phase A rows, the
 flare, Master's byte writes, the meridian window, the text map) are retired
 (h_bad).
+
+### The ring (p-io.asm)
+
+The parasite buffers the stream so that the game's next iteration overlaps
+the host's drawing of this one. A send that finds register 1 full puts its
+byte into the ring, and so does every send after it (ring mode) until the
+ring is empty: ppring makes ptx's and the eleven inline send sites' (psb in
+p-rast.asm, p-emit.asm) `BIT PR1S` a `JMP` to their ring stubs (`STA (rq)`,
+`DEC rq`, 21 cycles a byte). The ring drains in the parasite's IRQ (pirq,
+the &FFFE vector; a BRK still goes to p_crash): the host rings a doorbell
+(any byte through register 1, host to parasite; the Tube's I flag on, J
+off: htflags) whenever it finds register 1 empty, in hloop and in every HRX
+(hrw: the Master host's main RAM; the Model B host's &7FE0), and the IRQ
+sends up to 23 bytes without checking for room (unrolled, about 16 cycles a
+byte with the IRQ's own cost), taking the doorbell last. Interrupts are on
+only in ring mode; the IRQ that finds the ring empty leaves ring mode
+(unless it came in on a stub) and returns with them off.
+
+* Pages are written and read downwards, 255 to 1; a write pointer with a
+  low byte of 0 is a stub between its DEC and rpg (the next page's 255).
+* rq (&FA, &FB) is the write pointer; the IRQ reads through (&FE) with
+  rpl, rph. p_oscli's pointer moved from &FA to &FC.
+* pflush empties the ring by polling, before C_OVLGET, C_OVLPUT and
+  C_DISC (ovl_need, ovl_get, p_oscli): their answers come behind the stream.
+  The register 4 requests (keys, DKS, port B, WSCAN, sound) need no flush.
+* p_buf (C_BUF) waits until no byte from before the C_BUF two frames back
+  is still in the ring (pfwait): at most two frames queued.
+* A full ring waits (rpg) with interrupts on; if a doorbell is seen with no
+  IRQ (the I flag off), it sends by polling (ppump).
 
 ## The Master host
 

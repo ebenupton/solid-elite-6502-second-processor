@@ -354,17 +354,32 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .psb1
  LDA #&FF
 .psb0
- PSEND
+.psb_s0                 \ (the ring's send sites, p-io.asm: in ring mode each
+ BIT PR1S               \ BIT PR1S is a JMP to its ring stub, ppring; a full
+ BVC psq0               \ register 1 goes to penq)
+ STA PR1D
+.psr0
  LDA pr_y
- PSEND
+.psb_s1
+ BIT PR1S
+ BVC psq1
+ STA PR1D
 .psb2
  LDA pr_a
- PSEND
+.psb_s2
+ BIT PR1S
+ BVC psq2
+ STA PR1D
+.psr2
  CMP pr_wl
  BCS P%+4
  STA pr_wl
  LDA pr_b
- PSEND
+.psb_s3
+ BIT PR1S
+ BVC psq3
+ STA PR1D
+.psr3
  CMP pr_wr
  BCC P%+4
  STA pr_wr
@@ -373,8 +388,25 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA pr_ce
  BCC P%+4
  LDA pr_co
- PSEND
+.psb_s4
+ BIT PR1S
+ BVC psq4
+ STA PR1D
  RTS
+.psq0
+ JSR penq
+ BRA psr0
+.psq1
+ JSR penq
+ BRA psb2
+.psq2
+ JSR penq
+ BRA psr2
+.psq3
+ JSR penq
+ BRA psr3
+.psq4
+ JMP penq
 
 .T_DOT
  BIT KMODE              \ (K mode: rows Y and Y + 1 not kept, p-kept.asm)

@@ -91,7 +91,7 @@ ASSERT F_ST = F_TM + &300
 
  PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_END-1, " (", PRES_END-PF_START, " bytes)"
  PRINT "Parasite: overlay region &", ~OVL_START, "-&F7FF (", &F800-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to &F800: ", &F800-OVL_D_END
- ASSERT PCODE_END <= &F800
+ ASSERT PCODE_END <= RING
  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
  SAVE "build/HOVD.bin", OVL_START, (OVL_D_END + 255) AND &FF00
 
@@ -123,7 +123,7 @@ ENDIF
  CPU 1
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to &F800: ", &F800-OVL_S_END
- ASSERT OVL_S_END <= &F800 OR MEASURE
+ ASSERT OVL_S_END <= RING OR MEASURE    \ (the ring above: p-io.asm)
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
 
 \ Overlay S's crater tail (p-ovl.asm's OVL_TC): the crater's code from the
@@ -143,8 +143,8 @@ ENDIF
 \ The high code (PHIGH): &F800-&FEEF, where the client OS is until the boot
 \ (p_boot) copies it in from the staging area; then the page at &FF00 with
 \ the vectors (&FFFA-&FFFF): NMI an RTI (the host never writes register 3
-\ again), RESET p_start, IRQ and BRK p_crash (interrupts stay off, so only a
-\ BRK can come here: a crash)
+\ again), RESET p_start, IRQ and BRK pirq (the ring's doorbell, p-io.asm; a
+\ BRK goes on to p_crash)
  ORG &F800
 .PHIGH_START
  INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
@@ -191,7 +191,7 @@ FOR n, 0, 511
 NEXT
  ASSERT PFF_END <= &FFFA
  ORG &FFFA
- EQUW p_nmi, p_start, p_crash
+ EQUW p_nmi, p_start, pirq
 
  CLEAR OVL_D_END, &F800
  ORG OVL_D_END
@@ -233,11 +233,11 @@ NEXT
 .PSTG_FF
  COPYBLOCK &FF00, &FFFF, P%
  ORG PSTG_FF + &FF
- EQUB HI(p_crash)       \ (&FFFF: COPYBLOCK's end is 16-bit)
+ EQUB HI(pirq)          \ (&FFFF: COPYBLOCK's end is 16-bit)
 .PSTG_LO
  COPYBLOCK &0200, &0400, P%
  ORG PSTG_LO + &200
 .PSTG_END
  PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to &F800: ", &F800-PSTG_END
- ASSERT PSTG_END <= &F800 OR MEASURE
+ ASSERT PSTG_END <= RING OR MEASURE
  SAVE "build/PSTAGE.bin", OVL_D_END, PSTG_END

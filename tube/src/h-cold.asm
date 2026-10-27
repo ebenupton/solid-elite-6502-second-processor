@@ -39,6 +39,7 @@ ENDIF
 .hst2
  LDA #&81               \ the Tube's Q: the host's IRQ from register 4's data
  STA HR1S               \ (the fast requests, h4body), and those on (h4on)
+ JSR htflags
  LDA #&80
  STA h4on
 IF _HOSTB
@@ -193,9 +194,21 @@ ENDIF
  INX
  BNE hdr4
 .hdr5
+ JSR htflags            \ (whatever the MOS left)
  LDA #&80
  STA h4on
  JMP hloop
+
+\ htflags: the Tube's I on (the parasite's IRQ from register 1's data: the
+\ ring's doorbell, p-io.asm) and J off (none from register 4's: the answers,
+\ which the parasite polls)
+
+.htflags
+ LDA #&82
+ STA HR1S
+ LDA #&04
+ STA HR1S
+ RTS
 
 \ h_derr: the MOS's BRK in the disc command (hdbrk, main RAM, has paged this
 \ bank): its error (number, message, 0, from (&FD)) into HDERR, then back

@@ -236,14 +236,16 @@ ENDIF
 IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
 .r_pbx_e                  \ makes it, p-emit.asm: left, then right exclusive; a
   BIT HR1S                \ left of &FF ends the polygon)
-  BPL r_pbx_e
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDX HR1D
   CPX #&FF
   BNE pbr_e
   JMP pb_end
 .pbr_e
   BIT HR1S
-  BPL pbr_e
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDA HR1D
   DEC A
   STA R_XR
@@ -344,14 +346,16 @@ ENDIF
 IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
 .r_pbx_o                  \ makes it, p-emit.asm: left, then right exclusive; a
   BIT HR1S                \ left of &FF ends the polygon)
-  BPL r_pbx_o
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDX HR1D
   CPX #&FF
   BNE pbr_o
   JMP pb_end
 .pbr_o
   BIT HR1S
-  BPL pbr_o
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDA HR1D
   DEC A
   STA R_XR

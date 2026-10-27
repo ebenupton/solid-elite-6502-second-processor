@@ -165,6 +165,7 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
 .ovl_need
  CMP ovl_cur
  BEQ ovn9
+ JSR pflush             \ (the ring sent first: p-io.asm)
  PHY
  PHA
  LDA ovl_cur            \ S going out in space mode: its state to the host
@@ -286,6 +287,7 @@ OVL_TC = 5              \ (the beach ball, gfx-merid.asm) or the crater's
 \ host into the region. Clobbers A, X, Y
 
 .ovl_get
+ JSR pflush             \ (the ring sent first, then the request directly)
  TAX
  LDA #C_OVLGET
  JSR ptx

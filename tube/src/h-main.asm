@@ -105,7 +105,11 @@ ASSERT P% - htab = C_MAX
  BIT HR2S               \ a request (register 2) first, then the next command
  BMI hreq
  BIT HR1S
- BPL hloop
+ BMI hlp1
+ BVC hloop              \ (register 1 empty: the parasite's doorbell, through
+ STA HR1D               \ register 1 to it, unless one already waits there;
+ BVS hloop              \ p-io.asm's ring)
+.hlp1
  LDA HR1D
 .hdisp
  TAX
@@ -130,6 +134,17 @@ IF _HOSTB = 0
 .hdead                  \ (h-dead.asm's names: never run; R_SETBUF's patches of
  BRK                    \ their operands write here)
  EQUB 0, 0, 0
+ENDIF
+
+IF _HOSTB = 0             \ (the Model B host's: hb-main.asm, at a fixed place)
+.hrw                    \ register 1 empty: ring the parasite's doorbell (any
+ BIT HR1S               \ byte through register 1, host to parasite), and again
+ BMI hrw9               \ whenever the parasite has taken it, while register 1
+ BVC hrw                \ stays empty (p-io.asm's ring). Keeps A, X and Y
+ STA HR1D
+ BVS hrw
+.hrw9
+ RTS
 ENDIF
 
 .h_bad                  \ (the commands of the host that kept the rasteriser's
