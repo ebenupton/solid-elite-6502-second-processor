@@ -2583,3 +2583,17 @@ fails its own check unless the moon and the sun are each on the screen for
 at F_FRAME's end); the cruise between the shots is sped up (1 frame in 64)
 and the published film 1.6 times: screenshots/moon/approach.mp4 (85.5 s),
 approach.gif, approach-sheet.png, approach.json.
+
+## Stills (after the free space)
+
+master/tools/stills.sh [planets] [sunnear] makes the stills from the build
+in master/build, headless (jsbeeb): each planet still is the last frame of
+a short posed scene (harness/mplanet.mjs, master/tools/planetvis.py), the
+seeds those of systems with craters, a moon or a ring; the banded planets
+and the rings come from a copy of the tree built with BANDS=on RINGS=on
+(scratch/stills/bandstree), as the default build has neither.
+screenshots/planets: beach.png, caps.png, caps2.png, nobands.png (a banded
+seed as the default build draws it, a crater planet), bands.png,
+bands2.png, moon1-3.png, ring.png, ring2.png, ringmoon.png, ringmoon2.png.
+screenshots/sunnear: the posed scene's 156 frames, sheet.png, spawn.png,
+sunnear.mp4 and sunnear.gif (harness/msunnear.mjs, master/tools/sunnear.py).
