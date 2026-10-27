@@ -52,10 +52,12 @@ which spare RAM the port may take.
    7**: the rasteriser in bank 5 and ANDY, the frame layer in bank 6, and the
    meridian window (gfx-merid.asm, the circle engine that makes the planet's
    surface detail, and gfx-planet7.asm, its styles, the beach ball, craters
-   and bands, and
-   gfx-flare.asm, the lens flare) in bank 7 after the cold pass, paged as
-   ROMSEL MERIDBANK (7) by its stubs only (G_PFHOOK in game context, T_CAPS
-   and T_FLARE during the frame). Bank 7 is
+   and bands, and its moon, and gfx-flare.asm, the lens flare) in
+   bank 7 after the cold pass, paged as ROMSEL MERIDBANK (7) by its stubs
+   only (G_PFHOOK in game context, T_CAPS, T_MCAPS and T_FLARE during the
+   frame). What the frame layer reads
+   of the moon (MN_ON ..., gfx-planetv.asm) is in the
+   shared workspace (main RAM below &3000). Bank 7 is
    otherwise the cold pass's: one run from &8000, the cold code, then the
    cold data. (The meridian window is the one exception to "the renderer in
    banks 5, 6 and ANDY only", made for the beach ball, which needs about 3K
@@ -393,7 +395,7 @@ build/direct.txt, which bankcheck.py reads).
 | stubs out of the cold pass (`.x4_H`, `.j4_H`, STUBS4) | the glue area | 57 | bank 4 in, bank 7 back |
 | TTX66M | the glue area | 1 | bank 4 in, the caller's bank back |
 | G_ stubs | the glue area (gfx-gstubs.asm, 13; G_CHAR, G_DELCHAR, G_CLRTEXT in gfx-gluehooks.asm) | 16 | bank 6 in (G_PFHOOK: the meridian window, bank 7), bank 4 (or, for the text stubs, the caller's bank) back |
-| T_ trampolines | the glue area (gfx-tramp.asm) | 13 | the rasteriser in (T_POLY, T_LINE: ROMSEL &85, ANDY over bank 5; the rest bank 5), or the meridian window (T_CAPS: bank 7), bank 6 back |
+| T_ trampolines | the glue area (gfx-tramp.asm) | 13 | the rasteriser in (T_POLY, T_LINE: ROMSEL &85, ANDY over bank 5; the rest bank 5), or the meridian window (T_CAPS, T_MCAPS: bank 7), bank 6 back |
 
 A routine that falls through into a routine of the other side falls into a
 seam: a JMP to that routine's stub, at its place in the falling routine's

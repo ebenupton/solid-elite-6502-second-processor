@@ -2403,3 +2403,99 @@ default: PF_HOOK makes no class 2, and pf_bands, its tables and the
 dispatch are assembled out (81 bytes of bank 7). test_raster assembles the
 planet code with bands on (BANDS=off in its environment for the default;
 pfhook checks the class), and tools/planet_caps.py's BANDS follows it.
+
+## The moon (after the banded planets)
+
+A quarter of the systems (h = s0_hi EOR s1_hi EOR s2_hi, bits 0-1 = 1;
+none of the gate's three) have a moon: scenery only (no ship slot, no
+random number, no saved state), 0.19 to 0.28 of the planet's radius (h bits
+5-6), drawn for planets of radius 16 or more, light grey with a dark grey
+crater (on roofv, 40 degrees across, from a moon radius of 10: a circle
+record of the engine in slot PCMAX, its rows made by PC_MROWS through
+T_MCAPS). Its colours are the palette's nearest greys: light grey C M Y K /
+Y K C M (&6A, &9A: equal parts cyan, magenta, yellow and black, a neutral
+mid grey) and dark grey C K M K / K Y K K (&28, &44: one pixel in four lit,
+a neutral dark grey).
+
+**Its place** is a point fixed in space, as S_SUN keeps the sun: MN_TURN
+(gfx-ssun.asm, bank 4, game context) keeps E = moon - planet (MN_E, 24-bit
+two's complement, in the coordinates, the front view's axes, in the shared
+workspace beside S_SUN's ss_d) and turns it with our roll and pitch once an
+iteration, by MV40 itself (ss_turnx: D or E). The first call with a new
+MCNT turns it: G_PFHOOK (before the planet's detail), MOONHIT, or S_SUN
+after the iteration, whichever comes first. E is made in the first
+iteration after we arrive or launch, when the planet still has ZINF's
+orientation, so its spin axis then is (-1, 0, -1) / sqrt(2): E = +/- (c, 0,
+c), c = D 24576 / sqrt(2), on the side h bit 4 gives (set: +), D = 3 to
+5.25 radii (h bits 2-3). MN_OK is cleared in witchspace, with no planet,
+while docked (MN_TURN, and F_DIRECT with SS_OK) and when QQ2 changes.
+
+The planet's spin axis itself would not do as the moon's place: MVEIT's
+MVS5 steps are first-order rotations, and TIDY renormalises the planet's
+orientation every 16 iterations with one-byte precision. harness/
+mmoonpath.mjs (a planet held still in a moon system, the game spinning it)
+shows the axis precessing 0.11 degrees an iteration and jumping 1.7 degrees
+on average (up to 3.3) on TIDY's iteration (MCNT AND 15 = 15 for slot 0),
+6.3 degrees from its mean over 600 iterations; in a 1,600-iteration flight
+with our roll and pitch it turns 21 degrees against a vector the game keeps
+fixed in space (the station less the planet). A moon on the axis would jump
+by several pixels.
+
+**Drawn.** pf_moon (gfx-planet7.asm, bank 7, from PF_HOOK) projects M = P +
+E in the view's axes as PLUT has them (pfm_vs, pfm_vn): x = 128 + 256 M_x /
+M_z, y = 96 - 256 M_y / M_z, radius rho 96 256 / M_z, at most 63 (M
+shifted right until M_z fits 15 bits, pfm_div's divisor); behind the planet
+if E_z > 0, behind the sun (slot 1) if further than it. What the frame
+reads (MN_ON, MN_X, MN_Y, MN_R, MN_Z, MN_INV, MN_N: gfx-planetv.asm) is in
+the shared workspace (main RAM below &3000, which PF_HOOK in bank 7 and the
+frame layer both see). tools/planet_caps.py's pf_moon models it bit for bit
+(test_raster's pfhook test: random MN_E, views and positions, and the
+crater's rows).
+
+The frame layer's f_moon (after f_disc2) draws it as a third disc of spans
+(its half-widths in F_HW3), less the planet's and the sun's spans where
+they are in front; f_behind hides a ship further than the moon whose first
+vertex is inside its disc, as it does for the planet. It is drawn
+incrementally: each buffer keeps the moon as it drew it (MO_ON ... MO_CB in
+the shared workspace: its centre, radius and depth bits, its rows and its
+crater's rows), and only the rows that changed since that buffer's last
+frame are drawn:
+
+* the same place, size and depth: a row with no crater, old or new, is
+  drawn only where this frame wrote over it (R_WL..R_WR as the layer's
+  repair and the layer's and the second disc's changes left them, read
+  before the moon's own writes); a crater row, old or new, whole (the
+  crater turns with the planet);
+* moved, resized, its depth against the planet or the sun changed, or gone
+  (all its rows changed): f_moon0, before the disc layer, puts the old
+  moon's spans into DIRTY (from MO_X, MO_Y and F_HW3; its box's rows if
+  F_HW3 no longer holds its radius's half-widths), so the layer's repair
+  restores what was under it in this frame (black, the layer, or the
+  second disc, which R_DISC2 then draws again over what the repair wrote),
+  and the moon is drawn whole.
+
+Its writes go through T_WSPAN (R_WSPAN, bank 5: R_SPAN that notes the span
+in R_WL/R_WR and R_PRWT..R_PRWB, as R_DISC2's writes are noted), never into
+DIRTY, so the text, the sights and the moon itself see them as written.
+Ships drawn over it are repaired by the layer (DIRTY), which the moon then
+sees in R_WL..R_WR. The row is the unit, not the strip (the ends that
+moved, as R_DISC2 draws): from bank 6 each strip is a trampoline call and a
+span set-up, and a moving moon would cost about twice a whole redraw.
+R_WSPAN is 56 bytes in bank 5's shared region, T_WSPAN 22 in the glue, the
+moon's state 20 bytes in the shared workspace.
+
+**Checked.** The place: master/tools/moonpath.py on harness/mmoonpath.mjs's
+recording of 1,600 iterations of turning flight (radius 40): |E| within
+0.8% (MV40's shears; the station less the planet varies 0.4%), its angle to
+the station less the planet within about 0.3 degrees, the drawn centre
+within 1.4 pixels of planet + E projected (mean 0.8), and each step on the
+screen the projected point's to 1.6 pixels (the moon's largest step 6.7
+pixels, the planet's 4.0). The held planet scene: one moon position over
+600 iterations. The pixels: harness/mplanet.mjs scenes, the frame-end back
+buffer of every frame byte for byte against the moon drawn whole each
+frame: 6 fixed scenes (moving, still, still with the planet spinning, in
+front of the planet, behind it, off the screen's side) and 18 random ones
+(seeds, poses, spins, paths and radii): 1,044 frames, all identical. The
+cost (f_moon, f_moon0 and T_DISCROWS, the frame's mean): a still moon
+25,603 cycles, 29% less than drawn whole; moving, within -6% to +8% of
+drawn whole.
