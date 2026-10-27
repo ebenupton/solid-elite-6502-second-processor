@@ -74,4 +74,10 @@
 
 .HZ_END
 
+ CLEAR &8000, &C000     \ the size of L_SUN (at bank 4's end in the layout)
+ ORG &8000
+.R4_START%
+ INCLUDE "build/gfx-light-4.asm"
+.R4_END%
+
  INCLUDE "src/elite-gfx.asm"

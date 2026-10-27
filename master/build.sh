@@ -49,6 +49,13 @@ EOF
 : > build/compile.txt
 # the dashboard image and its tables (build/DIALS1.bin, build/dashtab.asm)
 python3 tools/dashboard.py build > /dev/null
+# gfx-light.asm's two passes (its IF LIGHTPASS blocks): L_SUN at bank 4's end
+# (build/gfx-light-4.asm, elite-layout.asm), L_REC in bank 6
+# (build/gfx-light-6.asm, elite-gfx.asm); the other half is assembled out,
+# and the line numbers are the source's
+for p in 4 6; do
+  sed -e "s/^IF LIGHTPASS = $p /IF TRUE  /" -e "s/^IF LIGHTPASS = [0-9] /IF FALSE  /" src/gfx-light.asm > build/gfx-light-$p.asm
+done
 rm -f build/data-addresses.asm build/symbols-data.txt build/HZDATA1.bin build/HZDATA2.bin build/COLDD.bin
 rm -f build/elite-source-*.asm build/elite-data-*.asm build/measure-symbols.txt build/flow.txt
 # elite-source.asm's passes, low, hot and cold (docs/MASTER-MAP.md, "The source

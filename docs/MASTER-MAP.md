@@ -57,7 +57,11 @@ which spare RAM the port may take.
    otherwise the cold pass's: one run from &8000, the cold code, then the
    cold data. (The meridian window is the one exception to "the renderer in
    banks 5, 6 and ANDY only", made for the beach ball, which needs about 3K
-   that none of those has.)
+   that none of those has.) The renderer's routine that runs in game context
+   from G_FRAME, L_SUN (gfx-light.asm's first pass, the light for the next
+   iteration's ships), is at bank 4's end, after the hot pass and the hot
+   data (streams.py keeps its room), and G_FRAME calls it with bank 4 paged,
+   before it pages bank 6 for F_FRAME.
    &F4 always matches ROMSEL, bit 7 included: every write of ROMSEL writes &F4
    first (the stubs, the G_ and T_ stubs, R_SETBUF's r_sbpoly).
 5. **The game data is in HAZEL**, where every bank, the IRQ and code running

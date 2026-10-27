@@ -2063,3 +2063,24 @@ fl_ring and fl_htab from its GHOSTS, LADDER, BAYER, RING and hw_table) and
 --verify (the source's literal tables, and fl_htab as assembled into
 MERID.bin, byte for byte: all identical); master/verify.sh runs --verify
 after the build.
+
+## L_SUN at bank 4's end (after flare.py)
+
+L_SUN (the light towards the sun for the next iteration's ships) runs once
+a space-view iteration in game context, before F_FRAME sets ACCCON X, and
+reads only game state (K%, FRIN, ALPHA, BETA) and the quarter squares. It
+is at bank 4's end, after the hot pass and the hot data, instead of in
+bank 6: G_FRAME calls it with bank 4 paged (in a space view, QQ11 = 0),
+before it pages bank 6 for F_FRAME, and G_HANGAR (the hangar's frame, from
+HALL) calls it under the same test. Its result LLT, which L_REC reads in
+bank 6, is in the glue area (gfx-gvars.asm, with its initial value).
+
+gfx-light.asm stays one file, assembled in two passes: its L_SUN half and
+its L_REC half are IF LIGHTPASS = 4 / 6 blocks, and build.sh writes a copy
+for each pass (build/gfx-light-4.asm for elite-layout.asm and
+elite-measure.asm, build/gfx-light-6.asm for elite-gfx.asm) with the other
+block assembled out and the source's line numbers. L_SUN's scratch is its
+own (lv_t, lv_s, in bank 4). streams.py keeps bank 4's room for the
+renderer's routines there (R4_START% .. R4_END%), and the measure
+assembles them once for their size. Bank 6 gains 649 bytes. The light is
+the same: LLT at each of 2,938 frames of the gate's run as at b0abf71.
