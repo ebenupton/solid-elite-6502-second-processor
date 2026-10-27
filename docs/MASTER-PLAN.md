@@ -2383,3 +2383,23 @@ the reference, every changed pixel in WL/WR or DIRTY); the pixels are those
 of the disc drawn whole each frame (the posed scene's 156 frames with and
 without the flare, and the gate's run, harness/mfbcmp.mjs, 9,836 frames,
 both buffers).
+
+## Banded planets (after the sun near the planet)
+
+A quarter of the crater planets (s1_hi bits 0-1 clear; Lave is a meridian
+planet, so it keeps its beach ball) can be class 2: two latitude circles
+about the axis the planet spins about, nosev - sidev (MVEIT part 8 pitches
+roofv and nosev and rolls roofv and sidev alike, so that axis stays where
+it is), north of one latitude (14 to 36 degrees, s2_hi bits 4-5) and south
+of another (-7 to -30 degrees, bits 6-7), EOR'd (pf_bands, base 0): three
+bands, the polar zones colour A and the belt between them colour B. Two
+parallels can put four crossings in a row, which the disc layer holds; a
+third would need six. As the axis does not turn, the belt stands still
+while the planet spins. pf_tilt's bit 3 gives the equal-weight sum (nominal
+length 1536 sqrt 2).
+
+They are a build switch, BANDS=on (master/build.sh, _PLANET_BANDS), off by
+default: PF_HOOK makes no class 2, and pf_bands, its tables and the
+dispatch are assembled out (81 bytes of bank 7). test_raster assembles the
+planet code with bands on (BANDS=off in its environment for the default;
+pfhook checks the class), and tools/planet_caps.py's BANDS follows it.

@@ -26,6 +26,9 @@
 #
 # Options (environment):
 #   MATCH=no      zero-filled workspaces (upstream "match=no")
+#   BANDS=on      banded planets (a quarter of the crater planets, by the seed:
+#                 gfx-planet7.asm's pf_bands); off by default, when no planet
+#                 has bands and their code is assembled out
 #
 # The checksum script is given the F%, G% and NA2% that the assembler prints,
 # so a changed source still gets a correct commander checksum.
@@ -33,6 +36,7 @@ set -e
 cd "$(dirname "$0")"
 BEEBASM=${BEEBASM:-../tools/beebasm}
 MATCH=${MATCH:-yes}
+BANDS=${BANDS:-off}
 mkdir -p build
 rm -f build/*.bin build/*.ssd build/README.txt
 
@@ -44,6 +48,7 @@ _VARIANT=1
 _REMOVE_CHECKSUMS=$RC
 _MATCH_ORIGINAL_BINARIES=$MO
 _MAX_COMMANDER=FALSE
+_PLANET_BANDS=$( [ "$BANDS" = on ] && echo TRUE || echo FALSE )
 EOF
 
 : > build/compile.txt
