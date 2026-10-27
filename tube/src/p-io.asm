@@ -60,8 +60,10 @@ fl_t  = &0E
 \
 \ ******************************************************************************
 
-RING    = &ED00         \ the ring's pages (above both overlays and the boot's
-RINGEND = &F800         \ staging: p-layout.asm asserts it)
+RING    = &F500         \ the ring's pages (above both overlays and the boot's
+RINGEND = &F800         \ staging: p-layout.asm asserts it): 3 since overlay S
+                        \ holds the planet's engine (11 were 2% faster in flight,
+                        \ 6 1.5%; one page stalls)
 rq      = &FA           \ the write pointer (zero page the game leaves free)
 rpz     = &FE           \ the IRQ's read pointer (0, the reader's page)
 PR1N    = 24            \ register 1's FIFO, parasite to host
@@ -721,7 +723,7 @@ NEXT
  LDA PR4D
  RTS
 
-\ ptxv: send the X bytes from (pv),Y... (Y = 0 up): used by the commands that
+\ ptxv: send the X bytes from (pov),Y... (Y = 0 up): used by the commands that
 \ carry a block
 
 MACRO PSEND
@@ -771,11 +773,11 @@ ENDMACRO
 \ S, which F_FRAME and F_INIT load)
 
 
-.T_MERID                \ the beach ball's rows (gfx-merid.asm's PM_MERID)
- JSR PM_MERID
- LDA #&80
- STA PS_VALID
- RTS
+.T_CAPS                 \ the planet's surface detail's rows (gfx-merid.asm's
+ JMP PC_ROWS            \ circle engine, in overlay S)
+
+.T_MCAPS                \ the moon's crater's rows (the same)
+ JMP PC_MROWS
 
 .T_FLARE                \ the lens flare (gfx-flare.asm), X, Y: this buffer's
  BIT KMODE              \ dirty extents' pages (K mode: no kept rows, p-kept.asm)
@@ -984,13 +986,13 @@ ENDMACRO
 PCTX = &0A              \ CHPR's zero page: SC, SCH, P(4), XC, COL, YC, QQ17, K3, K3+1
 PCTXN = 12
 \ (the error block: R_NDX3, free outside space mode)
-pv = &FC                \ (the command's pointer: zero page the game leaves free;
-                        \ &FD is NEWBRK's too, set after the last use of pv)
+pov = &FC                \ (the command's pointer: zero page the game leaves free;
+                        \ &FD is NEWBRK's too, set after the last use of pov)
 
 .p_oscli
  JSR pflush             \ (the ring sent first: the answer comes after it)
- STX pv
- STY pv+1
+ STX pov
+ STY pov+1
  LDA #&80
  STA GSTASH
  LDA #C_DISC
@@ -1012,7 +1014,7 @@ pv = &FC                \ (the command's pointer: zero page the game leaves free
  LDA CATF
  JSR ptx
  LDY #0                 \ the mode: SAVE 1, LOAD 2, else 0
- LDA (pv),Y
+ LDA (pov),Y
  LDX #1
  CMP #'S'
  BEQ pos2
@@ -1035,7 +1037,7 @@ pv = &FC                \ (the command's pointer: zero page the game leaves free
 .pos4
  LDY #0                 \ the command, to its CR
 .pos5
- LDA (pv),Y
+ LDA (pov),Y
  JSR ptx
  INY
  CMP #13

@@ -772,6 +772,10 @@ ENDIF
  EQUB 6, %00001001
  EQUW &7000, &1000
 
+ EQUW MESS16            \ HSTB7: and in bank 7, bytes 192-255 of the STA runs'
+ EQUB 7, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
+ EQUW &8000, B7LEN      \ around them)
+
  EQUW MESS15            \ HSTM1: and in main RAM &3000-&3DFF (last: the files
  EQUB 6, %00001001      \ before it pass through &1300 up to &52FF)
  EQUW &3000, &0E00
@@ -844,6 +848,11 @@ ENDIF
 .MESS15
 
  EQUS "L.HSTM1 FFFF1300"
+ EQUB 13
+
+.MESS16
+
+ EQUS "L.HSTB7 FFFF1300"
  EQUB 13
 
 .MESSP

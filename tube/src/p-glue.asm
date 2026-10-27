@@ -51,7 +51,6 @@
  JMP gback
 
 .G_PLANET
- JSR p_kind             \ (overlay S's tail for the planet's kind, p-ovl.asm)
  JSR F_PLANET
  JMP gback
 
@@ -67,34 +66,18 @@
  JSR F_BOMB
  JMP gback
 
-.G_PCURVE               \ (F_PCURVE and F_PPOINT: overlay S's crater tail,
- PHX                    \ which G_PLANET has chosen this frame)
- LDA #OVL_S
- JSR ovl_need
- PLX
- JSR F_PCURVE
- JMP gback
+\ G_PFHOOK: H_CIRC's planet surface (gfx-hooks.asm): PF_HOOK, the planet's
+\ class and its circles' records (gfx-planet7.asm, with the circle engine
+\ gfx-merid.asm, in overlay S), its moon and its ring; PF_CLS bit 7 says
+\ that f_bounds is to colour the disc from them (T_CAPS). Keeps X and Y
+\ (H_CIRC, the only caller, reads none of A and the flags after it)
 
-.G_PPOINT
+.G_PFHOOK
  PHX
  LDA #OVL_S
  JSR ovl_need
  PLX
- JMP F_PPOINT           \ (it returns through gback)
-
-\ G_MERHOOK: H_MERID's beach ball (gfx-hooks.asm): PM_HOOK, the meridian
-\ window's frame constants (gfx-merid.asm, in the overlay S, with the quarter
-\ squares), and PM_OK says that f_bounds is to colour the disc as a beach ball
-\ (T_MERID). Keeps X, Y and C, as PM_HOOK
-
-.G_MERHOOK              \ (PM_HOOK, in the overlay S: keeps A, X, Y and C)
- PHA
- PHX
- LDA #OVL_S
- JSR ovl_need
- PLX
- PLA
- JSR PM_HOOK
+ JSR PF_HOOK
  JMP gback
 
 \ G_DSTAR: outside record mode PIXEL2 draws star Y directly; H_STAR (C set:

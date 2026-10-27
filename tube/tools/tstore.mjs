@@ -50,7 +50,11 @@ for (let i = 0; i < st.length; i += 258, n++) {
     else if (hi >= 0xC0) base = hi * 256 - 0x3000;                    // HAZEL (jsbeeb's ramRomOs &9000-&AFFF)
     else if (rom & 0x80 && hi < 0x90) base = hi * 256;                // ANDY (ramRomOs &8000-&8FFF)
     else base = h.romOffset + (rom & 15) * 16384 + (hi * 256 - 0x8000);
-    let d = 0; for (let k = 0; k < 256; k++) if (m[base + k] !== want[k]) d++;
+    let d = 0;
+    if (rom & 0x40) {                                                 // (four 64-byte pieces: bytes 192-255
+        const b7 = h.romOffset + (rom & 15) * 16384 + (hi * 256 - 0x8000);   // of four pages, h-main.asm's hov_pg)
+        for (let k = 0; k < 256; k++) if (m[b7 + (k >> 6) * 256 + 192 + (k & 63)] !== want[k]) d++;
+    } else for (let k = 0; k < 256; k++) if (m[base + k] !== want[k]) d++;
     if (d) { bad++; console.log(`slot ${n}: ROMSEL &${rom.toString(16)}, page &${hi.toString(16)}: ${d} bytes differ`); }
 }
 console.log(`storage: ${n} pages checked after iteration ${cand.iter}, ${bad} differ`);

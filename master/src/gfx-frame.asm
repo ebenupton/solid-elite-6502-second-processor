@@ -797,8 +797,13 @@ ENDIF
 
  JSR T_STARERASE        \ undo last time's stars in this buffer
 ENDIF
+IF _TPART = 1 AND _TDUMB
+ JSR f_mpre             \ (Tube: the moon's old rows that change, dirty first)
+ENDIF
  JSR f_discs            \ the disc layer (sun or planet), incremental
  JSR f_disc2            \ the other disc, if both are on screen (full spans)
+ JSR f_moon             \ the moon, if any (full spans)
+ JSR f_ring             \ the ring, if any (dots)
 .ff_lin                 \ (F_HANGAR points this call at f_hback for its frame)
  JSR f_lines            \ planet meridians, craters, enemy lasers
  JSR f_ships            \ filled ships, far to near
@@ -863,8 +868,8 @@ ENDIF
  STA F_NDOT
  STA F_PLON
  STA GSUNON
- STA F_NCV
- STA F_NPT
+ STA MN_ON
+ STA RG_N
  LDA #LO(F_DL)
  STA F_DLP
  LDA #HI(F_DL)
@@ -1184,7 +1189,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  LDA #1
  STA f_sec
 .fds4
- LDA f_lay              \ if the layer's colour differs from what this buffer
+ JSR f_colid            \ if the layer's colour differs from what this buffer
  LDX F_BACK             \ holds, nothing of the old disc is intact: fold the
  CMP F_DCOL,X           \ old disc spans into the old dirty extents
  BEQ fds5
@@ -1200,9 +1205,10 @@ ENDIF
  BEQ fds9
  CMP #1
  BEQ fds6
- LDA #FC_PLANE
+ JSR f_cls2             \ (the planet's colour A, by its class)
+ LDA pf_cola,X
  STA R_DCE
- LDA #FC_PLANO
+ LDA pf_cola+1,X
  STA R_DCO
  JSR f_plrows           \ planet spans into R_NDISCL/R, R_NDT/R_NDB
  JSR f_bounds           \ and its surface detail as colour boundaries
@@ -1668,9 +1674,10 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  BEQ fd29
  CMP #1
  BEQ fd21
- LDA #FC_PLANE
+ JSR f_cls2             \ (the planet's colour A, by its class)
+ LDA pf_cola,X
  STA R_COLE
- LDA #FC_PLANO
+ LDA pf_cola+1,X
  STA R_COLO
  JSR f_plrows
  JMP fd22
@@ -2338,125 +2345,22 @@ ENDIF
 ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
-\ Planet surface detail, filled: Elite's PLS22 computes each ellipse (half
-\ ellipses for the equator and meridian, a full one for a crater) as points
-\ passed to BLINE; we record them (F_PCURVE, F_PPOINT) and turn the curves
-\ into per-row colour boundaries for the disc layer: the disc alternates
-\ between colour A and colour B at each boundary, so the meridian and equator
-\ give a two-colour "beach ball" and a crater a filled ellipse.
+\ Planet surface detail, filled: per-row colour boundaries for the disc layer
+\ (R_NDN, R_NDX0-3, R_NDP: the disc alternates between colour A and colour B
+\ at each boundary): circles on the planet's sphere, the beach ball's, the
+\ craters' or the bands' (PF_HOOK, gfx-planet7.asm, makes them in game
+\ context; PC_ROWS, gfx-merid.asm's circle engine, the rows), both in the
+\ meridian window (bank 7).
 \ ------------------------------------------------------------------------------
-
-MAXCV = 3               \ curves per frame
-MAXPT = 40              \ points per frame: PLS22's step STP is at least 2
-                        \ (CIRCLE's PL89), so a crater's full ellipse has at
-                        \ most 33 points and the meridian and equator's half
-                        \ ellipses 17 each; a point past the end is dropped
-
-                        \ F_NCV (curves recorded this frame) and F_NPT
-                        \ (points recorded this frame) live in F_PPOINT's
-                        \ LDA #/LDY # operands
-.F_CVS SKIP MAXCV       \ first point of each curve
-.F_CVE SKIP MAXCV       \ one past its last point
-.F_CVT SKIP MAXCV       \ TGT: 31 (half ellipse) or 64 (full)
-.F_PXL SKIP MAXPT
-.F_PXH SKIP MAXPT
-.F_PYL SKIP MAXPT
-.F_PYH SKIP MAXPT
-IF _TPART = 1            \ (Tube: F_NCV and F_NPT are bytes here, as F_PPOINT
-.F_NCV EQUB 0           \ is in overlay S's crater tail, and f_reset writes them)
-.F_NPT EQUB 0
-ENDIF
-
-\       Area: ovl S crater
-
-.F_PCURVE
- PHX
- LDX F_NCV
- CPX #MAXCV
- BCS fpc9
- LDA F_NPT
- STA F_CVS,X
- STA F_CVE-1,X          \ ends the previous curve (X = 0: writes F_CVS+2, unused or overwritten later)
- LDA TGT
- STA F_CVT,X
- INC F_NCV
-.fpc9
- PLX
- RTS
-
-.F_PPOINT               \ (the current curve's F_CVE is set from F_NPT at fbd2)
-IF _TPART = 1
- LDA F_NCV
- BEQ fpp9
- LDY F_NPT              \ (Y is not preserved: BLINE, the only caller, reloads
-ELSE                    \ Y on every path
- LDA #0                 \ operand = F_NCV
-F_NCV = P%-1
- BEQ fpp9
- LDY #0                 \ operand = F_NPT (Y is not preserved: BLINE, the
-F_NPT = P%-1            \ only caller, reloads Y on every path
-ENDIF
- CPY #MAXPT             \ before reading it; CLIP2 only saves/restores it)
- BCS fpp9
- LDA K6
- STA F_PXL,Y
- LDA K6+1
- STA F_PXH,Y
- LDA K5+2               \ (Master port: BLINE has the new point's y in K5(3 2))
- STA F_PYL,Y
- LDA K5+3
- STA F_PYH,Y
- INY
- STY F_NPT
-.fpp9
- JMP gback              \ (G_PPOINT tail-jumps here: page Elite's bank back in
-                        \ and return to BLINE)
-
-\       Area: frame
 
 \ f_nobounds: rows R_NDT..R_NDB have no boundaries (plain disc)
 
-.f_nobounds             \ (STZ: no caller reads A, which left room for
- STZ R_NDF              \ F_PPOINT's JMP gback)
-IF _TPART = 1
-.fnb9                   \ (Tube: f_bounds's RTS, as f_zerobounds's is in the tail)
-ENDIF
+.f_nobounds
+ STZ R_NDF
  RTS
 
-\       Area: ovl S crater
-
-.f_zerobounds           \ rows R_NDT..R_NDB: no boundaries yet (only caller
-                        \ fbd1, where f_bounds has checked R_NDT <= R_NDB)
- LDA R_NDB
- INC A
- STA fnb_e+1
- STA fsg_cb+1           \ (and f_segment's row range: rows NDT..NDB)
- EOR R_NDT              \ C = bit 0 of (R_NDB+1) EOR R_NDT: an odd row count
- LDY R_NDT
- STY fsg_ct+1
- LSR A
- LDA #0
- BCS fnb2               \ odd: one row first, then pairs
-.fnb1                   \ two rows per pass
- STA R_NDN,Y
- STA R_NDP,Y
- INY
-.fnb2
- STA R_NDN,Y
- STA R_NDP,Y
- INY
-.fnb_e
- CPY #0                 \ patched: R_NDB+1
- BNE fnb1
-IF _TPART <> 1
-.fnb9
-ENDIF
- RTS
-
-\       Area: frame
-
-\ f_bounds: the planet's curves -> R_NDN/R_NDX0-3/R_NDP for rows
-\ R_NDT..R_NDB (which f_plrows has just set), and colour B
+\ f_bounds: the planet's detail -> R_NDN/R_NDX0-3/R_NDP for rows R_NDT..R_NDB
+\ (which f_plrows has just set), and colour B by the planet's class
 
 .f_bounds
  JSR f_nobounds
@@ -2464,474 +2368,513 @@ ENDIF
  CMP R_NDB
  BEQ P%+4
  BCS fnb9
+ BIT PF_CLS             \ the detail PF_HOOK made this frame (the beach
+ BPL fnb9               \ ball, craters or bands): from the circle engine's
+ JSR f_bcol             \ PC_ROWS
+ JMP T_CAPS
+.fnb9
+ RTS
+
+\ The planet's colours by its colour scheme, as pairs of bytes (even rows,
+\ odd rows): colour A, the disc, then colour B, its detail (the beach ball's
+\ land, the craters, the belt). Crater and banded planets share the schemes.
+\ The schemes (PF_CLS bits 2-4): 0, a meridian planet's beach ball (A its
+\ sea, B its land); 1-4, a crater or banded planet's, from the system's seed
+\ (2 x 2 patterns, even row / odd row, of K, C, M, Y = 0-3: a pixel's colour
+\ is bit 4+p (2) and bit p (1) of its byte, p = 3 - (x AND 3)):
+\   1 desert          A YY/MY  &FF &F5   B YM/KY  &FA &55
+\   2 tan and khaki   A YM/KY  &FA &55   B YC/MY  &AF &F5
+\   3 khaki and sage  A YC/MY  &AF &F5   B YK/KC  &AA &05
+\   4 sage and tan    A YK/KC  &AA &05   B YM/KY  &FA &55
+
+PFCOLS = 5              \ schemes
+.pf_cola EQUB FC_PLANE, FC_PLANO, &FF, &F5, &FA, &55, &AF, &F5, &AA, &05
+.pf_colb EQUB &5F, &AF, &FA, &55, &AF, &F5, &AA, &05, &FA, &55
+
+\ f_bcol: R_NDF on and colour B for the planet's scheme (f_cls2: X = 2 x the
+\ scheme, the offset of its colours). f_colid: A = the disc layer's colour id
+\ for f_lay (the planet's: 2 + 4 x its scheme, so that a new scheme's colours
+\ fold the old disc into dirty)
+
+.f_bcol
  LDA #1
- BIT PM_OK              \ a beach ball (PM_HOOK ran this frame): the
- BPL fbd1               \ boundaries from the meridian window
- STA R_NDF              \ (gfx-merid.asm), colour B green land
- LDA #&5F
- STA R_DBE
- LDA #&AF
- STA R_DBO
- JMP T_MERID
-.fbd1
- LDX F_NCV              \ else a crater's curves (only a crater planet's are
- BEQ fnb9               \ recorded), colour B a dark crater
-IF _TPART = 1
- JMP f_crater           \ (Tube: overlay S's crater tail)
-ENDIF
-
-\       Area: ovl S crater
-
-.f_crater
  STA R_NDF
- JSR f_zerobounds
- LDA #&50
+ JSR f_cls2
+ LDA pf_colb,X
  STA R_DBE
- LDA #&A0
+ LDA pf_colb+1,X
  STA R_DBO
-.fbd2
- LDX F_NCV              \ the last curve ends at F_NPT (F_NCV >= 1 here)
- LDA F_NPT
- STA F_CVE-1,X
- LDA #0
- STA f_ci
-.fbd3                   \ for each curve
- LDX f_ci
- CPX F_NCV
- BCC P%+5
- JMP f_parity
- LDA F_CVE,X            \ its segments: points F_CVS .. F_CVE-1
- STA fbd_e+1
- LDA F_CVS,X
+ RTS
+
+.f_cls2                 \ X = 2 x the scheme
+ LDA PF_CLS
+ AND #&1C
+ LSR A
  TAX
- BRA fbd5               \ loop test at the bottom
-.fbd4
- LDA F_PXL-1,X          \ segment start = point X-1
- STA sg_ax
- LDA F_PXH-1,X
- STA sg_ax+1
- LDA F_PYL-1,X
- STA sg_ay
- LDA F_PYH-1,X
- STA sg_ay+1
- LDA F_PXL,X            \ segment end = point X
- STA sg_bx
- LDA F_PXH,X
- STA sg_bx+1
- LDA F_PYL,X
- STA sg_by
- LDA F_PYH,X
- STA sg_by+1
- PHX
- JSR f_seg16
- PLX
-.fbd5
- INX                    \ segment X-1 -> X
-.fbd_e
- CPX #0                 \ patched: F_CVE of this curve
- BCC fbd4
-.fbd6
-                        \ (a crater's full ellipse is closed)
-.fbd7
- INC f_ci
- JMP fbd3
-
-.f_ci EQUB 0
-
-\ f_seg16: boundary crossings of the segment (sg_ax, sg_ay) - (sg_bx, sg_by)
-\ (16-bit) for rows y with min(y) <= y < max(y) within R_NDT..R_NDB. A crossing
-\ left of the row's disc span flips the row's starting colour (R_NDP), one
-\ right of it is ignored, one inside is added to the row's boundaries. Long
-\ segments (|dx| or |dy| > 255) are halved, recursively.
-
-.f_seg16
- LDA sg_bx              \ |dx| > 255 or |dy| > 255?
- SEC
- SBC sg_ax
- LDA sg_bx+1
- SBC sg_ax+1
- BEQ fs16a
- CMP #&FF
- BNE fs16s
- LDA sg_bx
- CMP sg_ax
- BEQ fs16s              \ dx = -256
-.fs16a
- LDA sg_by
- SEC
- SBC sg_ay
- LDA sg_by+1
- SBC sg_ay+1
- BEQ fs16b
- CMP #&FF
- BNE fs16s
- LDA sg_by
- CMP sg_ay
- BEQ fs16s
-.fs16b
- JMP f_segment
-.fs16s                  \ split at the midpoint: push the second half
- LDA sg_bx+1
- PHA
- LDA sg_bx
- PHA
- LDA sg_by+1
- PHA
- LDA sg_by
- PHA
- LDA sg_ax              \ mid = (a + b) / 2 (arithmetic: the true sign of the
- CLC                    \ 17-bit sum is N EOR V)
- ADC sg_bx
- STA fz_t
- LDA sg_ax+1
- ADC sg_bx+1
- STA fz_u
- BVC P%+4
- EOR #&80
- ASL A
- ROR fz_u
- ROR fz_t
- LDA fz_u
- STA sg_bx+1
- LDA fz_t
- STA sg_bx
- LDA sg_ay
- CLC
- ADC sg_by
- STA fz_t
- LDA sg_ay+1
- ADC sg_by+1
- STA fz_u
- BVC P%+4
- EOR #&80
- ASL A
- ROR fz_u
- ROR fz_t
- LDA fz_u
- STA sg_by+1
- LDA fz_t
- STA sg_by
- JSR f_seg16            \ first half: a -> mid
- LDA sg_bx              \ second half: mid -> b
- STA sg_ax
- LDA sg_bx+1
- STA sg_ax+1
- LDA sg_by
- STA sg_ay
- LDA sg_by+1
- STA sg_ay+1
- PLA
- STA sg_by
- PLA
- STA sg_by+1
- PLA
- STA sg_bx
- PLA
- STA sg_bx+1
- JMP f_seg16
-
-\ f_segment: as f_seg16 for |dx|, |dy| <= 255
-
-.f_segment
- LDA sg_ay              \ order the end points by y: (sg_x, sg_y) is the top
- CMP sg_by
- LDA sg_ay+1
- SBC sg_by+1
- BVC P%+4
- EOR #&80
- BMI fsg_ok             \ a above b
- LDA sg_ay              \ equal rows: nothing
- CMP sg_by
- BNE fsg_sw
- LDA sg_ay+1
- CMP sg_by+1
- BNE fsg_sw
-.fsg_x                  \ (also f_segment's other early exits)
  RTS
-.fsg_sw
- LDX #3                 \ swap a and b
-.fsg_w
- LDA sg_ax,X
- LDY sg_bx,X
- STA sg_bx,X
- TYA
- STA sg_ax,X
- DEX
- BPL fsg_w
-.fsg_ok
- LDA sg_ax              \ start at a; dy = by - ay, dx = bx - ax
- STA sg_x
- LDA sg_ax+1
- STA sg_x+1
- LDA sg_ay
- STA sg_y
- LDA sg_ay+1
- STA sg_y+1
- LDA sg_by
- SEC
- SBC sg_ay
- STA sg_dy
- LDA sg_by+1
- STA sg_y1+1
- LDA sg_bx
- SEC
- SBC sg_ax
- STA sg_dx
- LDA sg_bx+1
- SBC sg_ax+1
- STA sg_sx              \ sign of dx (bit 7)
- BPL fsg_p
- LDA sg_dx              \ |dx|
- EOR #&FF
- CLC
- ADC #1
- STA sg_dx
-.fsg_p
- LDA sg_y+1             \ the segment must reach rows NDT..NDB:
- BMI fsg_a              \ y1 > NDT and y0 <= NDB
- BNE fsg_x
- LDA R_NDB
- CMP sg_y
- BCC fsg_x              \ NDB < y0: misses
-.fsg_a
- LDA sg_y1+1
- BMI fsg_x
- BNE fsg_bh             \ y1 > 255: the loop ends at NDB+1
- LDA sg_by
- CMP R_NDT
- BEQ fsg_x
- BCC fsg_x              \ y1 > NDT: reaches the span
-.fsg_cb
- CMP #0                 \ patched: R_NDB+1 <= 192 (f_zerobounds)
- BCC fsg_bs
-.fsg_bh
- LDA fsg_cb+1
-.fsg_bs                 \ the loop's end row E = min(y1, NDB+1) lives in the
- STA fsg_ya+1           \ operands of the two hot exit tests (and fsg_c): rows
- STA fsg_yb+1           \ run from y0 (<= NDB) up, so Y reaches E before
-                        \ passing NDB, and above the screen Y >= LO(y0) > E
-                        \ (|dy| <= 255), so no other row there matches it
-.fsg_b
- LDA sg_dx              \ q = |dx| DIV dy, r = |dx| MOD dy
- LDX #0
-.fsg_d
- CMP sg_dy
- BCC fsg_e
- SBC sg_dy
- INX
- BNE fsg_d
-.fsg_e
- STA sg_r
- STX sg_q
- STZ sg_err
-.fsg_row                \ row sg_y: record the crossing if it's in range
- LDY sg_y               \ Y = sg_y (low byte) for the whole loop: sg_y itself
- LDA sg_y+1             \ is not updated after this (only read before here)
- BMI fsg_hi             \ y < 0 (0 or negative here: fsg_p): rows above
-.fsg_ry                 \ the screen. From here on sg_y+1 = 0, and Y <= NDB
-.fsg_ct                 \ <= 191 at fsg_n, so Y never wraps in this loop
- CPY #0                 \ patched: R_NDT (f_zerobounds)
- BCC fsg_n
- LDA sg_x+1             \ left of the span? (x <= NDISCL, x 16-bit)
- BMI fsg_l
- BNE fsg_n              \ x > 255: right of it
- LDA sg_x               \ x <= NDISCL: left of the span
- CMP R_NDISCL,Y
- BCC fsg_l
- BEQ fsg_l
- CMP R_NDISCR,Y         \ x > NDISCR: right of the span
- BCC P%+4              \ x < NDISCR: inside (x = NDISCR falls through BNE)
- BNE fsg_n
- LDX R_NDN,Y            \ inside: append (up to four)
- BNE fsg_k1
- STA R_NDX0,Y           \ n = 0
- LDA #1
- STA R_NDN,Y
- INY                    \ (fsg_n inlined)
-.fsg_ya
- CPY #0                 \ patched: E = min(y1, NDB+1) (fsg_bs)
- BNE fsg_m
- RTS
-.fsg_k1
- CPX #2
- BCS fsg_k2
- STA R_NDX1,Y           \ n = 1
- LDA #2
- STA R_NDN,Y
- INY                    \ (fsg_n inlined)
-.fsg_yb
- CPY #0                 \ patched: E = min(y1, NDB+1) (fsg_bs)
- BNE fsg_m
- RTS
-.fsg_k2
- BNE fsg_k3
- STA R_NDX2,Y           \ n = 2
- LDA #3
- STA R_NDN,Y
- BRA fsg_n
-.fsg_k3
- CPX #4
- BCS fsg_n              \ n >= 4: full
- STA R_NDX3,Y           \ n = 3
- LDA #4
- STA R_NDN,Y
- BRA fsg_n
-.fsg_l
- LDA R_NDP,Y            \ left of the span: flip the starting colour
- EOR #1
- STA R_NDP,Y
-.fsg_n
- INY                    \ next row: y++, x += sx * (q + carry of the error)
-.fsg_c
- CPY fsg_ya+1           \ done at y1
- BNE fsg_m
- RTS
-.fsg_hi                 \ rows above the screen: the step returns to fsg_up
- LDX #LO(fsg_up)        \ (not fsg_ry) until y reaches 0 (y >= -254 here as
- STX fsg_jj+1           \ |dy| <= 255 and y1 > 0, so sg_y+1 = &FF, and Y
- LDX #HI(fsg_up)        \ never equals E above the screen: see fsg_bs)
- STX fsg_jj+2
-.fsg_up
- INY
- BNE fsg_m
- INC sg_y+1             \ y = 0: back to fsg_ry from the next row
- LDX #LO(fsg_ry)        \ (and Y = 0 < E: no exit here)
- STX fsg_jj+1
- LDX #HI(fsg_ry)
- STX fsg_jj+2
- BRA fsg_m
-.fsg_m
- LDA sg_err
- CLC
- ADC sg_r
- STA sg_err
- LDX sg_q
- BCS fsg_m1             \ (err + r can exceed 255 only if dy > 128)
- CMP sg_dy
- BCC fsg_m2
-.fsg_m1
- SBC sg_dy
- STA sg_err
- INX
-.fsg_m2
- BIT sg_sx              \ N = sign of dx
- BMI fsg_m3
- TXA
- CLC
- ADC sg_x
- STA sg_x
- BCC fsg_jj
- INC sg_x+1
-.fsg_jj
- JMP fsg_ry             \ patched: fsg_up while y < 0
-.fsg_m3
- TXA                    \ x - step = x + ~step + 1 (same A, C, V as SBC)
- EOR #&FF
- SEC
- ADC sg_x
- STA sg_x
- BCS fsg_jj
- DEC sg_x+1
- BRA fsg_jj
 
-.sg_ax  EQUW 0          \ segment end points: ax, ay, bx, by would be
-.sg_ay  EQUW 0          \ contiguous with this order for the swap: ax, ay
-.sg_bx  EQUW 0
-.sg_by  EQUW 0
-.sg_x   EQUW 0
-.sg_y   EQUW 0
-.sg_y1  EQUW 0
-.sg_dx  EQUB 0
-.sg_dy  EQUB 0
-.sg_sx  EQUB 0
-.sg_q   EQUB 0
-.sg_r   EQUB 0
-.sg_err EQUB 0
-
-\ f_parity: per row, sort the boundaries and set the colour at the left end
-
-.f_parity
- LDY R_NDT
-.fpa1
- LDA R_NDN,Y            \ sort up to four (insertion sort by hand)
+.f_colid
+ LDA f_lay
  CMP #2
- BCC fpa5
- LDA R_NDX0,Y
- CMP R_NDX1,Y
- BCC fpa2
- LDX R_NDX1,Y
- STA R_NDX1,Y
- TXA
- STA R_NDX0,Y
-.fpa2
- LDA R_NDN,Y
- CMP #3
- BCC fpa5
- LDA R_NDX1,Y           \ insert X2
- CMP R_NDX2,Y
- BCC fpa3
- LDX R_NDX2,Y
- STA R_NDX2,Y
- TXA
- STA R_NDX1,Y
- LDA R_NDX0,Y
- CMP R_NDX1,Y
- BCC fpa3
- LDX R_NDX1,Y
- STA R_NDX1,Y
- TXA
- STA R_NDX0,Y
-.fpa3
- LDA R_NDN,Y
- CMP #4
- BCC fpa5
- LDA R_NDX2,Y           \ insert X3
- CMP R_NDX3,Y
- BCC fpa5
- LDX R_NDX3,Y
- STA R_NDX3,Y
- TXA
- STA R_NDX2,Y
- LDA R_NDX1,Y
- CMP R_NDX2,Y
- BCC fpa5
- LDX R_NDX2,Y
- STA R_NDX2,Y
- TXA
- STA R_NDX1,Y
- LDA R_NDX0,Y
- CMP R_NDX1,Y
- BCC fpa5
- LDX R_NDX1,Y
- STA R_NDX1,Y
- TXA
- STA R_NDX0,Y
-.fpa5
-.fpa8
- CPY R_NDB
- INY
- BCC P%+3
+ BNE fci9
+ LDA PF_CLS
+ AND #&1C
+ ORA #2
+.fci9
  RTS
- JMP fpa1
-
-\       Area: frame
 
 \ ------------------------------------------------------------------------------
-\ f_behind: is ship f_si behind the planet, with the first vertex of its first
-\ visible face inside the planet's disc? C set if so (don't draw it)
+\ The ring (gfx-planet7.asm's pf_ring makes its dots in game context: RG_X,
+\ RG_Y, RG_F, RG_N of them): each dot drawn in yellow (marked dirty, for the
+\ next frame on this buffer to repair), but a dot behind the planet's centre
+\ and inside its disc, which the planet hides
+\ ------------------------------------------------------------------------------
+
+.f_ring
+ LDA RG_N
+ BNE frg0
+ RTS
+.frg0
+ LDA #&FF
+ STA R_COLE
+ STA R_COLO
+ LDX #0
+.frg1
+ STX fm_i
+ LDA RG_F,X
+ BPL frg3
+ LDA F_PLON             \ behind: inside the planet's disc?
+ BEQ frg3
+ LDA RG_Y,X
+ SEC
+ SBC F_PLY
+ STA fz_t
+ LDA #0
+ SBC F_PLY+1
+ JSR f_abs16
+ BCS frg3
+ CMP F_PLR
+ BEQ frg2
+ BCS frg3
+.frg2
+ TAY
+ LDX fm_i
+ LDA RG_X,X
+ SEC
+ SBC F_PLX
+ STA fz_t
+ LDA #0
+ SBC F_PLX+1
+ JSR f_abs16
+ BCS frg3
+ CMP F_HW,Y
+ BCC frg4
+ BEQ frg4
+.frg3
+ LDX fm_i
+ LDA RG_X,X
+ LDY RG_Y,X
+ TAX
+ LDA #1
+ JSR T_DOT
+.frg4
+ LDX fm_i
+ INX
+ CPX RG_N
+ BCC frg1
+ RTS
+
+\ ------------------------------------------------------------------------------
+\ The moon (gfx-planet7.asm's pf_moon makes it in game context: MN_ON, MN_X,
+\ MN_Y, MN_R, MN_Z, its crater in the caps' slot PCMAX): a third disc, drawn
+\ every frame as spans after the sun and the planet (f_discs, f_disc2), light
+\ grey with a dark grey crater, its rows hidden where the planet or the sun is
+\ in front of it (MN_ON bits 6 and 5: the moon further than they), and each
+\ row marked dirty for the next frame on this buffer to repair. Ships further
+\ than the moon and inside its disc are hidden (f_behind)
+\ ------------------------------------------------------------------------------
+
+IF _TPART = 1 AND _TDUMB
+.f_mpre                 \ (Tube: the moon's spans, then p-moon.asm's T_MPRE)
+ LDA #1
+ STA R_NDT
+ STZ R_NDB
+ BIT MN_ON
+ BPL fmp9
+ JSR fm_spans
+.fmp9
+ JMP T_MPRE
+ENDIF
+
+.f_moon
+ BIT MN_ON
+ BMI fmn0
+ RTS
+.fmn0
+ JSR fm_spans
+ LDA R_NDT
+ CMP R_NDB
+ BEQ fmn2
+ BCC fmn2
+ RTS
+
+.fm_spans               \ the moon's spans into R_NDISCL/R, R_NDT/R_NDB
+ LDA MN_X
+ STA f_cx
+ LDA MN_X+1
+ STA f_cxh
+ LDA MN_Y
+ STA f_cy
+ LDA MN_Y+1
+ STA f_cy+1
+ LDA MN_R
+ STA f_r
+ CMP f_hw3r
+ BEQ fmn1
+ STA f_hw3r
+ LDA #LO(F_HW3)
+ STA fhw_st+1
+ LDA #HI(F_HW3)
+ STA fhw_st+2
+ JSR f_hwbuild
+.fmn1
+ LDA #LO(F_HW3)
+ STA fpr_ld+1
+ STA fpr_ld2+1
+ LDA #HI(F_HW3)
+ STA fpr_ld+2
+ STA fpr_ld2+2
+ JMP f_discspans
+.fmn2
+ JSR T_MCAPS            \ (its crater's boundaries, as the planet's)
+ LDY R_NDT
+.fmn3
+ STY fm_y
+ LDA R_NDISCL,Y
+ CMP R_NDISCR,Y
+ BEQ fmn4
+ BCC fmn4
+ JMP fmn8
+.fmn4
+ STA fm_pa              \ one piece, the row's span, less the planet's and
+ LDA R_NDISCR,Y         \ the sun's where they are in front
+ STA fm_pb
+ LDA #1
+ STA fm_n
+ BIT MN_ON
+ BVC fmn5
+ LDA F_PLON
+ BEQ fmn5
+ LDA F_PLX
+ STA fm_ox
+ LDA F_PLX+1
+ STA fm_ox+1
+ LDA F_PLY
+ STA fm_oy
+ LDA F_PLY+1
+ STA fm_oy+1
+ LDA F_PLR
+ STA fm_or
+ LDA #HI(F_HW)
+ LDX #LO(F_HW)
+ JSR fm_occ
+.fmn5
+ LDA MN_ON
+ AND #&20
+ BEQ fmn6
+ LDA GSUNON
+ BEQ fmn6
+ LDA F_SUX
+ STA fm_ox
+ LDA F_SUX+1
+ STA fm_ox+1
+ LDA F_SUY
+ STA fm_oy
+ LDA F_SUY+1
+ STA fm_oy+1
+ LDA GSUNR
+ STA fm_or
+ LDA #HI(F_HW2)
+ LDX #LO(F_HW2)
+ JSR fm_occ
+.fmn6
+IF _TPART = 1 AND _TDUMB
+ JSR T_MROW             \ (Tube: a row as this buffer holds it is not drawn,
+ BCS fmn8               \ and no row is marked dirty: p-moon.asm)
+ENDIF
+ LDX #0                 \ paint the pieces
+.fmn7
+ CPX fm_n
+ BCS fmn7a
+ STX fm_i
+ JSR fm_paint
+ LDX fm_i
+ INX
+ BRA fmn7
+.fmn7a
+IF _TPART <> 1 OR _TDUMB = FALSE
+ LDY fm_y               \ the whole span to be repaired next time
+ LDA R_NDISCL,Y
+ STA R_XL
+ LDA R_NDISCR,Y
+ STA R_XR
+ JSR T_MARKDIRTY
+ENDIF
+.fmn8
+ LDY fm_y
+ CPY R_NDB
+ INY
+ BCS fmn9
+ JMP fmn3
+.fmn9
+ RTS
+
+\ fm_occ: the pieces less the disc (fm_ox, fm_oy, fm_or) with half-width
+\ table (X, A) (low, high), on row fm_y
+
+.fmo0
+ RTS
+.fm_occ
+ STX fmo_ld+1
+ STA fmo_ld+2
+ LDA fm_y               \ dy = y - oy, |dy| <= r
+ SEC
+ SBC fm_oy
+ STA fz_t
+ LDA #0
+ SBC fm_oy+1
+ JSR f_abs16
+ BCS fmo0
+ CMP fm_or
+ BEQ fmo1
+ BCS fmo0
+.fmo1
+ TAX
+.fmo_ld
+ LDA F_HW,X             \ (patched: the half-width table)
+ STA fz_n
+ LDA fm_ox              \ ol = ox - n, or = ox + n (16-bit), to 0..255
+ SEC
+ SBC fz_n
+ STA fm_l
+ LDA fm_ox+1
+ SBC #0
+ BMI fmo2
+ BNE fmo0               \ (ol > 255: none)
+ BEQ fmo3
+.fmo2
+ STZ fm_l
+.fmo3
+ LDA fm_ox
+ CLC
+ ADC fz_n
+ STA fm_r
+ LDA fm_ox+1
+ ADC #0
+ BMI fmo0               \ (or < 0: none)
+ BEQ fmo4
+ LDA #255
+ STA fm_r
+.fmo4
+ LDX fm_n               \ each piece less [fm_l, fm_r]: from the last
+.fmo5
+ DEX
+ BMI fmo9
+ LDA fm_pb,X
+ CMP fm_l
+ BCC fmo5               \ (b < l: kept)
+ LDA fm_pa,X
+ CMP fm_r
+ BEQ fmo6
+ BCS fmo5               \ (a > r: kept)
+.fmo6
+ LDA fm_pa,X            \ [a, l - 1] in its place if a < l, and [r + 1, b]
+ CMP fm_l               \ at the end if r < b
+ BCS fmo7
+ LDA fm_pb,X
+ PHA
+ LDA fm_l
+ DEC A
+ STA fm_pb,X
+ PLA
+ CMP fm_r
+ BEQ fmo5
+ BCC fmo5
+ LDY fm_n
+ STA fm_pb,Y
+ LDA fm_r
+ INC A
+ STA fm_pa,Y
+ INC fm_n
+ BRA fmo5
+.fmo7
+ LDA fm_pb,X            \ (a >= l: only [r + 1, b], if any)
+ CMP fm_r
+ BEQ fmo8
+ BCC fmo8
+ LDA fm_r
+ INC A
+ STA fm_pa,X
+ BRA fmo5
+.fmo8
+ LDY fm_n               \ (wholly hidden: the last piece into its place)
+ DEY
+ STY fm_n
+ LDA fm_pa,Y
+ STA fm_pa,X
+ LDA fm_pb,Y
+ STA fm_pb,X
+ BRA fmo5
+.fmo9
+ RTS
+
+\ fm_paint: piece X on row fm_y in the moon's colours: light grey from the
+\ row's start colour, flipping to dark grey and back at its boundaries
+
+.fm_paint
+ LDA fm_pa,X
+ STA fm_a
+ LDA fm_pb,X
+ STA fm_b
+ LDY fm_y
+ LDA R_NDP,Y
+ AND #1
+ STA fm_c
+ LDA R_NDN,Y
+ STA fm_k
+ LDA R_NDX0,Y
+ STA fm_x
+ LDA R_NDX1,Y
+ STA fm_x+1
+ LDA R_NDX2,Y
+ STA fm_x+2
+ LDA R_NDX3,Y
+ STA fm_x+3
+ LDX #0
+.fmp1
+ CPX fm_k
+ BCS fmp4
+ LDA fm_x,X
+ CMP fm_a
+ BEQ fmp2
+ BCS fmp3
+.fmp2
+ LDA fm_c               \ (at or left of the piece's start: a flip)
+ EOR #1
+ STA fm_c
+ BRA fmp3a
+.fmp3
+ CMP fm_b               \ inside: paint up to it, then flip
+ BEQ fmp3b
+ BCS fmp4
+.fmp3b
+ DEC A
+ STA R_XR
+ PHX
+ JSR fm_span
+ PLX
+ LDA fm_x,X
+ STA fm_a
+ LDA fm_c
+ EOR #1
+ STA fm_c
+.fmp3a
+ INX
+ BRA fmp1
+.fmp4
+ LDA fm_b
+ STA R_XR
+.fm_span                \ R_XL = fm_a .. R_XR in colour fm_c, on row fm_y
+ LDA fm_a
+ STA R_XL
+ LDX fm_c
+ LDA mn_ce,X
+ STA R_COLE
+ LDA mn_co,X
+ STA R_COLO
+ LDY fm_y
+ JMP T_SPAN
+
+\ The moon's colours: light grey (C, M, Y and black in equal measure) and
+\ dark grey (one of C, M, Y in four pixels): even rows, odd rows (MODE 1
+\ bytes: pixel i in bits 7 - i and 3 - i)
+.mn_ce EQUB &6A, &28    \ light C M Y K, dark C K M K
+.mn_co EQUB &9A, &44    \ light Y K C M, dark K Y K K
+
+.f_hw3r EQUB 0          \ the radius F_HW3 was built for
+.fm_y  EQUB 0
+.fm_i  EQUB 0
+.fm_n  EQUB 0
+.fm_pa SKIP 3
+.fm_pb SKIP 3
+.fm_ox EQUW 0
+.fm_oy EQUW 0
+.fm_or EQUB 0
+.fm_l  EQUB 0
+.fm_r  EQUB 0
+.fm_a  EQUB 0
+.fm_b  EQUB 0
+.fm_c  EQUB 0
+.fm_k  EQUB 0
+.fm_x  SKIP 4
+
+\ ------------------------------------------------------------------------------
+\ f_behind: is ship f_si behind the planet or the moon, with the first vertex
+\ of its first visible face inside its disc? C set if so (don't draw it)
 \ ------------------------------------------------------------------------------
 
 .f_behind
- LDA F_PLON
- CMP #1                 \ C clear (not behind) if there is no planet
- BCS P%+3
- RTS
- LDX f_si               \ further away than the planet?
- LDA F_PLZL
- CMP F_SZL,X
+ LDA F_PLON             \ the planet's disc, if any
+ BEQ fbh0
+ LDX #4
+.fbhp
+ LDA F_PLX,X            \ (F_PLX, F_PLY, F_PLR)
+ STA fb_x,X
+ DEX
+ BPL fbhp
  LDA F_PLZH
+ STA fb_zh
+ LDA F_PLZL
+ STA fb_zl
+ LDA #LO(F_HW)
+ LDX #HI(F_HW)
+ JSR f_bdisc
+ BCC fbh0
+ RTS
+.fbh0
+ BIT MN_ON              \ the moon's, if any
+ BMI fbh0a
+ CLC
+ RTS
+.fbh0a
+ LDX #3
+.fbhm
+ LDA MN_X,X             \ (MN_X, MN_Y, MN_R, MN_Z)
+ STA fb_x,X
+ DEX
+ BPL fbhm
+ LDA MN_R
+ STA fb_r
+ LDA MN_Z+1
+ STA fb_zh
+ LDA MN_Z
+ STA fb_zl
+ LDA #LO(F_HW3)
+ LDX #HI(F_HW3)
+
+\ f_bdisc: is ship f_si behind the disc fb_x, fb_y, fb_r (half-widths at
+\ (A, X)), z fb_zh/fb_zl, with the first vertex of its first visible face
+\ inside it? C set if so
+
+.f_bdisc
+ STA fbh_hw+1
+ STX fbh_hw+2
+ LDX f_si               \ further away than the disc?
+ LDA fb_zl
+ CMP F_SZL,X
+ LDA fb_zh
  SBC F_SZH,X
- BCS fbh8               \ planet z >= ship z: in front
+ BCS fbh8               \ disc z >= ship z: in front
  LDY #0                 \ first visible face: its first vertex
  STY f_f
  LDA fz_ft
@@ -2959,32 +2902,33 @@ ENDIF
  LDY #4                 \ XX3 offset of the vertex
  LDA (fz_p),Y
  TAY
- LDA (fz_v3),Y          \ dx = x - planet x (16-bit)
+ LDA (fz_v3),Y          \ dx = x - the disc's x (16-bit)
  SEC
- SBC F_PLX
+ SBC fb_x
  STA fz_t
  INY
  LDA (fz_v3),Y
- SBC F_PLX+1
+ SBC fb_x+1
  JSR f_abs16            \ -> A = |dx| if < 256, else C set
  BCS fbh8
  STA f_bdx
  INY
- LDA (fz_v3),Y          \ dy = y - planet y
+ LDA (fz_v3),Y          \ dy = y - the disc's y
  SEC
- SBC F_PLY
+ SBC fb_y
  STA fz_t
  INY
  LDA (fz_v3),Y
- SBC F_PLY+1
+ SBC fb_y+1
  JSR f_abs16
  BCS fbh8
- CMP F_PLR              \ |dy| <= r and |dx| <= half-width(|dy|)?
+ CMP fb_r               \ |dy| <= r and |dx| <= half-width(|dy|)?
  BEQ fbh3
  BCS fbh8
 .fbh3
  TAX
- LDA F_HW,X
+.fbh_hw
+ LDA F_HW,X             \ (patched: the half-width table)
  CMP f_bdx
  BCC fbh8
  SEC
@@ -2993,6 +2937,11 @@ ENDIF
  CLC
  RTS
 
+.fb_x  EQUW 0           \ the disc: centre, radius (as F_PLX, F_PLY, F_PLR)
+.fb_y  EQUW 0
+.fb_r  EQUB 0
+.fb_zh EQUB 0
+.fb_zl EQUB 0
 .f_bdx EQUB 0
 
 \ f_abs16: (A fz_t) 16-bit signed -> A = |value| and C clear if < 256, else

@@ -80,6 +80,8 @@
 
 .HZDATA_END%
 
+ INCLUDE "src/gfx-planetv.asm"          \ the planet's moon and ring, as the
+                                        \ frame layer reads them (bank 7 writes)
 .HZ_END
 
  PRINT "HAZEL: game data &C000-", ~HZDATA_END%-1, ", free ", &DF00-HZ_END, " (+ 256 at &DF00, the MOS's)"

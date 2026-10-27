@@ -34,7 +34,8 @@ PRINT "Parasite: run and Master's drawing end at &", ~P%
  INCLUDE "build/elite-data-hot.asm"
 .HZDATA_END%
  INCLUDE "src/gfx-hangar6.asm"
-.HZ_END
+ INCLUDE "src/gfx-planetv.asm"          \ (the moon's and the ring's variables:
+.HZ_END                                 \ f_reset writes them out of space mode)
 
 PRINT "Parasite: data end at &", ~P%
 PFRAME% = P%
@@ -42,7 +43,7 @@ PFRAME% = P%
  ORG PFRAME%
 
 .PF_START
- INCLUDE "build/gfx-frame-frame.asm"   \ (streams.py's frame pass: not the crater blocks)
+ INCLUDE "build/gfx-frame-frame.asm"   \ (streams.py's frame pass)
  INCLUDE "src/gfx-faces.asm"
  INCLUDE "src/gfx-light6.asm"
  INCLUDE "src/gfx-light.asm"
@@ -54,13 +55,15 @@ PRINT "Parasite: frame code end at &", ~P%
 IF OPTEST                \ (a test build for test_onepass.py --tube only: the
 .F_HW                   \ one-pass generator over the frame layer's buffers)
  INCLUDE "tsrc/p-onepass.asm"
- SKIP F_HW + 2048 - P%
+ SKIP F_HW + 2112 - P%
 F_HW2 = F_HW + 256
-F_DL = F_HW + 512
+F_HW3 = F_HW + 512
+F_DL = F_HW + 576
 F_INIT = F_HW
 ELSE
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
+.F_HW3  SKIP 64         \ moon half-widths (its radius is at most 63)
 .F_DL                   \ ship records: XX2 then XX3 copies (1536 bytes)
  SKIP &22
  INCLUDE "src/gfx-finit.asm"
@@ -96,8 +99,9 @@ ASSERT F_ST = F_TM + &300
  SAVE "build/HOVD.bin", OVL_START, (OVL_D_END + 255) AND &FF00
 
 \ Overlay S, the space-mode overlay: the rasteriser (p-rast.asm: its state
-\ first, then its code), the lens flare and the meridian window (the beach
-\ ball), from OVL_START (p-ovl.asm). The host keeps its image (HOVS)
+\ first, then its code), the lens flare and the planet's surface (the circle
+\ engine, gfx-merid.asm, and its styles, moon and ring, gfx-planet7.asm),
+\ from OVL_START (p-ovl.asm). The host keeps its image (HOVS)
  IF MEASURE             \ (tube/build.sh MEASURE=1: sizes only, no usable image)
   CLEAR OVL_START, &FFFF
  ELSE
@@ -106,6 +110,7 @@ ASSERT F_ST = F_TM + &300
  ORG OVL_START
 .OVL_S_START
  INCLUDE "tsrc/p-rast.asm"
+ INCLUDE "tsrc/p-moon.asm"              \ (the moon, drawn incrementally)
  INCLUDE "tsrc/p-emit.asm"              \ (the polygons' rows to the host as they are made)
  INCLUDE "tsrc/p-kept.asm"              \ (kept solid rows)
  INCLUDE "tsrc/p-polya.asm"             \ (R_POLY's set-up and arithmetic, C_DSPANS's
@@ -117,28 +122,14 @@ ENDIF
  CPU 1
  INCLUDE "src/gfx-flare.asm"
  CPU 1
- ALIGN &100             \ (the kind tail: the meridian's or the crater's,
-.TAIL_START             \ p-ovl.asm)
  INCLUDE "src/gfx-merid.asm"
+ CPU 1
+ INCLUDE "src/gfx-planet7.asm"
  CPU 1
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to &F800: ", &F800-OVL_S_END
  ASSERT OVL_S_END <= RING OR MEASURE    \ (the ring above: p-io.asm)
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
-
-\ Overlay S's crater tail (p-ovl.asm's OVL_TC): the crater's code from the
-\ frame layer (gfx-frame.asm's blocks tagged "Area: ovl S crater", streams.py's
-\ crater pass), at TAIL_START in place of the
-\ meridian's (gfx-merid.asm). The host keeps its image after overlay D's
-\ (tube/build.sh appends HOVSC to HOVD)
- CLEAR TAIL_START, &F800
- ORG TAIL_START
-.TC_START
- INCLUDE "build/gfx-frame-crater.asm"   \ (streams.py's crater pass)
-.TC_END
- PRINT "Parasite: overlay S's common part &", ~OVL_START, "-&", ~TAIL_START-1, ", the meridian tail to &", ~OVL_S_END-1, " (", OVL_S_END-TAIL_START, " bytes), the crater tail to &", ~TC_END-1, " (", TC_END-TAIL_START, " bytes)"
- ASSERT TC_END <= OVL_S_END OR MEASURE
- SAVE "build/HOVSC.bin", TAIL_START, (TC_END + 255) AND &FF00
 
 \ The high code (PHIGH): &F800-&FEEF, where the client OS is until the boot
 \ (p_boot) copies it in from the staging area; then the page at &FF00 with
@@ -165,8 +156,8 @@ ENDIF
  STY pcry
  TSX
  STX pcrs
-.pcr1
- JMP pcr1
+.pcrsh
+ JMP pcrsh
 .p_nmi
  RTI
 .pcra EQUB 0

@@ -15,7 +15,11 @@
 # &3000, first in the low area, before the head (what the MOS enters with any
 # ROM paged, but whose original place is later in the run). "Area: bank 4": bank 4, after the run (code that runs
 # with ACCCON X set, which hides main RAM at &3000-&7FFF, and the tables it
-# reads). "Area: cold": the cold area, sideways RAM bank 7. A block runs from its
+# reads). "Area: cold": the cold area, sideways RAM bank 7. "Area: none": code
+# the port no longer runs (the original's planet detail maths, which the
+# renderer's circle engine replaces): its text stays, but each copy has only
+# its labels and an RTS, at its place (so a reference to it still assembles,
+# and returns at once); in the run otherwise. A block runs from its
 # header to the next header (or to a separator line of stars, which starts an
 # untagged block: the original's PRINT and SAVE sections).
 #
@@ -102,7 +106,8 @@ AREA = re.compile(r"^\\       Area: (.*)$")
 # parasite's copies (run, low, bank4, cold) blank the host-only ones.
 TUBEF = re.compile(r"^\\       Tube: (.*)$")
 TUBETAG = {}                             # block start line -> "host" / "both"
-TAGS = {"cold": "cold", "bank 4": "bank4", "low": "low"}
+TAGS = {"cold": "cold", "bank 4": "bank4", "low": "low", "none": "none"}
+NONE = set()                             # (the "Area: none" blocks, by their first line)
 NOFALL = set("RTS RTI JMP BRA BRK".split())
 
 
@@ -158,6 +163,9 @@ def blocks(lines, tags=TAGS):
                     sys.exit("%d: unknown Tube field %r" % (i + 1, t))
                 TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
+        if b[3] == "none":
+            b[3] = "run"
+            NONE.add(b[0])
         b[1] = out[k + 1][0] if k + 1 < len(out) else len(lines)
         if b[0] in ovld and TUBEOVL is not None:
             TUBEOVL.add(b[2])
@@ -683,9 +691,27 @@ def frame_passes(path, errors):
             f.write("\n".join(l if t == ps else "" for l, t in zip(lines, tags)))
 
 
+def stub_none(lines, bl):
+    """each "Area: none" block's code: only its labels, then an RTS on its
+    last code line (the lines between blanked, so line numbers stay)"""
+    for s, e, name, area in bl:
+        if s not in NONE:
+            continue
+        last = None
+        for i in range(s, e):
+            if code_part(lines[i]).strip():
+                m = re.match(r"^(\.[A-Za-z_]\w*)", lines[i])
+                lines[i] = m.group(1) if m else ""
+                last = i
+        if last is None:
+            sys.exit("%s:%d: %s: Area: none, and no code" % (SRC, s + 1, name))
+        lines[last] = (lines[last] + " : RTS") if lines[last] else " RTS"
+
+
 def main():
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
+    stub_none(lines, bl)
     if TUBEOVL is not None:                # (the Tube: resident cold blocks join the run,
         bl = [(s, e, n, "cold" if n in TUBEOVL else  # and the overlay's others the cold area)
                "run" if a == "cold" else a) for s, e, n, a in bl]

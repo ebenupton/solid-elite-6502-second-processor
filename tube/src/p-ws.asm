@@ -18,7 +18,6 @@ OPTUBE = TRUE           \ the Tube's: every polygon in one pass (p-onepass.asm, 
                         \ row's span to the host as it is made, p-emit.asm), exactly
                         \ as the two-phase path; no edge tables
 NDSTAR = NOST+1
-MERIDHOLD = 0           \ (gfx-ws.asm's: tube/build.sh checks that they agree)
 
 ORG &0E00
 .PWS_START

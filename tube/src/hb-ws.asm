@@ -33,8 +33,6 @@ ELITEBANK = HOMEBANK
 ONEPASS = FALSE         \ (the parasite's: p-ws.asm)
 OPTUBE = FALSE
 NDSTAR = NOST+1
-MERIDHOLD = 0           \ (gfx-ws.asm's, the beach ball's: tube/build.sh checks
-                        \ that they agree)
 
 BUF0 = &1000            \ buffer 0's screen (buffer 1's is the Master port's &4000)
 PANEL = &7000
@@ -108,12 +106,10 @@ GTYPE = GVARS + 12
 GSUNON = GVARS + 13
 GSUNR = GVARS + 14
 GSTASH = GVARS + 15
-PM_OK = GVARS + 16
-PM_R = GVARS + 17
-PS_VALID = GVARS + 18
-GWARP = GVARS + 19
+PF_CLS = GVARS + 16
+GWARP = GVARS + 17
 ENDIF
-MR_C = GVARS + 20       \ code and data: to page &0D
+MR_C = GVARS + 18       \ code and data: to page &0D
 MR_CEND = &0D00
 MR_D = &0E00            \ code and data
 MR_DEND = &1000

@@ -117,25 +117,12 @@
  JSR F_BOMB
  JMP gback
 
-.G_PCURVE               \ (F_PCURVE and F_PPOINT do not read A, and both
- LDA #GFXBANK           \ callers, H_PCURVE and BLINE, enter with A = 0 and
- STA &F4                \ reload A afterwards, so A need not be kept in gA)
- STA &FE30
- JSR F_PCURVE
- JMP gback
-
-.G_MERHOOK              \ (the meridian window's PM_HOOK, gfx-merid.asm: it
- LDA #MERIDBANK         \ keeps A, X, Y and the flags)
+.G_PFHOOK               \ (the planet's detail, gfx-planet7.asm: PF_HOOK keeps
+ LDA #MERIDBANK         \ A, X, Y and the flags)
  STA &F4
  STA &FE30
- JSR PM_HOOK
+ JSR PF_HOOK
  JMP gback
-
-.G_PPOINT
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JMP F_PPOINT           \ (it returns through gback)
 
 
 .G_DSTAR                \ (C preserved both ways)

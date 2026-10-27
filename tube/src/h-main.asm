@@ -218,15 +218,28 @@ ELSE                      \ (the Master host: page by page, wherever the build
  JSR hov_at
 .hog0
  JSR hov_pg
+ BVS hogq
 .hog1
  LDA &FF00,Y            \ (patched: the page)
  HTX
  INY
  BNE hog1
+.hog8
  INC hogp
  DEC hogn
  BNE hog0
  BRA hogx
+.hogq                   \ (a page kept as four 64-byte pieces, bytes 192-255
+ LDY #&C0               \ of four pages: hov_pg)
+.hogq1
+ LDA &FF00,Y            \ (patched: the piece's page)
+ HTX
+ INY
+ BNE hogq1
+ INC hogq1+2
+ DEX
+ BNE hogq
+ BRA hog8
 
 .h_ovlput               \ C_OVLPUT: an overlay's pages (S's state) to keep
  HRX
@@ -236,15 +249,30 @@ ELSE                      \ (the Master host: page by page, wherever the build
  JSR hov_at
 .hop0
  JSR hov_pg
+ BVS hopq
 .hop0a
  HRX
 .hop1
  STA &FF00,Y            \ (patched: the page)
  INY
  BNE hop0a
+.hop8
  INC hogp
  DEC hogn
  BNE hop0
+ BRA hogx
+.hopq
+ LDY #&C0
+.hopq1
+ HRX
+.hopq2
+ STA &FF00,Y            \ (patched: the piece's page)
+ INY
+ BNE hopq1
+ INC hopq2+2
+ DEX
+ BNE hopq
+ BRA hop8
 .hogx
  LDA hova               \ (ACCCON's X as it was)
  TSB &FE34
@@ -265,14 +293,27 @@ ELSE                      \ (the Master host: page by page, wherever the build
  TRB &FE34
  RTS
 .hov_pg                 \ page hogp in: its ROMSEL, and its address into both
- LDX hogp               \ loops; Y = 0
- LDA st_rom,X
+ LDX hogp               \ loops; Y = 0. V set for a page kept as four pieces
+ LDA st_rom,X           \ (ROMSEL with bit 6 set: bytes 192-255 of four pages
+ BIT #&40               \ from st_hi, the STA runs' tails, h-sta.asm), X = 4
+ BNE hvp1
  STA &FE30
  LDA st_hi,X
  STA hog1+2
  STA hop1+2
  LDY #0
+ CLV
  RTS
+.hvp1
+ AND #&BF
+ STA &FE30
+ LDA st_hi,X
+ STA hogq1+2
+ STA hopq2+2
+ LDX #4
+ BIT hvp_v              \ (V set)
+ RTS
+.hvp_v EQUB &40
 \ hss_get, hss_put: S's state, in 64-byte pieces at bytes 192-255 of bank 4's
 \ pages from &8000 (the STA runs, tube/src/h-sta.asm, end at byte 189)
 

@@ -53,7 +53,7 @@ cand.t.addParHook(pc => {
     if (pc === csy.prow && cand.iter >= FROM) {
         const pm = cand.t.par.memory, y = cand.t.par.y;
         if (pm[csy.R_NDF] && y >= pm[csy.r_nt] && y <= pm[csy.r_nb]) {
-            const n = Math.min(5, pm[csy.R_NDN + y]), k = pm[csy.PM_OK] & 0x80 ? "m" : "c";
+            const n = Math.min(5, pm[csy.R_NDN + y]), k = pm[csy.PF_CLS] === 0x80 ? "m" : "c";
             cnt[k][n]++;
         }
     }

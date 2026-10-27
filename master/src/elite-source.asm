@@ -13951,10 +13951,10 @@ ENDIF
 
                         \ Port: the demo port's BLINE (e9770fa w_0047, bebd95c,
                         \ f50a805 w_0045): the new point's y goes straight
-                        \ into K5(3 2) (for the next call and for F_PPOINT,
-                        \ which reads it there) and XX12, after the previous
-                        \ point's y is copied to XX15(3 2) for LL145; the new
-                        \ point's x is copied K6 -> K5 and XX15(5 4) in one
+                        \ into K5(3 2) (for the next call) and XX12, after
+                        \ the previous point's y is copied to XX15(3 2) for
+                        \ LL145; the new point's x is copied K6 -> K5 and
+                        \ XX15(5 4) in one
                         \ go, so BL7 no longer copies K6 to K5 (K6(3 2) is no
                         \ longer written: nothing else reads it)
 
@@ -13965,17 +13965,12 @@ ENDIF
 
  TXA                    \ Set K5(3 2) = XX12(1 0) = (T X) + K4(1 0)
  ADC K4                 \   = y-coord of centre + y-coord of new point
- STA XX12               \ (XX12 for LL145, as recording the point keeps it)
+ STA XX12               \ (XX12 for LL145)
  STA K5+2
  LDA K4+1
  ADC T
  STA XX12+1
  STA K5+3
-
- LDA QQ11               \ Port: in record mode, record the point (F_PPOINT
- ORA GFORCE             \ reads its y from K5(3 2); this was the H_BPT hook,
- BNE P%+5               \ inlined)
- JSR G_PPOINT
 
  LDA K5                 \ Set XX15(1 0) = K5(1 0) = x of the previous point
  STA XX15
@@ -15491,7 +15486,7 @@ ENDIF
 \   Category: Status
 \    Summary: Show the Status Mode screen (red key f8)
 \  Deep dive: Combat rank
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -17422,7 +17417,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Launch our escape pod
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -17531,7 +17526,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Search the galaxy for a system
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -24957,7 +24952,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Print the distance to the selected system in light years
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -25573,7 +25568,7 @@ ENDMACRO
 \   Category: Charts
 \    Summary: Show the Long-range Chart (red key f4)
 \  Deep dive: A sense of scale
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -25704,7 +25699,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Draw a set of crosshairs
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -25851,7 +25846,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Drawing circles
 \    Summary: Draw a circle with crosshairs on a chart
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -25959,7 +25954,7 @@ ENDMACRO
 \   Category: Drawing circles
 \    Summary: Draw a circle on a chart
 \  Deep dive: Drawing circles
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26209,7 +26204,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Get a number from the keyboard
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26374,7 +26369,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Print an "ITEM?" error, make a beep and rejoin the TT210 routine
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26399,7 +26394,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print the character in Q before returning to gnum
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26421,7 +26416,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show the Sell Cargo screen (red key f2)
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26453,7 +26448,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show a list of current cargo in our hold, optionally to sell
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26670,7 +26665,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show the Inventory screen (red key f9)
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26737,7 +26732,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Move the crosshairs on a chart
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26809,7 +26804,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Draw a small set of crosshairs on a chart
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26862,7 +26857,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Move galactic coordinates by a signed delta
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26934,7 +26929,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Draw crosshairs on the Short-range Chart, with clipping
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -27039,7 +27034,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Show the Short-range Chart (red key f5)
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -28554,7 +28549,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show the Market Price screen (red key f7)
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -28677,7 +28672,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Process a jump to the system closest to (QQ9, QQ10)
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -28896,7 +28891,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Process a mis-jump into witchspace
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -28978,7 +28973,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Try to initiate a jump into hyperspace
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29158,7 +29153,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Display either the Long-range or Short-range Chart
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29353,7 +29348,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Show the Equip Ship screen (red key f3)
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29778,7 +29773,7 @@ ENDIF
 \   Category: Market
 \    Summary: Print the amount of money we have left in the cash pot, then make
 \             a short, high beep and delay for 1 second
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -29799,7 +29794,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Make a short, high beep and delay for 0.5 seconds
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -29817,7 +29812,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Subtract the price of equipment from the cash pot
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29860,7 +29855,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Return the price of a piece of equipment
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29913,7 +29908,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Print a menu of the four space views, for buying lasers
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30011,7 +30006,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Select the closest system and redraw the chart crosshairs
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30045,7 +30040,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Install a new laser, processing a refund if applicable
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30145,7 +30140,7 @@ ENDIF
 \       Type: Variable
 \   Category: Equipment
 \    Summary: Equipment prices
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -31772,14 +31767,6 @@ ENDIF
  AND #%00000010         \ tech level in tek
  ORA #%10000000
 
-IF _TUBE AND _TPART = 1
-
- JSR p_kinda            \ Port (Tube): overlay S's tail for the new planet's
-                        \ kind, fetched now (between frames) or noted for when
-                        \ S comes in (tube/src/p-ovl.asm); A is kept
-
-ENDIF
-
  JMP NWSHP              \ Add a new planet to our local bubble of universe,
                         \ with the planet type defined by A (128 is a planet
                         \ with an equator and meridian, 130 is a planet with
@@ -33339,6 +33326,7 @@ ENDIF
 \   Category: Drawing planets
 \    Summary: Draw the planet's equator and meridian
 \  Deep dive: Drawing meridians and equators
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -33437,6 +33425,7 @@ ENDIF
 \   Category: Drawing planets
 \    Summary: Draw the planet's crater
 \  Deep dive: Drawing craters
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -33651,6 +33640,7 @@ ENDIF
 \    Summary: Draw a half-ellipse
 \  Deep dive: Drawing ellipses
 \             Drawing meridians and equators
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -33674,6 +33664,7 @@ ENDIF
 \  Deep dive: Drawing ellipses
 \             Drawing meridians and equators
 \             Drawing craters
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -34027,6 +34018,7 @@ ENDIF
 \   Category: Drawing planets
 \    Summary: Port: PLL4 with the curve's four FMLTU multipliers patched in once
 \             per curve
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -34141,6 +34133,7 @@ ENDIF
 \    Summary: Pick PLL4 or PLL4F for a new curve, patching PLL4F's multipliers
 \             (Port: the demo port's per-curve PLL4 operand patching, 5518429
 \             and demo-final's pl4k/pl4p operands, with Master's log tables)
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35433,6 +35426,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing planets
 \    Summary: Calculate (Y A P) = 222 * roofv_x / z
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35516,6 +35510,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing planets
 \    Summary: Calculate CNT2 = arctan(P / A) / 4
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35584,6 +35579,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing planets
 \    Summary: Calculate roofv_x / z and roofv_y / z
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39170,7 +39166,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Save and load
 \    Summary: Copy the last saved commander's name from INWK to NA%
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -39205,7 +39201,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Save and load
 \    Summary: Copy the last saved commander's name from NA% to INWK
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -39233,7 +39229,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Save and load
 \    Summary: Fetch the name of a commander file to save or load
-\       Area: cold
+\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------

@@ -52,6 +52,7 @@ ORG COLD_END%           \ meridian window, the beach ball planet's boundaries
 .MERID_START
 INCLUDE "src/gfx-merid.asm"
 INCLUDE "src/gfx-kept7.asm"    \ kept solid rows: the polygons' part (SOLIDSPAN-REPORT.md)
+INCLUDE "src/gfx-planet7.asm"  \ the planet's caps: craters (PF_HOOK, PC_ROWS)
 .MERID_END
 ASSERT MERID_END <= &C000
 PRINT "Bank 7: meridian window ", ~MERID_START, "-", ~MERID_END-1, ", bank 7 free ", &C000-MERID_END
@@ -78,6 +79,7 @@ INCLUDE "src/gfx-hangar.asm"   \ the hangar's frame (HALL; its tables are in HAZ
 .B6_CODE_END
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
+.F_HW3  SKIP 64         \ moon half-widths (its radius is at most 63)
 .F_DL                   \ ship records: XX2 then XX3 copies (1536 bytes)
  SKIP &22
  INCLUDE "src/gfx-finit.asm"   \ F_INIT, run once before the first frame
