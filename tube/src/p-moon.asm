@@ -172,8 +172,8 @@
  STA R_BST,Y
  PLP
  BNE mrw8
- LDA mq_k
- BEQ mrw8
+ LDA mq_k                \ (a crater's row, or a cut one: drawn, as the crater
+ BEQ mrw8               \ turns with the planet and the discs move)
  BIT KMODE              \ (K mode, p-kept.asm: every row drawn, so that T_SPAN
  BMI mrw8               \ keeps no row under the moon)
  LDA R_WR,Y             \ anything written over the span this frame?
@@ -202,6 +202,11 @@
  RTS
 .mq_n EQUB &03, &30     \ (a buffer's moon bits)
 
+
 .mq_b EQUB 0            \ the buffer
 .mq_e EQUB 0
 .mq_k EQUB 0
+
+.F_HW3 SKIP 64          \ the moon's half-widths (its radius is at most 63): only
+                        \ ever used with overlay S in, so here (p-ovl.asm
+                        \ forgets the radius it was built for when S comes in)

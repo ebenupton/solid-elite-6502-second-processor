@@ -7,6 +7,81 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## Planets on the parasite, paging removed, the map tidied (branch `tubeplanets`, 2026-10-27)
+
+From `dumbhost` 9fe84cb. The Master port's planet work (planetfold 96c66d4 ..
+ce80ced: one circle engine for the beach ball, craters and bands; a moon;
+a ring; the original's planet maths as `Area: none`) is in master/src here,
+so the in-tree Master port (the pixel oracle) and the parasite share it.
+
+| commit | what |
+|---|---|
+| 89b34af | The engine, styles, moon and ring in overlay S; the meridian and crater tails, p_kind and SOS1's prefetch, overlays 4 and 5 gone. The moon drawn incrementally (p-moon.asm). P4's change drawing (R_BX, pob, pdo) out: faster with the ring, and S needed the room. The in-tree Master port's bank 7 window needed 2K: 36 "Tube: ovl D" cold blocks are `Area: bank 4` there (bankcheck holds). Its pixels equal planetfold's over run1 (14603 frames, 0 mismatched); fbref, dashref and master-ref regenerated from it. |
+| 341d6d3 | tmoon.sh: forced moon, ring, band and moon-only scenes (system seed pokes); pokes take SYM+n. |
+| 956051b | The parasite's map tidied (page &0D packed, ZPSAVE above overlay D, CODE% &1400, the ring back to 4 pages); tube/tools/pmap.py writes the map as JSON. |
+| (this) | EDGES, BLINE and getzp (run only on the direct screens) into overlay D; F_HW3 into overlay S: the overlay region starts at &BD00, S has 194 bytes free with the 4-page ring. ttear.mjs fixed (below). test_raster runs again, with the circle engine's tests. |
+
+**Speed** (it/s, capped: flight / docking / 0-3550 / beach / beach):
+
+| | Master host, 4 MHz | Model B host, 3 MHz |
+|---|---|---|
+| 9fe84cb | 21.88 / 10.58 / 20.58 / 8.92 / 9.07 | 18.11 / 8.79 / 18.13 / 7.04 / 6.88 |
+| 89b34af | 18.66 / 10.63 / 18.92 / 8.97 / 8.77 | 14.10 / 8.68 / 15.82 / 7.02 / 6.65 |
+| 956051b | 18.66 / 10.63 / 19.01 / 9.23 / 9.33 | 14.11 / 8.80 / 15.91 / 7.28 / 7.11 |
+| now | 18.66 / 10.65 / 19.00 / 9.22 / 9.31 | 14.10 / 8.79 / 15.91 / 7.28 / 7.11 |
+
+The flight window's planet is now a crater planet with the spherical caps,
+which cost about as much as on the Master port (its crater windows fell
+from 13-14.5 to 8.5-9.5 it/s there); about 2% of flight is the ring's 4
+pages (11 before). The ring's size matters in the beach windows: 3 pages
+are 3-6% slower there than 4.
+
+**Pixels.** Against the old reference, only crater-planet frames differ
+(the caps and the desert scheme, 6260 frames, and 587 where only the
+disc's colour changed), plus 9 frames whose hidden back buffer still holds
+one; beach-ball frames are identical. Against planetsun's Master (4b37359,
+MOON=scenery), 64 iterations of run1 differ: the sun near the planet
+(S_SUN) and its flare, not ported (below).
+
+**ttear.** The Model B count (6,722 at 9fe84cb, 15,705 at 956051b) was the
+tool's: it took the 6845's running address as the line on show, and in
+the right border of frame A's last character row that address runs past
+buffer 0's end into buffer 1's range, so back-buffer writes there counted
+as tearing (GFRONT showed the other buffer at every one). ttear.mjs now
+counts only while the 6845 displays (both enables) and by the line's start
+address: 0 on both hosts at 9fe84cb and now. With h_buf's wait for the
+flip removed (a deliberate tear) it reports 153 (Master) and 446 (Model B)
+in iterations 1-400.
+
+**The disc rule.** The planet's disc layer is incremental (a one-colour
+row is drawn only where it changed; a two-colour row is drawn whole when
+drawn, and the surface's circles move every frame with the planet's spin
+and our movement, so those rows change every frame). The moon is
+incremental (p-moon.asm: a still moon's one-colour rows are not drawn
+again; its crater's rows, which turn with the planet, and rows cut by a
+disc are drawn each frame they are on the screen). Not done:
+* the second disc (sun and planet both on screen) is still drawn whole
+  each frame (f_disc2), and the sun near the planet (S_SUN) is absent:
+  planetsun's R_DISC2 and S_SUN need about 1.8K in space mode (S_SUN 1.1K,
+  R_DISC2's code, its per-buffer spans or a compact variant), and the
+  parasite has 194 bytes;
+* only redrawing surface rows whose boundaries changed (still bands free)
+  needs per-row boundary state (up to four boundaries, two buffers: about
+  1.5K). A test of the circles' records (no per-row state) was tried: the
+  records change every frame (sub-pixel drift), so it saved nothing and
+  was taken out.
+Room in space mode is the parasite's resident image plus overlay S plus
+the ring; moving space-only code between them changes nothing, and the
+code run only on the direct screens is now in overlay D. Ways to make
+1.5-2K: give up K mode (750 bytes, docking 16% slower), page the idle
+buffer's state to the host each frame (est. 10-20% slower), or shrink
+shared data (the text map's 1.5K, the face tables' 3.3K) by redesign.
+
+**Gates** (scratch/g4, both hosts): lockstep 16002 clean, TUBEINT 602
+clean, pixels and dashboard 0 mismatched, tsavetest, tcrash, tstation,
+tstore ok, tforce 0 mismatched with base overlay loads, tmoon matched but
+the poke's own frames, ttear 0. test_raster seeds 1: every test ok.
+
 ## STA runs, OVLD, 25 fps cap, 4-boundary state (branch `dumbhost`, 2026-10-24, fourth pass)
 
 This pass continues from c841656. Every commit was gated on both hosts with

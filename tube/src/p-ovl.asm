@@ -195,6 +195,7 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  LDA ovl_cur
  CMP #OVL_S
  BNE ovn8
+ STZ f_hw3r             \ (F_HW3, in S: to be built again, p-moon.asm)
  BIT ovl_ssv            \ S: its state back, or buffer 0 afresh
  BPL ovn7
  STZ ovl_ssv

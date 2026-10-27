@@ -49,8 +49,13 @@ let bad = 0; const at = [];
 hm.debugWrite.add((addr, b) => {
     if (cand.iter < FROM || addr < BLO || addr >= 0x7000) return false;
     if (!(hm.readmem(GM) & 0x80)) return false;
-    const scr = (video.addr & 0xfff) << 3;
-    if (scr < BLO || scr >= 0x7000) return false;   // (the panel, or the blank)
+    // (the line on show: its start address, and only while the 6845 displays
+    // it; the running address passes the line's end in the borders, which on
+    // the Model B host reads as the other buffer, and counted back-buffer
+    // writes there as tearing)
+    if ((video.dispEnabled & 3) !== 3) return false;
+    const scr = (video.lineStartAddr & 0xfff) << 3;
+    if (scr < BLO || scr >= 0x7000) return false;   // (the panel)
     let front;
     if (HB) { front = scr < 0x4000 ? 0 : 1; if ((addr < 0x4000 ? 0 : 1) !== front) return false; }
     else {   // (physical page of this write: shadow is ramRomOs &8000-&FFFF; the video's page)

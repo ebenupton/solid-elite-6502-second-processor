@@ -3299,6 +3299,7 @@ ENDIF
 \       Name: getzp
 \       Type: Subroutine
 \   Category: Utility routines
+\       Tube: ovl D
 \    Summary: Swap zero page (&0090 to &00EF) with the buffer at &3000
 \       Area: cold
 \
@@ -13900,6 +13901,7 @@ ENDIF
 \       Name: BLINE
 \       Type: Subroutine
 \   Category: Drawing circles
+\       Tube: ovl D
 \    Summary: Draw a circle segment and add it to the ball line heap
 \  Deep dive: The ball line heap
 \             Drawing circles
@@ -35150,6 +35152,7 @@ ENDIF
 \       Name: EDGES
 \       Type: Subroutine
 \   Category: Drawing lines
+\       Tube: ovl D
 \    Summary: Draw a horizontal line given a centre and a half-width
 \
 \ ------------------------------------------------------------------------------

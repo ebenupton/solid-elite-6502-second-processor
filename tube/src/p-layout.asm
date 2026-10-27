@@ -55,15 +55,13 @@ PRINT "Parasite: frame code end at &", ~P%
 IF OPTEST                \ (a test build for test_onepass.py --tube only: the
 .F_HW                   \ one-pass generator over the frame layer's buffers)
  INCLUDE "tsrc/p-onepass.asm"
- SKIP F_HW + 2112 - P%
+ SKIP F_HW + 2048 - P%
 F_HW2 = F_HW + 256
-F_HW3 = F_HW + 512
-F_DL = F_HW + 576
+F_DL = F_HW + 512
 F_INIT = F_HW
 ELSE
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
-.F_HW3  SKIP 64         \ moon half-widths (its radius is at most 63)
 .F_DL                   \ ship records: XX2 then XX3 copies (1536 bytes)
  SKIP &22
  INCLUDE "src/gfx-finit.asm"

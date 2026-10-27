@@ -107,7 +107,7 @@ reg(sy["HZDATA_END%"], sy["HZ_END"], "hangar tables, moon and ring variables", "
 reg(sy["PF_START"], sy["PF_CODE_END"], "frame layer (parasite part)", "code", "frame",
     ["build/gfx-frame-frame.asm", "master/src/gfx-faces.asm", "master/src/gfx-light6.asm", "master/src/gfx-light.asm",
      "master/src/gfx-frame_cold.asm", "master/src/gfx-hangar.asm"])
-reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_HW3, F_DL with F_INIT)", "buffers", "frame",
+reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_DL with F_INIT)", "buffers", "frame",
     ["tube/src/p-layout.asm", "master/src/gfx-finit.asm"])
 reg(sy["F_DLEND"], sy["PRES_END"], "text map (F_TM, F_ST)", "buffers", "frame", ["tube/src/p-layout.asm"])
 o = sy["OVL_START"]
