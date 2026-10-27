@@ -7,4 +7,4 @@
  PUTFILE "build/HBF.bin", "HBF", &000000, &000000
  PUTFILE "build/HBS.bin", "HBS", &000000, &000000
  PUTFILE "build/HBE.bin", "HBE", &000000, &000000
- PUTFILE "build/PCODE.bin", "PCODE", &001500, &001500
+ PUTFILE "build/PCODE.bin", "PCODE", &001400, &001400

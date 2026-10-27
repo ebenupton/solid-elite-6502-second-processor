@@ -76,7 +76,7 @@ ASSERT F_ST = F_TM + &300
 .PRES_END                \ (the end of what is always resident)
 
 
-\ The overlay region (p-ovl.asm): from OVL_START, page aligned, to &F800. The
+\ The overlay region (p-ovl.asm): from OVL_START, page aligned, to RING. The
 \ parasite's image holds overlay D there (the cold area: the direct-mode
 \ blocks tagged "Tube: ovl D", then the extended tokens); the host keeps its
 \ image (HOVD), whole pages
@@ -93,8 +93,10 @@ ASSERT F_ST = F_TM + &300
 .PCODE_END
 
  PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_END-1, " (", PRES_END-PF_START, " bytes)"
- PRINT "Parasite: overlay region &", ~OVL_START, "-&F7FF (", &F800-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to &F800: ", &F800-OVL_D_END
+ PRINT "Parasite: overlay region &", ~OVL_START, "-&", ~RING-1, " (", RING-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to the ring: ", RING-OVL_D_END
  ASSERT PCODE_END <= RING
+ ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above
+                        \ overlay D's pages, which a load of D rewrites; elite-source.asm)
  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
  SAVE "build/HOVD.bin", OVL_START, (OVL_D_END + 255) AND &FF00
 
@@ -127,7 +129,7 @@ ENDIF
  INCLUDE "src/gfx-planet7.asm"
  CPU 1
 .OVL_S_END
- PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to &F800: ", &F800-OVL_S_END
+ PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to the ring: ", RING-OVL_S_END
  ASSERT OVL_S_END <= RING OR MEASURE    \ (the ring above: p-io.asm)
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
 
@@ -229,6 +231,6 @@ NEXT
  COPYBLOCK &0200, &0400, P%
  ORG PSTG_LO + &200
 .PSTG_END
- PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to &F800: ", &F800-PSTG_END
+ PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to the ring: ", RING-PSTG_END
  ASSERT PSTG_END <= RING OR MEASURE
  SAVE "build/PSTAGE.bin", OVL_D_END, PSTG_END

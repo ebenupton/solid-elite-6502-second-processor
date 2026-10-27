@@ -60,10 +60,10 @@ fl_t  = &0E
 \
 \ ******************************************************************************
 
-RING    = &F500         \ the ring's pages (above both overlays and the boot's
-RINGEND = &F800         \ staging: p-layout.asm asserts it): 3 since overlay S
-                        \ holds the planet's engine (11 were 2% faster in flight,
-                        \ 6 1.5%; one page stalls)
+RING    = &F400         \ the ring's pages (above both overlays and the boot's
+RINGEND = &F800         \ staging: p-layout.asm asserts it): 4 since overlay S
+                        \ holds the planet's engine (11 were 2% faster in flight
+                        \ than 3; one page stalls)
 rq      = &FA           \ the write pointer (zero page the game leaves free)
 rpz     = &FE           \ the IRQ's read pointer (0, the reader's page)
 PR1N    = 24            \ register 1's FIFO, parasite to host

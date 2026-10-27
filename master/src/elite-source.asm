@@ -55,7 +55,7 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &1500          \ Port (Tube): the parasite's (tube/src/p-ws.asm below)
+ CODE% = &1400          \ Port (Tube): the parasite's (tube/src/p-ws.asm below)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
                         \ the renderer's shared workspace below it (gfx-ws.asm)
@@ -292,12 +292,13 @@ ENDIF
 
 IF _TPART = 1
 
- VIA = &0D00            \ Port (Tube): the parasite has no SHEILA (only the Tube's
+ VIA = &0D08 - &34      \ Port (Tube): the parasite has no SHEILA (only the Tube's
                         \ registers, at &FEF8): what Master's code still writes
                         \ there (ACCCON's X bit, around the drawing whose screen
-                        \ writes go to the host) lands in page &0D, which is
-                        \ free on the parasite, and what it reads (the keyboard,
-                        \ the timers) is replaced (docs/TUBE-MAP.md)
+                        \ writes go to the host, the only SHEILA write left)
+                        \ lands in one byte, &0D08, below the frame layer's
+                        \ inputs (tube/src/p-ws.asm), and what it reads (the
+                        \ keyboard, the timers) is replaced (docs/TUBE-MAP.md)
 
 ELSE
 
@@ -313,9 +314,14 @@ ENDIF
                         \ (C_LOIN, C_HLOIN, C_PIXEL, the panel's commands)
 
 IF _TPART = 1
- ZPSAVE = &0D00 - &90 + &80     \ Port (Tube): setzp and getzp's buffer for zero
-                                \ page &90-&FF (shadow &3090-&30FF on the Master):
-                                \ &0D80-&0DEF, in the parasite's free page &0D
+ ZPSAVE = &F300         \ Port (Tube): setzp and getzp's buffer for zero page
+                        \ &90-&FF (shadow &3090-&30FF on the Master): &F390-&F3FF,
+                        \ the top of the overlay region, above overlay D (which
+                        \ is in whenever getzp runs: the disc screens and NEWBRK
+                        \ after a disc error). Overlay S overwrites it only
+                        \ between getzp pairs, never between a pair's two
+                        \ calls, so each pair still gives the game its zero
+                        \ page back (p-layout.asm asserts the place)
 ELSE
  ZPSAVE = &3000
 ENDIF

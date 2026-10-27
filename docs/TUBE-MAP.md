@@ -27,19 +27,20 @@ shows.
 | Region | Addresses | Holds |
 |---|---|---|
 | Zero page, stack, K%, WP | &0000-&0CCE | the game's workspaces, at the Master port's addresses; &E4-&F8: p-rast.asm's pointers and scratch |
-| Page &0D | &0D00-&0DEF | a dummy SHEILA (Master's drawing's ACCCON writes land there); setzp/getzp's buffer (ZPSAVE) |
-| Frame layer's inputs | &0E00-&14F6 | tube/src/p-ws.asm: the disc spans, the polygon and line inputs, the stars, the text map's row counts (F_TMR, F_SHR0/1); 9 bytes free |
-| Resident code and data | &1500-&BEF2 | the run (with p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves p-dash.asm, T_KOFF), Master's drawing's game halves, the game data, the cold blocks that run in flight, the frame layer's parasite part (&96AF-), F_TM and F_ST (the text map, &CDC9-&D3C8); 13 bytes free |
-| Overlay region | &BF00-&F4FF | overlay D or overlay S (below) |
-| The ring | &F500-&F7FF | 3 pages (11 until the planet's engine joined overlay S: tubeplanets), above both overlays and the boot's staging (p-layout.asm asserts it): the commands buffered while register 1 is full (p-io.asm; "The ring" below) |
+| Free | &0CCF-&0D07 | 57 bytes, after WP |
+| Dummy SHEILA | &0D08 | the one SHEILA byte Master's code still writes on the parasite (ACCCON, VIA + &34) |
+| Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm: the polygon and line inputs, the stars, the text map's row counts (F_TMR, F_SHR0/1), then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page) |
+| Resident code and data | &1400-&BDF3 (12 free to &BDFF) | the run (with p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves p-dash.asm, T_KOFF), Master's drawing's game halves, the game data, the cold blocks that run in flight, the frame layer's parasite part (&96AF-), F_TM and F_ST (the text map, &CDC9-&D3C8); 13 bytes free |
+| Overlay region | &BE00-&F3FF | overlay D or overlay S (below); in direct mode &F390-&F3FF, above D, is getzp's buffer (ZPSAVE) |
+| The ring | &F400-&F7FF | 4 pages (11 until the planet's engine joined overlay S: tubeplanets), above both overlays and the boot's staging (p-layout.asm asserts it): the commands buffered while register 1 is full (p-io.asm; "The ring" below) |
 | High area | &F800-&FEE6 | phase A's second part (p-polyb.asm), the panel's second part (p-dash2.asm), the kept rows' T_KFRAME and pk_line (p-kept2.asm); 9 bytes free to &FEEF. The client OS's copy lives here too: the host keeps whichever of the two is out (C_SWAP) |
 
 ### The overlays (tube/src/p-ovl.asm)
 
 | Overlay | Size | Free | Holds |
 |---|---|---|---|
-| D (direct mode) | 9,117 bytes, &BF00-&E29C | 4,707 | the cold blocks that run only on the screens drawn directly (the blocks tagged "Tube: ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title), with the extended tokens they print |
-| S (space mode) | 13,822 bytes, &BF00-&F4FD | 2 | the rasteriser's bookkeeping (p-rast.asm: its state first, 2,148 bytes to &C763, then the disc layer, the dirty extents, the star records' relay through R_NDX2 (fetched before C_BUF by p_starget, sent back after it), the 16-bit polygons' rows), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), the text overlay and the sights (gfx-ftext.asm), the lens flare (p-flt.asm, gfx-flare.asm), the moon drawn incrementally (p-moon.asm), the planet's surface: the circle engine (gfx-merid.asm: pc_circ, PC_ROWS, PC_MROWS) and its styles, the beach ball, craters and bands, the moon and the ring's dots (gfx-planet7.asm), one image for every planet: no planet-kind tails, no paging at hyperspace |
+| D (direct mode) | 9,117 bytes, &BE00-&E19C | 4,707 (less ZPSAVE's 112 at the top) | the cold blocks that run only on the screens drawn directly (the blocks tagged "Tube: ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title), with the extended tokens they print |
+| S (space mode) | 13,822 bytes, &BE00-&F3FD | 2 | the rasteriser's bookkeeping (p-rast.asm: its state first, 2,148 bytes to &C663, then the disc layer, the dirty extents, the star records' relay through R_NDX2 (fetched before C_BUF by p_starget, sent back after it), the 16-bit polygons' rows), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), the text overlay and the sights (gfx-ftext.asm), the lens flare (p-flt.asm, gfx-flare.asm), the moon drawn incrementally (p-moon.asm), the planet's surface: the circle engine (gfx-merid.asm: pc_circ, PC_ROWS, PC_MROWS) and its styles, the beach ball, craters and bands, the moon and the ring's dots (gfx-planet7.asm), one image for every planet: no planet-kind tails, no paging at hyperspace |
 
 Code outside an overlay calls into D through stubs that streams.py writes at
 the routines' places (`JSR povd : EQUW target`; povdj for the routines that
@@ -66,6 +67,14 @@ polygon's stream) and of the new span what the row lacks. The state lives in
 the buffer's disc span arrays, which a kept row (never a disc row) does not
 use: kept is R_DISCL 255 with the colour byte in R_DISCR; pending is R_DISCL
 0. The host sees only fewer spans.
+
+Page alignment is kept only where it buys cycles or is required: R_NDISCL
+(the disc layer indexes it from its page) and R_NDISCR within one page
+(f_discspans' symmetric loop); the log tables (FMLTU's operand's low byte is
+the argument; 33 bytes of padding before them, the head's only gap); QSL in
+pages 2-3; the lens flare's fl_htab (p-flt.asm); the overlay region and the
+ring (whole pages: the overlays travel by pages, the ring's pointers step by
+pages). tube/tools/pmap.py writes the whole map as JSON.
 
 ## The protocol (tube/src/cmds.asm)
 
