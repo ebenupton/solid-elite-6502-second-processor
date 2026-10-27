@@ -2180,3 +2180,25 @@ tech level made to give Lave a crater planet) keeps game state identical
 for 1500 iterations; the gate's second system is a crater planet (two
 caps), whose frames the gate flies for about 4000 iterations, and stays
 identical to SNG47 there too.
+
+## The original's planet maths: Area: none (after the craters)
+
+With the circle engine drawing every style, the original's meridian and
+crater path (PL9 parts 2 and 3, PLS2, PLS22 and its curve loop, pl4pat and
+PLL4F, PLS3, PLS4, PLS5) only produced values the renderer ignores. Those
+blocks are `Area: none` (streams.py: the text stays, each copy assembles
+only the block's labels and an RTS, so a reference still assembles and
+returns at once), and H_CIRC returns from PL9 itself in record mode,
+leaving what the game reads of that path: K2 (MV40 adds it into the next
+object's y without setting it; PLS1 of nosev_x, halved for a crater planet
+whose crater faces us), TGT (31 or 64) and FLAG (0). The hooks H_MERID and
+H_PCURVE are gone. Planets are never drawn outside record mode (GFORCE is
+only set for the hyperspace rings, which use CIRCLE2), so the direct path
+is never taken. Recovered: 682 bytes of the hot pass.
+
+The planet's surface code (the engine, the styles and the glue, H_CIRC's
+PL9 tail included) is about 3,830 bytes, against 3,431 for the beach ball
+alone at b0abf71 (gfx-merid.asm 3,350, G_MERHOOK, T_MERID, H_CIRC's and
+f_bounds' parts 81); with the original's maths that b0abf71 also emitted
+(about 680 bytes, and its H_MERID, H_PCURVE and G_PCURVE hooks), the planet
+path is about 320 bytes smaller.

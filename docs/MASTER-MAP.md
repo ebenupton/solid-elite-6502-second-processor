@@ -167,6 +167,12 @@ passes: **low**, **hot** and **cold**. A routine's header says which:
   the docked screens and the CMYK dashboard; ADDK; the log tables log, logL,
   alogh): the flow puts it in bank 4. 347 blocks, 41 of them ACCCON X.
 * `Area: cold`: the cold pass, sideways RAM bank 7 from &8000. 161 blocks.
+* `Area: none`: code the port no longer runs, kept in the source as the
+  original's text: each copy has only its labels and one RTS, at its place,
+  so a reference still assembles and returns at once. The planet's surface
+  maths that the renderer's circle engine replaces: PL9 parts 2 and 3, PLS2,
+  PLS22, PLL4F, pl4pat, PLS3, PLS4, PLS5 (H_CIRC returns from PL9 in record
+  mode, leaving K2, TGT and FLAG as they would be). 9 blocks.
 * `, runs on` after any of these: a table that code reads past its end into
   the next block, which must therefore follow it as a fall-through does
   (TKN2, `Area: hot, runs on`: DETOK2 reads the pairs of tokens 228-255 in
