@@ -2202,3 +2202,184 @@ alone at b0abf71 (gfx-merid.asm 3,350, G_MERHOOK, T_MERID, H_CIRC's and
 f_bounds' parts 81); with the original's maths that b0abf71 also emitted
 (about 680 bytes, and its H_MERID, H_PCURVE and G_PCURVE hooks), the planet
 path is about 320 bytes smaller.
+
+## The sun near the planet (after the original's planet maths)
+
+**Why the sun goes.** It is the original's slot sharing, not a renderer
+choice. Elite has one slot, FRIN+1, for the sun and the space station
+(SSPR's slot). Every 32 iterations, part 15 of the main flight loop
+(elite-source.asm, before MA23S) checks whether we are near the planet
+(MAS2, then MAS1 and FAROF2 on the point 2 nosev above it). If so, it
+calls WPLS to remove the sun from the screen, then NWSPS, which empties
+FRIN+1 and puts the station there. The sun's data block is gone. When the
+station is out of range, KS4 makes a new sun in the slot, at (0, 6 sign
+units, 0): overhead, not where the old one was. After a launch, TT110's
+RES2, SOS1 and NWSPS make the station and no sun at all. The game state
+must stay SNG47's, so none of this changes.
+
+**The design: the sun drawn as scenery.** S_SUN (master/src/gfx-ssun.asm,
+at bank 4's end with L_SUN) runs after every main-loop iteration, from
+G_FRAME with bank 4 paged, before F_FRAME. It writes only its own variables
+and the frame's (F_SUX, F_SUY, GSUNR, GSUNON, SS_OK); the zero page and the
+game's variables that MV40 and SOLAR use are kept and put back.
+
+* Slot 1 is the sun, and the planet is within one sign unit on every axis
+  (the station can only appear at zero, in an iteration with MCNT AND 31 =
+  0, and TT100 decrements MCNT after the frame): in the frames with MCNT
+  AND 31 = 1 or 0 it takes D = sun - planet (ss_d, 24-bit two's
+  complement, in the shared workspace). Further out, D is forgotten.
+  (Taking D every frame would cost up to 0.5% on the gate's approaches.)
+* Slot 1 is the station: D is turned by ALPHA and BETA by MV40 itself, as
+  the game turns the planet and the sun (our own movement moves them
+  alike, so D only turns). ss_turn puts D into INWK's coordinates
+  (sign-magnitude) and calls MV40 with TYPE 129 (the sun: MV45, which MV40
+  jumps to, returns after moving z) and DELTA 0 (z moved by nothing), K2's
+  low byte 0 (MV40 reads it in step 3 without setting it); the zero page
+  that MV40, MULT3, MVT3, MV45 and MVT1 use (INWK's coordinates, P, Q, R,
+  S, T, K, K2, TYPE, DELTA: 26 bytes, ss_zpa) is kept and put back. In
+  record mode the sun is recorded at planet + D, as PLANET would draw it:
+  the view's axes as PLUT; PLANET's tests on z; PROJ (x / z and y / z under
+  1024); the radius 24576 / z, or 248 if it is 256 or more; CHKON.
+* Slot 1 is the station and D is unknown (we launched, so this system's sun
+  was never in the slot): D comes from the system's seeds by SOLAR's own
+  code (ss_seed). The SOLAR block's header says "Area: cold, again", and
+  streams.py emits it a second time (build/elite-source-again.asm, no
+  stubs, its labels and the targets of its JSRs and JMPs named A_<name>),
+  which gfx-ssun.asm INCLUDEs: it enters at A_nobirths (past the Trumbles,
+  which the Master never has), A_ZINF = ZINF, and A_SOS1 and A_NWSHP are
+  stand-ins that note INWK's coordinates (the planet, the sun; ss_pl,
+  ss_su). INWK and FIST are kept and put back; FIST's bit 0 is taken as
+  clear.
+* Docked (F_DIRECT with QQ12 set clears SS_OK), in witchspace, or with no
+  planet in slot 0: no sun.
+
+When KS4 brings the game's sun back, it is overhead, as in the original:
+the drawn sun jumps there. The lighting (L_SUN) keeps turning its light
+while the station has the slot, so it is unaffected.
+
+**Sorting.** PLANET gives the sun and the planet the same radius at the
+same z (24576 / z), so the bigger disc is the nearer one. f_discs makes the
+bigger disc the layer, and f_disc2 draws the smaller disc (always the
+further one) only where the layer's span on each row leaves room: up to
+two pieces a row (R_DISC2, below). So a sun behind a bigger planet is cut
+by its limb (b0abf71's f_disc2 drew the secondary disc on top), a planet
+behind a bigger, nearer sun is cut by the sun, and ships are drawn after
+both, in front; f_behind and F_PLANET's z for far planets are unchanged.
+A planet that is the secondary disc is a plain disc, without its detail.
+
+**The lens flare.** The planet's colours could pass the flare's colour
+probes, so a probe inside the planet's span on its row is out of sight
+when the sun is the secondary disc (FL_BEH, set by f_flt from f_sec).
+R_FLARE reads this buffer's disc spans (R_DISCL/R), picking the buffer
+from the dirty page it is given, and its half-width table is kept whole in
+a page by a skip (a correctness skip, not alignment for speed). f_flt's
+test that the sun's centre is outside the planet's disc is gone: the
+probes see the planet, so a sun rising over the limb turns the flare up in
+steps.
+
+**Cost.** A frame with the sun in view costs S_SUN about 3,200 cycles,
+the second disc 2,500-17,600 (below), the planet layer's repair of the
+sun's rows 3,000-5,000, and, in the front view, the flare 30,000-35,000
+plus its repair on the planet (about 30,000 in f_discs): the flare is two
+thirds of the cost, as it is anywhere. The posed scene (harness/msunnear.mjs:
+a planet of radius 120, a sun of radius 16, the station crossing; on
+b0abf71 the same scene has no sun):
+
+| | b0abf71 | the sun drawn | without the flare |
+|---|---:|---:|---:|
+| sun hidden behind the limb | 7.90 it/s | 7.53 | 7.63 |
+| sun rising | 9.17 | 6.61 | 8.48 |
+| sun clear | 8.61 | 6.33 | 8.44 |
+| station flyby | 6.93 | 5.47 | 6.67 |
+
+On the gate, the docking approach has a radius 7 sun in the front view,
+with no planet on the screen, and so the flare (f_flt 36,000 cycles a frame
+there): the windows 4800-4999 and 5000-5199 run at 9.43 and 5.71 it/s
+against 9.73 and 6.14 without S_SUN (-3.1%, -7.0%). Elsewhere it is within
+0.1%. harness/msunprof.mjs profiles a stretch of the gate's run (S_SUN, the
+disc layer, the second disc, the flare and the whole frame, per frame).
+
+**Checked**: the station appearing in the game's own way
+(harness/msunnear.mjs --spawn: the game's sun in slot 1 at (180, 50),
+radius 19, the planet placed for part 15): the frame after NWSPS draws
+S_SUN's sun at (180, 51), radius 19, and carries on from there
+(screenshots/sunnear/spawn.png). The movie (harness/msunnear.mjs, rendered
+by master/tools/sunnear.py): screenshots/sunnear/sunnear.mp4 and
+sunnear.gif, the frames, and sheet.png. The sun rises from behind the
+planet's limb, with the flare's probes going 0, 1, 2 ... 9. The station
+then crosses it: 8, 5, 3, 0, 1, 0, 0, 3, 4, 7, 7, 9, so the flare dims,
+goes out and comes back.
+
+## The second disc, incremental (with the sun near the planet)
+
+The original Elite keeps each row's sun span (SUNX, the LSO heap) and only
+changes the ends that move; the second disc (the smaller of the sun and
+the planet, behind the disc layer) is drawn the same way.
+
+**The design** (R_DISC2, master/src/gfx-raster_disc2.asm). Each buffer keeps
+the second disc's span a..b per row as drawn, its rows (R_S2T..R_S2B) and
+its colour (R_S2C, the even rows' byte). What the row shows is that span
+less this buffer's disc layer span L..R, up to two pieces. After
+R_DISCROWS, everything that can have happened to the old pieces since the
+buffer's last frame is in R_WL..R_WR (W): shapes over them were in DIRTY
+and were repaired, the layer's old span never held them, and where the
+layer moved off it wrote black. So per row, with the old span a0..b0 and
+the new a1..b1, every write less the layer's span:
+
+* same span, nothing written over it: a few compares;
+* same span, written over (W): max(a, WL) .. min(b, WR) drawn again;
+* the spans overlap: the ends that shrank black, the ends that grew in the
+  disc's colour; with W over the new span too, one span over the grown ends
+  and that part (pixels still the disc's between them are written again);
+  with no layer on the row and nothing written over it (the commonest
+  case), the two end strips go straight to r_sw;
+* apart, one span empty, or the colour changed (the sun and the planet
+  swapped which is bigger, or a disc came or went): the old span black, the
+  new one whole;
+* both spans empty or behind the layer: only the new span remembered.
+
+The writes are masked to their pixels (r_sw, or r_spc for 17 pixels or
+more) and go into R_WL/R_WR (R_PRWT..R_PRWB take the rows lo..hi), so the
+text and the sights see them as written; nothing goes into DIRTY, so the
+next frame does not repair them. In K mode a row is settled (k_kill) before
+it is written, as T_SPAN does. R_RESETBUF (on a buffer just blacked) sets
+the buffer's rows to none and its colour to 0, which no disc is; R_DISC2
+empties the buffer's spans the next time it draws there (so a reset that
+no disc follows costs nothing). R_SETBUF patches R_DISC2's operands (r_s2l,
+r_s2r and the layer's r_sl, r_sr). f_disc2 computes the spans, fills the
+old rows outside the new ones with empty spans, and calls T_DISCROWS with C
+set (R_DISCROWS' first instruction sends it to R_DISC2), so the glue area
+has no new trampoline. With no second disc, f_disc2 calls it only while
+this buffer still holds one. The flare's probes, the stars (erased before,
+plotted after, on black only), the 25 fps cap and the flips are untouched.
+
+r_lput2 hands spans of 16 pixels or more to the run (r_spc, 5 cycles a byte
+and about 90 to set up) rather than 48 (its byte-pointer loop is 26 cycles
+a byte); this is r_sw's path for spans across the screen's middle, the
+layer's too. The pixels are the same.
+
+**Where.** R_DISC2 is at the end of bank 5's shared region (&BBC7-&BEE9),
+in the bank it runs in. Its spans: R_S2L0 &9A00, R_S2L1 &9B00 (the room
+below the per-x tables), R_S2R0 &8F40 (the disc window's end), R_S2R1
+&BF40 (after R_DISC2 and R_WSPAN): each whole in a page, a buffer's and the
+other's at the same low byte, the high bytes from two tables in R_SETBUF.
+R_S2T, R_S2B and R_S2C are in the shared workspace (f_disc2 reads the
+rows). bankcheck checks gfx-raster_disc2.asm as bank 5's and gfx-ssun.asm
+as bank 4's, build.sh's banks.txt lists them, and msunnear.mjs and
+msunprof.mjs take S_SUN's and the flare's banks from the symbols.
+
+**Cost** (f_disc2 a frame, a radius 16 sun, the posed scene's averages):
+held still 2,500-3,400 cycles (9,300-10,600 with the flare, whose ring
+round the sun dirties every row of it each frame, so each is drawn again);
+rising, about 1.5 pixels a frame, 12,800-17,600 (two end strips a row, some
+420 cycles), 25,000 with the flare; hidden behind the limb 3,800-6,000. The
+planet layer (radius 120, a beach ball) is 110,000-230,000 cycles a frame
+there, so the second disc's share is small.
+
+**Checked**: test_raster's disc2 (two discs drifting, growing, crossing
+(the colours swap), coming and going and jumping, on two buffers, with
+ships, lines, dots, text marks, stars, resets and K mode; each frame against
+the reference, every changed pixel in WL/WR or DIRTY); the pixels are those
+of the disc drawn whole each frame (the posed scene's 156 frames with and
+without the flare, and the gate's run, harness/mfbcmp.mjs, 9,836 frames,
+both buffers).

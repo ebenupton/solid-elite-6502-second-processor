@@ -59,11 +59,12 @@ which spare RAM the port may take.
    otherwise the cold pass's: one run from &8000, the cold code, then the
    cold data. (The meridian window is the one exception to "the renderer in
    banks 5, 6 and ANDY only", made for the beach ball, which needs about 3K
-   that none of those has.) The renderer's routine that runs in game context
-   from G_FRAME, L_SUN (gfx-light.asm's first pass, the light for the next
-   iteration's ships), is at bank 4's end, after the hot pass and the hot
-   data (streams.py keeps its room), and G_FRAME calls it with bank 4 paged,
-   before it pages bank 6 for F_FRAME.
+   that none of those has.) The renderer's routines that run in game context
+   from G_FRAME, S_SUN (gfx-ssun.asm, the sun near the planet) and L_SUN
+   (gfx-light.asm's first pass, the light for the next iteration's ships),
+   are at bank 4's end, after the hot pass and the hot data (streams.py keeps
+   their room), and G_FRAME calls them with bank 4 paged, before it pages
+   bank 6 for F_FRAME.
    &F4 always matches ROMSEL, bit 7 included: every write of ROMSEL writes &F4
    first (the stubs, the G_ and T_ stubs, R_SETBUF's r_sbpoly).
 5. **The game data is in HAZEL**, where every bank, the IRQ and code running
@@ -177,6 +178,12 @@ passes: **low**, **hot** and **cold**. A routine's header says which:
   the next block, which must therefore follow it as a fall-through does
   (TKN2, `Area: hot, runs on`: DETOK2 reads the pairs of tokens 228-255 in
   QQ16, which follows it).
+* `, again` after any of these: the block is also emitted a second time
+  (build/elite-source-again.asm), with no stubs, its own labels and the
+  targets of its JSRs and JMPs named `A_<name>`, for the renderer to run the
+  original's code with its own stand-ins for some calls: SOLAR (`Area: cold,
+  again`), which gfx-ssun.asm's ss_seed runs to place the sun from the seeds,
+  with SOS1 and NWSHP noting INWK instead of making ships. 1 block.
 
 A block runs from its header to the next one (or to a separator line of
 stars, which starts an untagged block: the original's PRINT and SAVE
