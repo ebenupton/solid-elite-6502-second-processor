@@ -171,10 +171,11 @@ sections). The blocks before the head (the configuration and the
 workspaces ZP, XX3, K%, WP) are the configuration, assembled first, and a
 block that assembles nothing (a banner, constants, PRINTs) goes with the
 block before it. elite-data.asm's blocks are tagged the same way: no Area
-field is hot data, `Area: cold` the cold data (the extended tokens TKN1,
-RUPLA, RUGAL, RUTOK and their macros), `Area: BDATA` the dashboard image (a
-block without a name, a banner or the closing SAVE, goes with the next named
-block).
+field is hot data, `Area: cold` the cold data (the extended tokens TKN1
+and their macros; RUPLA, RUGAL and RUTOK, which only the cold pass reads,
+are hot data, in HAZEL, to leave bank 7's room to the renderer), `Area:
+BDATA` the dashboard image (a block without a name, a banner or the
+closing SAVE, goes with the next named block).
 
 **The containers.** Each pass goes into its containers in the source's
 order, and memory, from the shared workspace up, is:

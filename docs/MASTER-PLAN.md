@@ -2026,3 +2026,14 @@ constant of elite-gfx.asm or a gfx- file in &C000-&DFFF, and on any label
 in &DF00-&DFFF (docs/MASTER-MAP.md, rule 5). The test harness's stand-ins
 at &DF00 are the test machine's only; bankcheck's stale gfx-kept-hz.asm
 entry is gone.
+
+## RUPLA, RUGAL and RUTOK in HAZEL (after the HAZEL rule)
+
+The extended descriptions' overrides (RUPLA, RUGAL and RUTOK: 696 bytes of
+elite-data.asm, read only by the cold pass's PDESC and DETOK3) have no
+`Area: cold` tag: they are hot data, flowing into HAZEL after ACT
+(&D781-&DA38), where the cold pass reads them as it reads QQ18. That gives
+bank 7 their 696 bytes for the renderer. RUTOK uses the extended tokens'
+macros (ETOK, ECHR ..., defined in the cold data's blocks), so
+elite-layout.asm assembles HAZEL after the cold pass, as elite-measure.asm
+does.
