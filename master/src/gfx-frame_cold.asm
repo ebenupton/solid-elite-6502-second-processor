@@ -49,6 +49,10 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ clears the text map and buffer 0's shown map): no direct text or stars
 
 .F_DIRECT
+ LDA QQ12               \ docked: MN_TURN forgets the moon's place (and makes
+ BEQ fdr0               \ it again after the launch, gfx-mnturn.asm)
+ STZ MN_OK
+.fdr0
  ASL GWARP              \ LOOK1's TT66 for an in-system jump (WARP) in space
  BCC fdr1               \ mode: keep double buffering and the view on show (the
  BIT GMODE              \ blank screen was all a held J ever showed). As

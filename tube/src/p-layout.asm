@@ -49,7 +49,8 @@ PFRAME% = P%
  INCLUDE "src/gfx-light.asm"
  INCLUDE "src/gfx-frame_cold.asm"
  INCLUDE "src/gfx-hangar.asm"
- CPU 1
+ INCLUDE "src/gfx-mnturn.asm"           \ (the moon's place, once an iteration:
+ CPU 1                                  \ G_FRAME, G_PFHOOK)
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
 IF OPTEST                \ (a test build for test_onepass.py --tube only: the

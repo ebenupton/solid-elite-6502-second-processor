@@ -60,10 +60,12 @@ fl_t  = &0E
 \
 \ ******************************************************************************
 
+IF _PLANET_RINGS
 RING    = &F400         \ the ring's pages (above both overlays and the boot's
-RINGEND = &F800         \ staging: p-layout.asm asserts it): 4 since overlay S
-                        \ holds the planet's engine (3 are 3-6% slower in the
-                        \ beach-ball windows, 11 2% faster in flight; one stalls)
+ELSE                    \ staging: p-layout.asm asserts it): 7, or with planet
+RING    = &F100         \ rings (RINGS=on) 4, as overlay S holds the planet's
+ENDIF                   \ engine (11 were about 2% faster in flight than 4, 3
+RINGEND = &F800         \ 3-6% slower in the beach-ball windows; one stalls)
 rq      = &FA           \ the write pointer (zero page the game leaves free)
 rpz     = &FE           \ the IRQ's read pointer (0, the reader's page)
 PR1N    = 24            \ register 1's FIFO, parasite to host

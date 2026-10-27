@@ -19,7 +19,9 @@ so the in-tree Master port (the pixel oracle) and the parasite share it.
 | 89b34af | The engine, styles, moon and ring in overlay S; the meridian and crater tails, p_kind and SOS1's prefetch, overlays 4 and 5 gone. The moon drawn incrementally (p-moon.asm). P4's change drawing (R_BX, pob, pdo) out: faster with the ring, and S needed the room. The in-tree Master port's bank 7 window needed 2K: 36 "Tube: ovl D" cold blocks are `Area: bank 4` there (bankcheck holds). Its pixels equal planetfold's over run1 (14603 frames, 0 mismatched); fbref, dashref and master-ref regenerated from it. |
 | 341d6d3 | tmoon.sh: forced moon, ring, band and moon-only scenes (system seed pokes); pokes take SYM+n. |
 | 956051b | The parasite's map tidied (page &0D packed, ZPSAVE above overlay D, CODE% &1400, the ring back to 4 pages); tube/tools/pmap.py writes the map as JSON. |
-| (this) | EDGES, BLINE and getzp (run only on the direct screens) into overlay D; F_HW3 into overlay S: the overlay region starts at &BD00, S has 194 bytes free with the 4-page ring. ttear.mjs fixed (below). test_raster runs again, with the circle engine's tests. |
+| 595e622 | EDGES, BLINE and getzp (run only on the direct screens) into overlay D; F_HW3 into overlay S: the overlay region starts at &BD00, S has 194 bytes free with the 4-page ring. ttear.mjs fixed (below). test_raster runs again, with the circle engine's tests. |
+
+| (this) | The Master's design change mirrored (planetsun 6957750): one colour scheme (crater planets blue with green craters), bands behind BANDS=on (off), the moon kept fixed in space (MN_TURN, gfx-mnturn.asm: planetsun's gfx-ssun.asm's turn, called once an iteration from G_FRAME and G_PFHOOK, as this tree has no S_SUN); rings behind RINGS=on (off), mirroring the coordinator's note before the Master's commit landed (_PLANET_RINGS). With rings off the ring has 7 pages (&F100; 4 with RINGS=on, which fits with BANDS off only). The in-tree Master port has the same; against planetsun 6957750 (MOON=scenery) its run1 pixels differ in 67 iterations, S_SUN's, as before; fbref, dashref and master-ref regenerated. |
 
 **Speed** (it/s, capped: flight / docking / 0-3550 / beach / beach):
 
@@ -28,7 +30,8 @@ so the in-tree Master port (the pixel oracle) and the parasite share it.
 | 9fe84cb | 21.88 / 10.58 / 20.58 / 8.92 / 9.07 | 18.11 / 8.79 / 18.13 / 7.04 / 6.88 |
 | 89b34af | 18.66 / 10.63 / 18.92 / 8.97 / 8.77 | 14.10 / 8.68 / 15.82 / 7.02 / 6.65 |
 | 956051b | 18.66 / 10.63 / 19.01 / 9.23 / 9.33 | 14.11 / 8.80 / 15.91 / 7.28 / 7.11 |
-| now | 18.66 / 10.65 / 19.00 / 9.22 / 9.31 | 14.10 / 8.79 / 15.91 / 7.28 / 7.11 |
+| 595e622 | 18.66 / 10.65 / 19.00 / 9.22 / 9.31 | 14.10 / 8.79 / 15.91 / 7.28 / 7.11 |
+| now (rings off, 7-page ring) | 18.82 / 10.64 / 19.09 / 9.30 / 9.37 | 14.10 / 8.79 / 15.94 / 7.34 / 7.19 |
 
 The flight window's planet is now a crater planet with the spherical caps,
 which cost about as much as on the Master port (its crater windows fell
@@ -77,7 +80,7 @@ code run only on the direct screens is now in overlay D. Ways to make
 buffer's state to the host each frame (est. 10-20% slower), or shrink
 shared data (the text map's 1.5K, the face tables' 3.3K) by redesign.
 
-**Gates** (scratch/g4, both hosts): lockstep 16002 clean, TUBEINT 602
+**Gates** (scratch/g4, and scratch/g6 for the design change, both hosts): lockstep 16002 clean, TUBEINT 602
 clean, pixels and dashboard 0 mismatched, tsavetest, tcrash, tstation,
 tstore ok, tforce 0 mismatched with base overlay loads, tmoon matched but
 the poke's own frames, ttear 0. test_raster seeds 1: every test ok.

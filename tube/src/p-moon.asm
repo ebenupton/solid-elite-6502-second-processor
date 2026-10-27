@@ -210,3 +210,7 @@
 .F_HW3 SKIP 64          \ the moon's half-widths (its radius is at most 63): only
                         \ ever used with overlay S in, so here (p-ovl.asm
                         \ forgets the radius it was built for when S comes in)
+IF _PLANET_RINGS
+.RG_Y   SKIP 64         \ the ring's dots' y and flags (gfx-planetv.asm's in the
+.RG_F   SKIP 64         \ Master port): only used with S in (pf_ring, f_ring)
+ENDIF

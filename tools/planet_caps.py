@@ -326,9 +326,13 @@ PFB_N = (64, 96, 128, 150)
 PFB_S = (32, 64, 96, 128)
 
 
+BANDS = True                          # banded planets in the build (BANDS=on, master/build.sh)
+
+
 def pf_banded(qq2):
-    """a crater planet (TYPE 130) whose seed makes it banded"""
-    return qq2[3] & 3 == 0
+    """a crater planet (TYPE 130) whose seed makes it banded (in a build with
+    banded planets)"""
+    return BANDS and qq2[3] & 3 == 0
 
 
 def pf_records(inwk, qq2, typ):
@@ -359,7 +363,6 @@ def pf_caps(inwk, qq2):
 
 # ------------------------------------------------------------ the moon
 
-PFM_D = (768, 960, 1152, 1344)        # its distance, planet radii (8.8)
 PFM_RHO = (48, 56, 64, 72)            # its radius over the planet's (0.8)
 MOON_C8 = 196                         # its crater: 40 degrees across
 
@@ -368,44 +371,72 @@ def moon_hash(qq2):
     return qq2[1] ^ qq2[3] ^ qq2[5]
 
 
-def pf_moon(inwk, qq2, cx, cy, r, pz, sunz=None):
-    """pf_moon: the moon of a planet (centre cx, cy, radius r < 256, its z
-    pz) or None: dict(on, x, y, r, z16, z24, behind, behindsun, cap) with cap
-    (vec, c8, cneg, kn) for its crater (None if it is too small for one).
-    sunz: the sun's z (24-bit, positive), if the sun is in slot 1"""
+PFM_VS = (0, 1, 2, 0, 1, 2, 2, 1, 0, 2, 1, 0)     # the view's axes (PLUT's): E's axis
+PFM_VN = (0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0)     # and its sign, by 3 VIEW + i
+
+
+def moon_e0(qq2):
+    """MN_TURN's E as it makes it (the coordinates: x, y, z), or None"""
     h = moon_hash(qq2)
-    if h & 3 != 1 or r < 16:
+    if h & 3 != 1:
         return None
-    vec = pf_tilt(inwk, 9, 21, 0b1010)
-    e = []
-    for lo, hi in vec:
-        m = lo | ((hi & 0x7F) << 8)
-        w = min(255, ((m >> 3) * PFN[3]) >> 16)
-        mag = (PFM_D[(h >> 2) & 3] * w) >> 8
-        neg = bool(hi & 0x80) != bool(h & 0x10)
-        e.append((mag, neg))
-    ezr = (e[2][0] * r) >> 8
-    q = 256 - ezr if e[2][1] else 256 + ezr
-    if q < 64:
+    c = round((3, 3.75, 4.5, 5.25)[(h >> 2) & 3] / math.sqrt(2) * 24576)
+    c = c if h & 0x10 else -c
+    return [c, 0, c]
+
+
+def pf_moon(inwk, qq2, cx, cy, r, pz, sunz=None, E=None, view=0):
+    """pf_moon: the moon of a planet (centre cx, cy, radius r < 256; its
+    position, in the view's axes, INWK's bytes 0-8) at E from it (MN_E: the
+    coordinates, the front view's axes; None: MN_OK clear) in the view VIEW,
+    or None: dict(on, x, y, r, z16, z24, behind, behindsun, cap) with cap
+    (vec, c8, cneg, kn) for its crater (None if it is too small for one).
+    Its centre M = P + E (E in the view's axes) is projected as Elite does
+    (x = 128 + 256 M_x / M_z, y = 96 - 256 M_y / M_z, the radius rho 24576 /
+    256 M_z: M shifted right until M_z fits 15 bits). sunz: the sun's z
+    (24-bit, positive), if the sun is in slot 1"""
+    h = moon_hash(qq2)
+    if h & 3 != 1 or r < 16 or E is None:
         return None
 
-    def sdiv(n, d):
-        v = abs(n) // d
-        return -v if n < 0 else v
-    exr = e[0][0] * r
-    eyr = e[1][0] * r
-    X = ((cx - 128) << 8) + (-exr if e[0][1] else exr)
-    Y = ((cy - 96) << 8) - (-eyr if e[1][1] else eyr)
-    qx, qy = sdiv(X, q), sdiv(Y, q)
-    if abs(qx) > 16383 or abs(qy) > 16383:
+    def sm24(k):
+        m = inwk[k] | (inwk[k + 1] << 8) | ((inwk[k + 2] & 0x7F) << 16)
+        return -m if inwk[k + 2] & 0x80 else m
+    M, ez = [], 0
+    for i in range(3):
+        v = E[PFM_VS[3 * view + i]]
+        v = -v if PFM_VN[3 * view + i] else v
+        if i == 2:
+            ez = v
+        M.append(sm24(3 * i) + v)
+    if M[2] <= 0:
         return None
-    mx, my = 128 + qx, 96 + qy
-    mr = (PFM_RHO[(h >> 5) & 3] * r) // q
-    if mr < 2:
+    z24 = M[2]
+    s = 0
+    while M[2] >= 32768:
+        M = [c >> 1 for c in M]
+        s += 1
+    zq = M[2]
+
+    def xy(v, neg, centre):
+        a = abs(v)
+        if a >= 65536:
+            return None
+        q = (a << 8) // zq
+        if q >= 16384:
+            return None
+        return centre + (-q if (v < 0) != neg else q)
+    mx = xy(M[0], False, 128)
+    if mx is None:
+        return None
+    my = xy(M[1], True, 96)
+    if my is None:
+        return None
+    mr = (((PFM_RHO[(h >> 5) & 3] * 96) << 8) >> s) // zq
+    if mr < 64 and mr < 2:
         return None
     mr = min(mr, 63)
-    z24 = min((pz * q) >> 8, 0xFFFFFF)
-    behind = (not e[2][1]) and ezr > 0
+    behind = ez > 0
     behindsun = sunz is not None and sunz < z24
     cap = (pf_tilt(inwk, 15, 0, 0), MOON_C8, 0, PFN[0]) if mr >= 10 else None
     return dict(x=mx, y=my, r=mr, z16=min(z24, 0xFFFF), z24=z24, behind=behind, behindsun=behindsun, cap=cap)

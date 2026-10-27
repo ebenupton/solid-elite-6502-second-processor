@@ -27,7 +27,7 @@ shows.
 | Region | Addresses | Holds |
 |---|---|---|
 | Zero page, stack, K%, WP | &0000-&0CCE | the game's workspaces, at the Master port's addresses; &E4-&F8: p-rast.asm's pointers and scratch |
-| Free | &0CCF-&0D07 | 57 bytes, after WP |
+| The moon's place | &0CCF-&0CEE | MN_E, MN_OK and MN_TURN's variables (gfx-mnturn.asm; never loaded: the first MN_TURN finds the system changed); 25 bytes free to &0D07 |
 | Dummy SHEILA | &0D08 | the one SHEILA byte Master's code still writes on the parasite (ACCCON, VIA + &34) |
 | Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm: the polygon and line inputs, the stars, the text map's row counts (F_TMR, F_SHR0/1), then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page) |
 | Resident code and data | &1400-&BDF3 (12 free to &BDFF) | the run (with p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves p-dash.asm, T_KOFF), Master's drawing's game halves, the game data, the cold blocks that run in flight, the frame layer's parasite part (&96AF-), F_TM and F_ST (the text map, &CDC9-&D3C8); 13 bytes free |

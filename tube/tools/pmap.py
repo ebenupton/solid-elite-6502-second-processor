@@ -84,6 +84,10 @@ reg(wp0 - 0, wp_end + 1, "WP: Elite's workspace, the dashboard's variables", "wo
 # page &0D: the dummy SHEILA byte (ACCCON, VIA + &34) and setzp/getzp's buffer
 p = wp_end + 1
 pws0 = sy.get("PWS_START", 0xE00)
+if "MN_E" in sy and sy["MN_E"] == p:          # (the moon's place after WP: p-ws.asm)
+    e = sy["ss_sg"] + 1
+    reg(p, e, "the moon's place and MN_TURN's variables (gfx-mnturn.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"])
+    p = e
 pd = sorted(x for x in [(VIA + 0x34, VIA + 0x35, "dummy ACCCON (VIA + &34)"), (ZPSAVE + 0x90, ZPSAVE + 0x100, "ZPSAVE (zero page &90-&FF)")]
             if x[0] < pws0)
 for s, e, n in pd:

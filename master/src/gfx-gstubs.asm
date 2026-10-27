@@ -22,7 +22,8 @@
 
 .G_FRAME
  STA gA
- LDA #GFXBANK
+ JSR MN_TURN            \ (the moon's place, once an iteration: gfx-mnturn.asm,
+ LDA #GFXBANK           \ bank 4; hframe keeps A, X, Y and the flags)
  STA &F4
  STA &FE30
  LDA gA
@@ -117,8 +118,9 @@
  JSR F_BOMB
  JMP gback
 
-.G_PFHOOK               \ (the planet's detail, gfx-planet7.asm: PF_HOOK keeps
- LDA #MERIDBANK         \ A, X, Y and the flags)
+.G_PFHOOK               \ (the planet's detail, gfx-planet7.asm, after the
+ JSR MN_TURN            \ moon's place for this iteration, gfx-mnturn.asm, in
+ LDA #MERIDBANK         \ bank 4: H_CIRC keeps nothing in A, X, Y or the flags)
  STA &F4
  STA &FE30
  JSR PF_HOOK

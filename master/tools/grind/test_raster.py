@@ -106,9 +106,16 @@ SRCH = os.path.join(MS, 'gfx-raster_hz.asm')       # (the bank 5 <-> 7 stubs, wh
 MERID = os.path.join(MS, 'gfx-merid.asm')
 MTEST = 0xA000
 MG = dict(INWK=0x9C, K3=0x14, K4=0x22, QSL=0x7000, QSH=0x7200,
-          TYPE=0x85, K=0x56, PF_CLS=0x0C03, QQ2=0x0C10, FRIN=0x0841)
+          TYPE=0x85, K=0x56, PF_CLS=0x0C03, VIEW=0x0C08, QQ2=0x0C10, FRIN=0x0841)
 MG['K%'] = 0x0400
 MERID_GAME = ''.join('%s = &%04X\n' % kv for kv in MG.items())
+# banded planets (gfx-planet7.asm's _PLANET_BANDS, master/build.sh's BANDS):
+# tested on (they are off in the default build), or as BANDS=off has it
+BANDS = os.environ.get('BANDS', 'on') == 'on'
+MERID_GAME += '_PLANET_BANDS = %s\n' % ('TRUE' if BANDS else 'FALSE')
+# and rings (_PLANET_RINGS, master/build.sh's RINGS): tested on, as the bands
+RINGS = os.environ.get('RINGS', 'on') == 'on'
+MERID_GAME += '_PLANET_RINGS = %s\n' % ('TRUE' if RINGS else 'FALSE')
 # the planet's styles (gfx-planet7.asm in the meridian window after
 # gfx-kept7.asm) and the variables the frame reads (gfx-planetv.asm, in HAZEL:
 # here at ZTEST)
@@ -446,6 +453,7 @@ def test_lines(self, n):
 # ------------------------------------------------------------ the circle engine
 import math as _m
 import planet_caps as PCM                       # noqa: E402  (tools/: the model)
+PCM.BANDS = BANDS
 
 
 def _rand_frame(rnd):
@@ -609,13 +617,16 @@ def test_caps(self, n):
     return 'pc_circ %d..%d cycles a circle, PC_ROWS %.0f cycles a row' % (min(h), max(h), sum(c for _, c in rr) / max(1, sum(k for k, _ in rr)))
 
 
-def _pfhook(self, vecs, typ, r, cx, cy, qq2):
+def _pfhook(self, vecs, typ, r, cx, cy, qq2, pos=None):
     """PF_HOOK on the machine for the planet (orientation vecs: nosev, roofv,
     sidev; TYPE typ; radius r; centre cx, cy; seed qq2), checked: A, X, Y,
     the flags and zero page &10-&28 kept, and PF_CLS. Returns (inwk, the
     model's base and circles, the hook's cycles)"""
     rnd, m, mem = self.rnd, self.m, self.m.mem
     inwk = [0] * 36
+    for k, v in enumerate(pos or []):       # (the position: x, y, z, sign-magnitude)
+        m_ = abs(v)
+        inwk[3 * k:3 * k + 3] = [m_ & 255, (m_ >> 8) & 255, ((m_ >> 16) & 0x7F) | (0x80 if v < 0 else 0)]
     for k, v in enumerate(vecs[0] + vecs[1] + vecs[2]):
         inwk[9 + 2 * k], inwk[10 + 2 * k] = _smag(v)
     for k, v in enumerate(inwk):
@@ -639,8 +650,6 @@ def _pfhook(self, vecs, typ, r, cx, cy, qq2):
     base, recs = _body(cx, cy, r, base, circs)
     n = sum(1 for c in recs if c is not None and not c['none'])
     k = 0 if typ == 128 else 2 if PCM.pf_banded(qq2) else 1
-    if k:
-        k |= ((qq2[2] & 3) + 1) << 2       # (the colour scheme)
     if mem[MG['PF_CLS']] != k | (0x80 if (n or base) else 0):
         raise AssertionError('PF_HOOK: PF_CLS %02X (type %d r %d)' % (mem[MG['PF_CLS']], typ, r))
     return inwk, base, recs, n or base, cyc
@@ -733,19 +742,30 @@ def test_pfhook(self, n):
         if rnd.random() < 0.4:          # (a ring: h bits 4-6 = 4)
             qq2[5] = (qq2[5] & 0x8F) | ((0x40 ^ qq2[1] ^ qq2[3]) & 0x70)
         pz = rnd.randrange(24576 * 256 // max(r, 1) // 2, 24576 * 256 // max(r, 1) * 2 + 1)
-        mem[MG['INWK'] + 6], mem[MG['INWK'] + 7], mem[MG['INWK'] + 8] = pz & 255, (pz >> 8) & 255, (pz >> 16) & 0x7F
+        pz = min(pz, (1 << 23) - 1)
+        pos = [max(-(1 << 23) + 1, min((1 << 23) - 1, c)) for c in
+               ((cx - 128) * pz // 256 + rnd.randrange(-300, 301), (96 - cy) * pz // 256 + rnd.randrange(-300, 301), pz)]
         mem[MG['FRIN'] + 1] = rnd.choice((129, 2))
         k1 = MG['K%'] + 37
         sz = rnd.randrange(1 << 23)
         mem[k1 + 6], mem[k1 + 7], mem[k1 + 8] = sz & 255, (sz >> 8) & 255, (sz >> 16) | rnd.choice((0, 0, 0x80))
-        inwk, base, recs, on, c1 = self._pfhook(vecs, typ, r, cx, cy, qq2)
-        self._check_moon(inwk, qq2, typ, cx, cy, r)
+        # the moon's place (MN_E, MN_TURN's: the coordinates, up to 5.25 radii
+        # out on each axis; or unknown, MN_OK clear) and the view
+        E = None if rnd.random() < 0.1 else [rnd.randrange(-129024, 129025) for _ in range(3)]
+        view = rnd.randrange(4)
+        mem[MG['VIEW']] = view
+        mem[self.m.syms['MN_OK']] = 0 if E is None else 0xFF
+        for j, v in enumerate(E or [0, 0, 0]):
+            v &= 0xFFFFFF
+            mem[self.m.syms['MN_E'] + 3 * j:self.m.syms['MN_E'] + 3 * j + 3] = [v & 255, (v >> 8) & 255, v >> 16]
+        inwk, base, recs, on, c1 = self._pfhook(vecs, typ, r, cx, cy, qq2, pos)
+        self._check_moon(inwk, qq2, typ, cx, cy, r, E, view)
         if on:
             self._pfrows(base, recs, cx, cy, r, 'PF_HOOK (type %d centre %d,%d r %d)' % (typ, cx, cy, r))
     return '%d moons, %d rings' % (len(self.stats.get('moons', [])), len(self.stats.get('rings', [])))
 
 
-def _check_moon(self, inwk, qq2, typ, cx, cy, r):
+def _check_moon(self, inwk, qq2, typ, cx, cy, r, E=None, view=0):
     """PF_HOOK's moon (MN_ON ...) against the model's, and its crater's rows
     (PC_MROWS) on its disc"""
     m, mem = self.m, self.m.mem
@@ -754,7 +774,7 @@ def _check_moon(self, inwk, qq2, typ, cx, cy, r):
     if mem[MG['FRIN'] + 1] == 129 and not mem[MG['K%'] + 37 + 8] & 0x80:
         k = MG['K%'] + 37
         sunz = mem[k + 6] | (mem[k + 7] << 8) | (mem[k + 8] << 16)
-    want = PCM.pf_moon(inwk, qq2, cx, cy, r, pz, sunz) if 6 <= r < 256 else None
+    want = PCM.pf_moon(inwk, qq2, cx, cy, r, pz, sunz, E, view) if 6 <= r < 256 else None
     s = m.syms
     ring = (PCM.pf_ring(inwk, qq2, cx, cy, r) if 6 <= r < 256 else None) or []
     n = mem[s['RG_N']]

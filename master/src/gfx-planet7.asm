@@ -17,7 +17,8 @@
 \   * class 1, a crater planet (TYPE 130): one to three craters, small caps
 \     from the system's seed (pf_craters), base 0;
 \
-\   * class 2, a banded crater planet (a quarter of them, by the seed): two
+\   * class 2, a banded crater planet (a quarter of them, by the seed: only
+\     in a build with BANDS=on, master/build.sh, _PLANET_BANDS): two
 \     latitude circles about the spin axis, EOR'd (pf_bands), base 0.
 \
 \ Then the moon (pf_moon, with its crater's record in slot PCMAX) and the
@@ -41,6 +42,7 @@
  LSR A                  \ planet (128) 0
  AND #1
  STA PF_CLS
+ IF _PLANET_BANDS       \ (banded planets: BANDS=on, master/build.sh)
  BEQ pfh4
  LDA QQ2+3              \ s1_hi bits 0-1 both clear (a quarter of the crater
  AND #3                 \ planets): banded, class 2 (Lave is a meridian
@@ -48,15 +50,7 @@
  LDA #2
  STA PF_CLS
 .pfh4
- LDA PF_CLS             \ the colour scheme (bits 2-4): 0 the beach ball's;
- BEQ pfh4a              \ a crater or banded planet's 1-4 from s1_lo bits 0-1
- LDA QQ2+2              \ (gfx-frame.asm's pf_cola, pf_colb)
- AND #3
- INC A
- ASL A
- ASL A
- TSB PF_CLS
-.pfh4a
+ ENDIF
  LDA K+1                \ the detail only below a radius of 256, as PL9 has
  BNE pfh9               \ it, and from 6 up, as its meridians
  LDA K
@@ -86,17 +80,18 @@
  BPL pfh5
  STZ pc_inv
  LDA PF_CLS
- AND #3
  BNE pfh2
  INC pc_inv             \ (the beach ball: base 1)
  JSR pf_beach
  BRA pfh3
 .pfh2
+ IF _PLANET_BANDS
  CMP #2
  BNE pfh6
  JSR pf_bands
  BRA pfh3
 .pfh6
+ ENDIF
  JSR pf_craters
 .pfh3
  LDA PC_N               \ (records, or a base colour)
@@ -106,7 +101,9 @@
  TSB PF_CLS
 .pfh7
  JSR pf_moon            \ (pf_moon first: it sets mn_h)
+ IF _PLANET_RINGS        \ (rings: RINGS=on, master/build.sh)
  JSR pf_ring
+ ENDIF
  LDX #24
 .pfh1
  LDA pm_zsave,X
@@ -189,6 +186,8 @@
  RTS
 .pfs_c EQUB 247, 241, 232, 222
 
+IF _PLANET_BANDS        \ (BANDS=on, master/build.sh)
+
 \ pf_bands: a banded planet's two latitude circles, the edges of its belt,
 \ about the axis the planet spins about. Its pitch and roll (MVEIT part 8:
 \ pitch turns roofv and nosev, roll roofv and sidev, alike) turn it about
@@ -224,6 +223,8 @@
  JMP pc_circ
 .pfb_n EQUB 64, 96, 128, 150    \ the north edge's latitude: 14 to 36 degrees
 .pfb_s EQUB 32, 64, 96, 128     \ the south edge's: -7 to -30 degrees
+
+ENDIF
 
 \ pf_tilt: pcv = (+/- vector X) / 2 + (+/- vector Y) / 2^(k+1), as
 \ sign-magnitude words (X, Y = 9 nosev, 15 roofv, 21 sidev; Y = 0: none), A
@@ -366,6 +367,7 @@
 \
 \ ******************************************************************************
 
+IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
 \ prg_pt: P = (V +/- U) >> 8 (rg_neg bit 7: minus), P_z = z_s +/- z_c; the
 \ dots at P and -P
 
@@ -538,16 +540,19 @@
 .rg_t  EQUW 0
 .rg_sg EQUB 0
 .rg_neg EQUB 0
+ENDIF
 
 \ pf_moon: a moon, for the systems whose seed has one (h = s0_hi EOR s1_hi
 \ EOR s2_hi, bits 0-1 = 1: a quarter of them), and planets of radius 16 up.
-\ It is scenery: no ship slot, no random number, no saved state. It sits on
-\ the axis the planet spins about (nosev - sidev, which its pitch and roll
-\ leave where it is), on the side (h bit 4) and at the distance D (3 to 5.25
-\ planet radii, h bits 2-3) the seed gives, with a radius rho (0.19 to 0.28
-\ of the planet's, h bits 5-6). Its centre and radius on the screen follow
-\ from the planet's (K3, K4, K) as Elite projects (x / z, and the radius
-\ 24576 / z, both times 256): with e = D w (w the unit axis) its offset in
+\ It is scenery: no ship slot, no random number, no saved state. It sits at
+\ E = MN_E from the planet's centre, a vector fixed in space (gfx-ssun.asm's
+\ MN_TURN puts it on the planet's spin axis, on the side h bit 4 gives and
+\ 3 to 5.25 planet radii out by h bits 2-3, when we arrive or launch, and
+\ MN_TURN turns it with our roll and pitch, as the game turns the planet's
+\ position), with a radius rho (0.19 to 0.28 of the planet's, h bits 5-6).
+\ Its centre and radius on the screen follow from the planet's (K3, K4, K)
+\ as Elite projects (x / z, and the radius 24576 / z, both times 256): with
+\ e = E in the view's axes (as PLUT turns them), its offset in
 \ planet radii and q = 1 + e_z r / 256 (its depth over the planet's),
 \
 \   x = 128 + ((cx - 128) + e_x r) / q,  y = 96 + ((cy - 96) - e_y r) / q,
@@ -572,130 +577,161 @@
  LDA pcr                \ (r: 16 up)
  CMP #16
  BCC pfm9
- LDX #9                 \ w: the spin axis, (nosev - sidev) / 2
- LDY #21
- LDA #%1010
- JSR pf_tilt
- LDA mn_h               \ D (8.8)
- LSR A
- LSR A
- AND #3
- TAX
- LDA pfm_dl,X
- STA pm_b
- LDA pfm_dh,X
- STA pm_b+1
- LDX #4                 \ e_i = D |w_i| >> 8, its sign w_i's EOR h bit 4
+ BIT MN_OK              \ (its place known: MN_TURN)
+ BPL pfm9
+ LDA VIEW               \ M = P + E in the view's axes (PLUT's): P from INWK,
+ STA mn_v               \ E_j from MN_E by pfm_vs and pfm_vn (3 VIEW + i), as
+ ASL A                  \ 24-bit two's complement, x, y, z (by 3)
+ ADC mn_v
+ STA mn_v
+ LDX #0
 .pfm1
- LDA pcv+1,X            \ |w_i| = (|v_i| >> 3) pcn >> 16 (at most 255)
+ LDA INWK,X             \ P_i
+ STA mn_m,X
+ LDA INWK+1,X
+ STA mn_m+1,X
+ LDA INWK+2,X
  AND #&7F
- LSR A
- STA pm_a+1
- LDA pcv,X
- ROR A
- LSR pm_a+1
- ROR A
- LSR pm_a+1
- ROR A
- STA pm_a
- PHX
- LDA pm_b
- PHA
- LDA pm_b+1
- PHA
- LDA pcn
- STA pm_b
- LDA pcn+1
- STA pm_b+1
- JSR pm_mul16
- PLA
- STA pm_b+1
- PLA
- STA pm_b
- LDA pm_p+2              \ |w_i|
- LDY pm_p+3
- BEQ pfm2
- LDA #255
-.pfm2
- STA pm_a
- STZ pm_a+1
- PHA
- JSR pm_mul16           \ D |w_i|
- PLA
- PLX
- LDA pm_p+1
- STA mn_e,X
- LDA pm_p+2
- STA mn_e+1,X
- LDA mn_h               \ (h bit 4 into bit 7)
- ASL A
- ASL A
- ASL A
- EOR pcv+1,X
- AND #&80
- STA mn_es,X
- DEX
- DEX
- BPL pfm1
- LDA mn_e+4             \ q = 256 +/- (|e_z| r) >> 8
- LDX mn_e+5
- JSR pfm_er
- LDA pm_p+1
- STA mn_q
- LDA pm_p+2
- STA mn_q+1             \ (|e_z| r >> 8: then q)
- STA mn_t+1
- LDA mn_q
- STA mn_t               \ (mn_t: |e_z| r >> 8, for the behind test)
- BIT mn_es+4
- BMI pfm3
- INC mn_q+1
- BRA pfm4
-.pfm3
+ STA mn_m+2,X
+ LDA INWK+2,X
+ BPL pfm2
  SEC
  LDA #0
- SBC mn_q
- STA mn_q
- LDA #1
- SBC mn_q+1
- STA mn_q+1
- BMI pfm9a              \ (q < 0)
+ SBC mn_m,X
+ STA mn_m,X
+ LDA #0
+ SBC mn_m+1,X
+ STA mn_m+1,X
+ LDA #0
+ SBC mn_m+2,X
+ STA mn_m+2,X
+.pfm2
+ TXA                    \ (i = X / 3)
+ LDY #&FF
+ SEC
+.pfm3
+ INY
+ SBC #3
+ BCS pfm3
+ TYA
+ CLC
+ ADC mn_v
+ TAY
+ LDA pfm_vn,Y
+ STA mn_sg
+ LDA pfm_vs,Y
+ TAY
+ LDA MN_E,Y             \ E_j, negated if pfm_vn says
+ STA mn_n
+ LDA MN_E+1,Y
+ STA mn_n+1
+ LDA MN_E+2,Y
+ STA mn_n+2
+ BIT mn_sg
+ BPL pfm4
+ SEC
+ LDA #0
+ SBC mn_n
+ STA mn_n
+ LDA #0
+ SBC mn_n+1
+ STA mn_n+1
+ LDA #0
+ SBC mn_n+2
+ STA mn_n+2
 .pfm4
- LDA mn_q+1             \ q >= 64
+ CPX #6                 \ (e_z for the behind test)
  BNE pfm5
- LDA mn_q
- CMP #64
- BCS pfm5
+ LDA mn_n
+ ORA mn_n+1
+ ORA mn_n+2
+ BEQ pfm5a
+ LDA mn_n+2
+ EOR #&80
+.pfm5a
+ STA mn_t               \ (bit 7: e_z > 0)
+.pfm5
+ CLC
+ LDA mn_m,X
+ ADC mn_n
+ STA mn_m,X
+ LDA mn_m+1,X
+ ADC mn_n+1
+ STA mn_m+1,X
+ LDA mn_m+2,X
+ ADC mn_n+2
+ STA mn_m+2,X
+ INX
+ INX
+ INX
+ CPX #9
+ BEQ P%+5
+ JMP pfm1
+ LDA mn_m+8             \ M_z > 0, or none
+ BMI pfm9a
+ ORA mn_m+7
+ ORA mn_m+6
+ BNE pfm6
 .pfm9a
  RTS
-.pfm5
- LDX #0                 \ x = 128 + ((cx - 128) 256 + e_x r) / q
- LDA pcbx
- SEC
- SBC #128
- TAY
- LDA pcbx+1
- SBC #0
+.pfm6
+ LDX #2                 \ (M_z, 24-bit, for the sun's test) and MN_Z: 16
+.pfm6a                  \ bits, &FFFF if further
+ LDA mn_m+6,X
+ STA mn_z,X
+ DEX
+ BPL pfm6a
+ LDA mn_z
+ STA MN_Z
+ LDA mn_z+1
+ STA MN_Z+1
+ LDA mn_z+2
+ BEQ pfm6b
+ LDA #&FF
+ STA MN_Z
+ STA MN_Z+1
+.pfm6b
+ LDY #0                 \ M shifted right together until M_z fits 15 bits
+.pfm7                   \ (Y shifts; pfm_div's divisor)
+ LDA mn_m+8
+ BNE pfm7b
+ LDA mn_m+7
+ BPL pfm8
+.pfm7b
+ LDX #6
+.pfm7a
+ LDA mn_m+2,X
+ CMP #&80
+ ROR mn_m+2,X
+ ROR mn_m+1,X
+ ROR mn_m,X
+ DEX
+ DEX
+ DEX
+ BPL pfm7a
+ INY
+ BRA pfm7
+.pfm8
+ STY mn_s
+ LDA mn_m+6
+ STA mn_q
+ LDA mn_m+7
+ STA mn_q+1
+ LDX #0                 \ x = 128 + 256 M_x / M_z
  JSR pfm_xy
- BCS pfm9a
+ BCS pfm9c
  STA MN_X+1
  STY MN_X
- LDX #2                 \ y = 96 + ((cy - 96) 256 - e_y r) / q
- LDA mn_es+2
- EOR #&80
- STA mn_es+2
- LDA pcby
- SEC
- SBC #96
- TAY
- LDA pcby+1
- SBC #0
+ LDX #3                 \ y = 96 - 256 M_y / M_z
  JSR pfm_xy
- BCS pfm9a
+ BCC pfm9d
+.pfm9c
+ RTS
+.pfm9d
  STA MN_Y+1
  STY MN_Y
- LDA mn_h               \ radius = rho r / q
- LSR A
+ LDA mn_h               \ radius = rho 96 256 / M_z (rho / 256 of the
+ LSR A                  \ planet's radius, 24576)
  LSR A
  LSR A
  LSR A
@@ -703,87 +739,37 @@
  AND #3
  TAX
  LDA pfm_rho,X
- LDX pcr
+ LDX #96
  JSR pm_mul8
- STA mn_n+1
+ STA mn_n+2
  LDA pm_m8
- STA mn_n
- STZ mn_n+2
+ STA mn_n+1
+ STZ mn_n
+ LDY mn_s
+ BEQ pfm8b
+.pfm8a
+ LSR mn_n+2
+ ROR mn_n+1
+ ROR mn_n
+ DEY
+ BNE pfm8a
+.pfm8b
  JSR pfm_div
  LDA mn_n+1
  ORA mn_n+2
- BNE pfm6
+ BNE pfm10a
  LDA mn_n
  CMP #2
- BCC pfm9a
+ BCC pfm9c
  CMP #64
- BCC pfm7
-.pfm6
+ BCC pfm10b
+.pfm10a
  LDA #63
-.pfm7
+.pfm10b
  STA MN_R
- LDA INWK+6             \ z = the planet's z q >> 8 (24-bit, saturated)
- STA pm_a
- LDA INWK+7
- STA pm_a+1
- LDA mn_q
- STA pm_b
- LDA mn_q+1
- STA pm_b+1
- JSR pm_mul16
- LDA pm_p+1
- STA mn_z
- LDA pm_p+2
- STA mn_z+1
- LDA pm_p+3
- STA mn_z+2
- LDA INWK+8
- AND #&7F
- LDX mn_q
- JSR pm_mul8            \ (z_sign q: A high, pm_m8 low, << 16 >> 8)
- TAY
- LDA pm_m8
- CLC
- ADC mn_z+1
- STA mn_z+1
- TYA
- ADC mn_z+2
- STA mn_z+2
- BCS pfm8
- LDA INWK+8
- AND #&7F
- LDX mn_q+1
- JSR pm_mul8            \ (z_sign q_hi: << 24 >> 8)
- BNE pfm8
- LDA pm_m8
- CLC
- ADC mn_z+2
- STA mn_z+2
- BCC pfm8a
-.pfm8
- LDA #&FF
- STA mn_z
- STA mn_z+1
- STA mn_z+2
-.pfm8a
- LDA mn_z               \ MN_Z: 16 bits, &FFFF if further
- STA MN_Z
- LDA mn_z+1
- STA MN_Z+1
- LDA mn_z+2
- BEQ pfm8b
- LDA #&FF
- STA MN_Z
- STA MN_Z+1
-.pfm8b
- LDA #&80               \ on; behind the planet if e_z > 0 (and |e_z| r >> 8
- LDX mn_es+4            \ is not 0)
- BMI pfm10
- LDX mn_t
- BNE pfm9b
- LDX mn_t+1
- BEQ pfm10
-.pfm9b
+ LDA #&80               \ on; behind the planet if e_z > 0
+ BIT mn_t
+ BPL pfm10
  ORA #&40
 .pfm10
  STA MN_ON
@@ -840,70 +826,36 @@
  STZ MN_INV
  RTS
 
-\ pfm_er: pm_p = |e| r (A, X: |e|, 16-bit)
-
-.pfm_er
- STA pm_a
- STX pm_a+1
- LDA pcr
- STA pm_b
- STZ pm_b+1
- JMP pm_mul16
-
-\ pfm_xy: (A Y) = (c - centre) (16-bit signed); the moon's coordinate
-\ centre + ((A Y) 256 +/- e_X r) / q in (A Y), C set if it is out of range
+\ pfm_xy: the moon's x (X = 0) or y (X = 3) on the screen, 128 + 256 M_x / M_z
+\ or 96 - 256 M_y / M_z (mn_m, M_z in mn_q), in (A Y), C set if it is out of
+\ range (X kept)
 
 .pfm_xy
- STY mn_n+1             \ mn_n = (A Y) << 8 (24-bit signed)
- STA mn_n+2
- STZ mn_n
- PHX
- LDA mn_e,X
- PHA
- LDA mn_e+1,X
- TAX
- PLA
- JSR pfm_er             \ |e| r
- PLX
- LDA mn_es,X
- BMI pfx1
- CLC
- LDA mn_n
- ADC pm_p
- STA mn_n
- LDA mn_n+1
- ADC pm_p+1
- STA mn_n+1
- LDA mn_n+2
- ADC pm_p+2
- STA mn_n+2
- BRA pfx2
-.pfx1
- SEC
- LDA mn_n
- SBC pm_p
- STA mn_n
- LDA mn_n+1
- SBC pm_p+1
- STA mn_n+1
- LDA mn_n+2
- SBC pm_p+2
- STA mn_n+2
-.pfx2
- LDA mn_n+2             \ |n| / q, signed back
+ LDA mn_m+2,X           \ |M_i| (16 bits, else out of range), its sign (y's
+ STA mn_sg              \ turned) in mn_sg
+ CPX #0
+ BEQ pfx0
+ EOR #&80
  STA mn_sg
- BPL pfx3
+.pfx0
+ LDA mn_m,X
+ STA mn_n+1
+ LDA mn_m+1,X
+ STA mn_n+2
+ LDA mn_m+2,X
+ BPL pfx1
  SEC
- LDA #0
- SBC mn_n
- STA mn_n
  LDA #0
  SBC mn_n+1
  STA mn_n+1
  LDA #0
  SBC mn_n+2
  STA mn_n+2
-.pfx3
+ LDA #0
+ SBC mn_m+2,X
+.pfx1
+ BNE pfx9
+ STZ mn_n               \ (times 256)
  PHX
  JSR pfm_div
  PLX
@@ -934,7 +886,7 @@
  SEC
  RTS
 
-\ pfm_div: mn_n (24-bit) = mn_n / mn_q (16-bit), unsigned
+\ pfm_div: mn_n (24-bit) = mn_n / mn_q (15-bit), unsigned
 
 .pfm_div
  STZ mn_r
@@ -962,20 +914,24 @@
  RTS
 
 MOON_C8 = 196           \ the moon's crater: cos 40 degrees
-.pfm_dl EQUB LO(768), LO(960), LO(1152), LO(1344)
-.pfm_dh EQUB HI(768), HI(960), HI(1152), HI(1344)
+\ the view's axes (PLUT's): by 3 VIEW + i, E's axis (0, 3, 6) and a sign;
+\ front (x, y, z), rear (-x, y, -z), left (z, y, -x), right (-z, y, x)
+.pfm_vs EQUB 0, 3, 6, 0, 3, 6, 6, 3, 0, 6, 3, 0
+.pfm_vn EQUB 0, 0, 0, &80, 0, &80, 0, 0, &80, &80, 0, 0
 .pfm_rho EQUB 48, 56, 64, 72
-.pfm_ctr EQUB 128, 0, 96
+.pfm_ctr EQUB 128, 0, 0, 96
 .mn_h  EQUB 0
-.mn_t  EQUW 0
-.mn_e  SKIP 6           \ |e| (8.8) for x, y, z
-.mn_es SKIP 6           \ their signs (bit 7, by 2)
+.mn_v  EQUB 0
+.mn_t  EQUB 0
+.mn_s  EQUB 0
+.mn_m  SKIP 9           \ M = P + E in the view's axes (x, y, z, two's complement)
 .mn_q  EQUW 0
 .mn_n  SKIP 3
 .mn_r  EQUW 0
 .mn_sg EQUB 0
 .mn_z  SKIP 3
 
+IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
 \ pf_ring: a ring, for the systems whose seed has one (h bits 4-6 = 4: an
 \ eighth of them) and planets of radius 8 up: a dotted ellipse in the plane of
 \ the planet's equator, normal to the axis it spins about (nosev - sidev), so
@@ -1204,6 +1160,7 @@ MOON_C8 = 196           \ the moon's crater: cos 40 degrees
  STA rg_zc+1,X
 .rgf9
  RTS
+ENDIF
 
 .pf_cx EQUW 0           \ the planet's centre and radius (PF_HOOK)
 .pf_cy EQUW 0

@@ -22,6 +22,20 @@ OPTUBE = TRUE           \ the Tube's: every polygon in one pass (p-onepass.asm, 
                         \ as the two-phase path; no edge tables
 NDSTAR = NOST+1
 
+ORG &0CCF               \ (after WP: the moon's place, MN_TURN's, gfx-mnturn.asm:
+.MN_E       SKIP 9          \ never loaded; a first MN_TURN finds the system changed)
+ss_d = MN_E - 9             \ (ss_turnx's base: this tree has no S_SUN and its D)
+.MN_OK      SKIP 1
+.ss_o       SKIP 1
+.mt_it      SKIP 1
+.mt_sys     SKIP 6
+.ss_w       SKIP 4
+.ss_a       SKIP 4
+.ss_p       SKIP 3
+.ss_m       SKIP 1
+.ss_mm      SKIP 1
+.ss_sg      SKIP 1
+ASSERT P% <= &0D08          \ (VIA + &34, the dummy SHEILA byte)
 ORG &0D09
 .PWS_START
 .R_PXL      SKIP 16         \ vertex x, low bytes (one page: the polygons' code)

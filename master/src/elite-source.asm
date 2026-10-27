@@ -314,9 +314,9 @@ ENDIF
                         \ (C_LOIN, C_HLOIN, C_PIXEL, the panel's commands)
 
 IF _TPART = 1
- ZPSAVE = &F300         \ Port (Tube): setzp and getzp's buffer for zero page
-                        \ &90-&FF (shadow &3090-&30FF on the Master): &F390-&F3FF,
-                        \ the top of the overlay region, above overlay D (which
+ ZPSAVE = &EF00         \ Port (Tube): setzp and getzp's buffer for zero page
+                        \ &90-&FF (shadow &3090-&30FF on the Master): &EF90-&EFFF,
+                        \ in the overlay region above overlay D (which
                         \ is in whenever getzp runs: the disc screens and NEWBRK
                         \ after a disc error). Overlay S overwrites it only
                         \ between getzp pairs, never between a pair's two

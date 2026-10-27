@@ -803,7 +803,9 @@ ENDIF
  JSR f_discs            \ the disc layer (sun or planet), incremental
  JSR f_disc2            \ the other disc, if both are on screen (full spans)
  JSR f_moon             \ the moon, if any (full spans)
- JSR f_ring             \ the ring, if any (dots)
+IF _PLANET_RINGS
+ JSR f_ring             \ the ring, if any (dots: RINGS=on, master/build.sh)
+ENDIF
 .ff_lin                 \ (F_HANGAR points this call at f_hback for its frame)
  JSR f_lines            \ planet meridians, craters, enemy lasers
  JSR f_ships            \ filled ships, far to near
@@ -1189,7 +1191,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  LDA #1
  STA f_sec
 .fds4
- JSR f_colid            \ if the layer's colour differs from what this buffer
+ LDA f_lay              \ if the layer's colour differs from what this buffer
  LDX F_BACK             \ holds, nothing of the old disc is intact: fold the
  CMP F_DCOL,X           \ old disc spans into the old dirty extents
  BEQ fds5
@@ -1205,10 +1207,9 @@ ENDIF
  BEQ fds9
  CMP #1
  BEQ fds6
- JSR f_cls2             \ (the planet's colour A, by its class)
- LDA pf_cola,X
+ LDA #FC_PLANE          \ (the planet's colour A: the beach ball's sea)
  STA R_DCE
- LDA pf_cola+1,X
+ LDA #FC_PLANO
  STA R_DCO
  JSR f_plrows           \ planet spans into R_NDISCL/R, R_NDT/R_NDB
  JSR f_bounds           \ and its surface detail as colour boundaries
@@ -1674,10 +1675,9 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  BEQ fd29
  CMP #1
  BEQ fd21
- JSR f_cls2             \ (the planet's colour A, by its class)
- LDA pf_cola,X
+ LDA #FC_PLANE          \ (the planet's colour A: the beach ball's sea)
  STA R_COLE
- LDA pf_cola+1,X
+ LDA #FC_PLANO
  STA R_COLO
  JSR f_plrows
  JMP fd22
@@ -2360,7 +2360,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  RTS
 
 \ f_bounds: the planet's detail -> R_NDN/R_NDX0-3/R_NDP for rows R_NDT..R_NDB
-\ (which f_plrows has just set), and colour B by the planet's class
+\ (which f_plrows has just set), and colour B (f_bcol)
 
 .f_bounds
  JSR f_nobounds
@@ -2375,54 +2375,24 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 .fnb9
  RTS
 
-\ The planet's colours by its colour scheme, as pairs of bytes (even rows,
-\ odd rows): colour A, the disc, then colour B, its detail (the beach ball's
-\ land, the craters, the belt). Crater and banded planets share the schemes.
-\ The schemes (PF_CLS bits 2-4): 0, a meridian planet's beach ball (A its
-\ sea, B its land); 1-4, a crater or banded planet's, from the system's seed
-\ (2 x 2 patterns, even row / odd row, of K, C, M, Y = 0-3: a pixel's colour
-\ is bit 4+p (2) and bit p (1) of its byte, p = 3 - (x AND 3)):
-\   1 desert          A YY/MY  &FF &F5   B YM/KY  &FA &55
-\   2 tan and khaki   A YM/KY  &FA &55   B YC/MY  &AF &F5
-\   3 khaki and sage  A YC/MY  &AF &F5   B YK/KC  &AA &05
-\   4 sage and tan    A YK/KC  &AA &05   B YM/KY  &FA &55
+\ The planet's colours, every style's the beach ball's (pairs of bytes, even
+\ rows and odd rows): colour A, the disc, its sea (FC_PLANE, FC_PLANO), and
+\ colour B, its detail (the beach ball's land, the craters, the belt), green
 
-PFCOLS = 5              \ schemes
-.pf_cola EQUB FC_PLANE, FC_PLANO, &FF, &F5, &FA, &55, &AF, &F5, &AA, &05
-.pf_colb EQUB &5F, &AF, &FA, &55, &AF, &F5, &AA, &05, &FA, &55
+FC_PLLE = &5F : FC_PLLO = &AF
 
-\ f_bcol: R_NDF on and colour B for the planet's scheme (f_cls2: X = 2 x the
-\ scheme, the offset of its colours). f_colid: A = the disc layer's colour id
-\ for f_lay (the planet's: 2 + 4 x its scheme, so that a new scheme's colours
-\ fold the old disc into dirty)
+\ f_bcol: R_NDF on and colour B
 
 .f_bcol
  LDA #1
  STA R_NDF
- JSR f_cls2
- LDA pf_colb,X
+ LDA #FC_PLLE
  STA R_DBE
- LDA pf_colb+1,X
+ LDA #FC_PLLO
  STA R_DBO
  RTS
 
-.f_cls2                 \ X = 2 x the scheme
- LDA PF_CLS
- AND #&1C
- LSR A
- TAX
- RTS
-
-.f_colid
- LDA f_lay
- CMP #2
- BNE fci9
- LDA PF_CLS
- AND #&1C
- ORA #2
-.fci9
- RTS
-
+IF _PLANET_RINGS
 \ ------------------------------------------------------------------------------
 \ The ring (gfx-planet7.asm's pf_ring makes its dots in game context: RG_X,
 \ RG_Y, RG_F, RG_N of them): each dot drawn in yellow (marked dirty, for the
@@ -2483,6 +2453,7 @@ PFCOLS = 5              \ schemes
  CPX RG_N
  BCC frg1
  RTS
+ENDIF
 
 \ ------------------------------------------------------------------------------
 \ The moon (gfx-planet7.asm's pf_moon makes it in game context: MN_ON, MN_X,

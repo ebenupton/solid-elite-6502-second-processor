@@ -50,6 +50,8 @@
 
  INCLUDE "build/elite-source-bank4.asm"
 
+ INCLUDE "src/gfx-mnturn.asm"           \ the moon's place (G_FRAME, G_PFHOOK)
+
 .BANK4_END%
 
  PRINT "Bank 4: &8000-", ~BANK4_END%-1, " free ", &C000-BANK4_END%

@@ -26,6 +26,11 @@
 #
 # Options (environment):
 #   MATCH=no      zero-filled workspaces (upstream "match=no")
+#   BANDS=on      banded planets (a quarter of the crater planets, by the seed:
+#                 gfx-planet7.asm's pf_bands); off by default (planetsun
+#                 6957750), when their code is assembled out
+#   RINGS=on      planet rings (an eighth of the systems, by the seed: pf_ring,
+#                 f_ring); off by default, assembled out
 #
 # The checksum script is given the F%, G% and NA2% that the assembler prints,
 # so a changed source still gets a correct commander checksum.
@@ -44,6 +49,8 @@ _VARIANT=1
 _REMOVE_CHECKSUMS=$RC
 _MATCH_ORIGINAL_BINARIES=$MO
 _MAX_COMMANDER=FALSE
+_PLANET_BANDS=$( [ "${BANDS:-off}" = on ] && echo TRUE || echo FALSE )
+_PLANET_RINGS=$( [ "${RINGS:-off}" = on ] && echo TRUE || echo FALSE )
 _TUBE=FALSE
 _TPART=0
 _TDUMB=FALSE
