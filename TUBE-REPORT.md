@@ -87,7 +87,20 @@ with R_DISC2 (799 bytes of code, and per buffer the second disc's spans,
 2 x 192 x 2 bytes) needs about 1.8K with a compact span store, 2.7K with the
 Master's; changed-rows-only surface redraw needs about 1.5K. 1,367 bytes are
 free: about 0.4K short of the first (1.3K with the Master's spans) and 1.9K
-short of both. The next sources, by speed cost (below), were not taken.
+short of both. The next sources, by speed cost, were not taken:
+1. the ring 7 pages to 4 (&F100 to &F400): 768 bytes. Measured (scratch/ring4,
+   on a691f91): Master host 18.66 / 10.63 / 19.00 / 9.24 / 9.35 (flight -0.9%,
+   0-3550 -0.5%), Model B 14.10 / 8.79 / 15.91 / 7.30 / 7.14 (beach -0.4% and
+   -0.7%). With it, 2,135 bytes: enough for S_SUN and R_DISC2 with a compact
+   span store, not also for the per-row surface state;
+2. F_ST (the text map's shown state, 4 bits a cell) packed two cells a byte:
+   384 bytes; the text steps' cell reads and writes get a shift (estimated
+   well under 1%: only rows holding text are walked);
+3. K mode given up: 750 bytes, docking 16% slower;
+4. the idle buffer's state paged to the host each frame: 10-20% (estimated).
+Moving the extended tokens (TKN1, RUPLA, RUGAL, RUTOK: 3.9K of overlay D) to
+the hosts frees nothing in space mode; it would shorten D's loads (9.3K) by
+about 40%, but the Master host has no room left below &3000 or in HAZEL.
 
 ## Planets on the parasite, paging removed, the map tidied (branch `tubeplanets`, 2026-10-27)
 
