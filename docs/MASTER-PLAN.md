@@ -2681,3 +2681,108 @@ bytes free after it. harness/mstarocc.mjs poses stars over the planet's
 sea, a dark ship, the slot and the sun beside the planet (its grid goes in
 at F_FRAME's ff_stars, before f_slot); ff_stars9, after the stars, is the
 harness's frame end.
+
+## The text map
+
+The frames draw the text from one structure, the text map F_TM in bank 6
+(768 bytes: the characters wanted in the 24 rows of 32 cells), with F_TMR
+(24: the characters per row) and F_TCH (24: per row, bit b for buffer b).
+Nothing records which characters each buffer shows.
+
+**Why a whole map.** Besides the space views' few strings, the frames draw
+the mission 1 briefing, which prints whole pages in space mode (QQ11 13 or
+1) while LL9B's frames run: token 10's pages are 317 and 369 cells counting
+spaces (rows 10 to 22 or 23, columns 1 to 30; 420 at most). The title screen
+has about 90 cells, a flight view at most about 61 (the view's title 11, the
+countdown 3, a message 27, DOCKING COMPUTERS DESTROYED, the hyperspace
+prompt 20), DEATH about 39. A list of characters at two bytes an entry would
+be larger than the map and would need an overflow path; the map has neither
+a bound to keep nor an overflow.
+
+**A cell** holds its character (&20-&7F), 0, &80 + the character it had
+(cleared, remembering it), or &80 (f_drule's mark: a buffer may show
+anything there). F_TCH's bit b (P) says the row has changed since buffer
+b's text steps last ran on it. Between frames, for each buffer and row: if
+P is clear, the buffer shows exactly the row's characters; if P is set, a
+cell holding c or &80 + c shows c or nothing, one holding 0 nothing, one
+holding &80 anything. Every change keeps that true (f_char1, f_delchar0,
+f_clrtext0):
+
+* a character into an empty cell, or into a cleared cell remembering it
+  (TT66, then the view's title): P set for both buffers, nothing erased, so
+  a title cleared and printed again is left alone in both buffers;
+* the same character printed again: the cell is cleared (CHPR's EOR);
+* a character into a cell holding, or remembering, another: the cell is
+  erased at once in both buffers' next frames (f_mark): its pixels, clipped
+  to the space views' clip window (x 2..253, y 1..191), go into the buffer's
+  dirty extents (R_DIRTYLb/R_DIRTYRb), its pixel rows are no longer kept in
+  it (KF bit b), and the rows are noted for f_text1 to give to the
+  rasteriser's dirty row range (R_PRDYT/R_PRDYB, bank 5, through
+  R_MARKDIRTY with an empty extent);
+* a character printed over the one that replaced it since the last frame
+  leaves the cell as it is (f_eor: a ring of the last four replacements,
+  forgotten at each frame's text steps). That is EOR's undo: TT107 prints
+  the countdown's next number over the current one, then the current one
+  again to take it out, so the space views show 15, 14, 13 ... as the
+  original does.
+
+A buffer's text steps, in a row with P set: f_text1 erases the cells with
+bit 7 set (and writes 0 into those the other buffer has erased already);
+f_text2 draws every character of the row and clears P. In the other rows
+f_text2 draws only the characters something was drawn over this frame. A
+screen cleared (TTX66's, buffer 1; f_b0new's, buffer 0) shows nothing, which
+is right for any P, as everything stored since set P.
+
+**Outside record and space mode** CHPR draws into shadow RAM (buffer 1)
+and the map does not follow the screen. Main RAM (buffer 0) still holds the
+last space-mode frame, and only what the screen's text does to the cells
+buffer 0 may show is recorded (f_drule): a character drawn over a cell
+holding or remembering the same character toggles it, as CHPR's EOR and
+f_char1 do; over another it becomes &80 (buffer 0 may show that one, which
+is then erased); a cell holding 0 is left alone.
+
+**The direct text a frame can inherit.** A space-mode session starts at a
+handover, an F_FRAME with QQ11 = 0 and GMODE bit 7 clear. It follows
+TT66(0), where all text is record mode, except after DEATH's and TITLE's
+TT66 13 (then QQ11 = 0) and the briefing's TT66 13 or 1 (then LL9B).
+Between those TT66s and the handover the only direct printing is TTX66K's
+hyperspace countdown, ee3 (TT11 with three digits, spaces leading, at
+cells (1..3, 1)), when QQ22+1 is not zero. QQ22 is only reset by DOENTRY,
+so a death during a countdown keeps it through DEATH and TITLE; BRIEF is
+only reached from DOENTRY, after that reset, and PAUSE prints nothing
+between its TT66 and LL9B; QQ22+1 changes only in TT107 (from TT102, from
+MLOOP), wW, wW2 and DOENTRY, none of which runs between TTX66K and the
+handover; DET1 writes the CRTC directly; no delete or CLYNS runs on those
+paths; an escape pod launched from DEATH's first M% inherits the same
+three cells. Every other place QQ11 becomes 0 is followed by a TT66 before
+any frame (DFAULT), by no frame (HFS2's restore), or is non-zero (TT110's
+255; WARP's 1, then LOOK1's TT66 0). So F_CHAR notes the first DLMAX = 3
+characters drawn directly after a screen clear (f_dlx, f_dly, f_dlk,
+f_dlog), and the first change in record or space mode (or the first frame)
+puts them into the map in order (f_sync, through f_char1, with f_mark
+leaving buffer 1, which shows them, alone). A fourth character, a delete or
+CLYNS on a direct screen, or a TT66 first gives the noted characters to
+f_drule instead, and the note is spent: the screens that print more than
+three characters directly always end with a TT66 before any frame.
+
+**Cost.** Bank 6: F_TM 768, F_TMR 24, F_TCH 24, the direct notes 11,
+f_eor's ring 14; f_mark is 136 bytes with its tables. Flight: the text
+steps are about as cheap as the map's per-cell shown state was (the gate's
+flight 194,178 cycles an iteration). The docked screens draw text with no
+shown-map upkeep (harness/mdocktime.mjs: about 5% fewer busy cycles).
+
+**Checks.** harness/mfbcmp.mjs --frames (the gate's run) and
+master/tools/agentplay/replay.mjs --fbhash (sessions with deaths, escape
+pods, the briefings and debriefings, hyperspace and galactic hyperspace,
+launches, dockings, in-system jumps and view changes, and a death and a
+title with the countdown running) hash both buffers at every frame; with
+--mask 1,1,3 (FBMASK) they show which frames differ only in the
+countdown's cells. Against the map with per-cell shown state these
+structures replaced, 305,743 frames (the gate's run 9,842; eleven sessions
+295,901) are identical but for 8,688 that differ only in the countdown's
+three cells, where the space views now show the original's number.
+harness/mcountsheet.mjs puts the countdown's cells side by side from
+replay.mjs --shots 1 (screenshots/countdown/sheet.png: SNG47, the map
+without f_eor, the map with it, at the first ticks of a session's
+countdown, the port one iteration later for its frame's latency). The gate:
+VERIFY PASS 13.97 10.30 0.737.

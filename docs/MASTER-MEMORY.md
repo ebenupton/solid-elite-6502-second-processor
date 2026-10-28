@@ -60,7 +60,7 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
   * Buffer 0 then no longer holds the last space-mode frame, which the renderer repairs
     incrementally: DOSCLI sets GSTASH (in the glue area), and the next
     entry to space mode (f_enter2) clears buffer 0 and resets its rasteriser state,
-    disc colour, sights and shown-text map as F_INIT leaves them (f_b0new). The hangar
+    disc colour and sights as F_INIT leaves them (f_b0new). The hangar
     draws directly, into shadow RAM: no game code writes buffer 0 while docked.
   * During a command the IRQ handler (H_VSYNC and the shared variables) and the
     catalogue's printing (CHPR's text hooks, through bank 6) run from main RAM below
