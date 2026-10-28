@@ -97,7 +97,17 @@ export class Session {
             const cpu = this.cand.cpu, FR = this.csy.f_reset, m = this.cand;
             let it = -1, n = 0;
             this.fb = {};
-            const hash = () => { const h = createHash("sha1"); h.update(cpu.ramRomOs.subarray(0x4000, 0x7000)); h.update(cpu.ramRomOs.subarray(0xc000, 0xf000)); return h.digest("hex").slice(0, 16); };
+            // (FBMASK=row,col0,col1: and a second hash with those text cells blanked, as
+            // harness/mfbcmp.mjs --mask)
+            const MASK = process.env.FBMASK ? process.env.FBMASK.split(",").map(Number) : null;
+            const hash = () => {
+                const both = Buffer.concat([cpu.ramRomOs.subarray(0x4000, 0x7000), cpu.ramRomOs.subarray(0xc000, 0xf000)]);
+                const h = b => createHash("sha1").update(b).digest("hex").slice(0, 16);
+                if (!MASK) return h(both);
+                const [r, c0, c1] = MASK;
+                for (const base of [0, 0x3000]) for (let c = c0; c <= c1; c++) both.fill(0, base + r * 512 + c * 16, base + r * 512 + c * 16 + 16);
+                return h(Buffer.concat([cpu.ramRomOs.subarray(0x4000, 0x7000), cpu.ramRomOs.subarray(0xc000, 0xf000)])) + "/" + h(both);
+            };
             // (lib.mjs's execute calls no hook for the first instruction of a slice, so
             // f_reset's second instruction, after its LDA #0, stands in for a missed
             // first: seen remembers that the first was hooked)
