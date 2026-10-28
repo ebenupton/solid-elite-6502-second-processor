@@ -1,0 +1,49 @@
+#!/bin/sh
+# master/tools/discmem/bench.sh TREE OUT [what...]: the disc layer's scenes on
+# the build in TREE/master/build, headless, one at a time; results in OUT
+# (compare two with master/tools/discmem/cmp.py OUT_A OUT_B).
+#   run1     the pixel oracle (frame hashes of both buffers after every frame,
+#            master/tools/solidspan/fbhash.mjs) and the speed windows
+#            (mspeed.mjs) over run1 (launch, flight, docking)
+#   gatefb   harness/mfbcmp.mjs --frames over the gate's piloted run (3000
+#            iterations: Lave's beach ball, the crater system)
+#   planets  posed planet scenes (harness/mplanet.mjs): back buffer at every
+#            frame's end and the planet routines' cycles
+#   sunnear  the sun near the planet (harness/msunnear.mjs): back buffer and
+#            the disc layer's, the second disc's and the frame's cycles
+# Default: all of them.
+set -u
+TREE=$1; OUT=$2; shift 2
+what=${*:-run1 gatefb planets sunnear}
+R=$(cd "$(dirname "$0")/../../.." && pwd)
+B=$TREE/master/build
+RUN1=${RUN1:-/Users/ebenupton/elite-full-tube/scratch/curious/run1/inputs.jsonl}
+mkdir -p "$OUT"
+LEESTI=38,BA,7C,0D,5D,41
+pl() {
+    n=$1; shift
+    node "$R/harness/mplanet.mjs" --tree "$TREE" --out "$OUT/pl-$n" --from 300 "$@" > "$OUT/pl-$n.log" 2>&1 || echo "planet $n: FAILED"
+}
+for w in $what; do case $w in
+run1)
+    node "$R/master/tools/solidspan/fbhash.mjs" --log "$RUN1" --cand "$B/elite-master-sng47.ssd" --csyms "$B/symbols.txt" \
+        --from 0 --to 3600 --out "$OUT/run1-fb.json" > "$OUT/run1-fb.log" 2>&1
+    node "$R/master/tools/solidspan/mspeed.mjs" --log "$RUN1" --cand "$B/elite-master-sng47.ssd" --csyms "$B/symbols.txt" \
+        --windows 0-3550,1000-1400,2000-2400,3000-3400,3420-3550,3484-3530 > "$OUT/run1-speed.txt" 2>&1 ;;
+gatefb)
+    node "$R/harness/mfbcmp.mjs" --frames --disc "$B/elite-master-sng47.ssd" --syms "$B/symbols.txt" --iters 3000 \
+        --out "$OUT/gate-fb.json" > "$OUT/gate-fb.log" 2>&1 ;;
+planets)
+    pl beach90 --type 128 --x 128 --y 96 --r 90 --pose 20,30,0 --spin 22.5 --n 16
+    pl beach200 --type 128 --x 128 --y 96 --r 200 --pose 20,30,0 --spin 5 --n 16
+    pl beachpath --type 128 --x0 60 --y0 60 --x1 180 --y1 130 --r0 40 --r1 160 --pose 20,30,0 --spin 3 --n 24
+    pl caps90 --type 130 --qq2 $LEESTI --x 128 --y 96 --r 90 --pose 20,30,0 --spin 22.5 --n 16
+    pl caps200 --type 130 --qq2 $LEESTI --x 128 --y 96 --r 200 --pose 0,60,20 --spin 5 --n 16
+    pl capspath --type 130 --qq2 $LEESTI --x0 200 --y0 40 --x1 100 --y1 120 --r0 30 --r1 120 --pose 0,60,20 --spin 5 --n 24
+    pl moon1 --type 128 --qq2 76,70,EB,94,0B,D5 --x 93 --y 97 --r 33 --pose 59,28,24 --spin 2 --n 16
+    pl moon2 --type 130 --qq2 DA,1C,F6,BA,66,D3 --x 110 --y 90 --r 31 --pose 40,76,2 --spin 11 --n 16
+    pl moon3 --type 130 --qq2 38,AD,9C,15,1D,A9 --x 70 --y 100 --r 30 --pose 0,150,30 --n 16
+    pl moonpath --type 128 --qq2 76,70,EB,94,0B,D5 --x0 60 --y0 80 --x1 160 --y1 110 --r0 20 --r1 60 --pose 59,28,24 --spin 2 --n 24 ;;
+sunnear)
+    node "$R/harness/msunnear.mjs" --disc "$B/elite-master-sng47.ssd" --syms "$B/symbols.txt" --out "$OUT/sunnear" --pose 20,30,0 --spin 3 > "$OUT/sunnear.log" 2>&1 || echo "sunnear: FAILED" ;;
+esac; done

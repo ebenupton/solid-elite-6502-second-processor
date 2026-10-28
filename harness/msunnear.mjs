@@ -16,6 +16,13 @@
 // node harness/msunnear.mjs [--disc d] [--syms s] [--out dir] [--rise 64]
 //      [--fly 56] [--hold 12] [--pz --psx --psy] [--sz --sx --sy0 --sy1]
 // (the planet's z and centre on the screen; the sun's z, x and its rise)
+// --pose "ax,ay,az" [--spin d]: the planet's orientation is put each
+// iteration too (as harness/mplanet.mjs puts it: roofv, nosev and sidev
+// rotated from facing us, then spun d degrees an iteration about the game's
+// spin axis), and the stars, the main loop's counter and the random seeds
+// are put at the start, so that
+// the scene does not depend on how long the build took to boot (two builds'
+// frames can then be compared byte for byte).
 // --spawn: no script. The game's own sun is put in slot 1, in view beside the
 // planet, with the planet placed so that part 15 spawns the station 40000
 // ahead within 32 iterations; then the game runs untouched (speed 0, no
@@ -28,7 +35,7 @@ import { BBC } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/js
 import { loadSyms, ROOT, mapOfLabel, physRead } from "./mlib.mjs";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { parseArgs } from "./args.mjs";
-const a = parseArgs({ disc: "value", syms: "value", out: "value", rise: "value", fly: "value", hold: "value",
+const a = parseArgs({ disc: "value", syms: "value", out: "value", rise: "value", fly: "value", hold: "value", pose: "value", spin: "value",
     pz: "value", psx: "value", psy: "value", sz: "value", sx: "value", sy0: "value", sy1: "value", spawn: "flag" });
 const SYMS = a.syms || `${ROOT}master/build/symbols.txt`;
 const sy = loadSyms(SYMS);
@@ -104,6 +111,39 @@ function doSpawn() {
     ram[sy.DELTA] = 0; ram[sy.VIEW] = 0;
     log.push(`spawn scene in; MCNT ${ram[sy.MCNT]}`);
 }
+function rot(v, ax, ang) {
+    const c = Math.cos(ang), s_ = Math.sin(ang), [x, y, z] = v;
+    if (ax === 0) return [x, y * c - z * s_, y * s_ + z * c];
+    if (ax === 1) return [x * c + z * s_, y, -x * s_ + z * c];
+    return [x * c - y * s_, x * s_ + y * c, z];
+}
+function rotAxis(v, u, ang) {
+    const c = Math.cos(ang), s_ = Math.sin(ang), d = v[0] * u[0] + v[1] * u[1] + v[2] * u[2];
+    const cr = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    return [0, 1, 2].map(i => v[i] * c + cr[i] * s_ + u[i] * d * (1 - c));
+}
+function orient(k) {
+    const [ax, ay, az] = String(a.pose).split(",").map(x => (+x) * Math.PI / 180);
+    let vs = [[0, 0, -1], [0, 1, 0], [1, 0, 0]];
+    vs = vs.map(v => rot(rot(rot(v, 0, ax), 1, ay), 2, az));
+    const sp = (+(a.spin || 0)) * Math.PI / 180 * k;
+    if (sp) {
+        let u = [0, 1, 2].map(i => vs[0][i] - vs[2][i]); const n = Math.hypot(...u); u = u.map(x => x / n);
+        vs = vs.map(v => rotAxis(v, u, sp));
+    }
+    const w = (o, v) => { const m = Math.min(32767, Math.round(Math.abs(v) * 24576)); ram[sy["K%"] + o] = m & 255; ram[sy["K%"] + o + 1] = (m >> 8) | (v < 0 ? 128 : 0); };
+    [9, 15, 21].forEach((o, j) => { w(o, vs[j][0]); w(o + 2, vs[j][1]); w(o + 4, vs[j][2]); });
+    if (k === 0) {                                      // (and the main loop's counter
+        ram[sy.MCNT] = 0;                               // and the random seeds)
+        for (let j = 0; j < 4; j++) ram[sy.RAND + j] = 0x5a ^ (j * 0x31);
+        let r = 12345;
+        const nx = () => { r = (r * 1103515245 + 12345) & 0x7fffffff; return (r >> 8) & 255; };
+        for (let i = 1; i <= ram[sy.NOSTM]; i++) {
+            ram[sy.SX + i] = nx(); ram[sy.SXL + i] = nx(); ram[sy.SY + i] = nx(); ram[sy.SYL + i] = nx();
+            ram[sy.SZ + i] = 0x90 | (nx() & 0x6f); ram[sy.SZL + i] = nx();
+        }
+    }
+}
 function doPose() {
     if (a.spawn) {                                      // (the planet spins: its
         if (k === 0) doSpawn();                         // orientation is put back
@@ -130,6 +170,7 @@ function doPose() {
         ram[K1 + 27] = 0;
     }
     ram[sy.DELTA] = 0; ram[sy.VIEW] = 0;
+    if (a.pose !== undefined) orient(k);
     for (let j = 2; j < 12; j++) if (ram[sy.FRIN + j]) { ram[sy.FRIN + j] = 0; log.push(`frame ${k}: slot ${j} emptied`); }
 }
 cpu.debugInstruction.add(pc => {
