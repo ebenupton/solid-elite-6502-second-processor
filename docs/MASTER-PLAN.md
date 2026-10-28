@@ -2143,3 +2143,40 @@ Keeping rows between frames would be cheap for a body whose records did
 not change (the rows depend only on the records and the spans), but the
 planet spins every frame, so it would only pay for a hidden or edge-on
 circle; not done.
+
+## Craters: spherical caps (after the circle engine)
+
+A crater planet's crater is a spherical cap, {p : m.p >= r c}, a circle
+record of the engine, its edge drawn where it is seen and cut by the limb
+where it is not, in place of Elite's polygon (PL26's ellipse, recorded
+point by point through BLINE and filled by f_seg16). There are up to three,
+from the system's seed (QQ2; pf_craters, class 1, base 0): the first on
+roofv, 30 degrees across, as Elite's crater (222/256 of the radius out,
+half the radius across); then, as s2_lo bits 0-1 have it, one on nosev
+tilted towards sidev and one on sidev tilted towards roofv (s2_lo bits 2-7:
+signs and tilts; s2_hi bits 0-3: 15 to 30 degrees). No two axes are within
+63 degrees, so they never overlap; if they did, they would combine as XOR.
+Against the float truth (each pixel's point on the sphere) about 1% of
+pixels are wrong, all within a pixel or two of an edge.
+
+PF_HOOK runs for every planet. PL26 still computes its K2, K3, K4 and TGT
+(MV40 reads K2); the crater's ellipse is no longer computed or recorded,
+and BLINE no longer records points. Bank 6 loses F_PCURVE, F_PPOINT, the
+curve and point arrays, f_zerobounds, f_seg16, f_segment and f_parity
+(1,145 bytes), and the glue G_PCURVE and G_PPOINT.
+
+Every planet has the beach ball's colours: colour A, the disc, is its sea
+(FC_PLANE, FC_PLANO), and colour B, the detail, its land green (FC_PLLE,
+FC_PLLO = &5F, &AF, gfx-frame.asm), so a crater planet is a blue body with
+green craters (the polygon crater was dark grey, &50/&A0). The disc layer's
+colour id is f_lay itself (1 the sun, 2 the planet).
+
+Tests: test_raster's pfhook (PF_HOOK on random crater and meridian planets:
+the class, and the rows against tools/planet_caps.py's pf_caps) and capball
+(a spinning crater planet's rows through R_DISCROWS, pixel for pixel).
+harness/mplanet.mjs poses planet scenes with the planet routines' cycles
+(master/tools/planetvis.py draws them). mcompare --crater (the commander's
+tech level made to give Lave a crater planet) keeps game state identical
+for 1500 iterations; the gate's second system is a crater planet (two
+caps), whose frames the gate flies for about 4000 iterations, and stays
+identical to SNG47 there too.

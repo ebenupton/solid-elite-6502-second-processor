@@ -51,7 +51,8 @@ which spare RAM the port may take.
    **The renderer is in banks 5 and 6 and ANDY, and in one window of bank
    7**: the rasteriser in bank 5 and ANDY, the frame layer in bank 6, and the
    meridian window (gfx-merid.asm, the circle engine that makes the planet's
-   surface detail, and gfx-planet7.asm, its styles, the beach ball, and
+   surface detail, and gfx-planet7.asm, its styles, the beach ball and
+   craters, and
    gfx-flare.asm, the lens flare) in bank 7 after the cold pass, paged as
    ROMSEL MERIDBANK (7) by its stubs only (G_PFHOOK in game context, T_CAPS
    and T_FLARE during the frame). Bank 7 is
