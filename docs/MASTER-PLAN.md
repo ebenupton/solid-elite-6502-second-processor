@@ -2659,3 +2659,25 @@ seed as the default build draws it, a crater planet), bands.png,
 bands2.png, moon1-3.png, ring.png, ring2.png, ringmoon.png, ringmoon2.png.
 screenshots/sunnear: the posed scene's 156 frames, sheet.png, spawn.png,
 sunnear.mp4 and sunnear.gif (harness/msunnear.mjs, master/tools/sunnear.py).
+
+## Stars only into black bytes (after the stills)
+
+R_STARPLOT sets a star's pixels in a screen byte only when the whole byte
+is black. Every fill the frame layer can draw that is not pure black (the
+ships' ramps and unlit colours, the planet's, the sun's and the moon's
+colours, colour B, the second disc, the hangar's panels, the distant dots)
+has a coloured pixel in every byte of every row of its dither, so no star
+shows through a dithered fill; master/tools/starocc.py proves it from the
+bank 6 image and the sources on every build (build.sh runs it, and it
+fails on a colour source it does not know). It is also about 6 cycles a
+star cheaper (no AND, no ORA).
+
+The one pure black fill is a station's docking slot. f_poly2 copies its
+four vertices to F_SLV (bank 6) when it fills one; F_FRAME then plots the
+stars through f_slot (gfx-frame_cold.asm), which takes those in the
+vertices' bounding box out of R_SS for the plot and puts them back, and
+f_reset marks F_SLV empty. Bank 5 had no room for this, bank 6 had: 221
+bytes free after it. harness/mstarocc.mjs poses stars over the planet's
+sea, a dark ship, the slot and the sun beside the planet (its grid goes in
+at F_FRAME's ff_stars, before f_slot); ff_stars9, after the stars, is the
+harness's frame end.
