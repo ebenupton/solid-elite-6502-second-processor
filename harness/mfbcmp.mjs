@@ -3,12 +3,17 @@
 // (a renderer optimisation must draw exactly the same pixels).
 //
 // node harness/mfbcmp.mjs --out file.json [--disc d] [--syms s] [--iters N]
-//                         [--every K] [--seedfile f]
+//                         [--every K] [--seedfile f] [--frames]
 // node harness/mfbcmp.mjs --cmp a.json b.json
 //
 // At the end of each K-th iteration's frame (hframe's return from G_FRAME),
 // hashes main RAM's and shadow RAM's &4000-&6FFF (both buffers) and records
 // them by iteration. --cmp lists the iterations whose buffers differ.
+// --frames: instead, at every entry to F_FRAME's f_reset in bank 6 (the end
+// of every rendered frame, and every non-space-view F_FRAME call: each
+// main-loop iteration, the title, the briefing, the hangar, the death
+// screen), keyed "iteration.n" (n: the call within the iteration); --every
+// is then ignored.
 // --dump N also writes iteration N's two buffers (main RAM's, then shadow RAM's
 // &4000-&6FFF) to <out>.N.raw, and bank 6 to <out>.N.b6, to see where two
 // builds differ.
@@ -27,10 +32,21 @@ const sy = loadSyms(a.syms || `${ROOT}master/build/symbols.txt`);
 const seed = a.seedfile ? JSON.parse(readFileSync(a.seedfile, "utf8")) : null;
 const EVERY = +(a.every || 5), ITERS = +(a.iters || 3000);
 const H = sy.hframe + 7;   // hframe: PHP PHA PHX PHY JSR G_FRAME | PLY
-const res = {}; let cur = -1, inst = false;
+const FR = sy.f_reset;     // (bank 6: tested with ROMSEL)
+const res = {}; let cur = -1, inst = false, nIn = 0, seen = false;
+const hashBufs = cpu => { const h = createHash("sha1"); h.update(cpu.ramRomOs.subarray(0x4000, 0x7000)); h.update(cpu.ramRomOs.subarray(0xc000, 0xf000)); return h.digest("hex").slice(0, 16); };
 await runElite({ disc: a.disc || `${ROOT}master/build/elite-master-sng47.ssd`, syms: sy, pilot: makePilot(), iters: ITERS, patch: patchCommander, seed,
-    onIter: (i, s, r) => { cur = i; const cpu = r.cpu; if (inst) return; inst = true;
+    onIter: (i, s, r) => { if (i !== cur) nIn = 0; cur = i; const cpu = r.cpu; if (inst) return; inst = true;
         cpu.debugInstruction.add(pc => {
+            if (a.frames) {
+                // (jsbeeb calls no hook for a slice's first instruction: f_reset's
+                // second, after its LDA #0, stands in for a missed first)
+                if ((pc === FR || pc === FR + 2) && (cpu.romsel & 0x8f) === 6) {
+                    if (pc === FR + 2 && seen) seen = false;
+                    else { seen = pc === FR; res[`${cur}.${nIn++}`] = hashBufs(cpu); }
+                }
+                return false;
+            }
             if (pc === H && cur % EVERY === 0 && res[cur] === undefined) {
                 const h = createHash("sha1");
                 h.update(cpu.ramRomOs.subarray(0x4000, 0x7000)); h.update(cpu.ramRomOs.subarray(0xc000, 0xf000));

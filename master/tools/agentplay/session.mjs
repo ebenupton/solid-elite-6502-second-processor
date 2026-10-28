@@ -87,6 +87,33 @@ export class Session {
             this.ref.startTrace(cfg.trace[0], cfg.trace[1], this.traces.ref, cfg.traceFull);
             this.cand.startTrace(cfg.trace[0], cfg.trace[1], this.traces.cand, cfg.traceFull);
         }
+        // fbhash (a file): the candidate's two screen buffers (main and shadow RAM
+        // &4000-&6FFF) hashed at every entry to the frame layer's f_reset in bank 6
+        // (the end of every rendered frame, and every F_FRAME call outside the
+        // space views), keyed "iteration.n", and at the start of each iteration
+        // ("iteration.m": the docked screens); written at the end, to compare two
+        // builds' pictures (harness/mfbcmp.mjs --cmp)
+        if (cfg.fbhash) {
+            const cpu = this.cand.cpu, FR = this.csy.f_reset, m = this.cand;
+            let it = -1, n = 0;
+            this.fb = {};
+            const hash = () => { const h = createHash("sha1"); h.update(cpu.ramRomOs.subarray(0x4000, 0x7000)); h.update(cpu.ramRomOs.subarray(0xc000, 0xf000)); return h.digest("hex").slice(0, 16); };
+            // (lib.mjs's execute calls no hook for the first instruction of a slice, so
+            // f_reset's second instruction, after its LDA #0, stands in for a missed
+            // first: seen remembers that the first was hooked)
+            let seen = false;
+            cpu.debugInstruction.add(pc => {
+                if (m.iter !== it) { it = m.iter; n = 0; this.fb[`${it}.m`] = hash(); }   // (and at each iteration's start: the docked screens)
+                if ((pc !== FR && pc !== FR + 2) || (cpu.romsel & 0x8f) !== 6) return false;
+                if (pc === FR + 2 && seen) { seen = false; return false; }
+                seen = pc === FR;
+                const k = `${it}.${n++}`;
+                this.fb[k] = hash();
+                if (process.env.FBDUMP && process.env.FBDUMP.split(",").includes(k))     // (FBDUMP=key,...: the two buffers, main then shadow &4000-&6FFF)
+                    writeFileSync(`${cfg.fbhash}.${k}.raw`, Buffer.concat([cpu.ramRomOs.subarray(0x4000, 0x7000), cpu.ramRomOs.subarray(0xc000, 0xf000)]));
+                return false;
+            });
+        }
         if (cfg.replay) this.loadLog(cfg.replay);
         else {
             this.agent = new Agent(cfg.agentEnv || {});
@@ -404,6 +431,7 @@ export class Session {
         const ccov = cand.coverage();
         if (ccov) writeFileSync(`${cfg.out}/coverage-cand.json`, JSON.stringify(ccov));
         writeFileSync(`${cfg.out}/summary.json`, JSON.stringify(s, null, 1));
+        if (cfg.fbhash) writeFileSync(cfg.fbhash, JSON.stringify(this.fb));
         return s;
     }
 }
