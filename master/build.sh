@@ -32,6 +32,8 @@
 #                 6957750), when their code is assembled out
 #   RINGS=on      planet rings (an eighth of the systems, by the seed: pf_ring,
 #                 f_ring); off by default, assembled out
+#   MOON=scenery  the moon is not solid (no MOONHIT: elite-moon.asm), for a
+#                 lockstep comparison with SNG47 in a system with a moon
 #
 # The checksum script is given the F%, G% and NA2% that the assembler prints,
 # so a changed source still gets a correct commander checksum.
@@ -52,6 +54,7 @@ _MATCH_ORIGINAL_BINARIES=$MO
 _MAX_COMMANDER=FALSE
 _PLANET_BANDS=$( [ "${BANDS:-off}" = on ] && echo TRUE || echo FALSE )
 _PLANET_RINGS=$( [ "${RINGS:-off}" = on ] && echo TRUE || echo FALSE )
+_MOON_SOLID=$( [ "${MOON:-solid}" = scenery ] && echo FALSE || echo TRUE )
 _TUBE=FALSE
 _TPART=0
 _TDUMB=FALSE

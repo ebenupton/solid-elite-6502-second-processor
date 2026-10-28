@@ -8,6 +8,10 @@
 #   build/elite-tube.ssd   the disc (SHIFT+BREAK on a host with a 6502 Second
 #                      Processor)
 #
+# Options (environment), as master/build.sh's: BANDS=on (banded planets),
+# RINGS=on (planet rings), MOON=scenery (the moon not solid, for a lockstep
+# comparison with SNG47 in a system with a moon).
+#
 # The game's source is master/src's, assembled with _TUBE (and the renderer's
 # files with _TPART = 1 for the parasite's part, 2 for the host's). The stage
 # directory makes master/src look like the Tube's build: src/ is master/src,
@@ -32,6 +36,7 @@ _MATCH_ORIGINAL_BINARIES=TRUE
 _MAX_COMMANDER=FALSE
 _PLANET_BANDS=$( [ "${BANDS:-off}" = on ] && echo TRUE || echo FALSE )
 _PLANET_RINGS=$( [ "${RINGS:-off}" = on ] && echo TRUE || echo FALSE )
+_MOON_SOLID=$( [ "${MOON:-solid}" = scenery ] && echo FALSE || echo TRUE )
 _TUBE=TRUE
 _TDUMB=TRUE
 EOF

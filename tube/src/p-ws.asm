@@ -29,12 +29,9 @@ ss_d = MN_E - 9             \ (ss_turnx's base: this tree has no S_SUN and its D
 .ss_o       SKIP 1
 .mt_it      SKIP 1
 .mt_sys     SKIP 6
-.ss_w       SKIP 4
-.ss_a       SKIP 4
-.ss_p       SKIP 3
-.ss_m       SKIP 1
-.ss_mm      SKIP 1
-.ss_sg      SKIP 1
+.ss_w       SKIP 3
+.ss_zs      SKIP 26         \ (SS_NZP: the zero page kept round MV40)
+ASSERT ss_zs + SS_NZP = P%
 ASSERT P% <= &0D08          \ (VIA + &34, the dummy SHEILA byte)
 ORG &0D09
 .PWS_START

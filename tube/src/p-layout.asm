@@ -52,6 +52,7 @@ PFRAME% = P%
  INCLUDE "src/gfx-hangar.asm"
  INCLUDE "src/gfx-mnturn.asm"           \ (the moon's place, once an iteration:
  CPU 1                                  \ G_FRAME, G_PFHOOK)
+ INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
 IF OPTEST                \ (a test build for test_onepass.py --tube only: the

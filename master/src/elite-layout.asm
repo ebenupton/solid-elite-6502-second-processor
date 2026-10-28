@@ -51,6 +51,8 @@
  INCLUDE "build/elite-source-bank4.asm"
 
  INCLUDE "src/gfx-mnturn.asm"           \ the moon's place (G_FRAME, G_PFHOOK)
+ INCLUDE "src/elite-moon.asm"           \ and from MA22, MOONHIT: the moon is
+                                        \ solid
 
 .BANK4_END%
 
