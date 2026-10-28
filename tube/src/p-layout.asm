@@ -70,9 +70,7 @@ ELSE
  SKIP F_DL + 1536 - P%
 ENDIF
 .F_DLEND
-.F_TM   SKIP 768        \ the text map (gfx-frame.asm), and what each buffer shows
-.F_ST   SKIP 768
-ASSERT F_ST = F_TM + &300
+.F_TM   SKIP 768        \ the text map (gfx-frame.asm)
 .F_SLV  SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
                         \ gfx-frame_cold.asm; F_SLV+16 &80: none)
 .PRES_END                \ (the end of what is always resident)

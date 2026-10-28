@@ -62,8 +62,7 @@ ASSERT HI(R_PXL) = HI(R_PYH + 15)
 .R_SX       SKIP 24
 .R_SY       SKIP 24
 .F_TMR      SKIP 24         \ the text map's rows' counts (gfx-frame.asm)
-.F_SHR0     SKIP 24
-.F_SHR1     SKIP 24
+.PWS_FREE   SKIP &0E00 - P% \ (free)
 ASSERT P% = &0E00
 .R_NDISCL   SKIP 192        \ new disc spans, left ends (page aligned)
 ASSERT LO(R_NDISCL) = 0

@@ -78,7 +78,7 @@ ENDIF
  STA F_DSS,X
  DEX
  BPL fin1
- JSR f_tmclear
- RTS
+ RTS                    \ (the text map, F_TCH and f_dlog are all zero, as
+                        \ loaded: no text, none shown, none noted)
 
 ENDIF
