@@ -664,6 +664,7 @@ def data(errors):
 #
 #   \       Area: ovl S crater      (overlay S's crater tail, p-layout.asm)
 #   \       Area: frame             (back to the file's own place)
+#   \       Area: ovl S             (overlay S, space mode only: p-layout.asm)
 #
 #   \       Area: hazel             (the Master host's HAZEL: the code that
 #                                    enters the STA runs, tube/src/h-layout.asm)
@@ -672,13 +673,14 @@ def data(errors):
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place: the resident frame
-# layer, or the host's bank), build/<file>-crater.asm (the tail) and
+# layer, or the host's bank), build/<file>-ovls.asm (overlay S),
+# build/<file>-crater.asm (the tail) and
 # build/<file>-hazel.asm. The Master port, the Model B host and (for the
 # files it does not pass) the Master host assemble the file itself, where the
 # tag lines are comments
-FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-raster.asm", "src/gfx-raster_lcold.asm",
+FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm", "src/gfx-raster_lcold.asm",
              "src/gfx-raster_polyb.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm")
-FPASS = {"frame": "frame", "ovl S crater": "crater", "hazel": "hazel", "ovl D": "ovld"}
+FPASS = {"frame": "frame", "ovl S": "ovls", "ovl S crater": "crater", "hazel": "hazel", "ovl D": "ovld"}
 
 
 def frame_passes(path, errors):

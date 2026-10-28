@@ -47,7 +47,8 @@ PFRAME% = P%
  INCLUDE "src/gfx-faces.asm"
  INCLUDE "src/gfx-light6.asm"
  INCLUDE "src/gfx-light.asm"
- INCLUDE "src/gfx-frame_cold.asm"
+ INCLUDE "build/gfx-frame_cold-frame.asm"  \ (its "Area: ovl S" block, f_slot,
+                                        \ in overlay S)
  INCLUDE "src/gfx-hangar.asm"
  INCLUDE "src/gfx-mnturn.asm"           \ (the moon's place, once an iteration:
  CPU 1                                  \ G_FRAME, G_PFHOOK)
@@ -72,6 +73,8 @@ ENDIF
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm), and what each buffer shows
 .F_ST   SKIP 768
 ASSERT F_ST = F_TM + &300
+.F_SLV  SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
+                        \ gfx-frame_cold.asm; F_SLV+16 &80: none)
 .PRES_END                \ (the end of what is always resident)
 
 
@@ -127,6 +130,7 @@ ENDIF
  CPU 1
  INCLUDE "src/gfx-planet7.asm"
  CPU 1
+ INCLUDE "build/gfx-frame_cold-ovls.asm"  \ (f_slot: the stars round a docking slot)
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to the ring: ", RING-OVL_S_END
  ASSERT OVL_S_END <= RING OR MEASURE    \ (the ring above: p-io.asm)

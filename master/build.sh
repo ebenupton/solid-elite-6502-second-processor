@@ -12,6 +12,7 @@
 #   build/symbols.txt (beebasm -d symbol dump of elite-layout.asm; zero page,
 #   workspaces, main code, banked code and the data), build/banks.txt (the
 #   banked labels' banks),
+#   build/starocc.txt (tools/starocc.py: no star shows through a fill),
 #   build/elite-master-sng47.ssd (bootable with SHIFT+BREAK on a BBC Master).
 #
 # The copy protection is gone (Stage B, docs/MASTER-PLAN.md): the game is
@@ -130,6 +131,8 @@ with open("build/images.txt", "w") as f:
         f.write("%s %s %04X %s\n" % (img, rs, at, v))
 PY
 python3 tools/bankcheck.py || exit 1
+# no star can show through a fill (R_STARPLOT's rule, master/tools/starocc.py)
+python3 tools/starocc.py build > build/starocc.txt || { cat build/starocc.txt; exit 1; }
 for f in loader readme; do
     $BEEBASM -i src/elite-$f.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 done

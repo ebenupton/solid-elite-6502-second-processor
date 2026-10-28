@@ -115,10 +115,10 @@ reg(sy["HZDATA_END%"], sy["HZ_END"], "hangar tables, moon and ring variables", "
     ["master/src/gfx-hangar6.asm", "master/src/gfx-planetv.asm"])
 reg(sy["PF_START"], sy["PF_CODE_END"], "frame layer (parasite part)", "code", "frame",
     ["build/gfx-frame-frame.asm", "master/src/gfx-faces.asm", "master/src/gfx-light6.asm", "master/src/gfx-light.asm",
-     "master/src/gfx-frame_cold.asm", "master/src/gfx-hangar.asm"])
+     "build/gfx-frame_cold-frame.asm", "master/src/gfx-hangar.asm"])
 reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_DL with F_INIT)", "buffers", "frame",
     ["tube/src/p-layout.asm", "master/src/gfx-finit.asm"])
-reg(sy["F_DLEND"], sy["PRES_END"], "text map (F_TM, F_ST)", "buffers", "frame", ["tube/src/p-layout.asm"])
+reg(sy["F_DLEND"], sy["PRES_END"], "text map (F_TM, F_ST) and the docking slot's vertices (F_SLV)", "buffers", "frame", ["tube/src/p-layout.asm"])
 o = sy["OVL_START"]
 if sy["PRES_END"] < o:
     reg(sy["PRES_END"], o, "free (to the overlay region's page)", "free", "-", [], sy["PRES_END"])
@@ -128,7 +128,7 @@ reg(o, RING, "overlay D (direct mode)", "overlay", "ovl D",
 reg(o, RING, "overlay S (space mode): state, then code", "overlay", "ovl S",
     ["tube/src/p-rast.asm", "tube/src/p-moon.asm", "tube/src/p-emit.asm", "tube/src/p-kept.asm", "tube/src/p-polya.asm",
      "tube/src/p-onepass.asm", "master/src/gfx-ftext.asm", "master/src/gfx-flare.asm", "master/src/gfx-merid.asm",
-     "master/src/gfx-planet7.asm"], sy["OVL_S_END"], alt="S")
+     "master/src/gfx-planet7.asm", "build/gfx-frame_cold-ovls.asm"], sy["OVL_S_END"], alt="S")
 reg(sy["OVL_D_END"], RING, "boot staging (p_boot and the high area's images: boot only)", "boot", "ovl D's tail",
     ["tube/src/p-layout.asm"], sy["PSTG_END"], alt="boot")
 if ZPSAVE + 0x90 >= o:
