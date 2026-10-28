@@ -803,8 +803,6 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STA GSUNON
  RTS
 
-.F_SUX EQUW 0
-.F_SUY EQUW 0
 
 \ F_SHPPT: record a distant ship as a 2x2 dot at (K3, K4), in its hue
 

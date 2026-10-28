@@ -50,8 +50,8 @@ PFRAME% = P%
  INCLUDE "build/gfx-frame_cold-frame.asm"  \ (its "Area: ovl S" block, f_slot,
                                         \ in overlay S)
  INCLUDE "src/gfx-hangar.asm"
- INCLUDE "src/gfx-mnturn.asm"           \ (the moon's place, once an iteration:
- CPU 1                                  \ G_FRAME, G_PFHOOK)
+ INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's and MN_TURN's resident part:
+ CPU 1                                  \ G_FRAME, G_PFHOOK, MOONHIT)
  INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
@@ -130,6 +130,7 @@ ENDIF
  INCLUDE "src/gfx-planet7.asm"
  CPU 1
  INCLUDE "build/gfx-frame_cold-ovls.asm"  \ (f_slot: the stars round a docking slot)
+ INCLUDE "build/gfx-ssun-ovls.asm"      \ (S_SUN's ss_seed and ss_draw)
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to the ring: ", RING-OVL_S_END
  ASSERT OVL_S_END <= RING OR MEASURE    \ (the ring above: p-io.asm)

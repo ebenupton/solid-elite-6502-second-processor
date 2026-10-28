@@ -7,7 +7,7 @@
 \ routines), called from the main flight loop's part 15 (MA22) with bank 4
 \ paged; on the Tube, in the parasite's resident image (p-layout.asm). The moon (gfx-planet7.asm's pf_moon draws it) is in the systems
 \ whose seed has one (h = s0_hi EOR s1_hi EOR s2_hi, bits 0-1 = 1): at
-\ MN_E from the planet's centre (gfx-mnturn.asm's MN_TURN places it in the
+\ MN_E from the planet's centre (gfx-ssun.asm's MN_TURN places it in the
 \ system, on the planet's spin axis, and MN_TURN keeps it fixed in space),
 \ with a radius of rho planet radii (rho = 48, 56, 64 or 72 / 256 by h bits
 \ 5-6), the planet's radius being 96 in the coordinates' high bytes, as in

@@ -50,7 +50,8 @@
 
  INCLUDE "build/elite-source-bank4.asm"
 
- INCLUDE "src/gfx-mnturn.asm"           \ the moon's place (G_FRAME, G_PFHOOK)
+ INCLUDE "src/gfx-ssun.asm"             \ the sun near the planet and the moon's
+                                        \ place (G_FRAME, G_PFHOOK)
  INCLUDE "src/elite-moon.asm"           \ and from MA22, MOONHIT: the moon is
                                         \ solid
 

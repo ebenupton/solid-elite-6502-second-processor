@@ -31846,7 +31846,7 @@ ENDIF
 \   Category: Universe
 \    Summary: Set up various aspects of arriving in a new system
 \  Deep dive: A sense of scale
-\       Area: cold
+\       Area: cold, again
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------

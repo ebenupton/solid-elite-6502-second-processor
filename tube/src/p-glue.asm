@@ -16,8 +16,8 @@
 .gA EQUB 0
 
 .G_FRAME
- JSR MN_TURN            \ (the moon's place, once an iteration: gfx-mnturn.asm)
- JSR F_FRAME
+ JSR S_SUN              \ (the sun near the planet and the moon's place, once an
+ JSR F_FRAME            \ iteration: gfx-ssun.asm)
  JMP gback
 
 .G_SHIP
@@ -74,7 +74,7 @@
 \ (H_CIRC, the only caller, reads none of A and the flags after it)
 
 .G_PFHOOK
- JSR MN_TURN            \ (the moon's place for this iteration, gfx-mnturn.asm)
+ JSR MN_TURN            \ (the moon's place for this iteration, gfx-ssun.asm)
  LDA #OVL_S
  JSR ovl_need
  JSR PF_HOOK

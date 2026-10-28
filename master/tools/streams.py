@@ -19,7 +19,14 @@
 # the port no longer runs (the original's planet detail maths, which the
 # renderer's circle engine replaces): its text stays, but each copy has only
 # its labels and an RTS, at its place (so a reference to it still assembles,
-# and returns at once); in the run otherwise. A block runs from its
+# and returns at once); in the run otherwise. ", again" after an area
+# ("Area: cold, again"): the block is also emitted a second time into
+# build/elite-source-again.asm (every other line blank, so line numbers stay),
+# with no stubs, and with its own labels and the targets of its JSRs and JMPs
+# named A_<name>: the renderer INCLUDEs it, and says where each call goes
+# (the original routine, A_X = X, or a stand-in of its own). gfx-ssun.asm
+# runs SOLAR's placing of the planet and the sun this way, with SOS1 and NWSHP
+# noting INWK instead of making ships. A block runs from its
 # header to the next header (or to a separator line of stars, which starts an
 # untagged block: the original's PRINT and SAVE sections).
 #
@@ -108,6 +115,7 @@ TUBEF = re.compile(r"^\\       Tube: (.*)$")
 TUBETAG = {}                             # block start line -> "host" / "both"
 TAGS = {"cold": "cold", "bank 4": "bank4", "low": "low", "none": "none"}
 NONE = set()                             # (the "Area: none" blocks, by their first line)
+AGAIN = set()                            # (the ", again" blocks, by their first line)
 NOFALL = set("RTS RTI JMP BRA BRK".split())
 
 
@@ -150,6 +158,9 @@ def blocks(lines, tags=TAGS):
             m = AREA.match(l)
             if m:
                 t = m.group(1).strip()
+                if t.endswith(", again"):      # (also emitted again, as it is)
+                    t = t[:-len(", again")]
+                    AGAIN.add(out[-1][0])
                 if t not in tags:
                     sys.exit("%d: unknown area %r" % (i + 1, t))
                 out[-1][3] = tags[t]
@@ -678,7 +689,7 @@ def data(errors):
 # build/<file>-hazel.asm. The Master port, the Model B host and (for the
 # files it does not pass) the Master host assemble the file itself, where the
 # tag lines are comments
-FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm", "src/gfx-raster_lcold.asm",
+FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm", "src/gfx-raster_lcold.asm",
              "src/gfx-raster_polyb.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm")
 FPASS = {"frame": "frame", "ovl S": "ovls", "ovl S crater": "crater", "hazel": "hazel", "ovl D": "ovld"}
 
@@ -711,6 +722,34 @@ def frame_passes(path, errors):
             f.write("\n".join(l if t == ps else "" for l, t in zip(lines, tags)))
 
 
+def again_copy(lines, bl):
+    """the ", again" blocks, every other line blank: each label a block
+    defines, and each JSR or JMP target outside the block, renamed A_<name>
+    (in the code, not the comments), so that the copy's labels are its own
+    and the file that INCLUDEs it decides where each call goes (the original
+    routine, A_X = X, or a stand-in .A_X)"""
+    out = [""] * len(lines)
+    for s, e, name, area in bl:
+        if s not in AGAIN:
+            continue
+        own = set()
+        for i in range(s, e):
+            m = re.match(r"^\.([A-Za-z_]\w*)", code_part(lines[i]))
+            if m:
+                own.add(m.group(1))
+        for i in range(s, e):
+            c = code_part(lines[i])
+            if not c:
+                out[i] = lines[i]
+                continue
+            n = len(lines[i]) - len(lines[i].lstrip())
+            code = re.sub(r"\b(JSR|JMP)\s+([A-Za-z_]\w*)", lambda m: "%s A_%s" % (m.group(1), m.group(2)), c)
+            code = re.sub(r"(?<![\w%])([A-Za-z_]\w*)\b",
+                          lambda m: "A_" + m.group(1) if m.group(1) in own else m.group(1), code)
+            out[i] = " " * n + code + lines[i][lines[i].index(c) + len(c):]
+    return out
+
+
 def stub_none(lines, bl):
     """each "Area: none" block's code: only its labels, then an RTS on its
     last code line (the lines between blanked, so line numbers stay)"""
@@ -731,6 +770,8 @@ def stub_none(lines, bl):
 def main():
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
+    with open(OUT % "again", "w", encoding="latin-1") as f:
+        f.write("\n".join(again_copy(lines, bl)))
     stub_none(lines, bl)
     if TUBEOVL is not None:                # (the Tube: resident cold blocks join the run,
         bl = [(s, e, n, "cold" if n in TUBEOVL else  # and the overlay's others the cold area)

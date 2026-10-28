@@ -89,9 +89,9 @@ reg(wp0 - 0, wp_end + 1, "WP: Elite's workspace, the dashboard's variables", "wo
 # page &0D: the dummy SHEILA byte (ACCCON, VIA + &34) and setzp/getzp's buffer
 p = wp_end + 1
 pws0 = sy.get("PWS_START", 0xE00)
-if "MN_E" in sy and sy["MN_E"] == p:          # (the moon's place after WP: p-ws.asm)
-    e = sy["ss_zs"] + 26             # (ss_zs: SS_NZP bytes)
-    reg(p, e, "the moon's place and MN_TURN's variables (gfx-mnturn.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"])
+if "ss_d" in sy and sy["ss_d"] == p:          # (the sun's and moon's places after WP: p-ws.asm)
+    e = sy["SS_OK"] + 1
+    reg(p, e, "the sun's and the moon's places, S_SUN's and MN_TURN's variables (gfx-ssun.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"])
     p = e
 pd = sorted(x for x in [(VIA + 0x34, VIA + 0x35, "dummy ACCCON (VIA + &34)"), (ZPSAVE + 0x90, ZPSAVE + 0x100, "ZPSAVE (zero page &90-&FF)")]
             if x[0] < pws0)
@@ -116,7 +116,7 @@ reg(sy["HZDATA_END%"], sy["HZ_END"], "hangar tables, moon and ring variables", "
 reg(sy["PF_START"], sy["PF_CODE_END"], "frame layer (parasite part)", "code", "frame",
     ["build/gfx-frame-frame.asm", "master/src/gfx-faces.asm", "master/src/gfx-light6.asm", "master/src/gfx-light.asm",
      "build/gfx-frame_cold-frame.asm", "master/src/gfx-hangar.asm",
-     "master/src/gfx-mnturn.asm", "master/src/elite-moon.asm"])
+     "build/gfx-ssun-frame.asm", "master/src/elite-moon.asm"])
 reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_DL with F_INIT)", "buffers", "frame",
     ["tube/src/p-layout.asm", "master/src/gfx-finit.asm"])
 reg(sy["F_DLEND"], sy["PRES_END"], "text map (F_TM) and the docking slot's vertices (F_SLV)", "buffers", "frame", ["tube/src/p-layout.asm"])
@@ -129,7 +129,7 @@ reg(o, RING, "overlay D (direct mode)", "overlay", "ovl D",
 reg(o, RING, "overlay S (space mode): state, then code", "overlay", "ovl S",
     ["tube/src/p-rast.asm", "tube/src/p-moon.asm", "tube/src/p-emit.asm", "tube/src/p-kept.asm", "tube/src/p-polya.asm",
      "tube/src/p-onepass.asm", "master/src/gfx-ftext.asm", "master/src/gfx-flare.asm", "master/src/gfx-merid.asm",
-     "master/src/gfx-planet7.asm", "build/gfx-frame_cold-ovls.asm"], sy["OVL_S_END"], alt="S")
+     "master/src/gfx-planet7.asm", "build/gfx-frame_cold-ovls.asm", "build/gfx-ssun-ovls.asm"], sy["OVL_S_END"], alt="S")
 reg(sy["OVL_D_END"], RING, "boot staging (p_boot and the high area's images: boot only)", "boot", "ovl D's tail",
     ["tube/src/p-layout.asm"], sy["PSTG_END"], alt="boot")
 if ZPSAVE + 0x90 >= o:

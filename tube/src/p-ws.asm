@@ -22,16 +22,18 @@ OPTUBE = TRUE           \ the Tube's: every polygon in one pass (p-onepass.asm, 
                         \ as the two-phase path; no edge tables
 NDSTAR = NOST+1
 
-ORG &0CCF               \ (after WP: the moon's place, MN_TURN's, gfx-mnturn.asm:
-.MN_E       SKIP 9          \ never loaded; a first MN_TURN finds the system changed)
-ss_d = MN_E - 9             \ (ss_turnx's base: this tree has no S_SUN and its D)
+ORG &0CCF               \ (after WP: the sun's and the moon's places, S_SUN's and
+.ss_d       SKIP 9          \ MN_TURN's, gfx-ssun.asm: never loaded; a first
+.MN_E       SKIP 9          \ MN_TURN finds the system changed, SS_OK is clear)
 .MN_OK      SKIP 1
 .ss_o       SKIP 1
 .mt_it      SKIP 1
 .mt_sys     SKIP 6
 .ss_w       SKIP 3
-.ss_zs      SKIP 26         \ (SS_NZP: the zero page kept round MV40)
-ASSERT ss_zs + SS_NZP = P%
+.ss_pl      SKIP 9          \ (ss_dif's planet and sun)
+.ss_su      SKIP 9
+.SS_OK      SKIP 1
+ASSERT MN_E = ss_d + 9
 ASSERT P% <= &0D08          \ (VIA + &34, the dummy SHEILA byte)
 ORG &0D09
 .PWS_START
@@ -59,6 +61,9 @@ ASSERT HI(R_PXL) = HI(R_PYH + 15)
 .R_SX       SKIP 24
 .R_SY       SKIP 24
 .F_TMR      SKIP 24         \ the text map's rows' counts (gfx-frame.asm)
+.ss_zs      SKIP 37         \ (the zero page kept round MV40 and SOLAR: gfx-ssun.asm)
+.F_SUX      SKIP 2          \ (the sun's centre this frame: F_PLANET or S_SUN)
+.F_SUY      SKIP 2
 .PWS_FREE   SKIP &0E00 - P% \ (free)
 ASSERT P% = &0E00
 .R_NDISCL   SKIP 192        \ new disc spans, left ends (page aligned)

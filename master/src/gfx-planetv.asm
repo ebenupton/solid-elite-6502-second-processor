@@ -28,11 +28,11 @@ IF _TPART <> 1             \ (the Tube's parasite: in overlay S, p-moon.asm)
 ENDIF
 ENDIF
 
-\ The moon's place (MN_TURN, gfx-mnturn.asm: planetsun's gfx-ssun.asm keeps
-\ the sun's D = sun - planet first, and turns both alike: ss_turnx takes an
-\ offset from ss_d, so MN_E must follow it; this tree has no S_SUN)
+\ The sun's and the moon's places (S_SUN and MN_TURN, gfx-ssun.asm, which
+\ turns both alike: ss_turnx takes an offset from ss_d, so MN_E must follow
+\ it)
 IF _TPART <> 1             \ (the Tube's parasite: after WP, p-ws.asm)
-.ss_d   SKIP 9          \ (unused here)
+.ss_d   SKIP 9          \ D = sun - planet, as MN_E (S_SUN)
 .MN_E   SKIP 9          \ E = moon - planet, x, y, z (lo, hi, top), two's
                         \ complement, in the coordinates
 .MN_OK  SKIP 1          \ bit 7: MN_E is this system's

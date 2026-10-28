@@ -68,6 +68,14 @@ R_PTB = R_NDISCL
 ASSERT LO(R_PTA) <> LO(R_PTB) AND LO(R_PTA) + 191 < 256   \ (k_pre tells them apart)
 .R_SN       SKIP 1          \ star count 0..NDSTAR
 .R_SCOL     SKIP 1          \ star colour byte (R_INIT: &FF)
+IF _TPART = 0               \ (the sun near the planet: S_SUN, gfx-ssun.asm, in
+.ss_pl      SKIP 9          \ bank 4, writes these for the frame layer; the
+.ss_su      SKIP 9          \ Tube's are in p-ws.asm) ss_dif's planet and sun
+.ss_zs      SKIP 37         \ (INWK's), the zero page kept round MV40 and SOLAR
+.SS_OK      SKIP 1          \ bit 7: S_SUN knows D (F_DIRECT clears it docked)
+.F_SUX      SKIP 2          \ the sun's centre this frame (F_PLANET from SUN, or
+.F_SUY      SKIP 2          \ S_SUN)
+ENDIF
 ALIGN &100
 .KF         SKIP 192        \ the kept solid rows (gfx-raster_kept.asm), per row:
                             \ bit b set if the row is kept in buffer b, bit 7 if

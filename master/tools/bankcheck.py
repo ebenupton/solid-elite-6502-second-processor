@@ -63,7 +63,7 @@ FILES = {"../build/elite-source-run.asm": "main", "../build/elite-source-low.asm
          "gfx-raster_line.asm": "bank5a", "gfx-raster_lcold.asm": "bank5",
          "gfx-frame.asm": "bank6", "gfx-faces.asm": "bank6", "gfx-light6.asm": "bank6", "gfx-light.asm": "bank6", "gfx-finit.asm": "bank6",
          "gfx-frame_cold.asm": "bank6", "gfx-flare6.asm": "bank6", "gfx-hangar.asm": "bank6", "gfx-hangar6.asm": "bank6", "gfx-flare.asm": "bank5",
-         "gfx-mnturn.asm": "bank4", "elite-moon.asm": "bank4", "gfx-merid.asm": "bank7m", "gfx-planet7.asm": "bank7m", "gfx-planetv.asm": "hazel",
+         "gfx-ssun.asm": "bank4", "elite-moon.asm": "bank4", "gfx-merid.asm": "bank7m", "gfx-planet7.asm": "bank7m", "gfx-planetv.asm": "hazel",
          "gfx-raster_kept.asm": "bank5d", "gfx-kept7.asm": "bank7m", "gfx-kept-hz.asm": "hazel"}
 # the copies of elite-source.asm that tools/streams.py writes, one per area
 # (their line numbers are elite-source.asm's)
