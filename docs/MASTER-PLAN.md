@@ -2786,3 +2786,62 @@ replay.mjs --shots 1 (screenshots/countdown/sheet.png: SNG47, the map
 without f_eor, the map with it, at the first ticks of a session's
 countdown, the port one iteration later for its frame's latency). The gate:
 VERIFY PASS 13.97 10.30 0.737.
+
+## Disc memory
+
+A disc row's boundary count and its colour at the span's left end are one
+byte: R_NDN holds the count in bits 0-6 and the colour in bit 7 (PC_ROWS
+and PC_MROWS write it so, f_moon reads it), and each buffer's stored
+boundaries likewise (R_BDN0/R_BDN1; a row with more than two is stored as
+count &40, unknown). An unchanged row is then one compare of the two bytes,
+and r_dpe finds the count difference with the colours shifted out (ASL of
+new - old: 2 one more, -2 one fewer; the unknown count gives -128..-120).
+Free: 192 bytes of the shared workspace (&17F8-&18B7, raster_vars) and 384
+of bank 5 (&9180-&923F, &9480-&953F, the boundary block's third arrays).
+
+The disc memory, in bytes:
+
+| structure | where | bytes |
+|---|---|---:|
+| R_DISCL0/R0/L1/R1, the layer's spans by buffer | shared workspace | 768 |
+| R_BDN, R_BDX0, R_BDX1 by buffer, its boundaries | bank 5 | 1,152 |
+| R_S2L0/L1/R0/R1, the second disc's spans by buffer | bank 5 | 768 |
+| R_NDN (count and colour), R_NDX0-3, this frame's boundaries | shared workspace | 960 |
+| R_NDISCL/R, this frame's spans (R_PTB/R_PTA, the polygons' edge tables, between frames' discs) | shared workspace | 384 |
+| F_HW, F_HW2, F_HW3, the half-widths by radius | bank 6 | 576 |
+
+Measured and not taken (master/tools/discmem: bench.sh, cmp.py,
+perframe.py; every candidate had to leave every frame of every scene no
+slower than before):
+
+* **The second disc's spans made again** from its place and radius as each
+  buffer drew it (S2_X..S2_R, 10 bytes), into R_NDX0/R_NDX1 after the layer
+  has drawn, with f_discspans itself, or taken from the new spans when the
+  disc has not changed: frees 768 bytes of bank 5 for about 330 of bank 6
+  code. Making the old spans costs what making the new ones does (about 20
+  cycles a row, 70 for a disc across the window's side, and a half-width
+  table, about 60 r cycles, when its radius changed) against the 10 a row
+  the kept spans' stores cost: frames where the second disc moves were
+  1,100 to 2,500 cycles slower, frames where it holds still about 700
+  faster. Clamped two-rows-a-step span loops for discs across the window's
+  side (296 bytes) and a half-width builder by the circle's symmetry (44
+  bytes) pay for it on the whole in every scene (big planets across the
+  window's side 2.5-4.5% faster), but not frame by frame.
+* **The layer's spans made again** the same way: 768 bytes for 384 of
+  scratch during R_DISCROWS (when R_NDX0-3 are in use), about 25 cycles a
+  row whenever the planet moves on the screen, and a table (up to 15,000
+  cycles) whenever its radius changes: not taken.
+* **One heap for the persistent disc state**, partitioned by each body's
+  rows: the layer alone needs 1,920 bytes for a planet across the whole
+  screen in both buffers (a close approach), and only the second disc
+  could share it; base-minus-top-row operands cross a page on most reads
+  (a cycle a read) and need 16-bit patches. Nothing to gain.
+* **Rows made as R_DISCROWS reads them** (streaming): PC_ROWS walks each
+  circle from its centre row outwards, two rows a step, adding its
+  crossings to every row it reaches; rows in order would need each circle
+  started at the top row (a square root and multiplies per circle) and
+  stepped backwards and forwards, bit for bit as now: R_NDN and R_NDX0-3
+  (960 bytes) for a rewrite of the circle engine, not taken.
+* **R_NDX2/R_NDX3 only for rows with three or four crossings** (an overflow
+  list): two craters side by side give such rows over a cap's height, so a
+  short list overflows, and nothing else is dead while they are live.
