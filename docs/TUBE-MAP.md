@@ -28,8 +28,8 @@ sights, and the text map with its diff against what each buffer shows.
 | Zero page, stack, K%, WP | &0000-&0CCE | the game's workspaces, at the Master port's addresses; &E4-&F8: p-rast.asm's pointers and scratch; QSL (the quarter squares' low bytes) in pages 2-3 |
 | Free | &0CCF-&0D07 | 57 bytes (the moon's place, with MOON=on on the Master port: the Tube's build refuses MOON=on) |
 | Dummy SHEILA | &0D08 | the one SHEILA byte Master's code still writes on the parasite (ACCCON, VIA + &34) |
-| Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm (workspace: not in the image): the polygon and line inputs, the stars, the text map's row counts, the discs' and the flare's probes' scratch, R_POLY's and the kept rows' scratch, then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page); 55 bytes free |
-| Resident code and data | &1400-&B3CF (48 free to &B3FF) | the glue (p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the stubs into overlay D, the panel's game halves), the run (every block not tagged "Tube: ovl D" or the hosts'), the game data (not QQ18, the recursive tokens: the hosts keep them, below), the frame layer's parasite part and its state (F_HW, F_SR, F_RP, the text map F_TM, F_SLV), then the disc heap's drop (p-disc0.asm) and the flare's probes' helpers (p-probe1.asm) |
+| Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm (workspace: not in the image): the polygon and line inputs, the stars, the text map's row counts, the discs' and the flare's probes' scratch, R_POLY's and the kept rows' scratch, then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page); 76 bytes free |
+| Resident code and data | &1400-&B3F5 (10 free to &B3FF) | the glue (p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the stubs into overlay D, the panel's game halves), the run (every block not tagged "Tube: ovl D" or the hosts'), the game data (not QQ18, the recursive tokens: the hosts keep them, below), the frame layer's parasite part and its state (F_HW, F_SR, F_RP, the text map F_TM, F_SLV), then the disc heap's drop and the surface's cold paths (p-disc0.asm) and the flare's probes' helpers (p-probe1.asm) |
 | Overlay region | &B400-&F3FF | overlay D or overlay S (below); in direct mode ZPSAVE, above D, is getzp's buffer |
 | The ring | &F400-&F7FF | 4 pages, above both overlays and the boot's staging (p-layout.asm asserts it): the commands buffered while register 1 is full (p-io.asm; "The ring" below) |
 | High area | &F800-&FEE9 | phase A's second part (p-polyb.asm), the panel's second part (p-dash2.asm), the kept rows' T_KFRAME and pk_line (p-kept2.asm), the one-pass generator's tail; 6 bytes free to &FEEF. The client OS's copy lives here too: the host keeps whichever of the two is out (C_SWAP) |
@@ -40,7 +40,7 @@ sights, and the text map with its diff against what each buffer shows.
 | Overlay | Size | Free | Holds |
 |---|---|---|---|
 | D (direct mode) | 9,456 bytes, &B400-&D8EF | 6,928 (less ZPSAVE's 112 at &EF90) | the cold blocks that run only on the screens drawn directly (the blocks tagged "Tube: ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title, SUN's direct drawing), with the extended tokens they print |
-| S (space mode) | 16,318 bytes, &B400-&F3BD | 66 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet |
+| S (space mode) | 16,340 bytes, &B400-&F3D3 | 44 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet |
 
 Code outside an overlay calls into D through stubs that streams.py writes at
 the routines' places (`JSR povd : EQUW target`; povdj for the routines that
@@ -59,10 +59,15 @@ and 9 of S's state in iterations 0-6000 of run1.
 Every disc is drawn as changes. The disc layer (the planet or the sun, in
 front) keeps, per buffer, each row's span (R_DISCL, R_DISCR); with surface
 detail (two colours: beach ball, craters, bands) the disc heap keeps each
-row's boundary count, its left colour and its first two boundaries, and a
-changed row is sent as the strips its edges (ends and boundaries) moved
-through (the Master port's r_dpe), or segment by segment when they cannot
-be. The second disc (the sun round the planet, f_disc2) keeps its spans in
+row's n (twice its boundary count plus its left colour, R_NDN rotated left:
+a nibble per buffer of one shared byte, through a 7-byte table each, no
+shifts) and its first two boundaries. One loop (ps_rows, as the Master
+port's r_dbm) takes the band's rows: an unchanged row costs a few compares;
+a changed row with the same count and colour is sent as the strips its
+edges (ends and boundaries) moved through (the Master port's r_dpe:
+straight-line for 0, 1 or 2 boundaries, the order checked only between
+neighbouring edges, before anything is sent), any other segment by
+segment. The second disc (the sun round the planet, f_disc2) keeps its spans in
 the heap too and sends only what changed against them and against what
 this frame wrote over it. The heap (HEAPN bytes in S's state) is one block
 partitioned by size: the surface's arrays grow from its start, the second

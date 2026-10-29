@@ -24,24 +24,32 @@ is the Master port's (moons off unless MOON=on).
 **Every disc incremental, on the parasite** (p-disc.asm, p-rast.asm): each
 buffer keeps what it shows of each disc row and a frame sends only what
 changed. The disc layer (the planet or the sun in front): the row's span per
-buffer; with surface detail (beach ball, craters, bands) the row's boundary
-count, left colour and first two boundaries in the disc heap, and a changed
-row goes as the strips its edges moved through (the Master port's r_dpe),
-else segment by segment. The second disc (the sun round the planet,
-f_disc2): its spans per buffer in the heap, only the change against them and
-against what this frame wrote over it. One heap (1,374 bytes in S's state)
-partitioned by size: the surface's arrays from its start, the second disc's
-from its end, each window sliding, growing by half again (16 rows at least)
-into the room between, shrinking back when its capacity is over 2n + 32;
-only when both cannot fit are both dropped and the heap partitioned again,
-and a body that cannot fit alone is drawn whole that frame.
+buffer; with surface detail (beach ball, craters, bands) the row's n (twice
+its boundary count plus its left colour: R_NDN rotated left, a nibble per
+buffer, read and written through a 7-byte table each, no shifts) and first
+two boundaries in the disc heap. One loop over the band's rows (ps_rows, as
+the Master port's r_dbm): an unchanged row costs a few compares (dirty, n,
+span, boundaries; 60-95 cycles); a changed row with the same n goes as the
+strips its edges moved through (the Master port's r_dpe, ps_strips:
+straight-line for 0, 1 or 2 boundaries, the strips' order checked before
+anything is sent and only between neighbouring edges, as the old edges are
+in order and so are the new), any other (a count or colour that changed,
+strips out of order) segment by segment, after the old span less the new in
+black where the new does not hold it. The second disc (the sun round the
+planet, f_disc2): its spans per buffer in the heap, only the change against
+them and against what this frame wrote over it. One heap (1,374 bytes in S's
+state) partitioned by size: the surface's arrays from its start, the second
+disc's from its end, each window sliding, growing by half again (16 rows at
+least) into the room between, shrinking back when its capacity is over
+2n + 32; only when both cannot fit are both dropped and the heap partitioned
+again, and a body that cannot fit alone is drawn whole that frame.
 
 | Fallback counts | drops | frames drawn whole |
 |---|---|---|
 | run1 0-16000, Master and Model B hosts (the gate) | 0 | 0 |
 | the 13 bench scenes (tube/tools/tscenes.sh), both hosts | 0 | 0 |
-| a test build with the heap 900 bytes smaller: run1 0-6000 | 1,550 | 1,550 (pixels: 0 mismatched) |
-| the same: sunswap | 244 | 241 (pixels as the full heap's) |
+| a test build with HEAPN 900 bytes smaller: run1 0-6000 | 3,065 | 3,065 (pixels: 0 mismatched; tdrows.mjs: 0 wrong) |
+| the same: sunswap | 243 | 243 (pixels as the full heap's) |
 
 The bench scenes (tscenes.mjs: bench.sh's posed planets and msunnear.mjs's
 sunrises, the stars, seeds and light posed the same on both builds) compare
@@ -69,22 +77,27 @@ run1 0-16000 unchanged: 21 D, 21 S, 13 S's state).
 
 | Area | 28e7e44 | now |
 |---|---|---|
-| Resident, to the overlay region | 16 | 48 |
-| Overlay S, to the ring | 1,354 (state 2,148) | 66 (state 3,328, the heap's 1,374 in it) |
+| Resident, to the overlay region | 16 | 10 |
+| Overlay S, to the ring | 1,354 (state 2,148) | 44 (state 3,328, the heap's 1,374 in it) |
 | Overlay D, to the ring | 5,757 | 6,928 |
 | High area | 6 | 6 |
 | Page &FF | 9 | 9 |
-| Frame layer's inputs (p-ws.asm) | 0 | 54 |
+| Frame layer's inputs (p-ws.asm) | 0 | 76 |
 | &0CCF-&0D07 | 25 | 57 |
 | Master host: main code to &3000 | 576 | 570 |
 | Master host: overlay storage | 83 of 88 pages | 88 of 88 |
 
 The room came from: the merge (the frame layer's resident part 1,328 bytes
 smaller; bank 5's host code 768), SUN part 3 to overlay D (155), the heap's
-drop and the probes' helpers to the resident tail, R_POLY's and the kept
-rows' scratch to p-ws.asm (23). The Master host's overlay storage is now
-full: the next growth of overlay S's code or D needs a host page (main RAM
-&2E00-&2FFF is free: 570 bytes to &3000) or D smaller.
+drop, the surface's cold paths (ps_nd0, ps_whole) and the probes' helpers
+to the resident tail, R_POLY's and the kept rows' scratch to p-ws.asm (23).
+The surface's rows take, in S: the row loop and its paths 397 bytes and
+their tables 14, the strips 248, the segments 107, the heap fit's patching
+of the loop 16 more; in the resident tail 54 (its cold paths); none in
+p-ws.asm (its scratch is the heap fit's zero page). The Master host's
+overlay storage is now full: the next growth of overlay S's code or D needs
+a host page (main RAM &2E00-&2FFF is free: 570 bytes to &3000) or D
+smaller.
 
 **Speed** (it/s, capped: flight 1000-1400 / docking 3420-3550 / 0-3550 /
 beach 300-403 / beach 5355-5457):
@@ -93,20 +106,52 @@ beach 300-403 / beach 5355-5457):
 |---|---|---|
 | 28e7e44 | 18.66 / 10.68 / 18.99 / 9.21 / 9.26 | 14.09 / 8.82 / 15.86 / 7.28 / 7.07 |
 | the merge alone (not committed) | 18.71 / 10.68 / 19.04 / 9.24 / 9.28 | 14.13 / 8.88 / 15.91 / 7.29 / 7.10 |
-| now | 18.37 / 10.68 / 18.84 / 9.19 / 9.05 | 13.84 / 8.89 / 15.70 / 7.27 / 6.85 |
+| now | 21.19 / 10.68 / 20.20 / 10.22 / 10.03 | 16.49 / 8.88 / 17.22 / 8.11 / 7.67 |
 
-The incremental discs cost the parasite: against the merge alone, flight
--1.8% (Master) and -2.1% (Model B), the second beach window -2.5% and -3.5%;
-the host is idler (41% against 28% in flight) but the parasite is the
-bottleneck (96% busy). Its instruction count in flight is the merge's
-(66,279 against 66,161 an iteration); the difference is in cycles (indirect
-indexed heap reads, the per-row calls) and sends (strips at both ends where a
-repaint sent one span). Tried and not kept: a fast path for rows with no
-boundaries (no gain: those rows are few in these windows); exact tracking of
-the sights' pixels through every span (2% slower in flight, and no closer to the
-Master port's flare: its disc writes differ from the parasite's).
+Against the merge alone: flight +13.3% (Master host) and +16.7% (Model B),
+0-3550 +6.1% and +8.2%, the beach +10.6% / +8.1% and +11.2% / +8.0%;
+docking (no planet) the same. The parasite's cycles an iteration
+(tube/tools/dprof.mjs, Master host; flight 1000-1400 / beach 5355-5457),
+the merge alone repainting every two-colour row whole:
 
-**Gates** (scratch/g4, both hosts): Master port byte-identical; lockstep
+| | the merge alone | now |
+|---|---|---|
+| the strips (ps_strips) | - | 11,726 / 28,768 |
+| the rows' bookkeeping (the loop, each row's state) | 44,457 / 66,064 | 23,177 / 46,907 |
+| the segments | 17,759 / 36,086 | 4,879 / 11,540 |
+| the spans' encoding and sends | 33,969 / 89,280 | 25,091 / 75,443 |
+| the ring, the flip's wait | 10,875 / 43,186 | 15,264 / 38,708 |
+| the iteration | 213,779 / 430,923 | 188,731 / 398,855 |
+
+A changed row's strips cost about 250 cycles before their spans, the order
+checked before anything is sent; an unchanged row 60-95. A row whose count
+or colour changed (a boundary in or out at an end: 23.6 rows a frame in
+flight) is sent segment by segment rather than as strips (r_dpe's paths
+for them, about 100 bytes, do not fit in S). The host, idler than
+the parasite, takes the spans; the parasite now waits for the ring at times
+in flight (rpg: 6,206 cycles an iteration). Not done: the heap's arrays
+read through absolute operands patched each frame instead of (p),Y (a
+cycle a read, about 800 an iteration in flight, for some 60 bytes of
+patching that S does not have). Tried and not kept: exact tracking of the
+sights' pixels through every span (2% slower in flight, and no closer to
+the Master port's flare: its disc writes differ from the parasite's).
+
+**The disc rows checked one by one** (tube/tools/tdrows.mjs): a replay
+that, at each frame's disc layer, works out what every row of the band must
+show from the frame's inputs and the buffer's last frame, and checks the
+spans sent against it (a pixel of the new span, the old span or the dirty
+extent ending wrong, or a write outside them). Run1's 300-403, 1000-1400
+and 5355-5457, both hosts: 604 frames, 86,275 band rows, 0 wrong, 0 stray
+writes, 0 unverified; a deliberate fault (one strip's colour) gives 1,907
+wrong rows in 300-403.
+`TUBEMHZ=4 node tube/tools/tdrows.mjs --log scratch/curious/run1/inputs.jsonl
+--cand tube/build/elite-tube.ssd --csyms tube/build/psyms.txt --windows
+300-403,1000-1400,5355-5457`; the profiles: `TUBEMHZ=4 node
+tube/tools/dprof.mjs` (the same options, `--out X.json`), compared with
+`node tube/tools/dprofcmp.mjs A.json B.json --window 1000-1400 [--field
+cx|lab|calls]`.
+
+**Gates** (scratch/g6n, both hosts): Master port byte-identical; lockstep
 16002 clean, TUBEINT 602 clean; storage 88 pages, 0 differ; pixels 14606
 matched, 0 mismatched (the dashboard's 51 "mismatched" are fbcmp's
 alignment over the reference's 7 sampling gaps: per iteration, 14474 of
