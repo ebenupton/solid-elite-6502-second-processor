@@ -2895,3 +2895,52 @@ list of 64 dropped 247 of them in 17 iterations (the most in one iteration
 is 84). Over the same run (harness/mfbcmp.mjs --frames, seeded as mcompare
 seeds the gate) the frames differ from the dot list's in 18 of 9,939: those
 of that explosion (7494-7511), now with the whole of the second cloud.
+
+**Ships.** A ship's record is what LL9's part 6 on (LL42: each vertex's
+visibility, then the visible vertices' screen coordinates in XX3) reads,
+taken as part 6 starts (H_LL42, F_SHIP), and the frame runs part 6 on
+itself for each ship as it draws it, far to near (f_proj, T_GAME at LL42P,
+bank 4 with ACCCON X clear; H_EE31 returns at once while GPRJ is set), into
+XX3, which f_ship reads in place. F_RP holds, a field to an array of MAXSH,
+INWK 0-8 (the place; its z, F_SZL and F_SZH, is the sort's), XX16 as part 3
+scaled it and XX0 (29 bytes a ship); F_SR the faces' levels (L_REC; a level
+is non-zero exactly where part 5 left XX2 non-zero, and the frame's part 6
+reads them as XX2, face 15 always shown as part 3 sets it); F_STYP, F_SNF and
+F_SX4 the type, faces and XX4. The ship buffer of XX2 and XX3 copies (1,536
+bytes) is gone: bank 6 has 1,383 bytes free (1,074 before), the records
+take 528 (348 + 180) where the buffer took 1,536.
+
+In the game, LL9 stops at part 6 for a ship that is not exploding (H_LL42
+goes on to H_EE31): master/tools/records/live.mjs (the gate, every byte part
+6 on writes watched from H_EE31 to the game's next access) finds nothing it
+leaves read but XX3, by DOEXP (an exploding ship's cloud vertices: it still
+projects them all) and H_EE31 (a ship firing at us: the gun vertex, which
+part 6's loop projects alone, F_GUN setting it on that vertex at LL48). The
+splinter's faces are shown for the record (S_SHIP calls SPLV) and put back.
+
+The frame keeps the game's zero page that its game code changes and the
+game reads afterwards (live.mjs over the frame, with all the frame's game
+code writes counted): RAND, Q, TGT, XX0, INWK 0-8, INWK+31 and XX19
+(f_gkeep, f_gback, 20 bytes); the rasteriser's &06-&0F part 6 leaves alone.
+The first ship in the order is projected before the frame waits for the
+flip (f_sort, f_proj0), as it touches no screen memory, and the others as
+they are drawn. XX3 is page 1, under the stack, so F_FRAME keeps the
+zero page it uses (&06-&27, FZ's &D2-&E1) in bank 6 (f_zsv), not on the
+stack (about 50 cycles a frame). The lowest S while the frame projects,
+interrupts included (master/tools/records/stack.mjs over the gate, by the
+pilot's phase: flight, docking, hyperspace and the escape pod; combat.mjs;
+STACKWATCH=1 in harness/mshipshow.mjs and harness/mbrief.mjs, which runs
+the docking tunnel, the hangar and the briefings): &D4 in flight and
+docking, &DD for the escape pod, &C0 on the title screen and in the hangar
+and briefings. The most vertices, 37 (the Transporter), end at &193: 65
+bytes below the stack in flight, 44 on the title screen; the briefing's
+Constrictor (17 vertices) ends at &143, 124 below.
+
+Checked: master/verify.sh (game state identical at all 10,000 iterations,
+the regressions, saves byte for byte); harness/mfbcmp.mjs --frames over the
+gate's run seeded as mcompare seeds it, against the build before: 9,939
+frames, none differ; master/tools/records/combat.mjs (a scene of up to
+seven hostile ships, one set exploding every 12 iterations, 600 iterations,
+game state and pixels identical to the build before in every frame);
+order.mjs (each ship drawn once a frame).
+
