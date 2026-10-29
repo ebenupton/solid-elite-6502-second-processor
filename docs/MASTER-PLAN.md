@@ -2845,3 +2845,53 @@ slower than before):
 * **R_NDX2/R_NDX3 only for rows with three or four crossings** (an overflow
   list): two craters side by side give such rows over a cap's height, so a
   short list overflows, and nothing else is dead while they are live.
+
+## The frame's records
+
+What the frame layer keeps between the game's drawing calls and the frame
+is what the frame cannot find in the game's own memory when it draws.
+
+**Explosion clouds.** A cloud's record is the exploding ship's line heap,
+which the game already keeps: its size, counter and vertex count (bytes 0-2),
+its seeds (3-6) and the vertices' screen coordinates (7 on). DOEXP's draw
+pass (PTCLS fallen into) notes, through H_PTCLS and F_CLOUD, the ship's slot
+(XSAV) and data block (INF) in the dot list; f_dots, in the frame's order,
+takes the heap's address from the data block and runs PTCLS on it again
+(T_CLOUD: bank 4, ACCCON X clear, entering at PTCLR after the hook), its
+PIXEL calls plotting each particle (H_DOT, F_PDOT), so the frame draws every
+particle the original draws, from the same DORND2 sequence and arithmetic.
+A slot that no longer holds an exploding ship (FRIN, byte #31 bit 5) has
+nothing drawn. The heap is not written between the record and the frame:
+MA15 removes no ship whose cloud was drawn in the iteration (only those whose
+explosion has ended, EX2, which draws nothing, or that are docked, scooped
+or past FAROF's limit, none of them drawn as a cloud: LL10 sends a ship at
+z_hi >= 192, or with |x| or |y| >= z, to LL14 before DOEXP draws), KILLSHP
+moves only the heaps of the slots above the one it removes (not yet
+processed in the iteration), and NWSHP takes room below the heaps.
+
+What the game keeps of PTCLS, in record mode, is worked out without the
+particles (F_CLOUD, for both passes; DOEXP's erase pass, H_PTCLSE, has nothing
+on the screen to remove): DORND2 runs three times a particle, the vertex's
+seeds come from the heap EOR its index, RAND+1 is put back as PTCLS found it
+and RAND+3 set to the planet's z_lo, so RAND and RAND+2 depend only on the
+last vertex's seeds and the particle count; Q, U, TGT, CNT and CNT2 are set
+as PTCLS leaves them. master/tools/records/live.mjs (the gate's 10000
+iterations, the base build: every zero page and workspace byte PTCLS writes,
+watched from its return to the game's next access) found nothing else read:
+K3, P, T1, COL, Y1, R, S, T and ZZ are written before they are read, by both
+passes, every time.
+
+The dot list (F_DX, F_DY, F_DC) holds a distant ship's dot (x, y, &80 + its
+type; always 2x2) or a cloud (INF and the slot), at most one per ship slot an
+iteration: MAXDT = MAXSH. f_dots keeps the zero page PTCLS uses (fd_zl) round
+the clouds, and the frame's PTCLS keeps the rasteriser's: K3 is RZ_PP ..
+RZ_Y and FMLTU's P is R_CT (T_CLOUD keeps it for F_PDOT and puts it back
+after), and F_PDOT plots with ACCCON X as the frame had it (GPX).
+
+master/tools/records/particles.mjs compares the particles each iteration
+draws with SNG47's (its PTCLS draw passes' PIXEL calls) over the gate's run:
+all 5,533 particles in the 238 iterations with a cloud match, where the dot
+list of 64 dropped 247 of them in 17 iterations (the most in one iteration
+is 84). Over the same run (harness/mfbcmp.mjs --frames, seeded as mcompare
+seeds the gate) the frames differ from the dot list's in 18 of 9,939: those
+of that explosion (7494-7511), now with the whole of the second cloud.
