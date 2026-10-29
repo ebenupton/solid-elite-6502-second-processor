@@ -10,9 +10,10 @@
 \
 \   * body 0, the surface (HB_S): for the disc layer when it has two colours
 \     (a beach ball, craters, bands), per row one byte for both buffers, a
-\     nibble each (buffer 0's the low one: the boundary count, 0-2, in bits
-\     0-1, bit 2 for unknown, a row with three or more, bit 3 the colour at
-\     the span's left end), and per buffer and row the first two boundaries;
+\     nibble each (buffer 0's the low one) holding n = 2 * the boundary
+\     count + the colour at the span's left end (R_NDN rotated left), 0-5,
+\     or 15 for unknown (a row with three or more), and per buffer and row
+\     the first two boundaries;
 \
 \   * body 1, the second disc (HB_D): per buffer and row its span, left and
 \     right (empty: 255, 0).
@@ -408,9 +409,9 @@
  LDA #255               \ (its left ends: 255)
  BRA hpo4
 .hpo2
- CMP #0                 \ (the surface: the counts unknown in both nibbles)
+ CMP #0                 \ (the surface: unknown in both nibbles)
  BNE hpo3
- LDA #&44
+ LDA #&FF
  BRA hpo4
 .hpo3
  LDA #0
@@ -550,11 +551,17 @@
  JSR hp_fit
  BCS psf9
  DEC ps_ok
- LDA #&0F               \ (this buffer's nibble of the counts: ps_row)
+ LDA #&0F               \ (this buffer's nibble of the surface's shared array
+ LDY #LO(ps_tk0)        \ and its table: ps_rows)
  LDX r_buf
- BEQ P%+4
+ BEQ P%+6
  LDA #&F0
+ LDY #LO(ps_tk1)
  STA ps_msk
+ STA psm_a+1
+ STA psm_b+1
+ STY pst_a+1
+ STY pst_b+1
  LDA r_bmode,X          \ one-colour last time: its rows count 0, colour A
  BNE psf8
  LDY r_bt
@@ -582,85 +589,193 @@
  RTS
 
 \ ------------------------------------------------------------------------------
-\ ps_row: R_DISCROWS' row Y (pr_y) of a two-colour frame (this frame's or
-\ this buffer's last): the new span pr_e .. pr_f (empty: 255, 0), the new
-\ boundaries (R_NDN's count and colour, R_NDX0-3, on the new rows, else
-\ none in colour A), the old span (pr_sl/pr_sr) and the old boundaries (the
-\ surface, ps_ok), and the dirty extent. A row not written over (no dirty)
-\ is drawn as changes: nothing if the same; else each edge's strip (the
-\ span's ends and the boundaries, old .. new) in the colour on the side it
-\ moved from, as the Master port's r_dpe, when the edges stay in order (and
-\ the counts differ by one at most, at an end); else the new span segment
-\ by segment, after the old span less the new black (none if the new span
-\ holds the old). A dirty row: the old span and the dirty extent black less
-\ the new span, then the new span segment by segment. Then the row's new
-\ state. Keeps Y
+\ ps_rows: R_DISCROWS' band (rows r_bt .. r_bb, r_bt <= r_bb) for a
+\ two-colour frame, this one or this buffer's last (pr_h set). A row's new
+\ span is R_NDISCL/R on the new rows (f_discspans has clamped them to the
+\ window: empty 255, 0), else empty; its count and colour R_NDN's (a
+\ one-colour frame's: none, colour A). The surface keeps them for this
+\ buffer as n = 2 count + colour (R_NDN rotated left), 0-5, in its nibble of
+\ the shared byte (15: unknown, three or more), with the first two
+\ boundaries. A row not written over (no dirty) is drawn as changes:
+\
+\   * nothing if its span, n and boundaries are the same (a few compares);
+\   * with the same n (the same count, two at most, and colour) and both
+\     spans there, each edge's strip, old .. new, in the colour on the side
+\     it moved from, as the Master port's r_dpe, when the strips are in
+\     order (ps_strips);
+\   * else, if the new span holds the old (or there is no old), the new span
+\     segment by segment;
+\
+\ else (and a dirty row) the old span and the dirty extent black less the
+\ new span, then the new span segment by segment (ps_gen). Then the row's
+\ new state. With no room for the surface (ps_ok 0) every row is drawn so
+\ and nothing is kept. Y = r_bt
 \ ------------------------------------------------------------------------------
 
-.ps_row
+.ps_rows
+ JSR ps_nd0             \ (a one-colour frame: its new rows' counts none)
+ LDA #255               \ (the rows written: none yet)
+ STA pe_wt
+ STZ pe_wb
+ LDA ps_ok
+ BNE psw3
+ JSR ps_whole           \ (no room: p-disc0.asm)
+ BRA psw9
+.psw3
+ LDA r_nb               \ the rows above the new ones, the new ones (none:
+ CMP r_nt               \ the band's rows all outside them), the rows below
+ BCC psw8
+ STA psi_e+1            \ (the new rows' loop ends at r_nb)
+ LDA r_nt
+ STA ps_e
+ JSR ps_outs
+ JSR psi
+.psw8
+ LDA r_bb
+ INC A
+ STA ps_e
+ JSR ps_outs
+.psw9
+ LDA pe_wt              \ R_WL/R_WR's rows: r_wt .. r_wb
+ CMP r_wt
+ BCS P%+5
+ STA r_wt
+ LDA pe_wb
+ CMP r_wb
+ BCC P%+5
+ STA r_wb
+ RTS
+
+\ ps_outs: rows Y .. ps_e - 1, outside the new rows (the new span empty):
+\ only those with an old span or a dirty extent change (ps_gen)
+
+.ps_outs
+ CPY ps_e
+ BCS pso9
+.pso1
+ LDA (pr_dr),Y
+ BNE pso2
+ LDA (pr_sl),Y
+ CMP #255
+ BEQ pso3
+.pso2
+ JSR ps_spo
+ JSR ps_gen
+ JSR ps_fin0
+.pso3
+ INY
+ CPY ps_e
+ BCC pso1
+.pso9
+ RTS
+
+\ psi: the new rows, Y = r_nt .. r_nb (psi_e)
+
+.psi
+ LDA (pr_dr),Y          \ dirty: repainted
+ BNE psi_d
+ LDA R_NDN,Y            \ the same count and colour? (n: three or more, 6 and
+ ASL A                  \ above, never)
+ ADC #0
+ CMP #6
+ BCS psi_k
+ TAX
+.pst_a
+ LDA ps_tk0,X           \ (patched: this buffer's n in its nibble)
+ EOR (hp_n),Y
+.psm_a
+ AND #&0F               \ (patched: this buffer's nibble)
+ BNE psi_k
+ LDA R_NDISCL,Y         \ the same span?
+ CMP (pr_sl),Y
+ BNE psi_s
+ LDA R_NDISCR,Y
+ CMP (pr_sr),Y
+ BNE psi_s
+ CPX #2                 \ the same boundaries?
+ BCC psi_n
+ LDA R_NDX0,Y
+ CMP (hp_0),Y
+ BNE psi_b
+ CPX #4
+ BCC psi_n
+ LDA R_NDX1,Y
+ CMP (hp_1),Y
+ BNE psi_b
+.psi_n
+.psi_e
+ CPY #0                 \ (patched: r_nb)
+ INY
+ BCC psi
+ RTS
+
+.psi_d                  \ dirty
+ JSR ps_spin
+ BRA psi_g
+.psi_b                  \ the same span and n: the boundaries moved
+ JSR ps_spin
+ JSR ps_strips
+ BCS psi_sg
+.psi_x                  \ (the same n: only the boundaries and span kept)
+ JSR ps_bnd
+ JMP psi_n
+.psi_k                  \ another count or colour
+ JSR ps_spin
+ BRA psi_f
+.psi_s                  \ the same n, another span: its edges' strips, if
+ JSR ps_spin            \ both spans are there
+ LDA (pr_sl),Y
+ CMP #255
+ BEQ psi_sg
+ LDA pr_f
+ CMP pr_e
+ BCC psi_g
+ JSR ps_strips
+ BCC psi_x
+.psi_f                  \ the new span holds the old (or there is no old)?
+ LDA (pr_sl),Y          \ segment by segment
+ CMP #255
+ BEQ psi_sg
+ CMP pr_e
+ BCC psi_g
+ LDA pr_f
+ CMP (pr_sr),Y
+ BCS psi_sg
+.psi_g
+ JSR ps_gen
+ BRA psi_w
+.psi_sg
+ JSR ps_sg
+.psi_w
+ JSR ps_fin
+ JMP psi_n
+
+\ ps_spin: row Y's new span from R_NDISCL/R (pr_e, pr_f), pr_y, no writes
+\ yet (pr_wl, pr_wr); ps_spo: an empty span. Keep X, Y
+
+.ps_spo
+ LDA #255
+ STA pr_e
+ STZ pr_f
+ BRA psn2
+.ps_spin
+ LDA R_NDISCL,Y
+ STA pr_e
+ LDA R_NDISCR,Y
+ STA pr_f
+.psn2
+ STY pr_y
  LDA #&FF
  STA pr_wl
  STZ pr_wr
- STZ ps_nn              \ the new count and colour (none, colour A, outside
- CPY r_nt               \ the new rows or with no boundaries this frame)
- BCC psr1
- CPY r_nb
- BEQ P%+4
- BCS psr1
- LDA R_NDF
- BEQ psr1
- LDA R_NDN,Y
- STA ps_nn
-.psr1
- JSR ps_nib             \ (ps_nx: the new nibble)
- LDA ps_ok              \ no state: unknown, repainted
- BEQ psr_gen
- LDA (pr_dr),Y          \ dirty: repainted
- BNE psr_gen
- LDA (pr_sl),Y          \ the same span, count, colour and boundaries? (the
- CMP pr_e               \ count and colour against this buffer's nibble,
- BNE psr_ch             \ ps_msk, as the new pair would be stored: the count
- LDA (pr_sr),Y          \ 0-2 in bits 0-1, the colour in bit 3)
- CMP pr_f
- BNE psr_ch
- LDA ps_nn
- AND #&7F
- CMP #3
- BCS psr_ch             \ (three boundaries or more: never the same)
- LDA ps_nx
- EOR (hp_n),Y
- AND ps_msk
- BNE psr_ch
- LDA ps_nn
- AND #3
- BEQ psr_same
- LDA (hp_0),Y
- CMP R_NDX0,Y
- BNE psr_ch
- LDA ps_nn
- AND #2
- BEQ psr_same
- LDA (hp_1),Y
- CMP R_NDX1,Y
- BNE psr_ch
-.psr_same
  RTS
-.psr_ch
- JSR ps_getn            \ (ps_on: the old count and colour)
- JSR ps_edges           \ as changes, if the edges allow
- BCC psr_st
- LDA (pr_sl),Y          \ else: the new span holds the old (or no old):
- CMP #255               \ the new one segment by segment
- BEQ psr_seg
- CMP pr_e
- BCC psr_gen
- LDA pr_f
- CMP pr_e
- BCC psr_gen
- CMP (pr_sr),Y
- BCS psr_seg
-.psr_gen                \ the old span and the dirty extent black less the
- STZ pr_ce              \ new span
+
+\ ps_gen: row Y: the old span and the dirty extent black less the new span,
+\ then the new span segment by segment (ps_sg); no dirty extent now. Keeps
+\ Y
+
+.ps_gen
+ STZ pr_ce
  STZ pr_co
  LDA pr_e
  STA pr_col
@@ -678,104 +793,97 @@
  STA pr_a
  LDA (pr_dr),Y
  STA pr_b
+ LDA #&FF
+ STA (pr_dl),Y
+ LDA #0
+ STA (pr_dr),Y
+ LDA pr_b
  CMP pr_a
- BCC psr_seg
+ BCC ps_sg
  JSR pdiff
-.psr_seg
- LDA pr_f               \ the new span, segment by segment
+.ps_sg                  \ the new span, if any, segment by segment
+ LDA pr_f
  CMP pr_e
- BCC psr_st
- JSR ps_seg
-.psr_st                 \ the row's new state: the span (R_DISCROWS' caller),
- LDA ps_ok              \ the count and colour (three or more: unknown), the
- BEQ psr9               \ first two boundaries
- LDA ps_msk
- EOR #&FF
- AND (hp_n),Y
- ORA ps_nx
+ BCS ps_seg
+ RTS
+
+\ ps_fin: row Y's new state: the surface's n (6 and above: unknown), its
+\ first two boundaries (ps_bnd: X = n), then (ps_fin0) the span and R_WL/R_WR
+\ (the rows written: pe_wt .. pe_wb, rows in order). Keeps Y
+
+.ps_fin
+ LDA R_NDN,Y
+ ASL A
+ ADC #0
+ CMP #6
+ BCC P%+4
+ LDA #6
+ TAX
+.pst_b
+ LDA ps_tk0,X           \ (patched as pst_a)
+ EOR (hp_n),Y
+.psm_b
+ AND #&0F               \ (patched as psm_a)
+ EOR (hp_n),Y
  STA (hp_n),Y
+.ps_bnd
+ CPX #2
+ BCC ps_fin0
  LDA R_NDX0,Y
  STA (hp_0),Y
+ CPX #4
+ BCC ps_fin0
  LDA R_NDX1,Y
  STA (hp_1),Y
-.psr9
+.ps_fin0
+ LDA pr_e
+ STA (pr_sl),Y
+ LDA pr_f
+ STA (pr_sr),Y
+ LDA pr_wr              \ R_WL/R_WR: what was written
+ BEQ psfw9
+ STA R_WR,Y
+ LDA pr_wl
+ STA R_WL,Y
+ CPY pe_wt
+ BCS P%+4
+ STY pe_wt
+ STY pe_wb
+.psfw9
  RTS
 
-\ ps_nib: A = ps_nx = the row's new count and colour as this buffer's nibble
-\ of the surface's shared array (bit 3 the colour, bit 2 unknown: three
-\ boundaries or more, bits 0-1 the count), in its place (ps_msk: buffer 1's
-\ the high nibble). Keeps X, Y
+\ (ps_tk0, ps_tk1: p-rast.asm, after the state)
 
-.ps_nib
- LDA ps_nn
- BEQ psn9               \ (none, colour A: 0, the commonest)
- AND #&7F
- CMP #3
- LDA ps_nn
- AND #3
- BCC P%+4
- LDA #4
- BIT ps_nn
- BPL P%+4
- ORA #8
- BIT ps_msk
- BPL P%+6
- ASL A
- ASL A
- ASL A
- ASL A
-.psn9
- STA ps_nx
- RTS
-
-\ ps_seg: the new span pr_e .. pr_f of row Y segment by segment: colour ps_nn
-\ (bit 7: B) at its left end, flipped at each boundary (R_NDX0-3, ps_nn's
-\ count, at most 4) inside it. Keeps Y
+\ ps_seg: the new span pr_e .. pr_f of row Y segment by segment: colour R_NDN's
+\ (bit 7: B) at its left end, flipped at each boundary (R_NDX0-3, R_NDN's
+\ count, at most 4; each inside the span, after its left end, as the circle
+\ engine's pr_put places them). Keeps Y
 
 .ps_seg
- LDA ps_nn
- AND #&7F
- CMP #5
- BCC P%+4
- LDA #4
- STA pr_g
- LDA ps_nn
+ LDA R_NDN,Y
  ASL A
+ TAX                    \ (X = 2 count)
  LDA #0
  ROL A
  STA pr_col
  LDA pr_e
  STA pr_a               \ the segment's start
- LDX #0
-.pss2
- CPX pr_g
- BCS pss5
- LDA psx_l,X            \ boundary X of row Y
- STA pss3+1
- LDA psx_h,X
- STA pss3+2
-.pss3
- LDA &FFFF,Y            \ (patched: R_NDXx)
- CMP pr_e
- BEQ pss4
- BCC pss4
- CMP pr_f
- BEQ P%+4
- BCS pss5
- CMP pr_a
- BEQ pss4               \ an empty segment
- PHA
- DEC A
- STA pr_b
- JSR ps_put
- PLA
- STA pr_a
-.pss4
- LDA pr_col
- EOR #1
- STA pr_col
- INX
- BRA pss2
+ CPX #2
+ BCC pss5
+ LDA R_NDX0,Y
+ JSR pss1
+ CPX #4
+ BCC pss5
+ LDA R_NDX1,Y
+ JSR pss1
+ CPX #6
+ BCC pss5
+ LDA R_NDX2,Y
+ JSR pss1
+ CPX #8
+ BCC pss5
+ LDA R_NDX3,Y
+ JSR pss1
 .pss5
  LDA pr_f
  STA pr_b
@@ -793,203 +901,178 @@
  LDA R_DBO
  STA pr_co
  JMP pspan
-.psx_l EQUB LO(R_NDX0), LO(R_NDX1), LO(R_NDX2), LO(R_NDX3)
-.psx_h EQUB HI(R_NDX0), HI(R_NDX1), HI(R_NDX2), HI(R_NDX3)
 
-\ ps_edges: row Y as changes, the Master port's r_dpe: its edges (the
-\ span's left end, the boundaries, the end after its right end), old and
-\ new, each edge's strip old .. new written in the colour on the side it
-\ moved from, if the old span is not empty, the old and new counts are the
-\ same with the same left colour, or differ by one at an end, the spans are
-\ not apart, and the strips are in order. C clear: done; C set: not (nothing
-\ written). Keeps Y
-
-.ps_edges
- LDA (pr_sl),Y
- CMP #255
- BEQ pse_no             \ (no old span)
- STA pe_o
- LDA pr_f
- CMP pr_e
- BCC pse_no             \ (no new span)
- LDA pr_e
- STA pe_n
- LDA ps_on              \ the old colour at bit 7 (ps_t)
- ASL A
- ASL A
- ASL A
- ASL A
- STA ps_t
- LDA ps_on              \ the counts: old (at most 2, or unknown) and new
- AND #7
- CMP #3
- BCS pse_no
- STA pe_oc
- LDA ps_nn
- AND #&7F
- CMP #4
- BCS pse_no
- STA pe_nc
- LDA R_NDX0,Y           \ the boundaries: new at pe_n+1, old at pe_o+1
- STA pe_n+1
- LDA R_NDX1,Y
- STA pe_n+2
- LDA R_NDX2,Y
- STA pe_n+3
- LDA (hp_0),Y
- STA pe_o+1
- LDA (hp_1),Y
- STA pe_o+2
- LDA ps_nn              \ the left colour (0 A, 1 B), new
- ASL A
- LDA #0
- ROL A
- STA pe_c
- LDA pe_nc
- SEC
- SBC pe_oc
- BEQ pse_same
- CMP #1
- BEQ pse_more
- CMP #&FF
- BEQ pse_fewer
-.pse_no
- SEC
- RTS
-.pse_same
- LDA ps_nn              \ the same count: the same left colour too
- EOR ps_t
- BMI pse_no
- BRA pse_ends
-.pse_more               \ one more: it came in at the right (the same left
- LDA ps_nn              \ colour; old gets one at its right end + 1) or at
- EOR ps_t               \ the left (old gets one at its left end)
- BMI pse_ml
- LDX pe_oc
- LDA (pr_sr),Y
- INC A
- STA pe_o+1,X
- BRA pse_m1
-.pse_ml
- LDA pe_o+2             \ (old: left, b0, b1 -> left, left, b0, b1)
- STA pe_o+3
- LDA pe_o+1
- STA pe_o+2
- LDA pe_o
- STA pe_o+1
-.pse_m1
- LDA pe_nc              \ (the count: the new one)
- STA pe_oc
- BRA pse_ends
-.pse_fewer              \ one fewer: it left at the right (new gets one at
- LDA ps_nn              \ its right end + 1) or at the left (new gets one at
- EOR ps_t               \ its left end, and the left colour is the old one)
- BMI pse_fl
- LDX pe_nc
- LDA pr_f
- INC A
- STA pe_n+1,X
- BRA pse_f1
-.pse_fl
- LDA pe_c
- EOR #1
- STA pe_c
- LDA pe_n+2             \ (new: left, b0, b1 -> left, left, b0, b1)
- STA pe_n+3
- LDA pe_n+1
- STA pe_n+2
- LDA pe_n
- STA pe_n+1
-.pse_f1
- LDA pe_oc              \ (the count: the old one)
- STA pe_nc
-.pse_ends
- LDX pe_nc              \ the ends after the right ends: index count + 1
- INX
- STX pe_ns
- LDA pr_f
- INC A
- STA pe_n,X
- LDA (pr_sr),Y
- INC A
- STA pe_o,X
- LDA pe_n,X             \ the spans apart (a gap between them): no
- CMP pe_o
- BCC pse_n2
- LDA pe_o,X
- CMP pe_n
- BCC pse_n2
- LDX #0                 \ the strips in order (each starting at or after the
- STZ pe_t               \ last's end), first checked, then written
-.pse_c1
- LDA pe_n,X
- CMP pe_o,X
- BEQ pse_c2
- BCC pse_c3
- LDA pe_o,X             \ (right: o .. n-1)
- CMP pe_t
- BCC pse_n2
- LDA pe_n,X
- STA pe_t
- BRA pse_c4
-.pse_n2
- SEC
- RTS
-.pse_c3
- CMP pe_t               \ (left: n .. o-1)
- BCC pse_n2
- LDA pe_o,X
- STA pe_t
- BRA pse_c4
-.pse_c2
- CMP pe_t
- BCC pse_n2
- STA pe_t
-.pse_c4
- INX
- CPX pe_ns
- BCC pse_c1
- BEQ pse_c1
- LDX #0                 \ the strips
-.pse_w1
- STX pe_i
- LDA pe_n,X
- CMP pe_o,X
- BEQ pse_w9
- BCC pse_w3
- DEC A                  \ moved right: o .. n-1, the colour left of the edge
- STA pr_b               \ (index X-1: X = 0, outside the span: black)
- LDA pe_o,X
- STA pr_a
- DEX
- BMI pse_bk
- BRA pse_cx
-.pse_w3
- STA pr_a               \ moved left: n .. o-1, the colour right of the edge
- LDA pe_o,X             \ (index X: the right end's, outside: black)
+.pss1                   \ (a boundary at A: the segment before it, if not
+ CMP pr_a               \ empty; then the other colour. Keeps X, Y)
+ BEQ pss2
+ PHA
  DEC A
  STA pr_b
- CPX pe_ns
- BEQ pse_bk
-.pse_cx
- TXA
- EOR pe_c
- AND #1
- STA pr_col
  JSR ps_put
- BRA pse_w9
-.pse_bk
- STZ pr_ce
- STZ pr_co
- JSR pspan
-.pse_w9
- LDX pe_i
- INX
- CPX pe_ns
- BCC pse_w1
- BEQ pse_w1
+ PLA
+ STA pr_a
+.pss2
+ LDA pr_col
+ EOR #1
+ STA pr_col
+ RTS
+
+\ ps_strips: row Y, its old and new spans there, not dirty, the same count
+\ (two at most) and colour (X = n): its edges (the span's left end, the
+\ boundaries, the end after its right end), old and new, each edge's strip
+\ old .. new written in the colour on the side it moved from, as the Master
+\ port's r_dpe, if the strips are in order (each starting at or after the
+\ last's end). As the old edges are in order and so are the new (each
+\ boundary is inside its span, after the left end), only neighbouring
+\ edges can break it, and edges e, f do not if f's old place is at or after
+\ e's new one and f's new place at or after e's old one; this also keeps
+\ the spans from being apart. C clear: done; C set: not (nothing written).
+\ Keeps Y
+
+.ps_strips
+ LDA (pr_sr),Y          \ the ends after the right ends, old and new
+ INC A
+ STA pe_or
+ LDA pr_f
+ INC A
+ STA pe_nr
+ TXA                    \ the left colour (0 A, 1 B)
+ AND #1
+ STA pe_lc
+ CPX #2                 \ the order: the left end and the first boundary ...
+ BCC pz0
+ LDA (hp_0),Y
+ CMP pr_e
+ BCC pzn
+ LDA R_NDX0,Y
+ CMP (pr_sl),Y
+ BCC pzn
+ CPX #4                 \ ... the first and the second ...
+ BCC pz1
+ LDA (hp_1),Y
+ CMP R_NDX0,Y
+ BCC pzn
+ LDA R_NDX1,Y
+ CMP (hp_0),Y
+ BCC pzn
+ LDA (hp_1),Y           \ ... and the last and the right end
+ STA pe_lo
+ LDA R_NDX1,Y
+ BRA pz2
+.pz1
+ LDA (hp_0),Y
+ STA pe_lo
+ LDA R_NDX0,Y
+ BRA pz2
+.pz0
+ LDA (pr_sl),Y
+ STA pe_lo
+ LDA pr_e
+.pz2
+ CMP pe_or
+ BEQ P%+4
+ BCS pzn
+ LDA pe_nr
+ CMP pe_lo
+ BCS pz3
+.pzn
+ SEC
+ RTS
+.pz3
+ LDA pr_e               \ the strips: the left end (moved right: black;
+ CMP (pr_sl),Y          \ left: the first segment's colour)
+ BEQ pse1
+ BCC pse0
+ DEC A
+ STA pr_b
+ LDA (pr_sl),Y
+ STA pr_a
+ JSR pe_blk
+ BRA pse1
+.pse0
+ STA pr_a
+ LDA (pr_sl),Y
+ DEC A
+ STA pr_b
+ LDA #0
+ JSR pe_seg
+.pse1
+ CPX #2                 \ the first boundary (right: the first segment's;
+ BCC pse5               \ left: the second's)
+ LDA R_NDX0,Y
+ CMP (hp_0),Y
+ BEQ pse3
+ BCC pse2
+ DEC A
+ STA pr_b
+ LDA (hp_0),Y
+ STA pr_a
+ LDA #0
+ JSR pe_seg
+ BRA pse3
+.pse2
+ STA pr_a
+ LDA (hp_0),Y
+ DEC A
+ STA pr_b
+ LDA #1
+ JSR pe_seg
+.pse3
+ CPX #4                 \ the second (right: the second segment's; left:
+ BCC pse5               \ the third's)
+ LDA R_NDX1,Y
+ CMP (hp_1),Y
+ BEQ pse5
+ BCC pse4
+ DEC A
+ STA pr_b
+ LDA (hp_1),Y
+ STA pr_a
+ LDA #1
+ JSR pe_seg
+ BRA pse5
+.pse4
+ STA pr_a
+ LDA (hp_1),Y
+ DEC A
+ STA pr_b
+ LDA #0
+ JSR pe_seg
+.pse5
+ LDA pe_nr              \ the end after the right end (right: the last
+ CMP pe_or              \ segment's colour; left: black)
+ BEQ pse7
+ BCC pse6
+ DEC A
+ STA pr_b
+ LDA pe_or
+ STA pr_a
+ TXA
+ LSR A
+ JSR pe_seg
+ BRA pse7
+.pse6
+ STA pr_a
+ LDA pe_or
+ DEC A
+ STA pr_b
+ JSR pe_blk
+.pse7
  CLC
  RTS
+
+\ pe_seg: pr_a .. pr_b in segment A's colour (the left colour flipped A
+\ times); pe_blk: in black. Keep X, Y
+
+.pe_seg
+ EOR pe_lc
+ AND #1
+ STA pr_col
+ JMP ps_put
+.pe_blk
+ STZ pr_ce
+ STZ pr_co
+ JMP pspan
 
 \ ------------------------------------------------------------------------------
 \ R_DISC2 (T_DISCROWS with C set: f_disc2): the second disc, the smaller of

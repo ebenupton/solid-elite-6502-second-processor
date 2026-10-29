@@ -41,6 +41,13 @@ hq_w  = &23             \ a new window top
 hq_i  = &24
 hq_t  = &25
 hq_b  = &26             \ (2) a new base
+pe_or = &1A             \ (the surface's rows, after the heap's fit: ps_strips'
+pe_nr = &1B             \ ends after the right ends, old and new, the last
+pe_lo = &1C             \ boundary's old place, the left colour; ps_outs' end;
+pe_lc = &1D             \ the first and last rows written)
+ps_e  = &1E
+pe_wt = &1F
+pe_wb = &20
 
 ORG &0D09
 .PWS_START
@@ -117,19 +124,7 @@ ENDIF
 \ the scratch of overlay S's incremental discs (p-disc.asm) and the lens
 \ flare's probes (p-probe.asm)
 .ps_ok      SKIP 1          \ non-zero: the surface's state for this buffer's rows
-.ps_nn      SKIP 1          \ the row's new count and colour, and its old one
-.ps_on      SKIP 1
-.ps_t       SKIP 1
-.ps_msk     SKIP 1          \ this buffer's nibble of the counts (&0F, &F0)
-.ps_nx      SKIP 1          \ the row's new nibble, in its place
-.pe_n       SKIP 6          \ the row's edges, new then old (the left end, the
-.pe_o       SKIP 6          \ boundaries, the end after the right end)
-.pe_nc      SKIP 1          \ the counts
-.pe_oc      SKIP 1
-.pe_c       SKIP 1          \ the new left colour (0 A, 1 B)
-.pe_ns      SKIP 1          \ the right end's index
-.pe_t       SKIP 1          \ the last strip's end
-.pe_i       SKIP 1
+.ps_msk     SKIP 1          \ this buffer's nibble of the surface's (&0F, &F0)
 .pd_ot      SKIP 1          \ the second disc: this buffer's old rows, lo .. hi,
 .pd_ob      SKIP 1          \ the row's old and new spans, the new box's x, the
 .pd_lo      SKIP 1          \ row settled (K mode), recoloured

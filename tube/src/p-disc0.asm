@@ -1,7 +1,8 @@
 \ ******************************************************************************
 \
 \ p-disc0.asm - p-disc.asm's resident part, in the resident code's tail
-\ (p-layout.asm): the disc heap's drop, and ps_getn
+\ (p-layout.asm): the disc heap's drop, and the cold ends of the surface's
+\ rows (ps_nd0, ps_whole)
 \
 \ ******************************************************************************
 
@@ -35,16 +36,39 @@
  TAX
  JMP hd_box
 
-\ ps_getn: ps_on = row Y's old nibble for this buffer, in bits 0-3. Keeps X, Y
+\ ps_nd0: (ps_rows) a one-colour frame's new rows: no boundaries, colour A
 
-.ps_getn
- LDA (hp_n),Y
- BIT ps_msk
- BPL P%+6
- LSR A
- LSR A
- LSR A
- LSR A
- AND #15
- STA ps_on
+.ps_nd0
+ LDA R_NDF
+ BNE pnd9
+ LDX r_nt
+.pnd1
+ CPX r_nb
+ BEQ P%+4
+ BCS pnd9
+ STZ R_NDN,X
+ INX
+ BNE pnd1
+.pnd9
+ RTS
+
+\ ps_whole: (ps_rows, Y = r_bt) no room for the surface: every row of the
+\ band repainted whole (ps_gen), nothing kept
+
+.ps_whole
+ CPY r_nt
+ BCC pwh1
+ CPY r_nb
+ BEQ P%+4
+ BCS pwh1
+ JSR ps_spin
+ BRA pwh2
+.pwh1
+ JSR ps_spo
+.pwh2
+ JSR ps_gen
+ JSR ps_fin0
+ CPY r_bb
+ INY
+ BCC ps_whole
  RTS

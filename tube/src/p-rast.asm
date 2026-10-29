@@ -16,7 +16,7 @@
 \ old dirty extent) and black on the old span and dirty extent less the new
 \ span, as R_DISCROWS does (only the bytes it rewrites whole at a moving end
 \ differ, and those hold black then); a two-colour row (a beach ball, a
-\ crater) is repainted whole every frame, so no boundaries are kept; the
+\ crater) is drawn as the changes of its edges (p-disc.asm's ps_rows); the
 \ dirty rows outside the disc rows are blacked over their extent widened to
 \ whole bytes (but in the border's columns), as r7_rowrep does. A line's
 \ dirty extent is a bound on its pixels (at most a pixel either side of them
@@ -100,6 +100,10 @@ HEAPN = P% - HEAP        \ there: a page fewer to keep)
 
 .pr_bat  EQUB 0          \ R_DISCROWS's batch (C_DSPANS): bit 7 on, bit 6 begun
 .pr_sy   EQUB 0          \ the batch's open row (&FF: none)
+
+.ps_tk0 EQUB &00, &01, &02, &03, &04, &05, &0F   \ (p-disc.asm's ps_rows: a row's
+.ps_tk1 EQUB &00, &10, &20, &30, &40, &50, &F0   \ n in buffer 0's and 1's nibble, 6
+ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
 
 \ ------------------------------------------------------------------------------
 \ R_INIT, R_SETBUF, R_RESETBUF
@@ -869,6 +873,10 @@ HEAPN = P% - HEAP        \ there: a page fewer to keep)
  LDA r_bb
  CMP r_bt
  BCC pdr9
+ LDA pr_h               \ (two colours, this frame or the buffer's last:
+ BEQ pdr7               \ p-disc.asm)
+ JSR ps_rows
+ BRA pdr9
 .pdr7
  JSR prow
  CPY r_bb
@@ -916,14 +924,14 @@ HEAPN = P% - HEAP        \ there: a page fewer to keep)
  STY r_wb
  RTS
 
-\ prow: row Y of the band. Keeps Y. A frame and this buffer's last with one
-\ colour (pr_h clear): the row drawn as a change of span (the disc colour,
-\ A); a two-colour frame, this one or the buffer's last: p-disc.asm's ps_row
+\ prow: row Y of the band, a frame and this buffer's last with one colour
+\ (pr_h clear: else p-disc.asm's ps_rows): the row drawn as a change of span
+\ (the disc colour, A). Keeps Y
 
 .prow
  STY pr_y
- LDA #&FF               \ the new span (empty: 255, 0), clamped to the window
- STA pr_e
+ LDA #&FF               \ the new span (empty: 255, 0; f_discspans has clamped
+ STA pr_e               \ it to the window)
  STZ pr_f
  CPY r_nt
  BCC prwx2
@@ -931,26 +939,11 @@ HEAPN = P% - HEAP        \ there: a page fewer to keep)
  BEQ P%+4
  BCS prwx2
  LDA R_NDISCL,Y
- CMP R_CL
- BCS P%+4
- LDA R_CL
- STA pr_a
- LDA R_NDISCR,Y
- CMP R_CR
- BCC P%+4
- LDA R_CR
- CMP pr_a
- BCC prwx2
- STA pr_f
- LDA pr_a
  STA pr_e
+ LDA R_NDISCR,Y
+ STA pr_f
 .prwx2
- LDA pr_h
- BEQ prwp2
- JSR ps_row             \ (two colours: p-disc.asm)
- JMP prwx9
-.prwp2
- LDA (pr_dr),Y          \ one colour: unchanged, with no dirty extent?
+ LDA (pr_dr),Y          \ unchanged, with no dirty extent?
  BNE prw3
  LDA pr_e
  CMP (pr_sl),Y
