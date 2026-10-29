@@ -40,16 +40,8 @@ def const(path, name):
     return int(eval(e, {}, {}))
 
 
-def first_label(path):
-    for l in open(path, encoding="latin-1"):
-        m = re.match(r"^\.([A-Za-z_][\w%]*)", l)
-        if m and m.group(1) in sy:
-            return sy[m.group(1)]
-    return None
-
-
 code0, = printed(r"Parasite: code &&?([0-9A-F]+) ")
-run_end, = printed(r"run and Master's drawing end at &&?([0-9A-F]+)")
+run_end, = printed(r"the game's run to &&?([0-9A-F]+)")
 zp_end, = printed(r"ZP workspace from &([0-9A-F]+) to &([0-9A-F]+)")[1:]
 k_end, = printed(r"K% workspace from &[0-9A-F]+ to &([0-9A-F]+)")
 wp0, wp_end = printed(r"WP workspace from &([0-9A-F]+) to &([0-9A-F]+)")
@@ -61,7 +53,6 @@ if m:                                  # (RING by the build's RINGS switch)
     RING = int(m.group(1 if rings else 2), 16)
 VIA = const(os.path.join(MSRC, "elite-source.asm"), "VIA")
 ZPSAVE = const(os.path.join(MSRC, "elite-source.asm"), "ZPSAVE")
-b4 = first_label(os.path.join(B, "elite-source-bank4.asm"))
 regions = []
 
 
@@ -104,12 +95,9 @@ if p < pws0:
     reg(p, pws0, "free", "free", "-", [], p)
 reg(pws0, code0, "frame layer's inputs (p-ws.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"], sy["PWS_END"])
 # the resident image
-pad = int(re.search(r"the font's alignment: (\d+) ", cp).group(1))   # (decimal)
-reg(code0, sy["HEAD_END%"], "low area and head (p-low.asm, the font's widths, the log tables, QSH; free: the log tables' page alignment)",
-    "code", "run (head)", ["build/elite-source-run.asm", "tube/src/p-low.asm", "build/p-glue-frame.asm", "master/src/gfx-hooks.asm"],
-    sy["HEAD_END%"] - pad)
-reg(sy["HEAD_END%"], b4, "the run", "code", "run", ["build/elite-source-run.asm"])
-reg(b4, run_end, "Master's drawing (bank 4 blocks)", "code", "bank4", ["build/elite-source-bank4.asm"])
+reg(code0, sy["GLUE_END%"], "glue (p-low.asm: the Tube's I/O, the overlay manager, the stubs into overlay D, the panel's game halves)",
+    "code", "run (glue)", ["tube/src/p-low.asm", "build/elite-stubs.asm", "build/p-glue-frame.asm", "master/src/gfx-hooks.asm"])
+reg(sy["GLUE_END%"], run_end + 1, "the run (the game's resident blocks, in the source's order)", "code", "run", ["build/elite-source-run.asm"])
 reg(sy["HZ_START"], sy["HZDATA_END%"], "game data (XX21, blueprints, QQ18 ...)", "data", "hot data", ["build/elite-data-hot.asm"])
 reg(sy["HZDATA_END%"], sy["HZ_END"], "hangar tables, moon and ring variables", "data", "hot data",
     ["master/src/gfx-hangar6.asm", "master/src/gfx-planetv.asm"])
@@ -117,9 +105,11 @@ reg(sy["PF_START"], sy["PF_CODE_END"], "frame layer (parasite part)", "code", "f
     ["build/gfx-frame-frame.asm", "master/src/gfx-faces.asm", "master/src/gfx-light6.asm", "master/src/gfx-light.asm",
      "build/gfx-frame_cold-frame.asm", "master/src/gfx-hangar.asm",
      "build/gfx-ssun-frame.asm", "master/src/elite-moon.asm"])
-reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_DL with F_INIT)", "buffers", "frame",
+reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_SR with F_INIT, F_RP)", "buffers", "frame",
     ["tube/src/p-layout.asm", "master/src/gfx-finit.asm"])
-reg(sy["F_DLEND"], sy["PRES_END"], "text map (F_TM) and the docking slot's vertices (F_SLV)", "buffers", "frame", ["tube/src/p-layout.asm"])
+reg(sy["F_DLEND"], sy["hp_drop"], "text map (F_TM) and the docking slot's vertices (F_SLV)", "buffers", "frame", ["tube/src/p-layout.asm"])
+reg(sy["hp_drop"], sy["PRES_END"], "the disc heap's drop and ps_getn, the lens flare's probes' fl_arm helpers", "code", "frame",
+    ["tube/src/p-disc0.asm", "tube/src/p-probe1.asm"])
 o = sy["OVL_START"]
 if sy["PRES_END"] < o:
     reg(sy["PRES_END"], o, "free (to the overlay region's page)", "free", "-", [], sy["PRES_END"])
@@ -127,8 +117,8 @@ reg(o, RING, "overlay D (direct mode)", "overlay", "ovl D",
     ["build/elite-source-cold.asm", "build/elite-data-cold.asm", "build/p-io-ovld.asm", "build/p-glue-ovld.asm"],
     sy["OVL_D_END"], alt="D")
 reg(o, RING, "overlay S (space mode): state, then code", "overlay", "ovl S",
-    ["tube/src/p-rast.asm", "tube/src/p-moon.asm", "tube/src/p-emit.asm", "tube/src/p-kept.asm", "tube/src/p-polya.asm",
-     "tube/src/p-onepass.asm", "master/src/gfx-ftext.asm", "master/src/gfx-flare.asm", "master/src/gfx-merid.asm",
+    ["tube/src/p-rast.asm", "tube/src/p-disc.asm", "tube/src/p-emit.asm", "tube/src/p-kept.asm", "tube/src/p-polya.asm",
+     "tube/src/p-onepass.asm", "build/gfx-frame-ovls.asm", "master/src/gfx-flare.asm", "tube/src/p-probe.asm", "master/src/gfx-merid.asm",
      "master/src/gfx-planet7.asm", "build/gfx-frame_cold-ovls.asm", "build/gfx-ssun-ovls.asm"], sy["OVL_S_END"], alt="S")
 reg(sy["OVL_D_END"], RING, "boot staging (p_boot and the high area's images: boot only)", "boot", "ovl D's tail",
     ["tube/src/p-layout.asm"], sy["PSTG_END"], alt="boot")
@@ -139,8 +129,8 @@ reg(RING, 0xF800, "command ring", "buffers", "ring", ["tube/src/p-io.asm"])
 reg(0xF800, 0xFEF0, "high area (phase A's tail, the panel's tail, kept rows, one-pass tail)", "code", "high",
     ["tube/src/p-polyb.asm", "tube/src/p-dash2.asm", "tube/src/p-kept2.asm", "tube/src/p-onepass2.asm"], sy["PHIGH_END"])
 reg(0xFEF0, 0xFF00, "Tube registers (&FEF8-&FEFF) and guard", "io", "-", [])
-reg(0xFF00, 0xFFFA, "page &FF: p_crash, the flare's step and tables, the directly drawn stars", "code", "page FF",
-    ["tube/src/p-layout.asm", "master/src/gfx-flare6.asm", "tube/src/p-flt.asm"], sy["PFF_END"])
+reg(0xFF00, 0xFFFA, "page &FF: p_crash, the flare's step and tables, its probes' hooks, the directly drawn stars", "code", "page FF",
+    ["tube/src/p-layout.asm", "master/src/gfx-flare6.asm", "tube/src/p-probe2.asm"], sy["PFF_END"])
 reg(0xFFFA, 0x10000, "vectors (NMI, RESET, IRQ/BRK)", "vectors", "-", ["tube/src/p-layout.asm"])
 
 sha = sys.argv[4] if len(sys.argv) > 4 else subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip() \
