@@ -2406,8 +2406,9 @@ pfhook checks the class), and tools/planet_caps.py's BANDS follows it.
 
 ## The moon (after the banded planets)
 
-A quarter of the systems (h = s0_hi EOR s1_hi EOR s2_hi, bits 0-1 = 1;
-none of the gate's three) have a moon: scenery only (no ship slot, no
+In a build with moons (MOON=on, below), a quarter of the systems (h =
+s0_hi EOR s1_hi EOR s2_hi, bits 0-1 = 1; none of the gate's three) have a
+moon: scenery only (no ship slot, no
 random number, no saved state), 0.19 to 0.28 of the planet's radius (h bits
 5-6), drawn for planets of radius 16 or more, light grey with a dark grey
 crater (on roofv, 40 degrees across, from a moon radius of 10: a circle
@@ -2500,6 +2501,25 @@ cost (f_moon, f_moon0 and T_DISCROWS, the frame's mean): a still moon
 25,603 cycles, 29% less than drawn whole; moving, within -6% to +8% of
 drawn whole.
 
+**A build switch.** Moons are MOON=on (master/build.sh, _PLANET_MOON), off
+by default, as the bands and the rings are: no system has a moon, and the
+moon's code, tables and variables are assembled out. Without them: bank 4
+382 bytes (MN_TURN and its tables and variables, MOONHIT), bank 5 56
+(R_WSPAN), bank 6 1,298 (f_moon0, f_moon and their rows, the moon's
+colours and variables, f_behind's moon, F_HW3), bank 7 853 (pf_moon and
+its helpers, PC_MROWS, the crater's record slot in PCB), the shared
+workspace 40 (MN_E, MN_OK, MN_ON ... MN_INV, MO_ON ... MO_CB), the glue
+area 43 (T_WSPAN, T_MCAPS, G_PFHOOK's call of MN_TURN: CODE% is &2B higher
+without the moon, so that the font stays page aligned with no padding, and
+the shared workspace's room before CODE% grows by as much) and the hot
+pass 5 (MA22's call of MOONHIT). The system's h is PF_HOOK's (pf_h), read by
+pf_moon and pf_ring alike, and f_ring counts its dots in its own frg_i, so
+rings build with or without the moon. test_raster assembles the moon in
+(MOON=off in its environment for the default: pfhook then checks that
+there is none), and the stills, the moon's harness checks
+(harness/mmoonhit.mjs, harness/mmoonpath.mjs, the moon scenes of
+harness/mplanet.mjs) and the film run a MOON=on build.
+
 ## The moon is solid (after the moon)
 
 Flying into the moon kills us as flying into the planet does: the main
@@ -2520,15 +2540,12 @@ planet placed accordingly, our speed 0): for seeds covering every D, rho
 and side, m = +/-(radius - 2) crashes and m = radius + 2 does not; seeds
 without a moon never crash.
 
-**The lockstep waiver.** SNG47 has no moons, so in a system with one a run
-that flies into the moon diverges from SNG47 at that iteration (our DEATH);
-nothing else differs (MOONHIT reads game state only). The gate's systems
-have no moon (Lave, h = &EF; the crater system and the third likewise), so
-master/verify.sh is unaffected and needs no waiver. For a lockstep
-comparison in a moon system (an agentplay campaign against SNG47), build
-with MOON=scenery (build.sh: _MOON_SOLID FALSE, no call of MOONHIT): the
-moon is drawn but is not solid, and the game state stays SNG47's there
-too.
+**The lockstep.** SNG47 has no moons. The default build has none either,
+so its game state is SNG47's at every iteration, in every system. In a
+MOON=on build a run that flies into a moon diverges from SNG47 at that
+iteration (our DEATH); nothing else differs (MOONHIT reads game state
+only). The gate's systems have no moon (Lave, h = &EF; the crater system
+and the third likewise).
 
 ## Planet rings (after the solid moon)
 
@@ -2561,11 +2578,11 @@ or none), and the model's RINGS follows it.
 ## Commander Claude's moon mode, and the film (after the rings)
 
 elite-agent's moon mode (MOON=1, its branch moon-avoid: docs/MOON.md there)
-places the moon as the port does (moon_track: made at the arrival or
+places the moon as a MOON=on port does (moon_track: made at the arrival or
 launch, turned by ALPHA and BETA for each MCNT step it sees) and steers
 clear of it; agentplay runs it as --mode moon (master/tools/agentplay:
 build.sh, agentd.c, styles.mjs). moonmovie.mjs films an arrival in a moon
-system to the docking, reading the port's MN_E and ss_d. The system was
+system to the docking on a MOON=on build, reading the port's MN_E and ss_d. The system was
 chosen by search: the moon's place at the arrival (SOLAR puts the planet
 ahead to the upper right, and the moon on its spin axis on the side h bit 4
 gives: with bit 4 set, behind the planet and towards the view's centre) for
@@ -2617,7 +2634,7 @@ little to repair. A cap's rows scale with its size, not the disc's.
 * The planet and the sun as the disc layer (R_DISCROWS): incremental (each
   buffer's spans and boundaries).
 * The smaller of them, the second disc (R_DISC2, bank 5): incremental.
-* The moon: incremental by rows ("The moon", above).
+* The moon (MOON=on): incremental by rows ("The moon", above).
 * The ring: dots, not a disc (drawn and marked dirty each frame).
 * Explosions: particles (dots); the explode branch's clouds are not merged.
 * The hangar: rectangles and lines, no discs.
@@ -2630,8 +2647,9 @@ little to repair. A cap's rows scale with its size, not the disc's.
 
 ## Free space (after every disc incremental)
 
-In bytes, as master/build.sh prints them: bank 4 6 (S_SUN, MN_TURN, L_SUN
-and MOONHIT at its end); bank 5 2 in the disc window (before R_S2R0), 7 in
+In bytes, as master/build.sh prints them for a build with the moon ("The
+moon" gives what it takes): bank 4 6 (S_SUN, MN_TURN, L_SUN and MOONHIT at
+its end); bank 5 2 in the disc window (before R_S2R0), 7 in
 the shared region (before R_S2R1), 42 + 64 + 64 in the room below the
 per-x tables, and the run pages' tails; bank 6 472; bank 7 1,218 (the
 meridian window to the bank's end); ANDY 37; main RAM 183 below &3000 (used
@@ -2651,9 +2669,10 @@ polygon crater did.
 master/tools/stills.sh [planets] [sunnear] makes the stills from the build
 in master/build, headless (jsbeeb): each planet still is the last frame of
 a short posed scene (harness/mplanet.mjs, master/tools/planetvis.py), the
-seeds those of systems with craters, a moon or a ring; the banded planets
-and the rings come from a copy of the tree built with BANDS=on RINGS=on
-(scratch/stills/bandstree), as the default build has neither.
+seeds those of systems with craters, a moon or a ring; the banded planets,
+the moons and the rings come from a copy of the tree built with BANDS=on
+RINGS=on MOON=on (scratch/stills/optionstree), as the default build has
+none of them.
 screenshots/planets: beach.png, caps.png, caps2.png, nobands.png (a banded
 seed as the default build draws it, a crater planet), bands.png,
 bands2.png, moon1-3.png, ring.png, ring2.png, ringmoon.png, ringmoon2.png.
@@ -2664,8 +2683,8 @@ sunnear.mp4 and sunnear.gif (harness/msunnear.mjs, master/tools/sunnear.py).
 
 R_STARPLOT sets a star's pixels in a screen byte only when the whole byte
 is black. Every fill the frame layer can draw that is not pure black (the
-ships' ramps and unlit colours, the planet's, the sun's and the moon's
-colours, colour B, the second disc, the hangar's panels, the distant dots)
+ships' ramps and unlit colours, the planet's, the sun's and (with MOON=on)
+the moon's colours, colour B, the second disc, the hangar's panels, the distant dots)
 has a coloured pixel in every byte of every row of its dither, so no star
 shows through a dithered fill; master/tools/starocc.py proves it from the
 bank 6 image and the sources on every build (build.sh runs it, and it
@@ -2791,7 +2810,7 @@ VERIFY PASS 13.97 10.30 0.737.
 
 A disc row's boundary count and its colour at the span's left end are one
 byte: R_NDN holds the count in bits 0-6 and the colour in bit 7 (PC_ROWS
-and PC_MROWS write it so, f_moon reads it), and each buffer's stored
+and PC_MROWS write it so, f_moon reads it: MOON=on), and each buffer's stored
 boundaries likewise (R_BDN0/R_BDN1; a row with more than two is stored as
 count &40, unknown). An unchanged row is then one compare of the two bytes,
 and r_dpe finds the count difference with the colours shifted out (ASL of

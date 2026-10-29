@@ -27,8 +27,12 @@
 #
 # Options (environment):
 #   MATCH=no      zero-filled workspaces (upstream "match=no")
-#   MOON=scenery  the moon is not solid (no MOONHIT: elite-moon.asm), for a
-#                 lockstep comparison with SNG47 in a system with a moon
+#   MOON=on       moons: a quarter of the systems, by the seed, have a moon,
+#                 scenery fixed in space and solid (gfx-planet7.asm's pf_moon,
+#                 gfx-frame.asm's f_moon, gfx-ssun.asm's MN_TURN,
+#                 elite-moon.asm's MOONHIT); off by default, when no system
+#                 has a moon and their code, tables and variables are
+#                 assembled out
 #   BANDS=on      banded planets (a quarter of the crater planets, by the seed:
 #                 gfx-planet7.asm's pf_bands); off by default, when no planet
 #                 has bands and their code is assembled out
@@ -43,7 +47,7 @@ set -e
 cd "$(dirname "$0")"
 BEEBASM=${BEEBASM:-../tools/beebasm}
 MATCH=${MATCH:-yes}
-MOON=${MOON:-solid}
+MOON=${MOON:-off}
 BANDS=${BANDS:-off}
 RINGS=${RINGS:-off}
 mkdir -p build
@@ -57,7 +61,7 @@ _VARIANT=1
 _REMOVE_CHECKSUMS=$RC
 _MATCH_ORIGINAL_BINARIES=$MO
 _MAX_COMMANDER=FALSE
-_MOON_SOLID=$( [ "$MOON" = scenery ] && echo FALSE || echo TRUE )
+_PLANET_MOON=$( [ "$MOON" = on ] && echo TRUE || echo FALSE )
 _PLANET_BANDS=$( [ "$BANDS" = on ] && echo TRUE || echo FALSE )
 _PLANET_RINGS=$( [ "$RINGS" = on ] && echo TRUE || echo FALSE )
 EOF
