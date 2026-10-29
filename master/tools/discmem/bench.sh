@@ -10,7 +10,9 @@
 #   planets  posed planet scenes (harness/mplanet.mjs): back buffer at every
 #            frame's end and the planet routines' cycles
 #   sunnear  the sun near the planet (harness/msunnear.mjs): back buffer and
-#            the disc layer's, the second disc's and the frame's cycles
+#            the disc layer's, the second disc's and the frame's cycles; also
+#            the sun across the window's edge, growing, and growing past the
+#            planet (the two swap: the planet is then the second disc)
 # Default: all of them.
 set -u
 TREE=$1; OUT=$2; shift 2
@@ -40,10 +42,20 @@ planets)
     pl caps90 --type 130 --qq2 $LEESTI --x 128 --y 96 --r 90 --pose 20,30,0 --spin 22.5 --n 16
     pl caps200 --type 130 --qq2 $LEESTI --x 128 --y 96 --r 200 --pose 0,60,20 --spin 5 --n 16
     pl capspath --type 130 --qq2 $LEESTI --x0 200 --y0 40 --x1 100 --y1 120 --r0 30 --r1 120 --pose 0,60,20 --spin 5 --n 24
+    pl beachtop --type 128 --x0 128 --y0 -60 --x1 140 --y1 20 --r0 120 --r1 125 --pose 20,30,0 --spin 5 --n 16     # (its centre above the screen)
+    pl beachleft --type 128 --x0 8 --y0 100 --x1 40 --y1 90 --r0 100 --r1 110 --pose 20,30,0 --spin 5 --n 16      # (by the window's left side)
     pl moon1 --type 128 --qq2 76,70,EB,94,0B,D5 --x 93 --y 97 --r 33 --pose 59,28,24 --spin 2 --n 16
     pl moon2 --type 130 --qq2 DA,1C,F6,BA,66,D3 --x 110 --y 90 --r 31 --pose 40,76,2 --spin 11 --n 16
     pl moon3 --type 130 --qq2 38,AD,9C,15,1D,A9 --x 70 --y 100 --r 30 --pose 0,150,30 --n 16
     pl moonpath --type 128 --qq2 76,70,EB,94,0B,D5 --x0 60 --y0 80 --x1 160 --y1 110 --r0 20 --r1 60 --pose 59,28,24 --spin 2 --n 24 ;;
 sunnear)
-    node "$R/harness/msunnear.mjs" --disc "$B/elite-master-sng47.ssd" --syms "$B/symbols.txt" --out "$OUT/sunnear" --pose 20,30,0 --spin 3 > "$OUT/sunnear.log" 2>&1 || echo "sunnear: FAILED" ;;
+    sn() {
+        n=$1; shift
+        node "$R/harness/msunnear.mjs" --disc "$B/elite-master-sng47.ssd" --syms "$B/symbols.txt" --out "$OUT/$n" --pose 20,30,0 --spin 3 "$@" > "$OUT/$n.log" 2>&1 || echo "$n: FAILED"
+    }
+    sn sunnear
+    sn sunedge --sx 236 --sx1 290                       # (the second disc across the window's edge)
+    sn sungrow --sz 393216 --sz1 131072                 # (its radius 16 to 48)
+    sn sunswap --pz 262144 --psx 120 --psy 120 --sz 393216 --sz1 131072     # (the planet, radius 24, becomes the second disc)
+    sn sunsmall --pz 125829 --psx 110 --psy 110 --sx 180 --sy0 150 --sy1 40 ;;   # (a planet of radius 50 wholly on the screen)
 esac; done

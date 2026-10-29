@@ -13,19 +13,19 @@ bad = 0
 
 def frames_equal(da, db):
     fa = sorted(glob.glob(os.path.join(da, 'frame-*.bin')))
-    same = diff = 0
+    same = diff = gap = 0
     first = None
     for f in fa:
         g = os.path.join(db, os.path.basename(f))
         if not os.path.exists(g):
-            diff += 1
+            gap += 1                # (a frame one side did not dump: timing)
             continue
         if open(f, 'rb').read() == open(g, 'rb').read():
             same += 1
         else:
             diff += 1
             first = first or os.path.basename(f)
-    return same, diff, first
+    return same, diff, first, gap
 
 
 def mean(xs):
@@ -47,28 +47,36 @@ if os.path.exists(os.path.join(A, 'gate-fb.json')) and os.path.exists(os.path.jo
                         os.path.join(B, 'gate-fb.json')], capture_output=True, text=True)
     print('gate pixels:', r.stdout.strip())
     bad += r.returncode != 0
-for d in sorted(glob.glob(os.path.join(A, 'pl-*'))) + [os.path.join(A, 'sunnear')]:
+for d in sorted(glob.glob(os.path.join(A, 'pl-*'))) + [os.path.join(A, n) for n in ('sunnear', 'sunedge', 'sungrow', 'sunswap', 'sunsmall')]:
     if not os.path.isdir(d):
         continue
     n = os.path.basename(d)
     e = os.path.join(B, n)
     if not os.path.isdir(e):
         continue
-    same, diff, first = frames_equal(d, e)
+    same, diff, first, gap = frames_equal(d, e)
     bad += diff > 0
     ja = json.load(open(os.path.join(d, 'frames.json')))['frames']
     jb = json.load(open(os.path.join(e, 'frames.json')))['frames']
-    if n != 'sunnear':              # (mplanet's first frame counts all before it)
+    if not n.startswith('sun'):     # (mplanet's first frame counts all before it)
         ja, jb = ja[1:], jb[1:]
-    if n == 'sunnear':
+    if n.startswith('sun'):
         keys = ['discs', 'disc2', 'frame']
         get = lambda f, k: f.get(k, 0)
     else:
         keys = [k for k in ['T_DISCROWS', 'T_CAPS', 'f_moon', 'T_MCAPS', 'F_FRAME'] if k in ja[0]['cyc']]
         get = lambda f, k: f['cyc'].get(k, 0)
+    # frames by their key (k, or the iteration), both sides, every routine
+    # timed on both (a hook the emulator skipped leaves one out: not compared)
+    kf = 'k' if n.startswith('sun') else 'iter'
+    has = lambda f: all((k in f) if n.startswith('sun') else (k in f['cyc']) for k in keys)
+    fa = {f[kf]: f for f in ja if has(f)}
+    fb = {f[kf]: f for f in jb if has(f)}
+    both = sorted(set(fa) & set(fb))
     parts = []
     for k in keys:
-        ma, mb = mean([get(f, k) for f in ja]), mean([get(f, k) for f in jb])
+        ma, mb = mean([get(fa[i], k) for i in both]), mean([get(fb[i], k) for i in both])
         parts.append('%s %.0f -> %.0f (%+.0f)' % (k, ma, mb, mb - ma))
-    print('%-13s pixels %d same, %d differ%s; %s' % (n, same, diff, (' (first ' + first + ')') if first else '', '; '.join(parts)))
+    print('%-13s pixels %d same, %d differ%s%s; %s' % (n, same, diff, (' (first ' + first + ')') if first else '',
+          (', %d not dumped by one side' % gap) if gap else '', '; '.join(parts)))
 print('PIXELS', 'IDENTICAL' if not bad else 'DIFFER')

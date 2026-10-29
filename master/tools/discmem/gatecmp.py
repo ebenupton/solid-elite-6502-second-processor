@@ -16,7 +16,7 @@ def ld(f):
 a, b = ld(sys.argv[1]), ld(sys.argv[2])
 worse = [(k, a[k], b[k]) for k in a if k != 'all' and k in b and b[k] < a[k]]
 better = [(k, a[k], b[k]) for k in a if k != 'all' and k in b and b[k] > a[k]]
-print('windows: %d, slower %d, faster %d, same %d' % (len(a) - 1, len(worse), len(better), len(a) - 1 - len(worse) - len(better)))
+nw = len([k for k in a if k != 'all' and k in b])
+print('windows: %d, slower %d, faster %d, same %d' % (nw, len(worse), len(better), nw - len(worse) - len(better)))
 for k, x, y in sorted(worse):
     print('  slower %5d: %.2f -> %.2f it/s (%+.2f%%)' % (k, x, y, 100 * (y - x) / x))
-print('all: %.2f -> %.2f it/s' % (a.get('all', 0), b.get('all', 0)))
