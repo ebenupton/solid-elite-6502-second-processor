@@ -23,8 +23,9 @@
 \   with XX2 = 255: cull by its winding, as its face).
 \   Fins (n = 3, two-sided, zero thickness, standing on the body edge
 \   between face1 and face2): k = number of face1, face2 visible; draw
-\   k = 0 before the faces (behind the body), k = 1 after the details,
-\   then k = 2 (the fin nearest the viewer) last.
+\   k = 1 after the details, then k = 2 (the fin nearest the viewer)
+\   last; not k = 0 (behind the body: LL9 does not project a vertex on
+\   the body edge that lists only face1 and face2).
 \   An unlit polygon detail (the docking slots: black) has 4 * its fill
 \   visibility added to its colour byte: if XX4 > that, some vertices
 \   are unprojected, and f_poly2 draws only its side from vertex 0 to 1.
@@ -216,10 +217,10 @@ FC_PLANE = &05 : FC_PLANO = &5A
 
 \ Splinter (type 8): hues tan + grey
 .FC_S8_F
- EQUB 3 + 16 * 8, 61 AND &FF, 0 AND &FF, 0 AND &FF, 4, 8, 12    \ face 0: grey
- EQUB 3 + 16 * 7, 34 AND &FF, 49 AND &FF, -12 AND &FF, 12, 0, 8    \ face 1: tan
- EQUB 3 + 16 * 7, 0 AND &FF, 61 AND &FF, 0 AND &FF, 12, 0, 4    \ face 2: tan
- EQUB 3 + 16 * 8, 10 AND &FF, 14 AND &FF, 58 AND &FF, 8, 0, 4    \ face 3: grey
+ EQUB 3 + 16 * 7, 47 AND &FF, 3 AND &FF, -39 AND &FF, 12, 4, 8    \ face 0: tan
+ EQUB 3 + 16 * 7, 26 AND &FF, -7 AND &FF, 55 AND &FF, 8, 0, 12    \ face 1: tan
+ EQUB 3 + 16 * 8, -53 AND &FF, 28 AND &FF, -10 AND &FF, 12, 0, 4    \ face 2: grey
+ EQUB 3 + 16 * 8, -2 AND &FF, -34 AND &FF, -50 AND &FF, 8, 4, 0    \ face 3: grey
 .FC_S8_D
  EQUB 0                       \ fins
  EQUB 0                       \ details
@@ -673,22 +674,24 @@ FC_PLANE = &05 : FC_PLANO = &5A
 
 \ Cougar (type 32): hues purple + grey
 .FC_S32_F
- EQUB 5 + 16 * 8, -20 AND &FF, 57 AND &FF, 5 AND &FF, 0, 28, 32, 8, 12    \ face 0: grey
- EQUB 5 + 16 * 5, -20 AND &FF, -57 AND &FF, 5 AND &FF, 4, 16, 8, 32, 28    \ face 1: purple
+ EQUB 4 + 16 * 5, -20 AND &FF, 57 AND &FF, 5 AND &FF, 0, 4, 8, 12    \ face 0: purple
+ EQUB 3 + 16 * 5, -20 AND &FF, -57 AND &FF, 5 AND &FF, 16, 8, 4    \ face 1: purple
  EQUB 4 + 16 * 8, 0 AND &FF, -60 AND &FF, 11 AND &FF, 20, 16, 4, 0    \ face 2: grey
- EQUB 5 + 16 * 5, 20 AND &FF, -57 AND &FF, 5 AND &FF, 40, 24, 16, 20, 36    \ face 3: purple
- EQUB 5 + 16 * 8, 20 AND &FF, 57 AND &FF, 5 AND &FF, 24, 40, 36, 0, 12    \ face 4: grey
- EQUB 4 + 16 * 5, 0 AND &FF, 0 AND &FF, -61 AND &FF, 24, 12, 8, 16    \ face 5: purple
+ EQUB 3 + 16 * 5, 20 AND &FF, -57 AND &FF, 5 AND &FF, 24, 16, 20    \ face 3: purple
+ EQUB 4 + 16 * 5, 20 AND &FF, 57 AND &FF, 5 AND &FF, 24, 20, 0, 12    \ face 4: purple
+ EQUB 4 + 16 * 8, 0 AND &FF, 0 AND &FF, -61 AND &FF, 24, 12, 8, 16    \ face 5: grey
 .FC_S32_D
- EQUB 0                       \ fins
- EQUB 7                       \ details
- EQUB 26, &01, &83, 2, 4, 8    \ line [1, 2], unlit 10
- EQUB 26, &34, &83, 2, 20, 24    \ line [5, 6], unlit 10
- EQUB 20, &00, &82, 2, 48, 52    \ line [12, 13], unlit 14
- EQUB 18, &00, &82, 2, 52, 44    \ line [13, 11], unlit 14
- EQUB 18, &44, &82, 2, 44, 56    \ line [11, 14], unlit 14
- EQUB 20, &44, &82, 2, 56, 48    \ line [14, 12], unlit 14
- EQUB 18, &55, &08, 4, 60, 64, 72, 68    \ poly [15, 16, 18, 17], grey
+ EQUB 4                       \ fins
+ EQUB 31, &10, &08, 3, 4, 28, 32    \ fin [1, 7, 8], grey
+ EQUB 31, &10, &08, 3, 4, 32, 8    \ fin [1, 8, 2], grey
+ EQUB 31, &43, &08, 3, 24, 40, 36    \ fin [6, 10, 9], grey
+ EQUB 31, &43, &08, 3, 24, 36, 20    \ fin [6, 9, 5], grey
+ EQUB 5                       \ details
+ EQUB 20, &00, &83, 2, 48, 52    \ line [12, 13], unlit 10
+ EQUB 18, &00, &83, 2, 52, 44    \ line [13, 11], unlit 10
+ EQUB 18, &44, &83, 2, 44, 56    \ line [11, 14], unlit 10
+ EQUB 20, &44, &83, 2, 56, 48    \ line [14, 12], unlit 10
+ EQUB 18, &55, &05, 4, 60, 64, 72, 68    \ poly [15, 16, 18, 17], purple
 
 \ Dodecahedron station (type 33): hues grey + blue
 .FC_S33_F
@@ -723,4 +726,4 @@ FC_PLANE = &05 : FC_PLANO = &5A
  EQUB &0F, &FA, &AF, &FA, &FF, &AF, &5A, &FA, &FA, &5A, &FA, &FF, &0F, &AF, &AF, &FA
  EQUB &5A, &5A
 
-\ 3294 bytes in all
+\ 3304 bytes in all

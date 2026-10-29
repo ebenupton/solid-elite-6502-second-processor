@@ -25,11 +25,16 @@ _RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
 
- INCLUDE "build/elite-source-run.asm"
+ INCLUDE "build/elite-source-config.asm"   \ (the configuration and the workspaces)
 
- INCLUDE "build/elite-source-bank4.asm"
+ ORG CODE%
+.PCODE_START
+ INCLUDE "tsrc/p-low.asm"               \ the parasite's glue (p-low.asm)
+.GLUE_END%
 
-PRINT "Parasite: run and Master's drawing end at &", ~P%
+ INCLUDE "build/elite-source-run.asm"   \ the game, resident, in the source's order
+
+PRINT "Parasite: glue &", ~CODE%, "-&", ~GLUE_END%-1, ", the game's run to &", ~P%-1
 .HZ_START
  INCLUDE "build/elite-data-hot.asm"
 .HZDATA_END%
@@ -46,7 +51,8 @@ PFRAME% = P%
  INCLUDE "build/gfx-frame-frame.asm"   \ (streams.py's frame pass)
  INCLUDE "src/gfx-faces.asm"
  INCLUDE "src/gfx-light6.asm"
- INCLUDE "src/gfx-light.asm"
+ INCLUDE "build/gfx-light-6.asm"         \ (L_REC)
+ INCLUDE "build/gfx-light-4.asm"         \ (L_SUN, from G_FRAME and G_HANGAR)
  INCLUDE "build/gfx-frame_cold-frame.asm"  \ (its "Area: ovl S" block, f_slot,
                                         \ in overlay S)
  INCLUDE "src/gfx-hangar.asm"
@@ -60,20 +66,31 @@ IF OPTEST                \ (a test build for test_onepass.py --tube only: the
  INCLUDE "tsrc/p-onepass.asm"
  SKIP F_HW + 2048 - P%
 F_HW2 = F_HW + 256
-F_DL = F_HW + 512
+F_SR = F_HW + 512
 F_INIT = F_HW
 ELSE
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
-.F_DL                   \ ship records: XX2 then XX3 copies (1536 bytes)
- SKIP &22
+F_SRN = MAXSH * 15      \ (the most faces is 15)
+.F_SR                   \ the ships' faces' levels (F_SHIP), with F_INIT, run
+ SKIP &22               \ once before the first frame, in its room
  INCLUDE "src/gfx-finit.asm"
- SKIP F_DL + 1536 - P%
+ SKIP F_SR + F_SRN - P%
 ENDIF
+.F_RP   SKIP 29 * MAXSH \ the ship records (F_SHIP): INWK 0-8, XX16, XX0
+F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
+F_SZH = F_RP + 7 * MAXSH
+.F_BX   SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
+.F_BY   SKIP 10         \ as F_BOMB found them
+.F_DCOL SKIP 2          \ disc colour index in each buffer's disc layer
+.f_tcol SKIP 1          \ (f_char1's column)
+.f_zsv  SKIP &22 + 16   \ F_FRAME's keep of &06-&27 and FZ's &D2-&E1
 .F_DLEND
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm)
 .F_SLV  SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
                         \ gfx-frame_cold.asm; F_SLV+16 &80: none)
+ INCLUDE "tsrc/p-disc0.asm"            \ (the disc heap's drop)
+ INCLUDE "tsrc/p-probe1.asm"           \ (the lens flare's probes: fl_arm's helpers)
 .PRES_END                \ (the end of what is always resident)
 
 
@@ -84,6 +101,7 @@ ENDIF
  ORG (P% + 255) AND &FF00
 .OVL_START
 .COLD_START%
+ INCLUDE "build/elite-stubs-x4.asm"    \ (overlay D's names for resident routines)
  INCLUDE "build/elite-source-cold.asm"
  INCLUDE "build/elite-data-cold.asm"
  INCLUDE "build/p-io-ovld.asm"          \ (the "ovl D" blocks of the Tube's files:
@@ -113,7 +131,15 @@ ENDIF
  ORG OVL_START
 .OVL_S_START
  INCLUDE "tsrc/p-rast.asm"
- INCLUDE "tsrc/p-moon.asm"              \ (the moon, drawn incrementally)
+ INCLUDE "tsrc/p-disc.asm"              \ (the disc heap, the surface and the second disc
+                                        \ drawn as changes)
+IF _PLANET_MOON
+ ERROR "MOON=on: the Tube's parasite has no room for the moon"
+ENDIF
+IF _PLANET_RINGS
+.RG_Y   SKIP 64         \ the ring's dots' y and flags (gfx-planetv.asm's in the
+.RG_F   SKIP 64         \ Master port): only used with S in (pf_ring, f_ring)
+ENDIF
  INCLUDE "tsrc/p-emit.asm"              \ (the polygons' rows to the host as they are made)
  INCLUDE "tsrc/p-kept.asm"              \ (kept solid rows)
  INCLUDE "tsrc/p-polya.asm"             \ (R_POLY's set-up and arithmetic, C_DSPANS's
@@ -121,10 +147,11 @@ ENDIF
 IF OPTEST = 0
  INCLUDE "tsrc/p-onepass.asm"           \ (R_POLY in one pass)
 ENDIF
- INCLUDE "src/gfx-ftext.asm"
+ INCLUDE "build/gfx-frame-ovls.asm"    \ (the text overlay and the sights)
  CPU 1
  INCLUDE "src/gfx-flare.asm"
  CPU 1
+ INCLUDE "tsrc/p-probe.asm"             \ (the lens flare's probes)
  INCLUDE "src/gfx-merid.asm"
  CPU 1
  INCLUDE "src/gfx-planet7.asm"
@@ -171,7 +198,7 @@ ENDIF
 .pcrs EQUB 0
  INCLUDE "src/gfx-flare6.asm"           \ (resident code and tables, out of the
  CPU 1                                  \ run: OVL_START is lower for them)
- INCLUDE "tsrc/p-flt.asm"               \ (the lens flare's tables)
+ INCLUDE "tsrc/p-probe2.asm"            \ (the lens flare's probes' resident part)
 .F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm)
 .F_DSY  SKIP NDSTAR
 .PFF_END

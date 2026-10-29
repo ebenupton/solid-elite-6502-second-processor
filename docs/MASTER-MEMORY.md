@@ -37,7 +37,7 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
   tables, 7653 bytes, in the original's order from XX21 at &C000) and, after it, the
   hangar's tables (to &DDF3; &DF00-&DFFF is the MOS's). Nothing that runs during a disc command
   is in HAZEL: the renderer's glue (its shared variables, the T_ trampolines, the text
-  and IRQ hooks) is in main RAM below &3000 (the main code's low area). It follows the "save/restore 66 bytes and
+  and IRQ hooks) is in main RAM below &3000 (the glue area, first in the main code). It follows the "save/restore 66 bytes and
   invalidate 6" strategy below (section 2), and around every disc command it is stashed
   whole in screen buffer 0:
   * The loader stashes DFS's and the MOS's lasting bytes, &C2C0-&C2FF and &DFC0-&DFFF, in
@@ -58,9 +58,9 @@ docs/MASTER-MAP.md has the whole layout; in terms of the findings below:
     command lasts. DOSNMI also puts back the minimal NMI handler at &0D00-&0D05, the one
     sanctioned write to page &0D.
   * Buffer 0 then no longer holds the last space-mode frame, which the renderer repairs
-    incrementally: DOSCLI sets GSTASH (in the low area), and the next
+    incrementally: DOSCLI sets GSTASH (in the glue area), and the next
     entry to space mode (f_enter2) clears buffer 0 and resets its rasteriser state,
-    disc colour, sights and shown-text map as F_INIT leaves them (f_b0new). The hangar
+    disc colour and sights as F_INIT leaves them (f_b0new). The hangar
     draws directly, into shadow RAM: no game code writes buffer 0 while docked.
   * During a command the IRQ handler (H_VSYNC and the shared variables) and the
     catalogue's printing (CHPR's text hooks, through bank 6) run from main RAM below

@@ -60,13 +60,16 @@ ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
                         \ the renderer's shared workspace below it (gfx-ws.asm)
 ELSE
- CODE% = &1E2C          \ The address where the code will be run (Port: the
+ CODE% = &1F13 - (&2B AND _PLANET_MOON)
+                        \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
-                        \ docs/MASTER-MAP.md; the low area, elite-low.asm, starts
-                        \ here and the head follows it, and the low byte is
-                        \ chosen so that the font, at its place after ADDK,
-                        \ starts a page with no padding: the build prints the
-                        \ padding, FONTPAD%)
+                        \ docs/MASTER-MAP.md; the glue area, elite-glue.asm,
+                        \ starts here and the low pass follows it, and the low
+                        \ byte is chosen so that the font, at its place after
+                        \ ADDK, starts a page with no padding: the build prints
+                        \ the padding, FONTPAD%; with the moon, MOON=on, the
+                        \ glue area is &2B bytes longer, so it starts that
+                        \ much lower)
 ENDIF
 
  LOAD% = CODE%          \ The address where the code will be loaded
@@ -289,6 +292,10 @@ ENDIF
 
  HOMEBANK = 4           \ Port: Elite's home bank, the sideways RAM bank that is
                         \ paged in while the game runs (bank 6 in the original)
+
+ COLDBANK = 7           \ Port: the cold pass's bank, sideways RAM bank 7, paged
+                        \ in by the stubs (build/elite-stubs.asm) while cold code
+                        \ runs (ANDY is the rasteriser's)
 
 IF _TPART = 1
 
@@ -1307,7 +1314,8 @@ ENDIF
 \
 \       Name: WP
 \       Type: Workspace
-\    Address: &0841 to &0CA9
+\    Address: &0E41 to &12A9
+\             (Port: &0841 to &0CA9, see the ORG below)
 \   Category: Workspaces
 \    Summary: Ship slots, variables
 \
@@ -2170,27 +2178,11 @@ ENDIF
 \
 \ ******************************************************************************
 
- ORG CODE%              \ Set the assembly address to CODE%
+ \ORG CODE%             \ Set the assembly address to CODE% (Port: the passes
+                        \ are placed by elite-layout.asm, docs/MASTER-MAP.md:
+                        \ the glue area from CODE%, then the low pass)
 
  LOAD_A% = LOAD%
-
-\ ******************************************************************************
-\
-\ Port: the low area (elite-low.asm, docs/MASTER-MAP.md), first in the main
-\ code: the blocks of this source tagged low and the port's own code and
-\ variables that must be in main RAM outside the banks; then the head, the
-\ original's VEC to UP; then the run, from M%, straight after UP. All of the
-\ low area and the head are below &3000 (asserted after UP)
-\
-\ ******************************************************************************
-
-IF _TUBE = FALSE         \ (Tube: the parasite's low area, p-low.asm, at the head's end)
-
- INCLUDE "src/elite-low.asm"
-
-ENDIF
-
-.HEAD_START%            \ Port: the head, the original's VEC to UP
 
 \ ******************************************************************************
 \
@@ -2212,6 +2204,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Implement the #wscn command (wait for the vertical sync)
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -2252,6 +2245,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: Wait for a specified time, in 1/50s of a second
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -2284,6 +2278,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Make a long, low beep
+\       Area: low
 \
 \ ******************************************************************************
 
@@ -2298,6 +2293,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Make a short, high beep
+\       Area: low
 \
 \ ******************************************************************************
 
@@ -2313,6 +2309,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound chip data mask for choosing a tone channel in the range 0-2
+\       Area: low
 \       Tube: host
 \
 \ ******************************************************************************
@@ -2331,6 +2328,7 @@ ENDIF
 \    Summary: Sound chip data to turn the volume down on all channels and to act
 \       Tube: both
 \             as a mask for choosing a tone channel in the range 0-2
+\       Area: low
 \
 \ ******************************************************************************
 
@@ -2357,6 +2355,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Write sound data directly to the 76489 sound chip
+\       Area: low
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -2404,6 +2403,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Reset the sound buffers and turn off all sound channels
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -2465,6 +2465,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Make the sound of us being hit
+\       Area: low
 \
 \ ******************************************************************************
 
@@ -2483,6 +2484,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Make the sound of our laser firing
+\       Area: low
 \
 \ ******************************************************************************
 
@@ -2500,6 +2502,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Make the sound whose number is in Y by populating the sound buffer
+\       Area: low
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -2653,6 +2656,7 @@ ENDIF
 \    Summary: Process the contents of the sound buffer and send it to the sound
 \       Tube: host
 \             chip
+\       Area: low
 \
 \ ******************************************************************************
 
@@ -2775,6 +2779,7 @@ ENDIF
 \    Summary: The sound buffer where the data to be sent to the sound chip is
 \       Tube: both
 \             processed
+\       Area: low
 \
 \ ******************************************************************************
 
@@ -2859,6 +2864,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 1
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -2876,6 +2882,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 2
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -2893,6 +2900,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 3
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -2910,6 +2918,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound data block 4
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -2977,6 +2986,7 @@ ENDIF
 \   Category: Drawing the screen
 \    Summary: The main screen-mode interrupt handler (IRQ1V points here)
 \  Deep dive: The split-screen mode in BBC Micro Elite
+\       Area: low
 \       Tube: host
 \
 \ ------------------------------------------------------------------------------
@@ -3023,7 +3033,7 @@ IF _COMPACT
 
  LDA MOS                \ If MOS = 0 then this is a Master Compact, so jump to
  BEQ jvec               \ jvec to skip reading the ADC channels (as the Compact
-                        \ doesn't have them)
+                        \ has a digital joystick rather than an analogue one)
 
 ENDIF
 
@@ -3033,7 +3043,7 @@ ENDIF
  TAY                    \ The BMI is commented out in the original source
 
  LDA VIA+&19            \ Fetch the high byte of the value on this ADC channel
-                        \ (bits 8-15 of the 12-bit value)
+                        \ at SHEILA &19 to read the relevant joystick position
 
  STA JOPOS,Y            \ Store this value in the appropriate JOPOS byte
 
@@ -3044,35 +3054,43 @@ ENDIF
  BCC P%+4
 
  LDA #0                 \ Set the ADC status byte at SHEILA &18 to 0 to reset
- STA VIA+&18            \ the data latch, ready for the next channel
+ STA VIA+&18            \ the data latch
 
 .jvec
 
  PLY                    \ Restore Y from the stack
 
  LDA VIA+&44            \ Read 6522 System VIA T1C-L timer 1 low-order counter
-                        \ (SHEILA &44), which clears the timer 1 interrupt flag
+                        \ (SHEILA &44)
+                        \ 
+                        \ Port: reading it clears the timer 1 interrupt flag
 
  LDA &FC                \ Restore the value of A from before the call to the
-                        \ interrupt handler (as the MOS stores it in &FC)
+                        \ interrupt handler (the MOS stores the value of A in
+                        \ location &FC before calling the interrupt handler)
 
  RTI                    \ Return from interrupts, so this interrupt is not
                         \ passed on to the next interrupt handler
 
 .LINSCN
 
- LDA VIA+&41            \ Read 6522 System VIA input register IRA (SHEILA &41),
-                        \ which clears the vertical sync interrupt
+ LDA VIA+&41            \ Read 6522 System VIA input register IRA (SHEILA &41)
+                        \ 
+                        \ Port: reading it clears the vertical sync interrupt
 
  LDA &FC                \ Fetch the value of A from before the call to the
-                        \ interrupt handler (as the MOS stores it in &FC)
+                        \ interrupt handler (the MOS stores the value of A in
+                        \ location &FC before calling the interrupt handler)
 
  PHA                    \ Store the original value of A on the stack
 
  LDA VSCAN+1            \ Set the line scan counter to the value of VSCAN+1
- STA DL                 \ (Port: 72, and it doesn't change), so
+ STA DL                 \ (which contains 30 by default and doesn't change), so
                         \ routines like WSCAN can set DL to 0 and then wait for
-                        \ it to change to non-zero to catch the vertical sync
+                        \ it to change to this value to catch the vertical sync
+                        \ 
+                        \ Port: VSCAN+1 contains 72, and WSCAN only needs DL to
+                        \ become non-zero
 
                         \ Port: the original restarted timer 1 here (T1C-L =
                         \ VSCAN+1, T1C-H = VSCAN: 14622 us from now), so the
@@ -3106,6 +3124,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing the screen
 \    Summary: Defines the split position in the split-screen mode
+\       Area: low
 \       Tube: host
 \
 \ ******************************************************************************
@@ -3186,6 +3205,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Change the mode 1 palette
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3217,10 +3237,12 @@ ENDIF
 
 .DOVDU19
 
- STA VNT3+1             \ Store the new colour in VNT3+1 (Port: the palette is
-                        \ fixed now, so this is kept only as a variable),
+ STA VNT3+1             \ Store the new colour in VNT3+1, in the IRQ1 routine,
                         \ which modifies which TVT3 palette block gets applied
                         \ to the mode 1 part of the screen
+                        \ 
+                        \ Port: the palette is fixed now, so VNT3+1 is kept
+                        \ only as a variable
 
  RTS                    \ Return from the subroutine
 
@@ -3244,8 +3266,10 @@ IF _COMPACT
 
 ENDIF
 
- LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ LDA #%00000110         \ Set bits 1 and 2 of the Access Control Register at
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
  LDX #&90               \ We want to save zero page from &0090 and up, so set an
                         \ index in X, starting from &90
@@ -3260,8 +3284,11 @@ ENDIF
  BNE sz1                \ Loop back until we have copied the last byte of zero
                         \ page
 
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #%00000110         \ Clear bits 1 and 2 of the Access Control Register at
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #%00001001         \ (A as the original leaves it)
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
  RTS                    \ Return from the subroutine
 
@@ -3321,8 +3348,10 @@ IF _COMPACT
 
 ENDIF
 
- LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ LDA #%00000110         \ Set bits 1 and 2 of the Access Control Register at
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
  LDX #&90               \ We want to swap zero page from &0090 and up, so set an
                         \ index in X, starting from &90
@@ -3339,8 +3368,11 @@ ENDIF
  CPX #&F0               \ Loop back until we have swapped up to location &00EF
  BNE sz2
 
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #%00000110         \ Clear bits 1 and 2 of the Access Control Register at
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #%00001001         \ (A as the original leaves it)
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
                         \ Port: the original set the ROM Select latch to bank 6
                         \ here, to page the game's data back in after disc
@@ -3387,7 +3419,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Lookup table for converting pixel y-coordinate to page number of
 \             screen address
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -3429,6 +3461,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Scan the keyboard to see if SHIFT is currently pressed
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3461,6 +3494,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Scan the keyboard to see if RETURN is currently pressed
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3494,6 +3528,7 @@ ENDIF
 \   Category: Keyboard
 \    Summary: Scan the Master Compact keyboard to see if CTRL is currently
 \             pressed
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3525,6 +3560,7 @@ ENDIF
 \    Summary: Scan the Master Compact keyboard to see if a specific key is being
 \             pressed
 \  Deep dive: The key logger
+\       Area: low
 \
 \ ------------------------------------------------------------------------------
 \
@@ -3594,7 +3630,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Display the current ship on the scanner
 \  Deep dive: The 3D scanner
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -3802,7 +3838,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Draw a one-segment line
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -3823,35 +3859,27 @@ ENDIF
 
  STY YSAV               \ Store Y in YSAV so we can retrieve it below
 
-IF _TUBE
-
-IF _HOSTB = 0
- LDA #%00000110         \ Port (Tube): set bits 1 and 2 of ACCCON only (the
- TSB VIA+&34            \ host never writes it whole: bit 4, ITU, must stay set
-ENDIF                   \ for an internal co-processor, and the IRQ owns D; the
-                        \ Model B host has no ACCCON)
-ELSE
-
- LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
-
-ENDIF
+IF _HOSTB = 0             \ (Port, Tube: the Model B host has no ACCCON)
+ LDA #%00000110         \ Set bits 1 and 2 of the Access Control Register at
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+IF _TUBE = 0
+ LDA #%00001111         \ (A as the original leaves it)
+ENDIF                   \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+ENDIF                   \ IFJ (bits 4 and 5) are kept; the Tube's host never
+                        \ writes ACCCON whole either (ITU must stay set for an
+                        \ internal co-processor, and the IRQ owns D)
 
  JSR LOINQ              \ Draw a line from (X1, Y1) to (X2, Y2)
 
-IF _TUBE
-
-IF _HOSTB = 0
- LDA #%00000110         \ Port (Tube): and clear them again
- TRB VIA+&34
-ENDIF
-
-ELSE
-
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
-
-ENDIF
+IF _HOSTB = 0             \ (Port, Tube: the Model B host has no ACCCON)
+ LDA #%00000110         \ Clear bits 1 and 2 of the Access Control Register at
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+IF _TUBE = 0
+ LDA #%00001001         \ (A as the original leaves it)
+ENDIF                   \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+ENDIF                   \ IFJ (bits 4 and 5) are kept; the Tube's host never
+                        \ writes ACCCON whole either (ITU must stay set for an
+                        \ internal co-processor, and the IRQ owns D)
 
  LDY YSAV               \ Retrieve the value of Y we stored above
 
@@ -3863,7 +3891,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing pixels
 \    Summary: Ready-made single-pixel character row bytes for mode 1
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -3886,7 +3914,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing pixels
 \    Summary: Ready-made double-pixel character row bytes for mode 1
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -3910,7 +3938,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a line: Calculate the line gradient in the form of deltas
 \  Deep dive: Elite's line-drawing algorithm
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -4015,7 +4043,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a line: Line has a shallow gradient, step right along x-axis
 \  Deep dive: Elite's line-drawing algorithm
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -4172,7 +4200,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a shallow line going right and up or left and down
 \  Deep dive: Elite's line-drawing algorithm
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -4457,7 +4485,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a shallow line going right and down or left and up
 \  Deep dive: Elite's line-drawing algorithm
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -4773,7 +4801,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a line: Line has a steep gradient, step up along y-axis
 \  Deep dive: Elite's line-drawing algorithm
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -4934,7 +4962,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a steep line going up and left or down and right
 \  Deep dive: Elite's line-drawing algorithm
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -5512,7 +5540,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a steep line going up and right or down and left
 \  Deep dive: Elite's line-drawing algorithm
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -6087,7 +6115,7 @@ ENDIF
 \   Category: Drawing lines
 \    Summary: Draw a horizontal line from (X1, Y1) to (X2, Y1)
 \  Deep dive: Drawing colour pixels on the BBC Micro
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
@@ -6139,8 +6167,12 @@ ELSE
                         \ call to this subroutine
 
 IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
- LDY #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STY VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ PHA                    \ Set bits 1 and 2 of the Access Control Register at
+ LDA #%00000110
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ PLA
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 ENDIF
 
  LDX X1                 \ Set X = X1
@@ -6305,8 +6337,12 @@ ENDIF
 .HL6
 
 IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
- LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PHA                    \ Clear bits 1 and 2 of the Access Control Register at
+ LDA #%00000110
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PLA
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 ENDIF
 
  LDY YSAV               \ Restore Y from YSAV, so that it's preserved
@@ -6359,8 +6395,12 @@ ENDIF
                         \ already on-screen
 
 IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
- LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PHA                    \ Clear bits 1 and 2 of the Access Control Register at
+ LDA #%00000110
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PLA
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 ENDIF
 
  LDY YSAV               \ Restore Y from YSAV, so that it's preserved
@@ -6401,7 +6441,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing pixels
 \    Summary: Ready-made character rows for the left end of a horizontal line
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -6427,7 +6467,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing pixels
 \    Summary: Ready-made character rows for the right end of a horizontal line
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -6453,7 +6493,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing pixels
 \    Summary: Lookup table for two-pixel mode 1 orange pixels for the sun
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
@@ -6548,7 +6588,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
 \    Summary: Calculate (YY+1 SYL+Y) = (A P) + (S R) and draw stardust particle
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6640,7 +6680,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing pixels
 \    Summary: Draw a stardust particle relative to the screen centre
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6735,7 +6775,7 @@ ENDIF
 \   Category: Drawing pixels
 \    Summary: Draw a one-pixel dot, two-pixel dash or four-pixel square
 \  Deep dive: Drawing colour pixels on the BBC Micro
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: bothb
 \
 \ ------------------------------------------------------------------------------
@@ -6789,8 +6829,12 @@ ELSE              \ Port: in record mode, record the dot (an explosion
                         \ subroutine
 
 IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
- LDY #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STY VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ PHA                    \ Set bits 1 and 2 of the Access Control Register at
+ LDA #%00000110
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ PLA
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 ENDIF
 
  TAY                    \ Copy the screen y-coordinate from A into Y
@@ -6846,8 +6890,12 @@ ENDIF
                         \ already on-screen
 
 IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
- LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PHA                    \ Clear bits 1 and 2 of the Access Control Register at
+ LDA #%00000110
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PLA
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 ENDIF
 
  LDY T1                 \ Restore Y from T1, so Y is preserved by the routine
@@ -6890,8 +6938,12 @@ ENDIF
                         \ already on-screen
 
 IF _TPART <> 2          \ (Tube: the host's handler pages shadow RAM in)
- LDY #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STY VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PHA                    \ Clear bits 1 and 2 of the Access Control Register at
+ LDA #%00000110
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ PLA
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 ENDIF
 
  LDY T1                 \ Restore Y from T1, so Y is preserved by the routine
@@ -6912,7 +6964,7 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing pixels
 \    Summary: A four-colour mode 1 pixel byte that represents a dot's distance
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \
 \       Tube: none
 \ ------------------------------------------------------------------------------
@@ -6945,7 +6997,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Draw a dash on the compass
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7019,7 +7071,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing pixels
 \    Summary: Port: draw a dot on the dashboard, in place of CPIXK
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7108,7 +7160,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Start up the E.C.M. (light up the indicator, start the countdown
 \             and make the E.C.M. sound)
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7131,7 +7183,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Light up the E.C.M. indicator bulb ("E") on the dashboard
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7164,7 +7216,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Light up the space station indicator ("S") on the dashboard
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7203,7 +7255,7 @@ ENDIF
 \       Type: Variable
 \   Category: Dashboard
 \    Summary: The bitmap definition for the space station indicator bulb
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7220,7 +7272,7 @@ ENDIF
 \       Type: Variable
 \   Category: Dashboard
 \    Summary: The character bitmap for the E.C.M. indicator bulb
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7237,7 +7289,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Draw a specific indicator in the dashboard's missile bar
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -7487,6 +7539,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Clear the top part of the screen and draw a border box
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -7506,6 +7559,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a newline
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -7531,6 +7585,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a character at the text cursor by poking into screen memory
 \  Deep dive: Drawing text
+\       Area: low
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -8100,7 +8155,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Clear the top part of the screen and draw a border box
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8130,8 +8185,12 @@ ENDIF
  JSR G_DIRECT           \ Port: the renderer stops recording until the first
                         \ frame after the screen is cleared (gfx-frame.asm)
 
- LDX #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STX VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ PHA                    \ Set bits 1 and 2 of the Access Control Register at
+ LDA #%00000110
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ PLA
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
 IF _TPART = 1
 
@@ -8164,8 +8223,11 @@ ENDIF
 
 .BOX
 
- LDX #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STX VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ LDA #%00000110         \ Set bits 1 and 2 of the Access Control Register at
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ LDX #%00001111         \ (X as the original leaves it)
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
  LDA COL                \ Store the current colour on the stack, so we can
  PHA                    \ restore it once we have drawn the border
@@ -8234,8 +8296,11 @@ ENDIF
  PLA                    \ Restore the original colour that we stored above
  STA COL
 
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #%00000110         \ Clear bits 1 and 2 of the Access Control Register at
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #%00001001         \ (A as the original leaves it)
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
  RTS                    \ Return from the subroutine
 
@@ -8267,6 +8332,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: Zero-fill the page whose number is in X
+\       Area: low
 \       Tube: host
 \
 \ ------------------------------------------------------------------------------
@@ -8290,6 +8356,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Utility routines
 \    Summary: Zero-fill a specific page
+\       Area: low
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -8343,7 +8410,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Clear the bottom three text rows of the space view
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \
 \ ******************************************************************************
 
@@ -8379,8 +8446,10 @@ IF _TPART = 1
 
 ELSE
 
- LDA #%00001111         \ Set bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+ LDA #%00000110         \ Set bits 1 and 2 of the Access Control Register at
+ TSB VIA+&34            \ SHEILA &34 to switch screen memory into &3000-&7FFF
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
  LDA #&6A               \ Set SC+1 = &6A, for the high byte of SC(1 0)
  STA SC+1
@@ -8452,8 +8521,10 @@ ELSE
 ENDIF
                         \ number of rows in X
 
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control Register at
- STA VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+ LDA #%00000110         \ Clear bits 1 and 2 of the Access Control Register at
+ TRB VIA+&34            \ SHEILA &34 to switch main memory back into &3000-&7FFF
+                        \ Port: bits 1 and 2 alone (TSB/TRB), so that ITU and
+                        \ IFJ (bits 4 and 5) are kept
 
  LDA #0                 \ Set A = 0 as this is a return value for this routine
 
@@ -8466,7 +8537,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Update the dashboard
 \  Deep dive: The dashboard indicators
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -8758,7 +8829,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Fetch the current dashboard colours for non-striped indicators, to
 \             support flashing
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -8781,7 +8852,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Fetch the current dashboard colours, to support flashing
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -8811,7 +8882,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Update a bar-based indicator on the dashboard
 \  Deep dive: The dashboard indicators
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -8894,7 +8965,7 @@ ENDIF
 \   Category: Dashboard
 \    Summary: Update the roll or pitch indicator on the dashboard
 \  Deep dive: The dashboard indicators
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -8963,7 +9034,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Port: the cache index of a dashboard indicator, and the caches
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -9001,7 +9072,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Dashboard
 \    Summary: Port: draw a segment of a dashboard indicator
-\       Area: bank 4
+\       Area: hot, ACCCON X
 \       Tube: hostb
 \
 \ ------------------------------------------------------------------------------
@@ -9096,6 +9167,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Maths (Arithmetic)
 \    Summary: Calculate (A X) = (A P) + (S R)
+\       Area: hot, ACCCON X
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9191,6 +9263,7 @@ ENDIF
 \       Type: Variable
 \   Category: Text
 \    Summary: A copy of the character definition bitmap table from the MOS ROM
+\       Area: low
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -9220,10 +9293,7 @@ ENDIF
  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
 
  ALIGN &100             \ Port: the font must start on a page boundary, as only
-                        \ its page number is used (FONT%), and log must too (FMLTU
-                        \ reads it by an operand whose low byte is the argument);
-                        \ the font is three pages, so the log tables after it are
-                        \ page aligned with it
+                        \ its page number is used (FONT%)
 
  FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
 
@@ -9237,6 +9307,7 @@ ENDIF                   \ glyph, from PFONTW above)
 \       Type: Variable
 \   Category: Maths (Arithmetic)
 \    Summary: Binary logarithm table (high byte)
+\       Area: hot, ACCCON X
 \
 \       Tube: bothb
 \ ------------------------------------------------------------------------------
@@ -9254,6 +9325,11 @@ ENDIF                   \ glyph, from PFONTW above)
 \   32 * log2(n) * 256
 \
 \ ******************************************************************************
+
+ ALIGN &100             \ Port: log, logL and alogh must start a page, as
+                        \ FMLTU and LOINQ read them by operands whose low byte
+                        \ is the argument (in the original they follow the
+                        \ three-page font, which is page aligned)
 
 .log
 
@@ -9314,6 +9390,7 @@ ENDIF
 \       Type: Variable
 \   Category: Maths (Arithmetic)
 \    Summary: Binary logarithm table (low byte)
+\       Area: hot, ACCCON X
 \
 \       Tube: bothb
 \ ------------------------------------------------------------------------------
@@ -9393,6 +9470,7 @@ ENDIF
 \       Type: Variable
 \   Category: Maths (Arithmetic)
 \    Summary: Binary antilogarithm table
+\       Area: hot, ACCCON X
 \
 \       Tube: bothb
 \ ------------------------------------------------------------------------------
@@ -9426,6 +9504,7 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 \    Address: &2C40 to &2C61
 \   Category: Workspaces
 \    Summary: Configuration variables
+\       Area: low
 \       Tube: both
 \
 \ ******************************************************************************
@@ -9607,31 +9686,6 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \ game is paused, and the default level is 7
 
  PRINT "UP workspace from ", ~UP, "to ", ~P%-1, "inclusive"
-
-\ ******************************************************************************
-\
-\ Port (Tube): the parasite's low area (tube/src/p-low.asm), at the end of the
-\ head, where the Master port's was before it moved ahead of the head
-\
-\ ******************************************************************************
-
-IF _TUBE
-
- INCLUDE "tsrc/p-low.asm"
-
-ENDIF
-
-.HEAD_END%              \ Port: the end of the head, where the run starts (M%)
-
- PRINT "Low area: ", ~CODE%, "-", ~HEAD_START%-1, "; head: ", ~HEAD_START%, "-", ~HEAD_END%-1, " (the font's alignment: ", FONTPAD%, " bytes of padding); free below &3000: ", &3000-HEAD_END%
- ASSERT HEAD_END% <= &3000 OR _TUBE \ Port: the low area and the head must be below
-                        \ &3000: they are used while ACCCON X = 1 (shadow RAM at
-                        \ &3000-&7FFF), from interrupts or from MOS vectors with
-                        \ any ROM paged: the low area (NEWBRK, the far calls,
-                        \ the renderer's glue and hooks), the IRQ and sound
-                        \ code, CHPR and its font, the log tables (LOINQ),
-                        \ HANGFLAG (HANGER), ADDK (DIALS, PIX1) and UP (CATF,
-                        \ FLH, COMC)
 
 \ ******************************************************************************
 \
@@ -11501,13 +11555,13 @@ ENDIF
  BNE MA23S              \ the following, as there are no planets or suns to
                         \ bump into in witchspace
 
- IF _MOON_SOLID
+ IF _PLANET_MOON
 
-  JSR MOONHIT           \ Port: the moon (the planet's scenery, gfx-planet7.asm)
-  BCS MA28              \ is solid: if we have flown into it, jump to MA28 to
-                        \ crash as into the planet (elite-moon.asm: in the
-                        \ systems with a moon, on this iteration of 32; not in
-                        \ a MOON=scenery build)
+  JSR MOONHIT           \ Port: the moon (the planet's scenery, gfx-planet7.asm,
+  BCS MA28              \ in a MOON=on build) is solid: if we have flown into
+                        \ it, jump to MA28 to crash as into the planet
+                        \ (elite-moon.asm: in the systems with a moon, on this
+                        \ iteration of 32)
 
  ENDIF
 
@@ -12390,8 +12444,7 @@ ENDIF
 
 .DTL1
 
- LDA (V),Y              \ Load the
-                        \ character at offset Y in the token table,
+ LDA (V),Y              \ Load the character at offset Y in the token table,
                         \ which is the next character from the token table
 
  EOR #VE                \ Tokens are stored in memory having been EOR'd with
@@ -12436,8 +12489,7 @@ ENDIF
  INC V+1                \ We have just crossed into a new page, so increment
                         \ V+1 so that V points to the start of the new page
 
- LDA (V),Y              \ Load the
-                        \ character at offset Y in the token table,
+ LDA (V),Y              \ Load the character at offset Y in the token table,
                         \ which is the next character from the token we want to
                         \ print
 
@@ -12911,7 +12963,6 @@ ENDIF
 \   Category: Text
 \    Summary: Switch to justified text when printing extended tokens
 \  Deep dive: Extended text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12939,7 +12990,6 @@ ENDIF
 \   Category: Text
 \    Summary: Switch to left-aligned text when printing extended tokens
 \  Deep dive: Extended text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13144,9 +13194,9 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ Port: DETOK jumps to these routines from the cold area, so those outside it
-\ are entered through their stubs (x4_name, which tools/streams.py generates:
-\ elite-layout.asm).
+\ Port: DETOK jumps to these routines from the cold pass, so those outside it
+\ are entered through their stubs (x4_name, which tools/streams.py writes in
+\ build/elite-stubs.asm).
 \
 \ ******************************************************************************
 
@@ -13154,8 +13204,8 @@ ENDIF
 
  EQUW MT1               \ Token  1: Switch to ALL CAPS
  EQUW MT2               \ Token  2: Switch to Sentence Case
- EQUW TT27              \ Token  3: Print the selected system name
- EQUW TT27              \ Token  4: Print the commander's name
+ EQUW x4_TT27           \ Token  3: Print the selected system name
+ EQUW x4_TT27           \ Token  4: Print the commander's name
  EQUW MT5               \ Token  5: Switch to extended tokens
  EQUW MT6               \ Token  6: Switch to standard tokens, in Sentence Case
  EQUW x4_DASC           \ Token  7: Beep
@@ -13165,8 +13215,8 @@ ENDIF
  EQUW NLIN4             \ Token 11: Draw box around title (line at pixel row 19)
  EQUW x4_DASC           \ Token 12: Carriage return
  EQUW MT13              \ Token 13: Switch to lower case
- EQUW MT14              \ Token 14: Switch to justified text
- EQUW MT15              \ Token 15: Switch to left-aligned text
+ EQUW x4_MT14           \ Token 14: Switch to justified text
+ EQUW x4_MT15           \ Token 15: Switch to left-aligned text
  EQUW x4_MT16           \ Token 16: Print the character in DTW7 (drive number)
  EQUW MT17              \ Token 17: Print system name adjective in Sentence Case
  EQUW MT18              \ Token 18: Randomly print 1 to 4 two-letter tokens
@@ -13194,11 +13244,17 @@ ENDIF
 \   Category: Text
 \    Summary: The extended two-letter token lookup table
 \  Deep dive: Extended text tokens
-\       Area: cold
+\       Area: hot, runs on
 \
 \ ------------------------------------------------------------------------------
 \
 \ Two-letter token lookup table for extended tokens 215-227.
+\
+\ Port: DETOK2 reads the pairs of tokens 228 to 255 past the end of this
+\ table, in QQ16, which follows it ("runs on": tools/streams.py keeps QQ16
+\ after it). Both are in the hot pass, as TT27 reads QQ16, and in main RAM,
+\ which DETOK2 in the cold pass reads too (bankcheck.py would reject them in
+\ bank 4).
 \
 \ ******************************************************************************
 
@@ -13225,7 +13281,6 @@ ENDIF
 \   Category: Text
 \    Summary: The two-letter token lookup table
 \  Deep dive: Printing text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13676,7 +13731,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_A%
 
  PRINT "S.ELTA ", ~(NA%-5), " ", ~P%, " ", ~LOAD%, " ", ~LOAD_A%
-\SAVE "build/ELTA.bin", (NA%-5), P%, LOAD%
+\SAVE "3-assembled-output/ELTA.bin", (NA%-5), P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -14006,9 +14061,20 @@ ENDIF
  BPL BL1                \ or &FF; BIT keeps A = x_hi)
 
  INC FLAG               \ Flag is &FF so this is the first call to BLINE, so
-                        \ increment it to set it to 0
+                        \ increment FLAG to set it to 0, as then the next time
+                        \ we call BLINE it can draw the first line, from this
+                        \ point to the next
 
 .BL5
+
+                        \ The following inserts a &FF marker into the LSY2 line
+                        \ heap to indicate that the next call to BLINE should
+                        \ store both the (X1, Y1) and (X2, Y2) points. We do
+                        \ this on the very first call to BLINE (when FLAG is
+                        \ &FF), and on subsequent calls if the segment does not
+                        \ fit on-screen, in which case we don't draw or store
+                        \ that segment, and we start a new segment with the next
+                        \ call to BLINE that does fit on-screen
 
  LDY LSP                \ If byte LSP-1 of LSY2 = &FF, jump to BL7 to tidy up
  LDA #&FF               \ and return from the subroutine
@@ -14016,12 +14082,16 @@ ENDIF
  CLC                    \ Port: clear C for the CNT addition at BL7 (keeps Z)
  BEQ BL7
 
- STA LSY2,Y             \ Otherwise put a &FF marker at the end of the heap
+ STA LSY2,Y             \ Otherwise we just tried to plot a segment but it
+                        \ didn't fit on-screen, so put the &FF marker into the
+                        \ heap for this point, so the next call to BLINE starts
+                        \ a new segment
 
  INC LSP                \ Increment LSP to point to the next point in the heap
 
  BNE BL7                \ Jump to BL7 to tidy up and return from the subroutine
-                        \ (this BNE is effectively a JMP, as LSP never wraps)
+                        \ (this BNE is effectively a JMP, as LSP will never be
+                        \ zero)
 
 .BL1
 
@@ -15504,7 +15574,7 @@ ENDIF
 \   Category: Status
 \    Summary: Show the Status Mode screen (red key f8)
 \  Deep dive: Combat rank
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -16359,7 +16429,6 @@ ENDIF
 \   Category: Text
 \    Summary: A constant used when printing large numbers in BPRNT
 \  Deep dive: Printing decimal numbers
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -16388,7 +16457,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print an 8-bit number, left-padded to 3 digits, and optional point
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -16428,7 +16496,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a 16-bit number, left-padded to n digits, and optional point
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -16476,7 +16543,6 @@ ENDIF
 \    Summary: Print a 32-bit number, left-padded to a specific number of digits,
 \             with an optional decimal point
 \  Deep dive: Printing decimal numbers
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -17435,7 +17501,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Launch our escape pod
-\       Area: bank 4
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -17544,7 +17609,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Search the galaxy for a system
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -17681,8 +17746,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_B%
 
  PRINT "S.ELTB ", ~CODE_B%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_B%
-\SAVE "build/ELTB.bin", CODE_B%, P%, LOAD%
-
+\SAVE "3-assembled-output/ELTB.bin", CODE_B%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -18110,45 +18174,6 @@ ENDIF
 .HA1
 
  RTS                    \ Return from the subroutine
-
-
-\ ******************************************************************************
-\
-\ Port: the main code continues in main RAM at &7400 from here, after the
-\ quarter-square tables (elite-qs.asm, &7000-&73FF), and runs on through &8000 into bank 4
-\ (docs/MASTER-MAP.md), at a routine that nothing falls into. The part from
-\ CODE%, below screen buffer 0 (main RAM &4000-&6FFF), is saved as BCODE; the
-\ part from &7000 as HICODE and the rest, in bank 4, with the blocks tagged
-\ bank 4 after it, as BANK4 (elite-layout.asm)
-\
-\ ******************************************************************************
-
-IF _TUBE
-
-                        \ Port (Tube): the parasite has no screen and no banks,
-                        \ so the run goes straight on (its quarter squares are
-                        \ after the log tables, docs/TUBE-MAP.md)
-IF _TPART <> 1
- ALIGN &100
-
- INCLUDE "src/elite-qs.asm"             \ the quarter-square tables
-ENDIF
-
-ELSE
-
- PRINT "Main code: ", ~CODE%, "-", ~P%-1, " free ", &4000 - P%
- ASSERT P% <= &4000     \ (main RAM &4000-&6FFF is screen buffer 0)
- PRINT "S.BCODE ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
- SAVE "build/BCODE.unprot.bin", CODE%, P%, LOAD%
-
- CLEAR &7000, &C000
- ORG &7000
-
- INCLUDE "src/elite-qs.asm"             \ the quarter-square tables
-
-ENDIF
-
-.QS_RUN%
 
 \ ******************************************************************************
 \
@@ -20117,7 +20142,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Launch a ship straight ahead of us, below the laser sights
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -20206,7 +20230,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Fire a missile from our ship
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20256,7 +20279,6 @@ ENDIF
 \    Summary: Make a ship or station hostile, and if this is a ship then enable
 \             the ship's AI and give it a kick of speed
 \  Deep dive: Aggression and hostility in ship tactics
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20339,7 +20361,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Display the "missile jammed" message
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20718,7 +20739,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing circles
 \    Summary: Draw the launch or hyperspace tunnel
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -22262,7 +22282,6 @@ ENDMACRO
  STA P
 
  RTS                    \ Return from the subroutine
-
 
 \ ******************************************************************************
 \
@@ -24464,7 +24483,7 @@ ENDMACRO
  PRINT "Reload at ", ~LOAD_C%
 
  PRINT "S.ELTC ", ~CODE_C%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_C%
-\SAVE "build/ELTC.bin", CODE_C%, P%, LOAD%
+\SAVE "3-assembled-output/ELTC.bin", CODE_C%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -24970,7 +24989,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Print the distance to the selected system in light years
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -25069,7 +25088,6 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Set Sentence Case and print a newline
-\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -25087,7 +25105,6 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a newline
-\       Area: cold
 \
 \ ******************************************************************************
 
@@ -25468,7 +25485,6 @@ ENDMACRO
 \    Summary: Calculate system data from the system seeds
 \  Deep dive: Generating system data
 \             Galaxy and system seeds
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -25586,7 +25602,7 @@ ENDMACRO
 \   Category: Charts
 \    Summary: Show the Long-range Chart (red key f4)
 \  Deep dive: A sense of scale
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -25717,7 +25733,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Draw a set of crosshairs
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -25864,7 +25880,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Drawing circles
 \    Summary: Draw a circle with crosshairs on a chart
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -25972,7 +25988,7 @@ ENDMACRO
 \   Category: Drawing circles
 \    Summary: Draw a circle on a chart
 \  Deep dive: Drawing circles
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26222,7 +26238,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Get a number from the keyboard
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26387,7 +26403,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Print an "ITEM?" error, make a beep and rejoin the TT210 routine
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26412,7 +26428,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print the character in Q before returning to gnum
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26434,7 +26450,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show the Sell Cargo screen (red key f2)
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26466,7 +26482,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show a list of current cargo in our hold, optionally to sell
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26683,7 +26699,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show the Inventory screen (red key f9)
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -26750,7 +26766,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Move the crosshairs on a chart
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26822,7 +26838,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Draw a small set of crosshairs on a chart
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26875,7 +26891,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Move galactic coordinates by a signed delta
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -26947,7 +26963,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Draw crosshairs on the Short-range Chart, with clipping
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -27052,7 +27068,7 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Show the Short-range Chart (red key f5)
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -28116,7 +28132,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Print the hyperspace countdown in the top-left of the screen
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28567,7 +28582,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Market
 \    Summary: Show the Market Price screen (red key f7)
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -28690,7 +28705,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Process a jump to the system closest to (QQ9, QQ10)
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -28909,7 +28924,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Process a mis-jump into witchspace
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -28991,7 +29006,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Try to initiate a jump into hyperspace
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29171,7 +29186,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Display either the Long-range or Short-range Chart
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29366,7 +29381,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Show the Equip Ship screen (red key f3)
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29791,7 +29806,7 @@ ENDIF
 \   Category: Market
 \    Summary: Print the amount of money we have left in the cash pot, then make
 \             a short, high beep and delay for 1 second
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -29812,7 +29827,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Make a short, high beep and delay for 0.5 seconds
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -29830,7 +29845,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Subtract the price of equipment from the cash pot
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29873,7 +29888,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Return the price of a piece of equipment
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -29926,7 +29941,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Print a menu of the four space views, for buying lasers
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30024,7 +30039,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Charts
 \    Summary: Select the closest system and redraw the chart crosshairs
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30058,7 +30073,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Equipment
 \    Summary: Install a new laser, processing a refund if applicable
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30158,7 +30173,7 @@ ENDIF
 \       Type: Variable
 \   Category: Equipment
 \    Summary: Equipment prices
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30199,7 +30214,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_D%
 
  PRINT "S.ELTD ", ~CODE_D%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_D%
-\SAVE "build/ELTD.bin", CODE_D%, P%, LOAD%
+\SAVE "3-assembled-output/ELTD.bin", CODE_D%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -30219,7 +30234,6 @@ ENDIF
 \    Summary: Print the selected system name
 \  Deep dive: Generating system names
 \             Galaxy and system seeds
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30301,7 +30315,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Print the commander's name
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30342,7 +30355,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Print the current system name
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30405,7 +30417,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Universe
 \    Summary: Print the current galaxy number
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30436,7 +30447,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Print fuel and cash levels
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30474,7 +30484,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Print the current amount of cash
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30520,7 +30529,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a text token followed by a newline
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30543,7 +30551,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a text token followed by a colon
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30565,7 +30572,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a colon
-\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -30582,7 +30588,6 @@ ENDIF
 \   Category: Text
 \    Summary: Print a text token
 \  Deep dive: Printing text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30708,7 +30713,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a letter in lower case
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30757,7 +30761,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a letter according to Sentence Case
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30825,7 +30828,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a recursive token in the range 128-145
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30854,7 +30856,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Tab to column 21 and print a colon
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -30879,7 +30880,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a letter in lower case
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30934,7 +30934,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a character and switch to capitals
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30979,7 +30978,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a character
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -30999,7 +30997,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Text
 \    Summary: Print a two-letter token or recursive token 0-95
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -31081,7 +31078,6 @@ ENDIF
 \   Category: Text
 \    Summary: Print a recursive token
 \  Deep dive: Printing text tokens
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -31277,7 +31273,6 @@ ENDIF
 \       Type: Variable
 \   Category: Text
 \    Summary: Port: where every 16th recursive token starts in QQ18, for ex
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -31356,9 +31351,8 @@ ENDIF
                         \ instruction
 
  JSR H_PTCLSE           \ Call PTCLS to remove the existing cloud by drawing it
-                        \ (Port: with the renderer's recording off,
-                        \ gfx-hooks.asm)
-                        \ again
+                        \ again (Port: in record mode there is nothing to
+                        \ remove, gfx-hooks.asm)
 
  LDA INWK+6             \ Set T = z_lo
  STA T
@@ -31482,6 +31476,12 @@ ENDIF
  STA INWK+31
 
 .PTCLS
+
+ JSR H_PTCLS            \ Port: in record mode, note the cloud for the frame,
+                        \ which draws it, and do only what the game keeps of
+                        \ PTCLS (gfx-hooks.asm)
+
+.PTCLR
 
                         \ This part of the routine actually draws the explosion
                         \ cloud
@@ -31770,6 +31770,103 @@ ENDIF
  SBC #0
 
  RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: H_PTCLS
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: the explosion cloud in record mode: noted for the frame,
+\             which draws it from the ship line heap
+\       Area: low
+\
+\ ------------------------------------------------------------------------------
+\
+\ Called at the start of PTCLS (DOEXP falls into it to draw the cloud). In
+\ record mode the cloud is noted for the frame and what the game keeps of
+\ PTCLS is done (G_CLOUD with C set, gfx-frame.asm's F_CLOUD), returning from
+\ PTCLS; the frame draws the cloud with PTCLS itself from the ship line heap
+\ (f_dots, through T_GAME, entering at PTCLR, after this call). Outside record mode PTCLS
+\ draws the cloud itself.
+\
+\ ******************************************************************************
+
+.H_PTCLS
+
+ LDA QQ11
+ ORA GFORCE
+ BNE hpt9
+ SEC
+ JSR G_CLOUD
+ PLA
+ PLA
+
+.hpt9
+
+ RTS
+
+\ ******************************************************************************
+\
+\       Name: H_PTCLSE
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: DOEXP removing the old explosion cloud
+\       Area: low
+\
+\ ------------------------------------------------------------------------------
+\
+\ In record mode nothing is on the screen to remove: only what the game keeps
+\ of PTCLS is done (G_CLOUD with C clear). Outside record mode PTCLS draws the
+\ cloud again, which removes it.
+\
+\ ******************************************************************************
+
+.H_PTCLSE
+
+ LDA QQ11
+ ORA GFORCE
+ BNE P%+6
+ CLC
+ JMP G_CLOUD
+ JMP PTCLR
+
+\ ******************************************************************************
+\
+\       Name: H_DOT
+\       Type: Subroutine
+\   Category: Drawing pixels
+\    Summary: Port: PIXEL in record mode: the frame's explosion particles
+\       Area: low
+\
+\ ------------------------------------------------------------------------------
+\
+\ Called at the start of PIXEL, with X = x, A = y. In record mode only the
+\ frame's PTCLS reaches it (f_dots: the game's PTCLS, H_PTCLS, plots nothing,
+\ and the stardust is recorded by H_STAR), whose particles it plots
+\ (G_PDOT, gfx-frame.asm's F_PDOT), returning from PIXEL (what PIXEL returns
+\ is not read: PTCLS goes on to the next particle).
+\
+\ ******************************************************************************
+
+.H_DOT
+
+ STA hdA
+ LDA QQ11
+ ORA GFORCE
+ BNE hdd
+ PLA
+ PLA
+ LDA hdA
+ JMP G_PDOT
+
+.hdd
+
+ LDA hdA
+ RTS
+
+.hdA
+
+ EQUB 0
 
 \ ******************************************************************************
 \
@@ -34528,6 +34625,7 @@ ENDIF
 \    Summary: Draw the sun: Continue to move up the screen, drawing the new sun
 \             line by line
 \  Deep dive: Drawing the sun
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -34797,6 +34895,8 @@ ENDIF
 \   RTS2                Contains an RTS
 \
 \ ******************************************************************************
+
+.SUN4                  \ (the Tube: the entry from part 3, in overlay D)
 
  LDA SUNX               \ Set YY(1 0) = SUNX(1 0), the x-coordinate of the
  STA YY                 \ vertical centre axis of the old sun that's currently
@@ -35211,7 +35311,6 @@ ENDIF
 \       Name: EDGES
 \       Type: Subroutine
 \   Category: Drawing lines
-\       Tube: ovl D
 \    Summary: Draw a horizontal line given a centre and a half-width
 \
 \ ------------------------------------------------------------------------------
@@ -36057,7 +36156,7 @@ ENDIF
  PRINT "Reload at ", ~LOAD_E%
 
  PRINT "S.ELTE ", ~CODE_E%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_E%
-\SAVE "build/ELTE.bin", CODE_E%, P%, LOAD%
+\SAVE "3-assembled-output/ELTE.bin", CODE_E%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -36974,7 +37073,6 @@ ENDIF
 \    Summary: Initialise the INWK workspace to a fairly aggressive ship
 \  Deep dive: Fixing ship positions
 \             Aggression and hostility in ship tactics
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -38141,7 +38239,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Status
 \    Summary: Calculate how bad we have been
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -39234,7 +39331,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Save and load
 \    Summary: Copy the last saved commander's name from INWK to NA%
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -39269,7 +39366,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Save and load
 \    Summary: Copy the last saved commander's name from NA% to INWK
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ******************************************************************************
@@ -39297,7 +39394,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Save and load
 \    Summary: Fetch the name of a commander file to save or load
-\       Area: bank 4
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -40471,8 +40568,10 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ This routine copies a commander file into the commbuf file buffer at &087E
-\ (Port: &0E7E in the original), and then saves it.
+\ This routine copies a commander file into the commbuf file buffer at &0E7E,
+\ and then saves it.
+\
+\ Port: commbuf is at &087E (see WP).
 \
 \ ******************************************************************************
 
@@ -40613,10 +40712,11 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ This routine loads a commander file into the commbuf file buffer at &087E
-\ (Port: &0E7E in the original), and then copies it to the TAP% staging area
-\ (though the latter is not used in this version, as it's left over from the
-\ Commodore 64 version).
+\ This routine loads a commander file into the commbuf file buffer at &0E7E, and
+\ then copies it to the TAP% staging area (though the latter is not used in this
+\ version, as it's left over from the Commodore 64 version).
+\
+\ Port: commbuf is at &087E (see WP).
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41742,7 +41842,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Scan the keyboard until a key is pressed
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41813,7 +41912,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Erase an old in-flight message and display a new one
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41848,7 +41946,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Display an in-flight message
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41960,7 +42057,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Print a text token, possibly followed by " DESTROYED"
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41985,7 +42081,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Potentially lose cargo or equipment following damage
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -42060,7 +42155,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Display "E.C.M.SYSTEM DESTROYED" as an in-flight message
-\       Area: cold
 \
 \ ******************************************************************************
 
@@ -42078,7 +42172,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Display "FUEL SCOOPS DESTROYED" as an in-flight message
-\       Area: cold
 \
 \ ******************************************************************************
 
@@ -42658,7 +42751,7 @@ ENDMACRO
  PRINT "Reload at ", ~LOAD_F%
 
  PRINT "S.ELTF ", ~CODE_F%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_F%
-\SAVE "build/ELTF.bin", CODE_F%, P%, LOAD%
+\SAVE "3-assembled-output/ELTF.bin", CODE_F%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -43975,6 +44068,9 @@ ENDMACRO
  LDA #255               \ Set the X-th byte of XX2 to 255 to denote that this
  STA XX2,X              \ face is visible
 
+ STA GFAR               \ Port: the renderer culls such a face by its winding,
+                        \ for which S_SHIP works out the ship's handedness
+
  TYA                    \ Set Y = Y + 4 to point to the next face
  ADC #4
  TAY
@@ -44285,6 +44381,13 @@ ENDMACRO
 \ ******************************************************************************
 
 .LL42
+
+ JSR H_LL42             \ Port: record the ship for the renderer, which runs
+                        \ the rest of LL9 from here (LL42P) when it draws the
+                        \ ship; LL9 goes on only for a ship that is exploding
+                        \ or firing at us (gfx-hooks.asm)
+
+.LL42P
 
                         \ The first task is to set up the inverse matrix, ready
                         \ for us to send to the dot product routine at LL51.
@@ -45036,7 +45139,6 @@ ENDMACRO
 
  JMP LL50               \ Jump to LL50 to move on to the next vertex
 
-
 .LL67
 
  JSR LL28               \ Call LL28 to calculate:
@@ -45205,6 +45307,210 @@ ENDMACRO
 
                         \ Port: removed (the edge loop of part 10, and LL81's
                         \ call of LSCLR after it)
+
+\ ******************************************************************************
+\
+\       Name: SPLV
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: show all the splinter's faces for LL9's vertices and the
+\             renderer
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: called by S_SHIP, as LL9's part 6 starts (H_LL42), for the splinter.
+\ Its blueprint's faces
+\ data offset is 24 bytes out (SHIP_SPLINTER, as released), so part 5 tested
+\ its faces against normals read from the shuttle's header and first vertex,
+\ and part 6 would skip each vertex whose three faces those hid: the renderer
+\ would be given faces it should not show, with stale vertices, and not the
+\ faces it should. Instead all four faces are shown (XX2 = 255, as for a
+\ face too far away to test) in the ship's record, so the frame's part 6
+\ projects all four vertices and the renderer culls the faces by their
+\ winding (gfx-faces.asm holds the splinter's own normals and windings,
+\ faces.py). Part 5's XX2 is kept in GSPLV, and S_SHIP puts it back once the
+\ renderer has its copy: the game's state is as the original leaves it. Not
+\ when the splinter is exploding: part 4 has shown every face, and DOEXP ends
+\ LL9.
+\
+\ ******************************************************************************
+
+.SPLV
+
+ LDA XX1+31             \ Exploding: nothing to do
+ AND #%00100000
+ BNE spv9
+
+ LDX #3                 \ Keep XX2 for the four faces in GSPLV, and show them
+.spv1
+ LDA XX2,X
+ STA GSPLV,X
+ LDA #255
+ STA XX2,X
+ DEX
+ BPL spv1
+
+ STA GFAR               \ Faces to cull by their winding (A = 255)
+
+.spv9
+
+ RTS
+
+\ ******************************************************************************
+\
+\       Name: S_SHIP
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: record the ship for the renderer, with its handedness
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: called from H_LL42 (gfx-hooks.asm), at the start of LL9's part 6, to
+\ record the ship (G_SHIP). The splinter's faces are all shown first (SPLV).
+\ If the ship has a face that LL9 showed without testing its normal (XX2 =
+\ 255: a face beyond its visibility distance, or the splinter's), the
+\ renderer culls it by its winding on screen, and the face lists' windings
+\ are those of ZINF's handedness (sidev = nosev x roofv): first set GHAND to
+\ the ship's handedness (SHAND), as TIDY gives a ship the other one (sidev =
+\ roofv x nosev). Then record the ship (G_SHIP), and for the splinter put
+\ back the XX2 that part 5 left (SPLV).
+\
+\ ******************************************************************************
+
+.S_SHIP
+
+ LDA TYPE               \ The splinter's faces are shown, and put back once
+ CMP #SPL               \ the renderer has them (SPLV)
+ BNE P%+5
+ JSR SPLV
+
+ LDA GFAR               \ No face to cull by its winding: just record the ship
+ BNE ssh1
+ JMP G_SHIP
+
+.ssh1
+
+ STZ GFAR
+
+ JSR SHAND              \ GHAND = the ship's handedness
+
+ JSR G_SHIP             \ Record the ship
+
+ LDA TYPE               \ The splinter: put back part 5's XX2 for its faces
+ CMP #SPL
+ BNE ssh9
+ LDX #3
+.ssh2
+ LDA GSPLV,X
+ STA XX2,X
+ DEX
+ BPL ssh2
+
+.ssh9
+
+ RTS
+
+\ ******************************************************************************
+\
+\       Name: SHAND
+\       Type: Subroutine
+\   Category: Drawing ships
+\    Summary: Port: the handedness of the ship's orientation vectors
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: set GHAND to %01000000 if sidev = nosev x roofv (as ZINF sets them up),
+\ or %01100000 if sidev = roofv x nosev (as TIDY leaves them), for the ship in
+\ INWK. The renderer's lighting puts GHAND into a face's byte when it culls
+\ the face by its winding (gfx-light.asm), and bit 5 reverses the winding test
+\ (f_winding, gfx-frame.asm).
+\
+\ The vectors are orthonormal, so sidev is one cross product or the other: the
+\ sign of the component i of sidev that is largest (at least 1 / sqrt 3) is
+\ compared with that of (nosev x roofv)_i = n_j r_k - n_k r_j, worked out from
+\ the high bytes (96 = 1): its two products are at most 36 / 256, and the
+\ difference at least 20, well clear of FMLTU's rounding.
+\
+\ ******************************************************************************
+
+.shdj
+
+ EQUB 2, 0, 4, 0, 0     \ For i = x, y, z (X = 0, 2, 4): the offset of j (y, z, x)
+
+.shdk
+
+ EQUB 4, 0, 0, 0, 2     \ and of k (z, x, y)
+
+.SHAND
+
+ LDX #0                 \ Set X = 2 * i for the largest |sidev_i|
+ LDA INWK+22
+ AND #%01111111
+ STA T
+ LDA INWK+24
+ AND #%01111111
+ CMP T
+ BCC shd1
+ STA T
+ LDX #2
+.shd1
+ LDA INWK+26
+ AND #%01111111
+ CMP T
+ BCC shd2
+ LDX #4
+.shd2
+
+ LDY shdj,X             \ GSHT = n_j * r_k
+ LDA INWK+10,Y
+ STA GSHT+1
+ LDY shdk,X
+ LDA INWK+16,Y
+ JSR shdm
+ STA GSHT
+
+ LDY shdk,X             \ A = n_k * r_j
+ LDA INWK+10,Y
+ STA GSHT+1
+ LDY shdj,X
+ LDA INWK+16,Y
+ JSR shdm
+
+ EOR #&FF               \ A = GSHT - A = (nosev x roofv)_i
+ SEC
+ ADC GSHT
+
+ EOR INWK+22,X          \ Bit 7 set if its sign is not sidev_i's
+ AND #%10000000
+
+ LSR A                  \ GHAND = %01000000, or %01100000 if bit 7 was set
+ LSR A
+ ORA #%01000000
+ STA GHAND
+
+ RTS
+
+.shdm
+
+                        \ A = GSHT+1 * A / 256 as a signed byte, for the
+                        \ sign-magnitude high bytes A and GSHT+1 (X is kept)
+
+ STA GSHT+2
+ EOR GSHT+1             \ Bit 7 of GSHT+3 = the product's sign
+ STA GSHT+3
+ LDA GSHT+1
+ AND #%01111111
+ STA Q
+ LDA GSHT+2
+ AND #%01111111
+ JSR FMLTU              \ A = |GSHT+1| * |A| / 256
+ BIT GSHT+3
+ BPL shm1
+ EOR #&FF
+ INC A
+.shm1
+
+ RTS
 
 \ ******************************************************************************
 \
@@ -46372,7 +46678,7 @@ ENDMACRO
  PRINT "Reload at ", ~LOAD_G%
 
  PRINT "S.ELTG ", ~CODE_G%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_G%
-\SAVE "build/ELTG.bin", CODE_G%, P%, LOAD%
+\SAVE "3-assembled-output/ELTG.bin", CODE_G%, P%, LOAD%
 
 \ ******************************************************************************
 \
@@ -48083,7 +48389,6 @@ ENDMACRO
 \       Type: Subroutine
 \   Category: Drawing the screen
 \    Summary: Clear the screen and set the current view type
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -48113,7 +48418,6 @@ ENDMACRO
 \   Category: Drawing the screen
 \    Summary: Clear the top part of the screen, draw a border box and configure
 \             the specified view
-\       Area: cold
 \
 \ ------------------------------------------------------------------------------
 \
@@ -49131,7 +49435,7 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ This routine contains an RTS so we can return from a subroutine with
+\ This routine contains an RTS so we can return from the SFRMIS subroutine with
 \ a branch instruction.
 \
 \ It also contains the DEMON label, which is left over from the 6502 Second
@@ -49541,8 +49845,6 @@ ENDIF
 \
 \ ******************************************************************************
 
-
-
 .F%
 
  SKIP 0
@@ -49576,4 +49878,4 @@ ENDIF
  PRINT "Reload at ", ~LOAD_H%
 
  PRINT "S.ELTH ", ~CODE_H%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD_H%
-\SAVE "build/ELTH.bin", CODE_G%, P%, LOAD%
+\SAVE "3-assembled-output/ELTH.bin", CODE_G%, P%, LOAD%

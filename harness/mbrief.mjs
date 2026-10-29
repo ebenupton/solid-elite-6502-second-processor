@@ -51,6 +51,11 @@ const R = Object.fromEntries(["TT100", "GOIN", "BRIEF", "PAL1", "PAUSE2", "STATU
 const s = new MachineSession("Master"); await s.initialise(); pinRtc(s); await s.boot(30);
 s.loadDisc(DISC); s.keyDown(16); s.reset(true); await s.runFor(2000000); s.keyUp(16);
 const cpu = s._machine.processor;
+// STACKWATCH=1: the lowest S while the frame runs game code (GPRJ set: the
+// frame's ship projection, whose XX3 is under the stack), printed at the end
+// (master/tools/records/stack.mjs)
+const SW = { minS: 0xff };
+if (process.env.STACKWATCH && sy.GPRJ !== undefined) cpu.debugInstruction.add(() => { if ((cpu.ramRomOs[sy.GPRJ] & 0x80) && cpu.s < SW.minS) SW.minS = cpu.s; return false; });
 const cyc = () => cpu.cycleSeconds * 2e6 + cpu.currentCycles;
 const now = () => cyc() / 2e6;
 const secs = n => s.runFor(Math.round(2000000 * n));
@@ -135,4 +140,5 @@ for (const nm of names) {
     console.log(nm, st.phase === "status" ? "ok" : "TIMEOUT", JSON.stringify(st.t), "waits", st.waits.length, "LL9", st.ll9.length, "PAS1", st.pas1.length);
     st = null;
 }
+if (process.env.STACKWATCH) console.log(`lowest S while the frame projects: &${SW.minS.toString(16)}`);
 process.exit(0);

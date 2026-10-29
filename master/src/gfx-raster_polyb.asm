@@ -300,9 +300,9 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   LDA #s_opSTA
   STA (RZ_PP)
 ELSE
-  CMP r_j,X
-  BEQ pb_norun_e
-  LDY r_j,X
+  LDY r_j,X               \ (no empty-run test: when no whole byte lies
+                          \ between the ends, the entry is the plant and the
+                          \ JSR hits the RTS, as r_spc's)
   STY r_jsr2_e+1
   CMP RZ_PP
   BNE pb_plant_e
@@ -415,9 +415,9 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   LDA #s_opSTA
   STA (RZ_PP)
 ELSE
-  CMP r_j,X
-  BEQ pb_norun_o
-  LDY r_j,X
+  LDY r_j,X               \ (no empty-run test: when no whole byte lies
+                          \ between the ends, the entry is the plant and the
+                          \ JSR hits the RTS, as r_spc's)
   STY r_jsr2_o+1
   CMP RZ_PP
   BNE pb_plant_o

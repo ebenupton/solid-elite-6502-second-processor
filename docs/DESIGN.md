@@ -148,9 +148,12 @@ Back-buffer render order (buffer b, two frames old):
     dirty extents (per row [min x, max x] in pixels);
  5. text overlay (cells whose content changed or whose pixels were overwritten),
     laser sights;
- 6. stars, last (only on black pixels; positions remembered per buffer; as
-    nothing is drawn after them, erasing them next time just restores black
-    and needs no text redraw);
+ 6. stars, last (only into screen bytes that are wholly black, so never
+    through a dithered fill, whose every row byte has a coloured pixel; on
+    the Master, not in a docking slot's box either, the one pure black fill:
+    master/tools/starocc.py; positions remembered per buffer; as nothing is
+    drawn after them, erasing them next time just restores black and needs
+    no text redraw);
  7. flip request.
 Clip window for fills: x 1..254, y 1..191 (the border box at x=0, x=255, y=0 is
 never touched).

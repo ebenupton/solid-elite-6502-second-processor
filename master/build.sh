@@ -27,13 +27,19 @@
 #
 # Options (environment):
 #   MATCH=no      zero-filled workspaces (upstream "match=no")
+#   MOON=on       moons: a quarter of the systems, by the seed, have a moon,
+#                 scenery fixed in space and solid (gfx-planet7.asm's pf_moon,
+#                 gfx-frame.asm's f_moon, gfx-ssun.asm's MN_TURN,
+#                 elite-moon.asm's MOONHIT); off by default, when no system
+#                 has a moon and their code, tables and variables are
+#                 assembled out
 #   BANDS=on      banded planets (a quarter of the crater planets, by the seed:
-#                 gfx-planet7.asm's pf_bands); off by default (planetsun
-#                 6957750), when their code is assembled out
-#   RINGS=on      planet rings (an eighth of the systems, by the seed: pf_ring,
-#                 f_ring); off by default, assembled out
-#   MOON=scenery  the moon is not solid (no MOONHIT: elite-moon.asm), for a
-#                 lockstep comparison with SNG47 in a system with a moon
+#                 gfx-planet7.asm's pf_bands); off by default, when no planet
+#                 has bands and their code is assembled out
+#   RINGS=on      planet rings (an eighth of the systems, by the seed:
+#                 gfx-planet7.asm's pf_ring, gfx-frame.asm's f_ring); off by
+#                 default, when no planet has a ring and their code and
+#                 variables are assembled out
 #
 # The checksum script is given the F%, G% and NA2% that the assembler prints,
 # so a changed source still gets a correct commander checksum.
@@ -41,6 +47,9 @@ set -e
 cd "$(dirname "$0")"
 BEEBASM=${BEEBASM:-../tools/beebasm}
 MATCH=${MATCH:-yes}
+MOON=${MOON:-off}
+BANDS=${BANDS:-off}
+RINGS=${RINGS:-off}
 mkdir -p build
 rm -f build/*.bin build/*.ssd build/README.txt
 
@@ -52,53 +61,68 @@ _VARIANT=1
 _REMOVE_CHECKSUMS=$RC
 _MATCH_ORIGINAL_BINARIES=$MO
 _MAX_COMMANDER=FALSE
-_PLANET_BANDS=$( [ "${BANDS:-off}" = on ] && echo TRUE || echo FALSE )
-_PLANET_RINGS=$( [ "${RINGS:-off}" = on ] && echo TRUE || echo FALSE )
-_MOON_SOLID=$( [ "${MOON:-solid}" = scenery ] && echo FALSE || echo TRUE )
+_PLANET_MOON=$( [ "$MOON" = on ] && echo TRUE || echo FALSE )
+_PLANET_BANDS=$( [ "$BANDS" = on ] && echo TRUE || echo FALSE )
+_PLANET_RINGS=$( [ "$RINGS" = on ] && echo TRUE || echo FALSE )
 _TUBE=FALSE
 _TPART=0
 _TDUMB=FALSE
 _HOSTB=FALSE
 _RBANK=0
+ONEPASS=FALSE
+OPTUBE=FALSE
 EOF
 
 : > build/compile.txt
 # the dashboard image and its tables (build/DIALS1.bin, build/dashtab.asm)
 python3 tools/dashboard.py build > /dev/null
+# gfx-light.asm's two passes (its IF LIGHTPASS blocks): L_SUN at bank 4's end
+# (build/gfx-light-4.asm, elite-layout.asm), L_REC in bank 6
+# (build/gfx-light-6.asm, elite-gfx.asm); the other half is assembled out,
+# and the line numbers are the source's
+for p in 4 6; do
+  sed -e "s/^IF LIGHTPASS = $p /IF TRUE  /" -e "s/^IF LIGHTPASS = [0-9] /IF FALSE  /" src/gfx-light.asm > build/gfx-light-$p.asm
+done
 rm -f build/data-addresses.asm build/symbols-data.txt build/HZDATA1.bin build/HZDATA2.bin build/COLDD.bin
-# elite-source.asm's areas: one copy per area (build/elite-source-run.asm, -low.asm,
-# -bank4.asm, -cold.asm), which elite-layout.asm assembles in turn, and
-# elite-data.asm's (build/elite-data-hot.asm, -cold.asm, which elite-layout.asm
-# assembles too, and -bdata.asm, the dashboard image, BDATA, assembled here)
-python3 tools/streams.py >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+rm -f build/elite-source-*.asm build/elite-data-*.asm build/measure-symbols.txt build/flow.txt
+# elite-source.asm's passes, low, hot and cold (docs/MASTER-MAP.md, "The source
+# and its passes"): streams.py writes the copies for the measure (the hot pass
+# in one copy, build/elite-source-measure.asm, and the hot data in one,
+# build/elite-data-measure.asm), elite-measure.asm gives each block's size
+# (build/measure-symbols.txt), then streams.py flows the hot pass and the hot
+# data through their containers by those sizes and writes the copies that
+# elite-layout.asm assembles (build/elite-source-config.asm, -low, -hot1,
+# -hot2, -hot3, -cold; build/elite-data-hot.asm, -hot4, -cold and -bdata, the
+# dashboard image, BDATA, assembled here), and build/flow.txt
+python3 tools/streams.py measure >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+$BEEBASM -i src/elite-measure.asm -d > build/measure-symbols.txt 2>> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
+python3 tools/streams.py place >> build/compile.txt || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i build/elite-data-bdata.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i src/elite-layout.asm -v >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 $BEEBASM -i src/elite-layout.asm -d > build/symbols.txt 2>/dev/null
 # build/banks.txt: the labels of the code in sideways RAM and the ROMSEL value
-# of their bank (harness/mlib.mjs and tools/bankcheck.py read it)
+# of their bank (harness/mlib.mjs and tools/bankcheck.py read it). Each name
+# once, the first file's: the game's copies come first, and a name they share
+# with a scoped local label of the renderer's (.t2, .out ...) is the game's
 python3 - <<'PY'
 import re
+seen = set()
 with open("build/banks.txt", "w") as f:
-    for src, bank in (("build/elite-source-bank4.asm", "4"),
+    for src, bank in (("build/elite-source-hot3.asm", "4"), ("build/elite-data-hot4.asm", "4"),
                       ("build/dashtab-scan.asm", "4"), ("build/dashtab-dot.asm", "4"), ("build/dashtab-spbt.asm", "4"),
                       ("build/dashtab-ecbt.asm", "4"), ("build/dashtab-msbar.asm", "4"),
                       ("build/elite-source-cold.asm", "7"),
-                      ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"),
+                      ("src/gfx-raster.asm", "5"), ("src/gfx-raster_pset.asm", "5"), ("src/gfx-raster_arith.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"), ("src/gfx-raster_polyb.asm", "85"),
                       ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"), ("src/gfx-raster_lcold.asm", "5"),
-                      ("src/gfx-flare.asm", "5"), ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"), ("src/gfx-hangar.asm", "6"),
+                      ("src/gfx-raster_disc2.asm", "5"), ("src/gfx-raster_kept.asm", "5"),
+                      ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"), ("src/gfx-hangar.asm", "6"),
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
-                      ("src/gfx-merid.asm", "7")):
+                      ("src/gfx-merid.asm", "7"), ("src/gfx-kept7.asm", "7"), ("src/gfx-planet7.asm", "7"),
+                      ("src/gfx-flare.asm", "7"), ("src/gfx-ssun.asm", "4"), ("src/elite-moon.asm", "4")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
-            f.write("%s %s\n" % (m.group(1), bank))
-    # the main code continues into bank 4: the labels of the main files that are
-    # assembled at &8000-&BFFF are in bank 4
-    sy = {}
-    for m in re.finditer(r"'([^']+)':(\d+)", open("build/symbols.txt").read()):
-        sy.setdefault(m.group(1), int(m.group(2)))
-    for src in ("build/elite-source-run.asm",):
-        for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
-            if 0x8000 <= sy.get(m.group(1), 0) < 0xC000:
-                f.write("%s 4\n" % m.group(1))
+            if m.group(1) not in seen:
+                seen.add(m.group(1))
+                f.write("%s %s\n" % (m.group(1), bank))
 PY
 # the loader takes the game's entry point from the game's symbols
 python3 - <<'PY'

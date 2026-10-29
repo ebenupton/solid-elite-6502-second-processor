@@ -1,8 +1,8 @@
 \ ******************************************************************************
 \
 \ gfx-gvars.asm - the variables shared between Elite, the IRQ handler and the
-\ graphics bank, with their initial values (in the low area, main RAM below
-\ &3000: elite-low.asm)
+\ graphics bank, with their initial values (in the glue area, main RAM below
+\ &3000: elite-glue.asm)
 \
 \ ******************************************************************************
 
@@ -13,17 +13,29 @@
                         \ Master's direct-mode screen)
 .GFLIP   EQUB 0         \ non-zero: show buffer GPEND at the next vsync
 .GPEND   EQUB 0
-.GDRAWON EQUB &FF       \ 0: drawing primitives are erasing, ignore them
+IF _HOSTB = 0             \ (the Tube's Model B host: hb-irq.asm's hb_vl)
+.GVLAST  EQUB 0         \ non-zero: the last vsync flipped (H_VSYNC: 25 fps cap)
+ENDIF
+IF _TPART <> 2             \ (not the Tube's hosts': the frame runs on the parasite)
+.GPX     EQUB 0         \ ACCCON X (4) as the frame had it before running game
+                        \ code with X clear (T_GAME; F_PDOT)
+.GPCT    EQUB 0         \ the clip window's top, R_CT, while the frame runs
+                        \ game code (T_GAME; FMLTU writes P: F_PDOT)
+.GPRJ    EQUB 0         \ bit 7: the frame is running game code (T_GAME)
+ENDIF
 .GFORCE  EQUB 0         \ non-zero: draw directly even though QQ11 = 0
 .GSIGHT  EQUB 0         \ non-zero: draw the laser sights
 .GLASV   EQUB 0         \ non-zero: our laser beams are showing
-.GLCOL   EQUB 3         \ colour index for recorded lines
-.GDCOL   EQUB 4         \ colour index for recorded dots
-.GNF     EQUB 0         \ faces / vertices of the ship being recorded
-.GNV     EQUB 0
+.GNF     EQUB 0         \ faces of the ship being recorded
 .GTYPE   EQUB 0         \ the type whose faces the ship being recorded uses
 .GSUNON  EQUB 0         \ non-zero: SUN drew the sun this frame (LSO, SUNX valid)
 .GSUNR   EQUB 0         \ the sun's radius this frame
+IF _TPART <> 2
+.LLT     EQUB 24, 24, &E8 \ the light towards the sun, x, y, z (* 41.3): L_SUN
+                        \ (bank 4) writes it, L_REC (bank 6) reads it
+                        \ (gfx-light.asm); the fixed light until L_SUN first
+                        \ runs
+ENDIF
 .GSTASH  EQUB 0         \ bit 7: a disc command has stashed HAZEL in buffer 0
                         \ (DOSCLI), which the next space-mode frame clears
 .PF_CLS  EQUB 0         \ the planet's class (bits 0-1: 0 meridian, the beach

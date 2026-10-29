@@ -49,6 +49,11 @@ pr_h   = &F8
 
 R_PCOL2 = R_COL2        \ (the polygon colours for rows y AND 3 = 2, 3)
 
+HB_S = 0                \ the disc heap's bodies (p-disc.asm): the surface,
+HB_D = 1                \ the second disc
+HD_ROWS = 100           \ (the second disc's rows beside the surface's 192, at
+                        \ least: the heap runs on to the state's last page's end)
+
 \ ------------------------------------------------------------------------------
 \ The state (the per-buffer arrays: empty L = 255, R = 0)
 \ ------------------------------------------------------------------------------
@@ -61,10 +66,6 @@ R_PCOL2 = R_COL2        \ (the polygon colours for rows y AND 3 = 2, 3)
 .R_DIRTYR1 SKIP 192
 .R_DISCL1  SKIP 192
 .R_DISCR1  SKIP 192
-.R_BST     SKIP 192     \ per row, what each buffer's disc row holds (bits 2-3
-                        \ buffer 0, 6-7 buffer 1): 8 + 4p, all colour A or B
-                        \ (p), or 0, unknown or two colours (prow); and its
-                        \ moon row (bits 0-1, 4-5: p-moon.asm's kind)
 .R_WL      SKIP 192     \ this frame's written extents (R_WR = 0: none)
 .R_WR      SKIP 192
 ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1) AND LO(R_DIRTYR0) = LO(R_DIRTYR1)
@@ -83,15 +84,16 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .r_nb    EQUB 0
 .r_bt    EQUB 0         \ the band (old and new disc rows)
 .r_bb    EQUB 0
-.mb_v    EQUB 0, 0      \ per buffer, the moon it holds (p-moon.asm): bit 7 on;
-.mb_xl   EQUB 0, 0      \ its centre, radius and MN_ON's bits 6 and 5 (in
-.mb_xh   EQUB 0, 0      \ front of or behind a disc); its rows
-.mb_yl   EQUB 0, 0
-.mb_yh   EQUB 0, 0
-.mb_r    EQUB 0, 0
-.mb_f    EQUB 0, 0
-.mb_t    EQUB 0, 0
-.mb_b    EQUB 0, 0
+
+.hb_cap  EQUB 0, 0      \ its bodies' capacities (rows), windows' tops and
+.hb_wt   EQUB 0, 0      \ bases (the surface, the second disc)
+.hb_base EQUB 0, 0
+.hb_baseh EQUB 0, 0
+.hd_xl   EQUB 0, 0      \ per buffer, the second disc's box's x (p-disc.asm)
+.hd_xr   EQUB 0, 0
+.HEAP     SKIP 5 * 192 + 4 * HD_ROWS   \ the disc heap (p-disc.asm), to the end of
+ ALIGN &100              \ the state's last page (the host keeps S's image from
+HEAPN = P% - HEAP        \ there: a page fewer to keep)
 
 .S_STATE_END             \ (the state: what p-ovl.asm saves when S goes out in space
                         \ mode)
@@ -145,6 +147,12 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA #&FF
  STA r_wt
  STZ r_wb
+ STZ hb_cap+HB_S        \ (the disc heap empty, its counts none: p-disc.asm)
+ STZ hb_cap+HB_D
+ STZ hp_drops
+ STZ hp_drops+1
+ STZ hp_whole
+ STZ hp_whole+1
  LDA #0                 \ (falls into R_SETBUF)
 
 .T_SETBUF
@@ -196,7 +204,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STZ r_dyb,X
  STZ r_dsb,X
  STZ r_bmode,X
- STZ mb_v,X             \ (no moon: p-moon.asm)
+ STA R_S2T,X            \ (no second disc: p-disc.asm)
+ STZ R_S2B,X
+ STZ R_S2C,X
  RTS
 
 \ ------------------------------------------------------------------------------
@@ -470,6 +480,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CPY R_CB
  BEQ P%+4
  BCS pdo9
+ BIT fp_on              \ (the flare's probes armed: p-probe.asm)
+ BVC P%+5
+ JSR fp_pix
  STX R_XL
  STX R_XR
  JMP R_MARKDIRTY
@@ -739,7 +752,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 
 \ ------------------------------------------------------------------------------
 \ R_DISCROWS: the disc layer for this buffer (R_NDT, R_NDB, R_NDISCL/R, R_DCE
-\ and R_DCO; with R_NDF, R_NDN, R_NDP, R_NDX0-3, R_DBE and R_DBO): see above
+\ and R_DCO; with R_NDF, R_NDN, R_NDX0-3, R_DBE and R_DBO): see above
 \ ------------------------------------------------------------------------------
 
 .T_DISCROWS
@@ -748,6 +761,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STA pr_bat
  LDA #&FF
  STA pr_sy
+ BCC P%+7               \ (C set: R_DISC2, the second disc)
+ JSR pd2
+ BRA P%+5
  JSR pdr0
  BIT pr_bat
  STZ pr_bat
@@ -801,6 +817,12 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BCS P%+5
  LDA r_nb
  STA r_bb
+ LDA R_NDF              \ a two-colour frame, this time or last time: the
+ ORA r_bmode,X          \ surface's state for the band (p-disc.asm)
+ STA pr_h
+ BEQ P%+5
+ JSR ps_fit
+ LDX r_buf
  LDA r_dyb,X            \ the dirty rows outside the band: blacked (rowrep)
  STA pr_g
  LDY r_dyt,X
@@ -837,9 +859,6 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA #&FF
  STA r_dyt,X
  STZ r_dyb,X
- LDA R_NDF              \ a two-colour frame, this time or last time
- ORA r_bmode,X
- STA pr_h
  LDA R_NDF
  STA r_bmode,X
  BIT KANY               \ (rows that may be kept: none in the band, p-kept.asm)
@@ -857,7 +876,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  INY
  BNE pdr7
 .pdr9
- RTS
+ JMP ps_end             \ (neither buffer two-colour: the surface's room freed)
 
 \ prep: row Y, dirty, no disc row: black its extent widened to whole bytes
 \ (in the border's columns, the pixels only), R_WL/R_WR that, no dirty.
@@ -897,7 +916,9 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  STY r_wb
  RTS
 
-\ prow: row Y of the band. Keeps Y
+\ prow: row Y of the band. Keeps Y. A frame and this buffer's last with one
+\ colour (pr_h clear): the row drawn as a change of span (the disc colour,
+\ A); a two-colour frame, this one or the buffer's last: p-disc.asm's ps_row
 
 .prow
  STY pr_y
@@ -924,68 +945,11 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA pr_a
  STA pr_e
 .prwx2
- LDA #8                 \ the row's new contents, as R_BST's nibble: colour A
- LDX R_NDF              \ (8) or B (12) at the left end, plus the boundaries,
- BEQ pbd2               \ n = 1 or 2 (R_NDX0, R_NDX1), or 0 for more (unknown)
- CPY r_nt
- BCC pbd2
- CPY r_nb
- BEQ P%+4
- BCS pbd2
- LDA R_NDN,Y            \ (a row with boundaries: two colours, unknown)
- BEQ pbd1
- LDA #0
- BEQ pbd2
-.pbd1
- LDA R_NDP,Y
- AND #1
- ASL A
- ASL A
- ORA #8
-.pbd2
- STA pb_new
- STZ pb_two             \ one colour, and the old row was the same colour (or
- CMP #0                 \ had no disc): drawn as a change (the one-colour way)
- BEQ pbd4
- BIT pb_m3
- BNE pbd4
- LDA R_BST,Y
- LDX r_buf
- BEQ P%+6
- LSR A
- LSR A
- LSR A
- LSR A
- AND #12                \ (bits 0-1 are the moon's: p-moon.asm)
- CMP pb_new
- BEQ pbd5
- LDA (pr_sr),Y          \ (no old span: the change is all of it)
- CMP (pr_sl),Y
- BCC pbd5
-.pbd4
- LDA #&80               \ else segment by segment, less what the old row holds
- STA pb_two             \ in the same colour (pseg, pdo)
-.pbd5
- LDA pb_new             \ the buffer's R_BST for the row: the new contents
- LDX r_buf
- BEQ pbd6
- ASL A
- ASL A
- ASL A
- ASL A
- STA pr_g
- LDA R_BST,Y
- AND #&3F               \ (the moon's bits kept)
- BRA pbd7
-.pbd6
- STA pr_g
- LDA R_BST,Y
- AND #&F3
-.pbd7
- ORA pr_g
- STA R_BST,Y
- LDA pb_two
- BNE prw3               \ (segment by segment)
+ LDA pr_h
+ BEQ prwp2
+ JSR ps_row             \ (two colours: p-disc.asm)
+ JMP prwx9
+.prwp2
  LDA (pr_dr),Y          \ one colour: unchanged, with no dirty extent?
  BNE prw3
  LDA pr_e
@@ -999,7 +963,7 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  LDA #&FF
  STA pr_wl
  STZ pr_wr
- STZ pr_ce              \ black: (old span + dirty extent) less the new span
+ STZ pr_ce              \ black: (old span + dirty) less the new span
  STZ pr_co
  LDA pr_e
  STA pr_col
@@ -1021,23 +985,13 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  BCC prw5
  JSR pdiff
 .prw5
- LDA pr_f               \ the new span, if any
- CMP pr_e
- BCC prwx9
- LDA pb_two
- BNE prw8
- LDA pb_new             \ one colour (A, or B: R_BST's p): the new span less the
- AND #4                 \ intact old span, i.e. (new less old) and (new and
- BEQ pcla               \ dirty)
- LDA R_DBE
- LDX R_DBO
- BRA pclb
-.pcla
+ LDA pr_f               \ the new span, if any, in colour A: the new span less
+ CMP pr_e               \ the intact old span, i.e. (new less old) and (new
+ BCC prwx9              \ and dirty)
  LDA R_DCE
- LDX R_DCO
-.pclb
  STA pr_ce
- STX pr_co
+ LDA R_DCO
+ STA pr_co
  LDA pr_e
  STA pr_a
  LDA pr_f
@@ -1063,9 +1017,6 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  CMP pr_a
  BCC prwx9
  JSR pspan
- BRA prwx9
-.prw8
- JSR pseg               \ the new span, segment by segment
 .prwx9
  LDA pr_e               \ the buffer's disc span: the new one; no dirty extent
  STA (pr_sl),Y
@@ -1083,86 +1034,6 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
  JMP prw
 .prw10
  RTS
-
-.pb_new EQUB 0
-.pb_two EQUB 0
-.pb_m3  EQUB 3
-
-\ pseg: the new span pr_e..pr_f of row Y in colours A (R_DCE, R_DCO) and B
-\ (R_DBE, R_DBO): pixel x takes colour R_NDP EOR the number of boundaries
-\ (R_NDX0-3, R_NDN of them, at most 4) <= x, as r_segw. Keeps Y
-
-.pseg
- LDA #0                 \ (rows outside the new disc rows, or a frame with no
- STA pr_g               \ boundaries, R_NDF = 0: none)
- STZ pr_col
- LDA R_NDF
- BEQ pseg1
- CPY r_nt
- BCC pseg1
- CPY r_nb
- BEQ P%+4
- BCS pseg1
- LDA R_NDN,Y
- CMP #5
- BCC P%+4
- LDA #4
- STA pr_g
- LDA R_NDP,Y
- AND #1
- STA pr_col               \ the colour now
-.pseg1
- LDA pr_e
- STA pr_a               \ the segment's start
- LDX #0
-.pseg2
- CPX pr_g
- BCS pseg5
- LDA psx_l,X            \ boundary X of row Y
- STA pseg3+1
- LDA psx_h,X
- STA pseg3+2
-.pseg3
- LDA &FFFF,Y            \ (patched: R_NDXx)
- CMP pr_e
- BEQ pseg4
- BCC pseg4
- CMP pr_f
- BEQ P%+4
- BCS pseg5
- CMP pr_a
- BEQ pseg4              \ an empty segment
- PHA
- DEC A
- STA pr_b
- JSR psegc
- PLA
- STA pr_a
-.pseg4
- LDA pr_col
- EOR #1
- STA pr_col
- INX
- BRA pseg2
-.pseg5
- LDA pr_f
- STA pr_b
-.psegc                  \ pr_a..pr_b in colour pr_col (keeps X, Y)
- LDA pr_col
- BNE psgc1
- LDA R_DCE
- STA pr_ce
- LDA R_DCO
- STA pr_co
- JMP pspan
-.psgc1
- LDA R_DBE
- STA pr_ce
- LDA R_DBO
- STA pr_co
- JMP pspan
-.psx_l EQUB LO(R_NDX0), LO(R_NDX1), LO(R_NDX2), LO(R_NDX3)
-.psx_h EQUB HI(R_NDX0), HI(R_NDX1), HI(R_NDX2), HI(R_NDX3)
 
 \ ------------------------------------------------------------------------------
 \ The stars: the host plots them (C_STARS: R_SCOL, R_SN, then x, y and size

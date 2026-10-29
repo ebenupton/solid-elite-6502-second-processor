@@ -776,20 +776,42 @@ ENDMACRO
 \ S, which F_FRAME and F_INIT load)
 
 
+.T_GAME                 \ game code from the frame (gfx-frame.asm's f_proj, the
+ STA tgm+1              \ clouds' PTCLS in f_dots): A, X its address, with P
+ STX tgm+2              \ kept round it (GPCT) and H_EE31 returning at once
+ LDA P                  \ (GPRJ), as the Master port's T_GAME (no banks, no
+ STA GPCT               \ ACCCON here)
+ DEC GPRJ
+.tgm
+ JSR &FFFF              \ (patched)
+ INC GPRJ
+ LDA GPCT
+ STA P
+ RTS
+
 .T_CAPS                 \ the planet's surface detail's rows (gfx-merid.asm's
  JMP PC_ROWS            \ circle engine, in overlay S)
 
-.T_MCAPS                \ the moon's crater's rows (the same)
- JMP PC_MROWS
 
 .T_FLARE                \ the lens flare (gfx-flare.asm), X, Y: this buffer's
- BIT KMODE              \ dirty extents' pages (K mode: no kept rows, p-kept.asm)
+ JSR R_FLARE            \ dirty extents' pages; C set: the sun was in sight,
+ BCC tfl9               \ and rows Y .. X written (none if Y > X)
+ STX tfl_x
+ BIT KMODE              \ K mode: the flare's rows are not kept (p-kept.asm)
  BPL tfl1
  PHY
  JSR k_clear
  PLY
 .tfl1
- JMP R_FLARE
+ CPY tfl_x              \ the rows written, if any, into the repair's row
+ BEQ P%+4               \ range (R_FLARE set R_XL, R_XR)
+ BCS tfl9
+ JSR R_MARKDIRTY
+ LDY tfl_x
+ JMP R_MARKDIRTY
+.tfl9
+ RTS
+.tfl_x EQUB 0
 
 \ p_hloin: HLOIN3 (Master's drawing, the host's: C_HLOIN): a line from (X1, Y1)
 \ to (X2, Y1) in COL, leaving YSAV, X1, X2 and X as Master's does; keeps Y

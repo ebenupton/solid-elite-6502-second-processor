@@ -764,6 +764,11 @@ ENDIF
  EQUB 6, %00001001
  EQUW &8000, B6LEN
 
+ EQUW MESS16            \ HSTB7: and in bank 7, bytes 192-255 of the STA runs'
+ EQUB 7, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
+ EQUW &8000, B7LEN      \ around them; before HSTZ is staged at &4000, as up
+                        \ to 16K through &1300 reach &52FF)
+
  EQUW MESS13            \ HSTZ: the host's HAZEL (the overlays' storage there),
  EQUB 6, %00001001      \ staged in main RAM at &4000 until LTRUN copies it in
  EQUW &4000, &2000      \ (DFS uses HAZEL until the last disc access)
@@ -771,10 +776,6 @@ ENDIF
  EQUW MESS14            \ HSTM2: the overlays' storage in main RAM &7000-&7FFF
  EQUB 6, %00001001
  EQUW &7000, &1000
-
- EQUW MESS16            \ HSTB7: and in bank 7, bytes 192-255 of the STA runs'
- EQUB 7, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
- EQUW &8000, B7LEN      \ around them)
 
  EQUW MESS15            \ HSTM1: and in main RAM &3000-&3DFF (last: the files
  EQUB 6, %00001001      \ before it pass through &1300 up to &52FF)

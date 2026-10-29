@@ -5,7 +5,7 @@
 \
 \ Port: at bank 4's end (elite-layout.asm, after the renderer's game-context
 \ routines), called from the main flight loop's part 15 (MA22) with bank 4
-\ paged; on the Tube, in the parasite's resident image (p-layout.asm). The moon (gfx-planet7.asm's pf_moon draws it) is in the systems
+\ paged. The moon (gfx-planet7.asm's pf_moon draws it) is in the systems
 \ whose seed has one (h = s0_hi EOR s1_hi EOR s2_hi, bits 0-1 = 1): at
 \ MN_E from the planet's centre (gfx-ssun.asm's MN_TURN places it in the
 \ system, on the planet's spin axis, and MN_TURN keeps it fixed in space),
@@ -23,7 +23,12 @@
 \ system without one. C set: we have crashed, and MA22 jumps to MA28 (DEATH),
 \ the planet's crash.
 \
+\ Only in a build with the moon (MOON=on, master/build.sh, _PLANET_MOON):
+\ without it, the file assembles to nothing.
+\
 \ ******************************************************************************
+
+IF _PLANET_MOON
 
 {
 .mh_x
@@ -149,3 +154,5 @@
 .mh_v   SKIP 2
 .mh_s   SKIP 2
 }
+
+ENDIF                   \ (_PLANET_MOON)

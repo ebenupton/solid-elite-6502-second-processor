@@ -23,7 +23,7 @@
 // What it watches for besides: BRKs that reach the game's BRK handler (NEWBRK) with
 // where they came from, writes by game code to page &0D (off limits on the Master),
 // and the routine labels of each poll (control flow).
-import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster } from "../../../harness/mlib.mjs";
+import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank } from "../../../harness/mlib.mjs";
 export { loadSyms, regionsFor };
 
 export const ROOT = decodeURIComponent(new URL("../../..", import.meta.url).pathname).replace(/\/$/, "") + "/";
@@ -220,12 +220,21 @@ export class EliteMachine {
         return r && r.endsWith("_C") ? r.slice(0, -2) : r;
     }
     _stackWord(k) { const s = this.cpu.s; return this.rb(0x100 + ((s + k) & 0xff)) | (this.rb(0x100 + ((s + k + 1) & 0xff)) << 8); }
-    // the JSR whose return address is at S+k, through far-call frames (as mlib)
+    // the JSR whose return address is at S+k, through the stubs between the
+    // passes (as mlib's callerAt)
     _callerAt(k, romsel = this.cpu.romsel) {
         let w = this._stackWord(k);
-        while (this.sy.farret !== undefined && w + 1 === this.sy.farret) {
-            romsel = this.rb(0x100 + ((this.cpu.s + k + 2) & 0xff));
-            k += 3;
+        for (;;) {
+            if (this.sy.farret !== undefined && w + 1 === this.sy.farret) {   // (an older build's far call)
+                romsel = this.rb(0x100 + ((this.cpu.s + k + 2) & 0xff));
+                k += 3;
+                w = this._stackWord(k);
+                continue;
+            }
+            const b = stubBank(this.sy, w + 1);
+            if (b === null) break;
+            romsel = b;
+            k += 2;
             w = this._stackWord(k);
         }
         return { site: w + 1 - 3, romsel, k };

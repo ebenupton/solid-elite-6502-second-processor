@@ -21,8 +21,10 @@
 \     in a build with BANDS=on, master/build.sh, _PLANET_BANDS): two
 \     latitude circles about the spin axis, EOR'd (pf_bands), base 0.
 \
-\ Then the moon (pf_moon, with its crater's record in slot PCMAX) and the
-\ ring's dots (pf_ring), when the seed has them. Elite's state is not
+\ Then the moon (pf_moon, with its crater's record in slot PCMAX: only in a
+\ build with MOON=on, master/build.sh, _PLANET_MOON) and the ring's dots
+\ (pf_ring: only in a build with RINGS=on, _PLANET_RINGS), when the seed
+\ has them. Elite's state is not
 \ touched: Elite's zero page &10-&28 (the engine's workspace) is saved and
 \ restored, and A, X, Y and the flags are preserved. The frame layer makes
 \ the rows through T_CAPS and T_MCAPS (gfx-merid.asm's PC_ROWS, PC_MROWS).
@@ -36,8 +38,12 @@
  PHX
  PHY
  STZ PC_N
+ IF _PLANET_MOON        \ (the moon: MOON=on, master/build.sh)
  STZ MN_ON
+ ENDIF
+ IF _PLANET_RINGS       \ (planet rings: RINGS=on, master/build.sh)
  STZ RG_N
+ ENDIF
  LDA TYPE               \ the class: a crater planet (TYPE 130) 1, a meridian
  LSR A                  \ planet (128) 0
  AND #1
@@ -72,7 +78,7 @@
  STA pcby
  LDA K4+1
  STA pcby+1
- LDX #4                 \ (the planet's centre and radius, kept for pf_moon)
+ LDX #4                 \ (the planet's centre and radius, kept for pf_ring)
 .pfh5
  LDA pcbx,X
  STA pf_cx,X
@@ -100,8 +106,16 @@
  LDA #&80
  TSB PF_CLS
 .pfh7
- JSR pf_moon            \ (pf_moon first: it sets mn_h)
- IF _PLANET_RINGS        \ (rings: RINGS=on, master/build.sh)
+ IF _PLANET_MOON OR _PLANET_RINGS
+ LDA QQ2+1              \ h = s0_hi EOR s1_hi EOR s2_hi: the system's moon
+ EOR QQ2+3              \ and ring
+ EOR QQ2+5
+ STA pf_h
+ ENDIF
+ IF _PLANET_MOON
+ JSR pf_moon
+ ENDIF
+ IF _PLANET_RINGS
  JSR pf_ring
  ENDIF
  LDX #24
@@ -363,11 +377,13 @@ ENDIF
 
 \ ******************************************************************************
 \
-\ The ring's dots and the moon (game context, as PF_HOOK)
+\ The ring's dots and the moon (game context, as PF_HOOK; RINGS=on and
+\ MOON=on)
 \
 \ ******************************************************************************
 
 IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
+
 \ prg_pt: P = (V +/- U) >> 8 (rg_neg bit 7: minus), P_z = z_s +/- z_c; the
 \ dots at P and -P
 
@@ -540,7 +556,10 @@ IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
 .rg_t  EQUW 0
 .rg_sg EQUB 0
 .rg_neg EQUB 0
-ENDIF
+
+ENDIF                   \ (_PLANET_RINGS)
+
+IF _PLANET_MOON         \ (MOON=on, master/build.sh)
 
 \ pf_moon: a moon, for the systems whose seed has one (h = s0_hi EOR s1_hi
 \ EOR s2_hi, bits 0-1 = 1: a quarter of them), and planets of radius 16 up.
@@ -550,27 +569,24 @@ ENDIF
 \ 3 to 5.25 planet radii out by h bits 2-3, when we arrive or launch, and
 \ MN_TURN turns it with our roll and pitch, as the game turns the planet's
 \ position), with a radius rho (0.19 to 0.28 of the planet's, h bits 5-6).
-\ Its centre and radius on the screen follow from the planet's (K3, K4, K)
-\ as Elite projects (x / z, and the radius 24576 / z, both times 256): with
-\ e = E in the view's axes (as PLUT turns them), its offset in
-\ planet radii and q = 1 + e_z r / 256 (its depth over the planet's),
+\ Its centre M = P + E (P the planet's position, INWK, and E, both in the
+\ view's axes as PLUT turns them) is projected as Elite projects:
 \
-\   x = 128 + ((cx - 128) + e_x r) / q,  y = 96 + ((cy - 96) - e_y r) / q,
-\   radius = rho r / q (at most 63),  z = the planet's z times q
+\   x = 128 + 256 M_x / M_z,  y = 96 - 256 M_y / M_z,
+\   radius = rho 96 256 / M_z (at most 63),
 \
-\ It is behind the planet if e_z > 0, behind the sun (slot 1) if further than
-\ it. Its crater (on roofv, 40 degrees across: radius 10 up) is pc_circ's, into
-\ slot PCMAX (pc_circ). MN_ON (bit 7 on, 6 behind the planet, 5 behind the sun), MN_X,
-\ MN_Y, MN_R, MN_Z (16 bits, &FFFF if further), MN_INV and MN_N (its crater)
-\ are what the frame reads. tools/planet_caps.py's pf_moon models it.
+\ M shifted right until M_z fits 15 bits. It is behind the planet if
+\ e_z > 0 (E's z in the view's axes), behind the sun (slot 1) if further
+\ than it. Its crater (on roofv, 40 degrees across: radius 10 up) is a
+\ record of pc_circ's, in slot PCMAX. MN_ON (bit 7 on, 6 behind the planet,
+\ 5 behind the sun), MN_X, MN_Y, MN_R, MN_Z (16 bits, &FFFF if further),
+\ MN_INV and MN_N (its crater) are what the frame reads.
+\ tools/planet_caps.py's pf_moon models it.
 
 .pfm9
  RTS
 .pf_moon
- LDA QQ2+1              \ h
- EOR QQ2+3
- EOR QQ2+5
- STA mn_h
+ LDA pf_h               \ h (PF_HOOK's)
  AND #3
  CMP #1
  BNE pfm9
@@ -730,7 +746,7 @@ ENDIF
 .pfm9d
  STA MN_Y+1
  STY MN_Y
- LDA mn_h               \ radius = rho 96 256 / M_z (rho / 256 of the
+ LDA pf_h               \ radius = rho 96 256 / M_z (rho / 256 of the
  LSR A                  \ planet's radius, 24576)
  LSR A
  LSR A
@@ -920,7 +936,6 @@ MOON_C8 = 196           \ the moon's crater: cos 40 degrees
 .pfm_vn EQUB 0, 0, 0, &80, 0, &80, 0, 0, &80, &80, 0, 0
 .pfm_rho EQUB 48, 56, 64, 72
 .pfm_ctr EQUB 128, 0, 0, 96
-.mn_h  EQUB 0
 .mn_v  EQUB 0
 .mn_t  EQUB 0
 .mn_s  EQUB 0
@@ -931,7 +946,10 @@ MOON_C8 = 196           \ the moon's crater: cos 40 degrees
 .mn_sg EQUB 0
 .mn_z  SKIP 3
 
+ENDIF                   \ (_PLANET_MOON)
+
 IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
+
 \ pf_ring: a ring, for the systems whose seed has one (h bits 4-6 = 4: an
 \ eighth of them) and planets of radius 8 up: a dotted ellipse in the plane of
 \ the planet's equator, normal to the axis it spins about (nosev - sidev), so
@@ -947,7 +965,7 @@ IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
 .prg9
  RTS
 .pf_ring
- LDA mn_h               \ (h: pf_moon's)
+ LDA pf_h               \ (h: PF_HOOK's)
  LSR A
  LSR A
  LSR A
@@ -958,7 +976,7 @@ IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
  LDA pf_r
  CMP #8
  BCC prg9
- LDA mn_h               \ S = the ring's radius x 64 / the planet's, times r
+ LDA pf_h               \ S = the ring's radius x 64 / the planet's, times r
  LSR A
  LSR A
  AND #3
@@ -1160,11 +1178,15 @@ IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
  STA rg_zc+1,X
 .rgf9
  RTS
-ENDIF
+
+ENDIF                   \ (_PLANET_RINGS)
 
 .pf_cx EQUW 0           \ the planet's centre and radius (PF_HOOK)
 .pf_cy EQUW 0
 .pf_r  EQUB 0
+IF _PLANET_MOON OR _PLANET_RINGS
+.pf_h  EQUB 0           \ h, the system's moon and ring (PF_HOOK)
+ENDIF
 .pft_f EQUB 0           \ pf_tilt's
 .pft_x EQUB 0
 .pft_y EQUB 0

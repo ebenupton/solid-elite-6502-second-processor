@@ -2,7 +2,7 @@
 \
 \ gfx-tramp.asm - trampolines from the frame layer (bank GFXBANK) into the
 \ rasteriser (bank RASTBANK, and ANDY over it, RASTPOLY, for R_POLY and
-\ R_LINE). Lives in the low area (main RAM below &3000, elite-low.asm),
+\ R_LINE). Lives in the glue area (main RAM below &3000, elite-glue.asm),
 \ visible whichever bank is paged and whatever ACCCON X is. A, X, Y are
 \ passed through; nothing is returned.
 \
@@ -48,6 +48,7 @@ ENDIF
  JSR R_STARERASE
  JMP tback
 
+\ (C is passed through: R_DISCROWS with C clear, R_DISC2 with it set)
 IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_DISCROWS
  STA tA
@@ -73,15 +74,44 @@ ENDIF
  JSR R_SPAN
  JMP tback
 
-IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
-.T_FLARE                \ (the lens flare, gfx-flare.asm; X and Y passed)
+IF _PLANET_MOON         \ (the moon's: MOON=on, master/build.sh)
+.T_WSPAN                \ (R_SPAN, noting the span as written: R_WL/R_WR)
+ STA tA
  LDA #RASTBANK
  STA &F4
  STA &FE30
- BIT KMODE              \ (K mode: the flare's rows are not kept)
+ BIT KMODE
  BPL P%+5
+ JSR tk_y
+ LDA tA
+ JSR R_WSPAN
+ JMP tback
+ENDIF
+
+IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
+.T_FLARE                \ (the lens flare, gfx-flare.asm: bank 7; X and Y
+ LDA #MERIDBANK         \ passed)
+ STA &F4
+ STA &FE30
+ JSR R_FLARE            \ (C set: the sun was in sight, and Y .. X the rows
+ BCC tfl9               \ written, none if Y > X)
+ LDA #RASTBANK
+ STA &F4
+ STA &FE30
+ STX tA
+ BIT KMODE              \ K mode: the flare's rows are not kept
+ BPL tfl1
+ PHY
  JSR k_clear
- JSR R_FLARE
+ PLY
+.tfl1
+ CPY tA                 \ the rows written, if any, into the repair's row
+ BEQ P%+4               \ range
+ BCS tfl9
+ JSR R_MARKDIRTY        \ (R_FLARE set R_XL, R_XR)
+ LDY tA
+ JSR R_MARKDIRTY
+.tfl9
  JMP tback
 ENDIF
 
@@ -107,12 +137,14 @@ IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
  JSR PC_ROWS
  JMP tback
 
+IF _PLANET_MOON
 .T_MCAPS                \ (the moon's crater's rows, gfx-merid.asm: bank 7)
  LDA #MERIDBANK
  STA &F4
  STA &FE30
  JSR PC_MROWS
  JMP tback
+ENDIF
 ENDIF
 
 IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
@@ -168,6 +200,38 @@ ENDIF
  LDA tA
  JSR R_DOT
  JMP tback
+
+\ T_GAME: the frame runs game code in bank 4 at (X A), with ACCCON X clear
+\ (it reads main RAM above &3000: FMLTU, LL9's tables): PTCLS for a cloud
+\ (f_dots, at PTCLR, after its hook; its PIXEL calls plot the particles:
+\ H_DOT, F_PDOT) or LL9's part 6 on for a ship (f_proj, at LL42P, after its
+\ hook; H_EE31 returns at once while GPRJ is set). The frame's X (GPX, for
+\ F_PDOT) and R_CT (FMLTU's P: GPCT) are put back after it (the rasteriser's
+\ zero page is assembled after this)
+
+IF _TPART <> 2             \ (the Tube: the parasite's, p-io.asm)
+.T_GAME
+ STA tgm+1
+ STX tgm+2
+ LDA #ELITEBANK
+ STA &F4
+ STA &FE30
+ LDA P
+ STA GPCT
+ LDA &FE34
+ AND #4
+ STA GPX
+ TRB &FE34
+ DEC GPRJ
+.tgm
+ JSR &FFFF              \ (patched)
+ INC GPRJ
+ LDA GPCT
+ STA P
+ LDA GPX
+ TSB &FE34
+ JMP tback
+ENDIF
 
 .T_STARPLOT
  STA tA

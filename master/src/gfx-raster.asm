@@ -53,12 +53,13 @@
 \   R_WL, R_WR         this frame's written extents (see R_DISCROWS) [192]
 \   R_NDF              0: this frame's disc is plain colour A (the arrays
 \                      below are ignored); else each disc row has:
-\   R_NDN              boundaries in the row, 0..4                 [192]
+\   R_NDN              bits 0-6: boundaries in the row, 0..4; bit 7: the
+\                      colour at the span's left end before any flip
+\                      (0 = A = R_DCE/R_DCO, 1 = B = R_DBE/R_DBO)    [192]
 \   R_NDX0..R_NDX3     their x, ascending, inside (NDISCL, NDISCR]: pixels
 \                      >= x take the other colour (flips at or left of
-\                      NDISCL are folded into R_NDP by the caller)   [192]
-\   R_NDP              bit 0: colour at the span's left end before any
-\                      flip (0 = A = R_DCE/R_DCO, 1 = B = R_DBE/R_DBO) [192]
+\                      NDISCL are folded into R_NDN's bit 7 by the
+\                      caller)                                       [192]
 \   R_DBE, R_DBO       colour B pair
 \   (R_PTA/R_PTB, R_PYS..R_PCR1, R_BD*: private to the rasteriser.)
 \ Coordinates passed to R_POLY / R_LINE must lie in -16384..16383.
@@ -114,6 +115,8 @@
 \              that stays black, so neither plotting nor erasing them
 \              touches R_WL/R_WR.
 \ R_DISCROWS   the incremental disc layer for the current buffer (see below).
+\              Enter with C clear: with C set it is R_DISC2, the second disc
+\              behind the layer (gfx-raster_disc2.asm, in bank 5), after it.
 \ R_MARKDIRTY  Y = row, extend this buffer's DIRTY[y] by R_XL..R_XR (use it
 \              for anything else drawn into the buffer, e.g. text, so the next
 \              R_DISCROWS on this buffer repairs it).
@@ -138,15 +141,15 @@
 \ frame is R_WL/R_WR[y] union DIRTY[b][y].
 \ Rows of R_NDISCL/R in NDT..NDB with NDISCL = 255 (or L > R) are empty;
 \ spans are clamped to the clip window.
-\ Two-colour discs (R_NDF <> 0): pixel x of a disc row has colour R_NDP
-\ EOR (the number of its boundaries <= x).  Each buffer remembers its rows'
+\ Two-colour discs (R_NDF <> 0): pixel x of a disc row has colour R_NDN's
+\ bit 7 EOR (the number of its boundaries <= x).  Each buffer remembers its rows'
 \ boundaries.  A changed row with no dirty extent is a list of edges (span
 \ start, flips, span end + 1), each with an old and a new position; a flip
 \ that crossed an end is matched by a virtual one there.  When the strips
 \ between each edge's positions are in order, only they are written (r_dq
 \ if only boundaries moved, else r_dpe); otherwise, and for rows with a
 \ dirty extent, the row is repainted whole (r_drg).  New spans are clamped to the clip window; pass
-\ them already clamped (with flips at or left of NDISCL folded into R_NDP)
+\ them already clamped (with flips at or left of NDISCL folded into R_NDN)
 \ so unchanged rows are recognised by the cheap comparison.  A change of
 \ the colours A/B must be handled by the caller as now: fold the old disc
 \ into DIRTY (R_MARKDIRTY) first.
@@ -207,11 +210,14 @@ r_opRTS = &60
 
 \ ============================================================================
 \ The boundary arrays of two-colour discs (R_DISCROWS, r_dbm): each buffer's
-\ last boundaries per row.  Each buffer's six arrays are contiguous, buffer
-\ 1's &500 after buffer 0's, so that the two arrays of a pair share their low
-\ byte (r_dbm patches only operands' high bytes, from r_sbh_bd*).  The most
-\ read, R_BDN, R_BDP and R_BDX0, are at low bytes &00, &40 and &00: reading
-\ them ,X never crosses a page.
+\ last boundaries per row, up to two (a row with more is stored as count
+\ &40, unknown: its next change is a full repaint; the gate's beach balls
+\ have three in 3-5% of their rows, four in none).  R_BDN holds the count
+\ and, in bit 7, the colour at the span's left end, as R_NDN does.  Each
+\ buffer's arrays are buffer 0's + &300, so that the two arrays of a pair
+\ share their low byte (r_dbm patches only operands' high bytes, from
+\ r_sbh_bd*).  The most read, R_BDN and R_BDX0, are at low bytes &00 and
+\ &40: reading them ,X never crosses a page.
 \ ============================================================================
 IF _HOSTB AND _RBANK = 2      \ (Model B, bank P: no boundary arrays; the
 .R_BDN0                       \ flare and the lines' cold part instead)
@@ -227,33 +233,27 @@ ENDIF
  CPU 1
  SKIP R_BDN0 + &480 - P%
 R_BDX10 = 0                   \ (and the arrays' names, unused here)
-R_BDX20 = 0
-R_BDP0 = 0
 R_BDX00 = 0
-R_BDX30 = 0
 R_BDN1 = 0
 R_BDX11 = 0
-R_BDX21 = 0
-R_BDP1 = 0
 R_BDX01 = 0
-R_BDX31 = 0
 ELSE
-.R_BDN0  SKIP 192       \ boundaries per row, 0..4
+.R_BDN0  SKIP 192       \ boundaries per row, 0..2, or &40: more (unknown);
+                        \ bit 7: the colour at the span's left end
 .R_BDX10 SKIP 192       \ their x (raw), the second ...
-.R_BDX20 SKIP 192
-.R_BDP0  SKIP 192       \ bit 0: the colour at the span's left end
+.r_bfree0 SKIP 192      \ (free)
 .R_BDX00 SKIP 192       \ ... and the first
-.R_BDX30 SKIP 192
+.R_BDN1  SKIP 192       \ buffer 1's (= buffer 0's + &300)
+.R_BDX11 SKIP 192
+.r_bfree1 SKIP 192      \ (free)
+.R_BDX01 SKIP 192
+ASSERT R_BDN1 = R_BDN0 + &300 AND R_BDX01 = R_BDX00 + &300
 ENDIF
-\ (the 128 bytes up to buffer 1's arrays)
 
 \       Area: hazel
 
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
-\ (RZ_PP+1 and r_jsr+2).  Clobbers A.  (The Tube's Master host, whose STA
-\ runs are one per line, each at a page's start in sideways RAM,
-\ tube/src/h-sta.asm: RZ_PP = the run's page, the JSRs into it patched for
-\ it, s_rbk = its bank; nothing is paged here)
+\ (RZ_PP+1 and r_jsr+2).  Clobbers A.
 .r_rowset
   STY RZ_Y
   TYA
@@ -319,38 +319,27 @@ ENDIF
   LDX R_XL
   JMP r_spc
 }
-\ r_bstore: Y = row: remember the row's new boundaries (raw) in this buffer
+\ r_bstore: Y = row: remember the row's new boundaries (raw) and colour in
+\ this buffer; a row with more than two is stored as unknown (count &40)
 .r_bstore
   LDA R_NDN,Y
-  CMP #5
-  BCC bs1
-  LDA #4
-.bs1
+  ASL A                   \ (2 count)
+  CMP #6
+  BCS bsu
+  LDA R_NDN,Y
 .^r_pt98 STA r_bdn,Y
-  LDA R_NDP,Y
-  AND #1
-.^r_pt99 STA r_bdp,Y
   LDA R_NDX0,Y
 .^r_pt100 STA r_bdx0,Y
   LDA R_NDX1,Y
 .^r_pt101 STA r_bdx1,Y
-  LDA R_NDX2,Y
-.^r_pt102 STA r_bdx2,Y
-  LDA R_NDX3,Y
-.^r_pt103 STA r_bdx3,Y
+  RTS
+.bsu
+  LDA #&40
+.^r_pt102 STA r_bdn,Y
   RTS
 
 IF _HOSTB AND _RBANK = 2
   SKIP R_BDN0 + &980 - P%       \ (Model B, bank P: its data, PDATA)
-ELSE
-  SKIP R_BDN0 + &500 - P%
-.R_BDN1  SKIP 192
-.R_BDX11 SKIP 192
-.R_BDX21 SKIP 192
-.R_BDP1  SKIP 192
-.R_BDX01 SKIP 192
-.R_BDX31 SKIP 192
-ASSERT R_BDN1 = R_BDN0 + &500 AND R_BDX31 = R_BDX30 + &500
 ENDIF
 IF _HOSTB = 0 OR _RBANK = 2
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
@@ -385,11 +374,12 @@ r_dr1 = R_DIRTYR1
 r_sl1 = R_DISCL1
 r_sr1 = R_DISCR1
 r_bdn = R_BDN0          \ per-buffer boundary rows (patched like r_dl)
-r_bdp = R_BDP0
 r_bdx0 = R_BDX00
 r_bdx1 = R_BDX10
-r_bdx2 = R_BDX20
-r_bdx3 = R_BDX30
+IF _TPART <> 2             \ (the Tube's hosts: no R_DISC2)
+r_s2l = R_S2L0           \ the second disc's spans (R_DISC2: bank 5, elite-gfx.asm)
+r_s2r = R_S2R0
+ENDIF
 
 \ ============================================================================
 \ R_SETBUF: A = buffer.  Patches every buffer-dependent operand (high byte).
@@ -458,6 +448,10 @@ IF _HOSTB = 0
   STA r_pt150+2
   STA r_pt152+2
   STA r_pt399+2
+  STA r_pt506+2           \ (R_DISC2's: gfx-raster_disc2.asm)
+  STA r_pt508+2
+  STA r_pt510+2
+  STA r_pt513+2
   LDA r_sbh_sr,X          \ group r_sr
   STA r_pt18+2
   STA r_pt22+2
@@ -471,6 +465,26 @@ IF _HOSTB = 0
   STA r_pt145+2
   STA r_pt151+2
   STA r_pt153+2
+  STA r_pt507+2
+  STA r_pt509+2
+  STA r_pt511+2
+  STA r_pt514+2
+IF _TPART <> 2             \ (the Tube's hosts: no R_DISC2)
+  LDA r_sbh_s2l,X         \ group r_s2l: the second disc's spans (R_DISC2,
+  STA r_pt500+2           \ gfx-raster_disc2.asm)
+  STA r_pt501+2
+  STA r_pt502+2
+  STA r_pt512+2
+  STA r_pt516+2
+  STA r_pt518+2
+  LDA r_sbh_s2r,X         \ group r_s2r
+  STA r_pt503+2
+  STA r_pt504+2
+  STA r_pt505+2
+  STA r_pt515+2
+  STA r_pt517+2
+  STA r_pt519+2
+ENDIF
   JMP r_sbpoly             \ (phase B's operands, in the polygon window)
 }
 ELSE
@@ -491,14 +505,6 @@ ELSE
   STA r_pt06+2
   STA r_pt46+2
   STA r_pt48+2
-IF _RBANK = 1
-  STA r_pt408+2
-  STA r_pt409+2
-  STA r_pt19+2
-  STA r_pt23+2
-  STA r_pt25+2
-  STA r_pt88+2
-ENDIF
   LDA r_sbh_dr,X          \ group r_dr
   STA r_pt03+2
   STA r_pt04+2
@@ -506,10 +512,6 @@ ENDIF
   STA r_pt08+2
   STA r_pt47+2
   STA r_pt49+2
-IF _RBANK = 1
-  STA r_pt20+2
-  STA r_pt24+2
-ENDIF
 IF _RBANK = 2
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
@@ -528,58 +530,18 @@ IF _RBANK = 2
   STA r_pt34+2
   STA r_pt414+2
 ENDIF
-IF _RBANK = 1
-  LDA r_sbh_sl,X          \ group r_sl
-  STA r_pt17+2
-  STA r_pt21+2
-  STA r_pt26+2
-  STA r_pt45+2
-  STA r_pt50+2
-  STA r_pt53+2
-  STA r_pt54+2
-  STA r_pt89+2
-  STA r_pt97+2
-  STA r_pt131+2
-  STA r_pt132+2
-  STA r_pt144+2
-  STA r_pt150+2
-  STA r_pt152+2
-  STA r_pt399+2
-  LDA r_sbh_sr,X          \ group r_sr
-  STA r_pt18+2
-  STA r_pt22+2
-  STA r_pt27+2
-  STA r_pt51+2
-  STA r_pt52+2
-  STA r_pt55+2
-  STA r_pt90+2
-  STA r_pt133+2
-  STA r_pt140+2
-  STA r_pt145+2
-  STA r_pt151+2
-  STA r_pt153+2
-ENDIF
   LDA r_sbbase,X          \ the buffer's screen base (&10 buffer 0, &40 buffer 1)
   STA r_bs1+1
   STA r_bs2+1
-IF _RBANK = 1
-  STA r_bs5+1
-  STA r_bs6+1
-ELSE
   STA r_bs7+1
   STA r_bs8+1
   STA r_bs11+1
   LSR A                   \ (the flare's: half of it)
   STA r_bs9+1
   STA r_bs10+1
-ENDIF
   LDA r_sbdelta,X         \ and less &40 (&D0, 0)
-IF _RBANK = 1
-  STA r_bs4+1
-ELSE
   STA r_bs3+1
   JMP r_sbpoly            \ (phase B's operands: this bank's polygon window)
-ENDIF
   RTS
 }
 .r_sbcur EQUB &FF         \ the buffer this bank's operands are for (none yet)
@@ -644,18 +606,12 @@ ELSE
   STA RZ_PP
   LDA r_j,X               \ entry: column xl DIV 4 + 1 (= the plant when no
   STA r_jsr+1             \ whole byte lies between: the JSR hits the RTS)
-IF _HOSTB AND _RBANK = 1
-  LDY RZ_Y                \ (Model B, bank D: the runs are bank P's: runp plants
-  LDA RZ_COL              \ the RTS there, runs it and takes it out; r_jsr is
-  JSR runp                \ runp's JSR, in main RAM: hb-main.asm)
-ELSE
   LDA #r_opRTS
   STA (RZ_PP)
   LDY RZ_Y                \ (the run is indexed by the row)
   LDA RZ_COL
 .^r_jsr
   JSR &FFFF
-ENDIF
   LDX R_XR                \ right edge (A = RZ_COL still; N = XR >= &80)
   BMI rb
   LDY r_xo,X
@@ -663,10 +619,8 @@ ENDIF
   AND r_rm,X
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
-IF _HOSTB = 0 OR _RBANK <> 1
   LDA #r_opSTA
   STA (RZ_PP)
-ENDIF
   RTS
 .rb
   LDY r_xo,X
@@ -674,10 +628,8 @@ ENDIF
   AND r_rm,X
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
-IF _HOSTB = 0 OR _RBANK <> 1
   LDA #r_opSTA
   STA (RZ_PP)
-ENDIF
   RTS
 ENDIF
 .lb                       \ xl >= &80 (A = xl)
@@ -778,9 +730,15 @@ ENDIF
 \       Area: hazel
 
 \ ============================================================================
-\ Page-aligned per-x tables
+\ Page-aligned per-x tables, at &9C00: the row runs after them start at &A000
+\ (a page whose number is a multiple of 32: asserted below)
 \ ============================================================================
+IF _TPART = 2               \ (the Tube's hosts: in HAZEL, or bank P's own layout)
 ALIGN &100
+ELSE
+ASSERT P% <= r_start + &C00
+SKIP r_start + &C00 - P%
+ENDIF
 .r_tables
 .r_xo                   \ (8 * (x DIV 4)) AND &FF : edge byte offset
 FOR x, 0, 255
@@ -812,8 +770,7 @@ NEXT
 \ c = 1..63 then RTS (190 bytes).  The 66 bytes after each run hold variables.
 \ ============================================================================
 MACRO R_RUN r
-IF _HOSTB AND _RBANK = 1        \ (Model B, bank D: no runs, bank P's are used)
-ELIF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: a line's STA
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: a line's STA
   SKIP 191                                     \ run here, h-sta.asm's s_gen makes it)
 ELSE
   FOR c, 1, 63
@@ -825,11 +782,8 @@ ENDIF
 ENDMACRO
 
 MACRO R_ENDPAGE r
-IF _HOSTB AND _RBANK = 1
-ELSE
   ASSERT P% <= r_run0 + (r + 1) * &100
   ALIGN &100
-ENDIF
 ENDMACRO
 
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: the per-x
@@ -938,7 +892,7 @@ r_bb = r_ov + 16
 r_tl = r_ov + 17
 r_fe = r_ov + 20
 r_fo = r_ov + 21
-r_bv = r_ov + 22        \ boundaries: new (4), then old (4) at r_bv+4
+r_bv = r_ov + 22        \ r_segw: the new boundaries (4)
 r_ev = r_ov + 45        \ r_dpe: edges new (7), then old (7) at r_ev+7
 r_nn = r_ov + 30        \ new count / colour; old count / colour
 r_np = r_ov + 31
@@ -1003,8 +957,6 @@ ASSERT LO(r_s0k) = LO(r_s1k)
 ASSERT LO(r_s0r) = LO(r_s1r)
 .r_sbh_s0b EQUB HI(r_s0b), HI(r_s1b)
 ASSERT LO(r_s0b) = LO(r_s1b)
-.r_sbh_bdx3 EQUB HI(R_BDX30), HI(R_BDX31)
-ASSERT LO(R_BDX30) = LO(R_BDX31)
 R_ENDPAGE 14
 .r_run15 R_RUN 15
 IF _HOSTB = 0
@@ -1120,14 +1072,10 @@ R_ENDPAGE 17
 .n4
   RTS
 }
-.r_sbh_bdx2 EQUB HI(R_BDX20), HI(R_BDX21)
-ASSERT LO(R_BDX20) = LO(R_BDX21)
 .r_sbh_bdx1 EQUB HI(R_BDX10), HI(R_BDX11)
 ASSERT LO(R_BDX10) = LO(R_BDX11)
 .r_sbh_bdx0 EQUB HI(R_BDX00), HI(R_BDX01)
 ASSERT LO(R_BDX00) = LO(R_BDX01)
-.r_sbh_bdp EQUB HI(R_BDP0), HI(R_BDP1)
-ASSERT LO(R_BDP0) = LO(R_BDP1)
 .r_sbh_bdn EQUB HI(R_BDN0), HI(R_BDN1)
 ASSERT LO(R_BDN0) = LO(R_BDN1)
 ASSERT LO(R_DISCL0) = LO(R_DISCL1)
@@ -1135,26 +1083,8 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1)
 ASSERT LO(R_DISCR0) = LO(R_DISCR1)
 R_ENDPAGE 18
 .r_run19 R_RUN 19
-.fl_htab                \ the lens flare's half-widths (gfx-flare.asm): the
-MACRO FLHW r            \ widest x with x^2 + d^2 <= r^2 + r, d = 0..r (one
- FOR d, 0, r            \ page: fl_hw's high byte is fixed)
-  EQUB INT(SQR(r * r + r - d * d))
- NEXT
-ENDMACRO
-.fl_h3  FLHW 3
-.fl_h4  FLHW 4
-.fl_h5  FLHW 5
-.fl_h7  FLHW 7
-.fl_h10 FLHW 10
-.fl_h18 FLHW 18
-ASSERT HI(fl_htab) = HI(P% - 1)
 R_ENDPAGE 19
 .r_run20 R_RUN 20
-.fl_ml  SKIP 2          \ the lens flare (gfx-flare.asm): 32 D (x, y), low
-.fl_mh  SKIP 2          \ and high bytes
-.fl_sl  SKIP 2          \ the centres' sums S (x, y)
-.fl_sh  SKIP 2
-.fl_lev SKIP 1          \ the level, 1..3
 R_ENDPAGE 20
 .r_run21 R_RUN 21
 .r_dp1
@@ -1661,12 +1591,12 @@ FOR y, 0, 191
 NEXT
 IF _HOSTB = 0 OR _RBANK = 1
 .long
-  STX R_XL                \ up to 12 bytes: masked ends, whole bytes stored
+  STX R_XL                \ up to 4 bytes: masked ends, whole bytes stored
   TYA                     \ through a byte pointer
   SEC
   SBC R_XL
-  CMP #48
-IF _HOSTB
+  CMP #16                 \ (16 pixels or more: the run, 5 cycles a byte and
+IF _HOSTB                 \ about 90 to set up, against 26 a byte here)
   BCC P%+5                \ (Model B: NMOS code is longer)
   JMP span
 ELSE

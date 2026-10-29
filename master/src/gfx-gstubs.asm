@@ -4,10 +4,10 @@
 \
 \ Each G_xxx preserves A, X, Y and C into F_xxx, which lives in sideways RAM bank
 \ GFXBANK; Elite's own bank (ELITEBANK) is paged back in afterwards. Master
-\ port: in the low area (elite-low.asm), with the renderer's other glue, as
+\ port: in the glue area (elite-glue.asm), with the renderer's other glue, as
 \ code that pages a bank in must be outside the banks; they are only ever
 \ called from game code, with ACCCON X clear (the frame sets X itself, inside
-\ F_FRAME), but sit in the one low area with the rest (below &3000).
+\ F_FRAME), but sit in the one glue area with the rest (below &3000).
 \
 \ ******************************************************************************
 
@@ -20,14 +20,14 @@
 
 .gA EQUB 0
 
-.G_FRAME
- STA gA
- JSR S_SUN              \ (the sun near the planet and the moon's place, once an
- LDA #GFXBANK           \ iteration: gfx-ssun.asm, bank 4; hframe keeps A, X, Y
-                        \ and the flags)
+.G_FRAME                \ (from hframe only, with bank 4 paged, which keeps A;
+ JSR S_SUN              \ F_FRAME does not read it) the sun near the planet
+ LDA QQ11               \ first (S_SUN, gfx-ssun.asm), then in a space view the
+ BNE P%+5               \ light for the next iteration's ships (L_SUN,
+ JSR L_SUN              \ gfx-light.asm): both at bank 4's end
+ LDA #GFXBANK
  STA &F4
  STA &FE30
- LDA gA
  JSR F_FRAME
  JMP gback
 
@@ -49,13 +49,29 @@
  JSR F_LINE
  JMP gback
 
-.G_DOT
+.G_GUN                  \ (A passed, Y returned: F_GUN's)
  STA gA
  LDA #GFXBANK
  STA &F4
  STA &FE30
  LDA gA
- JSR F_DOT
+ JSR F_GUN
+ JMP gback
+
+.G_PDOT                 \ (A, X passed: F_PDOT's)
+ STA gA
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ LDA gA
+ JSR F_PDOT
+ JMP gback
+
+.G_CLOUD                \ (C passed: F_CLOUD's)
+ LDA #GFXBANK
+ STA &F4
+ STA &FE30
+ JSR F_CLOUD
  JMP gback
 
 
@@ -120,8 +136,10 @@
  JMP gback
 
 .G_PFHOOK               \ (the planet's detail, gfx-planet7.asm, after the
- JSR MN_TURN            \ moon's place for this iteration, gfx-ssun.asm, in
- LDA #MERIDBANK         \ bank 4: H_CIRC keeps nothing in A, X, Y or the flags)
+ IF _PLANET_MOON        \ moon's place for this iteration with MOON=on,
+ JSR MN_TURN            \ gfx-ssun.asm, in bank 4: H_CIRC keeps nothing in
+ ENDIF                  \ A, X, Y or the flags)
+ LDA #MERIDBANK
  STA &F4
  STA &FE30
  JSR PF_HOOK
@@ -208,7 +226,10 @@ FOR hst, 1, 21
  ENDIF
 NEXT
 
-.G_HANGAR
+.G_HANGAR                \ (from HALL, with bank 4 paged: the light for the
+ LDA QQ11               \ hangar's ships too, L_SUN, gfx-light.asm, at bank
+ BNE P%+5               \ 4's end, as G_FRAME does)
+ JSR L_SUN
  LDA #GFXBANK
  STA &F4
  STA &FE30

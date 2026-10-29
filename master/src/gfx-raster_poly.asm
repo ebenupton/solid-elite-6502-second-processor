@@ -302,7 +302,7 @@ IF _TDUMB = FALSE          \ (the dumb host: the rows come one by one from the
   BIT KMODE               \ K mode: the kept rows' pass (gfx-raster_kept.asm)
   BPL d3
   LDA r_pbl1_e+1
-  JSR T_KPRE              \ (the low area: k_pre in bank 7)
+  JSR T_KPRE              \ (the glue area: k_pre in bank 7)
 .d3
 ELSE
 .^r_pcbs                  \ (the dumb host: C_SPANS, rows from r_ystart, each read

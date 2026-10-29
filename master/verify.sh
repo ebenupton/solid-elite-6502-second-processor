@@ -43,6 +43,8 @@ grep "^BCODE" "$LOG/build.log"
 python3 master/tools/crc32.py master/reference/sng47 master/build > "$LOG/crc32.txt"
 SAME=$(grep -c " Yes " "$LOG/crc32.txt")
 echo "build: PASS ($SAME of 5 binaries identical to the SNG47 reference)"
+# the lens flare's tables as their generator makes them (master/tools/flare.py)
+python3 master/tools/flare.py --verify > "$LOG/flare.log" 2>&1 || { cat "$LOG/flare.log"; echo "flare tables: FAIL"; fail flare; }
 
 # ---- 2 and 3. determinism and speed
 LOOSE=--loose; [ "${STRICT:-0}" = 1 ] && LOOSE=
@@ -61,12 +63,19 @@ grep "Game state identical" "$LOG/compare.log"
 echo "compare: PASS"
 # ---- 4. regressions: with real key presses, dock, launch, dock again (the
 # hangar's ships once wrote over the glue code), and save, load, a load error,
-# catalogue (the disc glue); the station in front of a far planet; with the
-# pilot, changes of view
+# catalogue (the disc glue); a save's bytes against SNG47's; the station in front of a far planet; with the
+# pilot, changes of view; the ships the ship audit flagged, posed
 node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
 grep -E "^docking|^REDOCK" "$LOG/redock.log"
 grep -q "^REDOCK PASS" "$LOG/redock.log" || { echo "redock: FAIL"; fail redock; }
 node harness/msavetest.mjs --out "$LOG/save" > "$LOG/save.log" 2>&1 || { tail -5 "$LOG/save.log"; echo "savetest: FAIL"; fail savetest; }
+# saves byte-identical: the same commander saved on SNG47 and on this build,
+# the files (and their catalogue entries) compared byte for byte
+node harness/msavebytes.mjs --ref master/reference/elite-master-sng47.ssd --rsyms master/reference/symbols.txt \
+    --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
+    --out "$LOG/savebytes" > "$LOG/savebytes.log" 2>&1
+grep -E "^savebytes:|^SAVEBYTES" "$LOG/savebytes.log"
+grep -q "^SAVEBYTES PASS" "$LOG/savebytes.log" || { tail -5 "$LOG/savebytes.log"; echo "savebytes: FAIL"; fail savebytes; }
 # the station in front of a planet just over 65536 away (a docking run with the
 # planet behind the station) must be drawn: F_PLANET once kept 16 bits of the
 # planet's z, and f_behind hid the station behind it
@@ -80,7 +89,13 @@ node harness/mcompare.mjs --iters 1500 $LOOSE --views --maxsecs 400 \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/views" > "$LOG/views.log" 2>&1
 grep -q "^MCOMPARE PASS" "$LOG/views.log" || { grep -A8 "FIRST DIVERGENCE" "$LOG/views.log" | head -10; echo "views: FAIL"; fail views; }
-echo "regressions: PASS (redock, savetest, station, views)"
+# the ship audit's flagged poses (the missile's fins, the splinter's faces),
+# in flight, in both handednesses: nothing drawn outside the ship, its body
+# covered, its front faces and no others filled
+node harness/mshippose.mjs --disc master/build/elite-master-sng47.ssd --syms master/build/symbols.txt \
+    --out "$LOG/shippose" > "$LOG/shippose.log" 2>&1
+grep -q "^SHIPPOSE PASS" "$LOG/shippose.log" || { grep "BAD" "$LOG/shippose.log" | head -10; echo "shippose: FAIL"; fail shippose; }
+echo "regressions: PASS (redock, savetest, savebytes, station, views, shippose)"
 ALL=$(grep -E "^ +all " "$LOG/compare.log")
 echo "speed (flight it/s, ref cand cand/ref): $ALL"
 set -- $ALL

@@ -33,7 +33,7 @@ _RBANK = 0
 OVLBANK = 4             \ the parasite's overlays' images (storage only: h_ovlget):
 OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "build/elite-source-ws.asm"
- INCLUDE "src/gfx-ws.asm"
+ INCLUDE "build/gfx-ws.asm"
 
 HLOW = &0400            \ (free after the boot: see above)
 HLOW_END = &0700
@@ -44,7 +44,7 @@ HLOW_END = &0700
  INCLUDE "build/elite-source-host.asm"
  INCLUDE "src/gfx-gvars.asm"
  INCLUDE "src/gfx-tramp.asm"
- INCLUDE "src/gfx-lowhooks.asm"
+ INCLUDE "src/gfx-gluehooks.asm"
  INCLUDE "tsrc/h-main.asm"
 .H_END
  PRINT "Host: main code &", ~H_START, "-&", ~H_END-1, ", free to &3000: ", &3000-H_END

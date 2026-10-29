@@ -42,21 +42,21 @@ MS = os.path.join(TREE, 'master', 'src')
 tr.SRC = os.path.join(MS, 'gfx-raster.asm')
 tr.SRCV = os.path.join(MS, 'gfx-raster_vars.asm')
 tr.SRC7 = os.path.join(MS, 'gfx-raster7.asm')
-GFX = os.path.join(MS, 'gfx-ws.asm')            # (the constants and the shared workspace: elite-gfx.asm INCLUDEs it)
-if not os.path.exists(GFX):
-    GFX = os.path.join(MS, 'elite-gfx.asm')
+GFX = os.path.join(MS, 'elite-gfx.asm')
 tr.HZ = 0xDF00
 tr.NSTARS = int(re.search(r'^\s*NOST\s*=\s*(\d+)', open(os.path.join(MS, 'elite-source.asm')).read(), re.M).group(1)) + 1   # (NDSTAR: the star arrays' size)
 
 
 def gfx_constants():
     """elite-gfx.asm's constants (MCB, banks, sizes), defined before its first ORG or CLEAR"""
-    out = ['HOMEBANK = 4', '_TPART = 0', '_TDUMB = FALSE', '_HOSTB = FALSE', '_RBANK = 0', '_TUBE = FALSE']   # (the Master port's build: not the Tube's)
+    out = ['HOMEBANK = 4']
     # the shared workspace's star arrays are NDSTAR (elite-gfx.asm) long, from Elite's
-    # NOST (elite-source.asm), and it ends at the main code's start, CODE% (WS_END)
+    # NOST (elite-source.asm), the frame's ship lists MAXSH long, from its NOSH, and
+    # it ends at the main code's start, CODE% (WS_END)
     src = open(os.path.join(MS, 'elite-source.asm')).read()
     out.append('NOST = %s' % re.search(r'^\s*NOST\s*=\s*(\d+)', src, re.M).group(1))
-    out.append('CODE%% = %s' % re.findall(r'^\s*CODE%\s*=\s*(&[0-9A-Fa-f]+)', src, re.M)[-1])   # (the Master port's: after the Tube's)
+    out.append('NOSH = %s' % re.search(r'^\s*NOSH\s*=\s*(\d+)', src, re.M).group(1))
+    out.append('CODE%% = %s' % re.search(r'^\s*CODE%\s*=\s*([^\\\n]*?)\s*(?:\\|$)', src, re.M).group(1))
     for l in open(GFX).read().split('\n'):
         if re.match(r'\s*(CLEAR|ORG)\b', l):         # (the workspace, ws_block, follows)
             break
@@ -83,16 +83,19 @@ def ws_block():
 def raster_files():
     """the rasteriser's bank 5 / ANDY sources (those that exist): the shared region
     and its two windows"""
-    return [p for p in (os.path.join(MS, f) for f in ('gfx-raster.asm', 'gfx-raster_pset.asm', 'gfx-raster_arith.asm',
-                                                      'gfx-raster_lcold.asm', 'gfx-raster_disc.asm',
-                                                      'gfx-raster_poly.asm', 'gfx-raster_polyb.asm',
-                                                      'gfx-raster_line.asm', 'gfx-raster_lineb.asm'))
+    return [p for p in (os.path.join(MS, f) for f in ('gfx-raster.asm', 'gfx-raster_lcold.asm', 'gfx-raster_disc2.asm',
+                                                      'gfx-raster_disc.asm', 'gfx-raster_poly.asm', 'gfx-raster_line.asm'))
             if os.path.exists(p)]
 
 
 LINEA = os.path.join(MS, 'gfx-raster_line.asm')    # R_LINE in the polygon window (ANDY) ...
 LINE5 = os.path.join(MS, 'gfx-raster_lcold.asm')   # ... and its cold part in the shared region
 LINE7 = not os.path.exists(LINEA)                  # (before: R_LINE in bank 7, gfx-raster7.asm)
+DISC2 = os.path.join(MS, 'gfx-raster_disc2.asm')   # the second disc (R_DISC2): after the shared
+HASD2 = os.path.exists(DISC2)                      # region, with R_LINE's cold part in the room
+                                                   # below the per-x tables, as elite-gfx.asm
+                                                   # places them (its spans in bank 5 too, R_S2L0
+                                                   # ..., and its rows in the shared workspace)
 
 
 SRCH = os.path.join(MS, 'gfx-raster_hz.asm')       # (the bank 5 <-> 7 stubs, while they exist)
@@ -113,20 +116,28 @@ MERID_GAME = ''.join('%s = &%04X\n' % kv for kv in MG.items())
 # tested on (they are off in the default build), or as BANDS=off has it
 BANDS = os.environ.get('BANDS', 'on') == 'on'
 MERID_GAME += '_PLANET_BANDS = %s\n' % ('TRUE' if BANDS else 'FALSE')
-# and rings (_PLANET_RINGS, master/build.sh's RINGS): tested on, as the bands
+# planet rings (_PLANET_RINGS, master/build.sh's RINGS): likewise tested on
+# (off in the default build), or as RINGS=off has it; defined before the
+# shared workspace (gfx-planetv.asm's RG_ variables)
 RINGS = os.environ.get('RINGS', 'on') == 'on'
-MERID_GAME += '_PLANET_RINGS = %s\n' % ('TRUE' if RINGS else 'FALSE')
+# the moon (_PLANET_MOON, master/build.sh's MOON): likewise tested on (off in
+# the default build), or as MOON=off has it; defined before the shared
+# workspace (MN_E, MN_OK; gfx-planetv.asm's MN_ and MO_ variables)
+MOON = os.environ.get('MOON', 'on') == 'on'
 # the planet's styles (gfx-planet7.asm in the meridian window after
-# gfx-kept7.asm) and the variables the frame reads (gfx-planetv.asm, in HAZEL:
-# here at ZTEST)
+# gfx-kept7.asm) and the variables the frame reads (gfx-planetv.asm: in the
+# shared workspace, ws_block, where elite-gfx.asm includes it; else here at
+# ZTEST)
 CAPS7 = os.path.join(MS, 'gfx-planet7.asm')
 CAPSV = os.path.join(MS, 'gfx-planetv.asm')
 CAPS = os.path.exists(CAPS7)
+CAPSV_WS = 'gfx-planetv.asm' in open(GFX).read()   # (elite-gfx.asm includes it:
+                                                    # the shared workspace, ws_block)
 ZTEST = 0xC000
 DATAZ = b''
 # the kept solid rows (gfx-raster_kept.asm in the disc window, gfx-kept7.asm in
-# bank 7 after the meridian window): their variables (in the low area in the
-# game; KF is in the shared workspace, as in the game) and the low area's
+# bank 7 after the meridian window): their variables (in the glue area in the
+# game; KF is in the shared workspace, as in the game) and the glue area's
 # thunk from the polygon window to bank 7 and k_setbuf7 (gfx-tramp.asm's),
 # here at HZ
 KEPT7 = os.path.join(MS, 'gfx-kept7.asm')
@@ -193,19 +204,27 @@ def assemble(org):
     d = tempfile.mkdtemp(prefix='mraster_', dir=base)
     w = os.path.join(d, 'w.asm')
     with open(w, 'w') as f:
+        f.write('_PLANET_RINGS = %s\n' % ('TRUE' if RINGS else 'FALSE'))
+        f.write('_PLANET_MOON = %s\n' % ('TRUE' if MOON else 'FALSE'))
         f.write(gfx_constants() + '\n')
         f.write(ws_block() + '\n')
         if WINDOWS:
             f.write('ORG &%X\n' % tr.HZ)
-            if KEPT:            # the kept rows' state and the low area's thunks
+            if KEPT:            # the kept rows' state and the glue area's thunks
                 f.write(KEPT_HZ)
             f.write('.r_hz_end\n')
             if KEPT:
                 f.write('SAVE "h.bin", &%X, r_hz_end\n' % tr.HZ)
             f.write('CLEAR &8000, &C000\nORG &9000\nINCLUDE "%s"\n' % tr.SRC)
-            if not LINE7:
-                f.write('INCLUDE "%s"\n' % LINE5)
-            f.write('.t_b5end\n')
+            if HASD2:
+                f.write('INCLUDE "%s"\n' % DISC2)
+                f.write('.t_b5end\n')
+                if not LINE7:
+                    f.write('CLEAR r_tfree, r_tables\nORG r_tfree\nINCLUDE "%s"\n' % LINE5)
+            else:
+                if not LINE7:
+                    f.write('INCLUDE "%s"\n' % LINE5)
+                f.write('.t_b5end\n')
             f.write('ORG &8000\nINCLUDE "%s"\n' % os.path.join(MS, 'gfx-raster_disc.asm'))
             if KEPT:
                 f.write('INCLUDE "%s"\n' % os.path.join(MS, 'gfx-raster_kept.asm'))
@@ -216,9 +235,9 @@ def assemble(org):
             f.write('SAVE "ra.bin", &8000, P%\n')
             if os.path.exists(MERID):       # the meridian window (bank 7), with the game's
                 f.write(MERID_GAME)
-                if CAPS:                    # (the variables in HAZEL first)
+                if CAPS and not CAPSV_WS:   # (the variables at ZTEST first, if not in
                     f.write('CLEAR &%X, &DF00\nORG &%X\nINCLUDE "%s"\nSAVE "z.bin", &%X, P%%\n'
-                            % (ZTEST, ZTEST, CAPSV, ZTEST))
+                            % (ZTEST, ZTEST, CAPSV, ZTEST))   # the shared workspace)
                 f.write('CLEAR &8000, &C000\nORG &%X\nINCLUDE "%s"\n' % (MTEST, MERID)
                         + ('INCLUDE "%s"\n' % KEPT7 if KEPT else '')
                         + ('INCLUDE "%s"\n' % CAPS7 if CAPS else '') + 'SAVE "m.bin", &%X, P%%\n' % MTEST)
@@ -229,8 +248,6 @@ def assemble(org):
             f.write('ORG &8000\nINCLUDE "%s"\nSAVE "r.bin", &8000, P%%\n' % tr.SRC)
             f.write('CLEAR &8000, &C000\nORG &8000\nINCLUDE "%s"\nSAVE "r7.bin", &8000, P%%\n' % tr.SRC7)
             f.write('SAVE "h.bin", &%X, r_hz_end\n' % tr.HZ)
-    if not os.path.exists(os.path.join(d, 'src')):     # (the sources' own INCLUDEs: "src/...")
-        os.symlink(MS, os.path.join(d, 'src'))
     r = subprocess.run([tr.BEEBASM, '-i', w, '-d', '-labels', os.path.join(d, 'w.lab')],
                        cwd=d, capture_output=True, text=True)
     if r.returncode != 0 or 'error' in r.stdout.lower():
@@ -287,11 +304,27 @@ class Machine(tr.Machine):
         self.mpu = MPU(memory=self.mem)
         self.cycles = 0
         self.guard = True
-        if 'KMODE' in self.syms:             # (the game's low area and HAZEL: K mode off)
+        if 'KMODE' in self.syms:             # (the game's glue area and HAZEL: K mode off)
             s = self.syms
             for k, v in (('KMODE', 0), ('KBIT', 1), ('KBITN', 0xFE), ('KPLO', 0xFF), ('KPHI', 0)):
                 self.mem[s[k]] = v
             self.mem[s['KF']:s['KF'] + 192] = [0] * 192
+
+    # the demo's tests write a row's start colour as R_NDP (bit 0; its other
+    # bits random): here it is R_NDN's bit 7 (the count in bits 0-6)
+    def wr(self, name, val, off=0):
+        if name == 'R_NDP' and 'R_NDP' not in self.syms:
+            a = self.syms['R_NDN'] + off
+            self.mem[a] = (self.mem[a] & 0x7F) | ((val & 1) << 7)
+            return
+        super().wr(name, val, off)
+
+    def rd(self, name, off=0):
+        if name == 'R_NDP' and 'R_NDP' not in self.syms:
+            return self.mem[self.syms['R_NDN'] + off] >> 7
+        if name == 'R_NDN' and 'R_NDP' not in self.syms:
+            return self.mem[self.syms['R_NDN'] + off] & 0x7F
+        return super().rd(name, off)
 
     def check_writes(self, snap, name):
         mem, s = self.mem, self.syms
@@ -473,6 +506,7 @@ def test_lines(self, n):
 import math as _m
 import planet_caps as PCM                       # noqa: E402  (tools/: the model)
 PCM.BANDS = BANDS
+PCM.RINGS = RINGS
 
 
 def _rand_frame(rnd):
@@ -717,7 +751,7 @@ def test_merid(self, n):
     return 'PF_HOOK %d..%d cycles, PC_ROWS %.0f cycles a row' % (min(h), max(h), sum(c for _, c in rr) / max(1, sum(k for k, _ in rr)))
 
 
-import planet_analytic as PA                    # noqa: E402  (tools/: the old model)
+import planet_analytic as PA                    # noqa: E402  (tools/: the beach ball's model)
 
 
 def beach_rows(self, f, spans, cx, cy, rad):
@@ -773,10 +807,11 @@ def test_pfhook(self, n):
         E = None if rnd.random() < 0.1 else [rnd.randrange(-129024, 129025) for _ in range(3)]
         view = rnd.randrange(4)
         mem[MG['VIEW']] = view
-        mem[self.m.syms['MN_OK']] = 0 if E is None else 0xFF
-        for j, v in enumerate(E or [0, 0, 0]):
-            v &= 0xFFFFFF
-            mem[self.m.syms['MN_E'] + 3 * j:self.m.syms['MN_E'] + 3 * j + 3] = [v & 255, (v >> 8) & 255, v >> 16]
+        if MOON:
+            mem[self.m.syms['MN_OK']] = 0 if E is None else 0xFF
+            for j, v in enumerate(E or [0, 0, 0]):
+                v &= 0xFFFFFF
+                mem[self.m.syms['MN_E'] + 3 * j:self.m.syms['MN_E'] + 3 * j + 3] = [v & 255, (v >> 8) & 255, v >> 16]
         inwk, base, recs, on, c1 = self._pfhook(vecs, typ, r, cx, cy, qq2, pos)
         self._check_moon(inwk, qq2, typ, cx, cy, r, E, view)
         if on:
@@ -796,12 +831,16 @@ def _check_moon(self, inwk, qq2, typ, cx, cy, r, E=None, view=0):
     want = PCM.pf_moon(inwk, qq2, cx, cy, r, pz, sunz, E, view) if 6 <= r < 256 else None
     s = m.syms
     ring = (PCM.pf_ring(inwk, qq2, cx, cy, r) if 6 <= r < 256 else None) or []
-    n = mem[s['RG_N']]
+    n = mem[s['RG_N']] if RINGS else 0
     got = [(mem[s['RG_X'] + i], mem[s['RG_Y'] + i], bool(mem[s['RG_F'] + i] & 0x80)) for i in range(n)]
     if sorted(got) != sorted(ring):
         raise AssertionError('PF_HOOK ring: %s, the model %s (r %d)' % (got[:6], ring[:6], r))
     if ring:
         self.stat('rings', 1)
+    if not MOON:                        # (no moon assembled: MOON=off)
+        if 'MN_ON' in s:
+            raise AssertionError('PF_HOOK: moon variables in a MOON=off build')
+        return
     on = mem[s['MN_ON']]
     if want is None:
         if on & 0x80:
@@ -996,6 +1035,272 @@ tr.Tester.test_kept = test_kept
 tr.Tester.circ_rows = circ_rows
 tr.Tester._pfhook = _pfhook
 tr.Tester._pfrows = _pfrows
+
+def test_disc2(self, nframes, scenario='both'):
+    """The second disc (R_DISC2, gfx-raster_disc2.asm) over multi-frame
+    sequences on two buffers, as the frame layer drives it: each frame the
+    disc layer (the bigger disc, R_DISCROWS; a colour change folds the old
+    layer into DIRTY first, as f_discdirty does), then the smaller one behind
+    it (R_DISC2, its spans in R_NDISCL/R; with none, called while the buffer
+    still holds one), then ships, lines and dots (each with its trampoline's
+    k_kill in K mode, and k_commit after the ships), and the stars.  The two
+    discs drift, grow and shrink, cross so that the bigger one changes (the
+    colours swap), come and go, and jump; sometimes a buffer is reset.  After
+    each frame the buffer must equal the reference [the layer over black, the
+    second disc's spans less the layer's on each row, ships, lines, dots,
+    stars], and every changed pixel must lie in R_WL/R_WR or DIRTY (or be a
+    star's).  scenario: 'both' (K mode off) or 'kept' (K mode on, mostly)."""
+    m, rnd = self.m, self.rnd
+    import math
+    Ref, poly_spans, random_poly = tr.Ref, tr.poly_spans, tr.random_poly
+    self.set_clip((2, 253, 1, 191))
+    clip = self.clip
+    bufs = [None, None]
+    for b in range(2):
+        m.call('R_SETBUF', a=b)
+        m.clearall()
+        bufs[b] = m.screen()
+    outside = list(bufs)
+    kept = scenario == 'kept'
+    kon = kept
+    if 'KMODE' in m.syms:
+        m.wr('KMODE', 0)
+        m.call('k_clear')
+    SUN, PLA = (0xFF, 0xFA), (0x05, 0x5A)
+    # two discs: (cx, cy, r, vx, vy, vr, colours)
+    def newdisc(big):
+        r = rnd.uniform(40, 130) if big else rnd.uniform(3, 40)
+        return [rnd.uniform(-20, 276), rnd.uniform(-20, 212), r,
+                rnd.uniform(-3, 3), rnd.uniform(-3, 3), rnd.uniform(-1.5, 1.5)]
+    pl, su = newdisc(True), newdisc(False)
+    if rnd.random() < 0.5:          # the sun near the planet's limb
+        a = rnd.uniform(0, 2 * math.pi)
+        su[0], su[1] = pl[0] + pl[2] * math.cos(a), pl[1] + pl[2] * math.sin(a)
+    ships = [(rnd.uniform(0, 256), rnd.uniform(0, 192), rnd.uniform(-3, 3), rnd.uniform(-3, 3)) for _ in range(rnd.randrange(0, 4))]
+    stars = [(rnd.randrange(256), rnd.randrange(192), rnd.randrange(1, 4)) for _ in range(rnd.randrange(0, tr.NSTARS + 1))]
+    lcol = [None, None]
+    oldstars = [set(), set()]
+    m.wr('R_NDF', 0)
+    m.wr('R_SCOL', 0xFF)
+
+    def spans_of(d):
+        cx, cy, r = d[0], d[1], d[2]
+        sp = {}
+        for y in range(clip[2], clip[3] + 1):
+            dy = y + 0.5 - cy
+            if abs(dy) < r:
+                h = math.sqrt(r * r - dy * dy)
+                l, rr = max(int(math.floor(cx - h)), clip[0]), min(int(math.floor(cx + h)), clip[1])
+                if l <= rr:
+                    sp[y] = (l, rr)
+        return sp
+
+    def put_spans(sp):
+        ndt, ndb = (min(sp), max(sp)) if sp else (rnd.choice((1, 255)), 0)
+        m.wr('R_NDT', ndt)
+        m.wr('R_NDB', ndb)
+        for y in range(ndt, ndb + 1) if sp else []:
+            l, r = sp.get(y, (255, 0))
+            m.wr('R_NDISCL', l, y)
+            m.wr('R_NDISCR', r, y)
+
+    def kill(y0, y1):
+        y0, y1 = max(0, y0), min(191, y1)
+        if kon and y0 <= y1:
+            m.call('k_kill', a=y0, x=y1)
+    cyc = []
+    for f in range(nframes):
+        b = f & 1
+        m.set_screen(bufs[b])
+        m.call('R_SETBUF', a=b)
+        if kept and rnd.random() < 0.05:
+            kon = not kon
+            if not kon:
+                m.wr('KMODE', 0)
+                m.call('k_clear')
+        if kon:                                       # T_KFRAME
+            m.wr('KMODE', 0x80)
+            m.wr('KBIT', 1 << b)
+            m.wr('KBITN', 0xFF ^ (1 << b))
+            m.wr('KPLO', 0xFF)
+            m.wr('KPHI', 0)
+            m.call('k_setbuf7', a=b, bank=7)
+        if rnd.random() < 0.03:                       # a reset buffer (T_RESETBUF)
+            r = Ref(bufs[b], clip)
+            r.blackwin()
+            m.set_screen(bytes(r.b))
+            m.call('R_RESETBUF')
+            if 'k_clear' in m.syms:
+                m.call('k_clear')
+            outside[b] = bufs[b] = m.screen()
+            lcol[b] = None
+            oldstars[b] = set()
+        if rnd.random() < 0.2:                        # a text cell's mark (f_text1's)
+            y = rnd.randrange(1, 192)
+            kill(y, y)
+            m.wzp('R_XL', rnd.randrange(2, 200))
+            m.wzp('R_XR', min(253, m.mem[tr.ZP['R_XL']] + rnd.randrange(0, 50)))
+            m.call('R_MARKDIRTY', y=y)
+        m.call('R_STARERASE')
+        # the discs: which is on, which is bigger
+        on_p = (f // 9) % 5 != 3
+        on_s = (f // 7) % 6 != 4
+        if rnd.random() < 0.03:
+            pl = newdisc(rnd.random() < 0.8)
+        if rnd.random() < 0.03:
+            su = newdisc(rnd.random() < 0.2)
+        discs = []                                    # the bigger one is the layer
+        if on_p:                                      # (f_discs: the sun's on a tie)
+            discs.append((spans_of(pl), PLA, pl[2]))
+        if on_s:
+            discs.append((spans_of(su), SUN, su[2] + 1e-9))
+        discs.sort(key=lambda d: -d[2])
+        lay = discs[0] if discs else None
+        sec = discs[1] if len(discs) > 1 else None
+        # the layer (with the caller's colour change: the old disc into DIRTY)
+        put_spans(lay[0] if lay else {})
+        lc = lay[1] if lay else None
+        if lcol[b] is not None and lcol[b] != lc:
+            for y in range(192):
+                l = m.rd('R_DISCL0', y + 0x300 * b)
+                r = m.rd('R_DISCR0', y + 0x300 * b)
+                if l <= r:
+                    m.wzp('R_XL', l)
+                    m.wzp('R_XR', r)
+                    m.call('R_MARKDIRTY', y=y)
+        lcol[b] = lc
+        m.wzp('R_DCE', lc[0] if lc else 0)
+        m.wzp('R_DCO', lc[1] if lc else 0)
+        m.call('R_DISCROWS')
+        # the second disc
+        if sec or m.rd('R_S2T', b) != 255:
+            put_spans(sec[0] if sec else {})
+            ndt, ndb = m.rd('R_NDT'), m.rd('R_NDB')      # (f_disc2's: the old rows too,
+            t0, b0 = m.rd('R_S2T', b), m.rd('R_S2B', b)   # empty outside the new)
+            for y in range(min(t0, ndt), max(b0, ndb) + 1):
+                if not ndt <= y <= ndb:
+                    m.wr('R_NDISCL', 255, y)
+                    m.wr('R_NDISCR', 0, y)
+            if sec:
+                self.set_col(*sec[1])
+            if os.environ.get('RDEBUG'):
+                _y = int(os.environ.get('RROW', '0'))
+                _pre = (m.rd('R_S2L1' if b else 'R_S2L0', _y), m.rd('R_S2R1' if b else 'R_S2R0', _y), m.rd('R_WL', _y), m.rd('R_WR', _y),
+                        m.rd('R_DISCL0', _y + 0x300 * b), m.rd('R_DISCR0', _y + 0x300 * b), m.rd('R_NDISCL', _y), m.rd('R_NDISCR', _y))
+                print('frame', f, 'row', _y, 'old a,b W layer new', _pre)
+            cyc.append(m.call('R_DISC2'))
+        ref = Ref(outside[b], clip)
+        ref.blackwin()
+        lsp = lay[0] if lay else {}
+        for y, (l, r) in lsp.items():
+            ref.span(y, l, r, *lay[1])
+        if sec:
+            for y, (l, r) in sec[0].items():
+                L, R = lsp.get(y, (255, 0))
+                for x in range(l, r + 1):
+                    if not L <= x <= R:
+                        ref.setpix(x, y, *sec[1])
+        wt, wb = m.rd('R_PRWT'), m.rd('R_PRWB')
+        for y in range(192):
+            if m.rd('R_WR', y) and not wt <= y <= wb:
+                raise AssertionError('disc2 frame %d: R_WR[%d] set outside the WL rows %d..%d' % (f, y, wt, wb))
+        # ships, a line, dots
+        newships = []
+        for (sx, sy, svx, svy) in ships:
+            sx, sy = sx + svx, sy + svy
+            if not (-40 < sx < 296 and -40 < sy < 232):
+                sx, sy = rnd.uniform(0, 256), rnd.uniform(0, 192)
+            newships.append((sx, sy, svx, svy))
+            for t in range(rnd.randrange(1, 3)):
+                vs = random_poly(rnd, 'small')
+                vs = [(x - vs[0][0] + int(sx), y - vs[0][1] + int(sy)) for x, y in vs]
+                ce, co = rnd.randrange(256), rnd.randrange(256)
+                self.draw_poly(vs, ce, co)
+                for y, (l, r) in poly_spans(vs, clip).items():
+                    ref.span(y, l, r, ce, co)
+        ships = newships
+        if rnd.random() < 0.3:
+            pts = [rnd.randrange(-20, 276), rnd.randrange(-20, 212), rnd.randrange(-20, 276), rnd.randrange(-20, 212)]
+            lc_ = rnd.randrange(256)
+            kill(min(pts[1], pts[3]), max(pts[1], pts[3]))
+            self.draw_line(*pts, lc_, lc_)
+            for x, y in tr.line_pixels(*pts):
+                if ref.inwin(x, y):
+                    ref.setpix(x, y, lc_, lc_)
+        if kon:
+            m.call('k_commit')
+        for _ in range(rnd.randrange(0, 3)):
+            x, y, sz = rnd.randrange(256), rnd.randrange(256), rnd.randrange(1, 4)
+            ce, co = rnd.randrange(256), rnd.randrange(256)
+            if kon and y < 192:
+                kill(y, min(191, y + 1))
+            self.set_col(ce, co)
+            m.call('R_DOT', a=sz, x=x, y=y)
+            for px, py in tr.dot_pixels(x, y, sz):
+                if ref.inwin(px, py):
+                    ref.setpix(px, py, ce, co)
+        # the stars, last
+        stars = [((x + rnd.randrange(-2, 3)) & 255, min(255, max(0, y + rnd.randrange(-2, 3))), s_) for x, y, s_ in stars]
+        m.wr('R_SN', len(stars))
+        for i, (x, y, s_) in enumerate(stars):
+            m.wr('R_SX', x, i)
+            m.wr('R_SY', y, i)
+            m.wr('R_SS', s_, i)
+        m.call('R_STARPLOT')
+        pre = bytes(ref.b)
+        for x, y, s_ in stars:
+            tr.star_ref(ref, x, y, s_, 0xFF)
+        starpix = set()
+        for a in range(0x3000):
+            if pre[a] != ref.b[a]:
+                for p_ in range(4):
+                    if (pre[a] ^ ref.b[a]) & (0x88 >> p_):
+                        starpix.add((4 * ((a % 0x200) // 8) + p_, (a // 0x200) * 8 + (a & 7)))
+        got = m.screen()
+        if got != bytes(ref.b):
+            diff = [i for i in range(0x3000) if got[i] != ref.b[i]]
+            a = diff[0]
+            y = (a // 0x200) * 8 + (a & 7)
+            rows = sorted(set((d // 0x200) * 8 + (d & 7) for d in diff))
+            if os.environ.get('RDEBUG'):
+                ra = (y >> 3) * 0x200 + (y & 7)
+                print('got', ''.join('%02x' % got[ra + 8 * c] for c in range(64)))
+                print('exp', ''.join('%02x' % ref.b[ra + 8 * c] for c in range(64)))
+            raise AssertionError('disc2 frame %d (%s, buf %d): %d bytes differ, first row %d col %d; rows %s'
+                                 % (f, scenario, b, len(diff), y, (a % 0x200) // 8, rows[:12]))
+        old = bufs[b]
+        dirt = self.dirty(b)
+        wl2 = [(m.rd('R_WL', y), m.rd('R_WR', y)) for y in range(192)]
+        for a in range(0x3000):
+            if got[a] != old[a]:
+                y = (a // 0x200) * 8 + (a & 7)
+                c = (a % 0x200) // 8
+                for p_ in range(4):
+                    x = 4 * c + p_
+                    if (got[a] ^ old[a]) & (0x88 >> p_):
+                        ok = (wl2[y][1] and wl2[y][0] <= x <= wl2[y][1]) or (dirt[y][0] <= x <= dirt[y][1]) \
+                            or (x, y) in starpix or (x, y) in oldstars[b]
+                        if not ok:
+                            raise AssertionError('disc2 frame %d: pixel %d,%d changed outside WL/DIRTY' % (f, x, y))
+        bufs[b] = got
+        oldstars[b] = starpix
+        for d in (pl, su):                            # move the discs
+            d[0] += d[3]
+            d[1] += d[4]
+            d[2] = min(200, max(0.5, d[2] + d[5]))
+            if rnd.random() < 0.05:
+                d[3], d[4], d[5] = rnd.uniform(-3, 3), rnd.uniform(-3, 3), rnd.uniform(-1.5, 1.5)
+            if rnd.random() < 0.02:                   # a jump (the view turned)
+                d[0], d[1] = d[0] + rnd.uniform(-80, 80), d[1] + rnd.uniform(-60, 60)
+    if 'KMODE' in m.syms:
+        m.wr('KMODE', 0)
+        m.call('k_clear')
+    self.set_clip((1, 254, 1, 191))     # (as the other tests expect)
+    return 'R_DISC2 mean %d cycles' % (sum(cyc) // max(1, len(cyc)))
+
+
+tr.Tester.test_disc2 = test_disc2
+
 tr.Tester.test_merid = test_merid
 tr.Tester.beach_rows = beach_rows
 tr.Tester.test_caps = test_caps
@@ -1012,6 +1317,9 @@ if KEPT:     # (after the meridian tests, which keep the random numbers they had
 if CAPS:     # (after the rest, which keep the random numbers they had)
     tr.EXTRA += [('caps', 'test_caps', 400, ()), ('pfhook', 'test_pfhook', 200, ()),
                  ('capball', 'test_frames', 44, ('capball',)), ('capball', 'test_frames', 44, ('capball',))]
+
+if HASD2:    # (after the others, which keep the random numbers they had)
+    tr.EXTRA += [('disc2', 'test_disc2', 80, ('both',)), ('disc2', 'test_disc2', 80, ('kept',))] * 3
 
 tr.assemble = assemble
 tr.Tester.test_lines = test_lines

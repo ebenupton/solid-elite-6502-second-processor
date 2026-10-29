@@ -327,6 +327,7 @@ PFB_S = (32, 64, 96, 128)
 
 
 BANDS = True                          # banded planets in the build (BANDS=on, master/build.sh)
+RINGS = True                          # planet rings in the build (RINGS=on, master/build.sh)
 
 
 def pf_banded(qq2):
@@ -460,7 +461,7 @@ def pf_ring(inwk, qq2, cx, cy, r):
     points P(t) = cos t A1 + sin t A2 (t = k pi / N, k = 0 .. N - 1) and -P(t);
     a point is behind the planet's centre if its z is negative"""
     h = moon_hash(qq2)
-    if (h >> 4) & 7 != 4 or r < 8:
+    if not RINGS or (h >> 4) & 7 != 4 or r < 8:
         return None
     S = PFR_R[(h >> 2) & 3] * r
     S3 = (S * 21845) >> 16                     # the radius in pixels x 64 / 3

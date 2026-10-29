@@ -37,16 +37,12 @@
 \ glue area) are written: the zero page and the game's variables that MV40
 \ and SOLAR use are kept and put back, so the game sees nothing of it.
 \
-\
-\ The Tube (tube/src/p-layout.asm): the parts that run every iteration (S_SUN
-\ and its tests, ss_dif, ss_turn, MN_TURN) are in the parasite's resident
-\ image; ss_seed with SOLAR's second emission, and ss_draw with its
-\ arithmetic, are in overlay S ("Area: ovl S" passes), which S_SUN pages in
-\ first (ss_ins); the variables are in the workspace after WP (p-ws.asm).
 \ ******************************************************************************
 
 .S_SUN
+ IF _PLANET_MOON        \ (the moon: MOON=on, master/build.sh)
  JSR MN_TURN            \ the moon's place, turned (once an iteration)
+ ENDIF
  LDA MJ                 \ witchspace: no planet, no sun
  BNE ss_off
  LDA FRIN               \ slot 0 the planet (128 or 130)
@@ -236,7 +232,7 @@ A_DORND = DORND         \ (the Trumbles' part, not run)
 
 \ ss_turn: D turned by our roll (ALPHA) and pitch (BETA) by MV40 itself, as
 \ it turns the planet and the sun (ss_turnx: the vector at ss_d + X, X = 0
-\ D, 9 the moon's MN_E):
+\ D, 9 the moon's MN_E with MOON=on):
 \   1. K2 = y - alpha * x / 256    2. z = z + beta * K2 / 256
 \   3. y = K2 - beta * z / 256     4. x = x + alpha * y / 256
 \ The vector goes into INWK's coordinates, sign-magnitude, and MV40 runs
@@ -629,6 +625,7 @@ IF _TPART = 1             \ (the Tube: ss_draw's scratch, in overlay S)
 ENDIF
 
 \       Area: frame
+IF _PLANET_MOON         \ (the moon: MOON=on, master/build.sh)
 
 \ ******************************************************************************
 \
@@ -722,14 +719,19 @@ ENDIF
 .mt_cm  EQUB 203, 254, 49, 100
 .mt_ch  EQUB 0, 0, 1, 1
 
-\ Its variables (bank 4; the Tube's in the workspace after WP, p-ws.asm, and
-\ ss_draw's scratch above, in overlay S)
+ENDIF                   \ (_PLANET_MOON)
+
+\ Its variables (bank 4)
 
 IF _TPART <> 1
 .ss_o   SKIP 1          \ ss_turnx's vector
+IF _PLANET_MOON
 .mt_it  SKIP 1          \ MN_TURN: the MCNT of E's last turn
 .mt_sys SKIP 6          \ the system E is of (QQ2)
+ENDIF
 .ss_s   SKIP 9          \ the sun: planet + D, in the view's axes
+ASSERT SS_NZP <= NI% AND NI% <= 37   \ (ss_zs, ss_pl and ss_su: the shared
+                                     \ workspace, elite-gfx.asm)
 .ss_w   SKIP 3
 .ss_r   SKIP 3
 .ss_q   SKIP 2
@@ -739,5 +741,3 @@ IF _TPART <> 1
 .ss_sh  SKIP 1
 .ss_b   SKIP 1
 ENDIF
-ASSERT SS_NZP <= NI% AND NI% <= 37   \ (ss_zs, ss_pl and ss_su: the shared
-                                     \ workspace, elite-gfx.asm; p-ws.asm)

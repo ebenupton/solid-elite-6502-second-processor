@@ -18,15 +18,15 @@ This checks every colour the frame layer can give a fill, as the build has
 them (the bank 6 image and the symbols, so the tables are what the 6502
 reads):
   * every writer of the colour bytes (R_COLE, R_COLO, R_COL2, R_COL3, R_DCE,
-    R_DCO, R_DBE, R_DBO) in master/src/gfx-*.asm (and the Tube parasite's
-    tube/src/p-*.asm) must be one this tool knows
+    R_DCO, R_DBE, R_DBO) in master/src/gfx-*.asm must be one this tool knows
     (WRITERS: the source of its value), so a new one fails until it is added;
   * f_col's colours (gfx-frame.asm), computed as f_col computes them from
     bank 6's tables: every hue ramp entry (9 ramps x 32 levels), the unlit
     colours LT_FIX that the ships' polygon details use, and the hangar's
     wall and floor (HPWL/HPWH);
   * the colours loaded as immediates (the discs: FC_PLANE/O, FC_SUNE/O,
-    colour B's land pair; the second disc), the moon's (mn_ce/mn_co), the
+    colour B's land pair; the second disc), the moon's (mn_ce/mn_co, in a
+    build with moons, MOON=on), the
     distant-dot colours (FC_DOTE/O) and F_CPE/F_CPO's fixed colours;
 and requires every row byte of each to be non-zero, except the pure black
 fills it names, each with how stars are kept off it:
@@ -84,26 +84,24 @@ COLS = 'R_COLE|R_COLO|R_COL2|R_COL3|R_DCE|R_DCO|R_DBE|R_DBO'
 # follows it.
 WRITERS = {
     ('gfx-frame.asm', 'LDA F_CPE,X'): 'fixed', ('gfx-frame.asm', 'LDA F_CPO,X'): 'fixed',  # f_setcol
-    ('gfx-ftext.asm', 'LDA F_CPE+FC_SIGHT'): 'fixed',      # the sights' arms
+    ('gfx-frame.asm', 'LDA F_CPE+FC_SIGHT'): 'fixed',
     ('gfx-frame.asm', 'LDA LT_FIX,Y'): 'unlit',             # f_col's fc_fix
     ('gfx-frame.asm', 'EOR fc_row'): 'ramp', ('gfx-frame.asm', 'EOR fc_row+1'): 'ramp',  # f_col
     ('gfx-frame.asm', 'EOR fc_row+2'): 'ramp', ('gfx-frame.asm', 'EOR fc_row+3'): 'ramp',
     ('gfx-frame.asm', 'LDA FC_DOTE,Y'): 'dot', ('gfx-frame.asm', 'LDA FC_DOTO,Y'): 'dot',
     ('gfx-hangar.asm', 'LDA #FC_BLACK'): 'fixed',           # (f_setcol's A, black)
     ('gfx-frame.asm', 'LDA mn_ce,X'): 'moon', ('gfx-frame.asm', 'LDA mn_co,X'): 'moon',  # f_moon
+    ('gfx-raster_disc.asm', 'LDY R_DBE'): 'swap', ('gfx-raster_disc.asm', 'LDY R_DBO'): 'swap',  # A <-> B
 }
 wpat = re.compile(r'^\s*(?:\.\S+\s+)?ST[AXYZ]\s+(%s)\b' % COLS)
 lpat = re.compile(r'^\s*(?:\.\S+\s+)?(LD[AXY]|PLA|T[AXY][AXY]|AND|EOR|ORA)\b')
 seen = set()
 nw = 0
 imm = []                                    # (colour byte, value) of the immediate loads, in order
-TSRC = os.path.join(os.path.dirname(MASTER), 'tube', 'src')   # (the Tube's parasite
-SRCS = [(SRC, fn) for fn in sorted(os.listdir(SRC)) if fn.startswith('gfx-') and fn.endswith('.asm')]
-if os.path.isdir(TSRC):                     # files, p-*.asm: any colour byte they write must be
-    SRCS += [(TSRC, fn) for fn in sorted(os.listdir(TSRC))   # known too; the hosts'
-             if fn.startswith('p-') and fn.endswith('.asm')]  # only relay the parasite's)
-for d, fn in SRCS:
-    L = open(os.path.join(d, fn), encoding='latin-1').read().split('\n')
+for fn in sorted(os.listdir(SRC)):
+    if not (fn.startswith('gfx-') and fn.endswith('.asm')):
+        continue
+    L = open(os.path.join(SRC, fn)).read().split('\n')
     for i, l in enumerate(L):
         if not wpat.match(l):
             continue
@@ -223,10 +221,13 @@ de, do = b6('FC_DOTE', NT + 1), b6('FC_DOTO', NT + 1)
 for t in range(1, NT + 1):
     rows_ok('type %d distant dot' % t, [de[t], do[t]])
 print('distant dots: %d types' % NT)
-mce, mco = b6('mn_ce', 2), b6('mn_co', 2)
-for i in range(2):
-    rows_ok('moon colour %d' % i, [mce[i], mco[i]])
-print('the moon: light grey &%02X/&%02X, dark grey &%02X/&%02X' % (mce[0], mco[0], mce[1], mco[1]))
+if 'mn_ce' in SY:                                       # (a build with moons, MOON=on)
+    mce, mco = b6('mn_ce', 2), b6('mn_co', 2)
+    for i in range(2):
+        rows_ok('moon colour %d' % i, [mce[i], mco[i]])
+    print('the moon: light grey &%02X/&%02X, dark grey &%02X/&%02X' % (mce[0], mco[0], mce[1], mco[1]))
+else:
+    print('the moon: none (MOON=on builds it)')
 NCP = SY['FC_STAR'] + 1
 cpe = b6('F_CPE', NCP)
 for i in range(NCP):

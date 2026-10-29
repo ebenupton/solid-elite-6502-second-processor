@@ -1,39 +1,52 @@
 \ ******************************************************************************
 \
 \ gfx-planetv.asm - the planet's detail's variables that the frame layer
-\ reads (HAZEL, after the game data: elite-layout.asm), where both the
-\ meridian window (bank 7, which writes them in game context) and the frame
-\ layer (bank 6) see them
+\ reads: in the renderer's shared workspace (main RAM below &3000,
+\ elite-gfx.asm), where both the meridian window (bank 7, which writes them
+\ in game context) and the frame layer (bank 6, with ACCCON X either way)
+\ see them. Variables only: F_INIT clears MN_ON and RG_N, and f_reset after
+\ every frame. The moon's are only in a build with it (MOON=on,
+\ master/build.sh, _PLANET_MOON), the ring's in one with rings (RINGS=on)
 \
 \ ******************************************************************************
 
-\ The moon, for the frame layer (pf_moon, gfx-planet7.asm; f_moon, bank 6):
-\ in HAZEL, where both see it
-.MN_ON  EQUB 0          \ bit 7: a moon this frame; 6: behind the planet; 5:
-                        \ behind the sun
-.MN_X   EQUW 0          \ its centre, radius and z (16 bits, &FFFF if further)
-.MN_Y   EQUW 0
-.MN_R   EQUB 0
-.MN_Z   EQUW 0
-.MN_N   EQUB 0          \ its crater's slots: PCMAX .. MN_N - 1
-.MN_INV EQUB 0
+IF _PLANET_MOON
 
-\ The ring's dots (pf_ring, gfx-planet7.asm; f_ring, bank 6)
-.RG_N   EQUB 0          \ dots this frame (0 with RINGS off, master/build.sh)
+\ The moon, for the frame layer (pf_moon, gfx-planet7.asm; f_moon, bank 6)
+.MN_ON  SKIP 1          \ bit 7: a moon this frame; 6: behind the planet; 5:
+                        \ behind the sun
+.MN_X   SKIP 2          \ its centre, radius and z (16 bits, &FFFF if further)
+.MN_Y   SKIP 2
+.MN_R   SKIP 1
+.MN_Z   SKIP 2
+.MN_N   SKIP 1          \ its crater's slots: PCMAX .. MN_N - 1
+.MN_INV SKIP 1
+
+ENDIF
+
+\ The ring's dots (pf_ring, gfx-planet7.asm; f_ring, bank 6; RINGS=on)
 IF _PLANET_RINGS
+.RG_N   SKIP 1          \ dots this frame
 .RG_X   SKIP 64
-IF _TPART <> 1             \ (the Tube's parasite: in overlay S, p-moon.asm)
+IF _TPART <> 1             \ (the Tube's parasite: in overlay S, p-layout.asm)
 .RG_Y   SKIP 64
 .RG_F   SKIP 64         \ bit 7: behind the planet
 ENDIF
 ENDIF
 
-\ The sun's and the moon's places (S_SUN and MN_TURN, gfx-ssun.asm, which
-\ turns both alike: ss_turnx takes an offset from ss_d, so MN_E must follow
-\ it)
-IF _TPART <> 1             \ (the Tube's parasite: after WP, p-ws.asm)
-.ss_d   SKIP 9          \ D = sun - planet, as MN_E (S_SUN)
-.MN_E   SKIP 9          \ E = moon - planet, x, y, z (lo, hi, top), two's
-                        \ complement, in the coordinates
-.MN_OK  SKIP 1          \ bit 7: MN_E is this system's
+IF _PLANET_MOON
+
+\ The moon as each buffer last showed it (f_moon, f_moon0: gfx-frame.asm),
+\ by buffer
+.MO_ON  SKIP 2          \ bit 7: drawn; bits 6 and 5: MN_ON's then
+.MO_XL  SKIP 2          \ its centre
+.MO_XH  SKIP 2
+.MO_YL  SKIP 2
+.MO_YH  SKIP 2
+.MO_R   SKIP 2          \ its radius
+.MO_T   SKIP 2          \ its rows (none: T > B)
+.MO_B   SKIP 2
+.MO_CT  SKIP 2          \ its crater's rows (none: 255, 0)
+.MO_CB  SKIP 2
+
 ENDIF

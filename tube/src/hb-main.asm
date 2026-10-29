@@ -85,7 +85,7 @@ _RBANK = 0
  INCLUDE "tsrc/hb-irq.asm"
  INCLUDE "build/nmos/elite-source-host.asm"
  CPU 0
- INCLUDE "build/nmos/gfx-lowhooks.asm"
+ INCLUDE "build/nmos/gfx-gluehooks.asm"
  CPU 0
  INCLUDE "build/nmos/gfx-frame.asm"
  CPU 0

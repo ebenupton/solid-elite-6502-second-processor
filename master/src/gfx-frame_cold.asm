@@ -15,7 +15,6 @@
 \
 \ ******************************************************************************
 
-IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's too)
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ F_CHAR: TT26's character K3 at (XC-1, YC): in record or space mode into
 \ the text map (f_char1); otherwise CHPR draws it directly, and it is noted
@@ -83,9 +82,11 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 
 .F_DIRECT
  LDA QQ12               \ docked: S_SUN forgets where the sun is (after a
- BEQ fdr0               \ launch it takes it from the system's seeds) and
- STZ SS_OK              \ MN_TURN the moon's place (made again after the
- STZ MN_OK              \ launch): gfx-ssun.asm
+ BEQ fdr0               \ launch it takes it from the system's seeds), and
+ STZ SS_OK              \ MN_TURN the moon's place, with MOON=on (MN_TURN
+ IF _PLANET_MOON        \ makes it again)
+ STZ MN_OK
+ ENDIF
 .fdr0
  ASL GWARP              \ LOOK1's TT66 for an in-system jump (WARP) in space
  BCC fdr1               \ mode: keep double buffering and the view on show (the
@@ -106,10 +107,15 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  JSR f_dflush           \ (the last screen's noted text given to the map)
  JSR f_direct0          \ (which clears F_DSS with R_SS: no stars noted)
  STZ f_dlog             \ nothing noted on the new screen
- RTS
+ LDA #&80               \ and nothing recorded for the frame before the screen
+ STA F_SLV+16           \ was cleared (DEATH's TT66 comes in the middle of an
+                        \ iteration, ESCAPE's too: what it had recorded is
+                        \ gone from the screen), so a frame's lists hold one
+                        \ record a ship slot at most (MAXSH, MAXLN, MAXDT);
+ STY f_ysav             \ (f_reset's lists, returning with Y kept)
+ JMP f_lists
 ENDIF
 
-ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part)
 \ f_poly2: f_item's polygon detail (T_POLY), and a station's docking slot
 \ (the only unlit polygon detail: black, colour byte &80 + 4 * its fill
@@ -186,7 +192,6 @@ IF _TPART <> 2             \ (Tube: the parasite's part)
  ASSERT R_Y0 = R_X0 + 2 AND R_X1 = R_X0 + 4 AND R_Y1 = R_X0 + 6
 
 ENDIF
-IF _TPART <> 1 OR _TDUMB  \ (Tube: the host's part; the dumb host's parasite's too)
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ f_enter2: the first record-mode frame since F_DIRECT. Main RAM is visible
 \ (X = 0): remove the directly drawn stars before f_enter copies the border
@@ -377,6 +382,9 @@ ENDIF
 ENDIF
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  STZ F_SGS              \ no sights drawn in it
+ IF _PLANET_MOON
+ STZ MO_ON              \ no moon
+ ENDIF
  LDA #&FF               \ no disc colour
  STA F_DCOL
  LDA #0                 \ its rasteriser state: empty
@@ -550,7 +558,6 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  JMP fsg3
 ENDIF
 
-ENDIF
 
 \       Area: ovl S
 \ (the Tube: in the parasite's overlay S, p-layout.asm, as only the space

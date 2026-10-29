@@ -442,12 +442,17 @@ ENDMACRO
 
 MACRO EDGE vertex1, vertex2, face1, face2, visibility
 
-IF _TUBE = 0            \ Port (Tube): no edge lists on the parasite, where
-                        \ nothing reads them: the frame layer fills the faces
- f = face1 + (face2 << 4)   \ and LL9's edge parts are removed (the blueprints'
- EQUB visibility, f, vertex1 << 2, vertex2 << 2   \ edge offsets then point at
-                        \ their faces; the edge counts, byte #9, stay)
-ENDIF
+                        \ Port: the edges are not assembled, as nothing reads
+                        \ them: every ship is drawn from its faces by the
+                        \ renderer (gfx-faces.asm), and LL9's edge drawing
+                        \ (parts 9 to 11) is removed. The blueprint's header
+                        \ is as it was: its number of edges (byte #9, which
+                        \ H_EE31 puts in XX20, as EE31 does) and its edges
+                        \ offset (bytes #3 and #16, now the faces' offset)
+ IF FALSE
+ f = face1 + (face2 << 4)
+ EQUB visibility, f, vertex1 << 2, vertex2 << 2
+ ENDIF
 
 ENDMACRO
 
@@ -3582,7 +3587,6 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for characters in the recursive token table
 \  Deep dive: Printing text tokens
-\       Area: cold
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -3618,7 +3622,6 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for two-letter tokens in the token table
 \  Deep dive: Printing text tokens
-\       Area: cold
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -3778,7 +3781,6 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for control codes in the recursive token table
 \  Deep dive: Printing text tokens
-\       Area: cold
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -3808,7 +3810,6 @@ ENDMACRO
 \   Category: Text
 \    Summary: Macro definition for recursive tokens in the recursive token table
 \  Deep dive: Printing text tokens
-\       Area: cold
 \       Tube: both
 \
 \ ------------------------------------------------------------------------------
@@ -3853,7 +3854,6 @@ ENDMACRO
 \   Category: Text
 \    Summary: The recursive token table for tokens 0-148
 \  Deep dive: Printing text tokens
-\       Area: cold
 \       Tube: host
 \
 \ ------------------------------------------------------------------------------
@@ -8725,7 +8725,6 @@ ENDIF
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \             The Constrictor mission
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -8788,7 +8787,6 @@ ENDIF
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \             The Constrictor mission
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -8858,7 +8856,6 @@ ENDIF
 \  Deep dive: Extended system descriptions
 \             Extended text tokens
 \             The Constrictor mission
-\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
