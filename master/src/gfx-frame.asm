@@ -1126,6 +1126,10 @@ ENDIF
 IF _HOSTB                 \ (Model B: the back buffer's screen, BUF0 or &4000)
  LDA fbp_b,X
  STA fgl_b+1
+IF _TDUMB
+ STA r_bs2+1            \ (the lines' screen base: bank F's, tube/src/hb-line.asm)
+ STA r_bs8+1
+ENDIF
 IF _TDUMB = FALSE
  LDA fbp_d,X
  STA fz_t

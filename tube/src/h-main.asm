@@ -423,9 +423,6 @@ ELSE                      \ goes, to the end mark (gfx-raster_poly.asm's r_pcbs)
 ENDIF
 
 .h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1
-IF _HOSTB
- JMP hb_line               \\ (main RAM: hb-res.asm)
-ENDIF
  HRX
  STA zR_COLE
  HRX

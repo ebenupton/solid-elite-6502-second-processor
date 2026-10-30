@@ -224,7 +224,7 @@ r_opRTS = &60
 \ &40: reading them ,X never crosses a page.
 \ ============================================================================
 IF _HOSTB AND _RBANK = 2      \ (Model B, bank P: no boundary arrays; the
-.R_BDN0                       \ flare and the lines' cold part instead)
+.R_BDN0                       \ flare and C_DSPANS' r_dspin instead)
 IF _TDUMB = FALSE             \ (the Tube's dumb host: the flare is the parasite's)
  INCLUDE "build/nmos/gfx-flare.asm"
  CPU 1
@@ -233,9 +233,8 @@ ELSE
 .r_bs10
  SKIP 3
 ENDIF
- INCLUDE "build/nmos/gfx-raster_lcold.asm"
+ INCLUDE "build/nmos/gfx-raster_lcold-hazel.asm"   \ (r_dspin: the lines are bank F's)
  CPU 1
- SKIP R_BDN0 + &480 - P%
 R_BDX10 = 0                   \ (and the arrays' names, unused here)
 R_BDX00 = 0
 R_BDN1 = 0
@@ -292,19 +291,16 @@ ELSE
   LSR A
   LSR A
   LSR A
-  CLC
 IF _HOSTB
-  ADC #&A0                \ (Model B: bank P's runs, also from bank D)
+  TAX                     \ (Model B: the buffer's set of runs, a page per
+  LDA r_rp,X              \ character row: r_rp, R_SETBUF's; clobbers X)
 ELSE
+  CLC
   ADC #HI(r_run0)
 ENDIF
   STA RZ_PP+1
   STA r_jsr+2
-IF _HOSTB AND _RBANK = 2
-  JMP r_pgfix             \ (Model B: the run page patched for the buffer; bank
-ELSE                      \ D's runp has bank P's do it)
   RTS
-ENDIF
 ENDIF
 
 \       Area: frame
@@ -347,7 +343,7 @@ ENDIF
   RTS
 
 IF _HOSTB AND _RBANK = 2
-  SKIP R_BDN0 + &980 - P%       \ (Model B, bank P: its data, PDATA)
+  ORG R_BDN0 + &980             \ (Model B, bank P: buffer 0's runs between, hb-p.asm)
 ENDIF
 IF _HOSTB = 0 OR _RBANK = 2
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
@@ -516,6 +512,18 @@ ELSE
   STA r_pt47+2
   STA r_pt49+2
 IF _RBANK = 2
+  LDY #23                 \ the buffer's run pages (hb-p.asm's r_rp0, r_rp1)
+.rp
+  CPX #0
+  BNE rp1
+  LDA r_rp0,Y
+  BCS rp2
+.rp1
+  LDA r_rp1,Y
+.rp2
+  STA r_rp,Y
+  DEY
+  BPL rp
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
   STA r_pt36+2
@@ -1668,68 +1676,6 @@ ELSE
 }
 ENDIF
 
-IF _HOSTB
-\ r_pgfix (Model B): A = a run page's high byte: if this bank's copy of the
-\ page is not for buffer R_PRBUF, add or take &30 from the high byte of each
-\ of its 63 stores' addresses (the runs are assembled for &4000, buffer 1's;
-\ buffer 0's screen is &3000 lower). Keeps A, X, Y.
-.r_pgfix
-{
-  STA pfa
-  STX pfx
-  SEC
-  SBC #HI(r_run0)
-  TAX
-  LDA R_PRBUF
-  CMP r_pgtag,X
-  BNE fix
-  LDA pfa
-  LDX pfx
-  RTS
-.fix
-  STA r_pgtag,X
-  STY pfy
-  TAX                     \ (X = the buffer)
-  LDA r_pgop,X            \ buffer 0: SBC #&30, carry set; buffer 1: ADC #&30,
-FOR k, 0, 6               \ carry clear (the high bytes &10-&3F or &40-&6F:
-  STA lp + 6 + 8 * k      \ no carry out, so the carry stays as set for every
-NEXT                      \ store, and the loop's counter is X, not Y)
-  LDA pfa
-FOR k, 0, 6
-  STA lp + 5 + 8 * k
-  STA lp + 10 + 8 * k
-NEXT
-  TXA
-  EOR #1
-  LSR A
-  LDX #8                  \ the stores' high bytes: offsets 2, 5, .. 188, seven
-.lp                       \ a pass, 21 apart
-  LDY r_pgy,X
-FOR k, 0, 6
-  LDA &FF02 + 3 * k,Y
-  ADC #&30
-  STA &FF02 + 3 * k,Y
-NEXT
-  DEX
-  BPL lp
-  LDA pfa
-  LDX pfx
-  LDY pfy
-  RTS
-.pfa EQUB 0
-.pfx EQUB 0
-.pfy EQUB 0
-}
-.r_pgtag                  \ per run page: the buffer it is for (as assembled: 1)
-FOR i, 0, 23
-  EQUB 1
-NEXT
-.r_pgop EQUB &E9, &69     \ to buffer 0: SBC #; to buffer 1: ADC #
-.r_pgy                    \ the loop's passes' Y
-FOR i, 0, 8
-  EQUB 21 * i
-NEXT
-ENDIF
 IF _HOSTB
  INCLUDE "src/gfx-raster_pset.asm"
 ENDIF

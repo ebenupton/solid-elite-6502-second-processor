@@ -535,14 +535,20 @@ ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
+IF _HOSTB
+  TYA                     \ (Model B: the buffer's run page for the row, Y = RZ_Y
+  LSR A                   \ still: r_rowset's)
+  LSR A
+  LSR A
+  TAX
+  LDA r_rp,X
+  STA RZ_PP+1
+  STA r_jsr2_e+2
+  STA r_jsr2_o+2
+ELIF _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   INC RZ_PP+1
   INC r_jsr2_e+2
   INC r_jsr2_o+2         \ (Y = RZ_Y still)
-ENDIF
-IF _HOSTB
-  LDA RZ_PP+1             \ (Model B: the page for the buffer)
-  JSR r_pgfix
 ENDIF
 .pb_tg                    \ (Y = RZ_Y) the next row pair's colours
   LDA RZ_CE

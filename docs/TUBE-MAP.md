@@ -193,15 +193,15 @@ differ (no ACCCON; the screen base; the banks).
 
 | Region | Addresses | Holds |
 |---|---|---|
-| Main RAM taken from the MOS | &0236-&031F, &0E00-&0E6E | the trampolines into banks P and F, the overlays' storage handlers (hb-ovl.asm); swapped with the MOS's contents through bank S for each disc command |
+| Main RAM taken from the MOS | &0236-&031F, &0E00-&0E6E, &0FB0-&0FFF | the trampolines into banks P and F, the overlays' storage handlers (hb-ovl.asm), the polygon's and lines' inputs (PDATA, &0FB0); swapped with the MOS's contents through bank S for each disc command |
 | Buffer 0 | &1000-&3FFF | (the screen base is patched per buffer: the r_bs operands, f_bufpatch's glyph base) |
 | Buffer 1 | &4000-&6FFF | the Master port's addresses: direct mode unchanged |
 | Panel | &7000-&7DFF | the dashboard, the Master port's address |
 | &7E00-&7F5D | | hwrch (WRCHV), the IRQ entry, hbswap: not swapped |
 | Bank S | &8000- | the swapped main RAM, then overlay D's image from &8E00 (storage only) |
 | Bank D | &8000- | overlay S's image and its saved state (storage only) |
-| Bank P | &8000-&84CC, &9000-&BFAE | phase B's fill and the line loops; the shared region with the row runs (assembled for buffer 1, &4000; a page is patched for the buffer it is first used for in a frame, r_pgfix: its 63 stores' high bytes, seven a pass, by ADC or SBC #&30 with the carry left as it was set), R_SPAN, R_DOT, the stars, the line code's cold part, r_dspin; the polygon stream's entry (p_polyin); jump table at &BFC0 (P_POLY, P_MARKDIRTY, P_FLARE retired: BRK; JT + 3, once P_ROWREP, is P_DSPANSIN) |
-| Bank F | &8000-&AD13 | the command loop and handlers, f_glyph, f_enter, f_unstar, the panel's drawing, CHPR and its font, the sound, the interrupts (hb-irq.asm); then f_enter's buffer, then from &A82A the recursive tokens (QQ18 as stored, 960 bytes) and where each starts (298 bytes), which h4body's C_TOKEN reads in the IRQ (bank F paged) |
+| Bank P | &8000-&BFFF | phase B's fill and the polygon stream's entry (p_polyin) from &8000; the shared region from &9000 (r_dspin, the rows' set-up, R_SETBUF, r_spc, the per-x tables, R_SPAN, R_DOT, the stars); both buffers' row runs, a page per character row, so that none is patched for a buffer: buffer 1's (&4000) at &A000-&B7FF, buffer 0's (&1000) in the pages between, &8300-&8FFF, &9100-&98FF and &BC00-&BEFF; r_rp0, r_rp1 (each buffer's page per character row) and r_rp (the buffer's, R_SETBUF's) at &BF00; jump table at &BFC0 (P_PGFIX, P_POLY, P_LINE, P_MARKDIRTY, P_FLARE, P_LINEIN retired: BRK; JT + 3 is P_DSPANSIN) |
+| Bank F | &8000-&B875 | the command loop and handlers, f_glyph, f_enter, f_unstar, the panel's drawing, CHPR and its font, the sound, the interrupts (hb-irq.asm); then f_enter's buffer, then from &A82A the recursive tokens (QQ18 as stored, 960 bytes) and where each starts (298 bytes), which h4body's C_TOKEN reads in the IRQ (bank F paged); then from &AD14 the lines (hb-line.asm: R_LINE, its cold part, arithmetic, r_pset, tables and variables: C_LINE with no paging; f_bufpatch patches their screen base) |
 
 The dashboard split is a CRTC vertical rupture (tube/spike/rupture.asm): two
 CRTC frames per field, timer 1 firing twice a field to set each frame's
@@ -220,8 +220,8 @@ Master port's and the Model B host's, but with no patching: the two
 buffers are at the same address), for comparison; the code that enters
 the runs stays where it is. At a 3 MHz parasite the STA runs are
 0.3-2.2% faster than the row runs (TUBE-REPORT.md). The Model B host has
-the row runs, patched per buffer (r_pgfix): two sets (24 pages each) do
-not fit beside its code in bank P.
+the row runs, a set per buffer (48 pages of bank P, its lines moved to
+bank F to make the room), so that no run is patched for a buffer.
 
 The Model B host's NMOS code is tube/tools/nmos.py's conversion with hand
 fixes (tube/build.sh's --sub) where nmos.py, which keeps every register

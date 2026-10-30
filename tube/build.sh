@@ -326,6 +326,14 @@ $NM src/gfx-raster_lcold.asm build/nmos/gfx-raster_lcold.asm --report build/nmos
   LDX l_x0" --sub "  PLX
   DEC l_n=  LDX &E7
   DEC l_n" > /dev/null
+# (its passes: r_dspin for bank P, the lines' cold part for bank F)
+$NM build/gfx-raster_lcold-frame.asm build/nmos/gfx-raster_lcold-frame.asm --report build/nmos/gfx-raster_lcold-frame.txt \
+  --sub "  PHX
+  LDX l_x0=  STX &E7                 \\ (NMOS: PHX, A live)
+  LDX l_x0" --sub "  PLX
+  DEC l_n=  LDX &E7
+  DEC l_n" > /dev/null
+$NM build/gfx-raster_lcold-hazel.asm build/nmos/gfx-raster_lcold-hazel.asm --report build/nmos/gfx-raster_lcold-hazel.txt > /dev/null
 $NM src/gfx-flare.asm build/nmos/gfx-flare.asm --report build/nmos/gfx-flare.txt \
   --sub " BPL P%+5
  EOR #&FF
@@ -372,7 +380,7 @@ $NM build/elite-source-host.asm build/nmos/elite-source-host.asm --report build/
  PHA
  LDA K3" > /dev/null
 $NM build/elite-source-hostb.asm build/nmos/elite-source-hostb.asm --report build/nmos/elite-source-hostb.txt > /dev/null
-grep -E "^(R_|RZ_)[A-Za-z0-9_]* *= *&|^r_op(STA|RTS) *=" src/gfx-raster.asm > build/hb-rzp.asm   # (the rasteriser's zero page names, for bank F)
+grep -E "^(R_|RZ_|l_)[A-Za-z0-9_]* *= *&|^r_op(STA|RTS) *=" src/gfx-raster.asm > build/hb-rzp.asm   # (the rasteriser's zero page names, for bank F)
 hbasm main
 $BEEBASM -D HBB=4 -i tsrc/hb-main.asm -d > build/hbmsyms.txt 2>/dev/null || true
 $BEEBASM -D HBB=4 -i tsrc/hb-p.asm -d > build/hbpsyms.txt 2>/dev/null || true

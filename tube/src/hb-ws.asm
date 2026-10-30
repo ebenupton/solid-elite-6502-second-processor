@@ -108,7 +108,7 @@ ENDIF
 MR_C = GVARS + 14       \ code and data: to page &0D
 MR_CEND = &0D00
 MR_D = &0E00            \ code and data
-MR_DEND = &1000
+MR_DEND = &1000 - &50    \ (then the polygon's and lines' inputs, to &1000)
 MR_E = &7E00            \ code and data
 MR_EEND = &8000
 
@@ -133,10 +133,12 @@ R_DBO    = DDATA + &604
 DDATA_END = DDATA + &605
 
 \ ------------------------------------------------------------------------------
-\ Bank P's data (where bank D has the disc's boundary arrays)
+\ The polygon's and the lines' inputs (bank P's phase B, bank F's R_LINE), in
+\ main RAM: R_PXL .. R_PYH and R_PTA, R_PTB are phase A's, the parasite's, so
+\ only from R_X0 on is used (to &0FFF)
 \ ------------------------------------------------------------------------------
 
-PDATA = &9500           \ (buffer 1's boundary arrays in bank D)
+PDATA = MR_DEND
 R_PXL    = PDATA        \ vertex x, y (signed 16-bit): in one page
 R_PXH    = PDATA + &10
 R_PYL    = PDATA + &20
