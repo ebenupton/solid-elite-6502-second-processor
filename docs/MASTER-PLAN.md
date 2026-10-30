@@ -2811,19 +2811,35 @@ VERIFY PASS 13.97 10.30 0.737.
 A disc row's boundary count and its colour at the span's left end are one
 byte: R_NDN holds the count in bits 0-6 and the colour in bit 7 (PC_ROWS
 and PC_MROWS write it so, f_moon reads it: MOON=on), and each buffer's stored
-boundaries likewise (R_BDN0/R_BDN1; a row with more than two is stored as
-count &40, unknown). An unchanged row is then one compare of the two bytes,
-and r_dpe finds the count difference with the colours shifted out (ASL of
-new - old: 2 one more, -2 one fewer; the unknown count gives -128..-120).
-Free: 192 bytes of the shared workspace (&17F8-&18B7, raster_vars) and 384
-of bank 5 (&9180-&923F, &9480-&953F, the boundary block's third arrays).
+boundaries likewise (R_BDN0/R_BDN1 with R_BDX0-2; a row with more than
+three is stored as count &40, unknown). An unchanged row is then one compare
+of the two bytes and of its stored boundaries. Free: 192 bytes of the
+shared workspace (&17F8-&18B7, raster_vars).
+
+A changed row with no dirty extent is written as the difference of its old
+and new edge lists (gfx-raster_disc.asm's r_dq, and r_dpe with the strip
+encoder's core, gfx-raster_strips.asm): the two lists
+are made alike, three boundaries each and the same colour at the left end,
+by virtual boundaries (segments of no width: one at the left end of the
+list with fewer when the colours there differ, then at the end after the
+right end), and each edge's strip, old .. new, is written in the colour on
+the side it moved from, cut short where the edge before's new place (moving
+right) or the edge after's (moving left) has passed into it. As the old
+edges are in order and so are the new, every pixel whose colour changed
+lies in exactly one strip, and no other pixel is written: no order test
+and no fallback, whatever the counts (up to three) and colours. No old span
+is a list of edges all at the new left end; no new span, r_dp2 blacks the
+old; an unknown old count, a repaint (r_drg). master/tools/discmem/mdprof.mjs
+profiles the encoders over a replay's windows (calls, what they were given,
+how they ended, cycles before the first write and in the pixels); pagex.py
+lists the window's branches across a page.
 
 The disc memory, in bytes:
 
 | structure | where | bytes |
 |---|---|---:|
 | R_DISCL0/R0/L1/R1, the layer's spans by buffer | shared workspace | 768 |
-| R_BDN, R_BDX0, R_BDX1 by buffer, its boundaries | bank 5 | 1,152 |
+| R_BDN, R_BDX0-2 by buffer, its boundaries | bank 5 | 1,536 |
 | R_S2L0/L1/R0/R1, the second disc's spans by buffer | bank 5 | 768 |
 | R_NDN (count and colour), R_NDX0-3, this frame's boundaries | shared workspace | 960 |
 | R_NDISCL/R, this frame's spans (R_PTB/R_PTA, the polygons' edge tables, between frames' discs) | shared workspace | 384 |

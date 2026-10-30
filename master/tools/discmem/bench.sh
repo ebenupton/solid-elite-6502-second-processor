@@ -31,7 +31,7 @@ run1)
     node "$R/master/tools/solidspan/fbhash.mjs" --log "$RUN1" --cand "$B/elite-master-sng47.ssd" --csyms "$B/symbols.txt" \
         --from 0 --to 3600 --out "$OUT/run1-fb.json" > "$OUT/run1-fb.log" 2>&1
     node "$R/master/tools/solidspan/mspeed.mjs" --log "$RUN1" --cand "$B/elite-master-sng47.ssd" --csyms "$B/symbols.txt" \
-        --windows 0-3550,1000-1400,2000-2400,3000-3400,3420-3550,3484-3530 > "$OUT/run1-speed.txt" 2>&1 ;;
+        --windows 0-3550,1000-1400,2000-2400,3000-3400,3420-3550,3484-3530,300-403,5355-5457 > "$OUT/run1-speed.txt" 2>&1 ;;
 gatefb)
     node "$R/harness/mfbcmp.mjs" --frames --disc "$B/elite-master-sng47.ssd" --syms "$B/symbols.txt" --iters 3000 \
         --out "$OUT/gate-fb.json" > "$OUT/gate-fb.log" 2>&1 ;;

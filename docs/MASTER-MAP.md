@@ -130,8 +130,8 @@ which spare RAM the port may take.
    with either window): the row runs and their tails, the per-x tables, the
    boundary arrays. Code a window needs that uses nothing of that window's
    may sit in the shared region for room (R_POLY's arithmetic, R_LINE's cold
-   part); code that only one window's entry points reach goes in that window
-   (R_INIT and R_RESETBUF in the disc window).
+   part, R_INIT, run once); code that only one window's entry points reach
+   goes in that window (R_RESETBUF in the disc window).
 11. **The source reads as the original.** elite-source.asm is Mark Moxon's
    main source in the original's order, and elite-data.asm his data source:
    every routine and table sits once, at its original place, and its header
@@ -281,8 +281,8 @@ rules ("Calls between the passes").
 | Cold pass | bank 7 &8000-&A3A8 | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data (the extended tokens TKN1 and their macros) | - (bank 7's end) |
 | Meridian window | bank 7 &A3A9-&B7E8 (ROMSEL 7; MERID, its own image, with gfx-kept7.asm, gfx-planet7.asm and gfx-flare.asm after it) | gfx-merid.asm, the circle engine (pc_circ, a circle's record; PC_ROWS, the rows, and PC_MROWS with MOON=on; the records PCB); gfx-kept7.asm; gfx-planet7.asm, the styles (PF_HOOK: the beach ball, craters; bands with BANDS=on), the moon (with MOON=on), the ring's dots (with RINGS=on); gfx-flare.asm, the lens flare (R_FLARE, through T_FLARE; fl_htab whole in a page) | 2071 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FDA (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 37 |
-| Rasteriser: disc window | bank 5 &8000-&8FFF (ROMSEL 5) | gfx-raster_disc.asm, gfx-raster_kept.asm (&8000-&8EF3); R_S2R0, buffer 0's second-disc right ends (&8F40-&8FFF) | 76 |
-| Rasteriser: shared region | bank 5 &9000-&BFFF (with either window) | gfx-raster.asm; gfx-raster_lcold.asm in the room below the per-x tables (from r_tfree, &9916), then R_S2L0 and R_S2L1 (&9A00, &9B00), the second disc's left ends; gfx-raster_disc2.asm (R_DISC2, &BBBE-&BEF7; R_WSPAN, the moon's writes, after it with MOON=on), then R_S2R1 (&BF40-&BFFF) | 72 (before R_S2R1; + 384 in the boundary block, &9180-&923F and &9480-&953F; + 46 at &99D2, 64 at &9AC0 and &9BC0; + the tails) |
+| Rasteriser: disc window | bank 5 &8000-&8FFF (ROMSEL 5) | gfx-raster_disc.asm (with gfx-raster_strips.asm), gfx-raster_kept.asm (&8000-&8F22); R_S2R0, buffer 0's second-disc right ends (&8F40-&8FFF) | 29 |
+| Rasteriser: shared region | bank 5 &9000-&BFFF (with either window) | gfx-raster.asm; gfx-raster_lcold.asm and gfx-raster_init.asm (R_INIT) in the room below the per-x tables (from r_tfree, &990A), then R_S2L0 and R_S2L1 (&9A40, &9B40), the second disc's left ends; gfx-raster_disc2.asm (R_DISC2, &BBBE-&BEF7; R_WSPAN, the moon's writes, after it with MOON=on), then R_S2R1 (&BF40-&BFFF) | 72 (before R_S2R1; + 45 at &9A13, 64 at &9B00; + the tails) |
 | Frame layer | bank 6 &8000-&B590 | gfx-frame.asm (with the incremental moon, f_moon0 and f_moon, with MOON=on), faces, the lighting's tables and L_REC (gfx-light.asm's second pass), frame_cold (with f_slot, the stars beside a docking slot; the text map's entry points and the direct text's notes), the flare's step, the hangar's frame and tables, F_SLV (f_ring with RINGS=on); the data after the code: the ship records (F_RP, F_SR: MASTER-PLAN.md, "The frame's records"), the half-widths (F_HW3, the moon's, with MOON=on), the text map F_TM and F_TMR (MASTER-PLAN.md, "The text map") | 2671 |
 | HAZEL | &C000-&DA38 | the game data only: the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's (without their edge lists), QQ18, SNE and ACT; RUPLA, RUGAL and RUTOK (&D781-&DA38) | 1223 (&DA39-&DEFF), 256 (&DF00-&DFFF: the MOS's, off limits) |
 | Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
