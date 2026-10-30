@@ -280,7 +280,7 @@ ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   LDA s_pg,Y              \ (the run is at its page's start: the entry and the
   STA RZ_PP+1             \ plant are r_j's offsets in the page, no sums; r_pcbs
   STA sjsr+2              \ patches phase B's JSRs)
@@ -573,7 +573,7 @@ ENDIF
   EOR (RZ_PA),Y
   STA (RZ_PA),Y
 .run
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   LDY R_XR                \ (the Tube's Master host: the line's STA run, in its
   LDA r_j-4,Y             \ bank, which the caller paged: plant an RTS at
   STA RZ_PP               \ column xr DIV 4, enter at column xl DIV 4 + 1, both
@@ -773,7 +773,7 @@ NEXT
 \ c = 1..63 then RTS (190 bytes).  The 66 bytes after each run hold variables.
 \ ============================================================================
 MACRO R_RUN r
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: a line's STA
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA     \ (the Tube's Master host: a line's STA
   SKIP 191                                     \ run here, h-sta.asm's s_gen makes it)
 ELSE
   FOR c, 1, 63

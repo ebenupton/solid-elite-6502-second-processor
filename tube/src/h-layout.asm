@@ -100,7 +100,11 @@ HZ_STORE = &CA00
  GUARD HZ_STORE
  ORG &C000
 .HZ_START
+IF _HSTA
  INCLUDE "tsrc/h-sta.asm"
+ELSE
+ INCLUDE "tsrc/h-rows.asm"   \ (FILL=rows: the row runs, bank 5's)
+ENDIF
  INCLUDE "build/gfx-raster-hazel.asm"
  INCLUDE "build/gfx-raster_lcold-hazel.asm"
  INCLUDE "build/gfx-raster_polyb-hazel.asm"

@@ -208,7 +208,7 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   JMP pb_skip_e
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
 .pb_plant_e
   TAY
   LDA #r_opSTA
@@ -276,7 +276,13 @@ ENDIF
   TXA
   EOR R_XR
   CMP #4
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA = FALSE
+  BCS pb_d3_e             \ (the Master host's row runs: out of a branch's
+  JMP pb_one_e            \ reach)
+.pb_d3_e
+ELSE
   BCC pb_one_e
+ENDIF
   LDY r_xo,X
   CPX #&80
   BCS pb_lb_e
@@ -288,7 +294,7 @@ ENDIF
 .pb_l2_e
   LDY R_XR
   LDA r_j-4,Y
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   STA RZ_PP               \ (the Tube's Master host: the line's STA run, as
   LDA r_j,X               \ r_spc's; with no whole byte between, the JSR hits
   STA sjsr_e+1           \ the RTS)
@@ -336,7 +342,7 @@ ENDIF
   STY RZ_Y
   INC RZ_PA
   INC RZ_PB
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   LDA s_pg,Y              \ (the line's run's page and bank)
   STA RZ_PP+1
   STA sjsr_o+2
@@ -403,7 +409,7 @@ ENDIF
 .pb_l2_o
   LDY R_XR
   LDA r_j-4,Y
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   STA RZ_PP               \ (the Tube's Master host: the line's STA run, as
   LDA r_j,X               \ r_spc's; with no whole byte between, the JSR hits
   STA sjsr_o+1           \ the RTS)
@@ -445,7 +451,7 @@ ENDIF
   BEQ pb_end
 .pb_c_o
   STY RZ_Y
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   LDA s_pg,Y              \ (the line's run's page and bank)
   STA RZ_PP+1
   STA sjsr_e+2
@@ -498,7 +504,7 @@ ENDIF
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   BRA pb_skip_o
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
 .pb_plant_o
   TAY
   LDA #r_opSTA
@@ -509,13 +515,13 @@ IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   JMP pb_go_o
 ENDIF
 .pb_end
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   LDA #r_opSTA            \ take the RTS out again
   STA (RZ_PP)
 ENDIF
   RTS
 .pb_cr
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   LDA #r_opSTA            \ next character row: new run page
   STA (RZ_PP)
   LDA #190
@@ -529,7 +535,7 @@ ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   INC RZ_PP+1
   INC r_jsr2_e+2
   INC r_jsr2_o+2         \ (Y = RZ_Y still)
