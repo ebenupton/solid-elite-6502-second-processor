@@ -17,8 +17,8 @@ BBC Master Elite (SNG47).
 | `solid-elite-tube-master.ssd` | BBC Master 128 | a 6502 Second Processor, or the Master's internal 65C102 co-processor; 4 MHz target |
 | `solid-elite-tube-modelb.ssd` | BBC Micro Model B with 64K of sideways RAM (four banks) | a 6502 Second Processor; 3 MHz target |
 
-`elite-master-full.ssd` is the Master port itself, for a BBC Master with no
-second processor, built from the same tree.
+For a BBC Master with no second processor, use the Master port itself:
+[solid-elite-bbc-master](https://github.com/ebenupton/solid-elite-bbc-master).
 
 ## Running it
 
