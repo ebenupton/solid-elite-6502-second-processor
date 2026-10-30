@@ -108,6 +108,8 @@ with open("build/banks.txt", "w") as f:
                       ("src/gfx-raster.asm", "5"), ("src/gfx-raster_disc.asm", "5"), ("src/gfx-raster_poly.asm", "85"),
                       ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-raster_disc2.asm", "5"), ("src/gfx-raster_kept.asm", "5"),
+                      ("src/gfx-raster_strips.asm", "5"), ("src/gfx-raster_init.asm", "5"),
+                      ("src/gfx-raster_reset.asm", "5"), ("src/gfx-raster_wspan.asm", "5"),
                       ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"), ("src/gfx-hangar.asm", "6"),
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
                       ("src/gfx-merid.asm", "7"), ("src/gfx-kept7.asm", "7"), ("src/gfx-planet7.asm", "7"),

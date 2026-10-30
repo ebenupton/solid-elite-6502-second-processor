@@ -162,6 +162,10 @@ INCLUDE "src/gfx-raster_reset.asm"   \ R_RESETBUF
 ASSERT B5_GAP <= R_S2L0       \ (the second disc's spans' left ends follow it)
 ASSERT R_S2L1 + 192 <= r_tables AND R_S2R1 + 192 <= &C000 AND R_S2L0 + 192 <= R_S2L1
 ASSERT LO(R_S2L0) = LO(R_S2L1) AND LO(R_S2R0) = LO(R_S2R1) AND LO(R_S2L0) <= &40 AND LO(R_S2R0) <= &40
+ORG R_S2L0 + 192        \ between the second disc's left ends: the moon's
+INCLUDE "src/gfx-raster_wspan.asm"   \ R_WSPAN (MOON=on)
+.B5_GAP2
+ASSERT B5_GAP2 <= R_S2L1
 ORG &8000
 INCLUDE "src/gfx-raster_disc.asm"
 INCLUDE "src/gfx-raster_kept.asm"   \ kept solid rows: bank 5's part
@@ -169,7 +173,7 @@ INCLUDE "src/gfx-raster_kept.asm"   \ kept solid rows: bank 5's part
 .B5LO_END
 ASSERT B5LO_END <= R_S2R0 AND R_S2R0 + 192 <= &9000   \ (buffer 0's spans' right
                                 \ ends after the disc window's code)
-PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", R_S2R0-B5LO_END, " before R_S2R0), shared &9000-", ~B5_END-1,  " free ", R_S2R1-B5_END, " before R_S2R1 (+ ", R_S2L0-B5_GAP, " at ", ~B5_GAP, " and ", R_S2L1-R_S2L0-192, " after R_S2L0)"
+PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", R_S2R0-B5LO_END, " before R_S2R0), shared &9000-", ~B5_END-1,  " free ", R_S2R1-B5_END, " before R_S2R1 (+ ", R_S2L0-B5_GAP, " at ", ~B5_GAP, " and ", R_S2L1-B5_GAP2, " at ", ~B5_GAP2, ")"
 SAVE "build/BANK5.bin", &8000, B5_END, &8000
 
 CLEAR COLD_END%, &C000  \ bank 7 after the cold area (ROMSEL MERIDBANK): the

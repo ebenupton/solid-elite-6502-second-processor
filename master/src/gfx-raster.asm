@@ -141,7 +141,7 @@
 \ dirty repair).  Shapes are NOT added to R_WL/R_WR: what was written this
 \ frame is R_WL/R_WR[y] union DIRTY[b][y].
 \ Rows of R_NDISCL/R in NDT..NDB with NDISCL = 255 are empty; spans are
-\ clamped to the clip window.
+\ within the clip window (the frame layer clamps them to it).
 \ Two-colour discs (R_NDF <> 0): pixel x of a disc row has colour R_NDN's
 \ bit 7 EOR (the number of its boundaries <= x).  Each buffer remembers its
 \ rows' boundaries, up to three.  A changed row with no dirty extent is a
