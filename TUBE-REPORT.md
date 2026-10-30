@@ -7,6 +7,96 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## Overlay S's state never kept on the host (branch `tubediscs`, 2026-10-30, fourth pass)
+
+Overlay S's state (3,328 bytes, 13 pages: the dirty extents, the disc
+spans, the written extents, the rasteriser's scalars and the disc heap) is
+now never stored on the host. Before this, when S went out in space mode
+its state went to the host (C_OVLPUT) and came back with S (C_OVLGET of a
+third "overlay"); now the hosts keep only S's image from the state's end,
+and the state is rebuilt on the parasite (p-ovl.asm's ovl_need).
+
+**The swaps** (tube/tools/tswap.mjs: S going out while GMODE bit 7 is set).
+Every one is a call into overlay D that leaves the space view for a screen
+drawn directly; none is in flight proper. Run1 0-16000, 14 swaps in 12
+iterations: DFAULT and STATUS together at 0 and 5161 (the status screen),
+TT18 at 403, 3956, 5457, 9235 and 13168 (hyperspace), HALL at 3551, 8818,
+12766 and 15875 (docking), TT23 at 5073 (the short-range chart); in 0-6000,
+9 of them, which made the 9 state loads.
+
+**What is invalidated, and how** (r_lost, p-lost.asm, at overlay S's end so
+that S's hot code keeps its addresses). Nothing is known of either buffer:
+in each, every row inside the border (1-191) is dirty from 2 to 253 (the
+frames' clip window), with no disc rows, no second disc and no kept rows
+(R_RESETBUF: k_clear and the per-buffer scalars); the disc heap is emptied
+(both capacities 0: the next fit starts the surface's rows unknown, each
+buffer repainting them whole once, as R_INIT leaves it); nothing is written
+(R_WR, r_wt). Each buffer's next frame blacks the play area (prep, or the
+disc layer's black on the dirty extent less the new span) and draws the
+frame; the text map and the sights, which redraw what a frame writes over
+(f_text2, f_sight2), come back over it, giving the Master port's pixels.
+Phase B, the flare's probes and the stars' relay hold nothing between
+frames; the text map, the star records (on the host) and the counts are
+resident and untouched. If S went out in direct mode, as before, the next
+space-mode frame starts buffer 0 afresh (GSTASH, f_b0new).
+
+**Freed.** Master host: bytes 192-255 of bank 4's STA-run pages (&8000-&BFFF),
+4,096 bytes in 64 pieces of 64 (the state used 52 of them; the rest were
+already spare), with hss_get, hss_put and C_OVLPUT's handler (h_ovlput and
+its page loop) gone; the space could hold 16 more overlay pages kept as
+four pieces (as bank 7's are), or tables read with bank 4 paged. Model B
+host: bank D now holds S's image from &8000 (51 pages, to &B2FF), leaving
+&B300-&BFFF free (3,328 bytes, 13 contiguous pages: room for more overlay
+images or host tables), with hb_ovlput gone. The parasite's resident glue
+is 40 bytes shorter (the state's send); overlay S gains r_lost (63 bytes,
+65 free).
+
+**Cost of a swap** (2 MHz cycles, the Master host at a 4 MHz parasite /
+the Model B host at 3 MHz, run1 0-16000):
+
+| | Master host before | after | Model B host before | after |
+|---|---:|---:|---:|---:|
+| S going out (ovl_need, with D's load) | 297,440 | 226,406 | 319,468 | 242,604 |
+| S's state back (13 loads) | 64,723 | 0 | 64,693 | 0 |
+| the 48 iterations from each swap to 3 after it | 99,660,186 | 98,399,486 | 102,560,894 | 101,340,610 |
+
+The state's two transfers cost about 136K cycles a swap; r_lost and the
+whole repaint of each buffer's next frame cost less than that (the swaps
+nearly always change the screen anyway). Around the swaps (it/s, before /
+after): Master host 395-420 13.38 / 13.84, 3545-3570 8.58 / 8.70, 5150-5175
+3.81 / 3.84; Model B host 11.47 / 11.71, 8.19 / 8.30, 3.27 / 3.30. Wider:
+0-6000 19.46 / 19.48 and 17.01 / 17.02, 0-16000 20.16 / 20.17 and 18.02 /
+18.03.
+
+**Speed** (it/s, the usual windows; the Master host at 4 MHz, the Model B
+host at 3 MHz):
+
+| Host | Flight | Docking | 0-3550 | Beach 300-403 | Beach 5355-5457 |
+|---|---:|---:|---:|---:|---:|
+| Master, before | 21.59 | 10.75 | 20.43 | 10.49 | 10.44 |
+| Master, after | 21.59 | 10.75 | 20.43 | 10.60 | 10.51 |
+| Model B, before | 17.77 | 10.21 | 18.09 | 8.66 | 8.29 |
+| Model B, after | 17.77 | 10.21 | 18.10 | 8.71 | 8.33 |
+
+The beach windows end on a swap (TT18 at 403 and 5457), so they lose the
+state's send.
+
+**Gates** (scratch/gnost, both hosts): Master port byte-identical (disc
+sha1 18bd6de3...); lockstep 16002 clean, TUBEINT 602 clean; storage 88 pages,
+0 differ (tstore.mjs: every page the host keeps is now an image, nothing set
+aside for S's state); pixels 14606 matched, 0 mismatched; dashboard as
+before (fbcmp's 51 alignment artefacts); tsavetest, tcrash, tstation ok.
+tdrows, both hosts, 300-420, 1000-1400, 3940-3975, 5150-5175 and 5355-5470
+(the swaps at 403, 3956, 5161 and 5457 inside): 764 frames, 88,507 band
+rows, 0 wrong, 0 stray writes, 0 unverified.
+The 13 bench scenes (tscenes.sh, scratch/scnost), both hosts: 0 drops, 0
+drawn whole, only the known flare frames differ (sunnear 416-417, sungrow
+and sunswap 339-340). The same tdrows windows on the build before give the
+same 76 rows of black over black outside the band.
+Small-heap fallback (HEAPN 900 smaller, Model B host): run1 0-6000 1,548
+drops and frames drawn whole, pixels 5,341 matched, 0 mismatched; tdrows
+(the windows above) 0 wrong.
+
 ## The command stream: fewer bytes, cheaper sends (branch `tubediscs`, 2026-10-30, third pass)
 
 **The stream before** (tube/tools/tstream.mjs, run1, bytes an iteration;
