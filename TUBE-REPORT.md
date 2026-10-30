@@ -30,12 +30,12 @@ buffer, read and written through a 7-byte table each, no shifts) and first
 two boundaries in the disc heap. One loop over the band's rows (ps_rows, as
 the Master port's r_dbm): an unchanged row costs a few compares (dirty, n,
 span, boundaries; 60-95 cycles); a changed row with the same n goes as the
-strips its edges moved through (the Master port's r_dpe, ps_strips:
-straight-line for 0, 1 or 2 boundaries, the strips' order checked before
-anything is sent and only between neighbouring edges, as the old edges are
-in order and so are the new), any other (a count or colour that changed,
-strips out of order) segment by segment, after the old span less the new in
-black where the new does not hold it. The second disc (the sun round the
+strips its edges moved through (ps_strips: straight-line for 0, 1 or 2
+boundaries, each strip cut short where a neighbour's new place has passed
+into it, as the Master port's raster_strips.asm, so that the strips are
+exactly the changed pixels in any order), any other (a count or colour
+that changed) segment by segment, after the old span less the new in black
+where the new does not hold it. The second disc (the sun round the
 planet, f_disc2): its spans per buffer in the heap, only the change against
 them and against what this frame wrote over it. One heap (1,374 bytes in S's
 state) partitioned by size: the surface's arrays from its start, the second
@@ -78,7 +78,7 @@ run1 0-16000 unchanged: 21 D, 21 S, 13 S's state).
 | Area | 28e7e44 | now |
 |---|---|---|
 | Resident, to the overlay region | 16 | 10 |
-| Overlay S, to the ring | 1,354 (state 2,148) | 44 (state 3,328, the heap's 1,374 in it) |
+| Overlay S, to the ring | 1,354 (state 2,148) | 128 (state 3,328, the heap's 1,374 in it) |
 | Overlay D, to the ring | 5,757 | 6,928 |
 | High area | 6 | 6 |
 | Page &FF | 9 | 9 |
@@ -97,7 +97,11 @@ of the loop 16 more; in the resident tail 54 (its cold paths); none in
 p-ws.asm (its scratch is the heap fit's zero page). The Master host's
 overlay storage is now full: the next growth of overlay S's code or D needs
 a host page (main RAM &2E00-&2FFF is free: 570 bytes to &3000) or D
-smaller.
+smaller. Overlay S's 128 free came from the lens flare's screen addressing
+(82 bytes: on the parasite the host ORs its spans, C_ORSPAN), the glyph
+tables the host keeps (f_gy, f_nib: 17), R_INIT done through R_RESETBUF,
+R_WL no longer cleared (every reader tests R_WR first) and prep's unused
+extent.
 
 **Speed** (it/s, capped: flight 1000-1400 / docking 3420-3550 / 0-3550 /
 beach 300-403 / beach 5355-5457):
@@ -106,7 +110,7 @@ beach 300-403 / beach 5355-5457):
 |---|---|---|
 | 28e7e44 | 18.66 / 10.68 / 18.99 / 9.21 / 9.26 | 14.09 / 8.82 / 15.86 / 7.28 / 7.07 |
 | the merge alone (not committed) | 18.71 / 10.68 / 19.04 / 9.24 / 9.28 | 14.13 / 8.88 / 15.91 / 7.29 / 7.10 |
-| now | 21.19 / 10.68 / 20.20 / 10.22 / 10.03 | 16.49 / 8.88 / 17.22 / 8.11 / 7.67 |
+| now | 21.30 / 10.68 / 20.26 / 10.32 / 10.19 | 16.64 / 8.88 / 17.30 / 8.18 / 7.80 |
 
 Against the merge alone: flight +13.3% (Master host) and +16.7% (Model B),
 0-3550 +6.1% and +8.2%, the beach +10.6% / +8.1% and +11.2% / +8.0%;
@@ -123,11 +127,15 @@ the merge alone repainting every two-colour row whole:
 | the ring, the flip's wait | 10,875 / 43,186 | 15,264 / 38,708 |
 | the iteration | 213,779 / 430,923 | 188,731 / 398,855 |
 
-A changed row's strips cost about 250 cycles before their spans, the order
-checked before anything is sent; an unchanged row 60-95. A row whose count
-or colour changed (a boundary in or out at an end: 23.6 rows a frame in
-flight) is sent segment by segment rather than as strips (r_dpe's paths
-for them, about 100 bytes, do not fit in S). The host, idler than
+A changed row's strips cost about 240 cycles before their spans, each
+strip cut short where a neighbour's new place has passed into it (as the
+Master port's raster_strips.asm), so that none falls back to segments
+(ps_strips: 10,590 / 32,447 cycles an iteration in flight / beach
+5355-5457); an unchanged row 60-95. A row whose count or colour changed (a
+boundary in or out at an end: 23.6 rows a frame in flight) is sent segment
+by segment: the Master port's virtual boundaries for it, its strip
+encoder's core assembled on the parasite, measured 0.5-2.4% slower there,
+a strip costing the parasite a span as a segment does. The host, idler than
 the parasite, takes the spans; the parasite now waits for the ring at times
 in flight (rpg: 6,206 cycles an iteration). Not done: the heap's arrays
 read through absolute operands patched each frame instead of (p),Y (a

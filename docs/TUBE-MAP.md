@@ -40,7 +40,7 @@ sights, and the text map with its diff against what each buffer shows.
 | Overlay | Size | Free | Holds |
 |---|---|---|---|
 | D (direct mode) | 9,456 bytes, &B400-&D8EF | 6,928 (less ZPSAVE's 112 at &EF90) | the cold blocks that run only on the screens drawn directly (the blocks tagged "Tube: ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title, SUN's direct drawing), with the extended tokens they print |
-| S (space mode) | 16,340 bytes, &B400-&F3D3 | 44 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet |
+| S (space mode) | 16,256 bytes, &B400-&F37F | 128 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet |
 
 Code outside an overlay calls into D through stubs that streams.py writes at
 the routines' places (`JSR povd : EQUW target`; povdj for the routines that
@@ -64,10 +64,12 @@ a nibble per buffer of one shared byte, through a 7-byte table each, no
 shifts) and its first two boundaries. One loop (ps_rows, as the Master
 port's r_dbm) takes the band's rows: an unchanged row costs a few compares;
 a changed row with the same count and colour is sent as the strips its
-edges (ends and boundaries) moved through (the Master port's r_dpe:
-straight-line for 0, 1 or 2 boundaries, the order checked only between
-neighbouring edges, before anything is sent), any other segment by
-segment. The second disc (the sun round the planet, f_disc2) keeps its spans in
+edges (ends and boundaries) moved through, each cut short where a
+neighbour's new place has passed into it (the Master port's design:
+straight-line for 0, 1 or 2 boundaries, in any order of the strips), any
+other segment by segment (on the parasite, where a strip costs a span as a
+segment does, the Master's virtual boundaries for a count or colour that
+changed cost more than the spans they save). The second disc (the sun round the planet, f_disc2) keeps its spans in
 the heap too and sends only what changed against them and against what
 this frame wrote over it. The heap (HEAPN bytes in S's state) is one block
 partitioned by size: the surface's arrays grow from its start, the second

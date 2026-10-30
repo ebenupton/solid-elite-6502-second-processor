@@ -601,8 +601,8 @@
 \   * nothing if its span, n and boundaries are the same (a few compares);
 \   * with the same n (the same count, two at most, and colour) and both
 \     spans there, each edge's strip, old .. new, in the colour on the side
-\     it moved from, as the Master port's r_dpe, when the strips are in
-\     order (ps_strips);
+\     it moved from, cut short where a neighbour's new place has passed into
+\     it, as the Master port's (ps_strips);
 \   * else, if the new span holds the old (or there is no old), the new span
 \     segment by segment;
 \
@@ -715,7 +715,6 @@
 .psi_b                  \ the same span and n: the boundaries moved
  JSR ps_spin
  JSR ps_strips
- BCS psi_sg
 .psi_x                  \ (the same n: only the boundaries and span kept)
  JSR ps_bnd
  JMP psi_n
@@ -731,7 +730,7 @@
  CMP pr_e
  BCC psi_g
  JSR ps_strips
- BCC psi_x
+ BRA psi_x
 .psi_f                  \ the new span holds the old (or there is no old)?
  LDA (pr_sl),Y          \ segment by segment
  CMP #255
@@ -920,14 +919,12 @@
 \ ps_strips: row Y, its old and new spans there, not dirty, the same count
 \ (two at most) and colour (X = n): its edges (the span's left end, the
 \ boundaries, the end after its right end), old and new, each edge's strip
-\ old .. new written in the colour on the side it moved from, as the Master
-\ port's r_dpe, if the strips are in order (each starting at or after the
-\ last's end). As the old edges are in order and so are the new (each
-\ boundary is inside its span, after the left end), only neighbouring
-\ edges can break it, and edges e, f do not if f's old place is at or after
-\ e's new one and f's new place at or after e's old one; this also keeps
-\ the spans from being apart. C clear: done; C set: not (nothing written).
-\ Keeps Y
+\ old .. new written in the colour on the side it moved from, cut short
+\ where the edge before's new place (moving right) or the edge after's
+\ (moving left) has passed into it, as the Master port's (raster_strips.asm):
+\ exactly the pixels whose colour changed, as the old edges are in order
+\ and so are the new (each boundary inside its span, after the left end),
+\ in any order of the strips. Keeps X, Y
 
 .ps_strips
  LDA (pr_sr),Y          \ the ends after the right ends, old and new
@@ -936,51 +933,22 @@
  LDA pr_f
  INC A
  STA pe_nr
+ STA pe_lo              \ the new edge after the left end ...
  TXA                    \ the left colour (0 A, 1 B)
  AND #1
  STA pe_lc
- CPX #2                 \ the order: the left end and the first boundary ...
- BCC pz0
- LDA (hp_0),Y
- CMP pr_e
- BCC pzn
- LDA R_NDX0,Y
- CMP (pr_sl),Y
- BCC pzn
- CPX #4                 \ ... the first and the second ...
+ LDA pr_e               \ ... and before the end after the right end
+ CPX #2
  BCC pz1
- LDA (hp_1),Y
- CMP R_NDX0,Y
- BCC pzn
- LDA R_NDX1,Y
- CMP (hp_0),Y
- BCC pzn
- LDA (hp_1),Y           \ ... and the last and the right end
- STA pe_lo
- LDA R_NDX1,Y
- BRA pz2
-.pz1
- LDA (hp_0),Y
- STA pe_lo
  LDA R_NDX0,Y
- BRA pz2
-.pz0
- LDA (pr_sl),Y
  STA pe_lo
- LDA pr_e
-.pz2
- CMP pe_or
- BEQ P%+4
- BCS pzn
- LDA pe_nr
- CMP pe_lo
- BCS pz3
-.pzn
- SEC
- RTS
-.pz3
- LDA pr_e               \ the strips: the left end (moved right: black;
- CMP (pr_sl),Y          \ left: the first segment's colour)
+ CPX #4
+ BCC pz1
+ LDA R_NDX1,Y
+.pz1
+ STA pe_np
+ LDA pr_e               \ the left end (right: black; left: the first
+ CMP (pr_sl),Y          \ segment's colour, up to the next new edge)
  BEQ pse1
  BCC pse0
  DEC A
@@ -992,34 +960,58 @@
 .pse0
  STA pr_a
  LDA (pr_sl),Y
+ CMP pe_lo
+ BCC pz2
+ LDA pe_lo
+.pz2
+ CMP pr_a
+ BEQ pse1
  DEC A
  STA pr_b
  LDA #0
  JSR pe_seg
 .pse1
- CPX #2                 \ the first boundary (right: the first segment's;
- BCC pse5               \ left: the second's)
- LDA R_NDX0,Y
+ CPX #2                 \ the first boundary (right: the first segment's,
+ BCC pse5               \ from the left end's new place; left: the second's,
+ LDA R_NDX0,Y           \ up to the next new edge)
  CMP (hp_0),Y
  BEQ pse3
  BCC pse2
  DEC A
  STA pr_b
  LDA (hp_0),Y
+ CMP pr_e
+ BCS pz3
+ LDA pr_e
+.pz3
  STA pr_a
+ CMP R_NDX0,Y
+ BCS pse3
  LDA #0
  JSR pe_seg
  BRA pse3
 .pse2
  STA pr_a
  LDA (hp_0),Y
+ CPX #4
+ BCC pz4
+ CMP R_NDX1,Y
+ BCC pz4
+ LDA R_NDX1,Y
+.pz4
+ CMP pe_nr
+ BCC pz5
+ LDA pe_nr
+.pz5
+ CMP pr_a
+ BEQ pse3
  DEC A
  STA pr_b
  LDA #1
  JSR pe_seg
 .pse3
- CPX #4                 \ the second (right: the second segment's; left:
- BCC pse5               \ the third's)
+ CPX #4                 \ the second (right: the second segment's, from the
+ BCC pse5               \ first's new place; left: the third's)
  LDA R_NDX1,Y
  CMP (hp_1),Y
  BEQ pse5
@@ -1027,26 +1019,42 @@
  DEC A
  STA pr_b
  LDA (hp_1),Y
+ CMP R_NDX0,Y
+ BCS pz6
+ LDA R_NDX0,Y
+.pz6
  STA pr_a
+ CMP R_NDX1,Y
+ BCS pse5
  LDA #1
  JSR pe_seg
  BRA pse5
 .pse4
  STA pr_a
  LDA (hp_1),Y
+ CMP pe_nr
+ BCC pz7
+ LDA pe_nr
+.pz7
  DEC A
  STA pr_b
  LDA #0
  JSR pe_seg
 .pse5
  LDA pe_nr              \ the end after the right end (right: the last
- CMP pe_or              \ segment's colour; left: black)
- BEQ pse7
+ CMP pe_or              \ segment's colour, from the last edge's new place;
+ BEQ pse7               \ left: black)
  BCC pse6
  DEC A
  STA pr_b
  LDA pe_or
+ CMP pe_np
+ BCS pz8
+ LDA pe_np
+.pz8
  STA pr_a
+ CMP pe_nr
+ BCS pse7
  TXA
  LSR A
  JSR pe_seg
@@ -1058,7 +1066,6 @@
  STA pr_b
  JSR pe_blk
 .pse7
- CLC
  RTS
 
 \ pe_seg: pr_a .. pr_b in segment A's colour (the left colour flipped A

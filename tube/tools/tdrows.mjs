@@ -48,7 +48,7 @@ const inS = pc => pc < sy.OVL_START || pc >= 0xf800 || pm[sy.ovl_cur] !== 1;   /
 const UNK = 256;
 const model = [new Uint16Array(192 * 256).fill(UNK), new Uint16Array(192 * 256).fill(UNK)];
 let snap = null, spans = null, on = false;
-const st = { frames: 0, rows: 0, wrong: 0, unver: 0, stray: 0, desync: 0, spans: 0 };
+const st = { frames: 0, rows: 0, wrong: 0, unver: 0, stray: 0, blank: 0, desync: 0, spans: 0 };
 const span = (lo, hi, y) => { const L = pm[lo + y], R = pm[hi + y]; return L === 255 || L > R ? null : [L, R]; };
 m.t.addParHook(pc => {
     if (pc === sy.pdr0 && inS(pc)) {
@@ -91,9 +91,13 @@ function check() {
             for (let x = ns[0]; x <= ns[1]; x++) { let c = n >> 7; for (const v of bx) if (v <= x) c ^= 1; want[x] = c ? B[y & 1] : A[y & 1]; }
         }
         let wrong = false, unver = false, stray = false;
-        for (const [, l, r, c] of byRow.get(y) || []) for (let x = l; x <= r; x++) { if (want[x] < 0) stray = true; row[x] = c; }
+        // (black written outside the old span and the dirty extent, where the
+        // row is black already, is no stray write: the strips between two
+        // spans apart do so)
+        let blank = false;
+        for (const [, l, r, c] of byRow.get(y) || []) for (let x = l; x <= r; x++) { if (want[x] < 0) { if (c) stray = true; else blank = true; } row[x] = c; }
         for (let x = 0; x < 256; x++) if (want[x] >= 0) { if (row[x] === UNK) unver = true; else if (row[x] !== want[x]) wrong = true; }
-        if (on) { st.rows++; st.wrong += wrong; st.unver += unver && !wrong; st.stray += stray;
+        if (on) { st.rows++; st.wrong += wrong; st.unver += unver && !wrong; st.stray += stray; st.blank += blank;
             if ((wrong || stray) && VERB-- > 0) console.log(`iteration ${snap.it} buffer ${b} row ${y}: ${wrong ? "wrong" : ""} ${stray ? "stray write" : ""} old ${os} dirty ${ds} new ${ns} n ${pm[sy.R_NDN + y].toString(16)} spans ${JSON.stringify(byRow.get(y) || [])}`); }
         // the buffer now: the row as written, outside the spans unknown
         for (let x = 0; x < 256; x++) M[y * 256 + x] = want[x] >= 0 && want[x] !== 0 ? row[x] : (want[x] === 0 && row[x] === 0 ? 0 : UNK);
@@ -102,5 +106,5 @@ function check() {
 m.onIter = mm => { const w = W.find(([x, y]) => mm.iter >= x && mm.iter < y); on = !!w; };
 const END = Math.max(...W.map(x => x[1]));
 while (m.iter < END) { m.run(CYCLES_PER_FRAME); m.snaps.length = 0; }
-console.log(`disc layer rows, iterations ${a.windows}: ${st.frames} frames, ${st.rows} band rows, ${st.spans} spans; ${st.wrong} wrong, ${st.stray} with a stray write, ${st.unver} unverified (the model unsure), ${st.desync} spans unlike the model's`);
+console.log(`disc layer rows, iterations ${a.windows}: ${st.frames} frames, ${st.rows} band rows, ${st.spans} spans; ${st.wrong} wrong, ${st.stray} with a stray write (${st.blank} with black over black outside), ${st.unver} unverified (the model unsure), ${st.desync} spans unlike the model's`);
 process.exit(st.wrong || st.stray ? 1 : 0);
