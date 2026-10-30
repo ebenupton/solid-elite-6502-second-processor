@@ -36,19 +36,15 @@ IF _HOSTB = 0
 ENDIF
  JMP hloop
 
-.h_flip                 \ C_FLIP: show the frame's buffer at the next vsync
+.h_flip                 \ C_FLIP: show the frame's buffer from the next field
 IF _HOSTB = 0
  LDA #4                 \ CPU back to main RAM
  TRB &FE34
 ENDIF
- LDA #%00000010
- STA &FE4E
- LDA F_BACK
- STA GPEND
- LDA #&FF
+ LDA F_BACK             \ (GFLIP is clear here, h_buf, so GPEND then GFLIP
+ STA GPEND              \ needs no interrupt mask: the split's interrupt reads
+ LDA #&FF               \ them, H_SPLIT, hb-irq.asm)
  STA GFLIP
- LDA #%10000010
- STA &FE4E
  LDA #&80
  STA GMODE
  JMP hloop

@@ -10,7 +10,7 @@
 #     state against the released SNG47 disc over 10000 piloted iterations, page &0D
 #     untouched; the redock, save/load and view-change regressions; the speed of both).  PASS only
 #     if it prints "VERIFY PASS", "Game state identical at all" and
-#     "regressions: PASS (redock, savetest, views)" and exits 0.
+#     "regressions: PASS (...)" (redock, savetest, station, views, shippose) and exits 0.
 #
 # Prints the steps, then "VERIFY PASS <ratio> <cand it/s>" (cand/ref flight iterations
 # per emulated second, and the candidate's) or "VERIFY FAIL <step>" (test_raster, build,
@@ -45,7 +45,7 @@ STEP=$(sed -n 's/^VERIFY FAIL //p' "$LOG/verify.log" | tail -1)
 [ $VST -eq 0 ] || fail "verify(exit $VST)"
 grep -q "^VERIFY PASS" "$LOG/verify.log" || fail verify
 grep -q "Game state identical at all" "$LOG/verify.log" || fail compare
-grep -q "^regressions: PASS (redock, savetest, views)" "$LOG/verify.log" || fail regressions
+grep -q "^regressions: PASS (" "$LOG/verify.log" || fail regressions
 set -- $(sed -n 's/^VERIFY PASS //p' "$LOG/verify.log" | tail -1)
 # master/verify.sh: VERIFY PASS <ref it/s> <cand it/s> <cand/ref>
 echo "VERIFY PASS $3 $2"

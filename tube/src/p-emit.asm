@@ -28,13 +28,16 @@
  CPY op_ny              \ rows the host has not had (no pixels): empty
  BNE pem_gap
 .pem_send
+.pem_s0                 \ (the ring's send sites: p-rast.asm's psb)
  BIT PR1S               \ left, right (exclusive)
- BVC pem_send
+ BVC pemq0
  STX PR1D
-.pem_s2
+.pemt0
+.pem_s1
  BIT PR1S
- BVC pem_s2
+ BVC pemq1
  STA PR1D
+.pemt1
  INY
  STY op_ny
  DEY
@@ -72,17 +75,38 @@
  BEQ pemr2
  JSR pem_gaps
 .pemr2
+.pem_s2
  BIT PR1S
- BVC pemr2
+ BVC pemq2
  STX PR1D
 .pemr3
+.pem_s3
  BIT PR1S
- BVC pemr3
+ BVC pemq3
  STA PR1D
+.pemt3
  INY
  STY op_ny
  DEY
  RTS
+.pemq0
+ PHA
+ TXA
+ JSR penq
+ PLA
+ BRA pemt0
+.pemq1
+ JSR penq
+ BRA pemt1
+.pemq2
+ PHA
+ TXA
+ JSR penq
+ PLA
+ BRA pemr3
+.pemq3
+ JSR penq
+ BRA pemt3
 
 \ pem_gaps: rows op_ny .. Y - 1 had no pixels: (1, 1) each (keeps A, X, Y)
 
@@ -90,18 +114,27 @@
  PHA
  LDA #1
 .pemg1
+.pem_s4
  BIT PR1S
- BVC pemg1
+ BVC pemq4
  STA PR1D
 .pemg2
+.pem_s5
  BIT PR1S
- BVC pemg2
+ BVC pemq5
  STA PR1D
+.pemt5
  INC op_ny
  CPY op_ny
  BNE pemg1
  PLA
  RTS
+.pemq4
+ JSR penq
+ BRA pemg2
+.pemq5
+ JSR penq
+ BRA pemt5
 
 \ pem_head: the stream's head at row Y: C_SPANS, the four colours, the row
 \ (keeps A, X, Y)

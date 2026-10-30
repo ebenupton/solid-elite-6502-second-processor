@@ -33,8 +33,6 @@ ELITEBANK = HOMEBANK
 ONEPASS = FALSE         \ (the parasite's: p-ws.asm)
 OPTUBE = FALSE
 NDSTAR = NOST+1
-MERIDHOLD = 0           \ (gfx-ws.asm's, the beach ball's: tube/build.sh checks
-                        \ that they agree)
 
 BUF0 = &1000            \ buffer 0's screen (buffer 1's is the Master port's &4000)
 PANEL = &7000
@@ -96,27 +94,21 @@ GMODE = GVARS + 0
 GFRONT = GVARS + 1
 GFLIP = GVARS + 2
 GPEND = GVARS + 3
-GDRAWON = GVARS + 4
-GFORCE = GVARS + 5
-GSIGHT = GVARS + 6
-GLASV = GVARS + 7
-GLCOL = GVARS + 8
-GDCOL = GVARS + 9
-GNF = GVARS + 10
-GNV = GVARS + 11
-GTYPE = GVARS + 12
-GSUNON = GVARS + 13
-GSUNR = GVARS + 14
-GSTASH = GVARS + 15
-PM_OK = GVARS + 16
-PM_R = GVARS + 17
-PS_VALID = GVARS + 18
-GWARP = GVARS + 19
+GFORCE = GVARS + 4
+GSIGHT = GVARS + 5
+GLASV = GVARS + 6
+GNF = GVARS + 7
+GTYPE = GVARS + 8
+GSUNON = GVARS + 9
+GSUNR = GVARS + 10
+GSTASH = GVARS + 11
+PF_CLS = GVARS + 12
+GWARP = GVARS + 13
 ENDIF
-MR_C = GVARS + 20       \ code and data: to page &0D
+MR_C = GVARS + 14       \ code and data: to page &0D
 MR_CEND = &0D00
 MR_D = &0E00            \ code and data
-MR_DEND = &1000
+MR_DEND = &1000 - &50    \ (then the polygon's and lines' inputs, to &1000)
 MR_E = &7E00            \ code and data
 MR_EEND = &8000
 
@@ -141,10 +133,12 @@ R_DBO    = DDATA + &604
 DDATA_END = DDATA + &605
 
 \ ------------------------------------------------------------------------------
-\ Bank P's data (where bank D has the disc's boundary arrays)
+\ The polygon's and the lines' inputs (bank P's phase B, bank F's R_LINE), in
+\ main RAM: R_PXL .. R_PYH and R_PTA, R_PTB are phase A's, the parasite's, so
+\ only from R_X0 on is used (to &0FFF)
 \ ------------------------------------------------------------------------------
 
-PDATA = &9500           \ (buffer 1's boundary arrays in bank D)
+PDATA = MR_DEND
 R_PXL    = PDATA        \ vertex x, y (signed 16-bit): in one page
 R_PXH    = PDATA + &10
 R_PYL    = PDATA + &20

@@ -12,8 +12,9 @@
 \     renderer's glue and the command loop (h-main.asm);
 \   * the rasteriser in bank 5 and ANDY, the frame layer's host part (the text
 \     map, the text overlay, the sights) in bank 6, as the Master port's;
-\   * the meridian window (the beach ball's boundaries) in bank 7, as the
-\     Master port's MERIDBANK, with the quarter squares it multiplies with;
+\   * the STA runs (h-sta.asm) in banks 4, 5, 6 and 7, their pages' tails
+\     holding overlay S's state (bank 4) and pages of the overlays' storage
+\     (bank 7: build/hstore.asm); the planet is wholly the parasite's;
 \   * the screen: buffer 0 in main RAM, buffer 1 and the dashboard in shadow
 \     RAM, as the Master port's.
 \   * &0400-&06FF (HLOW): the MOS's Tube code, which runs the boot and then
@@ -32,7 +33,7 @@ _RBANK = 0
 OVLBANK = 4             \ the parasite's overlays' images (storage only: h_ovlget):
 OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "build/elite-source-ws.asm"
- INCLUDE "src/gfx-ws.asm"
+ INCLUDE "build/gfx-ws.asm"
 
 HLOW = &0400            \ (free after the boot: see above)
 HLOW_END = &0700
@@ -43,7 +44,7 @@ HLOW_END = &0700
  INCLUDE "build/elite-source-host.asm"
  INCLUDE "src/gfx-gvars.asm"
  INCLUDE "src/gfx-tramp.asm"
- INCLUDE "src/gfx-lowhooks.asm"
+ INCLUDE "src/gfx-gluehooks.asm"
  INCLUDE "tsrc/h-main.asm"
 .H_END
  PRINT "Host: main code &", ~H_START, "-&", ~H_END-1, ", free to &3000: ", &3000-H_END
@@ -99,7 +100,11 @@ HZ_STORE = &CA00
  GUARD HZ_STORE
  ORG &C000
 .HZ_START
+IF _HSTA
  INCLUDE "tsrc/h-sta.asm"
+ELSE
+ INCLUDE "tsrc/h-rows.asm"   \ (FILL=rows: the row runs, bank 5's)
+ENDIF
  INCLUDE "build/gfx-raster-hazel.asm"
  INCLUDE "build/gfx-raster_lcold-hazel.asm"
  INCLUDE "build/gfx-raster_polyb-hazel.asm"
@@ -107,3 +112,20 @@ HZ_STORE = &CA00
  PRINT "Host: HAZEL &C000-&", ~HZ_END-1, ", free to the storage at &", ~HZ_STORE, ": ", HZ_STORE-HZ_END
  SAVE "build/HHAZ.bin", &C000, HZ_END, &C000
 
+
+\ The recursive tokens (QQ18, as stored: build/HQQ18.bin) and where each
+\ starts (build/htokix.asm), at HAZEL's top below the MOS's page &DF00: data
+\ that h4body's C_TOKEN sends to the parasite (elite-source.asm's ex), as the
+\ overlays' images are kept. HAZEL is mapped wherever the host's IRQ finds it
+\ (h_disc moves it out and back around a disc command, while the parasite
+\ waits)
+HZ_TEXT = &DA00
+ CLEAR HZ_TEXT, &DF00
+ GUARD &DF00
+ ORG HZ_TEXT
+.HQQ18
+ INCBIN "build/HQQ18.bin"
+ INCLUDE "build/htokix.asm"
+.HZ_TEXT_END
+ PRINT "Host: the recursive tokens &", ~HZ_TEXT, "-&", ~HZ_TEXT_END-1, ", free to &DF00: ", &DF00-HZ_TEXT_END
+ SAVE "build/HTEXT.bin", HZ_TEXT, HZ_TEXT_END, HZ_TEXT

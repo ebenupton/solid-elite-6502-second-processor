@@ -1,109 +1,196 @@
 #!/usr/bin/env python3
-# streams.py: split the main source into its emissions (docs/MASTER-MAP.md,
-# "The source and its emissions"). Run by build.sh from master/.
+# streams.py: emit the main source in three passes, low, hot and cold, and
+# flow the hot pass through its containers (docs/MASTER-MAP.md, "The source
+# and its passes"). Run by build.sh from master/, twice:
+#
+#   python3 tools/streams.py measure    the copies for elite-measure.asm
+#   python3 tools/streams.py place      the copies for elite-layout.asm, placed
+#                                       by the sizes the measure gave
+#
+# and once by tube/build.sh, for the Tube's parasite and hosts (below, "The
+# Tube"):
+#
+#   TUBE=1 python3 tools/streams.py tube
 #
 # src/elite-source.asm is the original's main source in the original's order.
 # Each of its routines and tables sits once, at its original place, and the
-# area it lives in is a field of its header:
+# pass it is emitted in is a field of its header:
 #
 #   \       Name: TT219
 #   ...
 #   \       Area: cold
 #
-# No Area field: the main code's run (main RAM from the head, after the low
-# area at CODE%, then bank 4 where main RAM ends). "Area: low": main RAM below
-# &3000, first in the low area, before the head (what the MOS enters with any
-# ROM paged, but whose original place is later in the run). "Area: bank 4": bank 4, after the run (code that runs
-# with ACCCON X set, which hides main RAM at &3000-&7FFF, and the tables it
-# reads). "Area: cold": the cold area, sideways RAM bank 7. A block runs from its
-# header to the next header (or to a separator line of stars, which starts an
-# untagged block: the original's PRINT and SAVE sections).
+#   * "Area: low": the low pass, Elite's code that must be in main RAM below
+#     &3000, where it is seen whatever bank is paged and whatever ACCCON X is
+#     (the head, VEC to UP: the IRQ and the sound, CHPR and its font, the
+#     log tables, UP ...; stackpt and NEWBRK, which the MOS enters through
+#     BRKV with any ROM paged). elite-layout.asm puts it after the glue area,
+#     all of it below &3000.
+#   * no Area field: the hot pass, the rest of the game code, which runs with
+#     Elite's home bank (bank 4) paged. It flows through its containers in
+#     order: main RAM from the low pass's end to &4000 (screen buffer 0 is
+#     above), main RAM from the quarter-square tables' end (&7400) to &8000,
+#     then bank 4 from &8000 (after which the hot data that HAZEL has no room
+#     for follows).
+#   * "Area: hot, ACCCON X": the hot pass, but code that runs with ACCCON X
+#     set (Master's drawing for the docked screens' text and lines, the CMYK
+#     dashboard) and the tables it reads, which shadow RAM would hide in main
+#     &3000-&7FFF: the flow puts it in bank 4 (in the source's order, before
+#     the hot code that follows it in the source).
+#   * "Area: cold": the cold pass, sideways RAM bank 7 from &8000.
+#   * "Area: none": code the port no longer runs (the original's planet
+#     detail maths, which the renderer's circle engine replaces): its text
+#     stays, but each copy has only its labels and an RTS, at its place (so a
+#     reference to it still assembles, and returns at once).
+#   * ", again" after any of these ("Area: cold, again"): the block is also
+#     emitted a second time into build/elite-source-again.asm (every other
+#     line blank, so line numbers stay), with no stubs, and with its own
+#     labels and the targets of its JSRs and JMPs named A_<name>: the
+#     renderer INCLUDEs it, and says where each call goes (the original
+#     routine, A_X = X, or a stand-in of its own). gfx-ssun.asm runs SOLAR's
+#     placing of the planet and the sun this way, with SOS1 and NWSHP noting
+#     INWK instead of making ships.
+#   * ", runs on" after any of these ("Area: hot, runs on"): a table that code
+#     reads past its end into the next block (DETOK2 reads TKN2 on into QQ16),
+#     so the next block must follow it, in the same pass and unit, as if it
+#     fell through. ("Area: hot" is the hot pass written out.)
 #
-# BeebAsm assembles a file once and has one location counter, and banks 4
-# and 7 share the addresses &8000-&BFFF, so each area's blocks are assembled
-# from a copy of the source of their own: build/elite-source-<area>.asm is
-# elite-source.asm with every line outside that area's blocks blanked (so
-# that line numbers stay the source's). src/elite-layout.asm INCLUDEs the
-# copies one after the other (run, bank4, cold), each at its own address, and
-# the run INCLUDEs the low copy at the end of its head, so every label is
-# defined exactly once and every block is assembled once.
+# A block runs from its header to the next header (or to a separator line of
+# stars, which starts an untagged block: the original's PRINT and SAVE
+# sections). The blocks before the head (the configuration and the
+# workspaces: ZP, XX3, K%, WP) are the configuration, assembled first. A
+# block that assembles nothing (a banner, constants, PRINTs) goes with the
+# block before it.
 #
-# Each emission is the original in its order, with a stub wherever a routine
-# lives on the other side. The hot side is the run, the low area and bank 4;
-# the cold side the cold area. In a hot copy, the line that defines a cold
-# label X that the hot side refers to holds X's stub, under X's own name:
+# BeebAsm assembles a file once and has one location counter, and the
+# containers share addresses (banks 4 and 7 both at &8000-&BFFF), so each
+# container's blocks are assembled from a copy of the source of their own:
+# build/elite-source-<copy>.asm is elite-source.asm with every line outside
+# that copy's blocks blanked (so that line numbers stay the source's): config,
+# low, hot1 (main RAM to &4000), hot2 (main RAM from &7400), hot3 (bank 4) and
+# cold; and for the measure, measure (the whole hot pass in one, with a label
+# FLOW_<n> at the start of each block). elite-layout.asm INCLUDEs the copies
+# each at its own address, so every label is defined exactly once and every
+# block is assembled once.
 #
-#   .TT22 JSR far7 : EQUW TT22_C        (TT22_C: the body, in the cold copy)
+# The flow. The hot pass is cut into units: blocks that must stay together,
+# because one falls through into the next (its last statement can continue,
+# or is a BIT skip, EQUB &2C or &24) or branches into another (the blocks
+# from the one to the other, as a branch's reach is short). In the source's
+# order, each unit goes into the container the flow has reached if it fits
+# there, and the flow moves on to the next container when it does not (so
+# each container holds its units in the source's order, and the containers
+# follow each other in it); a unit with an ACCCON X block goes into bank 4
+# whatever the flow has reached. The hot data (elite-data.asm's untagged
+# blocks) flows the same way, through HAZEL from &C000 (to &DF00) and then
+# bank 4, after the hot code. The sizes are measured, not estimated: the
+# measure copies are assembled once (elite-measure.asm, whose symbols give
+# each FLOW_<n> and DFLOW_<n>), and a block's size does not depend on where
+# it goes (no block aligns itself; a stub at its place is the same size in
+# every container). build/flow.txt lists the containers and their units.
 #
-# and in the cold copy, the line that defines a hot label H that cold code
-# calls or jumps to holds H's stub, under the name the cold copy's calls are
-# renamed to:
+# Each pass is the original in its order, and every call from one side to
+# the other goes through a stub of its own, in the glue area (main RAM below
+# &3000), which this script writes (build/elite-stubs.asm, INCLUDEd by
+# src/elite-stubs.asm). The hot side is the low and hot passes, the cold side
+# the cold pass. The hot side calls a cold label X by its own name, which is
+# X's stub; its body is X_C in the cold pass:
 #
-#   .x4_TT26 JSR far4 : EQUW TT26
+#   .TT22 JSR to7 : JSR TT22_C : JMP to4
 #
-# (far7j and j4_ / far4j for the targets that never return, NORETURN below).
-# A cold block's stubs go in the copy of the hot area of the nearest block
-# before it that is not cold (the run's for the low area), so the stubs sit
-# where the routine was carved out of that emission, and a block that falls
-# through into a routine of the other side falls into its stub: the stub
-# calls the body and returns to the falling routine's caller with the
-# caller's bank back, which is what the fall-through did in the original (a
-# jump stub, for a target that never returns, just jumps).
+# and the cold pass's calls and jumps to a hot label H are renamed to H's
+# stub, x4_H (j4_H for a jump):
+#
+#   .x4_LL5 JSR to4 : JSR LL5 : JMP to7
+#
+# (for the targets that never return, NORETURN below, the stub jumps:
+# .TT170 JSR to7 : JMP TT170_C). The cold pass calls the low pass's routines
+# that need nothing of the hot side directly (direct_calls). A block that
+# falls through into a routine of the other side falls into a JMP to that
+# routine's stub, written at the routine's place in the falling block's pass
+# (the copy of the nearest block before it that is not of the other side):
+# the stub calls the routine, which returns to the falling routine's caller
+# with the caller's bank back, which is what the fall-through did in the
+# original.
 #
 # The data source, src/elite-data.asm, is the original's too, and is emitted
-# the same way (build/elite-data-<area>.asm): its blocks are hot data (no
-# Area field: HAZEL, which elite-layout.asm fills from &C000 in the source's
-# order), "Area: cold" (the cold area, after the cold code) or "Area: BDATA"
-# (the dashboard image, which build.sh assembles on its own as the BDATA
-# file). A block without a name (the configuration, the file banners, the
-# closing SAVE) goes with the next named block, and those after the last one
-# with BDATA. The hot and cold copies are assembled in elite-layout.asm's
-# pass, so the configuration they use is elite-source.asm's.
+# the same way (build/elite-data-<copy>.asm): its blocks are hot data (no
+# Area field: HAZEL, then bank 4, flowed as above: hot (HAZEL) and hot4
+# (bank 4), and measure for the measure), "Area: cold" (the cold pass, after
+# the cold code) or "Area: BDATA" (the dashboard image, which build.sh
+# assembles on its own as the BDATA file). A block without a name (the
+# configuration, the file banners, the closing SAVE) goes with the next named
+# block, and those after the last one with BDATA.
 #
 # Checks (exit status 1 on failure):
 #   * every block's IF ... ENDIF nesting is balanced (a blanked block must not
 #     take half of a conditional with it);
 #   * a block whose code can fall through its end is followed, in the source,
-#     by a block of the same area (each area is assembled in the source's
-#     order, so a block falls into the next block of its own area), or by a
+#     by a block of the same pass (each pass is assembled in the source's
+#     order, and a hot block's unit holds the block it falls into), or by a
 #     block of the other side whose first statement is its entry label, so
-#     that the falling block falls into that label's stub (run or bank 4 into
-#     cold, cold into run, low or bank 4); any other fall-through across areas
-#     (between the run, the low area and bank 4, or from the low area into
-#     the cold area) is an error;
+#     that the falling block falls into that label's stub; any other
+#     fall-through across passes (between the low and hot passes) is an
+#     error;
 #   * every stub's line is blank in its copy, and every target is defined in
-#     elite-source.asm (a stub has a place only there).
-import os, re, sys
+#     elite-source.asm (a stub has a place only there);
+#   * every unit fits a container, and the flow fits.
+#
+# The Tube (TUBE=1, phase tube; tube/build.sh, docs/TUBE-MAP.md). The
+# parasite is one flat 64K with no banks, so its passes are not the Master
+# port's: every block is resident, in the source's order, in one copy
+# (build/elite-source-run.asm), but for the blocks whose header has the field
+# "Tube: ovl D" (code run only on the screens drawn directly), which are the
+# parasite's overlay D (build/elite-source-cold.asm, its labels named X_C as
+# the cold pass's), and those that a "Tube:" field gives to the hosts:
+# "host" (the host's only: the IRQ, sound, keyboard scanning), "both" (the
+# host's and the parasite's: CHPR, whose glyphs the host draws), "hostb" and
+# "bothb" (the same for the host's sideways RAM copy, the dashboard's
+# drawing), "none" (neither side's: the Master port's own). The host's copies
+# are build/elite-source-host.asm and -hostb.asm, and the configuration with
+# the workspaces build/elite-source-ws.asm (the same as -config). Calls into
+# overlay D go through a stub of the routine's name in build/elite-stubs.asm,
+# JSR povd : EQUW X_C (povdj for a target that never returns: tube/src/
+# p-ovl.asm loads overlay D if it is out); overlay D calls the resident code
+# directly. The data source is copied the same way: "Tube: ovl D" blocks are
+# overlay D's data (build/elite-data-cold.asm), "host" and "both" blocks the
+# host's (build/elite-data-host.asm, "both" the parasite's too), the rest
+# resident (build/elite-data-hot.asm). The renderer's files that the parasite
+# assembles (FRAMEPASS below) are emitted in passes by tag lines.
+import json, os, re, sys
 
-TUBE = os.environ.get("TUBE") == "1"     # the Tube parasite's build (tube/build.sh)
-# The Tube's overlay D: the cold blocks whose header says "Tube: ovl D" are
-# the parasite's direct-mode overlay, whose image the host keeps;
-# every other cold block (and data block) is resident in the parasite's run
-# (or hot data), and the stubs into the overlay go through povd (p-ovl.asm),
-# which loads it first if it is not in
-TUBEOVL = set() if TUBE else None      # (the names, filled in by blocks())
+TUBE = os.environ.get("TUBE") == "1"     # (the Tube's build: phase tube)
+TUBEF = re.compile(r"^\\       Tube: (.*)$")
+TUBETAG = {}                             # (block start line -> its "Tube:" field)
+TUBEOVL = set()                          # (the names of the blocks tagged "Tube: ovl D")
 
 SRC = "src/elite-source.asm"
 OUT = "build/elite-source-%s.asm"
-AREAS = ("run", "low", "bank4", "cold")
 DATA = "src/elite-data.asm"
 DOUT = "build/elite-data-%s.asm"
-DAREAS = ("bdata", "hot", "cold")
+MEASURE = "build/measure-symbols.txt"
+STUBS = "build/elite-stubs.asm"
+DIRECT = "build/direct.txt"
+FLOWTXT = "build/flow.txt"
 DTAGS = {"cold": "cold", "BDATA": "bdata"}
 STAR = re.compile(r"^\\ \*{70,}\s*$")
 AREA = re.compile(r"^\\       Area: (.*)$")
-# The Tube build (TUBE=1, tube/build.sh): every block is the parasite's
-# (Master's drawing too: its screen writes go to the host, SCEOR and SCSTA)
-# but where a header's "Tube:" field says otherwise: "host" (the IRQ, sound,
-# keyboard scanning) or "both" (CHPR, whose glyphs the host draws), or
-# "none" (the Master port's own, which neither side of the Tube uses), or
-# "ovl D" (a cold block in the parasite's overlay D, above). The
-# host's copy, build/elite-source-host.asm, holds the host's blocks, and the
-# parasite's copies (run, low, bank4, cold) blank the host-only ones.
-TUBEF = re.compile(r"^\\       Tube: (.*)$")
-TUBETAG = {}                             # block start line -> "host" / "both"
-TAGS = {"cold": "cold", "bank 4": "bank4", "low": "low"}
+TAGS = {"cold": "cold", "low": "low", "hot": "run", "hot, ACCCON X": "hotx", "none": "none"}
+# the blocks (by their first line) whose header says ", runs on": a table that
+# code reads past its end into the next block (TKN2 into QQ16), which must
+# therefore follow it as a fall-through does
+RUNSON = set()
+NONE = set()                               # (the "Area: none" blocks, by their first line)
+AGAIN = set()                              # (the ", again" blocks, by their first line)
 NOFALL = set("RTS RTI JMP BRA BRK".split())
+BRANCH = set("BCC BCS BEQ BMI BNE BPL BRA BVC BVS".split())
+
+# the hot pass's containers, in the flow's order: (copy, start, end); the
+# starts of the first two come from the measure (the low pass's end, the
+# quarter-square tables' end)
+HOTX = "hot3"                              # (where an ACCCON X unit goes: bank 4)
+HAZEL_START, HAZEL_END = 0xC000, 0xDF00    # (&DF00-&DFFF is the MOS's; HAZEL holds
+                                           # the game data only, none of the renderer's)
 
 
 def code_part(line):
@@ -121,7 +208,6 @@ def blocks(lines, tags=TAGS):
     """[(start, end, name, area)]: a block starts at a header (a line of
     stars followed by a lone backslash) or at a separator line of stars"""
     out = [[0, None, None, "run"]]
-    ovld = set()                       # (the blocks tagged "Tube: ovl D", by start)
     inh = False
     for i, l in enumerate(lines):
         if STAR.match(l):
@@ -145,22 +231,26 @@ def blocks(lines, tags=TAGS):
             m = AREA.match(l)
             if m:
                 t = m.group(1).strip()
+                if t.endswith(", again"):      # (also emitted again, as it is)
+                    t = t[:-len(", again")]
+                    AGAIN.add(out[-1][0])
+                if t.endswith(", runs on"):    # (read past its end into the next block)
+                    t = t[:-len(", runs on")]
+                    RUNSON.add(out[-1][0])
                 if t not in tags:
                     sys.exit("%d: unknown area %r" % (i + 1, t))
                 out[-1][3] = tags[t]
             m = TUBEF.match(l)
             if m:
                 t = m.group(1).strip()
-                if t == "ovl D":
-                    ovld.add(out[-1][0])
-                    continue
-                if t not in ("host", "both", "hostb", "bothb", "none"):
+                if t not in ("host", "both", "hostb", "bothb", "none", "ovl D"):
                     sys.exit("%d: unknown Tube field %r" % (i + 1, t))
                 TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
+        if b[3] == "none":
+            b[3] = "run"
+            NONE.add(b[0])
         b[1] = out[k + 1][0] if k + 1 < len(out) else len(lines)
-        if b[0] in ovld and TUBEOVL is not None:
-            TUBEOVL.add(b[2])
     return [tuple(b) for b in out]
 
 
@@ -251,6 +341,9 @@ def falls_through(stmt, macros):
     op = w[0].upper()
     if w[0] in macros:
         return False                   # (a macro: the original's data macros)
+    if re.match(r"^EQUB\s+&(2C|24)$", stmt.strip(), re.I):
+        return True                    # (a BIT skip: the next instruction's
+                                       # bytes are its operand, so it runs on)
     if op in NOFALL:
         return False
     if re.match(r"^(EQU[BWDS]|SKIP|INCBIN|FOR|NEXT|PRINT|SAVE|ASSERT|ORG|CLEAR|GUARD|MACRO|ENDMACRO|INCLUDE|CPU|COPYBLOCK|ALIGN)\b", op):
@@ -264,30 +357,34 @@ def falls_through(stmt, macros):
 #
 # The source uses the original's names throughout. The cold copy is assembled
 # with each cold label X renamed X_C (its definition and every reference in the
-# cold copy), and with each JSR or JMP from cold code to a label of the run,
-# the low area or bank 4 (H) going through a stub, x4_H (JSR far4: call H with
-# bank 4 paged in, then page the cold area back) or, for the targets in
-# NORETURN, j4_H (JSR far4j: jump to H). Every other file keeps the names as
-# they are, so a reference from outside the cold area to a cold label X
-# reaches its stub, .X (JSR far7 : EQUW X_C, or far7j for the targets in
-# NORETURN). Each stub is at its target's place in the other side's copy
-# (above); there is one for each cold label that a file outside the cold area
-# refers to and for each hot label that cold code calls or jumps to, and one
-# for each routine that a block of the other side falls into. Labels that are
-# one place (defined one after another, with nothing assembled between them)
-# share a stub: the earlier ones are bare labels at their lines. Labels ending
-# in % keep their names (the cold area's S% is the loader's entry point, by
-# address). Cold code that needs a stub's address (a jump table: JMTB) names
-# the stub itself, x4_H.
+# cold copy), and with each JSR or JMP from cold code to a label of the low
+# or hot pass (H) going through a stub, x4_H (call H with bank 4 paged in, then
+# page the cold pass back) or, for the targets in NORETURN, j4_H (jump to H),
+# but for the low routines it calls directly. Every other file keeps the names
+# as they are, so a reference from outside the cold pass to a cold label X
+# reaches its stub, .X. There is one stub for each cold label that a file
+# outside the cold pass refers to, for each hot label that cold code calls or
+# jumps to, and for each routine that a block of the other side falls into.
+# Labels that are one place (defined one after another, with nothing
+# assembled between them) share a stub. Labels ending in % keep their names
+# (the cold pass's S% is the loader's entry point, by address). Cold code that
+# needs a stub's address (a jump table: JMTB) names the stub itself, x4_H.
 #
 # NORETURN: the targets that never return to their caller, so that their
-# stubs jump (far7j, far4j) and leave no far-call frame on the stack.
+# stubs jump and leave no return into the stub on the stack.
 
 NORETURN = {"BAY", "DEATH2", "TT170", "FRCE", "GOIN", "BEGIN"}
 # the files outside elite-source.asm whose references to cold labels need
 # stubs (everything else that elite-layout.asm assembles)
-OTHERS = ("src/elite-layout.asm", "src/elite-low.asm",
+OTHERS = ("src/elite-layout.asm", "src/elite-measure.asm", "src/elite-glue.asm",
           "src/elite-qs.asm", "src/elite-gfx.asm")
+# (the Tube's: the parasite's files besides the game's copies)
+TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm",
+           "src/gfx-hooks.asm", "src/gfx-gvars.asm", "src/gfx-finit.asm", "src/gfx-faces.asm",
+           "src/gfx-light.asm", "src/gfx-light6.asm", "src/gfx-hangar.asm", "src/gfx-hangar6.asm",
+           "src/gfx-flare.asm", "src/gfx-flare6.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
+           "src/elite-moon.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm",
+           "tsrc/p-dash2.asm", "tsrc/p-low.asm", "tsrc/p-layout.asm")
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*%?")
 
 
@@ -386,18 +483,20 @@ def read_file(path, seen=None):
     return out
 
 
-def glue(copies, errors, lines, bl, falls):
+def glue(copies, errors, lines, bl, eff, copy_of, falls, hotcopies):
+    """the stubs between the passes (above), written into the copies; returns
+    (stubs into the cold pass, stubs out of it)"""
     macros = set()
-    for l in copies["run"]:
+    for l in lines:
         m = re.match(r"^\s*MACRO\s+(\w+)", l)
         if m:
             macros.add(m.group(1))
     cold = {n for n, i in defined(copies["cold"]) if not n.endswith("%")}
-    # the labels of the run, the low area and bank 4, with the files the hot
-    # blocks INCLUDE
-    hotfiles = [("run", copies["run"]), ("low", copies["low"]), ("bank4", copies["bank4"])]
-    for a in ("run", "low", "bank4"):
-        for l in copies[a]:
+    # the labels of the hot side (the low and hot passes), with the files
+    # their blocks INCLUDE
+    hotfiles = [(c, copies[c]) for c in hotcopies]
+    for c in hotcopies:
+        for l in copies[c]:
             m = re.match(r'^\s*INCLUDE\s+"(src/[^"]+)"', split_code(l)[0])
             if m:
                 hotfiles += read_file(m.group(1))
@@ -406,20 +505,22 @@ def glue(copies, errors, lines, bl, falls):
         for n, i in defined(ls):
             hot.setdefault(n, f)
     for n in cold & set(hot):
-        errors.append("%s: %s is defined in the cold area and outside it" % (SRC, n))
+        errors.append("%s: %s is defined in the cold pass and outside it" % (SRC, n))
     alias = {}
     for f, ls in hotfiles + [("cold", copies["cold"])]:
         alias.update(aliases(ls, macros))
+    direct = set(hot) if TUBE else direct_calls(lines, bl, eff, cold, hot)
     # the cold copy: X -> X_C, JSR/JMP H -> x4_H / j4_H
     out4 = []                               # (stub name, target) in order
     seen4 = {}
+    tbr = set()                             # (the Tube: resident labels overlay D branches to)
     cc = copies["cold"]
     act = active_lines(cc)
     for i, l in enumerate(cc):
         code, comment = split_code(l)
         if not code.strip():
             continue
-        if TUBEOVL is not None and re.match(r"^\s*BNE\s+TT162\+2\s*$", code):
+        if TUBE and re.match(r"^\s*BNE\s+TT162\+2\s*$", code):
             code = " JMP TT27"                 # (TT163 in the Tube's overlay D: TT162+2
                                                # is JMP TT27, and A is never zero here)
         if not act[i]:                     # (a branch the build leaves out: the
@@ -427,31 +528,34 @@ def glue(copies, errors, lines, bl, falls):
                 if name in cold:
                     code = code[:a] + name + "_C" + code[b:]
             m = re.match(r"^(\s*(?:JSR|JMP)\s+)([A-Za-z_]\w*)(.*)$", code, re.I)
-            if m and m.group(2) in hot and m.group(2) not in cold and not TUBE:
+            if m and m.group(2) in hot and m.group(2) not in cold and m.group(2) not in direct:
                 code = m.group(1) + ("j4_" if m.group(2) in NORETURN else "x4_") + m.group(2) + m.group(3)
             cc[i] = code + comment
             continue
         new = ""
         pos = 0
         for off, st in statements(code):
+            mb = re.match(r"^(\s*(?:\.[A-Za-z_]\w*\s+)*)(BCC|BCS|BEQ|BMI|BNE|BPL|BRA|BVC|BVS)(\s+)([A-Za-z_]\w*)(\s*)$", st, re.I)
+            if TUBE and mb and mb.group(4) in hot and mb.group(4) not in cold:
+                tbr.add(mb.group(4))           # (the Tube: a branch out of overlay D)
+                new += code[pos:off] + mb.group(1) + mb.group(2) + mb.group(3) + "tb_" + mb.group(4) + mb.group(5)
+                pos = off + len(st)
+                continue
             m = re.match(r"^(\s*)(JSR|JMP)(\s+)([A-Za-z_][A-Za-z0-9_]*%?)(.*)$", st, re.I)
-            if m and TUBE:                         # (the Tube's parasite is flat: cold
-                m = None                           # code calls hot code directly)
-            if not m and TUBEOVL is not None:     # (the Tube's overlay: a branch to a
-                m = re.match(r"^(\s*)(BCC|BCS|BEQ|BNE|BMI|BPL|BVC|BVS|BRA)(\s+)([A-Za-z_][A-Za-z0-9_]*%?)(\s*)$",
-                             st, re.I)            # resident label goes through its stub)
-            if m and m.group(4) in hot and m.group(4) not in cold:
+            if m and m.group(4) in hot and m.group(4) not in cold and m.group(4) not in direct:
                 h = m.group(4)
-                if m.group(5).strip():
-                    errors.append("%s:%d: %s %s%s from the cold area: a stub can only call a label"
-                                  % (SRC, i + 1, m.group(2), h, m.group(5)))
+                rest = m.group(5)
+                mo = re.match(r"^\+(\d+)(\s*)$", rest)
+                if rest.strip() and not mo:
+                    errors.append("%s:%d: %s %s%s from the cold pass: a stub can only call a label "
+                                  "or a label plus a number" % (SRC, i + 1, m.group(2), h, rest))
                 place = alias.get(h, h)
                 kind = "j4_" if place in NORETURN or h in NORETURN else "x4_"
-                stub = kind + h
+                stub = kind + h + ("_%s" % mo.group(1) if mo else "")      # (x4_pr2_2: pr2+2)
                 if stub not in seen4:
                     seen4[stub] = place
-                    out4.append((stub, h, place, kind))
-                new += code[pos:off] + m.group(1) + m.group(2) + m.group(3) + stub + m.group(5)
+                    out4.append((stub, h + ("+" + mo.group(1) if mo else ""), place, kind))
+                new += code[pos:off] + m.group(1) + m.group(2) + m.group(3) + stub + (mo.group(2) if mo else rest)
                 pos = off + len(st)
                 continue
             for a, b, name in tokens(st):
@@ -459,41 +563,57 @@ def glue(copies, errors, lines, bl, falls):
                     new += code[pos:off + a] + name + "_C"
                     pos = off + b
                 m2 = re.match(r"^(x4_|j4_)(.+)$", name)
+                if TUBE and m2 and m2.group(2) in cold:     # (the Tube: a stub named in the
+                    new += code[pos:off + a] + m2.group(2) + "_C"   # source for a routine that is
+                    pos = off + b                           # overlay D's: the routine)
+                    continue
                 if m2 and m2.group(2) in hot and name not in seen4:
                     seen4[name] = alias.get(m2.group(2), m2.group(2))   # (a stub named in the
                     out4.append((name, m2.group(2), seen4[name], m2.group(1)))   # source: its address)
             new += code[pos:off + len(st)]
             pos = off + len(st)
         cc[i] = new + code[pos:] + comment
-    # references to cold labels from outside the cold area
+    # references to cold labels from outside the cold pass
     others = []
-    for f in OTHERS:
+    for f in (TOTHERS if TUBE else OTHERS):
         others += read_file(f)
     out7, seen7 = [], set()
     elsewhere = {n for f, ls in others for n, i in defined(ls)}
-    for f, ls in [("run", copies["run"]), ("low", copies["low"]), ("bank4", copies["bank4"])] + others:
+    for f, ls in [(c, copies[c]) for c in hotcopies + ["config"]] + others:
         own = {n for n, i in defined(ls)}
+        lact = active_lines(ls) if TUBE else None   # (the Tube: what the build assembles)
         for l in ls:                       # (loop variables and macro parameters)
             m = re.match(r"^\s*(FOR|MACRO)\s+(.*)$", split_code(l)[0], re.I)
             if m:
                 own.update(IDENT.findall(m.group(2).split(",")[0] if m.group(1).upper() == "FOR"
                                          else m.group(2)))
         for i, l in enumerate(ls):
-            for a, b, name in tokens(split_code(l)[0]):
-                if name not in cold or name in own:
-                    continue
-                if name in elsewhere:      # (another file's label of the same name)
-                    if f in ("run", "low", "bank4"):
-                        errors.append("%s:%d: %s is a cold label and a label of another file"
-                                      % (SRC, i + 1, name))
-                    continue
-                if TUBEOVL is not None and not re.match(r"^\s*(\.\S+\s+)?(JSR|JMP)\s+" + re.escape(name) + r"\b",
-                                                         split_code(l)[0], re.I):
-                    print("streams: (Tube overlay) %s:%d refers to %s, in overlay D, not by a call: %s"
-                          % (f, i + 1, name, split_code(l)[0].strip()))
-                if name not in seen7:
-                    seen7.add(name)
-                    out7.append(name)
+            if lact and not lact[i]:
+                continue
+            for off, st in statements(split_code(l)[0]):
+                for a, b, name in tokens(st):
+                    if name not in cold or name in own:
+                        continue
+                    if name in elsewhere:  # (another file's label of the same name)
+                        if f in hotcopies:
+                            errors.append("%s:%d: %s is a cold label and a label of another file"
+                                          % (SRC, i + 1, name))
+                        continue
+                    # a stub reaches the routine: a call or a jump to it, or its
+                    # address (#LO/#HI, EQUW, a constant); anything else would
+                    # read or write the stub's bytes, not the cold pass's
+                    t = re.sub(r"^\s*(\.[A-Za-z_]\w*\s*)+", "", st).strip()
+                    if not (re.match(r"^(JSR|JMP)\s+%s$" % re.escape(name), t, re.I)
+                            or (TUBE and re.match(r"^(BCC|BCS|BEQ|BMI|BNE|BPL|BRA|BVC|BVS)\s+%s$" % re.escape(name), t, re.I))
+                            or re.match(r"^[A-Z]{3}\s+#", t, re.I)
+                            or re.match(r"^(EQU[BWD]|[A-Za-z_][\w%]*\s*=)", t, re.I)):
+                        errors.append("%s:%d: %s refers to the cold label %s other than by a call, a "
+                                      "jump or its address (%s): a stub has no data"
+                                      % (f if not f in hotcopies + ["config"] else SRC, i + 1, f, name, t))
+                        continue
+                    if name not in seen7:
+                        seen7.add(name)
+                        out7.append(name)
     # the stubs that the fall-through seams land on: a block that falls
     # through its end into a block of the other side falls into the stub at
     # that block's entry label
@@ -502,14 +622,14 @@ def glue(copies, errors, lines, bl, falls):
             if entry not in seen7:
                 seen7.add(entry)
                 out7.append(entry)
-        else:                              # (cold code falls into a hot routine)
+        elif not TUBE:                     # (cold code falls into a hot routine)
             place = alias.get(entry, entry)
             kind = "j4_" if place in NORETURN or entry in NORETURN else "x4_"
             if kind + entry not in seen4:
                 seen4[kind + entry] = place
                 out4.append((kind + entry, entry, place, kind))
     # where each label is defined in the source (its first line that the
-    # build's flags assemble), and the area of that line's block
+    # build's flags assemble), and its block
     barea = [None] * len(lines)
     for k, (s0, e0, name, area) in enumerate(bl):
         for i in range(s0, e0):
@@ -518,97 +638,208 @@ def glue(copies, errors, lines, bl, falls):
     for n, i in defined(lines):
         if ACTIVE[i]:
             where.setdefault(n, i)
-    macros_ = macros
 
     def host(i):
-        """the hot area whose emission holds the stubs at line i of a cold
-        block: that of the nearest block before it, in the source, that is not
-        cold and holds code (the low area's blocks: the run's), so that a block
-        that falls through into the cold block falls into its stubs"""
+        """the copy that holds the stubs at line i of a cold block: that of
+        the nearest block before it, in the source, that is not cold and
+        holds code, so that a block that falls through into the cold block
+        falls into its stubs"""
         for k in range(barea[i] - 1, -1, -1):
-            s0, e0, name, area = bl[k]
-            if area == "cold":
+            if eff[k] == "cold" or not ASM[k]:
                 continue
-            if any(ACTIVE[j] and assembles(code_part(lines[j]), macros_) for j in range(s0, e0)):
-                return "run" if area == "low" else area
-        return "run"
+            return copy_of[k]
+        return "low"
 
-    def place_stubs(groups, ok_area, side):
-        """groups: [(far helper, [(stub label, target label)])], each group one
-        place; each stub goes at the line of its target's definition, in the
-        copy of the area that hosts it, and the labels of a place share the
-        stub at the last of them"""
-        n = 0
-        for far, members in groups:
-            at = []
-            for stub, target in members:
-                i = where.get(target)
-                if i is None or bl[barea[i]][3] not in ok_area:
-                    errors.append("%s: no place in the source for the stub %s (%s is not defined "
-                                  "in elite-source.asm's %s blocks)" % (SRC, stub, target, side))
-                    continue
-                at.append((i, stub, target))
-            at.sort()
-            for k, (i, stub, target) in enumerate(at):
-                a = host(i) if side == "cold" else "cold"
-                text = ".%s" % stub
-                # (a label shares the next one's stub only if nothing is
-                # assembled between them in this copy)
-                if k == len(at) - 1 or any(assembles(code_part(copies[a][j]), macros_)
-                                           for j in range(i + 1, at[k + 1][0])):
-                    tgt = target + "_C" if side == "cold" else target
-                    # (the Tube's parasite is one flat 64K with no banks: a
-                    # stub is a jump, which calls, jumps or falls into the
-                    # routine as the far call did)
-                    if TUBE and TUBEOVL is not None and side == "cold":
-                        text += " JSR %s : EQUW %s" % ("povdj" if far == "far7j" else "povd", tgt)
-                    else:
-                        text += (" JMP %s" % tgt) if TUBE else (" JSR %s : EQUW %s" % (far, tgt))
-                    n += 1
-                cur = copies[a][i]
-                if (a, i) in placed:
-                    copies[a][i] = cur + " : " + text      # (two stubs at one line)
-                elif code_part(cur):
-                    errors.append("%s:%d: the stub %s's line is not blank in the %s copy"
-                                  % (SRC, i + 1, stub, a))
-                else:
-                    copies[a][i] = text
-                    placed.add((a, i))
-        return n
+    for h in sorted(tbr):                  # (the Tube: each at its label's place in
+        i = where.get(h)                   # overlay D's copy, which branches reach)
+        if i is None or code_part(cc[i]):
+            errors.append("%s: overlay D branches to %s, and its place in overlay D's copy is not free" % (SRC, h))
+        else:
+            cc[i] = ".tb_%s JMP %s" % (h, h)
+    # the stubs (build/elite-stubs.asm, INCLUDEd in the glue area by
+    # src/elite-stubs.asm): one per target, the labels of one place sharing it
+    def grouped(items, side):
+        """items: [(stub label, target label, jumps)] -> [(jumps, [stub
+        labels], target)], one per place"""
+        out, done = [], {}
+        for stub, target, jumps in items:
+            i = where.get(target.split("+")[0])
+            ok = ("cold",) if side == "cold" else ("low", "hot", "hotx", "run")
+            if i is None or eff[barea[i]] not in ok:
+                errors.append("%s: no place in the source for the stub %s (%s is not defined "
+                              "in elite-source.asm's %s blocks)" % (SRC, stub, target, side))
+                continue
+            key = (alias.get(target, target) if "+" not in target else target, jumps)
+            if key not in done:
+                done[key] = len(out)
+                out.append((jumps, [], target))
+            if stub not in out[done[key]][1]:
+                out[done[key]][1].append(stub)
+        return out
 
-    placed = set()
+    s7 = grouped([(n, n, alias.get(n, n) in NORETURN or n in NORETURN) for n in out7], "cold")
+    s4 = grouped([(stub, h, kind == "j4_") for stub, h, place, kind in out4], "hot")
+    for kind in (s7, s4):
+        seen = {}
+        for jumps, labels, target in kind:
+            for l in labels:
+                if l in seen and seen[l] != jumps:
+                    errors.append("%s: %s is called and jumped to through one stub" % (SRC, l))
+                seen[l] = jumps
+    text = ["\\ build/elite-stubs.asm: the stubs between the passes, written by",
+            "\\ tools/streams.py (src/elite-stubs.asm INCLUDEs it in the glue area)", "",
+            "\\ into the cold pass (the hot side's calls of cold routines)", "", ".STUBS7"]
+    for jumps, labels, target in s7:
+        if TUBE:                           # (the Tube: at the routine's place in the
+            i = where[target.split("+")[0]]  # resident copy, so that a branch reaches
+            if code_part(copies["run"][i]):  # it; povd loads overlay D first)
+                errors.append("%s:%d: the stub %s: its line is not blank in the resident copy" % (SRC, i + 1, target))
+            copies["run"][i] = " : ".join([".%s" % l for l in labels] + ["JSR %s" % ("povdj" if jumps else "povd"),
+                                                                          "EQUW %s_C" % target])
+            continue
+        text += [".%s" % l for l in labels[:-1]]
+        text.append(stub_text(labels[-1], target + "_C", "to7", "to4", jumps))
+    text += [".STUBS7_END", "", "\\ out of the cold pass (the cold pass's calls of hot routines)", "", ".STUBS4"]
+    tx4 = ["\\ build/elite-stubs-x4.asm: the Tube's names for the stubs out of overlay",
+           "\\ D that the source names (JMTB): the routines themselves (streams.py)", ""]
+    for jumps, labels, target in s4:
+        if TUBE:                           # (the Tube: overlay D calls the resident
+            tx4 += ["%s = %s" % (l, target) for l in labels]   # code directly)
+            continue
+        text += [".%s" % l for l in labels[:-1]]
+        text.append(stub_text(labels[-1], target, "to4", "to7", jumps))
+    text += [".STUBS4_END", ""]
+    with open(STUBS, "w") as f:
+        f.write("\n".join(text))
+    if TUBE:
+        with open("build/elite-stubs-x4.asm", "w") as f:
+            f.write("\n".join(tx4) + "\n")
+    # the fall-through seams: a block that falls through its end into a
+    # routine of the other side falls into a jump to that routine's stub (or,
+    # for a low routine the cold pass calls directly, to the routine)
+    for side_, entry in falls:
+        i = where.get(entry)
+        if side_ == "hot":
+            a, to = host(i), entry
+        else:
+            a, to = "cold", entry if entry in direct else \
+                ("j4_" if alias.get(entry, entry) in NORETURN or entry in NORETURN else "x4_") + entry
+        if TUBE and (("JSR povd" in copies[a][i]) if side_ == "hot" else copies[a][i].startswith(".tb_")):
+            continue                       # (the Tube: falls into the stub itself)
+        if code_part(copies[a][i]):
+            errors.append("%s:%d: the seam into %s: its line is not blank in the %s copy" % (SRC, i + 1, entry, a))
+        else:
+            copies[a][i] = " JMP %s                \\ (the fall-through into %s, on the other side)" % (to, entry)
+    return len(s7), len(s4), direct
 
-    # the stubs into the cold area, in the hot copies at the cold labels' places
-    groups, done = [], {}
-    for name in out7:
-        place = alias.get(name, name)
-        far = "far7j" if place in NORETURN or name in NORETURN else "far7"
-        if place not in done:
-            done[place] = len(groups)
-            groups.append((far, []))
-        elif groups[done[place]][0] != far:
-            errors.append("%s: %s and %s are one place but not both NORETURN" % (SRC, name, place))
-        groups[done[place]][1].append((name, name))
-    n7 = place_stubs(groups, ("cold",), "cold")
-    # the stubs out of the cold area, in the cold copy at the hot labels' places
-    groups, done = [], {}
-    for stub, h, place, kind in out4:
-        key = (kind, place)
-        if key not in done:
-            done[key] = len(groups)
-            groups.append(("far4j" if kind == "j4_" else "far4", []))
-        groups[done[key]][1].append((stub, h))
-    n4 = place_stubs(groups, ("run", "low", "bank4"), "hot")
-    return n7, n4
+
+# INLINE: the stubs that are written out in full rather than through the
+# shared to7 and to4 (the busiest; each costs 17 bytes more and saves 15
+# cycles a call)
+INLINE = set()
 
 
-def data(errors):
-    """the data source's copies, one per area (DAREAS)"""
+def stub_text(label, target, enter, leave, jumps):
+    """a stub, one statement a line (so that the tools that read the source
+    a line at a time see each instruction's own operand): page the target's
+    bank in (A and the flags kept), call the target, page the caller's bank
+    back (A and the flags kept), return; or, for a target that never
+    returns, page its bank in and jump"""
+    bank = {"to7": "COLDBANK", "to4": "HOMEBANK"}
+    page = lambda b: [" PHP", " PHA", " LDA #%s" % b, " STA &F4", " STA VIA+&30", " PLA", " PLP"]
+    if jumps:
+        body = page(bank[enter]) if label in INLINE else [" JSR %s" % enter]
+        return "\n".join([".%s" % label] + body + [" JMP %s" % target])
+    if label in INLINE:
+        body = page(bank[enter]) + [" JSR %s" % target] + page(bank[leave]) + [" RTS"]
+    else:
+        body = [" JSR %s" % enter, " JSR %s" % target, " JMP %s" % leave]
+    return "\n".join([".%s" % label] + body)
+
+
+GLUEOK = ("src/gfx-gluehooks.asm", "src/gfx-gvars.asm")
+KEEPBANK = {"TTX66M"}                      # (src/elite-stubs.asm's stub that keeps
+                                           # the caller's bank, for CHPR)
+
+
+def direct_calls(lines, bl, eff, cold, hot):
+    """the low pass's labels that the cold pass may call or jump to directly,
+    with no stub: those of the low blocks that, with every low block they
+    call, jump or branch to or fall into, refer to nothing of the hot or cold
+    pass and to no glue code but the text hooks and the shared variables
+    (GLUEOK, which keep whatever bank is paged), so that they run the same
+    with the cold pass paged in"""
+    lab = {}
+    for k, (s, e, name, area) in enumerate(bl):
+        for n, i in defined(lines[s:e]):
+            if ACTIVE[s + i]:
+                lab.setdefault(n, k)
+    glue = {}
+    for f, ls in read_file("src/elite-glue.asm"):
+        for n, i in defined(ls):
+            glue.setdefault(n, f)
+    low = [k for k in range(len(bl)) if eff[k] == "low" and ASM[k]]
+    bad, edges = set(), {k: set() for k in low}
+    for k in low:
+        s, e, name, area = bl[k]
+        own = {n for n, i in defined(lines[s:e])}
+        for i in range(s, e):
+            if not ACTIVE[i]:
+                continue
+            for off, st in statements(split_code(lines[i])[0]):
+                st = re.sub(r"^\s*(\.[A-Za-z_]\w*\s*)+", "", st)
+                m = re.match(r"^([A-Za-z]{3})\b", st.strip())
+                op = m.group(1).upper() if m else ""
+                for a, b, t in tokens(st):
+                    if t in own or (m and t.upper() == op):
+                        continue
+                    k2 = lab.get(t)
+                    if k2 is not None and eff[k2] == "low":
+                        if op in ("JSR", "JMP") or op in BRANCH:
+                            edges[k].add(k2)
+                    elif k2 is not None and eff[k2] in ("hot", "hotx", "cold"):
+                        bad.add(k)
+                    elif t in cold:
+                        bad.add(k)
+                    elif t in glue and glue[t] not in GLUEOK and t not in KEEPBANK:
+                        bad.add(k)
+        st = last_statement(lines, s, e)
+        if falls_through(st, set()):
+            nxt = [k2 for k2 in range(k + 1, len(bl)) if ASM[k2]]
+            if nxt and eff[nxt[0]] == "low":
+                edges[k].add(nxt[0])
+    changed = True
+    while changed:
+        changed = False
+        for k in low:
+            if k not in bad and edges[k] & bad:
+                bad.add(k)
+                changed = True
+    out = set()
+    for k in low:
+        if k not in bad:
+            s, e, name, area = bl[k]
+            out.update(n for n, i in defined(lines[s:e]) if ACTIVE[s + i])
+    return out
+
+
+def measured():
+    """the measure's symbols (build/measure-symbols.txt, beebasm -d of
+    elite-measure.asm)"""
+    sy = {}
+    for m in re.finditer(r"'([^']+)':(\d+)", open(MEASURE).read()):
+        sy.setdefault(m.group(1), int(m.group(2)))
+    return sy
+
+
+def data(errors, phase, sy=None):
+    """the data source's copies: bdata, cold, and the hot data, measure (with a
+    label DFLOW_<n> at each named block) or flowed (hot: HAZEL, hot4: bank 4);
+    returns (the copies, the bytes the hot data puts in bank 4, the flow's
+    report lines)"""
     lines = open(DATA, encoding="latin-1").read().split("\n")
     bl = []
     for s, e, name, area in blocks(lines, DTAGS):
-        if TUBEOVL is not None and area == "cold" and name not in TUBEOVL:
-            area = "run"                   # (resident on the Tube's parasite)
         bl.append([s, e, name, ("hot" if area == "run" else area) if name else None])
     nxt = "bdata"
     for b in reversed(bl):                 # (unnamed blocks: the next named one's)
@@ -623,36 +854,126 @@ def data(errors):
             depth += bool(re.match(r"^IF\b", c)) - bool(re.match(r"^ENDIF\b", c))
         if depth:
             errors.append("%s:%d: %s: IF ... ENDIF not balanced in an area's block" % (DATA, s + 1, name))
-    for a in DAREAS:
-        out = []
-        for s, e, name, area in bl:
-            out += [lines[i] if area == a else "" for i in range(s, e)]
+    hot = [k for k, b in enumerate(bl) if b[3] == "hot" and b[2]]
+    copy = {}
+    report, b4 = [], 0
+    if phase == "measure":
+        for k, b in enumerate(bl):
+            copy[k] = "measure" if b[3] == "hot" else b[3]
+    else:
+        # the flow: HAZEL from &C000 while each block fits, then bank 4
+        at, cur = HAZEL_START, "hot"
+        for n, k in enumerate(hot):
+            nk = sy["DFLOW_%d" % hot[n + 1]] if n + 1 < len(hot) else sy["DFLOW_END"]
+            size = nk - sy["DFLOW_%d" % k]
+            if cur == "hot" and at + size > HAZEL_END:
+                report.append("  HAZEL &%04X-&%04X, %d free; bank 4 after the hot code from %s"
+                              % (HAZEL_START, at - 1, HAZEL_END - at, bl[k][2]))
+                cur = "hot4"
+            if cur == "hot":
+                at += size
+            else:
+                b4 += size
+            copy[k] = cur
+        if cur == "hot":
+            report.append("  HAZEL &%04X-&%04X, %d free; nothing in bank 4" % (HAZEL_START, at - 1, HAZEL_END - at))
+        # a block that assembles no bytes (macros: CHAR, TWOK ... for QQ18)
+        # goes with the next block that does, so that it is assembled before
+        # what uses it (bank 4's copy is assembled before HAZEL's)
+        for n in range(len(hot) - 2, -1, -1):
+            if sy["DFLOW_%d" % hot[n + 1]] == sy["DFLOW_%d" % hot[n]]:
+                copy[hot[n]] = copy[hot[n + 1]]
+        last = "hot"
+        for k in range(len(bl) - 1, -1, -1):   # (unnamed blocks: the next named one's copy)
+            if bl[k][3] == "hot":
+                if bl[k][2]:
+                    last = copy[k]
+                else:
+                    copy[k] = last
+            else:
+                copy[k] = bl[k][3]
+    names = ("bdata", "cold") + (("measure",) if phase == "measure" else ("hot", "hot4"))
+    out = {a: [] for a in names}
+    for k, (s, e, name, area) in enumerate(bl):
+        for a in names:
+            out[a] += [lines[i] if copy[k] == a else "" for i in range(s, e)]
+        if phase == "measure" and area == "hot" and name:
+            out["measure"][s] = ".DFLOW_%d" % k
+    for a in names:
         with open(DOUT % a, "w", encoding="latin-1") as f:
-            f.write("\n".join(out))
-    return {a: sum(1 for b in bl if b[3] == a and b[2]) for a in DAREAS}
+            f.write("\n".join(out[a]))
+    return {a: sum(1 for k, b in enumerate(bl) if copy[k] == a and b[2]) for a in names}, b4, report
 
 
-# The Tube parasite's passes over the frame layer's files (FRAMEPASS): those
-# files have no block headers, so a block there starts at a lone tag line in
-# the headers' field syntax and runs to the next one:
+ASM = []
+
+
+def again_copy(lines, bl):
+    """the ", again" blocks, every other line blank: each label a block
+    defines, and each JSR or JMP target outside the block, renamed A_<name>
+    (in the code, not the comments), so that the copy's labels are its own
+    and the file that INCLUDEs it decides where each call goes (the original
+    routine, A_X = X, or a stand-in .A_X)"""
+    out = [""] * len(lines)
+    for s, e, name, area in bl:
+        if s not in AGAIN:
+            continue
+        own = set()
+        for i in range(s, e):
+            m = re.match(r"^\.([A-Za-z_]\w*)", code_part(lines[i]))
+            if m:
+                own.add(m.group(1))
+        for i in range(s, e):
+            c = code_part(lines[i])
+            if not c:
+                out[i] = lines[i]
+                continue
+            n = len(lines[i]) - len(lines[i].lstrip())
+            code = re.sub(r"\b(JSR|JMP)\s+([A-Za-z_]\w*)", lambda m: "%s A_%s" % (m.group(1), m.group(2)), c)
+            code = re.sub(r"(?<![\w%])([A-Za-z_]\w*)\b",
+                          lambda m: "A_" + m.group(1) if m.group(1) in own else m.group(1), code)
+            out[i] = " " * n + code + lines[i][lines[i].index(c) + len(c):]
+    return out
+
+
+def stub_none(lines, bl):
+    """each "Area: none" block's code: only its labels, then an RTS on its
+    last code line (the lines between blanked, so line numbers stay)"""
+    for s, e, name, area in bl:
+        if s not in NONE:
+            continue
+        last = None
+        for i in range(s, e):
+            if code_part(lines[i]).strip():
+                m = re.match(r"^(\.[A-Za-z_]\w*)", lines[i])
+                lines[i] = m.group(1) if m else ""
+                last = i
+        if last is None:
+            sys.exit("%s:%d: %s: Area: none, and no code" % (SRC, s + 1, name))
+        lines[last] = (lines[last] + " : RTS") if lines[last] else " RTS"
+
+
+# ---------------------------------------------------------------- the Tube
 #
-#   \       Area: ovl S crater      (overlay S's crater tail, p-layout.asm)
+# The renderer's files that the Tube's parasite assembles in more than one
+# place (FRAMEPASS) have no block headers, so a block there starts at a lone
+# tag line in the headers' field syntax and runs to the next one:
+#
+#   \       Area: ovl S             (the parasite's overlay S: p-layout.asm)
 #   \       Area: frame             (back to the file's own place)
-#
 #   \       Area: hazel             (the Master host's HAZEL: the code that
 #                                    enters the STA runs, tube/src/h-layout.asm)
 #   \       Area: ovl D             (the parasite's overlay D: p-layout.asm)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
-# file's): build/<file>-frame.asm (the file's own place: the resident frame
-# layer, or the host's bank), build/<file>-crater.asm (the tail) and
-# build/<file>-hazel.asm. The Master port, the Model B host and (for the
-# files it does not pass) the Master host assemble the file itself, where the
-# tag lines are comments
-FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-raster.asm", "src/gfx-raster_lcold.asm",
-             "src/gfx-raster_polyb.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm")
-FPASS = {"frame": "frame", "ovl S crater": "crater", "hazel": "hazel", "ovl D": "ovld"}
+# file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
+# build/<file>-hazel.asm and build/<file>-ovld.asm. The Master port, the
+# Model B host and (for the files it does not pass) the Master host assemble
+# the file itself, where the tag lines are comments
+FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm",
+             "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm")
+FPASS = {"frame": "frame", "ovl S": "ovls", "hazel": "hazel", "ovl D": "ovld"}
 
 
 def frame_passes(path, errors):
@@ -675,7 +996,7 @@ def frame_passes(path, errors):
             depth += bool(re.match(r"^IF\b", c)) - bool(re.match(r"^ENDIF\b", c))
             e += 1
         if depth and tags[k] != "frame":   # (the file's own place keeps every line
-            errors.append("%s:%d: IF ... ENDIF not balanced in a %s block" % (path, k + 1, tags[k]))  # but the tails')
+            errors.append("%s:%d: IF ... ENDIF not balanced in a %s block" % (path, k + 1, tags[k]))  # but the passes')
         k = e
     base = os.path.splitext(os.path.basename(path))[0]
     for ps in set(FPASS.values()):
@@ -683,12 +1004,131 @@ def frame_passes(path, errors):
             f.write("\n".join(l if t == ps else "" for l, t in zip(lines, tags)))
 
 
+def tube_data(errors):
+    """the data source's copies for the Tube: bdata; hot (resident on the
+    parasite: every block but BDATA's, the hosts' and overlay D's); cold
+    (overlay D's: "Tube: ovl D"); host ("Tube: host" and "both")"""
+    lines = open(DATA, encoding="latin-1").read().split("\n")
+    stag = dict(TUBETAG)                   # (the code source's tags, by its line
+    TUBETAG.clear()                        # numbers: kept apart from the data's)
+    dbl = blocks(lines, DTAGS)
+    dtag = dict(TUBETAG)
+    TUBETAG.clear()
+    TUBETAG.update(stag)
+    bl = []
+    for s0, e0, name, area in dbl:
+        t = dtag.get(s0)
+        a = None if not name else "bdata" if area == "bdata" else "cold" if t == "ovl D" else "hot"
+        bl.append([s0, e0, name, a, t])
+    nxt = "bdata"
+    for b in reversed(bl):                 # (unnamed blocks: the next named one's)
+        if b[3] is None:
+            b[3] = nxt
+        else:
+            nxt = b[3]
+    out = {a: [] for a in ("bdata", "hot", "cold", "host")}
+    for s0, e0, name, area, t in bl:
+        for a in ("bdata", "hot", "cold"):
+            on = area == a and t != "host"
+            out[a] += [lines[i] if on else "" for i in range(s0, e0)]
+        out["host"] += [lines[i] if t in ("host", "both") else "" for i in range(s0, e0)]
+    for a in out:
+        with open(DOUT % a, "w", encoding="latin-1") as f:
+            f.write("\n".join(out[a]))
+    return {a: sum(1 for b in bl if b[3] == a and b[2]) for a in ("bdata", "hot", "cold")}
+
+
+def tube_main(lines, bl, eff, macros, errors):
+    """the Tube's copies (above, "The Tube"): config and ws, run, cold (overlay
+    D), host, hostb; the stubs into overlay D; the data's; the frame passes"""
+    for s0, e0, name, area in bl:
+        if TUBETAG.get(s0) == "ovl D":
+            TUBEOVL.add(name)
+    tag = lambda k: TUBETAG.get(bl[k][0])
+    par = lambda k: tag(k) not in ("host", "hostb", "none")     # (the parasite's)
+    side = {}
+    copy_of = {}
+    for k in range(len(bl)):
+        if eff[k] == "config":
+            copy_of[k] = "config"
+        elif bl[k][2] in TUBEOVL:
+            copy_of[k] = "cold"
+        elif not ASM[k] and k and copy_of.get(k - 1) == "cold":
+            copy_of[k] = "cold"            # (a block that assembles nothing: the one before it's)
+        else:
+            copy_of[k] = "run"
+    teff = ["config" if copy_of[k] == "config" else "cold" if copy_of[k] == "cold" else "run"
+            for k in range(len(bl))]
+    # fall-through between the resident code and overlay D: a seam (glue);
+    # into a block that is not the parasite's: an error
+    falls = []
+    for k, (s0, e0, name, area) in enumerate(bl):
+        if teff[k] == "config" or not ASM[k] or not par(k):
+            continue
+        st = last_statement(lines, s0, e0)
+        if not falls_through(st, macros) and s0 not in RUNSON:
+            continue
+        for k2 in range(k + 1, len(bl)):
+            s2, e2, name2, area2 = bl[k2]
+            if not ASM[k2]:
+                continue
+            if not par(k2):
+                errors.append("%s:%d: %s can fall through its end (%s) into %s, which is not the parasite's"
+                              % (SRC, e0, name, st, name2))
+            elif teff[k2] != teff[k]:
+                entry = entry_label(lines, s2, e2, macros)
+                if entry:
+                    falls.append(("hot" if teff[k] == "run" else "cold", entry))
+                else:
+                    errors.append("%s:%d: %s can fall through its end (%s) into %s, whose first statement "
+                                  "is not its entry label" % (SRC, e0, name, st, name2))
+            break
+    # (branches between the resident code and overlay D go through the stubs:
+    # glue)
+    copies = {}
+    for a in ("config", "run", "cold"):
+        copies[a] = []
+        for k, (s0, e0, name, area) in enumerate(bl):
+            on = copy_of[k] == a and (a == "config" or par(k))
+            copies[a] += [lines[i] if on else "" for i in range(s0, e0)]
+    # the hosts' copies: their blocks (not the configuration's)
+    for nm, tags in (("host", ("host", "both")), ("hostb", ("hostb", "bothb"))):
+        c = []
+        for k, (s0, e0, name, area) in enumerate(bl):
+            on = teff[k] != "config" and tag(k) in tags
+            c += [lines[i] if on else "" for i in range(s0, e0)]
+        with open(OUT % nm, "w", encoding="latin-1") as f:
+            f.write("\n".join(c))
+    nstubs = glue(copies, errors, lines, bl, teff, copy_of, falls, ["run"])
+    for a in ("config", "run", "cold"):
+        with open(OUT % a, "w", encoding="latin-1") as f:
+            f.write("\n".join(copies[a]))
+    with open(OUT % "ws", "w", encoding="latin-1") as f:
+        f.write("\n".join(copies["config"]))
+    dn = tube_data(errors)
+    for fp in FRAMEPASS:
+        frame_passes(fp, errors)
+    for e in errors:
+        print("streams:", e)
+    print("streams (tube): %d blocks, %d resident, %d in overlay D, %d the hosts'; stubs %d into "
+          "overlay D; data %s%s"
+          % (len(bl), sum(1 for k in range(len(bl)) if teff[k] == "run" and ASM[k] and par(k)),
+             sum(1 for k in range(len(bl)) if teff[k] == "cold" and ASM[k]),
+             sum(1 for k in range(len(bl)) if tag(k) in ("host", "both", "hostb", "bothb") and ASM[k]),
+             nstubs[0], ", ".join("%s %d" % kv for kv in dn.items()),
+             ", %d error(s)" % len(errors) if errors else ""))
+    sys.exit(1 if errors else 0)
+
+
 def main():
+    phase = sys.argv[1] if len(sys.argv) > 1 else "place"
+    if phase not in ("measure", "place", "tube") or (phase == "tube") != TUBE:
+        sys.exit("usage: streams.py measure|place, or TUBE=1 streams.py tube")
     lines = open(SRC, encoding="latin-1").read().split("\n")
     bl = blocks(lines)
-    if TUBEOVL is not None:                # (the Tube: resident cold blocks join the run,
-        bl = [(s, e, n, "cold" if n in TUBEOVL else  # and the overlay's others the cold area)
-               "run" if a == "cold" else a) for s, e, n, a in bl]
+    with open(OUT % "again", "w", encoding="latin-1") as f:
+        f.write("\n".join(again_copy(lines, bl)))
+    stub_none(lines, bl)
     ACTIVE[:] = active_lines(lines)
     macros = set(m.group(1) for m in (re.match(r"^\s*MACRO\s+(\w+)", l) for l in lines) if m)
     errors = []
@@ -700,79 +1140,212 @@ def main():
                 depth += 1
             elif re.match(r"^ENDIF\b", c):
                 depth -= 1
-        if depth and area != "run":
-            errors.append("%s:%d: %s: IF ... ENDIF not balanced in an area's block" % (SRC, s + 1, name))
+        if depth:
+            errors.append("%s:%d: %s: IF ... ENDIF not balanced in a block" % (SRC, s + 1, name))
+    # each block's pass: the configuration before the head, then its tag; a
+    # block that assembles nothing goes with the block before it
+    ASM[:] = [any(ACTIVE[i] and assembles(code_part(lines[i]), macros) for i in range(s, e))
+              for s, e, name, area in bl]
+    first = min(k for k, b in enumerate(bl) if b[3] == "low")
+    eff = []
+    for k, (s, e, name, area) in enumerate(bl):
+        if k < first:
+            eff.append("config")
+        elif not ASM[k]:
+            eff.append(eff[-1])
+        else:
+            eff.append({"run": "hot", "hotx": "hotx", "low": "low", "cold": "cold"}[area])
+    side = lambda p: "cold" if p == "cold" else "hot"
+    pas = lambda p: "hot" if p == "hotx" else p
+    if TUBE:
+        tube_main(lines, bl, eff, macros, errors)
+    # the hot pass's blocks that assemble, in the source's order, and its units
+    hot = [k for k in range(len(bl)) if eff[k] in ("hot", "hotx") and ASM[k]]
+    pos = {k: n for n, k in enumerate(hot)}
+    parent = list(range(len(hot)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def join(a, b):
+        for x in range(min(a, b), max(a, b)):      # (a unit is a run of blocks)
+            ra, rb = find(x), find(x + 1)
+            if ra != rb:
+                parent[max(ra, rb)] = min(ra, rb)
     # fall-through: each block that can fall through its end must be followed,
-    # in the source, by a block of its own area that holds code, or by a block
-    # of the other side (hot: the run or bank 4; cold) whose first statement is
-    # its entry label, as that label's stub is then the next thing in the
-    # falling block's emission
+    # in the source, by a block of its own pass that holds code (in the hot
+    # pass, the same unit), or by a block of the other side whose first
+    # statement is its entry label, as that label's stub is then the next
+    # thing in the falling block's pass
     falls = []
     for k, (s, e, name, area) in enumerate(bl):
-        st = last_statement(lines, s, e)
-        if not falls_through(st, macros):
+        if eff[k] == "config" or not ASM[k]:
             continue
-        for s2, e2, name2, area2 in bl[k + 1:]:
-            if not any(ACTIVE[i] and assembles(code_part(lines[i]), macros) for i in range(s2, e2)):
+        st = last_statement(lines, s, e)
+        if not falls_through(st, macros) and s not in RUNSON:
+            continue
+        for k2 in range(k + 1, len(bl)):
+            s2, e2, name2, area2 = bl[k2]
+            if not ASM[k2]:
                 continue               # (comments, PRINTs and constants only)
             if any(re.match(r"^(ORG|CLEAR|SKIPTO)\b", code_part(lines[i]), re.I) for i in range(s2, e2)):
                 errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s, which moves the address"
-                              % (SRC, e, name, area, st, name2))
-            elif area2 != area:
+                              % (SRC, e, name, eff[k], st, name2))
+            elif pas(eff[k2]) == pas(eff[k]):
+                if pas(eff[k]) == "hot":
+                    join(pos[k], pos[k2])
+            elif side(eff[k2]) != side(eff[k]):
                 entry = entry_label(lines, s2, e2, macros)
-                side = "hot" if area in ("run", "bank4") and area2 == "cold" else \
-                       "cold" if area == "cold" else None
-                if side and entry:
-                    falls.append((side, entry))
+                if entry:
+                    falls.append((side(eff[k]), entry))
                 else:
-                    errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s)%s"
-                                  % (SRC, e, name, area, st, name2, area2,
-                                     "" if side else ", and no stub of %s is in %s's emission" % (name2, area)))
+                    errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s), whose "
+                                  "first statement is not its entry label" % (SRC, e, name, eff[k], st, name2, eff[k2]))
+            else:
+                errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s), another pass"
+                              % (SRC, e, name, eff[k], st, name2, eff[k2]))
             break
-    def place(s, area):
-        """the Tube build's placement of the block at line s: host, parasite
-        or both"""
-        return TUBETAG.get(s, "parasite")
+    # branches: a hot block that branches into another keeps the blocks from
+    # the one to the other in one unit (a branch reaches only 128 bytes)
+    blockof = {}
+    for k, (s, e, name, area) in enumerate(bl):
+        for n, i in defined(lines[s:e]):
+            if ACTIVE[s + i]:
+                blockof.setdefault(n, k)
+    for k in range(len(bl)):
+        s, e, name, area = bl[k]
+        if eff[k] == "config" or not ASM[k]:
+            continue
+        for i in range(s, e):
+            if not ACTIVE[i]:
+                continue
+            for off, st in statements(split_code(lines[i])[0]):
+                m = re.match(r"^\s*(?:\.[A-Za-z_]\w*\s+)*([A-Za-z]{3})\s+([A-Za-z_]\w*)(?![\w%])", st)
+                if not m or m.group(1).upper() not in BRANCH:
+                    continue
+                k3 = blockof.get(m.group(2))
+                if k3 is None or k3 == k:
+                    continue
+                if pas(eff[k3]) == pas(eff[k]):
+                    if k in pos:
+                        join(pos[k], pos[k3])
+                else:
+                    errors.append("%s:%d: %s branches to %s in another pass (%s)"
+                                  % (SRC, i + 1, name, m.group(2), eff[k3]))
+    # a block that starts by aligning itself (ALIGN n: the log tables) is
+    # measured without the measure's padding and placed at the next multiple
+    # of n, the padding counted in its container
+    align = {}
+    for k in hot:
+        s, e, name, area = bl[k]
+        for i in range(s, e):
+            c = code_part(lines[i])
+            if ACTIVE[i] and assembles(c, macros):
+                m = re.match(r"^ALIGN\s+&([0-9A-F]+)$", c, re.I)
+                if m:
+                    align[k] = int(m.group(1), 16)
+                break
+    units = []                             # [first, last] positions in hot
+    for n in range(len(hot)):
+        if n and find(n) == find(n - 1):
+            units[-1][1] = n
+        else:
+            units.append([n, n])
+    # each block's copy
+    copy_of = {}
+    report = []
+    if phase == "measure":
+        for k in range(len(bl)):
+            copy_of[k] = "measure" if eff[k] in ("hot", "hotx") else eff[k]
+        dn, b4, drep = data(errors, phase)
+    else:
+        sy = measured()
+        dn, b4, drep = data(errors, phase, sy)
+        addr = [sy["FLOW_%d" % k] for k in hot] + [sy["FLOW_END"]]
+        bsize = []                         # each block's size, less any measure padding
+        for n, k in enumerate(hot):
+            pad = (-addr[n]) % align[k] if k in align else 0
+            bsize.append(addr[n + 1] - addr[n] - pad)
+
+        def fit(at, u0, u1):
+            """where the unit u0..u1 ends if it starts at at"""
+            for n in range(u0, u1 + 1):
+                if hot[n] in align:
+                    at += (-at) % align[hot[n]]
+                at += bsize[n]
+            return at
+        conts = [["hot1", sy["LOW_END%"], 0x4000, []], ["hot2", sy["QS_RUN%"], 0x8000, []],
+                 ["hot3", 0x8000, 0xC000 - b4 - (sy["R4_END%"] - sy["R4_START%"]), []]]
+        # (bank 4 ends with the hot data HAZEL has no room for, b4, then the
+        # renderer's game-context routines, S_SUN and L_SUN: elite-layout.asm)
+        used = {c[0]: 0 for c in conts}
+        cur = 0
+        for u0, u1 in units:
+            xu = any(eff[hot[n]] == "hotx" for n in range(u0, u1 + 1))
+            names = "%s..%s" % (bl[hot[u0]][2], bl[hot[u1]][2]) if u1 > u0 else bl[hot[u0]][2]
+            if xu:
+                c = [c for c in conts if c[0] == HOTX][0]
+                if fit(c[1] + used[c[0]], u0, u1) > c[2]:
+                    errors.append("the ACCCON X unit %s does not fit in %s" % (names, c[0]))
+            else:
+                while cur < len(conts) and fit(conts[cur][1] + used[conts[cur][0]], u0, u1) > conts[cur][2]:
+                    cur += 1
+                if cur == len(conts):
+                    errors.append("the hot pass does not fit: %s has no room" % names)
+                    break
+                c = conts[cur]
+            size = fit(c[1] + used[c[0]], u0, u1) - (c[1] + used[c[0]])
+            c[3].append((used[c[0]], size, names, xu))
+            used[c[0]] += size
+            for n in range(u0, u1 + 1):
+                copy_of[hot[n]] = c[0]
+        for k in range(len(bl)):
+            if k not in copy_of:
+                if eff[k] in ("hot", "hotx"):  # (a block that assembles nothing:
+                    copy_of[k] = copy_of.get(k - 1, "hot1")   # the one before it's)
+                else:
+                    copy_of[k] = eff[k]
+        for name, a, b, us in conts:
+            report.append("%s &%04X-&%04X: %d units, %d bytes, %d free" % (name, a, b - 1, len(us), used[name],
+                                                                          b - a - used[name]))
+            for off, size, names, xu in us:
+                report.append("  &%04X %5d %s%s" % (a + off, size, names, " (ACCCON X)" if xu else ""))
+        report.append("hot data:")
+        report += drep
     copies = {}
-    for a in AREAS:
+    allc = ["config", "low", "cold"] + (["measure"] if phase == "measure" else ["hot1", "hot2", "hot3"])
+    for a in allc:
         copies[a] = []
-        for s, e, name, area in bl:
-            on = area == a and not (TUBE and place(s, area) in ("host", "hostb", "none"))
-            copies[a] += [lines[i] if on else "" for i in range(s, e)]
-    if TUBE:
-        # the host's copies: the configuration and the workspaces at fixed
-        # addresses (zero page, the stack, K%, WP), which the host mirrors at
-        # the same addresses (build/elite-source-ws.asm), and the host's
-        # blocks (build/elite-source-host.asm), which tube/src/h-layout.asm
-        # assembles at its own addresses
-        WS = ("ZP", "XX3", "K%", "WP")
-        wsc, hostc, hostbc = [], [], []
-        first = min(k for k, b in enumerate(bl) if b[2] in WS)    # (the configuration: the blocks before ZP)
         for k, (s, e, name, area) in enumerate(bl):
-            ws = k < first or name in WS
-            on = not ws and place(s, area) in ("host", "both")
-            onb = not ws and place(s, area) in ("hostb", "bothb")  # (the host's sideways RAM copy:
-            wsc += [lines[i] if ws else "" for i in range(s, e)]     # the dashboard's drawing)
-            hostc += [lines[i] if on else "" for i in range(s, e)]
-            hostbc += [lines[i] if onb else "" for i in range(s, e)]
-        for nm, c in (("ws", wsc), ("host", hostc), ("hostb", hostbc)):
-            with open(OUT % nm, "w", encoding="latin-1") as f:
-                f.write("\n".join(c))
-    nstubs = glue(copies, errors, lines, bl, falls)
-    nd = data(errors)
-    if TUBE:
-        for fp in FRAMEPASS:
-            frame_passes(fp, errors)
-    for a in AREAS:
+            copies[a] += [lines[i] if copy_of[k] == a else "" for i in range(s, e)]
+    if phase == "measure":
+        for k in hot:
+            copies["measure"][bl[k][0]] = ".FLOW_%d" % k
+    nstubs = glue(copies, errors, lines, bl, eff, copy_of, falls,
+                  ["low"] + (["measure"] if phase == "measure" else ["hot1", "hot2", "hot3"]))
+    with open(DIRECT, "w") as f:           # (for bankcheck.py: what the cold pass calls directly)
+        f.write("".join("%s\n" % n for n in sorted(nstubs[2])))
+    for a in allc:
         with open(OUT % a, "w", encoding="latin-1") as f:
             f.write("\n".join(copies[a]))
-    n = {a: sum(1 for b in bl if b[3] == a) for a in AREAS}
+    if phase == "place":
+        with open(FLOWTXT, "w") as f:
+            f.write("\n".join(report) + "\n")
     for e in errors:
         print("streams:", e)
-    print("streams: %d blocks (%s), stubs %d into the cold area, %d out of it; data %s%s"
-          % (len(bl), ", ".join("%s %d" % (a, n[a]) for a in AREAS), nstubs[0], nstubs[1],
-             ", ".join("%s %d" % (a, nd[a]) for a in DAREAS),
+    n = {p: sum(1 for k in range(len(bl)) if eff[k] == p and ASM[k]) for p in ("low", "hot", "hotx", "cold")}
+    print("streams (%s): %d blocks (low %d, hot %d with %d ACCCON X, cold %d), %d hot units, stubs %d into "
+          "the cold pass, %d out of it; data %s%s"
+          % (phase, len(bl), n["low"], n["hot"] + n["hotx"], n["hotx"], n["cold"], len(units),
+             nstubs[0], nstubs[1], ", ".join("%s %d" % kv for kv in dn.items()),
              ", %d error(s)" % len(errors) if errors else ""))
+    if phase == "place":
+        for l in report:
+            if not l.startswith("  &"):
+                print("streams:", l.strip())
     sys.exit(1 if errors else 0)
 
 

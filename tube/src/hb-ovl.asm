@@ -41,7 +41,11 @@
  TAX
  LDY #0
  RTS
-.hbo_b EQUB OVLBANK, RASTBANK, RASTBANK, RASTBANK, OVLBANK   \ (D, S's common part, S's state, the
-.hbo_h EQUB HI(OVLD_AT), &80 + OVLS0_PAGES, &80 + OVLS_PAGES, &80 + OVLSC_PAGES, HI(OVLD_AT) + OVLD_PAGES   \ meridian tail,
-.hbo_n EQUB OVLD_PAGES, OVLSC_PAGES - OVLS0_PAGES, OVLSS_PAGES, OVLS_PAGES - OVLSC_PAGES, OVLTC_PAGES   \ the crater tail; S from its state's last page, ovl_sinit)
+.hbo_b EQUB OVLBANK, RASTBANK, RASTBANK   \ (D, S, S's state; S from its state's
+.hbo_h EQUB HI(OVLD_AT), &80 + OVLS0_PAGES, &80   \ last page, ovl_sinit; the state in
+.hbo_n EQUB OVLD_PAGES, OVLS_PAGES - OVLS0_PAGES, OVLSS_PAGES   \ the image's own state pages)
+ ASSERT OVLS_PAGES <= 64  \ (bank D holds S's image from its state's last page on,
+                        \ and its state below that: the state's last page is
+                        \ the image's first, whose code the state's save keeps
+                        \ and whose state ovl_sinit makes afresh)
 

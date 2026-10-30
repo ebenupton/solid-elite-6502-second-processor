@@ -4,6 +4,7 @@
 //
 // node master/tools/agentplay/replay.mjs --run DIR [--out DIR2] [--until ITER] [--keepgoing N]
 //      [--cut ITER --save FILE] [--trace FROM,TO [--tracefull]] [--shots N] [--noobserve] [--cand disc --csyms syms] [--ref disc --rsyms syms] [--log inputs.jsonl]
+//      [--fbhash FILE]
 // Defaults: the discs and symbols in DIR/inputs.jsonl's header, if those discs are still the
 // ones recorded (the candidate can be swapped for another build to test a fix: --cand with
 // --csyms); --out DIR/replay. Unknown options are an error (exit 2). --until: stop after that iteration (a
@@ -12,7 +13,7 @@ import { Session } from "./session.mjs";
 import { parseArgs } from "../../../harness/args.mjs";
 import { readFileSync } from "fs";
 
-const a = parseArgs({ run: "value", log: "value", out: "value", until: "value", keepgoing: "value", cut: "value", save: "value", trace: "value", tracefull: "flag", shots: "value", noobserve: "flag", cand: "value", csyms: "value", ref: "value", rsyms: "value", workaround: "value" });
+const a = parseArgs({ run: "value", log: "value", out: "value", until: "value", keepgoing: "value", cut: "value", save: "value", trace: "value", tracefull: "flag", shots: "value", noobserve: "flag", cand: "value", csyms: "value", ref: "value", rsyms: "value", workaround: "value", fbhash: "value" });
 const log = a.log || `${a.run}/inputs.jsonl`;
 if (!a.run && !a.out && a.cut === undefined) { console.error("--run DIR or --log FILE with --out DIR"); process.exit(2); }
 const h = JSON.parse(readFileSync(log, "utf8").split("\n")[0]);
@@ -56,6 +57,7 @@ const cfg = {
     ref: a.ref || h.ref, rsyms: a.rsyms || h.rsyms, cand: a.cand || h.cand, csyms: a.csyms || h.csyms,
     trace: a.trace ? a.trace.split(",").map(Number) : undefined, traceFull: !!a.tracefull,
     workarounds: a.workaround ? String(a.workaround).split(",") : (h.workarounds || []),
+    fbhash: a.fbhash,
     until: a.until !== undefined ? +a.until : undefined, keepGoing: +(a.keepgoing || 0), shots: +(a.shots || 0), observe: !a.noobserve,
 };
 try {

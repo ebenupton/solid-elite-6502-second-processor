@@ -4,8 +4,8 @@
 \ layer (after the Demonstration Disc port's src/hooks.asm)
 \
 \ Master port: these run in game context only, with ACCCON X clear; they are
-\ in the low area (elite-low.asm), with the renderer's other glue (below
-\ &3000, as the hooks that run with X set or from the IRQ, gfx-lowhooks.asm,
+\ in the glue area (elite-glue.asm), with the renderer's other glue (below
+\ &3000, as the hooks that run with X set or from the IRQ, gfx-gluehooks.asm,
 \ must be). Elite's drawing routines call
 \ these with a single JSR at their start. "Record mode" is QQ11 = 0 (a view that draws ships) and GFORCE = 0:
 \ drawing is then recorded for FRAME instead of being done. A hook that takes
@@ -41,11 +41,16 @@ ENDIF
  PLP
  RTS
 
-\ H_CIRC: CIRCLE in record mode records the planet disc instead (PL9 is about
-\ to draw the planet's circle) and returns from CIRCLE as CIRCLE2 would:
-\ C clear, LSX2 = 0 (the ball line heap in use), FLAG = 0, STP = 8, 4 or 2
-\ by the radius and CNT = the first multiple of STP above 64. If the circle
-\ isn't on screen (CHKON), C set as CIRCLE returns
+\ H_CIRC: CIRCLE in record mode records the planet's disc instead (PL9 is
+\ about to draw the planet's circle) and its surface detail (G_PFHOOK), and
+\ returns from PL9 itself, whose meridians and crater the renderer draws
+\ (their maths, PL9 parts 2 and 3, PLS2, PLS22 ..., are "Area: none"),
+\ leaving what the game reads of them: K2 (MV40 adds it into the next
+\ object's y without setting it first) as PLS1 leaves it for nosev_x (a
+\ meridian planet of radius 6 or more; halved, a crater planet whose crater
+\ faces us), TGT (31 or 64) and FLAG (0); and LSX2 = 0, STP and CNT as
+\ CIRCLE2 would. If the circle isn't on screen (CHKON), it returns from
+\ CIRCLE with C set, as CIRCLE does
 
 .H_CIRC
  LDA QQ11
@@ -57,14 +62,8 @@ ENDIF
  JSR CHKON
  BCC P%+3
  RTS
- STZ PM_OK              \ (no meridians yet: PM_HOOK sets it)
- LDA TYPE               \ (a crater planet's boundaries overwrite the beach
- CMP #128               \ ball's rows in the disc layer's arrays)
- BEQ P%+5
- STZ PS_VALID
- LDA K                  \ the radius, for PM_HOOK (PLS1 overwrites K)
- STA PM_R
  JSR G_PLANET
+ JSR G_PFHOOK           \ the planet's class and surface detail (gfx-planet7.asm)
  LDA #0
  STA LSX2
  STA FLAG
@@ -82,7 +81,32 @@ ENDIF
 .hci1
  STA STP
  STY CNT
- CLC
+ PLA                    \ (return from PL9: CIRCLE's return into it)
+ PLA
+ LDA K+1                \ (PL9: only below a radius of 256)
+ BNE hci9
+ LDA TYPE
+ CMP #128
+ BNE hci2
+ LDA K                  \ a meridian planet (part 2): radius 6 up
+ CMP #6
+ BCC hci9
+ LDA #31
+ BNE hci3
+.hci2
+ LDA INWK+20            \ a crater planet (part 3): its crater facing us
+ BMI hci9
+ LDA #64
+.hci3
+ STA TGT
+ LDX #9
+ JSR PLS1
+ LDY TYPE               \ (halved for a crater planet)
+ CPY #128
+ BEQ P%+3
+ LSR A
+ STA K2
+.hci9
  RTS
 
 \ H_WPLS2: in record mode the planet's lines are not on screen: just reset the
@@ -97,39 +121,6 @@ ENDIF
  PLA
  JMP WP1
 
-\ H_PCURVE: PLS22 is about to compute an ellipse (TGT segments): start a new
-\ curve (BLINE records each point itself, through G_PPOINT). It preserves X,
-\ Y and C (the caller sets A and the other flags straight after)
-
-.H_PCURVE
- LDA QQ11
- ORA GFORCE
- BNE hpc9
- JMP G_PCURVE
-
-\ H_MERID: PL9 has a meridian planet (TYPE 128) of radius 6 or more that
-\ fits on the screen, and is about to draw its equator and meridian. In
-\ record mode the renderer colours the disc as a beach ball instead: the
-\ meridian window computes the frame's constants (G_MERHOOK, PM_HOOK), and
-\ H_MERID returns from PL9 (Elite's half ellipses are neither computed nor
-\ recorded) with TGT and K2 as PL9 would have left them: the game reads
-\ both later. In direct mode it returns, and PL9 draws the lines
-
-.H_MERID
- LDA QQ11
- ORA GFORCE
- BNE hpc9
- LDX #9                 \ K2 = nosev_x / z, as PL25 leaves it: MV40 adds
- JSR PLS1               \ K2 into the next object's y without setting it
- STA K2                 \ first (the sun's, when it follows the planet)
- LDA #31
- STA TGT
- PLA                    \ (return from PL9)
- PLA
- JMP G_MERHOOK
-
-.hpc9
- RTS
 
 \ H_STAR: PIXEL2 has star Y's screen position in X = x, A = y and is about to
 \ fall into PIXEL (it JMPs here); in record mode it is recorded straight into the
@@ -175,51 +166,61 @@ ENDIF
 .hso8
  CLC                    \ outside record mode: star Y is no longer drawn
  JMP G_DSTAR            \ (returns C set, X and Y kept)
-\ H_EE31: LL9 has projected the ship (part 9, EE31, which jumps here: every
-\ LL9 records, as nothing draws a ship directly, docs/MASTER-PLAN.md, "The
-\ briefings"): record it (and its laser beam if it is firing at us) and
-\ return from LL9. What LL9's parts 9 to 12 left that the game reads is set
-\ as they would: bit 3 of byte #31 (on screen), bit 6 cleared if it fired,
-\ XX20 (edges) and CNT (the blueprint's heap size, which LL170 leaves there);
-\ and it returns as LSCLR does (A = 1, Y = 0, C set). The ship line heap is
-\ not written (only the explosion clouds use it, DOEXP)
+\ H_LL42: LL9's part 6 (LL42, which calls this first) is about to work out
+\ which vertices are visible and project them. Every LL9 records its ship (nothing draws a ship
+\ directly, docs/MASTER-PLAN.md, "The briefings"), and a ship that is not
+\ exploding is recorded here, before its vertices are projected: the frame
+\ projects them (gfx-frame.asm's f_proj runs part 6 on, from LL42P, when it
+\ draws the ship, after those further away), so LL9 goes on to H_EE31 at
+\ once, or, if the ship is firing at us, after part 6 has projected just
+\ the gun vertex for the beam (F_GUN sets part 6's loop on that one vertex,
+\ LL48). Part 6 on changes nothing the game reads but XX3
+\ (master/tools/records/live.mjs), which only DOEXP (an exploding ship: its
+\ cloud's vertices, all projected) and H_EE31 (the beam: the gun vertex)
+\ read
+
+.H_LL42
+ LDA XX1+31             \ exploding: DOEXP takes the vertices
+ AND #%00100000
+ BNE hll9
+ LDY #12                \ faces = byte #12 / 4
+ LDA (XX0),Y
+ LSR A
+ LSR A
+ STA GNF
+ JSR S_SHIP             \ record it (G_SHIP), with its handedness (and the
+                        \ splinter's faces all shown: SPLV)
+ PLA                    \ (LL9 goes on from here, not LL42)
+ PLA
+ BIT XX1+31             \ not firing at us: on to H_EE31 (as LL72)
+ BVC H_EE31
+ LDY #6                 \ firing: its gun vertex (byte #6: 4 * its number)
+ LDA (XX0),Y            \ alone, through part 6's loop (G_GUN: LL42P's matrix
+ JSR G_GUN              \ and the loop's set-up for it, returning Y = its
+ JMP LL48               \ offset in the vertex data)
+.hll9
+ RTS
+
+\ H_EE31: LL9 is done (part 9, EE31, which jumps here; at once from H_LL42
+\ for a ship it has recorded and not projected): the ship's laser beam, if
+\ it is firing at us, and return from LL9. What LL9's parts 9 to 12 left
+\ that the game reads is set as they would: bit 3 of byte #31 (on screen),
+\ bit 6 cleared if it fired, XX20 (edges) and CNT (the blueprint's heap
+\ size, which LL170 leaves there); and it returns as LSCLR does (A = 1,
+\ Y = 0, C set). The ship line heap is not written (only the explosion
+\ clouds use it, DOEXP). Run by the frame (f_proj, GPRJ set), it returns
+\ at once
 
 .H_EE31
+ BIT GPRJ
+ BPL P%+3
+ RTS
  LDY #9                 \ XX20 = the number of edges (as EE31)
  LDA (XX0),Y
  STA XX20
  LDA #%00001000         \ the ship is now on screen (as EE31)
  ORA XX1+31
  STA XX1+31
- LDY #12                \ faces = byte #12 / 4
- LDA (XX0),Y
- LSR A
- LSR A
- STA GNF
- LDY #8                 \ vertices = byte #8 / 6
- LDA (XX0),Y
- LDX #0
-.hee1
- CMP #6
- BCC hee2
- SBC #6
- INX
- BNE hee1
-.hee2
- STX GNV
- LDX TYPE               \ the faces' type: the station's slot holds the
- CPX #SST               \ Coriolis or the Dodo (NWSPS), whose faces are
- BNE hee3               \ type DOD's
- LDA XX0
- CMP XX21+2*(DOD-1)
- BNE hee3
- LDA XX0+1
- CMP XX21+2*(DOD-1)+1
- BNE hee3
- LDX #DOD
-.hee3
- STX GTYPE
- JSR G_SHIP
 
  BIT XX1+31             \ firing its lasers at us? (as EE31)
  BVC hee9
@@ -252,11 +253,7 @@ ENDIF
  DEC XX15+4
  JSR CLIP
  BCS hee9
- LDA #FC_ELASER
- STA GLCOL
  JSR G_LINE
- LDA #FC_PLINE
- STA GLCOL
 .hee9
  LDY #5                 \ CNT = the blueprint's maximum heap size (as LL170)
  LDA (XX0),Y
@@ -264,46 +261,6 @@ ENDIF
  LDA #1                 \ A = 1, Y = 0, C set, as LSCLR returns
  LDY #0
  SEC
- RTS
-
-\ H_DOT: PIXEL with X = x, A = y (in record mode only DOEXP's explosion
-\ particles reach it; stars are recorded by H_STAR): the dot is recorded
-\ (unless GDRAWON is 0: PTCLS erasing the old cloud) and PIXEL returns as it
-\ would: T1 = Y, C = (ZZ >= 80), N and Z from Y
-
-.H_DOT
- STA hA
- LDA QQ11
- ORA GFORCE
- BNE hdd
- PLA
- PLA
- LDA GDRAWON
- BEQ hdz
- LDA hA
- JSR G_DOT
-.hdz
- LDA ZZ
- CMP #80
- STY T1
- LDY T1
- RTS
-.hdd
- LDA hA
- RTS
-
-\ H_PTCLSE: DOEXP removing the old explosion cloud: run PTCLS (for its random
-\ numbers) without recording anything
-
-.H_PTCLSE
- STZ GDRAWON
- JSR PTCLS
- PHP
- PHA
- LDA #&FF
- STA GDRAWON
- PLA
- PLP
  RTS
 
 \ Our laser beams: LASLI (falling into LASLI2) shows them, LASLI2 called
@@ -400,9 +357,9 @@ ENDIF
 
 \ The energy bomb's lightning: BOMBOFF draws nine lines with LOIN (EOR), and
 \ is called again with the same coordinates to remove them. In record mode
-\ H_BOMB (at BOMBOFF, in the space view) tells the frame layer that a new bolt
-\ starts, so only the last one recorded in a frame is drawn, and H_LLINE
-\ records each line instead of drawing it (Y kept, as LOIN keeps it)
+\ H_BOMB (at BOMBOFF, in the space view) has the frame layer copy the bolt's
+\ points (F_BOMB: the frame draws the last bolt drawn), and H_LLINE draws
+\ nothing (Y kept, as LOIN keeps it; A and X are dead after BOMBOFF)
 
 .H_BOMB
  LDA QQ11
@@ -417,6 +374,4 @@ ENDIF
  ORA GFORCE
  BEQ P%+5
  JMP LOIN
- LDA #FC_PLINE
- STA GLCOL
- JMP G_LINE
+ RTS

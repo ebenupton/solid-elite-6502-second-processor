@@ -453,19 +453,20 @@ than by bank:
 ## Lens flare (after the lighting)
 
 The demo port's lens flare (its docs/FLARE.md, src/flare*.asm, model
-tools/flare.py), ported with the same recipe, arithmetic and pixels: when
-SUN has drawn the sun this frame, in the front view (VIEW = 0), with its
-centre on the screen (x 1..255, y 0..191) and not inside the planet's disc
-(F_HW, the planet's half-widths), eight ghosts at C + k D / 8 (C = (128,
-96), D = sun - C, k = 8, 5, 3, -1, -3, -4, -6, -8): six dithered discs and
-two dotted rings (the one round the sun only for a sun of radius 26 or
-less). Each disc pixel of its 4x4 Bayer mask is ORed in its ink (OR lifts
-K = 00, C = 01, M = 10, Y = 11 upwards: additive light); three levels by
-|dx| + |dy| (< 96, < 192, more) step every density down the ladder 0 1 2 4
-6 8 / 16. It is drawn after the lasers and before the text, sights and
-stars, and every span extends this buffer's dirty extent for its row (the
-rows' range goes to R_MARKDIRTY), so the next frame on this buffer repairs
-it like any other shape. It never touches game state.
+tools/flare.py, which is master/tools/flare.py here), ported with the same
+recipe, arithmetic and pixels: when SUN has drawn the sun this frame, in
+the front view (VIEW = 0), with its centre on the screen (x 1..255, y
+0..191) and not inside the planet's disc (F_HW, the planet's half-widths),
+eight ghosts at C + k D / 8 (C = (128, 96), D = sun - C, k = 8, 5, 3, -1,
+-3, -4, -6, -8): six dithered discs and two dotted rings (the one round
+the sun only for a sun of radius 26 or less). Each disc pixel of its 4x4
+Bayer mask is ORed in its ink (OR lifts K = 00, C = 01, M = 10, Y = 11
+upwards: additive light); three levels by |dx| + |dy| (< 96, < 192, more)
+step every density down the ladder 0 1 2 4 6 8 / 16. It is drawn after the
+lasers and before the text, sights and stars, and every span extends this
+buffer's dirty extent for its row (the rows' range goes to R_MARKDIRTY),
+so the next frame on this buffer repairs it like any other shape. It never
+touches game state.
 
 Layout (master/src/gfx-flare6.asm, gfx-flare.asm):
 * F_FRAME's `JSR f_text2` is `JSR f_flt` (bank 6, at its end): without the
@@ -502,13 +503,14 @@ from 14 to 23 + 43; HAZEL data from 163 + 40 to 121 + 19.
 Checks (headless, scratch scripts: the gate's pilot to iteration 1000,
 then the sun placed in front of the ship along a path each iteration, the
 back buffer dumped as each frame finishes, against the same run of the
-build without the flare with the demo's tools/flare.py applied): 0 pixels
-differ from the model over 704 frames (514 with the flare: levels 1, 2
-and 3, the sun behind the planet, leaving the screen), apart from text,
-sights and stars drawn after it; every frame without the flare is byte for
-byte the other build's (no residue); game state identical. Screenshots:
-/Users/ebenupton/elite-full/screenshots/flare/ (montage.png, compare-*.png:
-port | model | differences, display-*.png: jsbeeb's display).
+build without the flare with the model, master/tools/flare.py, applied): 0
+pixels differ from the model over 704 frames (514 with the flare: levels
+1, 2 and 3, the sun behind the planet, leaving the screen), apart from
+text, sights and stars drawn after it; every frame without the flare is
+byte for byte the other build's (no residue); game state identical.
+Screenshots: /Users/ebenupton/elite-full/screenshots/flare/ (montage.png,
+compare-*.png: port | model | differences, display-*.png: jsbeeb's
+display).
 
 Cost: nothing on the gate (the pilot never has the sun in front: verify.sh
 1.236, 17.27 it/s before and after). As first ported, with the sun on
@@ -1911,3 +1913,1069 @@ frames change only in iterations 13973-14037: the station, a few pixels at
 the sights during a docking run, is now drawn in front of the planet (the
 fix's build and the Tube tree's Master build with it give the same pixels
 there; screenshots/planetz).
+
+## Lessons from the Tube (after the planet's z, edd060d; branch lessons)
+
+The Tube build (branch dumbhost, TUBE-REPORT.md) measured and tried
+things on its parasite and hosts that this port shares or could share.
+Each was judged here, measured on this port, and made where it won
+(LESSONS-REPORT.md in the branch's worktree has the numbers in full):
+
+* **Two boundaries a row, not four** (the disc layer's per-buffer state
+  for the beach ball): over the gate's run 2.5% of a beach ball's rows
+  have three boundaries and 0.004% four; keeping two, with an unknown
+  count for more (a full repaint next time), costs less than the stores
+  and loads of the other two: the gate's beach rows -1.8%, run1's beach
+  windows +0.6% and +2.1%, and bank 5 1,039 bytes freed. (Three
+  boundaries was measured too and is slower.)
+* **One-colour rows of a two-colour frame** (the Tube's R_BST) were
+  already drawn as changes here; colour B rows and rows the disc leaves
+  took slow paths, now r_dp2's: the gate's beach rows -0.9%.
+* **The ships' edge lists** are read by nothing (a read watch over the
+  gate and the forced paths): 2,596 bytes of HAZEL; the hot data now all
+  fits there, so bank 4 has 1,850 bytes free and HAZEL 1,919.
+* **ACCCON**: no whole writes in the game (TSB/TRB of X and E, as the
+  original's comments say), the loader's masked: ITU and IFJ are kept.
+* **The span core's trims**: r_spc had them; phase B's empty-run test
+  went (docking -0.46%).
+* **BREAK**: the port hung in the MOS's reset after BREAK or SHIFT+BREAK;
+  with *FX200,3 BREAK is a power-on reset and SHIFT+BREAK reboots the
+  game, as the original does.
+* **Not done**: full STA runs, one page a line (37.6K, or 48K page per
+  line, against about 7.7K free in all; at most 3.5% in docking, 0.2% in
+  flight, 1 cycle a byte stored); one-pass polygons (rejected before).
+
+## The lens flare and occlusion (after the lessons, fa36d40; branch flarevis)
+
+The flare used to be all or nothing on one test: the sun's centre on the
+screen and not inside the planet's disc. A ship in front of the sun, the
+planet over most of it, or a sun half off the screen still got the full
+flare. Now R_FLARE (gfx-flare.asm, bank 5) first looks at the back buffer
+as drawn so far, at nine points of the sun's disc. These are the centre and
+eight points round it at about 0.62 R (left, right, up, down and the
+diagonals; offsets a = R/2 + R/8 and b = R/2 - R/16, with R capped at 127).
+The planet, ships, dots and lasers are drawn by then; the text, sights and
+stars come after the flare.
+
+* A probe outside the clip window (x 2..253, y 1..191) is out of sight.
+* A probe inside is in sight if its pixel is still the sun's colour for its
+  row: FC_SUNE on even rows, FC_SUNO on odd ones. A dithered row is compared
+  with its own colour byte, pixel by pixel (fl_pxm).
+* ACCCON X is as the frame layer has it, so the reads see this buffer.
+* None in sight: no flare, and nothing marked dirty. In K mode the kept rows
+  are forgotten only when the flare draws (k_clear moved from T_FLARE into
+  R_FLARE, after the probes).
+* Otherwise every ghost's density steps down the ladder by 0 (all 9 in
+  sight), 1 (7 or 8), 2 (4 to 6) or 3 (1 to 3) more rungs (fl_vred). fl_lev
+  now holds the level less 3 less that, and the ghost's density is its index
+  plus fl_lev.
+
+f_flt's tests in bank 6 are unchanged: the front view, the centre on the
+screen, and the centre not inside the planet's disc. (When the planet is
+the bigger disc, the sun is drawn over it as the secondary disc, so the
+probes alone would see it.)
+
+Space: the probes are 184 bytes in bank 5's shared region, which had 107
+free. R_LINE's cold part (gfx-raster_lcold.asm, 188 bytes, with the
+rasteriser's private state) moved to the room below the per-x tables:
+elite-gfx.asm assembles it from r_tfree after a CLEAR. The shared region
+then has 111 free, and the room below the tables 620. The glue is 8 bytes
+shorter (T_FLARE's K-mode test), and the font's padding takes them up.
+
+Cost: the probes take 1,200-1,280 cycles a flared frame (636-960 when the
+sun is half off the screen; up to 1,450 when an interrupt lands in them).
+A fully hidden sun's flare now costs about 1,440 cycles, against
+14,000-28,000 for a drawn flare, before the repair the next frame on the
+buffer would need. Nothing on the gate: its pilot never has the sun in front.
+
+Scenes (harness/mflarevis.mjs, the gate's pilot, then the sun placed on a
+path; master/tools/flarevis.py draws the dumped back buffers):
+screenshots/flarevis/planet-full-reduced-off.png (the sun sliding behind
+the planet: 9, 6, then off by f_flt's centre test),
+ship-full-reduced-off.png (an asteroid across the sun: 9, 4, 0),
+edge-full-reduced-off.png (the sun leaving the screen: 9, 6, 3, then off),
+ship-hidden-before-after.png (the same hidden frame before and after).
+
+Seen in passing, and not changed: when the planet is hidden in one step
+while the sun stays (scene.mjs --hideplanet), planet-coloured pixels stay
+on the sun's disc for many frames. fa36d40 does the same.
+
+**Checked**: test_raster seeds 1-14; master/verify.sh: VERIFY PASS 13.97
+11.82 0.846, as before (game state identical to SNG47 at all 10,000
+iterations; redock, save/load, station, views); irqprobe: split late 0,
+early 0, T1 latency p99 51, max 57 (fa36d40: the same); mdocktime
+5,157,674 busy cycles (fa36d40: the same); mflips min=2, the histogram
+identical to fa36d40's.
+
+## Saves byte-identical (after the lens flare and occlusion)
+
+harness/msavetest.mjs only round-trips a save on our build.
+harness/msavebytes.mjs makes the same commander on SNG47 and on the build
+(new game, docked at Lave; CASH, fuel, two cargo bays and the legal status
+poked by each disc's own symbols), saves it through the disc menu with real
+key presses and compares E.TESTB, read from the emulated drive's image, and
+its catalogue entry: identical (256 bytes, load and execution addresses
+&0). master/verify.sh runs it with the regressions, with the discs and
+symbols passed explicitly.
+
+## HAZEL holds the game data only (after the saves)
+
+HAZEL (&C000-&DFFF) holds the game data only: XX21 and the blueprints from
+&C000 and the rest of BDATA's hot data. The renderer makes no use of it (no
+code, tables, variables or stubs), and &DF00-&DFFF, the MOS's, is off
+limits to everything. bankcheck.py fails the build on any label or
+constant of elite-gfx.asm or a gfx- file in &C000-&DFFF, and on any label
+in &DF00-&DFFF (docs/MASTER-MAP.md, rule 5). The test harness's stand-ins
+at &DF00 are the test machine's only; bankcheck's stale gfx-kept-hz.asm
+entry is gone.
+
+## RUPLA, RUGAL and RUTOK in HAZEL (after the HAZEL rule)
+
+The extended descriptions' overrides (RUPLA, RUGAL and RUTOK: 696 bytes of
+elite-data.asm, read only by the cold pass's PDESC and DETOK3) have no
+`Area: cold` tag: they are hot data, flowing into HAZEL after ACT
+(&D781-&DA38), where the cold pass reads them as it reads QQ18. That gives
+bank 7 their 696 bytes for the renderer. RUTOK uses the extended tokens'
+macros (ETOK, ECHR ..., defined in the cold data's blocks), so
+elite-layout.asm assembles HAZEL after the cold pass, as elite-measure.asm
+does.
+
+## The lens flare in bank 7 (after RUPLA, RUGAL and RUTOK)
+
+R_FLARE and its tables (gfx-flare.asm, 1,014 bytes) are in the meridian
+window in bank 7, after gfx-kept7.asm, with the half-width table fl_htab
+and the flare's variables (74 bytes that were in bank 5's run pages'
+tails), instead of at the end of bank 5's shared region, which they leave
+to the second disc. T_FLARE pages bank 7 for R_FLARE, and does its two
+bank 5 calls afterwards: in K mode k_clear (the flare's rows are not
+kept), and R_MARKDIRTY for the rows written, which R_FLARE returns (C set:
+the sun was in sight, Y .. X the rows). bankcheck checks gfx-flare.asm as
+bank 7's, and build.sh's banks.txt lists it in bank 7 (with
+gfx-raster_kept.asm and gfx-kept7.asm), for the harness. The pixels are
+the same (harness/mfbcmp.mjs: 1,961 frames over 6,000 gate iterations, the
+flare's windows included, identical).
+
+## The lens flare's tables: flare.py (after the lens flare in bank 7)
+
+gfx-flare.asm's tables come from the demo port's model, which is
+master/tools/flare.py, with --tables (fl_rad, fl_ink, fl_ni, fl_mt, fl_dk,
+fl_ring and fl_htab from its GHOSTS, LADDER, BAYER, RING and hw_table) and
+--verify (the source's literal tables, and fl_htab as assembled into
+MERID.bin, byte for byte: all identical); master/verify.sh runs --verify
+after the build.
+
+## L_SUN at bank 4's end (after flare.py)
+
+L_SUN (the light towards the sun for the next iteration's ships) runs once
+a space-view iteration in game context, before F_FRAME sets ACCCON X, and
+reads only game state (K%, FRIN, ALPHA, BETA) and the quarter squares. It
+is at bank 4's end, after the hot pass and the hot data, instead of in
+bank 6: G_FRAME calls it with bank 4 paged (in a space view, QQ11 = 0),
+before it pages bank 6 for F_FRAME, and G_HANGAR (the hangar's frame, from
+HALL) calls it under the same test. Its result LLT, which L_REC reads in
+bank 6, is in the glue area (gfx-gvars.asm, with its initial value).
+
+gfx-light.asm stays one file, assembled in two passes: its L_SUN half and
+its L_REC half are IF LIGHTPASS = 4 / 6 blocks, and build.sh writes a copy
+for each pass (build/gfx-light-4.asm for elite-layout.asm and
+elite-measure.asm, build/gfx-light-6.asm for elite-gfx.asm) with the other
+block assembled out and the source's line numbers. L_SUN's scratch is its
+own (lv_t, lv_s, in bank 4). streams.py keeps bank 4's room for the
+renderer's routines there (R4_START% .. R4_END%), and the measure
+assembles them once for their size. Bank 6 gains 649 bytes. The light is
+the same: LLT at each of 2,938 frames of the gate's run as at b0abf71.
+
+## One circle engine for the planet's surface (after L_SUN)
+
+Every feature of a planet's surface is a circle on its sphere, the boundary
+of {p : m.p >= d}: a meridian or the equator is a great circle (d = 0), a
+crater a small cap, a band the region between two latitude circles about
+the spin axis. The beach ball's code (PM_HOOK, PM_MERID) is replaced by one
+engine (gfx-merid.asm) and a few lines of style each (gfx-planet7.asm):
+
+* **pc_circ** (game context, from PF_HOOK) makes one circle's record (24
+  bytes) from its axis, cosine and the body: the ellipse's a, K0, K2 and
+  s0 (as the beach ball had them: pms_core is unchanged), its centre line
+  C0 at the centre row Yc (to the nearest pixel, so that rows Yc +/- k are
+  symmetric about it), and **two threshold rows**. Along a row f = m.p - d
+  is concave on the visible hemisphere, so the X- crossing is a boundary
+  iff f <= 0 at the row's left limb point, X+ iff at its right one, and the
+  row starts in the region iff f > 0 at its left limb point; along the limb
+  f changes sign only at the circle's two nodes, Ys = A -/+ sqrt(B)
+  (A = m^y' d / q2, B = v (r^2 - d^2 / q2), q2 = m^x^2 + m^y'^2), each on
+  the left limb or the right. So every per-row test becomes one rule: from
+  the top of the disc, each node toggles one limb's flag (which one from
+  the signs of f at the top and the bottom). For d = 0 this is exactly the
+  beach ball's uP/uM rule.
+* **PC_ROWS** (the frame) fills the rows with the base colour EOR the left
+  limbs' toggles (one pass, a list of at most six toggle rows), then for
+  each record walks k from Yc out, stepping D, s and C as the beach ball's
+  loop did, with the flags of rows Yc + k and Yc - k recomputed only at the
+  k where one changes (pr_seg: eight thresholds in k). A hidden circle (no
+  node, the limb wholly inside) keeps no record.
+* **The styles** are records and a base colour (PF_HOOK): the beach ball is
+  the great circles normal to roofv and sidev with base 1 (colour B where
+  the surface is on the same side of both).
+
+The unit axis is m >> 3 times 2^24 over its nominal length (Elite keeps its
+vectors of length &6000), not divided by its measured length; pf_tilt
+shifts a magnitude before applying its sign, so a vector alone is exactly
+halved. tools/planet_caps.py models the engine bit for bit.
+
+PF_HOOK runs from H_CIRC through G_PFHOOK, in game context, and makes the
+class (PF_CLS: 0 a meridian planet, 1 craters, 2 bands; bit 7 the detail
+made this frame) and the records; f_bounds runs T_CAPS (PC_ROWS) when
+PF_CLS bit 7 is set. Gone with the beach ball's own code: the held
+orientation and row shifting (MERIDHOLD was 0), PM_OK, PS_VALID, PM_R,
+G_MERHOOK, T_MERID.
+
+The beach ball's rows are those of tools/planet_analytic.py pixel for pixel
+(but for a pair of equal boundaries where both of a row's crossings meet,
+which PM_MERID gave and the engine leaves out). The gate's run
+(harness/mfbcmp.mjs, 3,000 iterations, every fifth frame, both buffers: 587
+frames, Lave's beach ball and the crater system) is pixel for pixel as at
+b0abf71. test_raster: merid (PF_HOOK and PC_ROWS against both models),
+beachball, and caps (the engine alone: random circles). The beach ball's
+hook costs a little more (22.7K to 25.5K cycles at Lave), its rows about
+the same.
+
+Keeping rows between frames would be cheap for a body whose records did
+not change (the rows depend only on the records and the spans), but the
+planet spins every frame, so it would only pay for a hidden or edge-on
+circle; not done.
+
+## Craters: spherical caps (after the circle engine)
+
+A crater planet's crater is a spherical cap, {p : m.p >= r c}, a circle
+record of the engine, its edge drawn where it is seen and cut by the limb
+where it is not, in place of Elite's polygon (PL26's ellipse, recorded
+point by point through BLINE and filled by f_seg16). There are up to three,
+from the system's seed (QQ2; pf_craters, class 1, base 0): the first on
+roofv, 30 degrees across, as Elite's crater (222/256 of the radius out,
+half the radius across); then, as s2_lo bits 0-1 have it, one on nosev
+tilted towards sidev and one on sidev tilted towards roofv (s2_lo bits 2-7:
+signs and tilts; s2_hi bits 0-3: 15 to 30 degrees). No two axes are within
+63 degrees, so they never overlap; if they did, they would combine as XOR.
+Against the float truth (each pixel's point on the sphere) about 1% of
+pixels are wrong, all within a pixel or two of an edge.
+
+PF_HOOK runs for every planet. PL26 still computes its K2, K3, K4 and TGT
+(MV40 reads K2); the crater's ellipse is no longer computed or recorded,
+and BLINE no longer records points. Bank 6 loses F_PCURVE, F_PPOINT, the
+curve and point arrays, f_zerobounds, f_seg16, f_segment and f_parity
+(1,145 bytes), and the glue G_PCURVE and G_PPOINT.
+
+Every planet has the beach ball's colours: colour A, the disc, is its sea
+(FC_PLANE, FC_PLANO), and colour B, the detail, its land green (FC_PLLE,
+FC_PLLO = &5F, &AF, gfx-frame.asm), so a crater planet is a blue body with
+green craters (the polygon crater was dark grey, &50/&A0). The disc layer's
+colour id is f_lay itself (1 the sun, 2 the planet).
+
+Tests: test_raster's pfhook (PF_HOOK on random crater and meridian planets:
+the class, and the rows against tools/planet_caps.py's pf_caps) and capball
+(a spinning crater planet's rows through R_DISCROWS, pixel for pixel).
+harness/mplanet.mjs poses planet scenes with the planet routines' cycles
+(master/tools/planetvis.py draws them). mcompare --crater (the commander's
+tech level made to give Lave a crater planet) keeps game state identical
+for 1500 iterations; the gate's second system is a crater planet (two
+caps), whose frames the gate flies for about 4000 iterations, and stays
+identical to SNG47 there too.
+
+## The original's planet maths: Area: none (after the craters)
+
+With the circle engine drawing every style, the original's meridian and
+crater path (PL9 parts 2 and 3, PLS2, PLS22 and its curve loop, pl4pat and
+PLL4F, PLS3, PLS4, PLS5) only produced values the renderer ignores. Those
+blocks are `Area: none` (streams.py: the text stays, each copy assembles
+only the block's labels and an RTS, so a reference still assembles and
+returns at once), and H_CIRC returns from PL9 itself in record mode,
+leaving what the game reads of that path: K2 (MV40 adds it into the next
+object's y without setting it; PLS1 of nosev_x, halved for a crater planet
+whose crater faces us), TGT (31 or 64) and FLAG (0). The hooks H_MERID and
+H_PCURVE are gone. Planets are never drawn outside record mode (GFORCE is
+only set for the hyperspace rings, which use CIRCLE2), so the direct path
+is never taken. Recovered: 682 bytes of the hot pass.
+
+The planet's surface code (the engine, the styles and the glue, H_CIRC's
+PL9 tail included) is about 3,830 bytes, against 3,431 for the beach ball
+alone at b0abf71 (gfx-merid.asm 3,350, G_MERHOOK, T_MERID, H_CIRC's and
+f_bounds' parts 81); with the original's maths that b0abf71 also emitted
+(about 680 bytes, and its H_MERID, H_PCURVE and G_PCURVE hooks), the planet
+path is about 320 bytes smaller.
+
+## The sun near the planet (after the original's planet maths)
+
+**Why the sun goes.** It is the original's slot sharing, not a renderer
+choice. Elite has one slot, FRIN+1, for the sun and the space station
+(SSPR's slot). Every 32 iterations, part 15 of the main flight loop
+(elite-source.asm, before MA23S) checks whether we are near the planet
+(MAS2, then MAS1 and FAROF2 on the point 2 nosev above it). If so, it
+calls WPLS to remove the sun from the screen, then NWSPS, which empties
+FRIN+1 and puts the station there. The sun's data block is gone. When the
+station is out of range, KS4 makes a new sun in the slot, at (0, 6 sign
+units, 0): overhead, not where the old one was. After a launch, TT110's
+RES2, SOS1 and NWSPS make the station and no sun at all. The game state
+must stay SNG47's, so none of this changes.
+
+**The design: the sun drawn as scenery.** S_SUN (master/src/gfx-ssun.asm,
+at bank 4's end with L_SUN) runs after every main-loop iteration, from
+G_FRAME with bank 4 paged, before F_FRAME. It writes only its own variables
+and the frame's (F_SUX, F_SUY, GSUNR, GSUNON, SS_OK); the zero page and the
+game's variables that MV40 and SOLAR use are kept and put back.
+
+* Slot 1 is the sun, and the planet is within one sign unit on every axis
+  (the station can only appear at zero, in an iteration with MCNT AND 31 =
+  0, and TT100 decrements MCNT after the frame): in the frames with MCNT
+  AND 31 = 1 or 0 it takes D = sun - planet (ss_d, 24-bit two's
+  complement, in the shared workspace). Further out, D is forgotten.
+  (Taking D every frame would cost up to 0.5% on the gate's approaches.)
+* Slot 1 is the station: D is turned by ALPHA and BETA by MV40 itself, as
+  the game turns the planet and the sun (our own movement moves them
+  alike, so D only turns). ss_turn puts D into INWK's coordinates
+  (sign-magnitude) and calls MV40 with TYPE 129 (the sun: MV45, which MV40
+  jumps to, returns after moving z) and DELTA 0 (z moved by nothing), K2's
+  low byte 0 (MV40 reads it in step 3 without setting it); the zero page
+  that MV40, MULT3, MVT3, MV45 and MVT1 use (INWK's coordinates, P, Q, R,
+  S, T, K, K2, TYPE, DELTA: 26 bytes, ss_zpa) is kept and put back. In
+  record mode the sun is recorded at planet + D, as PLANET would draw it:
+  the view's axes as PLUT; PLANET's tests on z; PROJ (x / z and y / z under
+  1024); the radius 24576 / z, or 248 if it is 256 or more; CHKON.
+* Slot 1 is the station and D is unknown (we launched, so this system's sun
+  was never in the slot): D comes from the system's seeds by SOLAR's own
+  code (ss_seed). The SOLAR block's header says "Area: cold, again", and
+  streams.py emits it a second time (build/elite-source-again.asm, no
+  stubs, its labels and the targets of its JSRs and JMPs named A_<name>),
+  which gfx-ssun.asm INCLUDEs: it enters at A_nobirths (past the Trumbles,
+  which the Master never has), A_ZINF = ZINF, and A_SOS1 and A_NWSHP are
+  stand-ins that note INWK's coordinates (the planet, the sun; ss_pl,
+  ss_su). INWK and FIST are kept and put back; FIST's bit 0 is taken as
+  clear.
+* Docked (F_DIRECT with QQ12 set clears SS_OK), in witchspace, or with no
+  planet in slot 0: no sun.
+
+When KS4 brings the game's sun back, it is overhead, as in the original:
+the drawn sun jumps there. The lighting (L_SUN) keeps turning its light
+while the station has the slot, so it is unaffected.
+
+**Sorting.** PLANET gives the sun and the planet the same radius at the
+same z (24576 / z), so the bigger disc is the nearer one. f_discs makes the
+bigger disc the layer, and f_disc2 draws the smaller disc (always the
+further one) only where the layer's span on each row leaves room: up to
+two pieces a row (R_DISC2, below). So a sun behind a bigger planet is cut
+by its limb (b0abf71's f_disc2 drew the secondary disc on top), a planet
+behind a bigger, nearer sun is cut by the sun, and ships are drawn after
+both, in front; f_behind and F_PLANET's z for far planets are unchanged.
+A planet that is the secondary disc is a plain disc, without its detail.
+
+**The lens flare.** The planet's colours could pass the flare's colour
+probes, so a probe inside the planet's span on its row is out of sight
+when the sun is the secondary disc (FL_BEH, set by f_flt from f_sec).
+R_FLARE reads this buffer's disc spans (R_DISCL/R), picking the buffer
+from the dirty page it is given, and its half-width table is kept whole in
+a page by a skip (a correctness skip, not alignment for speed). f_flt's
+test that the sun's centre is outside the planet's disc is gone: the
+probes see the planet, so a sun rising over the limb turns the flare up in
+steps.
+
+**Cost.** A frame with the sun in view costs S_SUN about 3,200 cycles,
+the second disc 2,500-17,600 (below), the planet layer's repair of the
+sun's rows 3,000-5,000, and, in the front view, the flare 30,000-35,000
+plus its repair on the planet (about 30,000 in f_discs): the flare is two
+thirds of the cost, as it is anywhere. The posed scene (harness/msunnear.mjs:
+a planet of radius 120, a sun of radius 16, the station crossing; on
+b0abf71 the same scene has no sun):
+
+| | b0abf71 | the sun drawn | without the flare |
+|---|---:|---:|---:|
+| sun hidden behind the limb | 7.90 it/s | 7.53 | 7.63 |
+| sun rising | 9.17 | 6.61 | 8.48 |
+| sun clear | 8.61 | 6.33 | 8.44 |
+| station flyby | 6.93 | 5.47 | 6.67 |
+
+On the gate, the docking approach has a radius 7 sun in the front view,
+with no planet on the screen, and so the flare (f_flt 36,000 cycles a frame
+there): the windows 4800-4999 and 5000-5199 run at 9.43 and 5.71 it/s
+against 9.73 and 6.14 without S_SUN (-3.1%, -7.0%). Elsewhere it is within
+0.1%. harness/msunprof.mjs profiles a stretch of the gate's run (S_SUN, the
+disc layer, the second disc, the flare and the whole frame, per frame).
+
+**Checked**: the station appearing in the game's own way
+(harness/msunnear.mjs --spawn: the game's sun in slot 1 at (180, 50),
+radius 19, the planet placed for part 15): the frame after NWSPS draws
+S_SUN's sun at (180, 51), radius 19, and carries on from there
+(screenshots/sunnear/spawn.png). The movie (harness/msunnear.mjs, rendered
+by master/tools/sunnear.py): screenshots/sunnear/sunnear.mp4 and
+sunnear.gif, the frames, and sheet.png. The sun rises from behind the
+planet's limb, with the flare's probes going 0, 1, 2 ... 9. The station
+then crosses it: 8, 5, 3, 0, 1, 0, 0, 3, 4, 7, 7, 9, so the flare dims,
+goes out and comes back.
+
+## The second disc, incremental (with the sun near the planet)
+
+The original Elite keeps each row's sun span (SUNX, the LSO heap) and only
+changes the ends that move; the second disc (the smaller of the sun and
+the planet, behind the disc layer) is drawn the same way.
+
+**The design** (R_DISC2, master/src/gfx-raster_disc2.asm). Each buffer keeps
+the second disc's span a..b per row as drawn, its rows (R_S2T..R_S2B) and
+its colour (R_S2C, the even rows' byte). What the row shows is that span
+less this buffer's disc layer span L..R, up to two pieces. After
+R_DISCROWS, everything that can have happened to the old pieces since the
+buffer's last frame is in R_WL..R_WR (W): shapes over them were in DIRTY
+and were repaired, the layer's old span never held them, and where the
+layer moved off it wrote black. So per row, with the old span a0..b0 and
+the new a1..b1, every write less the layer's span:
+
+* same span, nothing written over it: a few compares;
+* same span, written over (W): max(a, WL) .. min(b, WR) drawn again;
+* the spans overlap: the ends that shrank black, the ends that grew in the
+  disc's colour; with W over the new span too, one span over the grown ends
+  and that part (pixels still the disc's between them are written again);
+  with no layer on the row and nothing written over it (the commonest
+  case), the two end strips go straight to r_sw;
+* apart, one span empty, or the colour changed (the sun and the planet
+  swapped which is bigger, or a disc came or went): the old span black, the
+  new one whole;
+* both spans empty or behind the layer: only the new span remembered.
+
+The writes are masked to their pixels (r_sw, or r_spc for 17 pixels or
+more) and go into R_WL/R_WR (R_PRWT..R_PRWB take the rows lo..hi), so the
+text and the sights see them as written; nothing goes into DIRTY, so the
+next frame does not repair them. In K mode a row is settled (k_kill) before
+it is written, as T_SPAN does. R_RESETBUF (on a buffer just blacked) sets
+the buffer's rows to none and its colour to 0, which no disc is; R_DISC2
+empties the buffer's spans the next time it draws there (so a reset that
+no disc follows costs nothing). R_SETBUF patches R_DISC2's operands (r_s2l,
+r_s2r and the layer's r_sl, r_sr). f_disc2 computes the spans, fills the
+old rows outside the new ones with empty spans, and calls T_DISCROWS with C
+set (R_DISCROWS' first instruction sends it to R_DISC2), so the glue area
+has no new trampoline. With no second disc, f_disc2 calls it only while
+this buffer still holds one. The flare's probes, the stars (erased before,
+plotted after, on black only), the 25 fps cap and the flips are untouched.
+
+r_lput2 hands spans of 16 pixels or more to the run (r_spc, 5 cycles a byte
+and about 90 to set up) rather than 48 (its byte-pointer loop is 26 cycles
+a byte); this is r_sw's path for spans across the screen's middle, the
+layer's too. The pixels are the same.
+
+**Where.** R_DISC2 is at the end of bank 5's shared region (&BBC7-&BEE9),
+in the bank it runs in. Its spans: R_S2L0 &9A00, R_S2L1 &9B00 (the room
+below the per-x tables), R_S2R0 &8F40 (the disc window's end), R_S2R1
+&BF40 (after R_DISC2 and R_WSPAN): each whole in a page, a buffer's and the
+other's at the same low byte, the high bytes from two tables in R_SETBUF.
+R_S2T, R_S2B and R_S2C are in the shared workspace (f_disc2 reads the
+rows). bankcheck checks gfx-raster_disc2.asm as bank 5's and gfx-ssun.asm
+as bank 4's, build.sh's banks.txt lists them, and msunnear.mjs and
+msunprof.mjs take S_SUN's and the flare's banks from the symbols.
+
+**Cost** (f_disc2 a frame, a radius 16 sun, the posed scene's averages):
+held still 2,500-3,400 cycles (9,300-10,600 with the flare, whose ring
+round the sun dirties every row of it each frame, so each is drawn again);
+rising, about 1.5 pixels a frame, 12,800-17,600 (two end strips a row, some
+420 cycles), 25,000 with the flare; hidden behind the limb 3,800-6,000. The
+planet layer (radius 120, a beach ball) is 110,000-230,000 cycles a frame
+there, so the second disc's share is small.
+
+**Checked**: test_raster's disc2 (two discs drifting, growing, crossing
+(the colours swap), coming and going and jumping, on two buffers, with
+ships, lines, dots, text marks, stars, resets and K mode; each frame against
+the reference, every changed pixel in WL/WR or DIRTY); the pixels are those
+of the disc drawn whole each frame (the posed scene's 156 frames with and
+without the flare, and the gate's run, harness/mfbcmp.mjs, 9,836 frames,
+both buffers).
+
+## Banded planets (after the sun near the planet)
+
+A quarter of the crater planets (s1_hi bits 0-1 clear; Lave is a meridian
+planet, so it keeps its beach ball) can be class 2: two latitude circles
+about the axis the planet spins about, nosev - sidev (MVEIT part 8 pitches
+roofv and nosev and rolls roofv and sidev alike, so that axis stays where
+it is), north of one latitude (14 to 36 degrees, s2_hi bits 4-5) and south
+of another (-7 to -30 degrees, bits 6-7), EOR'd (pf_bands, base 0): three
+bands, the polar zones colour A and the belt between them colour B. Two
+parallels can put four crossings in a row, which the disc layer holds; a
+third would need six. As the axis does not turn, the belt stands still
+while the planet spins. pf_tilt's bit 3 gives the equal-weight sum (nominal
+length 1536 sqrt 2).
+
+They are a build switch, BANDS=on (master/build.sh, _PLANET_BANDS), off by
+default: PF_HOOK makes no class 2, and pf_bands, its tables and the
+dispatch are assembled out (81 bytes of bank 7). test_raster assembles the
+planet code with bands on (BANDS=off in its environment for the default;
+pfhook checks the class), and tools/planet_caps.py's BANDS follows it.
+
+## The moon (after the banded planets)
+
+In a build with moons (MOON=on, below), a quarter of the systems (h =
+s0_hi EOR s1_hi EOR s2_hi, bits 0-1 = 1; none of the gate's three) have a
+moon: scenery only (no ship slot, no
+random number, no saved state), 0.19 to 0.28 of the planet's radius (h bits
+5-6), drawn for planets of radius 16 or more, light grey with a dark grey
+crater (on roofv, 40 degrees across, from a moon radius of 10: a circle
+record of the engine in slot PCMAX, its rows made by PC_MROWS through
+T_MCAPS). Its colours are the palette's nearest greys: light grey C M Y K /
+Y K C M (&6A, &9A: equal parts cyan, magenta, yellow and black, a neutral
+mid grey) and dark grey C K M K / K Y K K (&28, &44: one pixel in four lit,
+a neutral dark grey).
+
+**Its place** is a point fixed in space, as S_SUN keeps the sun: MN_TURN
+(gfx-ssun.asm, bank 4, game context) keeps E = moon - planet (MN_E, 24-bit
+two's complement, in the coordinates, the front view's axes, in the shared
+workspace beside S_SUN's ss_d) and turns it with our roll and pitch once an
+iteration, by MV40 itself (ss_turnx: D or E). The first call with a new
+MCNT turns it: G_PFHOOK (before the planet's detail), MOONHIT, or S_SUN
+after the iteration, whichever comes first. E is made in the first
+iteration after we arrive or launch, when the planet still has ZINF's
+orientation, so its spin axis then is (-1, 0, -1) / sqrt(2): E = +/- (c, 0,
+c), c = D 24576 / sqrt(2), on the side h bit 4 gives (set: +), D = 3 to
+5.25 radii (h bits 2-3). MN_OK is cleared in witchspace, with no planet,
+while docked (MN_TURN, and F_DIRECT with SS_OK) and when QQ2 changes.
+
+The planet's spin axis itself would not do as the moon's place: MVEIT's
+MVS5 steps are first-order rotations, and TIDY renormalises the planet's
+orientation every 16 iterations with one-byte precision. harness/
+mmoonpath.mjs (a planet held still in a moon system, the game spinning it)
+shows the axis precessing 0.11 degrees an iteration and jumping 1.7 degrees
+on average (up to 3.3) on TIDY's iteration (MCNT AND 15 = 15 for slot 0),
+6.3 degrees from its mean over 600 iterations; in a 1,600-iteration flight
+with our roll and pitch it turns 21 degrees against a vector the game keeps
+fixed in space (the station less the planet). A moon on the axis would jump
+by several pixels.
+
+**Drawn.** pf_moon (gfx-planet7.asm, bank 7, from PF_HOOK) projects M = P +
+E in the view's axes as PLUT has them (pfm_vs, pfm_vn): x = 128 + 256 M_x /
+M_z, y = 96 - 256 M_y / M_z, radius rho 96 256 / M_z, at most 63 (M
+shifted right until M_z fits 15 bits, pfm_div's divisor); behind the planet
+if E_z > 0, behind the sun (slot 1) if further than it. What the frame
+reads (MN_ON, MN_X, MN_Y, MN_R, MN_Z, MN_INV, MN_N: gfx-planetv.asm) is in
+the shared workspace (main RAM below &3000, which PF_HOOK in bank 7 and the
+frame layer both see). tools/planet_caps.py's pf_moon models it bit for bit
+(test_raster's pfhook test: random MN_E, views and positions, and the
+crater's rows).
+
+The frame layer's f_moon (after f_disc2) draws it as a third disc of spans
+(its half-widths in F_HW3), less the planet's and the sun's spans where
+they are in front; f_behind hides a ship further than the moon whose first
+vertex is inside its disc, as it does for the planet. It is drawn
+incrementally: each buffer keeps the moon as it drew it (MO_ON ... MO_CB in
+the shared workspace: its centre, radius and depth bits, its rows and its
+crater's rows), and only the rows that changed since that buffer's last
+frame are drawn:
+
+* the same place, size and depth: a row with no crater, old or new, is
+  drawn only where this frame wrote over it (R_WL..R_WR as the layer's
+  repair and the layer's and the second disc's changes left them, read
+  before the moon's own writes); a crater row, old or new, whole (the
+  crater turns with the planet);
+* moved, resized, its depth against the planet or the sun changed, or gone
+  (all its rows changed): f_moon0, before the disc layer, puts the old
+  moon's spans into DIRTY (from MO_X, MO_Y and F_HW3; its box's rows if
+  F_HW3 no longer holds its radius's half-widths), so the layer's repair
+  restores what was under it in this frame (black, the layer, or the
+  second disc, which R_DISC2 then draws again over what the repair wrote),
+  and the moon is drawn whole.
+
+Its writes go through T_WSPAN (R_WSPAN, bank 5: R_SPAN that notes the span
+in R_WL/R_WR and R_PRWT..R_PRWB, as R_DISC2's writes are noted), never into
+DIRTY, so the text, the sights and the moon itself see them as written.
+Ships drawn over it are repaired by the layer (DIRTY), which the moon then
+sees in R_WL..R_WR. The row is the unit, not the strip (the ends that
+moved, as R_DISC2 draws): from bank 6 each strip is a trampoline call and a
+span set-up, and a moving moon would cost about twice a whole redraw.
+R_WSPAN is 56 bytes in bank 5's shared region, T_WSPAN 22 in the glue, the
+moon's state 20 bytes in the shared workspace.
+
+**Checked.** The place: master/tools/moonpath.py on harness/mmoonpath.mjs's
+recording of 1,600 iterations of turning flight (radius 40): |E| within
+0.8% (MV40's shears; the station less the planet varies 0.4%), its angle to
+the station less the planet within about 0.3 degrees, the drawn centre
+within 1.4 pixels of planet + E projected (mean 0.8), and each step on the
+screen the projected point's to 1.6 pixels (the moon's largest step 6.7
+pixels, the planet's 4.0). The held planet scene: one moon position over
+600 iterations. The pixels: harness/mplanet.mjs scenes, the frame-end back
+buffer of every frame byte for byte against the moon drawn whole each
+frame: 6 fixed scenes (moving, still, still with the planet spinning, in
+front of the planet, behind it, off the screen's side) and 18 random ones
+(seeds, poses, spins, paths and radii): 1,044 frames, all identical. The
+cost (f_moon, f_moon0 and T_DISCROWS, the frame's mean): a still moon
+25,603 cycles, 29% less than drawn whole; moving, within -6% to +8% of
+drawn whole.
+
+**A build switch.** Moons are MOON=on (master/build.sh, _PLANET_MOON), off
+by default, as the bands and the rings are: no system has a moon, and the
+moon's code, tables and variables are assembled out. Without them: bank 4
+382 bytes (MN_TURN and its tables and variables, MOONHIT), bank 5 56
+(R_WSPAN), bank 6 1,298 (f_moon0, f_moon and their rows, the moon's
+colours and variables, f_behind's moon, F_HW3), bank 7 853 (pf_moon and
+its helpers, PC_MROWS, the crater's record slot in PCB), the shared
+workspace 40 (MN_E, MN_OK, MN_ON ... MN_INV, MO_ON ... MO_CB), the glue
+area 43 (T_WSPAN, T_MCAPS, G_PFHOOK's call of MN_TURN: CODE% is &2B higher
+without the moon, so that the font stays page aligned with no padding, and
+the shared workspace's room before CODE% grows by as much) and the hot
+pass 5 (MA22's call of MOONHIT). The system's h is PF_HOOK's (pf_h), read by
+pf_moon and pf_ring alike, and f_ring counts its dots in its own frg_i, so
+rings build with or without the moon. test_raster assembles the moon in
+(MOON=off in its environment for the default: pfhook then checks that
+there is none), and the stills, the moon's harness checks
+(harness/mmoonhit.mjs, harness/mmoonpath.mjs, the moon scenes of
+harness/mplanet.mjs) and the film run a MOON=on build.
+
+## The moon is solid (after the moon)
+
+Flying into the moon kills us as flying into the planet does: the main
+flight loop's part 15 (MA22) calls MOONHIT (master/src/elite-moon.asm, at
+bank 4's end with S_SUN and L_SUN) before the planet's altitude test, and
+on C set jumps to MA28, the planet's crash (DEATH: the same sound, the same
+death screen). MOONHIT tests on the planet's altitude iteration (MCNT mod
+32 = 10), in systems with a moon (h bits 0-1 = 1): the moon's centre M = P
++ (MN_E >> 8) (P the planet's position; MN_TURN's place, turned first if
+this iteration has not turned it), in the coordinates' high bytes, and we
+have crashed if |M|^2 < (rho 96)^2 (the radius 18, 21, 24 or 27). Between
+two tests a ship moves at most 5 of these units. It writes no zero page and
+nothing of the game's but by crashing: in a system without a moon it
+returns at once.
+
+harness/mmoonhit.mjs puts the moon's centre at (0, 0, m) from us (the
+planet placed accordingly, our speed 0): for seeds covering every D, rho
+and side, m = +/-(radius - 2) crashes and m = radius + 2 does not; seeds
+without a moon never crash.
+
+**The lockstep.** SNG47 has no moons. The default build has none either,
+so its game state is SNG47's at every iteration, in every system. In a
+MOON=on build a run that flies into a moon diverges from SNG47 at that
+iteration (our DEATH); nothing else differs (MOONHIT reads game state
+only). The gate's systems have no moon (Lave, h = &EF; the crater system
+and the third likewise).
+
+## Planet rings (after the solid moon)
+
+An eighth of the systems (h bits 4-6 = 4; none of the gate's) can have a
+ring: a dotted ellipse in the plane of the planet's equator, normal to the
+spin axis nosev - sidev (MVEIT's pitch and roll turn the planet about it),
+so its shape on the screen stays put while the planet turns. pf_ring uses
+conjugate diameters: no angle, no table of angles, no latch. Two conjugate
+radii, roofv and (nosev + sidev) / sqrt(2), scaled to the ring's radius on
+the screen (1.6 to 2.2 planet radii, h bits 2-3; 12.4 pixels), give its
+points P(t) = cos t A1 + sin t A2 and -P(t), t = i pi / 32 (i in steps of
+2, or of 1 for a ring of radius 120 pixels or more: 32 or 64 dots); the
+points at t and pi - t share their products. A point is behind the
+planet's centre if its z (from the radii's high bytes) is negative. The
+dots on the screen go to RG_X, RG_Y, RG_F (the shared workspace); the frame
+layer's f_ring draws them in yellow (T_DOT, marked dirty) after the moon,
+but a dot behind the planet's centre and inside its disc, which the planet
+hides: the back half is hidden behind the disc and the front half crosses
+it. The ring is not a region, so it is not a circle of the engine, though
+pf_ring uses pf_tilt and the engine's arithmetic.
+
+Rings are a build switch, RINGS=on (master/build.sh, _PLANET_RINGS), off by
+default, as the bands are: pf_ring and its helpers, tables and variables
+(bank 7, 1,024 bytes), f_ring and its call and reset (bank 6, 169) and
+RG_N, RG_X, RG_Y, RG_F (the shared workspace, 193) are assembled out.
+test_raster assembles them with rings on (RINGS=off in its environment for
+the default; pfhook checks the dots against tools/planet_caps.py's pf_ring,
+or none), and the model's RINGS follows it.
+
+## Commander Claude's moon mode, and the film (after the rings)
+
+elite-agent's moon mode (MOON=1, its branch moon-avoid: docs/MOON.md there)
+places the moon as a MOON=on port does (moon_track: made at the arrival or
+launch, turned by ALPHA and BETA for each MCNT step it sees) and steers
+clear of it; agentplay runs it as --mode moon (master/tools/agentplay:
+build.sh, agentd.c, styles.mjs). moonmovie.mjs films an arrival in a moon
+system to the docking on a MOON=on build, reading the port's MN_E and ss_d. The system was
+chosen by search: the moon's place at the arrival (SOLAR puts the planet
+ahead to the upper right, and the moon on its spin axis on the side h bit 4
+gives: with bit 4 set, behind the planet and towards the view's centre) for
+every moon system with a start in jump range, checked against probes of the
+real arrivals; (155, 60) from (156, 57) (h = &71: D = 3, the biggest
+radius) puts the moon beside the planet in the front view at the arrival.
+The film's own director takes the stick for two shots, the moon as we come
+near it and the sun once S_SUN draws it (a stretch each, held in the front
+view; the agent flies the rest), and empties the tank at the arrival so
+that the agent docks there. Every sun is behind the arrival point, so the
+sun is never in one frame with the planet on the way in: the sun shot
+shows it beside the station, with the flare, before the docking. The film
+fails its own check unless the moon and the sun are each on the screen for
+8 s or more (this one: the moon 59.6 s, the sun 43.8 s; frames are flagged
+at F_FRAME's end); the cruise between the shots is sped up (1 frame in 64)
+and the published film 1.6 times: screenshots/moon/approach.mp4 (85.5 s),
+approach.gif, approach-sheet.png, approach.json.
+
+## What each style costs (after the film)
+
+harness/mplanet.mjs, the planet at the screen's centre, pose 20,30,0, 16
+frames at 22.5 degrees of spin each about the spin axis, the mean cycles a
+frame: set-up is G_PFHOOK (PF_HOOK and its pc_circ calls), rows T_CAPS
+(PC_ROWS), disc T_DISCROWS (the disc layer's spans and boundaries,
+incremental between frames), total their sum. Crater planets of 1, 2 and 3
+caps are as the seed gives them (a cap on the far side costs its set-up
+only: crater 1's cap is hidden in 6 of the 16 frames, 2's and 3's caps in
+some). The plain disc is the frames with no detail (a crater planet whose
+only crater is hidden; its set-up is that crater's pc_circ, about 17K: a
+featureless planet's hook is about 1K). The bands are a BANDS=on build's.
+
+| style | r | set-up | rows | disc | total |
+|---|---|---|---|---|---|
+| plain disc | 30 / 60 / 90 | 18.0K | 0 | 27.5K / 34.8K / 43.0K | 45.5K / 52.8K / 60.9K |
+| beach ball | 30 / 60 / 90 | 25.6K | 29.4K / 53.4K / 77.7K | 69.2K / 132.9K / 200.6K | 124.2K / 211.9K / 303.9K |
+| crater, 1 cap | 30 / 60 / 90 | 18.2K | 6.8K / 11.4K / 16.3K | 33.6K / 56.3K / 80.6K | 58.7K / 85.9K / 115.0K |
+| crater, 2 caps | 30 / 60 / 90 | 36.1K | 11.7K / 19.6K / 27.5K | 46.6K / 83.8K / 125.2K | 94.5K / 139.5K / 188.8K |
+| crater, 3 caps | 30 / 60 / 90 | 53.8K | 18.0K / 29.8K / 41.6K | 56.6K / 104.4K / 156.7K | 128.5K / 187.9K / 252.0K |
+| bands | 30 / 60 / 90 | 38.7K | 33.8K / 60.3K / 87.1K | 26.7K / 43.5K / 59.4K | 99.3K / 142.5K / 185.1K |
+
+The beach ball is the dearest: its two great circles cross every row, and
+as the planet spins every boundary moves, so the disc layer repaints most
+of the disc each frame. The bands cost about as much in rows (two circles
+across every row) but stand still under the spin, so the disc layer has
+little to repair. A cap's rows scale with its size, not the disc's.
+
+## Every disc, incremental (after what each style costs)
+
+* The planet and the sun as the disc layer (R_DISCROWS): incremental (each
+  buffer's spans and boundaries).
+* The smaller of them, the second disc (R_DISC2, bank 5): incremental.
+* The moon (MOON=on): incremental by rows ("The moon", above).
+* The ring: dots, not a disc (drawn and marked dirty each frame).
+* Explosions: particles (dots); the explode branch's clouds are not merged.
+* The hangar: rectangles and lines, no discs.
+* The lens flare: its ghosts are dithered discs and dotted rings ORed over
+  the frame (additive light), marked dirty and repaired by the layer next
+  frame. Not incremental: an OR over whatever is under it has to be
+  redrawn wherever that changes, and it keeps nothing on the screen by
+  design.
+* The hyperspace and launch rings, the charts' circles: lines.
+
+## Free space (after every disc incremental)
+
+In bytes, as master/build.sh prints them for a build with the moon ("The
+moon" gives what it takes): bank 4 6 (S_SUN, MN_TURN, L_SUN and MOONHIT at
+its end); bank 5 2 in the disc window (before R_S2R0), 7 in
+the shared region (before R_S2R1), 42 + 64 + 64 in the room below the
+per-x tables, and the run pages' tails; bank 6 472; bank 7 1,218 (the
+meridian window to the bank's end); ANDY 37; main RAM 183 below &3000 (used
+by the hot pass), 53 to &4000, 180 to &8000, and the shared workspace 44 in
+its gaps and 210 before CODE% (&1EE8); HAZEL 1,223 (&DA39-&DEFF), with
+&DF00-&DFFF the MOS's, off limits. BANDS=on takes 81 bytes of bank 7;
+RINGS=on 1,024 of bank 7, 169 of bank 6 and 193 of the shared workspace.
+
+The gate: VERIFY PASS 13.97 10.29 0.736 (game state identical to SNG47 at
+all 10,000 iterations; the regressions redock, savetest, savebytes,
+station, views and shippose), against 11.82 and 0.846 at b0abf71; most of the difference is
+the crater system's windows (800-2799), where two caps cost more than the
+polygon crater did.
+
+## Stills (after the free space)
+
+master/tools/stills.sh [planets] [sunnear] makes the stills from the build
+in master/build, headless (jsbeeb): each planet still is the last frame of
+a short posed scene (harness/mplanet.mjs, master/tools/planetvis.py), the
+seeds those of systems with craters, a moon or a ring; the banded planets,
+the moons and the rings come from a copy of the tree built with BANDS=on
+RINGS=on MOON=on (scratch/stills/optionstree), as the default build has
+none of them.
+screenshots/planets: beach.png, caps.png, caps2.png, nobands.png (a banded
+seed as the default build draws it, a crater planet), bands.png,
+bands2.png, moon1-3.png, ring.png, ring2.png, ringmoon.png, ringmoon2.png.
+screenshots/sunnear: the posed scene's 156 frames, sheet.png, spawn.png,
+sunnear.mp4 and sunnear.gif (harness/msunnear.mjs, master/tools/sunnear.py).
+
+## Stars only into black bytes (after the stills)
+
+R_STARPLOT sets a star's pixels in a screen byte only when the whole byte
+is black. Every fill the frame layer can draw that is not pure black (the
+ships' ramps and unlit colours, the planet's, the sun's and (with MOON=on)
+the moon's colours, colour B, the second disc, the hangar's panels, the distant dots)
+has a coloured pixel in every byte of every row of its dither, so no star
+shows through a dithered fill; master/tools/starocc.py proves it from the
+bank 6 image and the sources on every build (build.sh runs it, and it
+fails on a colour source it does not know). It is also about 6 cycles a
+star cheaper (no AND, no ORA).
+
+The one pure black fill is a station's docking slot. f_poly2 copies its
+four vertices to F_SLV (bank 6) when it fills one; F_FRAME then plots the
+stars through f_slot (gfx-frame_cold.asm), which takes those in the
+vertices' bounding box out of R_SS for the plot and puts them back, and
+f_reset marks F_SLV empty. Bank 5 had no room for this, bank 6 had: 221
+bytes free after it. harness/mstarocc.mjs poses stars over the planet's
+sea, a dark ship, the slot and the sun beside the planet (its grid goes in
+at F_FRAME's ff_stars, before f_slot); ff_stars9, after the stars, is the
+harness's frame end.
+
+## The text map
+
+The frames draw the text from one structure, the text map F_TM in bank 6
+(768 bytes: the characters wanted in the 24 rows of 32 cells), with F_TMR
+(24: the characters per row) and F_TCH (24: per row, bit b for buffer b).
+Nothing records which characters each buffer shows.
+
+**Why a whole map.** Besides the space views' few strings, the frames draw
+the mission 1 briefing, which prints whole pages in space mode (QQ11 13 or
+1) while LL9B's frames run: token 10's pages are 317 and 369 cells counting
+spaces (rows 10 to 22 or 23, columns 1 to 30; 420 at most). The title screen
+has about 90 cells, a flight view at most about 61 (the view's title 11, the
+countdown 3, a message 27, DOCKING COMPUTERS DESTROYED, the hyperspace
+prompt 20), DEATH about 39. A list of characters at two bytes an entry would
+be larger than the map and would need an overflow path; the map has neither
+a bound to keep nor an overflow.
+
+**A cell** holds its character (&20-&7F), 0, &80 + the character it had
+(cleared, remembering it), or &80 (f_drule's mark: a buffer may show
+anything there). F_TCH's bit b (P) says the row has changed since buffer
+b's text steps last ran on it. Between frames, for each buffer and row: if
+P is clear, the buffer shows exactly the row's characters; if P is set, a
+cell holding c or &80 + c shows c or nothing, one holding 0 nothing, one
+holding &80 anything. Every change keeps that true (f_char1, f_delchar0,
+f_clrtext0):
+
+* a character into an empty cell, or into a cleared cell remembering it
+  (TT66, then the view's title): P set for both buffers, nothing erased, so
+  a title cleared and printed again is left alone in both buffers;
+* the same character printed again: the cell is cleared (CHPR's EOR);
+* a character into a cell holding, or remembering, another: the cell is
+  erased at once in both buffers' next frames (f_mark): its pixels, clipped
+  to the space views' clip window (x 2..253, y 1..191), go into the buffer's
+  dirty extents (R_DIRTYLb/R_DIRTYRb), its pixel rows are no longer kept in
+  it (KF bit b), and the rows are noted for f_text1 to give to the
+  rasteriser's dirty row range (R_PRDYT/R_PRDYB, bank 5, through
+  R_MARKDIRTY with an empty extent);
+* a character printed over the one that replaced it since the last frame
+  leaves the cell as it is (f_eor: a ring of the last four replacements,
+  forgotten at each frame's text steps). That is EOR's undo: TT107 prints
+  the countdown's next number over the current one, then the current one
+  again to take it out, so the space views show 15, 14, 13 ... as the
+  original does.
+
+A buffer's text steps, in a row with P set: f_text1 erases the cells with
+bit 7 set (and writes 0 into those the other buffer has erased already);
+f_text2 draws every character of the row and clears P. In the other rows
+f_text2 draws only the characters something was drawn over this frame. A
+screen cleared (TTX66's, buffer 1; f_b0new's, buffer 0) shows nothing, which
+is right for any P, as everything stored since set P.
+
+**Outside record and space mode** CHPR draws into shadow RAM (buffer 1)
+and the map does not follow the screen. Main RAM (buffer 0) still holds the
+last space-mode frame, and only what the screen's text does to the cells
+buffer 0 may show is recorded (f_drule): a character drawn over a cell
+holding or remembering the same character toggles it, as CHPR's EOR and
+f_char1 do; over another it becomes &80 (buffer 0 may show that one, which
+is then erased); a cell holding 0 is left alone.
+
+**The direct text a frame can inherit.** A space-mode session starts at a
+handover, an F_FRAME with QQ11 = 0 and GMODE bit 7 clear. It follows
+TT66(0), where all text is record mode, except after DEATH's and TITLE's
+TT66 13 (then QQ11 = 0) and the briefing's TT66 13 or 1 (then LL9B).
+Between those TT66s and the handover the only direct printing is TTX66K's
+hyperspace countdown, ee3 (TT11 with three digits, spaces leading, at
+cells (1..3, 1)), when QQ22+1 is not zero. QQ22 is only reset by DOENTRY,
+so a death during a countdown keeps it through DEATH and TITLE; BRIEF is
+only reached from DOENTRY, after that reset, and PAUSE prints nothing
+between its TT66 and LL9B; QQ22+1 changes only in TT107 (from TT102, from
+MLOOP), wW, wW2 and DOENTRY, none of which runs between TTX66K and the
+handover; DET1 writes the CRTC directly; no delete or CLYNS runs on those
+paths; an escape pod launched from DEATH's first M% inherits the same
+three cells. Every other place QQ11 becomes 0 is followed by a TT66 before
+any frame (DFAULT), by no frame (HFS2's restore), or is non-zero (TT110's
+255; WARP's 1, then LOOK1's TT66 0). So F_CHAR notes the first DLMAX = 3
+characters drawn directly after a screen clear (f_dlx, f_dly, f_dlk,
+f_dlog), and the first change in record or space mode (or the first frame)
+puts them into the map in order (f_sync, through f_char1, with f_mark
+leaving buffer 1, which shows them, alone). A fourth character, a delete or
+CLYNS on a direct screen, or a TT66 first gives the noted characters to
+f_drule instead, and the note is spent: the screens that print more than
+three characters directly always end with a TT66 before any frame.
+
+**Cost.** Bank 6: F_TM 768, F_TMR 24, F_TCH 24, the direct notes 11,
+f_eor's ring 14; f_mark is 136 bytes with its tables. Flight: the text
+steps are about as cheap as the map's per-cell shown state was (the gate's
+flight 194,178 cycles an iteration). The docked screens draw text with no
+shown-map upkeep (harness/mdocktime.mjs: about 5% fewer busy cycles).
+
+**Checks.** harness/mfbcmp.mjs --frames (the gate's run) and
+master/tools/agentplay/replay.mjs --fbhash (sessions with deaths, escape
+pods, the briefings and debriefings, hyperspace and galactic hyperspace,
+launches, dockings, in-system jumps and view changes, and a death and a
+title with the countdown running) hash both buffers at every frame; with
+--mask 1,1,3 (FBMASK) they show which frames differ only in the
+countdown's cells. Against the map with per-cell shown state these
+structures replaced, 305,743 frames (the gate's run 9,842; eleven sessions
+295,901) are identical but for 8,688 that differ only in the countdown's
+three cells, where the space views now show the original's number.
+harness/mcountsheet.mjs puts the countdown's cells side by side from
+replay.mjs --shots 1 (screenshots/countdown/sheet.png: SNG47, the map
+without f_eor, the map with it, at the first ticks of a session's
+countdown, the port one iteration later for its frame's latency). The gate:
+VERIFY PASS 13.97 10.30 0.737.
+
+## Disc memory
+
+A disc row's boundary count and its colour at the span's left end are one
+byte: R_NDN holds the count in bits 0-6 and the colour in bit 7 (PC_ROWS
+and PC_MROWS write it so, f_moon reads it: MOON=on), and each buffer's stored
+boundaries likewise (R_BDN0/R_BDN1 with R_BDX0-2; a row with more than
+three is stored as count &40, unknown). An unchanged row is then one compare
+of the two bytes and of its stored boundaries. Free: 192 bytes of the
+shared workspace (&17F8-&18B7, raster_vars).
+
+A changed row with no dirty extent is written as the difference of its old
+and new edge lists (gfx-raster_disc.asm's r_dq, and r_dpe with the strip
+encoder's core, gfx-raster_strips.asm): the two lists
+are made alike, three boundaries each and the same colour at the left end,
+by virtual boundaries (segments of no width: one at the left end of the
+list with fewer when the colours there differ, then at the end after the
+right end), and each edge's strip, old .. new, is written in the colour on
+the side it moved from, cut short where the edge before's new place (moving
+right) or the edge after's (moving left) has passed into it. As the old
+edges are in order and so are the new, every pixel whose colour changed
+lies in exactly one strip, and no other pixel is written: no order test
+and no fallback, whatever the counts (up to three) and colours. No old span
+is a list of edges all at the new left end; no new span, r_dp2 blacks the
+old; an unknown old count, a repaint (r_drg). master/tools/discmem/mdprof.mjs
+profiles the encoders over a replay's windows (calls, what they were given,
+how they ended, cycles before the first write and in the pixels); pagex.py
+lists the window's branches across a page.
+
+The disc memory, in bytes:
+
+| structure | where | bytes |
+|---|---|---:|
+| R_DISCL0/R0/L1/R1, the layer's spans by buffer | shared workspace | 768 |
+| R_BDN, R_BDX0-2 by buffer, its boundaries | bank 5 | 1,536 |
+| R_S2L0/L1/R0/R1, the second disc's spans by buffer | bank 5 | 768 |
+| R_NDN (count and colour), R_NDX0-3, this frame's boundaries | shared workspace | 960 |
+| R_NDISCL/R, this frame's spans (R_PTB/R_PTA, the polygons' edge tables, between frames' discs) | shared workspace | 384 |
+| F_HW, F_HW2, F_HW3, the half-widths by radius | bank 6 | 576 |
+
+Measured and not taken (master/tools/discmem: bench.sh, cmp.py,
+perframe.py; every candidate had to leave every frame of every scene no
+slower than before):
+
+* **The second disc's spans made again** from its place and radius as each
+  buffer drew it (S2_X..S2_R, 10 bytes), into R_NDX0/R_NDX1 after the layer
+  has drawn, with f_discspans itself, or taken from the new spans when the
+  disc has not changed: frees 768 bytes of bank 5 for about 330 of bank 6
+  code. Making the old spans costs what making the new ones does (about 20
+  cycles a row, 70 for a disc across the window's side, and a half-width
+  table, about 60 r cycles, when its radius changed) against the 10 a row
+  the kept spans' stores cost: frames where the second disc moves were
+  1,100 to 2,500 cycles slower, frames where it holds still about 700
+  faster. Clamped two-rows-a-step span loops for discs across the window's
+  side (296 bytes) and a half-width builder by the circle's symmetry (44
+  bytes) pay for it on the whole in every scene (big planets across the
+  window's side 2.5-4.5% faster), but not frame by frame.
+* **The layer's spans made again** the same way: 768 bytes for 384 of
+  scratch during R_DISCROWS (when R_NDX0-3 are in use), about 25 cycles a
+  row whenever the planet moves on the screen, and a table (up to 15,000
+  cycles) whenever its radius changes: not taken.
+* **One heap for the persistent disc state**, partitioned by each body's
+  rows: the layer alone needs 1,920 bytes for a planet across the whole
+  screen in both buffers (a close approach), and only the second disc
+  could share it; base-minus-top-row operands cross a page on most reads
+  (a cycle a read) and need 16-bit patches. Nothing to gain.
+* **Rows made as R_DISCROWS reads them** (streaming): PC_ROWS walks each
+  circle from its centre row outwards, two rows a step, adding its
+  crossings to every row it reaches; rows in order would need each circle
+  started at the top row (a square root and multiplies per circle) and
+  stepped backwards and forwards, bit for bit as now: R_NDN and R_NDX0-3
+  (960 bytes) for a rewrite of the circle engine, not taken.
+* **R_NDX2/R_NDX3 only for rows with three or four crossings** (an overflow
+  list): two craters side by side give such rows over a cap's height, so a
+  short list overflows, and nothing else is dead while they are live.
+
+## The frame's records
+
+What the frame layer keeps between the game's drawing calls and the frame
+is what the frame cannot find in the game's own memory when it draws.
+
+**Explosion clouds.** A cloud's record is the exploding ship's line heap,
+which the game already keeps: its size, counter and vertex count (bytes 0-2),
+its seeds (3-6) and the vertices' screen coordinates (7 on). DOEXP's draw
+pass (PTCLS fallen into) notes, through H_PTCLS and F_CLOUD, the ship's slot
+(XSAV) and data block (INF) in the dot list; f_dots, in the frame's order,
+takes the heap's address from the data block and runs PTCLS on it again
+(T_CLOUD: bank 4, ACCCON X clear, entering at PTCLR after the hook), its
+PIXEL calls plotting each particle (H_DOT, F_PDOT), so the frame draws every
+particle the original draws, from the same DORND2 sequence and arithmetic.
+A slot that no longer holds an exploding ship (FRIN, byte #31 bit 5) has
+nothing drawn. The heap is not written between the record and the frame:
+MA15 removes no ship whose cloud was drawn in the iteration (only those whose
+explosion has ended, EX2, which draws nothing, or that are docked, scooped
+or past FAROF's limit, none of them drawn as a cloud: LL10 sends a ship at
+z_hi >= 192, or with |x| or |y| >= z, to LL14 before DOEXP draws), KILLSHP
+moves only the heaps of the slots above the one it removes (not yet
+processed in the iteration), and NWSHP takes room below the heaps.
+
+What the game keeps of PTCLS, in record mode, is worked out without the
+particles (F_CLOUD, for both passes; DOEXP's erase pass, H_PTCLSE, has nothing
+on the screen to remove): DORND2 runs three times a particle, the vertex's
+seeds come from the heap EOR its index, RAND+1 is put back as PTCLS found it
+and RAND+3 set to the planet's z_lo, so RAND and RAND+2 depend only on the
+last vertex's seeds and the particle count; Q, U, TGT, CNT and CNT2 are set
+as PTCLS leaves them. master/tools/records/live.mjs (the gate's 10000
+iterations, the base build: every zero page and workspace byte PTCLS writes,
+watched from its return to the game's next access) found nothing else read:
+K3, P, T1, COL, Y1, R, S, T and ZZ are written before they are read, by both
+passes, every time.
+
+The dot list (F_DX, F_DY, F_DC) holds a distant ship's dot (x, y, &80 + its
+type; always 2x2) or a cloud (INF and the slot), at most one per ship slot an
+iteration: MAXDT = MAXSH. f_dots keeps the zero page PTCLS uses (fd_zl) round
+the clouds, and the frame's PTCLS keeps the rasteriser's: K3 is RZ_PP ..
+RZ_Y and FMLTU's P is R_CT (T_CLOUD keeps it for F_PDOT and puts it back
+after), and F_PDOT plots with ACCCON X as the frame had it (GPX).
+
+master/tools/records/particles.mjs compares the particles each iteration
+draws with SNG47's (its PTCLS draw passes' PIXEL calls) over the gate's run:
+all 5,533 particles in the 238 iterations with a cloud match, where the dot
+list of 64 dropped 247 of them in 17 iterations (the most in one iteration
+is 84). Over the same run (harness/mfbcmp.mjs --frames, seeded as mcompare
+seeds the gate) the frames differ from the dot list's in 18 of 9,939: those
+of that explosion (7494-7511), now with the whole of the second cloud.
+
+**Ships.** A ship's record is what LL9's part 6 on (LL42: each vertex's
+visibility, then the visible vertices' screen coordinates in XX3) reads,
+taken as part 6 starts (H_LL42, F_SHIP), and the frame runs part 6 on
+itself for each ship as it draws it, far to near (f_proj, T_GAME at LL42P,
+bank 4 with ACCCON X clear; H_EE31 returns at once while GPRJ is set), into
+XX3, which f_ship reads in place. F_RP holds, a field to an array of MAXSH,
+INWK 0-8 (the place; its z, F_SZL and F_SZH, is the sort's), XX16 as part 3
+scaled it and XX0 (29 bytes a ship); F_SR the faces' levels (L_REC; a level
+is non-zero exactly where part 5 left XX2 non-zero, and the frame's part 6
+reads them as XX2, face 15 always shown as part 3 sets it); F_STYP, F_SNF and
+F_SX4 the type, faces and XX4. The ship buffer of XX2 and XX3 copies (1,536
+bytes) is gone: bank 6 has 1,383 bytes free (1,074 before), the records
+take 528 (348 + 180) where the buffer took 1,536.
+
+In the game, LL9 stops at part 6 for a ship that is not exploding (H_LL42
+goes on to H_EE31): master/tools/records/live.mjs (the gate, every byte part
+6 on writes watched from H_EE31 to the game's next access) finds nothing it
+leaves read but XX3, by DOEXP (an exploding ship's cloud vertices: it still
+projects them all) and H_EE31 (a ship firing at us: the gun vertex, which
+part 6's loop projects alone, F_GUN setting it on that vertex at LL48). The
+splinter's faces are shown for the record (S_SHIP calls SPLV) and put back.
+
+The frame keeps the game's zero page that its game code changes and the
+game reads afterwards (live.mjs over the frame, with all the frame's game
+code writes counted): RAND, Q, TGT, XX0, INWK 0-8, INWK+31 and XX19
+(f_gkeep, f_gback, 20 bytes); the rasteriser's &06-&0F part 6 leaves alone.
+The first ship in the order is projected before the frame waits for the
+flip (f_sort, f_proj0), as it touches no screen memory, and the others as
+they are drawn. XX3 is page 1, under the stack, so F_FRAME keeps the
+zero page it uses (&06-&27, FZ's &D2-&E1) in bank 6 (f_zsv), not on the
+stack (about 50 cycles a frame). The lowest S while the frame projects,
+interrupts included (master/tools/records/stack.mjs over the gate, by the
+pilot's phase: flight, docking, hyperspace and the escape pod; combat.mjs;
+STACKWATCH=1 in harness/mshipshow.mjs and harness/mbrief.mjs, which runs
+the docking tunnel, the hangar and the briefings): &D4 in flight and
+docking, &DD for the escape pod, &C0 on the title screen and in the hangar
+and briefings. The most vertices, 37 (the Transporter), end at &193: 65
+bytes below the stack in flight, 44 on the title screen; the briefing's
+Constrictor (17 vertices) ends at &143, 124 below.
+
+Checked: master/verify.sh (game state identical at all 10,000 iterations,
+the regressions, saves byte for byte); harness/mfbcmp.mjs --frames over the
+gate's run seeded as mcompare seeds it, against the build before: 9,939
+frames, none differ; master/tools/records/combat.mjs (a scene of up to
+seven hostile ships, one set exploding every 12 iterations, 600 iterations,
+game state and pixels identical to the build before in every frame);
+order.mjs (each ship drawn once a frame).
+

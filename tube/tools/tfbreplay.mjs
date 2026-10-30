@@ -30,7 +30,7 @@ const INJ = (a.inject || "").split(";").filter(Boolean).map(s => s.split(":"));
 const injKeys = ctx => { for (const f of INJ) if (f[0] === "k" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.site === f[3]) return f[4].split(",").map(Number); return null; };
 const injDks = ctx => INJ.some(f => f[0] === "d" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.key === +f[3]);
 const injPoked = new Set();
-const injPoke = (m, sy) => { for (const f of INJ) if (f[0] === "p" && m.iter >= +f[1] && !injPoked.has(f.join(":"))) { injPoked.add(f.join(":")); m.ram[sy[f[2]]] = +f[3]; console.log(`poked ${f[2]} = ${f[3]} at iteration ${m.iter}`); } };
+const injPoke = (m, sy) => { for (const f of INJ) if (f[0] === "p" && m.iter >= +f[1] && !injPoked.has(f.join(":"))) { injPoked.add(f.join(":")); m.ram[sy[f[2].split("+")[0]] + (+f[2].split("+")[1] || 0)] = +f[3]; console.log(`poked ${f[2]} = ${f[3]} at iteration ${m.iter}`); } };
 const DUMP = a.dumpn ? a.dumpn.split("-").map(Number) : null;
 if (!a.log || !a.out || !a.cand || !a.csyms) { console.error("--log, --out, --cand and --csyms are required"); process.exit(2); }
 mkdirSync(a.out, { recursive: true });
@@ -66,6 +66,9 @@ cand.t.addParHook(pc => { if (pc === csy.p_sync) q.push(cand.iter); if (pc === c
 const host = cand.host;
 let syncSeen = false;
 host.debugInstruction.add(pc => {
+    // (the Model B host: another bank may have code at h_sync's address; only
+    // bank F's NOP there is C_SYNC's)
+    if ((pc === hsy.h_sync || pc === hsy.h_syncb) && host.readmem(hsy.h_sync) !== 0xea) return false;
     // (jsbeeb skips this hook on a slice's first instruction: h_sync is a NOP and
     // h_syncb the instruction after it, so one of the two is always seen)
     if (pc === hsy.h_sync) syncSeen = true;
@@ -96,5 +99,7 @@ while (cand.iter < TO) {
 writeFileSync(`${a.out}/fb.json`, JSON.stringify(res));
 writeFileSync(`${a.out}/dash.json`, JSON.stringify(dres));
 console.log("overlay loads (ovl_get by overlay: 1 D, 2 S, 3 S's state, 4/5 the tails):", JSON.stringify(ovls));
+if (csy.hp_drops !== undefined)   // (the disc heap's drops, and frames drawn without room: p-disc.asm)
+    console.log(`disc heap: ${cand.ram[csy.hp_drops] + 256 * cand.ram[csy.hp_drops + 1]} drops, ${cand.ram[csy.hp_whole] + 256 * cand.ram[csy.hp_whole + 1]} frames drawn whole (no room)`);
 console.log(`${Object.keys(res).length} frames hashed, iterations ${FROM}..${cand.iter}, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 process.exit(0);

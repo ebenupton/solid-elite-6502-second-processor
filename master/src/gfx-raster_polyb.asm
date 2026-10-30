@@ -208,7 +208,7 @@ IF _TPART <> 1             \ (Tube: phase B is the host's)
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   JMP pb_skip_e
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
 .pb_plant_e
   TAY
   LDA #r_opSTA
@@ -236,14 +236,16 @@ ENDIF
 IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
 .r_pbx_e                  \ makes it, p-emit.asm: left, then right exclusive; a
   BIT HR1S                \ left of &FF ends the polygon)
-  BPL r_pbx_e
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDX HR1D
   CPX #&FF
   BNE pbr_e
   JMP pb_end
 .pbr_e
   BIT HR1S
-  BPL pbr_e
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDA HR1D
   DEC A
   STA R_XR
@@ -274,7 +276,13 @@ ENDIF
   TXA
   EOR R_XR
   CMP #4
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA = FALSE
+  BCS pb_d3_e             \ (the Master host's row runs: out of a branch's
+  JMP pb_one_e            \ reach)
+.pb_d3_e
+ELSE
   BCC pb_one_e
+ENDIF
   LDY r_xo,X
   CPX #&80
   BCS pb_lb_e
@@ -286,7 +294,7 @@ ENDIF
 .pb_l2_e
   LDY R_XR
   LDA r_j-4,Y
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   STA RZ_PP               \ (the Tube's Master host: the line's STA run, as
   LDA r_j,X               \ r_spc's; with no whole byte between, the JSR hits
   STA sjsr_e+1           \ the RTS)
@@ -298,9 +306,9 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   LDA #s_opSTA
   STA (RZ_PP)
 ELSE
-  CMP r_j,X
-  BEQ pb_norun_e
-  LDY r_j,X
+  LDY r_j,X               \ (no empty-run test: when no whole byte lies
+                          \ between the ends, the entry is the plant and the
+                          \ JSR hits the RTS, as r_spc's)
   STY r_jsr2_e+1
   CMP RZ_PP
   BNE pb_plant_e
@@ -334,7 +342,7 @@ ENDIF
   STY RZ_Y
   INC RZ_PA
   INC RZ_PB
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   LDA s_pg,Y              \ (the line's run's page and bank)
   STA RZ_PP+1
   STA sjsr_o+2
@@ -344,14 +352,16 @@ ENDIF
 IF _TPART = 2 AND _TDUMB   \ (the dumb host: the row's span from the parasite as it
 .r_pbx_o                  \ makes it, p-emit.asm: left, then right exclusive; a
   BIT HR1S                \ left of &FF ends the polygon)
-  BPL r_pbx_o
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDX HR1D
   CPX #&FF
   BNE pbr_o
   JMP pb_end
 .pbr_o
   BIT HR1S
-  BPL pbr_o
+  BMI P%+5               \ (empty: the doorbell, tube/src/p-io.asm)
+  JSR hrw
   LDA HR1D
   DEC A
   STA R_XR
@@ -399,7 +409,7 @@ ENDIF
 .pb_l2_o
   LDY R_XR
   LDA r_j-4,Y
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   STA RZ_PP               \ (the Tube's Master host: the line's STA run, as
   LDA r_j,X               \ r_spc's; with no whole byte between, the JSR hits
   STA sjsr_o+1           \ the RTS)
@@ -411,9 +421,9 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   LDA #s_opSTA
   STA (RZ_PP)
 ELSE
-  CMP r_j,X
-  BEQ pb_norun_o
-  LDY r_j,X
+  LDY r_j,X               \ (no empty-run test: when no whole byte lies
+                          \ between the ends, the entry is the plant and the
+                          \ JSR hits the RTS, as r_spc's)
   STY r_jsr2_o+1
   CMP RZ_PP
   BNE pb_plant_o
@@ -441,7 +451,7 @@ ENDIF
   BEQ pb_end
 .pb_c_o
   STY RZ_Y
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
+IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   LDA s_pg,Y              \ (the line's run's page and bank)
   STA RZ_PP+1
   STA sjsr_e+2
@@ -494,7 +504,7 @@ ENDIF
   EOR (RZ_PB),Y
   STA (RZ_PB),Y
   BRA pb_skip_o
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
 .pb_plant_o
   TAY
   LDA #r_opSTA
@@ -505,13 +515,13 @@ IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   JMP pb_go_o
 ENDIF
 .pb_end
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   LDA #r_opSTA            \ take the RTS out again
   STA (RZ_PP)
 ENDIF
   RTS
 .pb_cr
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   LDA #r_opSTA            \ next character row: new run page
   STA (RZ_PP)
   LDA #190
@@ -525,14 +535,16 @@ ENDIF
   STA RZ_PA+1
   INC A
   STA RZ_PB+1
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB
+.^r_bs13                  \ (Model B: the buffer's run page for the row, Y = RZ_Y
+  LDA r_rpy1,Y            \ still: r_rowset's)
+  STA RZ_PP+1
+  STA r_jsr2_e+2
+  STA r_jsr2_o+2
+ELIF _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   INC RZ_PP+1
   INC r_jsr2_e+2
   INC r_jsr2_o+2         \ (Y = RZ_Y still)
-ENDIF
-IF _HOSTB
-  LDA RZ_PP+1             \ (Model B: the page for the buffer)
-  JSR r_pgfix
 ENDIF
 .pb_tg                    \ (Y = RZ_Y) the next row pair's colours
   LDA RZ_CE

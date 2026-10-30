@@ -1,11 +1,514 @@
 # Tube Elite: report
 
-Branch `tube` in `~/elite-full-tube` (not pushed, not merged). Two discs:
+Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work on `tubediscs` in `~/elite-full-tubeplanets`. Two discs:
 `tube/build/elite-tube.ssd` (BBC Master host) and `tube/build/elite-tube-b.ssd`
 (BBC Micro Model B host with 64K of sideways RAM), both built by
 `sh tube/build.sh` (which also builds everything below; `sh master/build.sh` first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
+
+## The bench's stars, small speedups, the hosts compared like for like (branch `tubediscs`, 2026-10-30)
+
+Commits on `tubediscs` from dbcdeb8: 7b3be3f (tscenes), f627bc3 (FILL=rows),
+083f4ad (dirty repair), 16a0731 (Model B: r_pgfix trim, NMOS fixes, profiling
+tools), 3d9a03b (Model B: a set of row runs per buffer, lines in bank F),
+ed65cbc (Model B: run page from a per-row table). Not pushed.
+
+**The missing stars: the bench, not the renderer.** The stars the Tube
+lacked were real size-2 stars that STARS had just respawned (KILL1). The
+respawn reads RAND, which the scene poses at the start of each iteration; but
+the flight to FROM differs by build (the boot's seeds differ from iteration 0,
+and so does what the pilot meets), and on the Master port it left a shuttle
+in slot 2 that the Tube's flight did not. TACTICS runs a slot's ship when MCNT
+AND 7 is its slot, and the shuttle's TACTICS took one more random number in
+iterations 306 and 314 (MCNT 250, 242) before STARS. So the Master port's
+respawned star appeared one iteration before the Tube's (in buffer 1's frame,
+which stays on show for two iterations): the parasite's R_SX/R_SS showed it
+directly. Fix: tscenes.mjs clears ship slots 2-11 in the planet scenes, as the
+sun scenes already did. All 13 scenes now match the Master port in their
+stars on both hosts; the only differences left are the known flare frames
+(sunnear 416-417, sungrow and sunswap 339-340).
+
+**Small speedups** (overlay S had 128 bytes free, plus 34 of padding before
+the flare's fl_htab page; measured with dprof.mjs and tspeed, cycles an
+iteration, Master host 4 MHz unless stated):
+
+| Candidate | Bytes | Measured | Kept |
+|---|---|---|---|
+| (a) one-colour rows' inline unchanged test | 30 | prow runs for 4.2 rows an iteration in flight: flight +10 cycles (worse), beach 5355 -145 | no |
+| (b) dirty repair steps over the band's rows | 5 | beach 300-403 -435 (0.22%), 5355 -101, flight -44; docking +5; Model B within 0.1% | yes (083f4ad) |
+| (c) unchanged-row loop for the second disc | ~100 | f_disc2 finds no second disc in any window of run1 (pd_row: 0 calls): no gain measurable | not built |
+| (d) cheaper line dirty extents | ~0 | ~10K parasite cycles of line marking only in docking, which is host-bound on both hosts (the parasite waits on a full ring for 94K of its 374K cycles): no it/s gain possible | not built |
+| (e) heap pointer caching (10 sites, 72 bytes) | 82 | parasite +0.02% (the patching each frame costs about what the sites save); speeds within noise | no |
+
+Overlay S: 128 bytes free as before (b used the padding).
+
+**The Model B host's patching, then gone.** The host profile (below) showed
+r_pgfix, the patching of each run page for the buffer it was first used for
+in a frame, as the largest single cost on the Model B host: 13K host cycles
+an iteration in flight, 23K in docking and 23-29K on the beach. Two steps:
+
+1. 16a0731: r_pgfix seven stores a pass (ADC or SBC with the carry left as
+   set, X counting): 12.3 cycles a store against 16.7; and nmos.py hand fixes
+   where it saved dead registers (r_spc's store of the RTS out of the run, 13
+   cycles a span; the stars' RZ_PP reads and writes).
+2. 3d9a03b, ed65cbc (the coordinator's request): no patching. Bank P holds
+   both buffers' row runs, a page per character row: buffer 1's at
+   &A000-&B7FF as before; buffer 0's, assembled for &1000, in the pages
+   between: &8300-&8FFF, &9100-&98FF and &BC00-&BEFF (24 pages, 4.6K of
+   runs, each page's bytes 191-255 free). r_rpy0 (&BF00) and r_rpy1 (after
+   the stars) give each buffer's run page per row (192 bytes each);
+   r_rowset and phase B's next character row read it with one `LDA ,Y`
+   whose operand R_SETBUF points at the buffer's table. Every fill path
+   (R_SPAN, r_dspin, phase B) stays in bank P with its runs, no paging per
+   span. The room: the lines fill no spans on the Model B host (pixel by
+   pixel), so they moved to bank F (hb-line.asm: R_LINE, its cold part, the
+   arithmetic, r_pset, their own r_xo/r_lm/r_rm and variables, 2.9K at
+   &AD14-&B875; C_LINE now runs without paging, f_bufpatch patches their
+   screen base); PDATA (the polygon's and lines' inputs) moved to main RAM
+   (&0FB0, 80 bytes); the &9000 region's padding became an ORG so the pages
+   under it are free. Bank P: 89 bytes free at &82A7, 13 at &BBF3; bank F:
+   1,802 bytes free to the dashboard's variables.
+
+Model B host, 3 MHz (it/s): flight / docking / 0-3550 / beach 300-403 /
+beach 5355-5457:
+
+| Build | Model B host |
+|---|---|
+| dbcdeb8 | 16.64 / 8.88 / 17.30 / 8.18 / 7.80 |
+| 16a0731 (r_pgfix trimmed, NMOS fixes) | 16.67 / 9.13 / 17.36 / 8.23 / 7.90 |
+| 3d9a03b (two sets, no patching) | 17.41 / 9.76 / 17.85 / 8.49 / 8.03 |
+| ed65cbc (per-row page table) | 17.47 / 9.87 / 17.89 / 8.51 / 8.08 |
+
+Against dbcdeb8: +5.0%, +11.1%, +3.4%, +4.0%, +3.6%.
+
+**The three-way benchmark** (all at TUBEMHZ=3, the same parasite image,
+ed65cbc; FILL=rows is the Master host with the Model B host's row runs, all
+in bank 5 and unpatched, the code that enters them unchanged):
+
+| Host | Flight | Docking | 0-3550 | Beach 300-403 | Beach 5355-5457 |
+|---|---|---|---|---|---|
+| 1. Model B host (two sets of row runs) | 17.47 | 9.87 | 17.89 | 8.51 | 8.08 |
+| 2. Master host, row runs (FILL=rows) | 17.54 | 10.12 | 18.02 | 8.56 | 8.13 |
+| 3. Master host, full STA runs | 17.62 | 10.22 | 18.11 | 8.75 | 8.29 |
+| 1 against 2 | -0.4% | -2.5% | -0.7% | -0.6% | -0.7% |
+| 2 against 3 (the STA runs' worth) | -0.4% | -1.0% | -0.5% | -2.2% | -2.0% |
+
+(Before the patching went, at dbcdeb8: Model B 16.64 / 8.88 / 17.30 / 8.18 /
+7.80, so 1 against 2 was -5.2% / -12.3% / -4.0% / -4.4% / -4.1%.)
+
+The full STA runs are worth 0.4-2.2%: 0.5K-4.3K host cycles an iteration of
+drawing (each whole byte 4 cycles, not 5), most on the beach, where the
+discs' spans dominate.
+
+**Which side waits** (tube/tools/thcmd.mjs; the parasite's time and the
+host's, 3 MHz). In flight and on the beach every host is idle 36-53% of the
+time and the parasite is the bottleneck: what a slower host costs is ring
+traffic (the parasite's sends go through the ring's stubs and IRQ while the
+host is behind). Docking is host-bound on all three: the parasite waits on a
+full ring for 9% (STA), 10% (rows) and 12% (Model B) of its time.
+
+| Window | Host idle (B / rows / STA) | Parasite: ring full | Parasite: the ring's own cost (stubs, IRQ, mode) |
+|---|---|---|---|
+| flight | 51% / 52% / 53% | 0.1% all | 6.4% / 6.1% / 5.7% |
+| docking | 5% / 6% / 7% | 12% / 10% / 9% | 11.5% / 11.8% / 11.8% |
+| beach 5355 | 36% / 37% / 39% | 1.9% / 1.8% / 1.3% | 11.5% / 11.0% / 10.5% |
+| beach 300 | 44% / 46% / 47% | 3.7% / 3.7% / 3.0% | 6.7% / 6.3% / 5.9% |
+
+**The remaining gap, Model B host against the Master host with row runs**
+(host cycles an iteration at 2 MHz, B minus Master; the rows sum exactly
+to the gap, by construction: the wall is the host's busy time plus its idle
+time; tube/tools/thacct.mjs):
+
+| Category | Flight | Docking | 0-3550 | Beach 300 | Beach 5355 |
+|---|---|---|---|---|---|
+| the rupture's timer IRQs (two a field) less the Master's IRQ1 | +1,189 | +2,127 | +1,154 | +2,454 | +2,580 |
+| other IRQs (vsync and sound, requests) | +202 | +300 | +238 | +365 | +344 |
+| drawing commands' code: NMOS expansions, buffer bases (C_SPANS +2.4K docking, C_DSPANS +0.5-1.6K) | +524 | +4,146 | +671 | +792 | +1,558 |
+| text, panel, direct mode | +14 | +162 | +34 | +237 | +332 |
+| overlay storage, disc commands | 0 | 0 | +285 | -98 | -61 |
+| the loop's dispatch, other commands, MOS | +14 | +15 | +6 | -79 | -25 |
+| **work, total** | **+1,943** | **+6,750** | **+2,388** | **+3,671** | **+4,728** |
+| the flip's wait at C_BUF | -191 | +724 | -397 | +1,358 | +89 |
+| commands waiting for the parasite's next byte | +25 | -221 | +8 | +161 | +466 |
+| the loop idle | -1,267 | -2,302 | -1,208 | -3,791 | -3,687 |
+| residual | 0 | 0 | 0 | 0 | +4 |
+| **gap (wall)** | **+509** | **+4,950** | **+791** | **+1,399** | **+1,600** |
+
+Not significant: the Tube register access patterns (the same HRX/HTX code on
+both hosts; the reads cost the same), paging (the Model B host now pages
+less: the lines need none), buffer base patching (f_bufpatch once a frame;
+r_rowset's ADC for the base costs 2 cycles a row more than the Master's ORA,
+under 1K an iteration), star records (C_STARS and C_STARERASE +0.2K),
+overlay storage (C_OVLGET within 0.1K). Of the extra work, the parasite
+feels a part: where it is the bottleneck (flight, beach) the host's extra
+work shows as more of the parasite's sends through the ring (the ring's own
+cost +0.3-1.7K parasite cycles an iteration); in docking it waits on a full
+ring longer (+4.6K/1.5). Before the patching went the same table's biggest
+row was r_pgfix: +13.0K (flight), +23.2K (docking), +23.2K / +29.2K (beach).
+
+**Ways to close the rest on the Model B host** (ranked by cycles per byte):
+
+| Proposal | Saving (host cycles an iteration) | Bytes | Notes |
+|---|---|---|---|
+| Phase B's NMOS expansions by hand (pbr_e/pbr_o's DEC A, pb_cr's saved Y, the long branch at pb_d2_e, pb_plant's STY/LDY &E6) | ~1.5-2.5K docking, ~0.3K elsewhere | ~0-20 (bank P: 89 free) | the docking window's largest code difference (C_SPANS +2.4K) |
+| r_spc's RTS plant through an absolute operand (the run page and offset patched into an STA abs) instead of LDY #0 : STA (RZ_PP),Y | ~3 cycles a span: ~0.5-1K | ~10 | needs room in the shared region (13 bytes free) |
+| The rupture's IRQ: point 2 writes R4, R6, R7, R12, R13 every field; most are constant per frame: write only what changes, skip the X/Y saves | ~0.5-0.9K | ~-10 to +20 | the IRQs are +1.2-2.6K of the gap |
+
+These would leave the timer IRQs' remainder and the vsync/sound IRQ as the
+residual: the rupture is inherent to a Model B with a split screen.
+
+**Gates** (scratch/gfin3, ed65cbc, both hosts): Master port byte-identical;
+lockstep 16002 clean, TUBEINT 602 clean; storage 88 pages, 0 differ; pixels
+14606 matched, 0 mismatched (the dashboard's 51 are fbcmp's alignment, as
+before); tsavetest, tcrash, tstation ok. The 13 scenes (scratch/scfin3):
+0 drops, 0 drawn whole, stars identical, only the known flare frames differ.
+tdrows: Master host (083f4ad's parasite, unchanged since) and Model B host
+(ed65cbc): 604 frames, 86,275 band rows, 0 wrong. Small-heap fallback
+(HEAPN 900 smaller): run1 0-6000 3,065 drops and frames drawn whole, pixels 0
+mismatched, tdrows 0 wrong; sunswap 243 drops, pixels as the full heap's.
+
+**Speed at the target clocks** (it/s; dbcdeb8 -> ed65cbc):
+
+| Host | Flight | Docking | 0-3550 | Beach 300-403 | Beach 5355-5457 |
+|---|---|---|---|---|---|
+| Master, 4 MHz | 21.30 -> 21.31 | 10.68 -> 10.68 | 20.26 -> 20.27 | 10.32 -> 10.34 | 10.19 -> 10.20 |
+| Model B, 3 MHz | 16.64 -> 17.47 | 8.88 -> 9.87 | 17.30 -> 17.89 | 8.18 -> 8.51 | 7.80 -> 8.08 |
+
+Discs: ~/elite-tube-play/solid-elite-tube-master-ed65cbc.ssd and
+solid-elite-tube-modelb-ed65cbc.ssd.
+
+## full-master bb6b3cd, every disc incremental, the flare's probes (branch `tubediscs`, 2026-10-29)
+
+**Merged** full-master bb6b3cd: disc memory (R_NDN packed: the count in bits
+0-6, the left colour in bit 7), the bomb's bolt as ten points with lines only
+for the enemies' beams, the ship sort (F_ORD+0), explosion clouds from the
+ship line heap (dot list 12), frame-time projection (LL9 records the ships
+before part 6), screen clears forgetting the frame's records, moons behind
+MOON=on (off by default). The Master port, Tube switches off, assembles
+byte-identical to full-master's (master/build.sh; the shared source's Tube
+changes, IF _TPART blocks, header tags and two entry labels, assemble to
+nothing there).
+MOON=on is refused by the Tube's build (no room on the parasite); the guard
+is the Master port's (moons off unless MOON=on).
+
+**Every disc incremental, on the parasite** (p-disc.asm, p-rast.asm): each
+buffer keeps what it shows of each disc row and a frame sends only what
+changed. The disc layer (the planet or the sun in front): the row's span per
+buffer; with surface detail (beach ball, craters, bands) the row's n (twice
+its boundary count plus its left colour: R_NDN rotated left, a nibble per
+buffer, read and written through a 7-byte table each, no shifts) and first
+two boundaries in the disc heap. One loop over the band's rows (ps_rows, as
+the Master port's r_dbm): an unchanged row costs a few compares (dirty, n,
+span, boundaries; 60-95 cycles); a changed row with the same n goes as the
+strips its edges moved through (ps_strips: straight-line for 0, 1 or 2
+boundaries, each strip cut short where a neighbour's new place has passed
+into it, as the Master port's raster_strips.asm, so that the strips are
+exactly the changed pixels in any order), any other (a count or colour
+that changed) segment by segment, after the old span less the new in black
+where the new does not hold it. The second disc (the sun round the
+planet, f_disc2): its spans per buffer in the heap, only the change against
+them and against what this frame wrote over it. One heap (1,374 bytes in S's
+state) partitioned by size: the surface's arrays from its start, the second
+disc's from its end, each window sliding, growing by half again (16 rows at
+least) into the room between, shrinking back when its capacity is over
+2n + 32; only when both cannot fit are both dropped and the heap partitioned
+again, and a body that cannot fit alone is drawn whole that frame.
+
+| Fallback counts | drops | frames drawn whole |
+|---|---|---|
+| run1 0-16000, Master and Model B hosts (the gate) | 0 | 0 |
+| the 13 bench scenes (tube/tools/tscenes.sh), both hosts | 0 | 0 |
+| a test build with HEAPN 900 bytes smaller: run1 0-6000 | 3,065 | 3,065 (pixels: 0 mismatched; tdrows.mjs: 0 wrong) |
+| the same: sunswap | 243 | 243 (pixels as the full heap's) |
+
+The bench scenes (tscenes.mjs: bench.sh's posed planets and msunnear.mjs's
+sunrises, the stars, seeds and light posed the same on both builds) compare
+the Tube's frames with the Master port's: identical in every scene but for
+star pixels in 2-4 frames of six planet scenes and the lens flare in two
+frames each of sunnear, sungrow and sunswap (below).
+
+**The lens flare's probes on the parasite** (p-probe.asm): R_FLARE reads
+nine pixels of the back buffer; the parasite has no screen, so after the
+discs R_FLARE runs once in arming mode (the places), each pixel starts as the
+discs left it, or the sights' colour where an arm of the sights drawn in this
+buffer is not covered by anything written this frame (f_wcov, as f_sight2
+asks), and the polygons' rows and dots drawn before the flare update it.
+Identical over run1; the bench scenes' differences are where this model and
+the screen part: a pixel under a line drawn before the flare (sunnear
+416-417: the station's), and a sights pixel inside a row's written extent
+that the row's writes went round (sungrow and sunswap 339-340). The flare
+then differs by one level for those frames.
+
+**EDGES** is resident (HLOIN2 calls it in space mode); SUN's part 3, which
+runs only on the screens drawn directly, is overlay D's (overlay loads over
+run1 0-16000 unchanged: 21 D, 21 S, 13 S's state).
+
+**Room** (bytes free; 28e7e44 / now):
+
+| Area | 28e7e44 | now |
+|---|---|---|
+| Resident, to the overlay region | 16 | 10 |
+| Overlay S, to the ring | 1,354 (state 2,148) | 128 (state 3,328, the heap's 1,374 in it) |
+| Overlay D, to the ring | 5,757 | 6,928 |
+| High area | 6 | 6 |
+| Page &FF | 9 | 9 |
+| Frame layer's inputs (p-ws.asm) | 0 | 76 |
+| &0CCF-&0D07 | 25 | 57 |
+| Master host: main code to &3000 | 576 | 570 |
+| Master host: overlay storage | 83 of 88 pages | 88 of 88 |
+
+The room came from: the merge (the frame layer's resident part 1,328 bytes
+smaller; bank 5's host code 768), SUN part 3 to overlay D (155), the heap's
+drop, the surface's cold paths (ps_nd0, ps_whole) and the probes' helpers
+to the resident tail, R_POLY's and the kept rows' scratch to p-ws.asm (23).
+The surface's rows take, in S: the row loop and its paths 397 bytes and
+their tables 14, the strips 248, the segments 107, the heap fit's patching
+of the loop 16 more; in the resident tail 54 (its cold paths); none in
+p-ws.asm (its scratch is the heap fit's zero page). The Master host's
+overlay storage is now full: the next growth of overlay S's code or D needs
+a host page (main RAM &2E00-&2FFF is free: 570 bytes to &3000) or D
+smaller. Overlay S's 128 free came from the lens flare's screen addressing
+(82 bytes: on the parasite the host ORs its spans, C_ORSPAN), the glyph
+tables the host keeps (f_gy, f_nib: 17), R_INIT done through R_RESETBUF,
+R_WL no longer cleared (every reader tests R_WR first) and prep's unused
+extent.
+
+**Speed** (it/s, capped: flight 1000-1400 / docking 3420-3550 / 0-3550 /
+beach 300-403 / beach 5355-5457):
+
+| Build | Master host (4 MHz) | Model B host (3 MHz) |
+|---|---|---|
+| 28e7e44 | 18.66 / 10.68 / 18.99 / 9.21 / 9.26 | 14.09 / 8.82 / 15.86 / 7.28 / 7.07 |
+| the merge alone (not committed) | 18.71 / 10.68 / 19.04 / 9.24 / 9.28 | 14.13 / 8.88 / 15.91 / 7.29 / 7.10 |
+| now | 21.30 / 10.68 / 20.26 / 10.32 / 10.19 | 16.64 / 8.88 / 17.30 / 8.18 / 7.80 |
+
+Against the merge alone: flight +13.3% (Master host) and +16.7% (Model B),
+0-3550 +6.1% and +8.2%, the beach +10.6% / +8.1% and +11.2% / +8.0%;
+docking (no planet) the same. The parasite's cycles an iteration
+(tube/tools/dprof.mjs, Master host; flight 1000-1400 / beach 5355-5457),
+the merge alone repainting every two-colour row whole:
+
+| | the merge alone | now |
+|---|---|---|
+| the strips (ps_strips) | - | 11,726 / 28,768 |
+| the rows' bookkeeping (the loop, each row's state) | 44,457 / 66,064 | 23,177 / 46,907 |
+| the segments | 17,759 / 36,086 | 4,879 / 11,540 |
+| the spans' encoding and sends | 33,969 / 89,280 | 25,091 / 75,443 |
+| the ring, the flip's wait | 10,875 / 43,186 | 15,264 / 38,708 |
+| the iteration | 213,779 / 430,923 | 188,731 / 398,855 |
+
+A changed row's strips cost about 240 cycles before their spans, each
+strip cut short where a neighbour's new place has passed into it (as the
+Master port's raster_strips.asm), so that none falls back to segments
+(ps_strips: 10,590 / 32,447 cycles an iteration in flight / beach
+5355-5457); an unchanged row 60-95. A row whose count or colour changed (a
+boundary in or out at an end: 23.6 rows a frame in flight) is sent segment
+by segment: the Master port's virtual boundaries for it, its strip
+encoder's core assembled on the parasite, measured 0.5-2.4% slower there,
+a strip costing the parasite a span as a segment does. The host, idler than
+the parasite, takes the spans; the parasite now waits for the ring at times
+in flight (rpg: 6,206 cycles an iteration). Not done: the heap's arrays
+read through absolute operands patched each frame instead of (p),Y (a
+cycle a read, about 800 an iteration in flight, for some 60 bytes of
+patching that S does not have). Tried and not kept: exact tracking of the
+sights' pixels through every span (2% slower in flight, and no closer to
+the Master port's flare: its disc writes differ from the parasite's).
+
+**The disc rows checked one by one** (tube/tools/tdrows.mjs): a replay
+that, at each frame's disc layer, works out what every row of the band must
+show from the frame's inputs and the buffer's last frame, and checks the
+spans sent against it (a pixel of the new span, the old span or the dirty
+extent ending wrong, or a write outside them). Run1's 300-403, 1000-1400
+and 5355-5457, both hosts: 604 frames, 86,275 band rows, 0 wrong, 0 stray
+writes, 0 unverified; a deliberate fault (one strip's colour) gives 1,907
+wrong rows in 300-403.
+`TUBEMHZ=4 node tube/tools/tdrows.mjs --log scratch/curious/run1/inputs.jsonl
+--cand tube/build/elite-tube.ssd --csyms tube/build/psyms.txt --windows
+300-403,1000-1400,5355-5457`; the profiles: `TUBEMHZ=4 node
+tube/tools/dprof.mjs` (the same options, `--out X.json`), compared with
+`node tube/tools/dprofcmp.mjs A.json B.json --window 1000-1400 [--field
+cx|lab|calls]`.
+
+**Gates** (scratch/g6n, both hosts): Master port byte-identical; lockstep
+16002 clean, TUBEINT 602 clean; storage 88 pages, 0 differ; pixels 14606
+matched, 0 mismatched (the dashboard's 51 "mismatched" are fbcmp's
+alignment over the reference's 7 sampling gaps: per iteration, 14474 of
+14474 last frames equal, frames and dashboard); tsavetest, tcrash, tstation
+ok.
+
+## Text to the hosts: the recursive tokens (branch `tubeplanets`, 2026-10-27, second pass)
+
+**Measured first** (tube/tools/ttext.mjs: per screen, the bytes through
+register 1 and the text's share, the draw time from TT66 to the next key
+poll and to the host's drain, the host's idle time; per flight window, bytes
+an iteration).
+
+Text on the parasite at 4129fd4:
+* resident (so in space mode): QQ18, the recursive tokens, 960 bytes; QQ18IX
+  20; ex's scan 49; QQ16 (two-letter tokens, 70), PFONTW (96: CHPR's W, which
+  the lockstep compares), TT27 and the printers (needed for the generated
+  text: system names, the commander, numbers); the text map F_TM/F_ST, 1,536;
+* overlay D (direct mode only): TKN1 (the extended tokens), RUPLA, RUGAL,
+  RUTOK and DETOK's code, about 3.9K. No font: the hosts draw the glyphs.
+
+Text bandwidth (run1, Master host): in flight 0 bytes an iteration in
+1000-1400 and 2.5 of 564 over 0-3550 (C_GLYPH cells, only when a cell
+changes). On the docked screens the text is 90-97% of the bytes (C_CHAR, 9
+bytes a character): status 1.6K, market and buy 0.8-2.0K, equipment 3.0K, data
+on a system 2.6-2.8K, the long-range chart 0.15K. But the host is busy 97-99%
+of each screen's draw (idle 1-5 ms of 100-300 ms but for the data screen's
+justification), drawing, so the transfer is not what limits those screens:
+reading a C_CHAR is about 135 host cycles (nine polled reads), against
+CHPR's drawing of the glyph and the screen's clear.
+
+**Why not "draw token N" commands.** What the original's printing changes
+and the game later reads is a function of the characters themselves: XC and
+YC, QQ17's case bits, the DTW flags, and BUF, the justified line buffer of
+the extended tokens (90 bytes in WP, compared by the lockstep). In space mode
+the text map (the parasite's, as the host keeps no screen state) needs every
+character too. So the parasite must have the characters whatever the host
+draws, and tables of lengths and case effects would not cover BUF's
+contents. The design is the overlays': the host stores the data, the
+parasite fetches it.
+
+**The design** (one commit):
+* QQ18 is the hosts' (elite-data.asm's block tagged "Tube: host"; streams.py
+  writes build/elite-data-host.asm, tube/build.sh assembles it alone into
+  build/HQQ18.bin and writes where each token starts, build/htokix.asm).
+  Master host: HAZEL &DA00-&DEE9 (the overlays' storage there 21 pages to 16;
+  80 of 88 slots used); Model B host: bank F from &A9B9 (to &AEA2). 1,258
+  bytes on each host, plus 22 bytes of code in h4body.
+* C_TOKEN n through register 4: the host's IRQ (h4body) sends token n's bytes
+  as stored, its null included. Data only: the host expands nothing and
+  needs no game state (so it is "storage", as C_OVLGET).
+* ex (elite-source.asm, IF _TUBE): fetches the token into TBUF at tbp and
+  runs the original loop at TT50 on it with V(1 0) = TBUF, Y = its offset;
+  a token printing a token fetches above it, tbp goes back after the loop.
+  TT27, the control codes, case flags, DTW, BUF, XC and YC are the original
+  code's, run on the same characters, so the game state is the same by
+  construction. TBUF is 35 bytes: the deepest chain (token 126, through the
+  control codes 5 and 0), which tube/build.sh checks against the table.
+  C and V reach TT50's first TT27 as before; ex returns A = 0, Z set; X is the
+  last TT27's; V and Y are pointers (excluded from the lockstep as before).
+
+**Freed**: the resident run ends at &B962 (was &BD40): 990 bytes. In space
+mode the free room is 157 (to &BA00) + 1,210 (overlay S to the ring) = 1,367
+bytes, against 377. The bandwidth through register 1 is unchanged
+(2,089,958 bytes over 0-3700 against 2,089,958); the fetches add 2,942 bytes
+through register 4 over 0-3700 (64-289 a docked screen, 15-22 a launch or
+jump).
+
+**Speed** (it/s, capped: flight / docking / 0-3550 / beach / beach): Master
+host 18.82 / 10.64 / 19.10 / 9.28 / 9.35 (4129fd4: 18.82 / 10.64 / 19.09 /
+9.30 / 9.37); Model B host 14.10 / 8.79 / 15.93 / 7.33 / 7.19 (14.10 / 8.79 /
+15.94 / 7.34 / 7.19). The 13 docked screens of run1 0-3700, to the drain:
+Master 2,430 to 2,475 ms (+1.9%), Model B 3,201 to 3,280 ms (+2.5%): the
+fetches' IRQs take host time, which those screens are short of.
+
+**Gates** (scratch/gt1, both hosts): Master port byte-identical; lockstep
+16002 clean, TUBEINT 602 clean; storage 80 pages, 0 differ; pixels 14607
+and dashboard 3529 matched, 0 mismatched; tsavetest, tcrash, tstation ok;
+tforce 0 mismatched, overlay loads equal to 4129fd4's; ttear 0 on both;
+tmoon matched but the poke's own frames, as before; test_raster seed 1 ok.
+
+**Not enough for the disc rule.** S_SUN (1,103 bytes on the Master port)
+with R_DISC2 (799 bytes of code, and per buffer the second disc's spans,
+2 x 192 x 2 bytes) needs about 1.8K with a compact span store, 2.7K with the
+Master's; changed-rows-only surface redraw needs about 1.5K. 1,367 bytes are
+free: about 0.4K short of the first (1.3K with the Master's spans) and 1.9K
+short of both. The next sources, by speed cost, were not taken:
+1. the ring 7 pages to 4 (&F100 to &F400): 768 bytes. Measured (scratch/ring4,
+   on a691f91): Master host 18.66 / 10.63 / 19.00 / 9.24 / 9.35 (flight -0.9%,
+   0-3550 -0.5%), Model B 14.10 / 8.79 / 15.91 / 7.30 / 7.14 (beach -0.4% and
+   -0.7%). With it, 2,135 bytes: enough for S_SUN and R_DISC2 with a compact
+   span store, not also for the per-row surface state;
+2. F_ST (the text map's shown state, 4 bits a cell) packed two cells a byte:
+   384 bytes; the text steps' cell reads and writes get a shift (estimated
+   well under 1%: only rows holding text are walked);
+3. K mode given up: 750 bytes, docking 16% slower;
+4. the idle buffer's state paged to the host each frame: 10-20% (estimated).
+Moving the extended tokens (TKN1, RUPLA, RUGAL, RUTOK: 3.9K of overlay D) to
+the hosts frees nothing in space mode; it would shorten D's loads (9.3K) by
+about 40%, but the Master host has no room left below &3000 or in HAZEL.
+
+## Planets on the parasite, paging removed, the map tidied (branch `tubeplanets`, 2026-10-27)
+
+From `dumbhost` 9fe84cb. The Master port's planet work (planetfold 96c66d4 ..
+ce80ced: one circle engine for the beach ball, craters and bands; a moon;
+a ring; the original's planet maths as `Area: none`) is in master/src here,
+so the in-tree Master port (the pixel oracle) and the parasite share it.
+
+| commit | what |
+|---|---|
+| 89b34af | The engine, styles, moon and ring in overlay S; the meridian and crater tails, p_kind and SOS1's prefetch, overlays 4 and 5 gone. The moon drawn incrementally (p-moon.asm). P4's change drawing (R_BX, pob, pdo) out: faster with the ring, and S needed the room. The in-tree Master port's bank 7 window needed 2K: 36 "Tube: ovl D" cold blocks are `Area: bank 4` there (bankcheck holds). Its pixels equal planetfold's over run1 (14603 frames, 0 mismatched); fbref, dashref and master-ref regenerated from it. |
+| 341d6d3 | tmoon.sh: forced moon, ring, band and moon-only scenes (system seed pokes); pokes take SYM+n. |
+| 956051b | The parasite's map tidied (page &0D packed, ZPSAVE above overlay D, CODE% &1400, the ring back to 4 pages); tube/tools/pmap.py writes the map as JSON. |
+| 595e622 | EDGES, BLINE and getzp (run only on the direct screens) into overlay D; F_HW3 into overlay S: the overlay region starts at &BD00, S has 194 bytes free with the 4-page ring. ttear.mjs fixed (below). test_raster runs again, with the circle engine's tests. |
+
+| (this) | The Master's design change mirrored (planetsun 6957750): one colour scheme (crater planets blue with green craters), bands behind BANDS=on (off), the moon kept fixed in space (MN_TURN, gfx-mnturn.asm: planetsun's gfx-ssun.asm's turn, called once an iteration from G_FRAME and G_PFHOOK, as this tree has no S_SUN); rings behind RINGS=on (off), mirroring the coordinator's note before the Master's commit landed (_PLANET_RINGS). With rings off the ring has 7 pages (&F100; 4 with RINGS=on, which fits with BANDS off only). The in-tree Master port has the same; against planetsun 6957750 (MOON=scenery) its run1 pixels differ in 67 iterations, S_SUN's, as before; fbref, dashref and master-ref regenerated. |
+
+**Speed** (it/s, capped: flight / docking / 0-3550 / beach / beach):
+
+| | Master host, 4 MHz | Model B host, 3 MHz |
+|---|---|---|
+| 9fe84cb | 21.88 / 10.58 / 20.58 / 8.92 / 9.07 | 18.11 / 8.79 / 18.13 / 7.04 / 6.88 |
+| 89b34af | 18.66 / 10.63 / 18.92 / 8.97 / 8.77 | 14.10 / 8.68 / 15.82 / 7.02 / 6.65 |
+| 956051b | 18.66 / 10.63 / 19.01 / 9.23 / 9.33 | 14.11 / 8.80 / 15.91 / 7.28 / 7.11 |
+| 595e622 | 18.66 / 10.65 / 19.00 / 9.22 / 9.31 | 14.10 / 8.79 / 15.91 / 7.28 / 7.11 |
+| now (rings off, 7-page ring) | 18.82 / 10.64 / 19.09 / 9.30 / 9.37 | 14.10 / 8.79 / 15.94 / 7.34 / 7.19 |
+
+The flight window's planet is now a crater planet with the spherical caps,
+which cost about as much as on the Master port (its crater windows fell
+from 13-14.5 to 8.5-9.5 it/s there); about 2% of flight is the ring's 4
+pages (11 before). The ring's size matters in the beach windows: 3 pages
+are 3-6% slower there than 4.
+
+**Pixels.** Against the old reference, only crater-planet frames differ
+(the caps and the desert scheme, 6260 frames, and 587 where only the
+disc's colour changed), plus 9 frames whose hidden back buffer still holds
+one; beach-ball frames are identical. Against planetsun's Master (4b37359,
+MOON=scenery), 64 iterations of run1 differ: the sun near the planet
+(S_SUN) and its flare, not ported (below).
+
+**ttear.** The Model B count (6,722 at 9fe84cb, 15,705 at 956051b) was the
+tool's: it took the 6845's running address as the line on show, and in
+the right border of frame A's last character row that address runs past
+buffer 0's end into buffer 1's range, so back-buffer writes there counted
+as tearing (GFRONT showed the other buffer at every one). ttear.mjs now
+counts only while the 6845 displays (both enables) and by the line's start
+address: 0 on both hosts at 9fe84cb and now. With h_buf's wait for the
+flip removed (a deliberate tear) it reports 153 (Master) and 446 (Model B)
+in iterations 1-400.
+
+**The disc rule.** The planet's disc layer is incremental (a one-colour
+row is drawn only where it changed; a two-colour row is drawn whole when
+drawn, and the surface's circles move every frame with the planet's spin
+and our movement, so those rows change every frame). The moon is
+incremental (p-moon.asm: a still moon's one-colour rows are not drawn
+again; its crater's rows, which turn with the planet, and rows cut by a
+disc are drawn each frame they are on the screen). Not done:
+* the second disc (sun and planet both on screen) is still drawn whole
+  each frame (f_disc2), and the sun near the planet (S_SUN) is absent:
+  planetsun's R_DISC2 and S_SUN need about 1.8K in space mode (S_SUN 1.1K,
+  R_DISC2's code, its per-buffer spans or a compact variant), and the
+  parasite has 194 bytes;
+* only redrawing surface rows whose boundaries changed (still bands free)
+  needs per-row boundary state (up to four boundaries, two buffers: about
+  1.5K). A test of the circles' records (no per-row state) was tried: the
+  records change every frame (sub-pixel drift), so it saved nothing and
+  was taken out.
+Room in space mode is the parasite's resident image plus overlay S plus
+the ring; moving space-only code between them changes nothing, and the
+code run only on the direct screens is now in overlay D. Ways to make
+1.5-2K: give up K mode (750 bytes, docking 16% slower), page the idle
+buffer's state to the host each frame (est. 10-20% slower), or shrink
+shared data (the text map's 1.5K, the face tables' 3.3K) by redesign.
+
+**Gates** (scratch/g4, and scratch/g6 for the design change, both hosts): lockstep 16002 clean, TUBEINT 602
+clean, pixels and dashboard 0 mismatched, tsavetest, tcrash, tstation,
+tstore ok, tforce 0 mismatched with base overlay loads, tmoon matched but
+the poke's own frames, ttear 0. test_raster seeds 1: every test ok.
 
 ## STA runs, OVLD, 25 fps cap, 4-boundary state (branch `dumbhost`, 2026-10-24, fourth pass)
 

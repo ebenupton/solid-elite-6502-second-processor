@@ -17,7 +17,7 @@ const INJ = (a.inject || "").split(";").filter(Boolean).map(s => s.split(":"));
 const injKeys = ctx => { for (const f of INJ) if (f[0] === "k" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.site === f[3]) return f[4].split(",").map(Number); return null; };
 const injDks = ctx => INJ.some(f => f[0] === "d" && ctx.iter >= +f[1] && ctx.iter < +f[1] + +f[2] && ctx.key === +f[3]);
 const injPoked = new Set();
-const injPoke = (m, sy) => { for (const f of INJ) if (f[0] === "p" && m.iter >= +f[1] && !injPoked.has(f.join(":"))) { injPoked.add(f.join(":")); m.ram[sy[f[2]]] = +f[3]; console.log(`poked ${f[2]} = ${f[3]} at iteration ${m.iter}`); } };
+const injPoke = (m, sy) => { for (const f of INJ) if (f[0] === "p" && m.iter >= +f[1] && !injPoked.has(f.join(":"))) { injPoked.add(f.join(":")); m.ram[sy[f[2].split("+")[0]] + (+f[2].split("+")[1] || 0)] = +f[3]; console.log(`poked ${f[2]} = ${f[3]} at iteration ${m.iter}`); } };
 if (!a.log || !a.from || !a.to || !a.cand || !a.csyms) { console.error("--log, --out, --cand and --csyms are required"); process.exit(2); }
 if (!a.ref !== !a.rsyms) { console.error("--ref and --rsyms go together"); process.exit(2); }
 const FFMPEG = "/opt/homebrew/bin/ffmpeg";

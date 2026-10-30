@@ -34,6 +34,7 @@ scratch/grind/, with analyse.log, profile.log, windows.log, run_all.log).
 | `test_raster.py [--quick]` | the demo's rasteriser soak test (tools/test_raster.py) pointed at master/src's rasteriser (`GRIND_TREE=<tree>` to test another tree's) |
 | `run_all.sh [root]` | analyse + profile + windows |
 | `gcreach.py [--build DIR] [--out DIR] [--profile F] [--cov F...]` | provable reachability of the code from the real entry points: the unreachable code (garbage collection, below) |
+| `crossings.py --insns F --profile F [--src F] [--top N] [--blocks "..."]` | the calls between the hot side and the cold pass by caller's and callee's block, and for each cold block the crossings that moving it hot would remove and create (docs/MASTER-MAP.md, "Calls between the passes") |
 
 ## The model (df/model.py)
 
@@ -42,9 +43,9 @@ INCLUDEs at its end):
 
 | segment | image (SAVE) | what |
 |---|---|---|
-| `main` | `BCODE` &1EDC-&3FFF, `HICODE` &7000-&7FFF (the quarter-square tables, then run part 2) | the main code and data in the original's order (it continues in bank 4), with the far7 stubs into the cold area at their cold routines' places; the high code: the quarter-square tables QSL/QSH at &7000, the renderer's game-context stubs and hooks (gfx-gstubs, gfx-hooks), the lighting's game half (gfx-light) |
-| `B4` | `BANK4` | bank 4, Elite's home bank, code only: the main code's continuation (from DVL9a), then elite-bank4.asm (TACTICS, LL9, MVEIT, Master's drawing, the CMYK dashboard) |
-| `C7` | `COLD7` | the cold area, bank 7 from &8000 (ROMSEL 7): the cold code, with the far4 stubs out of the cold area at their hot routines' places, then QQ18 and the extended tokens (cold data) |
+| `main` | `BCODE` from CODE% (&1E24) to &3FFF, `HICODE` &7000-&7FFF | the glue area (the stubs between the passes, elite-stubs.asm and build/elite-stubs.asm, and the renderer's glue), the low pass, the hot pass's main RAM containers (to &4000, and from &7400 after the quarter-square tables QSL/QSH at &7000) (docs/MASTER-MAP.md) |
+| `B4` | `BANK4` | bank 4, Elite's home bank: the hot pass's third container (its ACCCON X blocks first, then the rest), then the hot data that HAZEL has no room for (QQ18, SNE, ACT) |
+| `C7` | `COLD7` | the cold pass, bank 7 from &8000 (ROMSEL 7): the cold code, then the extended tokens (cold data) |
 | `HZ` | `HAZEL` (&C000-&DFFF) | HAZEL: the game data (INCBIN HZDATA1, HZDATA2: blueprints, XX21 ..., SNE, ACT), and at &C300 gvars, the T_ trampolines, the text and IRQ hooks |
 | `B5`, `B6` | `BANK5`, `BANK6` | the rasteriser's disc window and shared region (with R_LINE's cold part); the frame layer, faces, lighting tables |
 | `RA` | `RASTA` | ANDY: the rasteriser's polygon window, R_POLY and R_LINE (ROMSEL &85) |
@@ -70,7 +71,10 @@ loads it.
   &3000-&7FFF through a pointer is unknown (it may be shadow RAM); stores into main
   &3000-&7FFF by a bare address (setzp's `STA &3000,X` into shadow &3000) are not taken
   as patches of the main code there (code is patched only by stores naming its label).
-* **Far calls** (elite-far.asm: `JSR far7 : EQUW TT22_C`, `far4`, `far7j`, `far4j`): the
+* **Far calls** (none now: the stubs between the passes are ordinary code, one per
+  target, `JSR to7 : JSR TT22_C : JMP to4`, and master_config.FAR_CALLS is empty; this
+  is what was modelled while elite-far.asm's helpers were used, and still is for a
+  config that names some) (elite-far.asm: `JSR far7 : EQUW TT22_C`, `far4`, `far7j`, `far4j`): the
   stub's JSR is a call to its target, resolved in the bank the helper pages (far7/far7j:
   ROMSEL &87, ANDY + bank 7; far4/far4j: bank 4 or main), with the far code's effects
   added (it writes fA fX fB ft ft+1 and &F4, writes ROMSEL -- so no paged byte is killed

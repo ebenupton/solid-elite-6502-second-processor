@@ -2,7 +2,7 @@
 \
 \ p-glue.asm - the parasite's renderer glue: the G_ stubs (gfx-gstubs.asm in
 \ the Master port), which here call the frame layer directly (no banks), and
-\ the text map's hooks (gfx-lowhooks.asm), whose work is the host's
+\ the text map's hooks (gfx-gluehooks.asm), whose work is the host's
 \
 \ Each G_ stub returns as the Master port's does: A = ELITEBANK (gback's
 \ LDA), X, Y and C as the frame layer left them.
@@ -15,7 +15,11 @@
 
 .gA EQUB 0
 
-.G_FRAME
+.G_FRAME                \ (the sun near the planet first, S_SUN, gfx-ssun.asm,
+ JSR S_SUN              \ then in a space view the light for the next
+ LDA QQ11               \ iteration's ships, L_SUN, gfx-light.asm: both in
+ BNE P%+5               \ game context, as the Master port's)
+ JSR L_SUN
  JSR F_FRAME
  JMP gback
 
@@ -27,8 +31,16 @@
  JSR F_LINE
  JMP gback
 
-.G_DOT
- JSR F_DOT
+.G_GUN                  \ (A passed, Y returned: F_GUN's)
+ JSR F_GUN
+ JMP gback
+
+.G_PDOT                 \ (A, X passed: F_PDOT's)
+ JSR F_PDOT
+ JMP gback
+
+.G_CLOUD                \ (C passed: F_CLOUD's)
+ JSR F_CLOUD
  JMP gback
 
 \ G_DIRECT: TT66 is about to blank the screen and draw directly (from TTX66,
@@ -51,7 +63,6 @@
  JMP gback
 
 .G_PLANET
- JSR p_kind             \ (overlay S's tail for the planet's kind, p-ovl.asm)
  JSR F_PLANET
  JMP gback
 
@@ -67,34 +78,19 @@
  JSR F_BOMB
  JMP gback
 
-.G_PCURVE               \ (F_PCURVE and F_PPOINT: overlay S's crater tail,
- PHX                    \ which G_PLANET has chosen this frame)
+\ G_PFHOOK: H_CIRC's planet surface (gfx-hooks.asm): PF_HOOK, the planet's
+\ class and its circles' records (gfx-planet7.asm, with the circle engine
+\ gfx-merid.asm, in overlay S), its moon and its ring; PF_CLS bit 7 says
+\ that f_bounds is to colour the disc from them (T_CAPS). Keeps X and Y
+\ (H_CIRC, the only caller, reads none of A and the flags after it)
+
+.G_PFHOOK
+IF _PLANET_MOON
+ JSR MN_TURN            \ (the moon's place for this iteration, gfx-ssun.asm)
+ENDIF
  LDA #OVL_S
  JSR ovl_need
- PLX
- JSR F_PCURVE
- JMP gback
-
-.G_PPOINT
- PHX
- LDA #OVL_S
- JSR ovl_need
- PLX
- JMP F_PPOINT           \ (it returns through gback)
-
-\ G_MERHOOK: H_MERID's beach ball (gfx-hooks.asm): PM_HOOK, the meridian
-\ window's frame constants (gfx-merid.asm, in the overlay S, with the quarter
-\ squares), and PM_OK says that f_bounds is to colour the disc as a beach ball
-\ (T_MERID). Keeps X, Y and C, as PM_HOOK
-
-.G_MERHOOK              \ (PM_HOOK, in the overlay S: keeps A, X, Y and C)
- PHA
- PHX
- LDA #OVL_S
- JSR ovl_need
- PLX
- PLA
- JSR PM_HOOK
+ JSR PF_HOOK
  JMP gback
 
 \ G_DSTAR: outside record mode PIXEL2 draws star Y directly; H_STAR (C set:
@@ -164,7 +160,10 @@ FOR hst, 1, 21
  ENDIF
 NEXT
 
-.G_HANGAR
+.G_HANGAR               \ (the light for the hangar's ships too, L_SUN, as
+ LDA QQ11               \ G_FRAME does)
+ BNE P%+5
+ JSR L_SUN
  JSR F_HANGAR
  JMP gback
 
@@ -172,7 +171,7 @@ NEXT
 
 \ ******************************************************************************
 \
-\ The text map's hooks in CHPR and CLYNS (gfx-lowhooks.asm in the Master port).
+\ The text map's hooks in CHPR and CLYNS (gfx-gluehooks.asm in the Master port).
 \ The text map is the host's: H_CHAR and H_DEL send the character (or the
 \ delete, 127) with the cursor as CHPR had it on entry, and the state the
 \ host's CHPR needs to decide whether to draw it (tube/src/h-main.asm runs
@@ -183,6 +182,15 @@ NEXT
 \ ******************************************************************************
 
 .hA EQUB 0
+
+\ The recursive tokens' buffer (elite-source.asm's ex): the tokens being
+\ printed, each fetched from the host above the one that printed it, so at
+\ most the deepest chain of tokens printing tokens (token 126's, through the
+\ control codes 5 and 0 too, is 35 bytes: tube/build.sh checks it)
+
+TBUFN = 35
+.tbp  EQUB 0            \ the next token's offset in TBUF
+.TBUF SKIP TBUFN
 
 .G_CHAR                 \ the text map (gfx-frame_cold.asm's F_CHAR ...)
  JMP F_CHAR

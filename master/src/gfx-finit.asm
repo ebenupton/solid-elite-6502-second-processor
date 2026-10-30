@@ -2,10 +2,10 @@
 \
 \ gfx-finit.asm - the frame layer's one-off initialisation, F_INIT
 \
-\ Master port: INCLUDEd by elite-gfx.asm in bank 6's F_DL (the ship records),
+\ Master port: INCLUDEd by elite-gfx.asm in bank 6's F_SR (the ship records),
 \ after the 34 bytes where F_INIT keeps Elite's &06-&27 while the rasteriser's
 \ R_INIT uses them: the loader calls it once (G_INIT) before the first frame,
-\ and from the first frame on F_DL holds the ship records.
+\ and from the first frame on F_SR holds the ship records.
 \
 \ ******************************************************************************
 
@@ -33,16 +33,16 @@ IF _TDUMB
  LDA #OVL_S             \ (Tube: the rasteriser is in the overlay S)
  JSR ovl_need
 ENDIF
- LDX #&21               \ R_INIT uses &06-&27: keep Elite's values (in F_DL,
+ LDX #&21               \ R_INIT uses &06-&27: keep Elite's values (in F_SR,
 .fin0                   \ before this code)
  LDA &06,X
- STA F_DL,X
+ STA F_SR,X
  DEX
  BPL fin0
  JSR T_INIT
  LDX #&21
 .fin4
- LDA F_DL,X
+ LDA F_SR,X
  STA &06,X
  DEX
  BPL fin4
@@ -65,18 +65,28 @@ ELSE
  CPY #&70
  BNE fin3
 ENDIF
+ LDA #&80               \ no docking slot (F_SLV: f_poly2, f_slot)
+ STA F_SLV+16
  LDA #0
  STA F_NSHIP
  STA F_NLINE
  STA F_NDOT
  STA F_PLON
+ IF _PLANET_MOON        \ (no moon, no ring: gfx-planetv.asm is not loaded)
+ STA MN_ON
+ STA MO_ON              \ (and no moon drawn in either buffer)
+ STA MO_ON+1
+ ENDIF
+ IF _PLANET_RINGS
+ STA RG_N
+ ENDIF
  LDX #NDSTAR-1          \ no stars recorded, no direct-mode stars noted
 .fin1
  STA R_SS,X
  STA F_DSS,X
  DEX
  BPL fin1
- JSR f_tmclear
- RTS
+ RTS                    \ (the text map, F_TCH and f_dlog are all zero, as
+                        \ loaded: no text, none shown, none noted)
 
 ENDIF

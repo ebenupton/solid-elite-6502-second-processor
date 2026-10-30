@@ -25,16 +25,22 @@ _RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
 
- INCLUDE "build/elite-source-run.asm"
+ INCLUDE "build/elite-source-config.asm"   \ (the configuration and the workspaces)
 
- INCLUDE "build/elite-source-bank4.asm"
+ ORG CODE%
+.PCODE_START
+ INCLUDE "tsrc/p-low.asm"               \ the parasite's glue (p-low.asm)
+.GLUE_END%
 
-PRINT "Parasite: run and Master's drawing end at &", ~P%
+ INCLUDE "build/elite-source-run.asm"   \ the game, resident, in the source's order
+
+PRINT "Parasite: glue &", ~CODE%, "-&", ~GLUE_END%-1, ", the game's run to &", ~P%-1
 .HZ_START
  INCLUDE "build/elite-data-hot.asm"
 .HZDATA_END%
  INCLUDE "src/gfx-hangar6.asm"
-.HZ_END
+ INCLUDE "src/gfx-planetv.asm"          \ (the moon's and the ring's variables:
+.HZ_END                                 \ f_reset writes them out of space mode)
 
 PRINT "Parasite: data end at &", ~P%
 PFRAME% = P%
@@ -42,13 +48,17 @@ PFRAME% = P%
  ORG PFRAME%
 
 .PF_START
- INCLUDE "build/gfx-frame-frame.asm"   \ (streams.py's frame pass: not the crater blocks)
+ INCLUDE "build/gfx-frame-frame.asm"   \ (streams.py's frame pass)
  INCLUDE "src/gfx-faces.asm"
  INCLUDE "src/gfx-light6.asm"
- INCLUDE "src/gfx-light.asm"
- INCLUDE "src/gfx-frame_cold.asm"
+ INCLUDE "build/gfx-light-6.asm"         \ (L_REC)
+ INCLUDE "build/gfx-light-4.asm"         \ (L_SUN, from G_FRAME and G_HANGAR)
+ INCLUDE "build/gfx-frame_cold-frame.asm"  \ (its "Area: ovl S" block, f_slot,
+                                        \ in overlay S)
  INCLUDE "src/gfx-hangar.asm"
- CPU 1
+ INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's and MN_TURN's resident part:
+ CPU 1                                  \ G_FRAME, G_PFHOOK, MOONHIT)
+ INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
 IF OPTEST                \ (a test build for test_onepass.py --tube only: the
@@ -56,30 +66,42 @@ IF OPTEST                \ (a test build for test_onepass.py --tube only: the
  INCLUDE "tsrc/p-onepass.asm"
  SKIP F_HW + 2048 - P%
 F_HW2 = F_HW + 256
-F_DL = F_HW + 512
+F_SR = F_HW + 512
 F_INIT = F_HW
 ELSE
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
-.F_DL                   \ ship records: XX2 then XX3 copies (1536 bytes)
- SKIP &22
+F_SRN = MAXSH * 15      \ (the most faces is 15)
+.F_SR                   \ the ships' faces' levels (F_SHIP), with F_INIT, run
+ SKIP &22               \ once before the first frame, in its room
  INCLUDE "src/gfx-finit.asm"
- SKIP F_DL + 1536 - P%
+ SKIP F_SR + F_SRN - P%
 ENDIF
+.F_RP   SKIP 29 * MAXSH \ the ship records (F_SHIP): INWK 0-8, XX16, XX0
+F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
+F_SZH = F_RP + 7 * MAXSH
+.F_BX   SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
+.F_BY   SKIP 10         \ as F_BOMB found them
+.F_DCOL SKIP 2          \ disc colour index in each buffer's disc layer
+.f_tcol SKIP 1          \ (f_char1's column)
+.f_zsv  SKIP &22 + 16   \ F_FRAME's keep of &06-&27 and FZ's &D2-&E1
 .F_DLEND
-.F_TM   SKIP 768        \ the text map (gfx-frame.asm), and what each buffer shows
-.F_ST   SKIP 768
-ASSERT F_ST = F_TM + &300
+.F_TM   SKIP 768        \ the text map (gfx-frame.asm)
+.F_SLV  SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
+                        \ gfx-frame_cold.asm; F_SLV+16 &80: none)
+ INCLUDE "tsrc/p-disc0.asm"            \ (the disc heap's drop)
+ INCLUDE "tsrc/p-probe1.asm"           \ (the lens flare's probes: fl_arm's helpers)
 .PRES_END                \ (the end of what is always resident)
 
 
-\ The overlay region (p-ovl.asm): from OVL_START, page aligned, to &F800. The
+\ The overlay region (p-ovl.asm): from OVL_START, page aligned, to RING. The
 \ parasite's image holds overlay D there (the cold area: the direct-mode
 \ blocks tagged "Tube: ovl D", then the extended tokens); the host keeps its
 \ image (HOVD), whole pages
  ORG (P% + 255) AND &FF00
 .OVL_START
 .COLD_START%
+ INCLUDE "build/elite-stubs-x4.asm"    \ (overlay D's names for resident routines)
  INCLUDE "build/elite-source-cold.asm"
  INCLUDE "build/elite-data-cold.asm"
  INCLUDE "build/p-io-ovld.asm"          \ (the "ovl D" blocks of the Tube's files:
@@ -90,14 +112,17 @@ ASSERT F_ST = F_TM + &300
 .PCODE_END
 
  PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_END-1, " (", PRES_END-PF_START, " bytes)"
- PRINT "Parasite: overlay region &", ~OVL_START, "-&F7FF (", &F800-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to &F800: ", &F800-OVL_D_END
- ASSERT PCODE_END <= &F800
+ PRINT "Parasite: overlay region &", ~OVL_START, "-&", ~RING-1, " (", RING-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to the ring: ", RING-OVL_D_END
+ ASSERT PCODE_END <= RING
+ ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above
+                        \ overlay D's pages, which a load of D rewrites; elite-source.asm)
  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
  SAVE "build/HOVD.bin", OVL_START, (OVL_D_END + 255) AND &FF00
 
 \ Overlay S, the space-mode overlay: the rasteriser (p-rast.asm: its state
-\ first, then its code), the lens flare and the meridian window (the beach
-\ ball), from OVL_START (p-ovl.asm). The host keeps its image (HOVS)
+\ first, then its code), the lens flare and the planet's surface (the circle
+\ engine, gfx-merid.asm, and its styles, moon and ring, gfx-planet7.asm),
+\ from OVL_START (p-ovl.asm). The host keeps its image (HOVS)
  IF MEASURE             \ (tube/build.sh MEASURE=1: sizes only, no usable image)
   CLEAR OVL_START, &FFFF
  ELSE
@@ -106,6 +131,15 @@ ASSERT F_ST = F_TM + &300
  ORG OVL_START
 .OVL_S_START
  INCLUDE "tsrc/p-rast.asm"
+ INCLUDE "tsrc/p-disc.asm"              \ (the disc heap, the surface and the second disc
+                                        \ drawn as changes)
+IF _PLANET_MOON
+ ERROR "MOON=on: the Tube's parasite has no room for the moon"
+ENDIF
+IF _PLANET_RINGS
+.RG_Y   SKIP 64         \ the ring's dots' y and flags (gfx-planetv.asm's in the
+.RG_F   SKIP 64         \ Master port): only used with S in (pf_ring, f_ring)
+ENDIF
  INCLUDE "tsrc/p-emit.asm"              \ (the polygons' rows to the host as they are made)
  INCLUDE "tsrc/p-kept.asm"              \ (kept solid rows)
  INCLUDE "tsrc/p-polya.asm"             \ (R_POLY's set-up and arithmetic, C_DSPANS's
@@ -113,38 +147,27 @@ ASSERT F_ST = F_TM + &300
 IF OPTEST = 0
  INCLUDE "tsrc/p-onepass.asm"           \ (R_POLY in one pass)
 ENDIF
- INCLUDE "src/gfx-ftext.asm"
+ INCLUDE "build/gfx-frame-ovls.asm"    \ (the text overlay and the sights)
  CPU 1
  INCLUDE "src/gfx-flare.asm"
  CPU 1
- ALIGN &100             \ (the kind tail: the meridian's or the crater's,
-.TAIL_START             \ p-ovl.asm)
+ INCLUDE "tsrc/p-probe.asm"             \ (the lens flare's probes)
  INCLUDE "src/gfx-merid.asm"
  CPU 1
+ INCLUDE "src/gfx-planet7.asm"
+ CPU 1
+ INCLUDE "build/gfx-frame_cold-ovls.asm"  \ (f_slot: the stars round a docking slot)
+ INCLUDE "build/gfx-ssun-ovls.asm"      \ (S_SUN's ss_seed and ss_draw)
 .OVL_S_END
- PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to &F800: ", &F800-OVL_S_END
- ASSERT OVL_S_END <= &F800 OR MEASURE
+ PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to the ring: ", RING-OVL_S_END
+ ASSERT OVL_S_END <= RING OR MEASURE    \ (the ring above: p-io.asm)
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
-
-\ Overlay S's crater tail (p-ovl.asm's OVL_TC): the crater's code from the
-\ frame layer (gfx-frame.asm's blocks tagged "Area: ovl S crater", streams.py's
-\ crater pass), at TAIL_START in place of the
-\ meridian's (gfx-merid.asm). The host keeps its image after overlay D's
-\ (tube/build.sh appends HOVSC to HOVD)
- CLEAR TAIL_START, &F800
- ORG TAIL_START
-.TC_START
- INCLUDE "build/gfx-frame-crater.asm"   \ (streams.py's crater pass)
-.TC_END
- PRINT "Parasite: overlay S's common part &", ~OVL_START, "-&", ~TAIL_START-1, ", the meridian tail to &", ~OVL_S_END-1, " (", OVL_S_END-TAIL_START, " bytes), the crater tail to &", ~TC_END-1, " (", TC_END-TAIL_START, " bytes)"
- ASSERT TC_END <= OVL_S_END OR MEASURE
- SAVE "build/HOVSC.bin", TAIL_START, (TC_END + 255) AND &FF00
 
 \ The high code (PHIGH): &F800-&FEEF, where the client OS is until the boot
 \ (p_boot) copies it in from the staging area; then the page at &FF00 with
 \ the vectors (&FFFA-&FFFF): NMI an RTI (the host never writes register 3
-\ again), RESET p_start, IRQ and BRK p_crash (interrupts stay off, so only a
-\ BRK can come here: a crash)
+\ again), RESET p_start, IRQ and BRK pirq (the ring's doorbell, p-io.asm; a
+\ BRK goes on to p_crash)
  ORG &F800
 .PHIGH_START
  INCLUDE "tsrc/p-polyb.asm"    \ (phase 3: R_POLY's phase A, its second part)
@@ -165,8 +188,8 @@ ENDIF
  STY pcry
  TSX
  STX pcrs
-.pcr1
- JMP pcr1
+.pcrsh
+ JMP pcrsh
 .p_nmi
  RTI
 .pcra EQUB 0
@@ -175,7 +198,7 @@ ENDIF
 .pcrs EQUB 0
  INCLUDE "src/gfx-flare6.asm"           \ (resident code and tables, out of the
  CPU 1                                  \ run: OVL_START is lower for them)
- INCLUDE "tsrc/p-flt.asm"               \ (the lens flare's tables)
+ INCLUDE "tsrc/p-probe2.asm"            \ (the lens flare's probes' resident part)
 .F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm)
 .F_DSY  SKIP NDSTAR
 .PFF_END
@@ -191,7 +214,7 @@ FOR n, 0, 511
 NEXT
  ASSERT PFF_END <= &FFFA
  ORG &FFFA
- EQUW p_nmi, p_start, p_crash
+ EQUW p_nmi, p_start, pirq
 
  CLEAR OVL_D_END, &F800
  ORG OVL_D_END
@@ -233,11 +256,11 @@ NEXT
 .PSTG_FF
  COPYBLOCK &FF00, &FFFF, P%
  ORG PSTG_FF + &FF
- EQUB HI(p_crash)       \ (&FFFF: COPYBLOCK's end is 16-bit)
+ EQUB HI(pirq)          \ (&FFFF: COPYBLOCK's end is 16-bit)
 .PSTG_LO
  COPYBLOCK &0200, &0400, P%
  ORG PSTG_LO + &200
 .PSTG_END
- PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to &F800: ", &F800-PSTG_END
- ASSERT PSTG_END <= &F800 OR MEASURE
+ PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to the ring: ", RING-PSTG_END
+ ASSERT PSTG_END <= RING OR MEASURE
  SAVE "build/PSTAGE.bin", OVL_D_END, PSTG_END

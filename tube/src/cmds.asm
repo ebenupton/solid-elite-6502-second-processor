@@ -10,7 +10,8 @@
 \ dispatches through a table of words) and its operands. The host answers
 \ the requests (keys, a key test, a wait for vsync) through register 4 (host
 \ to parasite), which the parasite polls (bit 7: data). The parasite runs with
-\ interrupts off.
+\ interrupts off, but while it buffers commands in its ring (p-io.asm), when
+\ the host's doorbell (register 1, host to parasite) asks for more.
 \
 \ ******************************************************************************
 
@@ -37,6 +38,8 @@ HR4D = &FEE7
 C_SYNC     = 0          \ the end of a main-loop iteration's frame: nothing to do
                         \ (the harness's frame marker)
 C_INIT     = 2          \ F_INIT: the drawing code's state, buffer 0 cleared
+C_TOKEN    = 4          \ request (register 4): recursive token n's bytes as stored
+                        \ in QQ18, its null included (elite-source.asm's ex)
 C_SPAN     = 14         \ a span: Y, XL, XR, COLE, COLO (R_SPAN)
 C_LINE     = 20         \ a line: COLE, COLO, COL2, COL3, X0, Y0, X1, Y1 (words:
                         \ R_LINE)
@@ -101,11 +104,16 @@ DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
 
 \ the host's Tube I/O
 
-MACRO HRX               \ A = the next byte from the parasite (register 1)
- BIT HR1S
- BPL P%-3
+MACRO HRX               \ A = the next byte from the parasite (register 1); if
+ BIT HR1S               \ it is empty, hrw rings the parasite's doorbell while
+ BMI P%+5               \ it stays so (p-io.asm's ring)
+ JSR hrw
  LDA HR1D
 ENDMACRO
+
+IF _HOSTB                 \ (the Model B host: hrw in main RAM, beyond the panel,
+ hrw = &7FE0              \ which banks F and P both call; hb-main.asm)
+ENDIF
 
 MACRO HTX               \ send A to the parasite (register 4)
  BIT HR4S

@@ -302,7 +302,7 @@ IF _TDUMB = FALSE          \ (the dumb host: the rows come one by one from the
   BIT KMODE               \ K mode: the kept rows' pass (gfx-raster_kept.asm)
   BPL d3
   LDA r_pbl1_e+1
-  JSR T_KPRE              \ (the low area: k_pre in bank 7)
+  JSR T_KPRE              \ (the glue area: k_pre in bank 7)
 .d3
 ELSE
 .^r_pcbs                  \ (the dumb host: C_SPANS, rows from r_ystart, each read
@@ -312,7 +312,7 @@ ENDIF
   \ phase B set-up
   LDY r_ystart
   JSR r_rowset
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   LDA RZ_PP+1
   STA r_jsr2_e+2
   STA r_jsr2_o+2
@@ -324,7 +324,7 @@ ENDIF
   LDA r_yend
   STA pb_ye_e+1
   STA pb_ye_o+1
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
   LDA #190                \ nothing planted
   STA RZ_PP
 ENDIF

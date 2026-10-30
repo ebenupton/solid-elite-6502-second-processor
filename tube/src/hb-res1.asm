@@ -1,6 +1,6 @@
 \ hb-res1.asm - the Model B host's main RAM code (hb-res.asm): hb_fixed: at RUNP: the entry points banks D and P call
 
-.runp                   \ bank D's r_spc: the run at RUNPJ's target, in bank P,
+.runp                   \ (unused: bank D holds no code now) bank D's r_spc: the run at RUNPJ's target, in bank P,
  PHA                    \ with an RTS planted at (RZ_PP), which is then taken
  PAGE RASTPOLY          \ out; A = colour, Y = row (kept); back in bank D
  LDA RUNPJ+2

@@ -26,6 +26,14 @@ for (let t = t0; t <= (t1 || t0); t++) {
     s.loadDisc(DISC); s.keyDown(16); s.reset(true); await s.runFor(2000000); s.keyUp(16);
     const cpu = s._machine.processor;
     let polls = 0, inT = false, done = false;
+    // STACKWATCH=1: the lowest S while the frame runs game code (GPRJ set: the
+    // frame's ship projection, whose XX3 is under the stack), and the highest
+    // XX3 byte it writes (master/tools/records/stack.mjs)
+    const SW = { minS: 0xff, maxX: 0x100 };
+    if (process.env.STACKWATCH && sy.GPRJ !== undefined) {
+        cpu.debugInstruction.add(() => { if ((cpu.ramRomOs[sy.GPRJ] & 0x80) && cpu.s < SW.minS) SW.minS = cpu.s; return false; });
+        cpu.debugWrite.add(ad => { if ((cpu.ramRomOs[sy.GPRJ] & 0x80) && ad >= 0x100 && ad < 0x100 + cpu.s && ad > SW.maxX) SW.maxX = ad; return false; });
+    }
     cpu.debugInstruction.add(pc => {
         if (pc === tAddr && (tMap === "m" || tMap === mapAt(cpu.romsel, pc))) { if (!inT) cpu.x = t; inT = true; }
         if (inT && pc === sy.RDKEY && ++polls >= POLLS) done = true;
@@ -35,7 +43,7 @@ for (let t = t0; t <= (t1 || t0); t++) {
     const f = `${OUT}/type-${String(t).padStart(2, "0")}.png`;
     writeFileSync(f, await s.screenshotActive({ scale: 1 }));
     files.push(f);
-    console.log(f);
+    console.log(f + (process.env.STACKWATCH ? `  lowest S while the frame projects &${SW.minS.toString(16)}, highest XX3 byte &${SW.maxX.toString(16)}` : ""));
 }
 try { execFileSync("python3", ["-c", `
 import sys

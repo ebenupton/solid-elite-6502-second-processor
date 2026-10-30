@@ -389,12 +389,5 @@ KT = 8                  \ the least interior (whole bytes) a kept row must have
 PKZB = R_NDX0           \ the deferred pieces (row, left, right): R_NDX0 is free
 PKZMAX = 192            \ while the ships are drawn (the disc layer is done)
 
-.pk_t  EQUB 0
-.pk_l  EQUB 0
-.pk_r  EQUB 0
-.pk_x  EQUB 0
-.pk_w  EQUB 0
-.pk_a  EQUB 0
-.pk_b  EQUB 0
-.pk_zn EQUB 0
+.pk_zn EQUB 0           \ (the scratch, pk_t .. pk_b: p-ws.asm)
 .pk_col SKIP 4          \ the stream's four colours (pem_head, in K mode)

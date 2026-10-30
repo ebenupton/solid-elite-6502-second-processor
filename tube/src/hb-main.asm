@@ -61,6 +61,14 @@ _RBANK = 0
  GUARD MR_EEND
  INCLUDE "tsrc/hb-res3.asm"
 .MR_E_END
+ ASSERT P% <= hrw
+ ORG hrw                \ (cmds.asm's hrw, at its fixed place: h-main.asm's
+ BIT HR1S               \ Master copy says what it does)
+ BMI P%+9
+ BVC hrw
+ STA HR1D
+ BVS hrw
+ RTS
  PRINT "Model B &7E00 part: &", ~MR_E, "-&", ~MR_E_END-1, " (free ", MR_EEND-MR_E_END, ")"
  SAVE "build/HBRES1.bin", &0236, &0D00
  SAVE "build/HBRES2.bin", &0E00, &1100
@@ -77,7 +85,7 @@ _RBANK = 0
  INCLUDE "tsrc/hb-irq.asm"
  INCLUDE "build/nmos/elite-source-host.asm"
  CPU 0
- INCLUDE "build/nmos/gfx-lowhooks.asm"
+ INCLUDE "build/nmos/gfx-gluehooks.asm"
  CPU 0
  INCLUDE "build/nmos/gfx-frame.asm"
  CPU 0
@@ -96,5 +104,13 @@ _RBANK = 0
 .F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
 .F_END
- PRINT "Model B bank F: &8000-&", ~F_END-1, " (code to &", ~F_CODE_END-1, ")"
- SAVE "build/HBF.bin", &8000, F_END, &8000
+HQQ18 = F_END           \ the recursive tokens (QQ18, as stored) and where each
+ INCBIN "build/HQQ18.bin"   \ starts: data that h4body's C_TOKEN sends (in the IRQ,
+ INCLUDE "build/htokix.asm" \ with bank F paged)
+.F_TEXT_END
+ INCLUDE "tsrc/hb-line.asm"      \ (the lines)
+.F_LEND
+ ASSERT F_LEND <= DASHV_B
+ PRINT "Model B bank F: the lines &", ~F_TEXT_END, "-&", ~F_LEND-1, ", free to the dashboard's variables: ", DASHV_B-F_LEND
+ PRINT "Model B bank F: &8000-&", ~F_TEXT_END-1, " (code to &", ~F_CODE_END-1, ", the recursive tokens from &", ~F_END, ")"
+ SAVE "build/HBF.bin", &8000, F_LEND, &8000

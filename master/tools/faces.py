@@ -23,6 +23,14 @@ NTYPES = 33
 # Vertex face lists as the build's blueprints have them, where they differ
 # from the data (none: Master Elite's blueprints are used unchanged)
 PATCH = {}
+# Ships whose blueprint normals are not their faces': the face list takes
+# each face's outward normal from its vertices instead. The splinter's faces
+# data offset is 24 bytes out (SHIP_SPLINTER, as released), so LL9 reads its
+# four normals from the shuttle's header and vertex 0 (39 to 88 degrees off);
+# H_SPL (gfx-hooks.asm) makes LL9 show all four faces, and the frame layer
+# culls them by their winding, so these normals only order the polygons and
+# light them.
+GEOM_NORMALS = {8: 'the faces data offset is 24 bytes out: LL9 reads the shuttle\'s header'}
 
 
 def _mem():
@@ -65,12 +73,30 @@ def parse(mem, a):
     return dict(addr=a, scale=h[18], gun=h[6], visdist=h[13], verts=verts, edges=edges, faces=faces)
 
 
+def _ref_mem():
+    """The released SNG47's data (master/reference/sng47/BDATA.unprot.bin, at
+    &7000, XX21 at &8000): the blueprints with their edge lists, which the
+    build no longer assembles (elite-data.asm's EDGE macro)."""
+    mem = bytearray(0x10000)
+    d = open(os.path.join(ROOT, 'reference', 'sng47', 'BDATA.unprot.bin'), 'rb').read()
+    mem[0x7000:0x7000 + len(d)] = d
+    return mem, 0x8000
+
+
 def load_ships():
     mem, xx21 = _mem()
+    rmem, rxx21 = _ref_mem()
     out = []
     for t in range(1, NTYPES + 1):
         a = mem[xx21 + 2 * (t - 1)] | mem[xx21 + 2 * (t - 1) + 1] << 8
         s = parse(mem, a)
+        # the edges from the reference's copy of the blueprint (the build's
+        # edge offset now points at its faces); its vertices and faces must
+        # be the build's
+        ra = rmem[rxx21 + 2 * (t - 1)] | rmem[rxx21 + 2 * (t - 1) + 1] << 8
+        r = parse(rmem, ra)
+        assert (r['verts'], r['faces'], r['scale']) == (s['verts'], s['faces'], s['scale']), t
+        s['edges'] = r['edges']
         s['name'] = NAMES[t]
         if len(s['faces']) == 1 and all(e['f1'] == e['f2'] == 15 for e in s['edges']):
             # the alloy plate: one face, its edges all on "face 15" (always
@@ -79,8 +105,31 @@ def load_ships():
                 e['f1'], e['f2'] = 0, 15
         for v, fl in PATCH.get(t, {}).items():
             s['verts'][v]['faces'] = fl
+        if t in GEOM_NORMALS:
+            _geom_normals(s, GEOM_NORMALS[t])
         out.append((t, s))
     return out
+
+
+def _geom_normals(s, why):
+    """Each face's normal from its vertices (those whose face lists name it):
+    the plane through them, pointing away from the ship's centre, of
+    magnitude 64 (rounded). For a convex ship only."""
+    V = [(v['x'], v['y'], v['z']) for v in s['verts']]
+    c = [sum(p[i] for p in V) / len(V) for i in range(3)]
+    for f, face in enumerate(s['faces']):
+        vs = [i for i, v in enumerate(s['verts']) if f in v['faces']]
+        assert len(vs) >= 3, (f, vs)
+        a, b, d = (V[i] for i in vs[:3])
+        n = [(b[1] - a[1]) * (d[2] - a[2]) - (b[2] - a[2]) * (d[1] - a[1]),
+             (b[2] - a[2]) * (d[0] - a[0]) - (b[0] - a[0]) * (d[2] - a[2]),
+             (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0])]
+        if sum(n[i] * (a[i] - c[i]) for i in range(3)) < 0:
+            n = [-x for x in n]
+        m = math.sqrt(sum(x * x for x in n))
+        old = face['n']
+        face['n'] = tuple(int(round(x * 64 / m)) for x in n)
+        s.setdefault('notes0', []).append(f'face {f}: normal {old} -> {face["n"]} from its vertices {vs} ({why})')
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +265,22 @@ def reconstruct(s):
                     del adj[v]
                     changed = True
         cand = sorted(adj)
+        # Wings: a chain of boundary vertices well off the face's plane, the
+        # rest closing a boundary of their own (the Cougar's wings, 1-7-8-2
+        # and 5-9-10-6, are listed on both body faces at their root, 0 and 1,
+        # 3 and 4). The polygon is the body's; the chain is left to the
+        # details, where it is a fin standing on the body edge (structure).
+        if len(cand) >= 4:
+            ext0 = max(math.dist(V[a], V[b]) for a in cand for b in cand)
+            hs = sorted(_dot(nh, V[v]) for v in cand)
+            h0 = hs[len(hs) // 2]
+            off = {v for v in cand if abs(_dot(nh, V[v]) - h0) > 0.04 * ext0}
+            if off:
+                adj2 = {v: {o for o in adj[v] if o not in off} for v in cand if v not in off}
+                if len(adj2) >= 3 and all(len(a) == 2 for a in adj2.values()):
+                    notes.append(f'face {f}: vertices {sorted(off)} off its plane (a wing) -> left out of the polygon')
+                    adj = adj2
+                    cand = sorted(adj)
         if len(cand) < 3:
             polys.append([])
             notes.append(f'face {f}: no closed boundary ({len(B)} edges) -> n=0')
@@ -615,9 +680,19 @@ def structure(s):
                 chain.append([w for w in adj[chain[-1]] if w not in chain][0])
             vis = min([evis] + [s['verts'][v]['vis'] for v in chain])
             A, B = sorted(fin)
+            # LL9 projects a fin vertex when one of the faces it lists is
+            # visible: every one must list A or B (the fin is drawn when one
+            # of them is). The frame layer draws no fin with neither visible
+            # (behind the body): a vertex that lists no other face is then
+            # not projected (the missile's, on the body's edge)
+            assert all({A, B} & set(s['verts'][v]['faces']) for v in chain), (chain, A, B)
+            alone = [v for v in chain if set(s['verts'][v]['faces']) <= {A, B}]
             fins.append({'faces': (A, B), 'vis': vis, 'verts': chain})
             notes.append('edges %s: fin %s standing on the edge between faces %d and %d -> '
-                         'two-sided filled triangle' % (g, chain, A, B))
+                         'two-sided filled %s, drawn when face %d or %d is visible%s'
+                         % (g, chain, A, B, 'triangle' if len(chain) == 3 else
+                            'polygon (%d triangles: f_fins draws triangles)' % (len(chain) - 2),
+                            A, B, ' (vertex %s lists only those faces)' % alone if alone else ''))
             continue
         for i in g:
             e = E[i]
@@ -639,6 +714,18 @@ def structure(s):
             adjs.add(frozenset((a, b)))
     s['nodes'], s['dets'], s['fins'], s['adj'], s['notes2'] = nodes, dets, fins, adjs, notes
     return s
+
+
+def fins_emitted(s):
+    """The fins as the frame layer draws them: triangles (f_fins). A longer fin
+    (the Cougar's wings, four vertices) is a fan of triangles from its first
+    vertex, each on the same two faces, in the fin's colour."""
+    out = []
+    for d in s['fins']:
+        vs = d['verts']
+        for i in range(1, len(vs) - 1):
+            out.append(dict(d, verts=[vs[0], vs[i], vs[i + 1]]))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1017,8 +1104,9 @@ def emit(ships, path):
           '\\   with XX2 = 255: cull by its winding, as its face).',
           '\\   Fins (n = 3, two-sided, zero thickness, standing on the body edge',
           '\\   between face1 and face2): k = number of face1, face2 visible; draw',
-          '\\   k = 0 before the faces (behind the body), k = 1 after the details,',
-          '\\   then k = 2 (the fin nearest the viewer) last.',
+          '\\   k = 1 after the details, then k = 2 (the fin nearest the viewer)',
+          '\\   last; not k = 0 (behind the body: LL9 does not project a vertex on',
+          '\\   the body edge that lists only face1 and face2).',
           '\\   An unlit polygon detail (the docking slots: black) has 4 * its fill',
           '\\   visibility added to its colour byte: if XX4 > that, some vertices',
           '\\   are unprojected, and f_poly2 draws only its side from vertex 0 to 1.',
@@ -1069,9 +1157,9 @@ def emit(ships, path):
                 d['vis'], f1 | f2 << 4, c, len(d['verts']),
                 ''.join(', %d' % (4 * v) for v in d['verts']), what, d['verts'],
                 d.get('fam') or ('unlit %d' % d['col'])))
-        L.append(' EQUB %d                       \\ fins' % len(s['fins']))
+        L.append(' EQUB %d                       \\ fins' % len(fins_emitted(s)))
         nbytes += 1
-        for d in s['fins']:
+        for d in fins_emitted(s):
             item(d, 'fin')
         L.append(' EQUB %d                       \\ details' % len(s['dets']))
         nbytes += 1
@@ -1097,7 +1185,7 @@ def report(ships):
     out = []
     for t, s in ships:
         out.append('%d %s: hues %s + %s' % ((t, s['name']) + SHIP_HUES[t]))
-        for n in s['notes']:
+        for n in s.get('notes0', []) + s['notes']:
             out.append('   ' + n)
         for n in s['notes2']:
             out.append('   ' + n)

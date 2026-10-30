@@ -84,6 +84,14 @@ export function mapOfLabel(sy, name) {
     const a = sy[name], b = sy.__bank[name];
     return b === undefined ? "m" : mapAt(b, a);
 }
+// The bank of the caller of a stub between the passes (master/src/elite-stubs.asm)
+// whose code holds address a, or null if a is in no stub: bank 4 for the stubs
+// into the cold pass, bank 7 for those out of it
+export function stubBank(sy, a) {
+    if (sy.STUBS7 !== undefined && a >= sy.STUBS7 && a < sy.STUBS7_END) return 4;
+    if (sy.STUBS4 !== undefined && a >= sy.STUBS4 && a < sy.STUBS4_END) return 7;
+    return null;
+}
 // Read a byte of a given mapping regardless of what is paged
 export function physRead(cpu, map, addr) {
     if (map === "m") return cpu.ramRomOs[addr & 0xffff];
@@ -252,16 +260,28 @@ export async function runElite(opts) {
     };
     const stackWord = k => rb(0x100 + ((cpu.s + k) & 0xff)) | (rb(0x100 + ((cpu.s + k + 1) & 0xff)) << 8);
     // The JSR whose return address is at S+k: its address and the ROMSEL it ran
-    // with, seeing through far-call frames. A far call (master/src/elite-far.asm)
-    // runs its target with the stack holding the return into the far-call code
-    // (farret), then the caller's ROMSEL, then the caller's own return address.
+    // with, seeing through the stubs between the passes. A stub
+    // (master/src/elite-stubs.asm) runs its target with the stack holding the
+    // return into the stub, then the caller's own return address; the caller's
+    // bank is the stub's: bank 4 for the stubs into the cold pass (STUBS7 to
+    // STUBS7_END), bank 7 for those out of it (STUBS4 to STUBS4_END). An older
+    // build's far calls (elite-far.asm, before the stubs) are seen through too:
+    // the return into farret, then the caller's ROMSEL, then its return.
     // (romsel: what the code that owns S+k ran with, if not the current ROMSEL:
     // the ROMSEL of the frame below, when walking further up a chain)
     const callerAt = (k, romsel = cpu.romsel) => {
         let w = stackWord(k);
-        while (sy.farret !== undefined && w + 1 === sy.farret) {
-            romsel = rb(0x100 + ((cpu.s + k + 2) & 0xff));
-            k += 3;
+        for (;;) {
+            if (sy.farret !== undefined && w + 1 === sy.farret) {     // (an older build's far
+                romsel = rb(0x100 + ((cpu.s + k + 2) & 0xff));          // call: the return into
+                k += 3;                                                 // farret, the caller's
+                w = stackWord(k);                                       // ROMSEL, its return)
+                continue;
+            }
+            const b = stubBank(sy, w + 1);
+            if (b === null) break;
+            romsel = b;
+            k += 2;
             w = stackWord(k);
         }
         return { site: w + 1 - 3, romsel, k };
@@ -270,11 +290,14 @@ export async function runElite(opts) {
     // (a routine moved to the cold area is hooked at its cold copy, name_C: code
     // outside reaches it through a stub of the old name, cold code directly)
     const hook = (name, off = 0) => { const n = sy[name + "_C"] !== undefined ? name + "_C" : name; return { a: sy[n] + off, m: mapOfLabel(sy, n) }; };
-    const at = (h, pc) => pc === h.a && (h.m === "m" || h.m === mapAt(cpu.romsel, pc));
+    // (the Tube: a label in the parasite's overlay region is overlay D's, name_C,
+    // and is reached only while D is in: ovl_cur 1, p-ovl.asm)
+    const ovlD = h => T && sy.OVL_START !== undefined && h.a >= sy.OVL_START && h.a < (sy.RING ?? 0xF400);
+    const at = (h, pc) => pc === h.a && (h.m === "m" || h.m === mapAt(cpu.romsel, pc)) && (!ovlD(h) || cpu.ramRomOs[sy.ovl_cur] === 1);
     const H_RDK = hook("RDKEY", 5), H_DKS5 = T ? hook("DKS5T") : hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"), H_LL5 = hook("LL5"),
         H_TT100 = hook("TT100"), H_QU5 = hook("QU5"), H_BAY = hook("BAY"), H_MT26 = hook("MT26"), H_TT170 = hook("TT170");
 
-    const res = { snaps: [], iterTimes: [], tt100Times: [], tt100AtIter: [], init: null, keyLog: [], events: [], s, cpu, sy, regions };
+    const res = { snaps: [], iterTimes: [], tt100Times: [], tt100AtIter: [], init: null, keyLog: [], events: [], s, cpu, sy, regions, tube: T };
     let started = false, done = false, armPatch = false, iter = 0, tt100 = 0, checked = false;
     const ctxBase = { rb, rd, sy, iterOf: () => iter, tt100Of: () => tt100 };
 

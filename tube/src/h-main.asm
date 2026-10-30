@@ -105,7 +105,11 @@ ASSERT P% - htab = C_MAX
  BIT HR2S               \ a request (register 2) first, then the next command
  BMI hreq
  BIT HR1S
- BPL hloop
+ BMI hlp1
+ BVC hloop              \ (register 1 empty: the parasite's doorbell, through
+ STA HR1D               \ register 1 to it, unless one already waits there;
+ BVS hloop              \ p-io.asm's ring)
+.hlp1
  LDA HR1D
 .hdisp
  TAX
@@ -130,6 +134,17 @@ IF _HOSTB = 0
 .hdead                  \ (h-dead.asm's names: never run; R_SETBUF's patches of
  BRK                    \ their operands write here)
  EQUB 0, 0, 0
+ENDIF
+
+IF _HOSTB = 0             \ (the Model B host's: hb-main.asm, at a fixed place)
+.hrw                    \ register 1 empty: ring the parasite's doorbell (any
+ BIT HR1S               \ byte through register 1, host to parasite), and again
+ BMI hrw9               \ whenever the parasite has taken it, while register 1
+ BVC hrw                \ stays empty (p-io.asm's ring). Keeps A, X and Y
+ STA HR1D
+ BVS hrw
+.hrw9
+ RTS
 ENDIF
 
 .h_bad                  \ (the commands of the host that kept the rasteriser's
@@ -203,15 +218,28 @@ ELSE                      \ (the Master host: page by page, wherever the build
  JSR hov_at
 .hog0
  JSR hov_pg
+ BVS hogq
 .hog1
  LDA &FF00,Y            \ (patched: the page)
  HTX
  INY
  BNE hog1
+.hog8
  INC hogp
  DEC hogn
  BNE hog0
  BRA hogx
+.hogq                   \ (a page kept as four 64-byte pieces, bytes 192-255
+ LDY #&C0               \ of four pages: hov_pg)
+.hogq1
+ LDA &FF00,Y            \ (patched: the piece's page)
+ HTX
+ INY
+ BNE hogq1
+ INC hogq1+2
+ DEX
+ BNE hogq
+ BRA hog8
 
 .h_ovlput               \ C_OVLPUT: an overlay's pages (S's state) to keep
  HRX
@@ -221,15 +249,30 @@ ELSE                      \ (the Master host: page by page, wherever the build
  JSR hov_at
 .hop0
  JSR hov_pg
+ BVS hopq
 .hop0a
  HRX
 .hop1
  STA &FF00,Y            \ (patched: the page)
  INY
  BNE hop0a
+.hop8
  INC hogp
  DEC hogn
  BNE hop0
+ BRA hogx
+.hopq
+ LDY #&C0
+.hopq1
+ HRX
+.hopq2
+ STA &FF00,Y            \ (patched: the piece's page)
+ INY
+ BNE hopq1
+ INC hopq2+2
+ DEX
+ BNE hopq
+ BRA hop8
 .hogx
  LDA hova               \ (ACCCON's X as it was)
  TSB &FE34
@@ -250,14 +293,27 @@ ELSE                      \ (the Master host: page by page, wherever the build
  TRB &FE34
  RTS
 .hov_pg                 \ page hogp in: its ROMSEL, and its address into both
- LDX hogp               \ loops; Y = 0
- LDA st_rom,X
+ LDX hogp               \ loops; Y = 0. V set for a page kept as four pieces
+ LDA st_rom,X           \ (ROMSEL with bit 6 set: bytes 192-255 of four pages
+ BIT #&40               \ from st_hi, the STA runs' tails, h-sta.asm), X = 4
+ BNE hvp1
  STA &FE30
  LDA st_hi,X
  STA hog1+2
  STA hop1+2
  LDY #0
+ CLV
  RTS
+.hvp1
+ AND #&BF
+ STA &FE30
+ LDA st_hi,X
+ STA hogq1+2
+ STA hopq2+2
+ LDX #4
+ BIT hvp_v              \ (V set)
+ RTS
+.hvp_v EQUB &40
 \ hss_get, hss_put: S's state, in 64-byte pieces at bytes 192-255 of bank 4's
 \ pages from &8000 (the STA runs, tube/src/h-sta.asm, end at byte 189)
 
@@ -367,9 +423,6 @@ ELSE                      \ goes, to the end mark (gfx-raster_poly.asm's r_pcbs)
 ENDIF
 
 .h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1
-IF _HOSTB
- JMP hb_line               \\ (main RAM: hb-res.asm)
-ENDIF
  HRX
  STA zR_COLE
  HRX
@@ -525,6 +578,8 @@ ENDIF
  CMP #C_KEYS
  BNE P%+5
  JMP hk_body
+ CMP #C_TOKEN
+ BEQ h4t
  CMP #C_IRB
  BEQ h4i
  CMP #C_WSCAN           \ C_WSCAN: pending, the next vsync interrupt answers it
@@ -541,6 +596,22 @@ ENDIF
 .h4i
  LDA VIA+&40
  HTX
+ RTS
+.h4t                    \ C_TOKEN: the token's number next; its bytes as stored,
+ BIT HR4S               \ the null included (the host keeps QQ18 as it keeps
+ BPL h4t                \ the overlays' images: data only, build/HQQ18.bin, and
+ LDX HR4D               \ where each token starts, build/htokix.asm)
+ LDA HTOKL,X
+ STA h4tl+1
+ LDA HTOKH,X
+ STA h4tl+2
+ LDY #0
+.h4tl
+ LDA &FFFF,Y            \ (patched)
+ HTX
+ INY
+ TAX
+ BNE h4tl
  RTS
 .h4w
  LDA #&80
