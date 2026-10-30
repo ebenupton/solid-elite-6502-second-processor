@@ -125,7 +125,7 @@ through register 4.
 | Group | Commands |
 |---|---|
 | Frame | C_BUF b (wait for the last flip, then draw into buffer b), C_FLIP (show it at the next vsync), C_ENTERB (space mode: buffer 1's border to buffer 0), C_CLRBUF b, C_DIRECTD (direct mode: shadow RAM on show), C_INIT, C_SYNC (the end of an iteration: the harness's frame marker) |
-| Spans | C_SPAN (Y, XL, XR, COLE, COLO), C_DSPANS (the disc layer, sent as made: per row the row, then XL, XR and the row's colour byte (COLE even rows, COLO odd) for each span, &FF ending the row; &FF for a row ends), C_SPANS (a polygon's rows, sent as made: the four colours and the first row, then left and right (exclusive) for each row, (1, 1) for a row with no pixels, &FF at the end but after row 191; phase B's fill reads them as it goes), C_ORSPAN (the lens flare: OR a mask over a span) |
+| Spans | C_SPAN (Y, XL, XR, COLE, COLO), C_DSPANS (the disc layer, sent as made: the first row, then XL, XR and the row's colour byte (COLE even rows, COLO odd) for each span; after a row's spans 0 for the next row's, else &FF and the row; &FF 0 at the end. Rows are 1-191 and XL 2-253, inside the clip window, so neither 0 nor &FF is a row or an XL), C_SPANS (a polygon's rows, sent as made: the four colours and the first row, then left and right (exclusive) for each row, (1, 1) for a row with no pixels, &FF at the end but after row 191; phase B's fill reads them as it goes), C_ORSPAN (the lens flare: OR a mask over a span) |
 | Lines and points | C_LINE (four colours, two 16-bit points), C_DOT (two colours, x, y, size), C_STARS (plot on black only; the host keeps the records), C_STARERASE (black the records' pixels), C_EORDOT (EOR a directly drawn star away); the direct-mode screen: C_LOIN, C_HLOIN, C_PIXEL (Master's LOINQ, HLOIN3, PIXEL) |
 | Text | C_GLYPH (a cell: character, column, row; space mode), C_CHAR (CHPR, direct mode), C_CLS, C_BOXC, C_CLYNS |
 | Panel | C_PDIALS (the dials' inputs), C_PDOT (the compass), C_PSCAN (a ship on the scanner), C_PMSBAR (a missile), C_PBULB (a bulb) |
@@ -145,7 +145,7 @@ the host's drawing of this one. A send that finds register 1 full puts its
 byte into the ring, and so does every send after it (ring mode) until the
 ring is empty: ppring makes ptx's and the eleven inline send sites' (psb in
 p-rast.asm, p-emit.asm) `BIT PR1S` a `JMP` to their ring stubs (`STA (rq)`,
-`DEC rq`, 21 cycles a byte). The ring drains in the parasite's IRQ (pirq,
+`DEC rq`, 19 cycles a byte at an inline site). The ring drains in the parasite's IRQ (pirq,
 the &FFFE vector; a BRK still goes to p_crash): the host rings a doorbell
 (any byte through register 1, host to parasite; the Tube's I flag on, J
 off: htflags) whenever it finds register 1 empty, in hloop and in every HRX
@@ -153,7 +153,11 @@ off: htflags) whenever it finds register 1 empty, in hloop and in every HRX
 sends up to 23 bytes without checking for room (unrolled, about 16 cycles a
 byte with the IRQ's own cost), taking the doorbell last. Interrupts are on
 only in ring mode; the IRQ that finds the ring empty leaves ring mode
-(unless it came in on a stub) and returns with them off.
+(unless it came in on a stub) and returns with them off. The stubs leave
+the I flag alone: penq turns interrupts on as it enters ring mode, pfwait
+leaves them on in ring mode, and p_sync clears the I flag in the flags that
+hframe pushed with them off, so that its PLP does not turn them off in ring
+mode.
 
 * Pages are written and read downwards, 255 to 1; a write pointer with a
   low byte of 0 is a stub between its DEC and rpg (the next page's 255).
@@ -246,6 +250,11 @@ kind of instruction, and the parasite's by state (running, the ring's
 stubs, IRQ and full waits, the flip's wait, requests), over windows of a
 replay, on either host; tube/tools/thacct.mjs: two of its outputs'
 difference as a table that sums to the wall-time gap.
+tube/tools/tstream.mjs: the command stream over windows of a replay, as
+the host reads it: bytes and commands by command, C_DSPANS's and C_SPANS's
+bytes by field (with how rows follow each other and how often colours
+repeat), the host's cycles by command; and, at the parasite's psb, every
+disc span checked against C_DSPANS's ranges (rows 1-191, XL 2-253).
 tube/tools/trupt.mjs: the Model B host's split screen over a replay
 window: each field's CRTC frames as jsbeeb runs them (start address,
 length, the row where the display ends, the vsync), counted by kind, and

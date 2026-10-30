@@ -100,7 +100,9 @@ PBN     = PR1N - 1      \ bytes sent a doorbell (one spare: a byte ppump sends
 
 \ The ring stubs: ptx's and each send site's, back to the instruction after
 \ the site's STA or STX PR1D. The IRQ never leaves ring mode while the
-\ interrupted code is in here (RQ_START to RQ_END)
+\ interrupted code is in here (RQ_START to RQ_END). They leave the I flag as
+\ it is: interrupts are on in ring mode (penq, pfwait, and p_sync for
+\ hframe's PLP)
 
 .RQ_START
 .rq_ptx
@@ -108,42 +110,36 @@ PBN     = PR1N - 1      \ bytes sent a doorbell (one spare: a byte ppump sends
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  RTS
 .rq_psb_s0
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP psb_s0 + 8
 .rq_psb_s1
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP psb_s1 + 8
 .rq_psb_s2
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP psb_s2 + 8
 .rq_psb_s3
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP psb_s3 + 8
 .rq_psb_s4
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP psb_s4 + 8
 .rq_pem_s0
  PHA
@@ -153,14 +149,12 @@ PBN     = PR1N - 1      \ bytes sent a doorbell (one spare: a byte ppump sends
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP pem_s0 + 8
 .rq_pem_s1
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP pem_s1 + 8
 .rq_pem_s2
  PHA
@@ -170,28 +164,24 @@ PBN     = PR1N - 1      \ bytes sent a doorbell (one spare: a byte ppump sends
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP pem_s2 + 8
 .rq_pem_s3
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP pem_s3 + 8
 .rq_pem_s4
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP pem_s4 + 8
 .rq_pem_s5
  STA (rq)
  DEC rq
  BNE P%+5
  JSR rpg
- CLI
  JMP pem_s5 + 8
 .RQ_END
 
@@ -736,13 +726,20 @@ MACRO PSEND
 ENDMACRO
 
 \ p_sync: the end of a main-loop iteration's frame (hframe): a marker for the
-\ harness, which hashes the host's screen when the host takes it
+\ harness, which hashes the host's screen when the host takes it. In ring
+\ mode, the flags hframe pushed (with interrupts off) get the I flag clear,
+\ so that its PLP leaves interrupts on (A and X are hframe's to restore)
 
 .p_sync
- PHA
  LDA #C_SYNC
  JSR ptx
- PLA
+ BIT rmode
+ BPL psy9
+ TSX                    \ (the stack: p_sync's return, then hframe's Y, X, A
+ LDA &0106,X            \ and flags)
+ AND #&FB
+ STA &0106,X
+.psy9
  RTS
 
 \ p_buf: the frame's buffer, A (C_BUF): the host waits for the last flip, then

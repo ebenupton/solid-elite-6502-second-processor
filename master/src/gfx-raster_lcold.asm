@@ -104,33 +104,43 @@
 
 IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
 \ r_dspin: C_DSPANS (tube/src/h-main.asm's h_dspans): the disc layer's rows of
-\ spans, read from the parasite as they come: the row (&FF: the end), then
-\ XL, XR and the row's colour byte for each span, &FF ending the row; each row set up once
-\ for all of its spans (r_rowset), each span by the span core (as R_SPAN)
+\ spans, read from the parasite as they come: the first row, then XL, XR and
+\ the row's colour byte for each span (XL inside the clip window, 2-253), then
+\ 0 for the next row's spans, or &FF and the row (rows inside the clip window,
+\ 1-191; 0: the end); each row set up once for all of its spans (r_rowset),
+\ each span by the span core (as R_SPAN)
 .r_dspin
 {
 .row
-  HRX
-  CMP #&FF
+  BIT HR1S                \ (HRX, into Y)
+  BMI P%+5
+  JSR hrw
+  LDY HR1D
   BEQ done
-  TAY
+.set
   JSR r_rowset
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
   LDA s_rbk               \ (the Tube's Master host: the line's run's bank)
   STA &FE30
 ENDIF
 .span
-  HRX
-  CMP #&FF
+  BIT HR1S                \ (HRX, into X: the span core's XL)
+  BMI P%+5
+  JSR hrw
+  LDX HR1D
+  BEQ next
+  CPX #&FF
   BEQ row
-  STA R_XL
   HRX
   STA R_XR
   HRX                     \ the colour byte for this row (the parasite chose it
   STA RZ_COL              \ by the row's parity)
-  LDX R_XL
   JSR r_spc               \ (keeps the row's set-up)
-  JMP span
+  BRA span
+.next
+  LDY RZ_Y
+  INY
+  BRA set
 .done
   RTS
 }
