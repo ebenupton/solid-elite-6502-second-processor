@@ -274,7 +274,8 @@ NM="python3 $TUBE_DIR/tools/nmos.py"
 # (hand fixes where nmos.py, which keeps every register live at an RTS,
 # saves one that is dead: r_spc's last store, the RTS out of the run again
 # (Y and the flags: its callers set them before reading them), and the stars'
-# reads and writes through RZ_PP (R_STARERASE's Y, R_STARPLOT's X))
+# reads and writes through RZ_PP (R_STARERASE's Y, R_STARPLOT's X); and
+# r_rowset's INC A, as ADC #1 with the carry clear after the base's ADC)
 $NM src/gfx-raster.asm build/nmos/gfx-raster.asm --report build/nmos/gfx-raster.txt \
   --sub "  LDA #r_opSTA
   STA (RZ_PP)
@@ -310,10 +311,95 @@ $NM src/gfx-raster.asm build/nmos/gfx-raster.asm --report build/nmos/gfx-raster.
   AND RZ_SB
   STA (RZ_PP,X)
   LDX r_k                 \\ (< 48 always: R_SN <= 24, <= 2 records a star)
+" --sub "  ORA #&40
+ENDIF
+  STA RZ_PA+1
+  INC A
+=  ORA #&40
+ENDIF
+  STA RZ_PA+1
+  ADC #1                  \\ (NMOS: INC A; C = 0, a screen page)
 " > /dev/null
 $NM src/gfx-raster_pset.asm build/nmos/gfx-raster_pset.asm --report build/nmos/gfx-raster_pset.txt > /dev/null
 $NM src/gfx-raster_arith.asm build/nmos/gfx-raster_arith.asm --report build/nmos/gfx-raster_arith.txt > /dev/null
-$NM src/gfx-raster_polyb.asm build/nmos/gfx-raster_polyb.asm --report build/nmos/gfx-raster_polyb.txt > /dev/null
+# (phase B's hand fixes: pb_ob_e before pb_one_e, after r_pcbs's JMP, so that
+# pb_d2_e's BCC pb_one_e and pb_l2_e's BNE pb_plant_e stay short; a row's right
+# end less one with the flags dead (CPX's); the plant with X dead to the run's
+# return; the RTS out again at the end with Y and the flags dead (the
+# trampoline's caller goes back to the loop); a character row's new page with
+# X dead to the next row's LDX)
+$NM src/gfx-raster_polyb.asm build/nmos/gfx-raster_polyb.asm --report build/nmos/gfx-raster_polyb.txt \
+  --sub "  JMP pb_skip_e
+.pb_ob_e
+  LDA (RZ_PB),Y
+  EOR RZ_CE
+  AND RZ_T7
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  JMP pb_skip_e
+=  JMP pb_skip_e
+" --sub "
+.pb_one_e
+=
+.pb_ob_e                  \\ (NMOS: here, for the branches' reach)
+  LDA (RZ_PB),Y
+  EOR RZ_CE
+  AND RZ_T7
+  EOR (RZ_PB),Y
+  STA (RZ_PB),Y
+  JMP pb_skip_e
+.pb_one_e
+" --sub "  LDA HR1D
+  DEC A
+  STA R_XR
+=  LDA HR1D
+  SEC                     \\ (NMOS: DEC A, the flags dead)
+  SBC #1
+  STA R_XR
+" --sub "  TAY
+  LDA #r_opSTA
+  STA (RZ_PP)
+  STY RZ_PP
+  LDA #r_opRTS
+  STA (RZ_PP)
+=  TAX                     \\ (NMOS: X dead to pb_norun's LDX)
+  LDY #0
+  LDA #r_opSTA
+  STA (RZ_PP),Y
+  STX RZ_PP
+  LDA #r_opRTS
+  STA (RZ_PP),Y
+" --sub "  LDA #r_opSTA            \\ take the RTS out again
+  STA (RZ_PP)
+=  LDA #r_opSTA            \\ take the RTS out again
+  LDY #0                  \\ (NMOS: Y and the flags dead, back to the loop)
+  STA (RZ_PP),Y
+" --sub "  LDA #r_opSTA            \\ next character row: new run page
+  STA (RZ_PP)
+  LDA #190
+  STA RZ_PP
+ENDIF
+  STZ RZ_PA
+  STZ RZ_PB
+  LDA RZ_PA+1
+  CLC
+  ADC #2
+  STA RZ_PA+1
+  INC A
+=  LDX #0                  \\ (NMOS: X dead to the next row's LDX)
+  LDA #r_opSTA            \\ next character row: new run page
+  STA (RZ_PP,X)
+  LDA #190
+  STA RZ_PP
+ENDIF
+  STX RZ_PA
+  STX RZ_PB
+  LDA RZ_PA+1
+  CLC
+  ADC #2
+  STA RZ_PA+1
+  ADC #1                  \\ (NMOS: INC A; C = 0, a screen page)
+" > /dev/null
 sed -i '' 's|INCLUDE "src/gfx-raster_arith.asm"|INCLUDE "build/nmos/gfx-raster_arith.asm"|' build/nmos/gfx-raster.asm
 sed -i '' 's|INCLUDE "src/gfx-raster_pset.asm"|INCLUDE "build/nmos/gfx-raster_pset.asm"|' build/nmos/gfx-raster.asm
 $NM src/gfx-raster_poly.asm build/nmos/gfx-raster_poly.asm --report build/nmos/gfx-raster_poly.txt > /dev/null

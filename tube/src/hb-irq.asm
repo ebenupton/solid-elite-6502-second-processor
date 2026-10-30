@@ -17,6 +17,10 @@
 \     takes effect. Frame A has ended, and the panel is single buffered, so
 \     the old front buffer is not read again this field: GFLIP is cleared
 \     here, and the host draws into it at once.
+\ Each point writes only what differs between the two frames: R4, R6, R7, R12
+\ (R13 is 0 for every start address, hb_t1init's) and the latch's high byte.
+\ The timer's interrupt saves only A: point 2 runs in main RAM (irqm's hbi_t,
+\ hb-res3.asm), point 1 here, paged in by hbi_t (the flip's state is here).
 \ The vsync interrupt (CA1) does what the Master port's does: the sound
 \ (SOINT), DL, and one joystick channel (the Model B's ADC at &FEC0).
 \
@@ -26,11 +30,8 @@ HB_LINE = 64            \ us per line
 HB_PA = 188 * HB_LINE - 2   \ point 2 to point 1 (the latch counts N+2 us)
 HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
 
-.hb_irq
- LDA &FE4D
- AND #%01000000
- BNE hbi_t
- LDA &FE41              \ vsync: clear CA1's flag
+.hb_irq                 \ vsync (irqm; timer 1 is irqm's hbi_t, hb-res3.asm)
+ LDA &FE41              \ (clears CA1's flag)
  LDA #72                \ (VSCAN+1, as the Master port's LINSCN)
  STA DL
  BIT hwsp               \ a pending C_WSCAN answered (h4body)
@@ -53,33 +54,19 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  JMP SOINT              \ (bank F; returns to irqm)
 
 .hb_vl EQUB 0           \ (point 1: non-zero if the last field flipped)
-.hbi_t
- LDA hb_phase
- EOR #1
- STA hb_phase
- BEQ hbi_p1
- LDX #4                 \ point 2
- LDA hb_r6a
- LDY #23
- JSR hb_regs
- LDA #12
- STA &FE00
- LDA #HI(PANEL DIV 8)
+.hbi_p1                 \ point 1, line 196 (frame B has started), from irqm's
+ LDA #4                 \ hbi_t with this bank paged: frame B's R4, R6, R7,
+ STA &FE00              \ then the buffer to show next
+ LDA #14
  STA &FE01
- LDA #13
+ LDA #6
  STA &FE00
- LDA #LO(PANEL DIV 8)
- STA &FE01
- LDA #LO(HB_PB)
- STA &FE46
- LDA #HI(HB_PB)
- STA &FE47
- LDA &FE44              \ (clears timer 1's flag)
- RTS
-.hbi_p1                 \ point 1: frame B, then the buffer to show next
  LDA #7
- LDY #14
- JSR hb_regs
+ STA &FE01
+ LDA #7
+ STA &FE00
+ LDA #10
+ STA &FE01
  LDA GFLIP              \ (a pending flip, as the Master host's H_SPLIT; 25
  BEQ hbi_1n             \ frames a second at most, as the Master port's cap: a
  LDA hb_vl              \ flip pending at the field straight after the last
@@ -90,32 +77,30 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  LDA #0                 \ (the old front buffer is free now)
  STA GFLIP
  LDA #1
- STA hb_vl
  BNE hbi_1a
 .hbi_1n
  LDA #0
- STA hb_vl
 .hbi_1a
+ STA hb_vl
  BIT GMODE              \ not double buffered: buffer 1, the direct screen
  BMI hbi_1b
  LDA #1
  STA GFRONT
 .hbi_1b
- LDX GFRONT
  LDA #12
  STA &FE00
- LDA hb_sah,X
+ LDA GFRONT
+ BEQ hbi_1c
+ LDA #HI(&4000 DIV 8)
+ BNE hbi_1d
+.hbi_1c
+ LDA #HI(BUF0 DIV 8)
+.hbi_1d
  STA &FE01
- LDA #13
- STA &FE00
- LDA hb_sal,X
- STA &FE01
- LDA #LO(HB_PA)
- STA &FE46
  LDA #HI(HB_PA)
  STA &FE47
- LDA &FE44
- RTS
+ LDA &FE44              \ (clears timer 1's flag)
+ JMP hbi_px
 
 .hb_regs                \ R4 = Y, R6 = A, R7 = 127 (frame A, A = 24 or less)
  PHA                    \ or 10 (frame B, A = 7)
@@ -155,6 +140,10 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  STA &FE00
  LDA #0
  STA &FE01
+ LDA #13                \ R13: 0 for every start address (the buffers' and the
+ STA &FE00              \ panel's), so the points write only R12
+ LDA #0
+ STA &FE01
  LDA #%01111111         \ System VIA: timer 1 and CA1 (vsync) only, none from
  STA &FE4E              \ the User VIA
  LDA #%11000010
@@ -170,8 +159,8 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  STA &FE44
  LDA #HI(48*HB_LINE-200)
  STA &FE45
- LDA #LO(HB_PA)         \ then point 1, 188 lines on
- STA &FE46
+ LDA #LO(HB_PA)         \ then point 1, 188 lines on (the latch's low byte
+ STA &FE46              \ is the same for HB_PB: the points write the high)
  LDA #HI(HB_PA)
  STA &FE47
  LDA #0
@@ -179,10 +168,8 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  CLI
  RTS
 
-.hb_phase EQUB 0
-.hb_r6a   EQUB 24       \ frame A's R6 (DET1's)
-.hb_sah EQUB HI(BUF0 DIV 8), HI(&4000 DIV 8)
-.hb_sal EQUB LO(BUF0 DIV 8), LO(&4000 DIV 8)
+ASSERT LO(HB_PA) = LO(HB_PB)
+ASSERT LO(BUF0 DIV 8) = 0 AND LO(&4000 DIV 8) = 0 AND LO(PANEL DIV 8) = 0
 
 .hwprint                \ hwrch's printing in the MOS (a catalogue): CHPR with
  JSR hctxsw             \ its zero page swapped for the command's (hctx)
