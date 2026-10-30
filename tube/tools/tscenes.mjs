@@ -115,6 +115,13 @@ function pose(ram, k) {
         const z = Math.round(24576 * 256 / rr);
         put(K0, 0, Math.round((tx - 128) * z / 256)); put(K0, 3, Math.round((96 - ty) * z / 256)); put(K0, 6, z);
         ram[sy.FRIN] = SC.type;
+        // the other ships out (the station in slot 1 is kept, as the flight left it,
+        // the same on both builds): the flight to FROM differs by build (the boot's
+        // seeds, the keys' timing), and a ship left in slot 2 on one build only has
+        // TACTICS take random numbers every eighth iteration (MCNT AND 7 = 2) before
+        // STARS respawns a star from them, so the builds' stars part (the sun's
+        // scenes clear the slots the same way, below)
+        for (let j = 2; j < 12; j++) ram[sy.FRIN + j] = 0;
         if (SC.qq2) SC.qq2.split(",").forEach((h, j) => { ram[sy.QQ2 + j] = parseInt(h, 16); });
         wv(K0, orient(k, SC.pose, SC.spin));
         return;
