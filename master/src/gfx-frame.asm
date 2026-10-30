@@ -2834,12 +2834,14 @@ ENDIF
  RTS
 ENDIF
 
+IF _TPART <> 1             \ (the Tube's parasite: the host draws the glyph)
 .f_gy EQUB 0
 
 .f_nib                  \ 4 font bits (bit 3 = leftmost) -> MODE 1 pixel mask
 FOR n, 0, 15
  EQUB n * &11
 NEXT
+ENDIF
 
 F_FONT = FONT% * 256      \ Master port: Elite's own font in main RAM (the same
 ASSERT _HOSTB OR F_FONT + 768 <= &3000 \ 768 bytes), visible while ACCCON X is set

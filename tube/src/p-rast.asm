@@ -111,7 +111,6 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
 
 .T_INIT
 .R_INIT
- JSR k_clear            \ (no kept rows)
  LDA #1                 \ (the clip window, as the Master port's R_INIT)
  STA R_CL
  STA R_CT
@@ -122,42 +121,32 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
  LDA #&FF
  STA R_SCOL
  STA R_NDT
+ STA r_wt
+ STZ r_wb
  STZ R_NDB
  STZ R_NDF
  STZ R_SN
  STZ R_PN
- LDY #191
+ LDY #191               \ nothing written (R_WR 0: every reader of R_WL
+ LDA #0                 \ tests R_WR first)
 .pin1
- LDA #&FF
- STA R_DIRTYL0,Y
- STA R_DISCL0,Y
- STA R_DIRTYL1,Y
- STA R_DISCL1,Y
- STA R_WL,Y
- LDA #0
- STA R_DIRTYR0,Y
- STA R_DISCR0,Y
- STA R_DIRTYR1,Y
- STA R_DISCR1,Y
  STA R_WR,Y
  DEY
  CPY #&FF
  BNE pin1
- LDX #1
-.pin2
- JSR r_reset1
- DEX
- BPL pin2
- LDA #&FF
- STA r_wt
- STZ r_wb
  STZ hb_cap+HB_S        \ (the disc heap empty, its counts none: p-disc.asm)
  STZ hb_cap+HB_D
  STZ hp_drops
  STZ hp_drops+1
  STZ hp_whole
  STZ hp_whole+1
- LDA #0                 \ (falls into R_SETBUF)
+ LDA #1                 \ each buffer's state (R_RESETBUF: also no kept rows),
+ JSR R_SETBUF           \ buffer 0's last, then buffer 0 the current one
+ JSR R_RESETBUF
+ LDA #0
+ JSR R_SETBUF
+ JMP R_RESETBUF
+
 
 .T_SETBUF
 .R_SETBUF               \ A = the buffer: its arrays (pr_dl ...)
@@ -797,11 +786,9 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
  LDY r_wb               \ last frame's R_WL/R_WR rows cleared
  CPY r_wt
  BCC pdr3
+ LDA #0                 \ (R_WR 0: every reader of R_WL tests R_WR first)
 .pdr2
- LDA #0
  STA R_WR,Y
- LDA #&FF
- STA R_WL,Y
  CPY r_wt
  BEQ pdr3
  DEY
@@ -909,10 +896,8 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
  BCS P%+4
  STA pr_b
  LDA #&FF
- STA pr_wl              \ (pspan's extent: unused here)
  STA (pr_dl),Y
  LDA #0
- STA pr_wr
  STA (pr_dr),Y
  JSR pspan
 .prw                    \ row Y written: r_wt..r_wb
