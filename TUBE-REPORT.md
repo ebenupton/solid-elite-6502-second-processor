@@ -1,11 +1,59 @@
 # Tube Elite: report
 
-Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work on `tubediscs` in `~/elite-full-tubeplanets`. Two discs:
+Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work on `tubediscs` in `~/elite-full-tubeplanets`, published as github.com/ebenupton/solid-elite-6502-second-processor. Two discs:
 `tube/build/elite-tube.ssd` (BBC Master host) and `tube/build/elite-tube-b.ssd`
 (BBC Micro Model B host with 64K of sideways RAM), both built by
 `sh tube/build.sh` (which also builds everything below; `sh master/build.sh` first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
+
+## The Model B host's last fixes (branch `tubediscs`, 2026-10-30, second pass)
+
+full-master 91e431c merged (the moon's R_WSPAN between the second disc's
+left ends; the Master port's default disc and the Tube's discs unchanged).
+Then the three proposals from the gap's table below, each measured with
+tube/tools/thcmd.mjs at TUBEMHZ=3 (host cycles an iteration at 2 MHz;
+flight / docking / 0-3550 / beach 300-403 / beach 5355-5457):
+
+| Fix | Bytes | Host cycles an iteration | Kept |
+|---|---|---|---|
+| 1. Phase B's NMOS expansions by hand (the right end's DEC A, the plant, pb_end, pb_cr; pb_ob_e moved so that the even half needs no long branches) | -40 (bank P: 129 free, 89 before) | -83 / -2,875 / -122 / -9 / -28 (C_SPANS -3,555 docking) | yes |
+| 1b. r_rowset's INC A as ADC #1 (the carry clear) | -4 | -325 / -1,052 / -226 / -1,030 / -880 (C_DSPANS) | yes |
+| 2. r_spc's RTS planted through absolute operands (r_rowset patching their page, the unplant through X before the right edge, one copy) | +3 | -4 / -28 / +11 / -18 / -118: C_DSPANS +206 docking, -1,248 beach 5355; it/s the same to two places in every window | no |
+| 3. The rupture's timer IRQ: R4, R6, R7, R12 only (R13 is 0 for every start address), the latch's high byte only, A only saved, point 2 in main RAM without paging | +91 main RAM (&7E00 part: 71 free), bank F -46 | -560 / -974 / -542 / -1,143 / -1,218 (the rupture's IRQs) | yes |
+
+Fix 2 saves 3 cycles a span against r_rowset's 8 more a row (two page
+operands), and the spans a row are too few (C_DSPANS about 1.3 a row,
+R_SPAN one): it does not pay. The split is unchanged (tube/tools/trupt.mjs,
+run1 1000-1100 and 3400-3600): every field is frame A of the buffer shown
+(from line 40, 192 lines, display to row 24) then frame B of the panel
+(from line 232, 80 lines to the vsync, display to row 7), as before; the
+writes come at lines 48-55 and 236-241 (49-54 and 236-242 before); the
+rendered pictures at iterations 1050 and 1090 equal the previous build's
+pixel for pixel.
+
+Model B host, 3 MHz (it/s):
+
+| Build | Flight | Docking | 0-3550 | Beach 300-403 | Beach 5355-5457 |
+|---|---|---|---|---|---|
+| ed65cbc | 17.47 | 9.87 | 17.89 | 8.51 | 8.08 |
+| + 1 (phase B) | 17.48 | 10.02 | 17.91 | 8.51 | 8.08 |
+| + 1b (r_rowset) | 17.53 | 10.07 | 17.95 | 8.55 | 8.11 |
+| + 3 (the rupture's IRQ) | 17.54 | 10.08 | 17.96 | 8.56 | 8.13 |
+| Master host, row runs (FILL=rows, unchanged) | 17.54 | 10.12 | 18.02 | 8.56 | 8.13 |
+| Model B against Master rows | 0.0% | -0.4% | -0.3% | 0.0% | 0.0% |
+
+The Master host at 4 MHz is unchanged: 21.31 / 10.68 / 20.27 / 10.34 /
+10.20 (its disc is bit-identical).
+
+**Gates** (scratch/g2, both hosts): Master port byte-identical to
+full-master 91e431c's; lockstep 16002 clean, TUBEINT 602 clean; storage 88
+pages, 0 differ; pixels 14606 matched, 0 mismatched (the dashboard's 51
+are fbcmp's alignment, as before); tsavetest, tcrash, tstation ok. The 13
+scenes (scratch/sc2): 0 drops, 0 drawn whole on both hosts, only the known flare frames differ (sunnear 416-417, sungrow and sunswap 339-340). tdrows: both hosts, 604 frames, 86,275 band rows, 0 wrong. Small-heap fallback
+(HEAPN 900 smaller, Model B host): run1 0-6000 3,065 drops and frames drawn whole, pixels 5,341 matched, 0 mismatched, tdrows 0 wrong; sunswap 243 drops, pixels as the full heap's.
+
+Discs: ~/elite-tube-play/solid-elite-tube-master-a99709e.ssd and solid-elite-tube-modelb-a99709e.ssd (the build of a99709e and later).
 
 ## The bench's stars, small speedups, the hosts compared like for like (branch `tubediscs`, 2026-10-30)
 

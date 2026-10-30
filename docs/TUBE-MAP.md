@@ -197,7 +197,7 @@ differ (no ACCCON; the screen base; the banks).
 | Buffer 0 | &1000-&3FFF | (the screen base is patched per buffer: the r_bs operands, f_bufpatch's glyph base) |
 | Buffer 1 | &4000-&6FFF | the Master port's addresses: direct mode unchanged |
 | Panel | &7000-&7DFF | the dashboard, the Master port's address |
-| &7E00-&7F5D | | hwrch (WRCHV), the IRQ entry, hbswap: not swapped |
+| &7E00-&7FB8 | | hwrch (WRCHV), the IRQ entry with the rupture's timer interrupt (hbi_t: point 2 whole, point 1's way into bank F), hbswap: not swapped; hrw at &7FE0 |
 | Bank S | &8000- | the swapped main RAM, then overlay D's image from &8E00 (storage only) |
 | Bank D | &8000- | overlay S's image and its saved state (storage only) |
 | Bank P | &8000-&BFFF | phase B's fill and the polygon stream's entry (p_polyin) from &8000; the shared region from &9000 (r_dspin, the rows' set-up, R_SETBUF, r_spc, the per-x tables, R_SPAN, R_DOT, the stars); both buffers' row runs, a page per character row, so that none is patched for a buffer: buffer 1's (&4000) at &A000-&B7FF, buffer 0's (&1000) in the pages between, &8300-&8FFF, &9100-&98FF and &BC00-&BEFF; r_rpy0 (buffer 0's page per row, at &BF00) and r_rpy1 (buffer 1's, after the stars), which r_rowset's and phase B's LDA ,Y read, R_SETBUF patching the operand for the buffer; jump table at &BFC0 (P_PGFIX, P_POLY, P_LINE, P_MARKDIRTY, P_FLARE, P_LINEIN retired: BRK; JT + 3 is P_DSPANSIN) |
@@ -205,7 +205,12 @@ differ (no ACCCON; the screen base; the banks).
 
 The dashboard split is a CRTC vertical rupture (tube/spike/rupture.asm): two
 CRTC frames per field, timer 1 firing twice a field to set each frame's
-R4/R6/R7 and start address; a flip takes effect at the next frame A. The
+R4/R6/R7 and start address (R12 only: R13 is 0 for every start address,
+written once by hb_t1init; the latch's high byte only, the two periods'
+low bytes being equal); a flip takes effect at the next frame A. The
+timer's interrupt saves only A: irqm's hbi_t (main RAM) does point 2
+without paging, and pages bank F for point 1 (hbi_p1), where the flip's
+state is. The
 loader (tube/src/loader-b.asm, at &1900) finds the first four sideways RAM
 banks and patches their numbers into the images (build/hb-patch.asm).
 
@@ -226,8 +231,13 @@ bank F to make the room), so that no run is patched for a buffer.
 The Model B host's NMOS code is tube/tools/nmos.py's conversion with hand
 fixes (tube/build.sh's --sub) where nmos.py, which keeps every register
 live at an RTS, would save one that is dead: r_spc's store of the RTS
-out of the run (Y and the flags), and R_STARERASE's and R_STARPLOT's
-reads and writes through RZ_PP (Y; X).
+out of the run (Y and the flags), R_STARERASE's and R_STARPLOT's
+reads and writes through RZ_PP (Y; X), r_rowset's INC A (ADC #1, the
+carry clear), and phase B's: the right end less one (SEC : SBC #1, the
+flags dead), the plant with X dead, the RTS out again at the end with Y
+and the flags dead, a character row's new page with X dead, and pb_ob_e
+placed before pb_one_e so that phase B's even half needs no long
+branches.
 
 ## Tools for the hosts' time
 
@@ -236,3 +246,8 @@ kind of instruction, and the parasite's by state (running, the ring's
 stubs, IRQ and full waits, the flip's wait, requests), over windows of a
 replay, on either host; tube/tools/thacct.mjs: two of its outputs'
 difference as a table that sums to the wall-time gap.
+tube/tools/trupt.mjs: the Model B host's split screen over a replay
+window: each field's CRTC frames as jsbeeb runs them (start address,
+length, the row where the display ends, the vsync), counted by kind, and
+the line of every write to R4, R6, R7, R12 and R13; with --shots, the
+rendered picture at given iterations.
