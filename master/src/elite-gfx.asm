@@ -43,8 +43,8 @@ GFXBANK = 6
 MERIDBANK = 7           \ the meridian window (gfx-merid.asm): bank 7, after the
                         \ cold area
 ELITEBANK = HOMEBANK
-R_S2L0 = &9A00          \ the second disc's spans as each buffer last drew them
-R_S2L1 = &9B00          \ (gfx-raster_disc2.asm), in bank 5, where R_DISC2 runs:
+R_S2L0 = &9A40          \ the second disc's spans as each buffer last drew them
+R_S2L1 = &9B40          \ (gfx-raster_disc2.asm), in bank 5, where R_DISC2 runs:
 R_S2R0 = &8F40          \ left ends in the room below the per-x tables, right
 R_S2R1 = &BF40          \ ends after the disc window and after R_DISC2 (empty:
                         \ 255, 0); each array whole in a page, a buffer's and
@@ -150,12 +150,14 @@ INCLUDE "src/gfx-raster.asm"   \ ...), then the disc window at &8000
 ASSERT P = R_CT          \ (f_dots keeps R_CT, FMLTU's P, for F_PDOT)
 INCLUDE "src/gfx-raster_disc2.asm"   \ the second disc (R_DISC2: run with the disc
                                \ window paged in, from R_DISCROWS)
+INCLUDE "src/gfx-raster_init.asm"    \ R_INIT (run once)
 ASSERT P% <= R_S2R1            \ (buffer 1's spans' right ends follow it)
 .B5_END
 ASSERT B5_END <= &C000
 CLEAR r_tfree, r_tables \ (gfx-raster.asm skips it)
 ORG r_tfree             \ R_LINE's cold part, in the room below the per-x
-INCLUDE "src/gfx-raster_lcold.asm"   \ tables (gfx-raster.asm's r_tfree)
+INCLUDE "src/gfx-raster_lcold.asm"   \ tables (gfx-raster.asm's r_tfree), then
+INCLUDE "src/gfx-raster_reset.asm"   \ R_RESETBUF
 .B5_GAP
 ASSERT B5_GAP <= R_S2L0       \ (the second disc's spans' left ends follow it)
 ASSERT R_S2L1 + 192 <= r_tables AND R_S2R1 + 192 <= &C000 AND R_S2L0 + 192 <= R_S2L1
@@ -167,7 +169,7 @@ INCLUDE "src/gfx-raster_kept.asm"   \ kept solid rows: bank 5's part
 .B5LO_END
 ASSERT B5LO_END <= R_S2R0 AND R_S2R0 + 192 <= &9000   \ (buffer 0's spans' right
                                 \ ends after the disc window's code)
-PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", R_S2R0-B5LO_END, " before R_S2R0), shared &9000-", ~B5_END-1,  " free ", R_S2R1-B5_END, " before R_S2R1 (+ ", R_S2L0-B5_GAP, " at ", ~B5_GAP, ", ", R_S2L1-R_S2L0-192, " and ", r_tables-R_S2L1-192, " after R_S2L0 and R_S2L1)"
+PRINT "Bank 5: rasteriser: disc window &8000-", ~B5LO_END-1, " (free ", R_S2R0-B5LO_END, " before R_S2R0), shared &9000-", ~B5_END-1,  " free ", R_S2R1-B5_END, " before R_S2R1 (+ ", R_S2L0-B5_GAP, " at ", ~B5_GAP, " and ", R_S2L1-R_S2L0-192, " after R_S2L0)"
 SAVE "build/BANK5.bin", &8000, B5_END, &8000
 
 CLEAR COLD_END%, &C000  \ bank 7 after the cold area (ROMSEL MERIDBANK): the
