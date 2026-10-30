@@ -93,10 +93,11 @@ C_HLOIN    = 104        \ a horizontal line (Master's HLOIN3, the direct-mode
                         \ screen): X1, X2 (X1 < X2), Y1, COL
 C_PIXEL    = 106        \ a point (Master's PIXEL, the direct-mode screen): x,
                         \ y, ZZ, COL
-C_DSPANS   = 108        \ the disc layer's spans (R_DISCROWS), sent as made: per
-                        \ row, the row, then XL, XR and the row's colour byte (COLE
-                        \ on even rows, COLO on odd) for each span, &FF
-                        \ ending the row; &FF for a row ends
+C_DSPANS   = 108        \ the disc layer's spans (R_DISCROWS), sent as made: the
+                        \ first row, then XL, XR and the row's colour byte (COLE
+                        \ on even rows, COLO on odd) for each span; after a row's
+                        \ spans, 0 for the next row's, or &FF and the row (rows
+                        \ 1-191, XL 2-253: the clip window's), &FF 0 at the end
 C_MAX      = 110
 
 DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)

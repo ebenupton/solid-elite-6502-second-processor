@@ -334,17 +334,26 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
 \ ------------------------------------------------------------------------------
 
 .psb                    \ the span into the batch's stream, as it is made: its
- LDA pr_y               \ row first if another (the open one closed with &FF, or
- CMP pr_sy              \ C_DSPANS first if the batch has sent nothing)
- BEQ psb2
- STA pr_sy
+ LDA pr_y               \ row first if another (C_DSPANS and the row if the
+ CMP pr_sy              \ batch has sent nothing; 0 for the open row's next;
+ BEQ psb2               \ else &FF and the row)
  BIT pr_bat
  BVS psb1
+ STA pr_sy
  LDA #%11000000
  STA pr_bat
  LDA #C_DSPANS
  BNE psb0
 .psb1
+ SBC pr_sy              \ (C from the CMP: pr_y - pr_sy, or less 1 if below)
+ CMP #1
+ BNE psb3
+ INC pr_sy              \ the next row: 0, sent through the row's site
+ LDA #0
+ BRA psb_s1
+.psb3
+ LDA pr_y
+ STA pr_sy
  LDA #&FF
 .psb0
 .psb_s0                 \ (the ring's send sites, p-io.asm: in ring mode each
@@ -761,8 +770,9 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
  BIT pr_bat
  STZ pr_bat
  BVC pdr00
- LDA #&FF               \ (the open row's end, then the batch's)
+ LDA #&FF               \ (the batch's end: &FF, then row 0)
  JSR ptx
+ LDA #0
  JMP ptx
 .pdr00
  RTS
