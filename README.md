@@ -68,7 +68,7 @@ capped at 25 frames a second.
 |---|---|---|---|---|---|
 | Original (SNG47, BBC Master, wireframe) | 12.69 | 12.61 | 14.38 | 8.11 | 9.09 |
 | Master host, 4 MHz second processor | 21.31 | 10.68 | 20.27 | 10.34 | 10.20 |
-| Model B host, 3 MHz second processor | 17.47 | 9.87 | 17.89 | 8.51 | 8.08 |
+| Model B host, 3 MHz second processor | 17.54 | 10.08 | 17.96 | 8.56 | 8.13 |
 
 Docking, with the filled station filling much of the screen, is the one
 place where the original's wireframes are faster.
