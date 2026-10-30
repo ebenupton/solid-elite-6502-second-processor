@@ -826,15 +826,18 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
  BCC pdr5               \ (no band)
  CPY r_bt
  BCC pdr5
- CPY r_bb
+ CPY r_bb               \ (the band's rows: on past them, pdr5b)
  BEQ pdr5a
- BCC pdr5a
+ BCC pdr5b
 .pdr5
  LDA (pr_dr),Y
  BEQ pdr5a
  BIT KMODE              \ (K mode: a kept row is left pending, p-kept.asm)
  BMI pdr5k
  JSR prep
+ BRA pdr5a
+.pdr5b
+ LDY r_bb
  BRA pdr5a
 .pdr5k
  JSR pk_row
