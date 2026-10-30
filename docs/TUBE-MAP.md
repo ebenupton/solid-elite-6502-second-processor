@@ -145,7 +145,7 @@ the host's drawing of this one. A send that finds register 1 full puts its
 byte into the ring, and so does every send after it (ring mode) until the
 ring is empty: ppring makes ptx's and the eleven inline send sites' (psb in
 p-rast.asm, p-emit.asm) `BIT PR1S` a `JMP` to their ring stubs (`STA (rq)`,
-`DEC rq`, 21 cycles a byte). The ring drains in the parasite's IRQ (pirq,
+`DEC rq`, 19 cycles a byte at an inline site). The ring drains in the parasite's IRQ (pirq,
 the &FFFE vector; a BRK still goes to p_crash): the host rings a doorbell
 (any byte through register 1, host to parasite; the Tube's I flag on, J
 off: htflags) whenever it finds register 1 empty, in hloop and in every HRX
@@ -153,7 +153,11 @@ off: htflags) whenever it finds register 1 empty, in hloop and in every HRX
 sends up to 23 bytes without checking for room (unrolled, about 16 cycles a
 byte with the IRQ's own cost), taking the doorbell last. Interrupts are on
 only in ring mode; the IRQ that finds the ring empty leaves ring mode
-(unless it came in on a stub) and returns with them off.
+(unless it came in on a stub) and returns with them off. The stubs leave
+the I flag alone: penq turns interrupts on as it enters ring mode, pfwait
+leaves them on in ring mode, and p_sync clears the I flag in the flags that
+hframe pushed with them off, so that its PLP does not turn them off in ring
+mode.
 
 * Pages are written and read downwards, 255 to 1; a write pointer with a
   low byte of 0 is a stub between its DEC and rpg (the next page's 255).
