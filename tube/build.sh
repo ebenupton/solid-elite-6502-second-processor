@@ -271,7 +271,46 @@ grep -E "^(Parasite|Host)" build/compile-p.txt build/compile-h.txt | sed 's/^bui
 # and the rest (hb-main.asm)
 mkdir -p build/nmos
 NM="python3 $TUBE_DIR/tools/nmos.py"
-$NM src/gfx-raster.asm build/nmos/gfx-raster.asm --report build/nmos/gfx-raster.txt > /dev/null
+# (hand fixes where nmos.py, which keeps every register live at an RTS,
+# saves one that is dead: r_spc's last store, the RTS out of the run again
+# (Y and the flags: its callers set them before reading them), and the stars'
+# reads and writes through RZ_PP (R_STARERASE's Y, R_STARPLOT's X))
+$NM src/gfx-raster.asm build/nmos/gfx-raster.asm --report build/nmos/gfx-raster.txt \
+  --sub "  LDA #r_opSTA
+  STA (RZ_PP)
+  RTS
+=  LDA #r_opSTA
+  LDY #0                  \\ (NMOS: Y and the flags dead)
+  STA (RZ_PP),Y
+  RTS
+" --sub "  LDA (RZ_PP)
+.^r_pt32 AND r_s0a,X      \\ inverse mask
+  STA (RZ_PP)
+=  LDY #0                  \\ (NMOS: R_STARERASE's Y dead here)
+  LDA (RZ_PP),Y
+.^r_pt32 AND r_s0a,X      \\ inverse mask
+  STA (RZ_PP),Y
+" --sub "  LDA (RZ_PP)
+.^r_pt418 AND r_s0a,X
+  STA (RZ_PP)
+=  LDY #0
+  LDA (RZ_PP),Y
+.^r_pt418 AND r_s0a,X
+  STA (RZ_PP),Y
+" --sub "  LDA (RZ_PP)             \\ the whole byte black?
+  BNE nx
+  LDX r_k                 \\ (< 48 always: R_SN <= 24, <= 2 records a star)
+  LDA R_SCOL
+  AND RZ_SB
+  STA (RZ_PP)
+=  LDX #0                  \\ (NMOS: R_STARPLOT's X dead here, Y the row)
+  LDA (RZ_PP,X)           \\ the whole byte black?
+  BNE nx
+  LDA R_SCOL
+  AND RZ_SB
+  STA (RZ_PP,X)
+  LDX r_k                 \\ (< 48 always: R_SN <= 24, <= 2 records a star)
+" > /dev/null
 $NM src/gfx-raster_pset.asm build/nmos/gfx-raster_pset.asm --report build/nmos/gfx-raster_pset.txt > /dev/null
 $NM src/gfx-raster_arith.asm build/nmos/gfx-raster_arith.asm --report build/nmos/gfx-raster_arith.txt > /dev/null
 $NM src/gfx-raster_polyb.asm build/nmos/gfx-raster_polyb.asm --report build/nmos/gfx-raster_polyb.txt > /dev/null

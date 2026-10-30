@@ -200,7 +200,7 @@ differ (no ACCCON; the screen base; the banks).
 | &7E00-&7F5D | | hwrch (WRCHV), the IRQ entry, hbswap: not swapped |
 | Bank S | &8000- | the swapped main RAM, then overlay D's image from &8E00 (storage only) |
 | Bank D | &8000- | overlay S's image and its saved state (storage only) |
-| Bank P | &8000-&84CC, &9000-&BF84 | phase B's fill and the line loops; the shared region with the row runs (patched per buffer on first use: r_pgfix), R_SPAN, R_DOT, the stars, the line code's cold part, r_dspin; the polygon stream's entry (p_polyin); jump table at &BFC0 (P_POLY, P_MARKDIRTY, P_FLARE retired: BRK; JT + 3, once P_ROWREP, is P_DSPANSIN) |
+| Bank P | &8000-&84CC, &9000-&BFAE | phase B's fill and the line loops; the shared region with the row runs (assembled for buffer 1, &4000; a page is patched for the buffer it is first used for in a frame, r_pgfix: its 63 stores' high bytes, seven a pass, by ADC or SBC #&30 with the carry left as it was set), R_SPAN, R_DOT, the stars, the line code's cold part, r_dspin; the polygon stream's entry (p_polyin); jump table at &BFC0 (P_POLY, P_MARKDIRTY, P_FLARE retired: BRK; JT + 3, once P_ROWREP, is P_DSPANSIN) |
 | Bank F | &8000-&AD13 | the command loop and handlers, f_glyph, f_enter, f_unstar, the panel's drawing, CHPR and its font, the sound, the interrupts (hb-irq.asm); then f_enter's buffer, then from &A82A the recursive tokens (QQ18 as stored, 960 bytes) and where each starts (298 bytes), which h4body's C_TOKEN reads in the IRQ (bank F paged) |
 
 The dashboard split is a CRTC vertical rupture (tube/spike/rupture.asm): two
@@ -209,7 +209,30 @@ R4/R6/R7 and start address; a flip takes effect at the next frame A. The
 loader (tube/src/loader-b.asm, at &1900) finds the first four sideways RAM
 banks and patches their numbers into the images (build/hb-patch.asm).
 
-## Screen-store runs: full `STA abs` evaluated
+## Screen stores: the Master host's STA runs, the row runs
 
-See TUBE-REPORT.md, "Evaluation: full STA abs screen runs": one set per buffer
-is 37.6K; not adopted. The row-run span filler is kept on both hosts.
+The Master host fills spans through full `STA abs` runs (h-sta.asm: one
+run per line of the 3D view, an `STA abs` per byte, 37.6K, the same
+address in both buffers, made at the host's start). `FILL=rows sh
+tube/build.sh` builds it instead with the row runs (h-rows.asm: one run
+per character row, `STA abs,Y` with Y the row, all in bank 5, as the
+Master port's and the Model B host's, but with no patching: the two
+buffers are at the same address), for comparison; the code that enters
+the runs stays where it is. At a 3 MHz parasite the STA runs are
+0.3-2.2% faster than the row runs (TUBE-REPORT.md). The Model B host has
+the row runs, patched per buffer (r_pgfix): two sets (24 pages each) do
+not fit beside its code in bank P.
+
+The Model B host's NMOS code is tube/tools/nmos.py's conversion with hand
+fixes (tube/build.sh's --sub) where nmos.py, which keeps every register
+live at an RTS, would save one that is dead: r_spc's store of the RTS
+out of the run (Y and the flags), and R_STARERASE's and R_STARPLOT's
+reads and writes through RZ_PP (Y; X).
+
+## Tools for the hosts' time
+
+tube/tools/thcmd.mjs: the host's cycles by command, routine, IRQ kind and
+kind of instruction, and the parasite's by state (running, the ring's
+stubs, IRQ and full waits, the flip's wait, requests), over windows of a
+replay, on either host; tube/tools/thacct.mjs: two of its outputs'
+difference as a table that sums to the wall-time gap.

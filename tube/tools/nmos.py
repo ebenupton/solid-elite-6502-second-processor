@@ -39,7 +39,10 @@ while i < len(ARGS):
     elif ARGS[i] == "--tmp": TMP = ARGS[i + 1]; i += 2
     elif ARGS[i] == "--tmpy": TMPY = ARGS[i + 1]; i += 2
     elif ARGS[i] == "--sub":
-        a, b = ARGS[i + 1].split("=", 1); SUBS.append((a.replace("\\n", "\n"), b.replace("\\n", "\n"))); i += 2
+        t = ARGS[i + 1]                # (FROM=TO; with "\n=" in it, there: FROM's text may hold "=")
+        a, b = (t.split("\n=", 1) if "\n=" in t else t.split("=", 1))
+        if "\n=" in t: a += "\n"
+        SUBS.append((a.replace("\\n", "\n"), b.replace("\\n", "\n"))); i += 2
     else: sys.exit("unknown option " + ARGS[i])
 
 text = open(SRC, encoding="latin-1").read()

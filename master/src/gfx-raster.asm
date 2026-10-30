@@ -1690,45 +1690,28 @@ IF _HOSTB
   STA r_pgtag,X
   STY pfy
   TAX                     \ (X = the buffer)
-  LDA r_pgadd,X
-  STA a1+1
-  STA a2+1
-  STA a3+1
+  LDA r_pgop,X            \ buffer 0: SBC #&30, carry set; buffer 1: ADC #&30,
+FOR k, 0, 6               \ carry clear (the high bytes &10-&3F or &40-&6F:
+  STA lp + 6 + 8 * k      \ no carry out, so the carry stays as set for every
+NEXT                      \ store, and the loop's counter is X, not Y)
   LDA pfa
-  STA l1+2
-  STA s1+2
-  STA l2+2
-  STA s2+2
-  STA l3+2
-  STA s3+2
-  LDY #180                \ the stores' high bytes: offsets 2, 5, .. 188
-.lp
-.l1
-  LDA &FF02,Y
-  CLC
-.a1
+FOR k, 0, 6
+  STA lp + 5 + 8 * k
+  STA lp + 10 + 8 * k
+NEXT
+  TXA
+  EOR #1
+  LSR A
+  LDX #8                  \ the stores' high bytes: offsets 2, 5, .. 188, seven
+.lp                       \ a pass, 21 apart
+  LDY r_pgy,X
+FOR k, 0, 6
+  LDA &FF02 + 3 * k,Y
   ADC #&30
-.s1
-  STA &FF02,Y
-.l2
-  LDA &FF05,Y
-  CLC
-.a2
-  ADC #&30
-.s2
-  STA &FF05,Y
-.l3
-  LDA &FF08,Y
-  CLC
-.a3
-  ADC #&30
-.s3
-  STA &FF08,Y
-  TYA
-  SEC
-  SBC #9
-  TAY
-  BCS lp
+  STA &FF02 + 3 * k,Y
+NEXT
+  DEX
+  BPL lp
   LDA pfa
   LDX pfx
   LDY pfy
@@ -1741,7 +1724,11 @@ IF _HOSTB
 FOR i, 0, 23
   EQUB 1
 NEXT
-.r_pgadd EQUB &D0, &30    \ to buffer 0: -&30; to buffer 1: +&30
+.r_pgop EQUB &E9, &69     \ to buffer 0: SBC #; to buffer 1: ADC #
+.r_pgy                    \ the loop's passes' Y
+FOR i, 0, 8
+  EQUB 21 * i
+NEXT
 ENDIF
 IF _HOSTB
  INCLUDE "src/gfx-raster_pset.asm"
