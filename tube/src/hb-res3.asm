@@ -35,14 +35,17 @@
  BIT h4on               \ h4on), timer 1 or vsync are ours (bank F's hb_irq,
  BPL irq0               \ with the bank kept); anything else is the MOS's
  BIT HR4S
- BMI irq4
+ BPL P%+5
+ JMP irq4
 .irq0
  LDA &FE4D
  AND #%01000010
  BNE irq1
  JMP (hbirqv)
 .irq1
- TXA
+ AND #%01000000         \ timer 1: the rupture (hbi_t), A only
+ BNE hbi_t
+ TXA                    \ vsync
  PHA
  TYA
  PHA
@@ -60,6 +63,50 @@
  TAX
  LDA &FC
  RTI
+
+\ hbi_t: timer 1, twice a field, the CRTC vertical rupture (hb-irq.asm): A
+\ only, and point 2 with no paging. Each point writes the registers that
+\ differ between the two frames, R4, R6, R7 and R12 (R13 is 0 for every
+\ start address, hb_t1init's), and the latch's high byte (the low bytes of
+\ HB_PA and HB_PB are the same, hb_t1init's)
+.hbi_t
+ LDA hb_phase
+ EOR #1
+ STA hb_phase
+ BEQ hbi_p1m
+ LDA #4                 \ point 2, line 8 (frame A has started): frame A's
+ STA &FE00              \ R4, R6, R7, and the panel's address for frame B
+ LDA #23
+ STA &FE01
+ LDA #6
+ STA &FE00
+ LDA #24
+ STA &FE01
+ LDA #7
+ STA &FE00
+ LDA #127
+ STA &FE01
+ LDA #12
+ STA &FE00
+ LDA #HI(PANEL DIV 8)
+ STA &FE01
+ LDA #HI(HB_PB)
+ STA &FE47
+ LDA &FE44              \ (clears timer 1's flag)
+ LDA &FC
+ RTI
+.hbi_p1m                \ point 1: bank F's hbi_p1 (the flip's state is there)
+ LDA &F4
+ PHA
+ PAGE GFXBANK
+ JMP hbi_p1
+.hbi_px                 \ (hbi_p1's way back)
+ PLA
+ STA &F4
+ STA &FE30
+ LDA &FC
+ RTI
+.hb_phase EQUB 0
 .hbirqv EQUW 0          \ the MOS's IRQ1V, as hstart found it
 .h4on EQUB 0            \ bit 7: register 4's requests are ours (h4body)
 .irq4
