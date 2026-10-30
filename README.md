@@ -46,7 +46,7 @@ This builds `tube/build/elite-tube.ssd` (Master host), `tube/build/elite-tube-b.
 
 ## The layout
 
-The parasite holds the whole game at the Master port's addresses, the frame layer and the rasteriser's bookkeeping, in a flat 64K: zero page and the game's workspaces to `&0CCE`, the frame layer's inputs to `&13FF`, resident code and data from `&1400`, then an overlay region from `&B400` and a four-page command ring from `&F400`. Two overlays share the overlay region: **S** for the space view (the rasteriser's bookkeeping, the discs, the planet's surface, the lens flare, the text overlay, and the disc heap in its saved state) and **D** for the screens drawn directly (the charts, the market, equipment, status and the disc menu, the title). The host keeps both images and swaps them in only when the game changes between the space view and a docked screen. The parasite streams its commands to the host through the Tube's register 1, buffered in the ring while the host is busy and drained by interrupt.
+The parasite holds the whole game at the Master port's addresses, the frame layer and the rasteriser's bookkeeping, in a flat 64K: zero page and the game's workspaces to `&0CCE`, the frame layer's inputs to `&13FF`, resident code and data from `&1400`, then an overlay region from `&B400` and a four-page command ring from `&F400`. Two overlays share the overlay region: **S** for the space view (the rasteriser's bookkeeping, the discs, the planet's surface, the lens flare, the text overlay, and the rasteriser's state with the disc heap) and **D** for the screens drawn directly (the charts, the market, equipment, status and the disc menu, the title). The host keeps both images and swaps them in only when the game changes between the space view and a docked screen. S's state never goes to the host: when S is swapped out it is thrown away, and when S comes back the state is rebuilt, each buffer repainting its play area whole on its next frame. The parasite streams its commands to the host through the Tube's register 1, buffered in the ring while the host is busy and drained by interrupt.
 
 The Master host keeps the Master port's screen (two buffers at `&4000`, one in shadow RAM, and the dashboard in shadow `&7000`) and fills spans with 37.6K of straight-line `STA` runs in sideways RAM. The Model B host puts the buffers at `&1000` and `&4000` and the dashboard at `&7000`, its code in four sideways RAM banks, and borrows a little main RAM from the MOS, swapping it back for each disc command. [docs/TUBE-MAP.md](docs/TUBE-MAP.md) has the details: both hosts' maps, the parasite's, and the protocol.
 
@@ -58,8 +58,8 @@ Main-loop iterations per emulated second over windows of one recorded game: flig
 |---|---:|---:|---:|---:|---:|
 | Original (SNG47, BBC Master, wireframe) | 12.69 | 12.61 | 14.38 | 8.11 | 9.09 |
 | Master port (BBC Master, no second processor) | 12.30 | 7.05 | 13.66 | 6.46 | 5.84 |
-| Tube, Master host, 4 MHz second processor | 21.59 | 10.75 | 20.43 | 10.49 | 10.44 |
-| Tube, Model B host, 3 MHz second processor | 17.77 | 10.21 | 18.09 | 8.66 | 8.29 |
+| Tube, Master host, 4 MHz second processor | 21.59 | 10.75 | 20.43 | 10.60 | 10.51 |
+| Tube, Model B host, 3 MHz second processor | 17.77 | 10.21 | 18.10 | 8.71 | 8.33 |
 
 With the Master as host, the Tube version runs at 1.5 to 1.75 times the Master port's speed, and is faster than the original everywhere but docking, where the solid station fills much of the screen. In flight and on the planets the parasite sets the pace, and the host is idle a third to a half of the time; at docking the host does. With the same parasite clock (3 MHz) and the same fill routines, the Model B host is within 0.4% of the Master host: the rest of the Model B's work is its split-screen interrupt and its NMOS code.
 
