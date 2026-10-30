@@ -93,10 +93,10 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 .hd_xr   EQUB 0, 0
 .HEAP     SKIP 5 * 192 + 4 * HD_ROWS   \ the disc heap (p-disc.asm), to the end of
  ALIGN &100              \ the state's last page (the host keeps S's image from
-HEAPN = P% - HEAP        \ there: a page fewer to keep)
+HEAPN = P% - HEAP        \ there)
 
-.S_STATE_END             \ (the state: what p-ovl.asm saves when S goes out in space
-                        \ mode)
+.S_STATE_END             \ (the state's end: the hosts keep S's image from here,
+                        \ p-ovl.asm)
 
 .pr_bat  EQUB 0          \ R_DISCROWS's batch (C_DSPANS): bit 7 on, bit 6 begun
 .pr_sy   EQUB 0          \ the batch's open row (&FF: none)

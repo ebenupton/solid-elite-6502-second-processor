@@ -14,7 +14,7 @@ const A = JSON.parse(readFileSync(a.a, "utf8")), B = JSON.parse(readFileSync(a.b
 const R = (+(a.mhz || 3)) / 2;          // parasite cycles a host cycle
 const RAST = /^C_(DSPANS|SPANS|SPAN|LINE|DOT|STARS|STARERASE|ORSPAN|EORDOT)$/;
 const TEXT = /^C_(GLYPH|CHAR|CLS|BOXC|CLYNS|LOIN|HLOIN|PIXEL|PDIALS|PDOT|PSCAN|PMSBAR|PBULB)$/;
-const STORE = /^C_(OVLGET|OVLPUT|DISC)$/;
+const STORE = /^C_(OVLGET|DISC)$/;
 const cats = [
     ["the run pages patched for the buffer (r_pgfix)", r => sumLab(r, /^.:r_pgfix$/)],
     ["the flip's wait at C_BUF", r => r.state.C_BUF || 0],

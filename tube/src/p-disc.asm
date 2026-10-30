@@ -5,7 +5,7 @@
 \ disc drawn as changes. Every disc is incremental: each buffer remembers what
 \ it shows of each disc row, and a frame sends the host only what changed.
 \
-\ The disc heap (HEAP, HEAPN bytes in overlay S's saved state) holds the
+\ The disc heap (HEAP, HEAPN bytes in overlay S's state) holds the
 \ per-row state that only some rows need, by body:
 \
 \   * body 0, the surface (HB_S): for the disc layer when it has two colours

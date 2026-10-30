@@ -13,8 +13,8 @@
 \   * the rasteriser in bank 5 and ANDY, the frame layer's host part (the text
 \     map, the text overlay, the sights) in bank 6, as the Master port's;
 \   * the STA runs (h-sta.asm) in banks 4, 5, 6 and 7, their pages' tails
-\     holding overlay S's state (bank 4) and pages of the overlays' storage
-\     (bank 7: build/hstore.asm); the planet is wholly the parasite's;
+\     holding pages of the overlays' storage (bank 7: build/hstore.asm;
+\     bank 4's are free); the planet is wholly the parasite's;
 \   * the screen: buffer 0 in main RAM, buffer 1 and the dashboard in shadow
 \     RAM, as the Master port's.
 \   * &0400-&06FF (HLOW): the MOS's Tube code, which runs the boot and then

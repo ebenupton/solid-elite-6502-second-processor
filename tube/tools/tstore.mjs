@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // tstore.mjs: the Master host's overlay storage checked against its image
 // (build/hstore.bin, tube/build.sh) after a replay to iteration --to: any
-// page that differs (S's state, stored elsewhere, aside) was written by
-// something else on the host.
+// page that differs was written by something else on the host. Every page
+// the host keeps is an overlay's image, written only by the loader: the host
+// keeps no overlay state (S's is rebuilt on the parasite, p-ovl.asm), so
+// nothing is set aside.
 //   node tube/tools/tstore.mjs --log L --cand disc --csyms psyms --store hstore.bin [--to N]
 import { TubeEliteMachine, loadSyms, CYCLES_PER_FRAME } from "./tmachine.mjs";
 import { EliteMachine } from "../../master/tools/agentplay/lib.mjs";
