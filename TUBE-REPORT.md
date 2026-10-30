@@ -7,6 +7,58 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The command stream: fewer bytes, cheaper sends (branch `tubediscs`, 2026-10-30, third pass)
+
+**The stream before** (tube/tools/tstream.mjs, run1, bytes an iteration;
+the host's cycles for the command at 2 MHz, Master host, 4 MHz parasite):
+
+| Window | All | C_DSPANS | its row bytes and &FF row ends | C_SPANS | C_STARS | other |
+|---|---|---|---|---|---|---|
+| flight 1000-1400 | 697 | 571 (35.2K host cycles) | 68 + 68 | 0 | 66 | 60 |
+| docking 3420-3550 | 1,309 | 506 (45.3K) | 101 + 101 | 592 (83.0K) | 65 | 146 |
+| beach 300-403 | 1,319 | 1,036 (64.9K) | 126 + 126 | 0 | 65 | 218 |
+| beach 5355-5457 | 1,923 | 1,657 (100.7K) | 163 + 163 | 0 | 66 | 200 |
+
+The disc layer's spans are most of it, and their rows nearly always follow
+one another (row + 1: 98-99% of rows). The polygons' rows (C_SPANS) are
+already two bytes a row, and docking's host time in them is the filling.
+Nearly every byte goes through the ring in every window (tube/tools/dprof.mjs:
+the ring's stubs and IRQ, about 35 parasite cycles a byte, 15-21% of the
+parasite's time on the beach, against 10 for a direct send).
+
+| Change | Bytes an iteration (flight / docking / beach 300 / beach 5355) | Host cycles in C_DSPANS (same) | Master host it/s | Model B host it/s | Kept |
+|---|---|---|---|---|---|
+| before | 697 / 1,309 / 1,319 / 1,923 | 35.2K / 45.3K / 64.9K / 100.7K | 21.31 / 10.68 / 20.27 / 10.34 / 10.20 | 17.54 / 10.08 / 17.96 / 8.56 / 8.13 | |
+| 1. C_DSPANS: 0 for the next row (no row byte, no &FF), &FF and the row otherwise, &FF 0 at the end; r_dspin reads XL into X and the row into Y | 632 / 1,210 / 1,195 / 1,760 | 33.8K / 43.8K / 62.4K / 97.1K | 21.50 / 10.75 / 20.39 / 10.46 / 10.37 | 17.71 / 10.18 / 18.08 / 8.65 / 8.26 | yes |
+| 2. The ring's stubs without their CLI (2 cycles a byte; p_sync clears the I flag in hframe's pushed flags in ring mode, the one place a PLP turned interrupts off in ring mode: 1,178 stub entries in 0-3550, now none) | the same | the same | 21.59 / 10.75 / 20.43 / 10.49 / 10.44 | 17.77 / 10.21 / 18.09 / 8.66 / 8.29 | yes |
+
+(it/s in the order flight / docking / 0-3550 / beach 300-403 / beach
+5355-5457.) Against before: Master host +1.3% / +0.7% / +0.8% / +1.5% /
++2.4%; Model B host +1.3% / +1.3% / +0.7% / +1.2% / +2.0%. Space: HAZEL one
+byte less (r_dspin 76 bytes, from 77), the resident parasite code the same
+size (the stubs' 12 CLIs paid for p_sync's 12 bytes), overlay S's psb 10
+bytes more (from the padding before the flare's page).
+
+Looked at and not done: the colour byte predicted (a span's colour equals
+the colour at the same place in the row two above 88-99% of the time, but
+the table on both sides costs about 20 parasite cycles a span against 35 a
+byte saved, and the host about 5 a span, a loss in host-bound docking);
+contiguous spans (XL = the last XR + 1, 23-30% of spans: the test costs
+more than the bytes save); C_SPANS rows as deltas (docking is host-bound,
+and the host would decode more).
+
+**Gates** (scratch/bw/g1, both hosts): Master port byte-identical to
+full-master 91e431c's; lockstep 16002 clean, TUBEINT 602 clean; storage 88
+pages, 0 differ; pixels 14606 matched, 0 mismatched (the dashboard's 51 are
+fbcmp's alignment, as before); tsavetest, tcrash, tstation ok. The 13
+scenes: 0 drops, 0 drawn whole on both hosts, only the known flare frames
+differ. tdrows: both hosts, 604 frames, 86,275 band rows, 0 wrong.
+Small-heap fallback (HEAPN 900 smaller, Model B host): run1 0-6000 pixels
+5,341 matched, 0 mismatched; tdrows 0 wrong.
+
+Discs: ~/elite-tube-play/solid-elite-tube-master-f5327bd.ssd and
+solid-elite-tube-modelb-f5327bd.ssd.
+
 ## The Model B host's last fixes (branch `tubediscs`, 2026-10-30, second pass)
 
 full-master 91e431c merged (the moon's R_WSPAN between the second disc's
