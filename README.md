@@ -58,8 +58,8 @@ Main-loop iterations per emulated second over windows of one recorded game: flig
 |---|---:|---:|---:|---:|---:|
 | Original (SNG47, BBC Master, wireframe) | 12.69 | 12.61 | 14.38 | 8.11 | 9.09 |
 | Master port (BBC Master, no second processor) | 12.30 | 7.05 | 13.66 | 6.46 | 5.84 |
-| Tube, Master host, 4 MHz second processor | 21.31 | 10.68 | 20.27 | 10.34 | 10.20 |
-| Tube, Model B host, 3 MHz second processor | 17.54 | 10.08 | 17.96 | 8.56 | 8.13 |
+| Tube, Master host, 4 MHz second processor | 21.59 | 10.75 | 20.43 | 10.49 | 10.44 |
+| Tube, Model B host, 3 MHz second processor | 17.77 | 10.21 | 18.09 | 8.66 | 8.29 |
 
 With the Master as host, the Tube version runs at 1.5 to 1.75 times the Master port's speed, and is faster than the original everywhere but docking, where the solid station fills much of the screen. In flight and on the planets the parasite sets the pace, and the host is idle a third to a half of the time; at docking the host does. With the same parasite clock (3 MHz) and the same fill routines, the Model B host is within 0.4% of the Master host: the rest of the Model B's work is its split-screen interrupt and its NMOS code.
 
