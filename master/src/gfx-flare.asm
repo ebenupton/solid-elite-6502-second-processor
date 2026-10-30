@@ -168,6 +168,16 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
  BCS flv8
  INC A
  TAY
+IF _TPART = 1             \ (the Tube: the parasite has no screen, p-probe.asm)
+ BIT fp_on              \ arming (fl_arm): the probe's place noted, nothing
+ BPL flv3               \ read (and not tested against the planet's span,
+ TYA                    \ whose kept rows are not yet committed then)
+ STA fp_y,X
+ LDA fl_vx
+ STA fp_x,X
+ BRA flv8
+.flv3
+ENDIF
  BIT FL_BEH             \ the sun behind the planet (the smaller disc, drawn
  BPL flv2               \ round the planet's span: f_disc2): a probe inside
  LDA fl_vx              \ the planet's span on its row is out of sight (its
@@ -179,15 +189,7 @@ FLHMAX = 26             \ the ring round the sun only for a sun this small
  CMP fl_vx
  BCS flv8
 .flv2
-IF _TPART = 1             \ (the Tube: the parasite has no screen, p-probe.asm)
- BIT fp_on              \ arming (fl_arm): the probe's place noted, nothing
- BPL flv3               \ read
- TYA
- STA fp_y,X
- LDA fl_vx
- STA fp_x,X
- BRA flv8
-.flv3
+IF _TPART = 1
  TYA
  LSR A                  \ C: y odd (the sun's odd rows' colour)
  LDA fp_b,X             \ the probe's pixel as the parasite has worked it out
@@ -425,7 +427,9 @@ ENDIF
  STA fl_t
  LDA #&FF               \ every row's mask: all (fl_lq has the pixel's), one
  STA fl_m               \ byte
+IF _TPART <> 1          \ (the Tube's parasite: the host ORs the span, C_ORSPAN)
  STZ fl_n
+ENDIF
  LDX #0
 .fsr1
  STX fl_d
@@ -521,6 +525,7 @@ fl_mt = P% - 4          \ row masks of densities 1, 2, 4, 6, 8 / 16 (4x4
  STA R_XR
  CMP R_XL
  BCC fsd8
+IF _TPART <> 1          \ (the Tube's parasite: the host ORs the span, C_ORSPAN)
  AND #3                 \ the last byte's mask, the first's, the first's
  TAX                    \ column (x 8) and 8 x (bytes - 1), shared by the
  LDA fl_rmt,X           \ two rows
@@ -551,6 +556,7 @@ ENDIF
  LDA fl_lq              \ one byte: both masks
  AND fl_rq
  STA fl_lq
+ENDIF
 .fsd2
  LDA fl_gy              \ row gy - d, if >= 1
  SEC
@@ -581,6 +587,7 @@ ENDIF
  BCS fsc9
  STA R_XL
  STA R_XR
+IF _TPART <> 1          \ (the Tube's parasite: the host ORs the pixel, C_ORSPAN)
  TAY
  AND #&FC               \ its byte's column (fl_cl, fl_ch), pixel mask
  ASL A
@@ -597,6 +604,7 @@ ENDIF
  LDA fl_pxm,X
  AND fl_u
  STA fl_lq
+ENDIF
  LDA fl_gy              \ (gy + dy <= 191 + 30: no carry)
  CLC
  ADC fl_hw+1
@@ -711,8 +719,10 @@ ENDIF
 
 .fl_dk  EQUB 0, 3, 2, 4, 2, 1, 2, 2 \ the k steps 8 -> 5 -> 3 -> -1 -> -3 ->
                                     \ -4 -> -6 -> -8, by ghost
+IF _TPART <> 1
 .fl_lmt EQUB &FF, &77, &33, &11     \ pixels x AND 3..3 of a byte
 .fl_rmt EQUB &88, &CC, &EE, &FF     \ pixels 0..x AND 3
+ENDIF
 .fl_pxm EQUB &88, &44, &22, &11     \ pixel x AND 3
 .fl_pxi EQUB 0, 1, 4, 0, 0, 2, 2, 3, 3 \ the probes' offsets (fl_vo): the
 .fl_pyi EQUB 0, 0, 0, 1, 4, 2, 3, 2, 3 \ centre, right, left, down, up and
