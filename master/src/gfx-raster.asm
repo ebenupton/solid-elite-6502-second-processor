@@ -287,14 +287,14 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0 AND _HSTA
   STA s_rbk
   RTS
 ELSE
+IF _HOSTB
+.^r_bs12                  \ (Model B: the buffer's set of runs, a page per
+  LDA r_rpy1,Y            \ character row: per row, the table R_SETBUF patches
+ELSE                      \ this operand for, hb-p.asm)
   TYA
   LSR A
   LSR A
   LSR A
-IF _HOSTB
-  TAX                     \ (Model B: the buffer's set of runs, a page per
-  LDA r_rp,X              \ character row: r_rp, R_SETBUF's; clobbers X)
-ELSE
   CLC
   ADC #HI(r_run0)
 ENDIF
@@ -512,18 +512,12 @@ ELSE
   STA r_pt47+2
   STA r_pt49+2
 IF _RBANK = 2
-  LDY #23                 \ the buffer's run pages (hb-p.asm's r_rp0, r_rp1)
-.rp
-  CPX #0
-  BNE rp1
-  LDA r_rp0,Y
-  BCS rp2
-.rp1
-  LDA r_rp1,Y
-.rp2
-  STA r_rp,Y
-  DEY
-  BPL rp
+  LDA r_rpyl,X            \ the buffer's run pages by row (hb-p.asm's r_rpy0,
+  STA r_bs12+1            \ r_rpy1)
+  STA r_bs13+1
+  LDA r_rpyh,X
+  STA r_bs12+2
+  STA r_bs13+2
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
   STA r_pt36+2

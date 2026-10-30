@@ -536,12 +536,8 @@ ENDIF
   INC A
   STA RZ_PB+1
 IF _HOSTB
-  TYA                     \ (Model B: the buffer's run page for the row, Y = RZ_Y
-  LSR A                   \ still: r_rowset's)
-  LSR A
-  LSR A
-  TAX
-  LDA r_rp,X
+.^r_bs13                  \ (Model B: the buffer's run page for the row, Y = RZ_Y
+  LDA r_rpy1,Y            \ still: r_rowset's)
   STA RZ_PP+1
   STA r_jsr2_e+2
   STA r_jsr2_o+2

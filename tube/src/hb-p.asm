@@ -4,7 +4,7 @@
 \ fills, as the Master port's ROMSEL RASTPOLY (ANDY over bank 5): phase B
 \ (gfx-raster_poly.asm) at &8000, the shared region (gfx-raster.asm) from
 \ &9000 with buffer 1's row runs, R_SPAN, r_dspin, R_DOT and the stars, and
-\ buffer 0's row runs in the pages between (r_rp0: a page per character
+\ buffer 0's row runs in the pages between (r_rpy0: their page per
 \ row), so that no run is patched for a buffer. The lines are bank F's
 \ (hb-line.asm). NMOS code (build/nmos/).
 \
@@ -25,6 +25,13 @@ _RBANK = 2
  INCLUDE "build/nmos/gfx-raster.asm"
  CPU 0
 .P_SHEND
+.r_rpy1                 \ buffer 1's run page per row (the shared region's end)
+FOR y, 0, 191
+ EQUB HI(r_run0) + y DIV 8
+NEXT
+ ASSERT HI(r_rpy1) = HI(P% - 1) AND P% <= &BC00
+.r_rpyl EQUB LO(r_rpy0), LO(r_rpy1)   \ (R_SETBUF's)
+.r_rpyh EQUB HI(r_rpy0), HI(r_rpy1)
 .P_HIEND
  ORG &8000
  INCLUDE "build/nmos/gfx-raster_poly.asm"
@@ -51,9 +58,10 @@ ASSERT P% <= &8300       \ (buffer 0's runs from there)
 
 \ Buffer 0's row runs (BUF0, &1000): a page each, as buffer 1's (r_run0 on,
 \ gfx-raster.asm's R_RUN, &A000-&B7FF), in the pages the rest leaves:
-\ &83-&8F, &91-&98, &BC-&BE. r_rp0 and r_rp1 hold each buffer's page per
-\ character row; R_SETBUF copies the buffer's into r_rp, which r_rowset and
-\ phase B's next character row read. A page's bytes 191-255 are free
+\ &83-&8F, &91-&98, &BC-&BE. r_rpy0 and r_rpy1 hold each buffer's run
+\ page for each row; R_SETBUF points r_rowset's and phase B's next
+\ character row's LDA ,Y at the buffer's (r_bs12, r_bs13). A page's bytes
+\ 191-255 are free
 
 MACRO R_RUNB r, pg
  ORG pg * &100
@@ -74,9 +82,10 @@ FOR r, 21, 23
  R_RUNB r, &BC + r - 21
 NEXT
 
- ORG &BF00
-.r_rp0
-FOR r, 0, 23
+ ORG &BF00               \ (each a page's 192 bytes: r_rowset's LDA ,Y crosses
+.r_rpy0                 \ none)
+FOR y, 0, 191
+ r = y DIV 8
  IF r < 13
   EQUB &83 + r
  ELIF r < 21
@@ -84,14 +93,6 @@ FOR r, 0, 23
  ELSE
   EQUB &BC + r - 21
  ENDIF
-NEXT
-.r_rp1
-FOR r, 0, 23
- EQUB HI(r_run0) + r
-NEXT
-.r_rp                   \ (the buffer's: R_SETBUF; buffer 1's until then)
-FOR r, 0, 23
- EQUB HI(r_run0) + r
 NEXT
 .P_RPEND
  ASSERT P_RPEND <= JT
