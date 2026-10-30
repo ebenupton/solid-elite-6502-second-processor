@@ -29,7 +29,7 @@
   PLA
   DEC A
   BPL ib
-  JSR k_clear             \ no kept rows
+  JSR k_clear             \ no kept rows (T_INIT pages the disc window: bankcheck: ok)
   LDX #192
 .il
   LDA #&FF
