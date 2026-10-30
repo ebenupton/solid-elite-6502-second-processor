@@ -84,8 +84,7 @@ C_ENTERB   = 90         \ space mode: buffer 1's border to buffer 0, buffer 1 on
 C_CLRBUF   = 92         \ clear buffer b's screen
 C_EORDOT   = 94         \ EOR a directly drawn star away (buffer 1): x, y, size
 C_DIRECTD  = 96         \ direct mode (the display: shadow RAM, buffer 1, on show)
-C_OVLPUT   = 98         \ an overlay's (S's state's) pages to the host to keep: the
-                        \ number, then its pages (p-ovl.asm)
+C_OVLPUT   = 98         \ (retired: no overlay's state is kept on the host)
 C_LOIN     = 100        \ a line (Master's LOINQ, the direct-mode screen): X1, Y1,
                         \ X2, Y2, COL
 C_STARGET  = 102        \ (retired: the star records stay on the host)

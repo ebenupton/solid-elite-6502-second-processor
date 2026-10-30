@@ -25,9 +25,8 @@
 \
 \ ******************************************************************************
 
-OVL_D = 1               \ the overlays, by number (ovl_cur, C_OVLGET, C_OVLPUT)
+OVL_D = 1               \ the overlays, by number (ovl_cur, C_OVLGET)
 OVL_S = 2
-OVL_SS = 3              \ (overlay S's state, saved by the host)
 
 .ovl_cur EQUB OVL_D     \ the overlay in the region (0: none; the parasite's
                         \ image starts with overlay D in)
@@ -152,11 +151,14 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
 
 \ ovl_need: A = an overlay: load it into the region from the host's copy
 \ (C_OVLGET: the host sends its image, OVL_START up, whole pages) if the
-\ region does not hold it. Overlay S's state (its first part, to S_STATE_END)
-\ is the rasteriser's: when S goes out in space mode (GMODE bit 7) the host
-\ keeps it (C_OVLPUT), and it comes back with S; when S goes out in direct
-\ mode it is not kept, and with S back the next space-mode frame starts
-\ buffer 0 afresh (GSTASH, f_enter2's f_b0new), as after a disc command.
+\ region does not hold it. Overlay S's state (its first part, to S_STATE_END:
+\ the rasteriser's, with the disc heap) is never kept: S's image starts
+\ after it, and when S comes in its state is rebuilt. If S went out in space
+\ mode (GMODE bit 7: a call into overlay D during flight), nothing is known
+\ of what either buffer holds, and r_lost (p-rast.asm) makes every row dirty
+\ in both, so that each buffer's next frame repaints the play area whole;
+\ if it went out in direct mode, the next space-mode frame starts buffer 0
+\ afresh (GSTASH, f_enter2's f_b0new), as after a disc command.
 \ Keeps Y; A and X are not kept (the callers above restore theirs)
 
 .ovl_need
@@ -165,27 +167,11 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  JSR pflush             \ (the ring sent first: p-io.asm)
  PHY
  PHA
- LDA ovl_cur            \ S going out in space mode: its state to the host
+ LDA ovl_cur            \ S going out in space mode: its state lost
  CMP #OVL_S
  BNE ovn2
  BIT GMODE
  BPL ovn2
- LDA #C_OVLPUT
- JSR ptx
- LDA #OVL_SS
- JSR ptx
- LDY #0
- LDX #HI(OVL_START)
- STX ovp1+2
-.ovp1
- LDA OVL_START,Y        \ (patched: the page)
- JSR ptx
- INY
- BNE ovp1
- INC ovp1+2
- LDA ovp1+2
- CMP #HI(S_STATE_END + 255)
- BNE ovp1
  LDA #&FF
  STA ovl_ssv
 .ovn2
@@ -195,27 +181,27 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  LDA ovl_cur
  CMP #OVL_S
  BNE ovn8
- BIT ovl_ssv            \ S: its state back, or buffer 0 afresh
- BPL ovn7
+ BIT ovl_ssv            \ S: everything unknown, or its state as
+ BPL ovn7               \ its image has it and buffer 0 afresh
  STZ ovl_ssv
- LDA #OVL_SS
- JSR ovl_get
+ JSR r_lost
  BRA ovn8
 .ovn7
- JSR ovl_sinit          \ (S's state as its image had it: the host keeps S's
- LDA #&80               \ image from S_STATE_END's page on, not the state)
+ JSR ovl_sinit
+ LDA #&80
  STA GSTASH
 .ovn8
  PLY
 .ovn9
  RTS
 
-.ovl_ssv EQUB 0         \ bit 7: the host keeps overlay S's state
+.ovl_ssv EQUB 0         \ bit 7: S went out in space mode
+
 
 \ ovl_sinit: overlay S's state (OVL_START to S_STATE_END) as S's image has it
 \ (tube/build.sh checks: zeros, but for the five bytes set here), for S
-\ coming in with no state kept: the host's image of S starts at S_STATE_END's
-\ page. Clobbers A, X, Y
+\ coming in after it went out in direct mode (the host's image of S starts
+\ at S_STATE_END's page). Clobbers A, X, Y
 
 .ovl_sinit
  LDA #HI(OVL_START)
@@ -245,7 +231,7 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  STA r_wt
  RTS
 
-\ ovl_get: A = an overlay (or S's state): C_OVLGET, then its pages from the
+\ ovl_get: A = an overlay: C_OVLGET, then its pages from the
 \ host into the region. Clobbers A, X, Y
 
 .ovl_get
@@ -277,6 +263,6 @@ OVL_SS = 3              \ (overlay S's state, saved by the host)
  ASSERT LO(OVL_START) = 0
 
 .ovlen                  \ each overlay's end, as a page (OVL_START is page aligned)
- EQUB HI(OVL_D_END + 255), HI(OVL_S_END + 255), HI(S_STATE_END + 255)
+ EQUB HI(OVL_D_END + 255), HI(OVL_S_END + 255)
 .ovst                   \ and its start
- EQUB HI(OVL_START), HI(S_STATE_END), HI(OVL_START)
+ EQUB HI(OVL_START), HI(S_STATE_END)

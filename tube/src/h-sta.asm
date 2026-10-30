@@ -22,8 +22,8 @@ RUN6 = &9F00            \ (bank 6's runs, after its code: h-layout.asm asserts)
 \ with no sums. Lines 0-63 are in bank 4 and 64-127 in bank 7 (&8000 on),
 \ 128-143 in bank 5's &8000-&8FFF, 144-167 in bank 5's 24 pages that held the
 \ row runs (r_run0 on: their tails stay after offset 190) and 168-191 in bank
-\ 6 from RUN6. Pages' bytes 192-255 in banks 4 and 7 hold overlay S's state
-\ (h-main.asm's h_ovlget)
+\ 6 from RUN6. Pages' bytes 192-255 in bank 7 hold overlay pages kept as
+\ four 64-byte pieces (h-main.asm's h_ovlget); in bank 4 they are free
 
 .s_pg                   \ per line: its run's page, and its bank
 FOR L, 0, 191

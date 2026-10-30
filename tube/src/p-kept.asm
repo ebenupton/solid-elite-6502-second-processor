@@ -26,7 +26,7 @@
 \ v (never 0: black is never kept); pending, R_DISCL 0 and R_DISCR v. Every
 \ way out of those puts back 255 and 0, and so does pk_band for the disc
 \ layer's band before it reads the rows as the old disc spans (while any row
-\ may be kept: KANY, with the arrays in overlay S's saved state).
+\ may be kept: KANY, with the arrays in overlay S's state).
 \
 \ ******************************************************************************
 

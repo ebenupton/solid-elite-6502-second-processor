@@ -98,7 +98,7 @@ HCTXN = 12
  EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_disc, h_bad, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
- EQUW h_clrbuf, h_eordot, h_directd, h_ovlput, h_loin, h_bad, h_hloin, h_pixel, h_dspans
+ EQUW h_clrbuf, h_eordot, h_directd, h_bad, h_loin, h_bad, h_hloin, h_pixel, h_dspans
 ASSERT P% - htab = C_MAX
 
 .hloop
@@ -208,14 +208,9 @@ ENDIF
 .h_ovlget
 IF _HOSTB
  JMP hb_ovlget          \ (Model B: main RAM, hb-ovl.asm)
-.h_ovlput
- JMP hb_ovlput
 ELSE                      \ (the Master host: page by page, wherever the build
  HRX                    \ put each page, build/hstore.asm: main RAM with ACCCON
- CMP #3                 \ X clear, sideways RAM, ANDY or HAZEL; S's state in
- BNE P%+5               \ 64-byte pieces, hss)
- JMP hss_get
- JSR hov_at
+ JSR hov_at             \ X clear, sideways RAM, ANDY or HAZEL)
 .hog0
  JSR hov_pg
  BVS hogq
@@ -240,39 +235,6 @@ ELSE                      \ (the Master host: page by page, wherever the build
  DEX
  BNE hogq
  BRA hog8
-
-.h_ovlput               \ C_OVLPUT: an overlay's pages (S's state) to keep
- HRX
- CMP #3
- BNE P%+5
- JMP hss_put
- JSR hov_at
-.hop0
- JSR hov_pg
- BVS hopq
-.hop0a
- HRX
-.hop1
- STA &FF00,Y            \ (patched: the page)
- INY
- BNE hop0a
-.hop8
- INC hogp
- DEC hogn
- BNE hop0
- BRA hogx
-.hopq
- LDY #&C0
-.hopq1
- HRX
-.hopq2
- STA &FF00,Y            \ (patched: the piece's page)
- INY
- BNE hopq1
- INC hopq2+2
- DEX
- BNE hopq
- BRA hop8
 .hogx
  LDA hova               \ (ACCCON's X as it was)
  TSB &FE34
@@ -292,15 +254,14 @@ ELSE                      \ (the Master host: page by page, wherever the build
  LDA #4
  TRB &FE34
  RTS
-.hov_pg                 \ page hogp in: its ROMSEL, and its address into both
- LDX hogp               \ loops; Y = 0. V set for a page kept as four pieces
+.hov_pg                 \ page hogp in: its ROMSEL, and its address into the
+ LDX hogp               \ loop; Y = 0. V set for a page kept as four pieces
  LDA st_rom,X           \ (ROMSEL with bit 6 set: bytes 192-255 of four pages
  BIT #&40               \ from st_hi, the STA runs' tails, h-sta.asm), X = 4
  BNE hvp1
  STA &FE30
  LDA st_hi,X
  STA hog1+2
- STA hop1+2
  LDY #0
  CLV
  RTS
@@ -309,56 +270,10 @@ ELSE                      \ (the Master host: page by page, wherever the build
  STA &FE30
  LDA st_hi,X
  STA hogq1+2
- STA hopq2+2
  LDX #4
  BIT hvp_v              \ (V set)
  RTS
 .hvp_v EQUB &40
-\ hss_get, hss_put: S's state, in 64-byte pieces at bytes 192-255 of bank 4's
-\ pages from &8000 (the STA runs, tube/src/h-sta.asm, end at byte 189)
-
-.hss_get
- JSR hss_at
-.hsg1
- LDA &8000,Y            \ (patched: the page)
- HTX
- INY
- BNE hsg1
- LDY #&C0
- INC hsg1+2
- DEX
- BNE hsg1
- BRA hss_x
-.hss_put
- JSR hss_at
-.hsp1
- HRX
-.hsp2
- STA &8000,Y            \ (patched: the page)
- INY
- BNE hsp1
- LDY #&C0
- INC hsp2+2
- DEX
- BNE hsp1
-.hss_x
- LDA #GFXBANK
- STA &F4
- STA &FE30
- JMP hloop
-.hss_at                 \ bank 4, the first page, X = the pieces, Y = &C0
- LDA #4
- STA &FE30
- LDA #&80
- STA hsg1+2
- STA hsp2+2
- LDA h_ovn+2
- ASL A
- ASL A
- TAX
- LDY #&C0
- LDA #0                 \ (the patched operands' low bytes stay &00: Y does it)
- RTS
 .hogp EQUB 0
 .hogn EQUB 0
 .hova EQUB 0

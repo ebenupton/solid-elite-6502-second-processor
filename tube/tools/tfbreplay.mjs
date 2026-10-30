@@ -98,7 +98,7 @@ while (cand.iter < TO) {
 }
 writeFileSync(`${a.out}/fb.json`, JSON.stringify(res));
 writeFileSync(`${a.out}/dash.json`, JSON.stringify(dres));
-console.log("overlay loads (ovl_get by overlay: 1 D, 2 S, 3 S's state, 4/5 the tails):", JSON.stringify(ovls));
+console.log("overlay loads (ovl_get by overlay: 1 D, 2 S, 4/5 the tails):", JSON.stringify(ovls));
 if (csy.hp_drops !== undefined)   // (the disc heap's drops, and frames drawn without room: p-disc.asm)
     console.log(`disc heap: ${cand.ram[csy.hp_drops] + 256 * cand.ram[csy.hp_drops + 1]} drops, ${cand.ram[csy.hp_whole] + 256 * cand.ram[csy.hp_whole + 1]} frames drawn whole (no room)`);
 console.log(`${Object.keys(res).length} frames hashed, iterations ${FROM}..${cand.iter}, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
