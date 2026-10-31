@@ -7,6 +7,43 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The distant dot under the faces (branch `tubediscs`, 2026-10-31)
+
+full-master 09cd0af and 68c5dba (f_sdot: a ship's distant dot drawn under its
+faces from z_hi = FC_DOTZ[type] out, and as the dot alone when FC_MINVIS
+skips the faces) add 186 bytes to the parasite's resident code, which put
+overlay S 191 bytes past the ring. Room, by moving resident blocks that run
+only with overlay D in (tube/tools/pcov.mjs now records the overlay in at
+each address: bits 16 and 32) into D, by their "Tube: ovl D" tags:
+
+| Block | Bytes | Stub |
+|---|---:|---|
+| NA2% (the default commander, read only by JAMESON) | 100 | none |
+| PAUSE, MT23, MT29 (one fall-through run; JMTB's) | 36 | none |
+| PAUSE2 (JMTB's) | 11 | none |
+| MT6, MT5 (JMTB's) | 13 | none |
+| EDGES (SUN part 3's; HLOIN2's, which run1 never calls) | 34 | 5 |
+
+The resident code now ends at &B3E3 (28 bytes free to &B3FF), OVL_START is
+&B400 again and S ends at &F3BE (65 free to the ring). Code before the
+font's alignment (CLYNS, p_clyns) frees nothing: the padding takes it.
+NA2%'s checksum (tube/build.sh) is now set in D's image (HOVD) as well as in
+PCODE's copy. D is 9,665 bytes, 38 pages: the Master host's storage takes
+one more page, bank 5's from &B800 (its code ends at &B579). The lockstep's
+compared NA% region (harness/mlib.mjs) is NA% to CHK, the last saved
+commander and its checksums, without the constant NA2%.
+
+Gates, both hosts: Master port byte-identical to 68c5dba's build; lockstep
+16002 clean, TUBEINT 602 clean; storage 89 pages, 0 differ; pixels against
+68c5dba's fbref 14605 matched, 6 sampling gaps, 0 mismatched; dashboard 3529
+matched; saves, crash, station ok; overlay loads D 21, S 21 and tswap's 14
+swaps in 12 iterations, as before. The 13 bench scenes: 0 drops, 0 drawn
+whole, only the known flare frames differ. harness/mdotgap.mjs (--pose,
+--title) passes on the Master port; it reads the Master's screen, so the
+Tube's dot is checked by the pixel gate instead. Speeds: as before within
+0.02 it/s (Master host 0-3550 20.44, 300-403 10.58; Model B host 0-3550
+18.09, 300-403 8.72).
+
 ## Overlay S's state never kept on the host (branch `tubediscs`, 2026-10-30, fourth pass)
 
 Overlay S's state (3,328 bytes, 13 pages: the dirty extents, the disc
