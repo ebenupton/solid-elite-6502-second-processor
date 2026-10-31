@@ -12908,6 +12908,7 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 \    Summary: Switch to standard tokens in Sentence Case
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -12940,6 +12941,7 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 \    Summary: Switch to extended tokens
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -13453,6 +13455,7 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 \    Summary: The data block for the default commander
 \  Deep dive: Commander save files
 \             The competition code
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24177,6 +24180,7 @@ ENDMACRO
 \    Summary: Display a rotating ship, waiting until a key is pressed, then
 \             remove the ship from the screen
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -24222,6 +24226,7 @@ ENDMACRO
 \             when printing extended tokens
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -24246,6 +24251,7 @@ ENDMACRO
 \             printing extended tokens
 \  Deep dive: Extended text tokens
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -24310,6 +24316,7 @@ ENDMACRO
 \   Category: Keyboard
 \    Summary: Wait until a key is pressed, ignoring any existing key press
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35312,6 +35319,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Draw a horizontal line given a centre and a half-width
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \

@@ -3,7 +3,7 @@
 // (for the overlay split: which code runs in space mode, which in direct mode).
 // Each executed parasite address gets a bit per mode it ran in:
 //   1: space mode (GMODE bit 7 set), 2: direct mode (GMODE bit 7 clear),
-//   4: QQ11 = 0, 8: QQ11 <> 0
+//   4: QQ11 = 0, 8: QQ11 <> 0, 16: overlay D in, 32: overlay S in (ovl_cur)
 // node tube/tools/pcov.mjs --log inputs.jsonl --cand disc --csyms psyms --to N --out cov.bin [--host Master|B]
 import { TubeEliteMachine, loadSyms, CYCLES_PER_FRAME } from "./tmachine.mjs";
 import { EliteMachine } from "../../master/tools/agentplay/lib.mjs";
@@ -34,8 +34,8 @@ const cand = new TubeEliteMachine({ host: a.host || "Master", name: "cand", disc
     } });
 await cand.boot();
 const cov = new Uint8Array(65536);
-const mem = cand.t.par.memory, GM = csy.GMODE, Q11 = csy.QQ11;
-cand.t.addParHook(pc => { if (cand.started) cov[pc] |= (mem[GM] & 0x80 ? 1 : 2) | (mem[Q11] ? 8 : 4); return false; });
+const mem = cand.t.par.memory, GM = csy.GMODE, Q11 = csy.QQ11, OC = csy.ovl_cur;
+cand.t.addParHook(pc => { if (cand.started) cov[pc] |= (mem[GM] & 0x80 ? 1 : 2) | (mem[Q11] ? 8 : 4) | (mem[OC] === 1 ? 16 : mem[OC] === 2 ? 32 : 0); return false; });
 // data accesses (reads and writes, instruction fetches too) by mode, in acc
 const acc = new Uint8Array(65536), par = cand.t.par;
 const rm = par.readmem.bind(par), wm = par.writemem.bind(par);
