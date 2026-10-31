@@ -2979,3 +2979,21 @@ seven hostile ships, one set exploding every 12 iterations, 600 iterations,
 game state and pixels identical to the build before in every frame);
 order.mjs (each ship drawn once a frame).
 
+**Distant ships.** LL9 draws a ship as a dot (SHPPT, the dot list) beyond
+its blueprint's visibility distance (byte #13) and fills it from there in;
+but there its faces project to slivers under a pixel wide, which the
+rasteriser draws as nothing, and a ship whose XX4 is past FC_MINVIS is not
+filled at all: on the title screen the Cobra drew nothing from z_hi &30 to
+&1F and a few pixels to &10, and in flight 49 of 62 ship and pose pairs had
+such a gap. So f_ship draws the ship's dot under its faces (f_sdot: SHPPT's
+place, 128 + 256 x / z and 96 - 256 y / z, by an 8-step division in bank 6,
+in the dot colour) from z_hi = FC_DOTZ[type] out, where the polygon
+vertices' thinnest half-extent is under 3 pixels (faces.py; at least 4),
+and a ship past FC_MINVIS as the dot alone. Rendering only: nothing the game
+reads changes. harness/mdotgap.mjs measures each frame's pixels for one ship
+coming in, on the title screen (--title) and posed in flight (--pose, two
+poses a type, z_hi 64 to 2): no frame draws nothing. Over the gate's run
+(mfbcmp --frames, 3,000 iterations) 186 frames differ from the build before,
+all in iterations 784-980: a boulder coming in through its gap, the
+differences its dot. The gate's speed is 11.11 it/s (11.13 before).
+
