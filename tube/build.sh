@@ -102,6 +102,33 @@ PY
 # the parasite
 $BEEBASM -D OPTEST=${OPTEST:-0} -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -v > build/compile-p.txt 2>&1 || { grep -iE "error" -A3 build/compile-p.txt | head -30; exit 1; }
 $BEEBASM -D OPTEST=${OPTEST:-0} -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -d > build/psyms.txt 2>/dev/null
+# the commander checksum in the default commander, NA2% (as elite-checksum.py):
+# in overlay D's image (HOVD) and PCODE's copy of it (the parasite starts with
+# D in)
+python3 - <<'PY'
+import re
+sy = {}
+for m in re.finditer(r"'([^']+)':(\d+)", open("build/psyms.txt").read()):
+    sy.setdefault(m.group(1), int(m.group(2)))
+img = bytearray(open("build/PCODE.bin", "rb").read())
+img += open("build/PSTAGE.bin", "rb").read()   # (the boot's staging, p-layout.asm)
+base = int(re.search(r"Parasite: code &&?([0-9A-F]+)", open("build/compile-p.txt").read()).group(1), 16)
+cs = sy["NA2%"] - base
+CH, CY = 0x4B - 2, 0
+for i in range(CH, 0, -1):
+    CH = CH + CY + img[cs + i + 7]
+    CY = (CH > 255) & 1
+    CH = CH % 256
+    CH = CH ^ img[cs + i + 8]
+img[cs + 0x52] = CH ^ 0xA9
+img[cs + 0x52 + 1] = CH
+open("build/PCODE.bin", "wb").write(img)
+assert sy["OVL_START"] <= sy["NA2%"] < sy["OVL_D_END"]
+d = bytearray(open("build/HOVD.bin", "rb").read())
+o = sy["NA2%"] - sy["OVL_START"] + 0x52
+d[o:o + 2] = img[cs + 0x52:cs + 0x54]
+open("build/HOVD.bin", "wb").write(d)
+PY
 # the overlays' sizes, for the hosts' storage of their images (p-ovl.asm)
 python3 - <<'PY'
 import re
@@ -131,7 +158,7 @@ ovs = [  # (name, number, first page sent, pages)
     ("S", 2, pg(sy["S_STATE_END"]), pg(sy["OVL_S_END"] + 255) - pg(sy["S_STATE_END"]))]
 REG = [  # (ROMSEL, first page, pages): main RAM (ACCCON X clear), bank 5's
     (6, 0x30, 14), (6, 0x70, 16),       # tail, bank 6's tail (after its STA
-    (5, 0xB9, 7), (6, 0xB7, 9),         # runs), ANDY's tail, HAZEL above the
+    (5, 0xB8, 8), (6, 0xB7, 9),         # runs), ANDY's tail, HAZEL above the
     (0x85, 0x86, 10), (6, 0xCA, 16)]    # code that enters the runs (to the tokens, HZ_TEXT)
 slots = [(r, h + i) for r, h, n in REG for i in range(n)]
 slots += [(0x47, 0x80 + 4 * j) for j in range(16)]   # (then pages kept as four 64-byte
@@ -177,26 +204,6 @@ with open("build/hbanks.txt", "w") as f:
         for m in re.finditer(r"^\s*\.([A-Za-z_][\w%]*)", open(src, encoding="latin-1").read(), re.M):
             f.write("%s %s\n" % (m.group(1), bank))
 PY
-# the commander checksum in NA% (as elite-checksum.py)
-python3 - <<'PY'
-import re
-sy = {}
-for m in re.finditer(r"'([^']+)':(\d+)", open("build/psyms.txt").read()):
-    sy.setdefault(m.group(1), int(m.group(2)))
-img = bytearray(open("build/PCODE.bin", "rb").read())
-img += open("build/PSTAGE.bin", "rb").read()   # (the boot's staging, p-layout.asm)
-base = int(re.search(r"Parasite: code &&?([0-9A-F]+)", open("build/compile-p.txt").read()).group(1), 16)
-cs = sy["NA2%"] - base
-CH, CY = 0x4B - 2, 0
-for i in range(CH, 0, -1):
-    CH = CH + CY + img[cs + i + 7]
-    CY = (CH > 255) & 1
-    CH = CH % 256
-    CH = CH ^ img[cs + i + 8]
-img[cs + 0x52] = CH ^ 0xA9
-img[cs + 0x52 + 1] = CH
-open("build/PCODE.bin", "wb").write(img)
-PY
 # the Master host's overlay storage (build/hstore.bin) into the images: bank
 # 5's disc window, bank 6's tail, ANDY's tail, and the files the loader copies
 # to main RAM (HSTM1 &3000, HSTM2 &7000) and HAZEL (HSTZ, staged at &4000)
@@ -217,8 +224,8 @@ def put(fn, base, size, rom, lim):
             img[o:o + 256] = d
     return img
 h["RUN6"] = int(re.search(r"^RUN6 = &([0-9A-F]+)", open("tsrc/h-sta.asm").read(), re.M).group(1), 16)
-assert h["B5_END"] <= 0xB900 and h["RA_END"] <= 0x8600 and h["RUN6"] + 24 * 256 <= 0xB700 and h["HZ_END"] <= 0xCA00, "the host's code runs into its storage"
-img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0xB9, 0xC0)); open("build/HBANK5.bin", "wb").write(img)
+assert h["B5_END"] <= 0xB800 and h["RA_END"] <= 0x8600 and h["RUN6"] + 24 * 256 <= 0xB700 and h["HZ_END"] <= 0xCA00, "the host's code runs into its storage"
+img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0xB8, 0xC0)); open("build/HBANK5.bin", "wb").write(img)
 img = put("build/HBANK6.bin", 0x8000, 0x4000, 6, (0xB7, 0xC0)); open("build/HBANK6.bin", "wb").write(img)
 img = put("build/HRASTA.bin", 0x8000, 0x1000, 0x85, (0x86, 0x90)); open("build/HRASTA.bin", "wb").write(img)
 open("build/HSTM1.bin", "wb").write(put(None, 0x3000, 0xE00, 6, (0x30, 0x3E)))

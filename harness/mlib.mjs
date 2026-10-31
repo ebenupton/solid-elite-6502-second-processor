@@ -109,7 +109,8 @@ export function regionsFor(sy) {
         [sy.WP, sy.JOPOS + 3 - sy.WP, "WP"],                    // FRIN, flight variables, sun/planet heaps, stardust, commander (NAME..SVC), JOPOS
         [sy.UP, sy.VOL + 1 - sy.UP, "UP"],                      // configuration (COMC..VOL; up to Stage B also the
                                                                 // constant TGINT, which then moved away from S%)
-        [sy["NA%"], sy["NAEND%"] - sy["NA%"], "NA%"],           // last saved commander (template) and checksums
+        [sy["NA%"], sy.CHK + 1 - sy["NA%"], "NA%"],             // last saved commander and its checksums (CHK2, CHK; not the
+                                                                // default commander NA2%, constant, in the Tube's overlay D)
         [sy.SOFLG, sy.SFXPR - sy.SOFLG, "SOUND"],               // sound buffers (written by the IRQ)
     ];
 }
