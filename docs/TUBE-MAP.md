@@ -119,7 +119,7 @@ use: kept is R_DISCL 255 with the colour byte in R_DISCR; pending is R_DISCL
 Page alignment is kept only where it buys cycles or is required: R_NDISCL
 (the disc layer indexes it from its page) and R_NDISCR within one page
 (f_discspans' symmetric loop); the log tables (FMLTU's operand's low byte is
-the argument; 33 bytes of padding before them, the head's only gap); QSL in
+the argument; 135 bytes of padding before them, the head's only gap); QSL in
 pages 2-3; the lens flare's fl_htab (gfx-flare.asm: within a page); the overlay region and the
 ring (whole pages: the overlays travel by pages, the ring's pointers step by
 pages). tube/tools/pmap.py writes the whole map as JSON.

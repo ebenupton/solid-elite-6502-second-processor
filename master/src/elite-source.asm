@@ -9174,7 +9174,8 @@ ENDIF
 \ A copy of ADD (and of MU8, its tail, as MU8K) in main RAM below &3000, for
 \ code that runs with ACCCON X set, which hides main RAM above &3000: the
 \ dashboard (DIALS, elite-dash.asm) and PIX1 (Port: the same code as the
-\ port's ADD and MU8, so it gives the same results and flags).
+\ port's ADD and MU8, so it gives the same results and flags). Port (Tube):
+\ the parasite has no shadow RAM, so ADDK and MU8K are ADD and MU8 there.
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9185,6 +9186,8 @@ ENDIF
 \   (S R)               The second number to add
 \
 \ ******************************************************************************
+
+IF _TUBE = FALSE        \ (Tube: ADD and MU8 serve, set after ADD)
 
 .ADDK
 
@@ -22526,6 +22529,11 @@ ENDMACRO
                         \ (which we stored in T)
 
  RTS                    \ Return from the subroutine
+
+IF _TUBE                \ Port (Tube): the parasite has no shadow RAM to hide
+ADDK = ADD              \ ADD and MU8 from the dashboard and PIX1, so ADDK and
+MU8K = MU8              \ MU8K, their copies, are themselves
+ENDIF
 
 .mad2
 
