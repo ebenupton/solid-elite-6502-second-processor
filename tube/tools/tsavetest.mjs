@@ -98,4 +98,10 @@ const fmt = f && f.length === 256;
 const blockOk = fmt && [...f.slice(9, 13)].every((b, i) => b === MARK[i]);
 console.log("E.TESTA:", f ? `${f.length} bytes` : "missing", blockOk ? "(the commander block: CASH at offset 9)" : "(CASH NOT at offset 9)");
 console.log(`disc commands (p_oscli): ${oscli}, errors (NEWBRK): ${brks}, frames in the 16 s after the launch: ${flying}`);
-process.exit(ok && fmt && blockOk && brks === 1 && oscli >= 4 && flying > 20 ? 0 : 1);
+// the host's ylookup, which hstart made in main RAM (h-layout.asm's HLOW,
+// hb-ws.asm's), must come through the disc commands whole
+const YL = HOST === "B" ? 0x0E00 : 0x0400;
+let ylOk = true;
+for (let y = 0; y < 256; y++) if (host.ramRomOs[YL + y] !== (0x40 + 2 * (y >> 3))) ylOk = false;
+console.log(`ylookup (host &${YL.toString(16)}) after the disc commands:`, ylOk ? "intact" : "CHANGED");
+process.exit(ok && fmt && blockOk && ylOk && brks === 1 && oscli >= 4 && flying > 20 ? 0 : 1);

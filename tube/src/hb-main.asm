@@ -55,7 +55,7 @@ _RBANK = 0
  INCLUDE "tsrc/hb-ovl.asm"
  CPU 0
 .MR_D_END
- PRINT "Model B &0E00 part: &", ~MR_D, "-&", ~MR_D_END-1, " (free ", MR_DEND-MR_D_END, ")"
+ PRINT "Model B &0E00 part: ylookup &", ~ylookup, "-&", ~ylookup+&FF, ", then &", ~MR_D, "-&", ~MR_D_END-1, " (free ", MR_DEND-MR_D_END, ")"
 
  ORG MR_E
  GUARD MR_EEND

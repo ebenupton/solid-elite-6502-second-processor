@@ -1580,10 +1580,12 @@ IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's, but the table)
 ELSE
 {
 ENDIF
-.^r_ypg                   \ high byte of row y's byte 0
-FOR y, 0, 191
+IF _TPART <> 2            \ (the Tube's hosts: ylookup, the game's drawing's
+.^r_ypg                   \ table, in main RAM: h-layout.asm, hb-ws.asm)
+FOR y, 0, 191             \ high byte of row y's byte 0
   EQUB &40 + 2 * (y DIV 8)
 NEXT
+ENDIF
 IF _HOSTB = 0 OR _RBANK = 1
 .long
   STX R_XL                \ up to 4 bytes: masked ends, whole bytes stored

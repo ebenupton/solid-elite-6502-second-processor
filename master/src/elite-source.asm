@@ -3447,13 +3447,17 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ylookup
+IF _TPART <> 2           \ Port (Tube): each host's is in its main RAM, where
+                        \ its rasteriser reads it too, as r_ypg; hstart makes
+.ylookup                \ it (tube/src/h-cold.asm)
 
  FOR I%, 0, 255
 
   EQUB &40 + ((I% DIV 8) * 2)
 
  NEXT
+
+ENDIF
 
 \ ******************************************************************************
 \
@@ -9259,6 +9263,8 @@ IF _TUBE = FALSE        \ (Tube: ADD and MU8 serve, set after ADD)
  SBC S
  EOR T
  RTS
+
+ENDIF
 
 \ ******************************************************************************
 \
