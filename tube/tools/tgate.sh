@@ -5,8 +5,11 @@
 # lockstep replay of run1 against SNG47, the pixels against the Master port's
 # oracle (scratch/fbref), the disc menu, a deliberate BRK (tcrash.mjs), the station
 # in front of a planet over 65536 away (tstation.mjs), and the speed windows (flight
-# 1000-1400, docking 3420-3550, 0-3550, the beach balls 300-403, 5355-5457),
-# the Master host's at a 4 MHz parasite, the Model B's at 3 MHz.
+# 1000-1400, 3420-3550, 0-3550, the beach balls 300-403, 5355-5457 and 12105-12212,
+# Elite's sun in flight 15987-16000), the Master host's at a 4 MHz parasite, the Model B's at 3 MHz; the overlay
+# swaps over run1 (tswap.mjs: none within the space view, e.g. Elite's sun on
+# screen from 15987) and a docking with the mission briefing and the launch
+# after it (tdock.mjs).
 # Run from the repository root after master/build.sh and tube/build.sh.
 # TO=N limits the lockstep and pixel runs to N iterations (default 16000).
 set -u
@@ -29,9 +32,11 @@ for H in Master B; do
     node tube/tools/fbcmp.mjs scratch/dashref/dash.json $D/fb$H/dash.json --to $((TO - 1)) > $D/dash-$H.txt 2>&1 ) &
   ( node tube/tools/tsavetest.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tsave-$H > $D/tsave-$H.txt 2>&1; echo "exit $?" >> $D/tsave-$H.txt
     node tube/tools/tcrash.mjs --host $H --disc $S --psyms $D/psyms.txt 2>/dev/null | tail -1 > $D/crash-$H.txt
-    node tube/tools/tstation.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tstation-$H 2>/dev/null | tail -1 > $D/station-$H.txt ) &
+    node tube/tools/tstation.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tstation-$H 2>/dev/null | tail -1 > $D/station-$H.txt
+    node tube/tools/tdock.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tdock-$H 2>/dev/null | tail -1 > $D/dock-$H.txt ) &
+  ( node tube/tools/tswap.mjs --log $LOG --cand $S --csyms $D/psyms.txt --host $H --to $TO --max 0 > $D/swap-$H.txt 2>&1; echo "exit $?" >> $D/swap-$H.txt ) &
   M=3; [ $H = Master ] && M=4   # (the target clocks: the Master host's internal 4 MHz co-processor, a 3 MHz one on the Model B)
-  ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,3420-3550,0-3550,300-403,5355-5457 > $D/speed-$H.txt 2>&1 ) &
+  ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,3420-3550,0-3550,300-403,5355-5457,12105-12212,15987-16000 > $D/speed-$H.txt 2>&1 ) &
 done
 wait
 cat $D/master.txt
@@ -45,5 +50,7 @@ for H in Master B; do
   tail -1 $D/tsave-$H.txt
   cat $D/crash-$H.txt
   echo "station: $(cat $D/station-$H.txt)"
+  echo "docking: $(cat $D/dock-$H.txt)"
+  echo "overlays: $(grep -h "overlay . loads" $D/swap-$H.txt | sed 's/, [0-9]* cycles each (2 MHz)//' | tr '\n' ' ')$(grep -h "within the space view" $D/swap-$H.txt) ($(tail -1 $D/swap-$H.txt))"
   grep -h "iterations" $D/speed-$H.txt
 done
