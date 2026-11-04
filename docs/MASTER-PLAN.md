@@ -2997,3 +2997,34 @@ poses a type, z_hi 64 to 2): no frame draws nothing. Over the gate's run
 all in iterations 784-980: a boulder coming in through its gap, the
 differences its dot. The gate's speed is 11.11 it/s (11.13 before).
 
+## The circle engine's cost (after the frame's records)
+
+The planet's surface detail (PF_HOOK in game context: the circle engine's
+records) cost about 30,500 cycles a call whatever the planet's size, 12.4%
+of the gate's flight, and exact memoisation could never pay: no call's
+inputs were the previous call's, as the planet turns every iteration
+(harness/mscenes.mjs, harness/scenes.py: the speed by scene and the
+detail's cost by radius band). Four commits made its arithmetic faster with
+every frame unchanged: square roots from a table of 192 roots (721 to 192
+cycles, exact for every 16-bit input), multiplies through zero-page
+pointers into the page-aligned quarter squares (mul16 370 to 258, squares
+144), a tighter divide (about 1,020 to 730) and short products when a high
+byte is zero, with PF_HOOK saving &10-&26 only: 21,400 cycles a call, the
+gate 11.11 to 11.53 iterations a second. master/tools/grind/test_raster.py's
+pmath checks the arithmetic against exact models.
+
+Then two changes to the picture. The planet is drawn spinning at half the
+game's rate: the game keeps the original's spin (its vectors are not only
+drawn: H_CIRC leaves K2 from nosev for MV40, which adds it into the next
+object's y), and PF_HOOK turns the vectors it draws from back about the
+spin axis (nosev - sidev) by half the spin so far (pf_turn, pf_spin; INWK is
+put back), so the game state stays the original's. The game's vectors turn
+5.05 degrees an iteration with the player still, the drawing's 2.52
+(harness/mspin.mjs). And the records are made every other iteration,
+every fourth in deep space (the planet's z at least 512 x 256), the
+iterations between keeping them moved with the disc's centre (pf_hold,
+exact for the move). The lens flare moved to bank 6 to make the room. The
+gate runs at 12.16 iterations a second (164,483 cycles a flight iteration):
+open space 6.4% faster than with the faster arithmetic alone, ships about
+6.6%, big planet 6.5%, the Lave window 9.7%.
+
