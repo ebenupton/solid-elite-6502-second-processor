@@ -19,8 +19,11 @@
 \     RAM, as the Master port's.
 \   * &0400-&06FF (HLOW): the MOS's Tube code, which runs the boot and then
 \     is never called again (hstart clears &027A, and the disc commands are
-\     the host's own I/O, h_disc): free main RAM below &3000 for host code
-\     that hstart copies in (none yet).
+\     the host's own I/O, h_disc): main RAM below &3000, which every bank
+\     sees. &0400-&04FF holds ylookup, the page of each pixel row's
+\     character row, which hstart makes: one copy for the game's drawing in
+\     bank 6 (LOINQ, HLOIN, PIXEL) and the rasteriser in bank 5 and ANDY, as
+\     r_ypg. &0500-&06FF is free.
 \
 \ ******************************************************************************
 
@@ -37,6 +40,8 @@ OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
 
 HLOW = &0400            \ (free after the boot: see above)
 HLOW_END = &0700
+ylookup = HLOW          \ (hstart makes it: h-cold.asm)
+r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
 
  ORG CODE%
  GUARD &3000

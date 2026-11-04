@@ -63,6 +63,8 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  JSR f_sync
  JMP f_delchar0
 
+\       Area: ovl D
+
 \ F_CLRTEXT: clear text map rows 21-23 (CLYNS). Preserves X and Y (CLYNS
 \ leaves X alone).
 
@@ -76,6 +78,8 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  PLY
  PLX
  RTS
+
+\       Area: frame
 
 \ F_DIRECT: TT66 is about to blank shadow RAM and draw directly (f_direct0
 \ clears the text map): no direct text or stars

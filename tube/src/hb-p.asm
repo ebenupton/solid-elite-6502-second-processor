@@ -25,6 +25,10 @@ _RBANK = 2
  INCLUDE "build/nmos/gfx-raster.asm"
  CPU 0
 .P_SHEND
+IF HI(P%) <> HI(P% + 191)  \ (r_rpy1 whole in a page: r_rowset's LDA ,Y)
+ ALIGN &100
+ENDIF
+.P_RPY1
 .r_rpy1                 \ buffer 1's run page per row (the shared region's end)
 FOR y, 0, 191
  EQUB HI(r_run0) + y DIV 8
@@ -122,5 +126,5 @@ NEXT
  EQUW 0                 \ the host keeps them, C_STARERASE)
  BRK
  EQUW 0
- PRINT "Model B bank P: &8000-&", ~P_LOEND-1, " (free ", RUNB0-P_LOEND, "), &9000-&", ~P_HIEND-1, " (free ", &BC00-P_HIEND, ")"
+ PRINT "Model B bank P: &8000-&", ~P_LOEND-1, " (free ", RUNB0-P_LOEND, "), &9000-&", ~P_HIEND-1, " (free ", &BC00-P_HIEND, ", and ", P_RPY1-P_SHEND, " at &", ~P_SHEND, ")"
  SAVE "build/HBP.bin", &8000, &C000, &8000

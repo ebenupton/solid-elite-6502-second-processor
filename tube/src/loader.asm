@@ -769,6 +769,10 @@ ENDIF
  EQUW &8000, B7LEN      \ around them; before HSTZ is staged at &4000, as up
                         \ to 16K through &1300 reach &52FF)
 
+ EQUW MESS17            \ HSTB4: and the same in bank 4
+ EQUB 4, %00001001
+ EQUW &8000, B4LEN
+
  EQUW MESS13            \ HSTZ: the host's HAZEL (the overlays' storage there),
  EQUB 6, %00001001      \ staged in main RAM at &4000 until LTRUN copies it in
  EQUW &4000, &2000      \ (DFS uses HAZEL until the last disc access)
@@ -854,6 +858,11 @@ ENDIF
 .MESS16
 
  EQUS "L.HSTB7 FFFF1300"
+ EQUB 13
+
+.MESS17
+
+ EQUS "L.HSTB4 FFFF1300"
  EQUB 13
 
 .MESSP

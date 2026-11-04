@@ -289,6 +289,8 @@ ENDIF
  PLA
  RTS
 
+\       Area: ovl D
+
 \ H_CLYNS: CLYNS, after its newline, is about to clear text rows 21-23: the
 \ text map's too; in record mode return from CLYNS instead of clearing the
 \ screen, with A = X = Y = 0 as it does
@@ -305,6 +307,8 @@ ENDIF
  TAX
  TAY
  RTS
+
+\       Area: frame
 
 \ H_SIGHT: SIGHT is about to draw the laser sights (two crosshairs through
 \ TT15, which leave QQ19+2 = 10 and QQ19+5 = GCYT); in record mode the frame

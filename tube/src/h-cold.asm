@@ -38,6 +38,16 @@ IF _HOSTB
  LDA #&4C               \ the disc commands' swaps leave &0400-&06FF ours: JMP)
  STA hbsk
 ENDIF
+ LDX #0                 \ ylookup (h-layout.asm, hb-ws.asm): &40 + 2 * (y DIV 8),
+.hst5                   \ as elite-source.asm's table, for the game's drawing
+ TXA                    \ and the rasteriser (r_ypg)
+ LSR A
+ LSR A
+ AND #%11111110
+ ORA #&40
+ STA ylookup,X
+ INX
+ BNE hst5
 .hst2
  LDA #&81               \ the Tube's Q: the host's IRQ from register 4's data
  STA HR1S               \ (the fast requests, h4body), and those on (h4on)

@@ -107,7 +107,11 @@ GWARP = GVARS + 13
 ENDIF
 MR_C = GVARS + 14       \ code and data: to page &0D
 MR_CEND = &0D00
-MR_D = &0E00            \ code and data
+ylookup = &0E00         \ the page of each pixel row's character row (hstart
+r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
+                        \ drawing in bank F and the rasteriser in banks P and
+                        \ D (r_ypg, rows 0..191)
+MR_D = ylookup + &100   \ code and data
 MR_DEND = &1000 - &50    \ (then the polygon's and lines' inputs, to &1000)
 MR_E = &7E00            \ code and data
 MR_EEND = &8000

@@ -16,7 +16,9 @@
 // stops at that instruction and the poll is asked again on the next run().
 //
 // Also as mlib (and for the same reasons, documented there): at NOISE the three SOPR
-// bytes are cleared; at the LL5 call that feeds ALTIT, Q is cleared; at TT170 the
+// bytes are cleared; at the LL5 call that feeds ALTIT, Q is cleared; in a build
+// without the port's H_MVS4 (SNG47) the planet's own pitch and roll are skipped
+// on odd iterations, as the port's half spin does (mlib's patch); at TT170 the
 // candidate's boot leftovers are seeded from the reference (seedFrom). At every MLOOP the
 // game state (mlib.regionsFor) is snapshotted.
 //
@@ -302,6 +304,16 @@ export class EliteMachine {
             this.joys++;
         } else if (this._at(H.NOISE, pc)) {
             for (let i = 0; i < 3; i++) this.ram[sy.SOPR + i] = 0;
+        } else if (H.P8 && this._at(H.P8, pc)) {
+            // the planet's half spin (as mlib's): a build without H_MVS4 (SNG47)
+            // turns the planet by its own pitch and roll on even iterations only
+            if ((this.rb(sy.TYPE) & 0x80) && (this.rb(sy.MCNT) & 1)) {
+                this.p8save = [this.rb(sy.INWK + 29), this.rb(sy.INWK + 30)];
+                this.ram[sy.INWK + 29] = 0; this.ram[sy.INWK + 30] = 0;
+            }
+        } else if (this.p8save && this._at(H.MV5, pc)) {
+            this.ram[sy.INWK + 29] = this.p8save[0]; this.ram[sy.INWK + 30] = this.p8save[1];
+            this.p8save = null;
         } else if (this._at(H.LL5, pc)) {
             const ret = (this.rb(0x101 + cpu.s) | this.rb(0x102 + cpu.s) << 8) + 1;
             const rc = a => cpu.readmem(a & 0xffff);     // (the caller's code, as paged: it may be in bank 4)
@@ -334,6 +346,7 @@ export class EliteMachine {
             if (this.opts.rand) this.wr(sy.RAND, this.opts.rand);
             this.bootWrites.remove();
             this._findJoy();
+            this._findP8();
             this.init = this.snapshot();
             this.lastProgressCycles = this.cyclesNow();
         } else if (this._at(H.NEWBRK, pc)) {
@@ -365,6 +378,23 @@ export class EliteMachine {
             for (const k of ROUTINES) if (this._at(H[k], pc)) { this.event("routine", k); if (k === "SVE") this.sveAt = this.iter; break; }
         }
         return false;
+    }
+    // the half spin's patch (mlib's): for a build without the port's H_MVS4, MVEIT
+    // part 8's first instruction (LDA INWK+30, AND #&80, STA RAT2, before MV8)
+    // and MV5
+    _findP8() {
+        const sy = this.sy, cpu = this.cpu;
+        this.p8save = null;
+        if (sy.H_MVS4 !== undefined || sy.MV8 === undefined || sy.MV5 === undefined) return;
+        const m = mapOfLabel(sy, "MV8"), want = [0xa5, sy.INWK + 30, 0x29, 0x80, 0x85, sy.RAT2];
+        for (let a = sy.MV8 - 6; a > sy.MV8 - 64; a--)
+            if (want.every((b, i) => physRead(cpu, m, a + i) === b)) {
+                this.H.P8 = { a, m, name: "P8" };
+                this.H.MV5 = { a: sy.MV5, m: mapOfLabel(sy, "MV5"), name: "MV5" };
+                this.hookTab[this.H.P8.a] = 1; this.hookTab[this.H.MV5.a] = 1;
+                return;
+            }
+        throw new Error("MVEIT part 8 not found before MV8 (the half spin's patch)");
     }
     _findJoy() {
         const dk = this.dk15, sy = this.sy, J = [];

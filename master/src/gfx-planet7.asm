@@ -25,7 +25,7 @@
 \ build with MOON=on, master/build.sh, _PLANET_MOON) and the ring's dots
 \ (pf_ring: only in a build with RINGS=on, _PLANET_RINGS), when the seed
 \ has them. Elite's state is not
-\ touched: Elite's zero page &10-&28 (the engine's workspace) is saved and
+\ touched: Elite's zero page &10-&26 (the engine's workspace) is saved and
 \ restored, and A, X, Y and the flags are preserved. The frame layer makes
 \ the rows through T_CAPS and T_MCAPS (gfx-merid.asm's PC_ROWS, PC_MROWS).
 \ tools/planet_caps.py models it all bit for bit.
@@ -58,13 +58,15 @@
 .pfh4
  ENDIF
  LDA K+1                \ the detail only below a radius of 256, as PL9 has
- BNE pfh9               \ it, and from 6 up, as its meridians
+ BNE pfh8               \ it, and from 6 up, as its meridians
  LDA K
  CMP #6
- BCC pfh9
+ BCS P%+5
+.pfh8
+ JMP pfh9
  STA pcr
  STA pf_r
- LDX #24                \ (Elite's &10-&28: the engine's workspace)
+ LDX #22                \ (Elite's &10-&26: the engine's workspace)
 .pfh0
  LDA &10,X
  STA pm_zsave,X
@@ -85,6 +87,9 @@
  DEX
  BPL pfh5
  STZ pc_inv
+ JSR pf_hold            \ (the last records, moved with the disc)
+ BCC P%+5
+ JMP pfh3h
  LDA PF_CLS
  BNE pfh2
  INC pc_inv             \ (the beach ball: base 1)
@@ -100,6 +105,8 @@
  ENDIF
  JSR pf_craters
 .pfh3
+ JSR pf_note
+.pfh3h
  LDA PC_N               \ (records, or a base colour)
  ORA pc_inv
  BEQ pfh7
@@ -118,7 +125,7 @@
  IF _PLANET_RINGS
  JSR pf_ring
  ENDIF
- LDX #24
+ LDX #22
 .pfh1
  LDA pm_zsave,X
  STA &10,X
@@ -129,6 +136,147 @@
  PLX
  PLA
  PLP
+ RTS
+
+\ pf_hold: the circles' records are made on the iterations with MCNT even,
+\ the ones on which the game turns the planet by its own pitch and roll
+\ (MVEIT part 8), and in deep space (the planet's z at least 512 x 256:
+\ INWK+8's low bits at least 2, as 6-harness/scenes.py's scenes have it)
+\ only on those with MCNT a multiple of 4. On the others, when the radius,
+\ TYPE and VIEW are the same as the last call's and that call was the
+\ previous iteration's (MCNT), the last records are kept, moved with the
+\ disc's centre (their centre lines, centre rows and thresholds: exactly as
+\ if made at the new centre with the planet as it was), and C is set.
+\ pf_note: the records just made, noted (pf_ph bit 7: there are some).
+
+.pfo0
+ CLC
+ RTS
+.pf_hold
+ BIT pf_ph
+ BPL pfo0
+ LDA INWK+8             \ MCNT AND 1, or 3 in deep space: 0, make them
+ AND #&7F
+ CMP #2
+ LDA #1
+ BCC P%+4
+ LDA #3
+ AND MCNT               \ (bankcheck: ok: game context)
+ BEQ pfo0
+ LDA pf_r
+ CMP pf_lr
+ BNE pfo0
+ LDA TYPE               \ (bankcheck: ok: game context)
+ CMP pf_lt
+ BNE pfo0
+ LDA VIEW               \ (bankcheck: ok)
+ CMP pf_lv
+ BNE pfo0
+ LDA MCNT               \ (bankcheck: ok)
+ INC A
+ CMP pf_lm
+ BNE pfo0
+ DEC A
+ STA pf_lm
+ SEC                    \ the centre's move (dx, dy)
+ LDA pcbx
+ SBC pf_lx
+ STA pf_dx
+ LDA pcbx+1
+ SBC pf_lx+1
+ STA pf_dx+1
+ SEC
+ LDA pcby
+ SBC pf_ly
+ STA pf_dy
+ LDA pcby+1
+ SBC pf_ly+1
+ STA pf_dy+1
+ JSR pfn_xy
+ LDX #0
+.pfo1
+ CPX pf_hn
+ BCS pfo3
+ STX pf_k
+ LDY pcb_o,X
+ CLC
+ LDA PCB+R_C0,Y
+ ADC pf_dx
+ STA PCB+R_C0,Y
+ LDA PCB+R_C0+1,Y
+ ADC pf_dx+1
+ STA PCB+R_C0+1,Y
+ CLC
+ LDA PCB+R_YC,Y
+ ADC pf_dy
+ STA PCB+R_YC,Y
+ LDA PCB+R_YC+1,Y
+ ADC pf_dy+1
+ STA PCB+R_YC+1,Y
+ TXA
+ ASL A
+ ASL A
+ TAX
+ JSR pfo_t
+ INX
+ INX
+ INY
+ JSR pfo_t
+ LDX pf_k
+ INX
+ BRA pfo1
+.pfo3
+ LDA pf_hn
+ STA PC_N
+ LDA pf_hinv
+ STA pc_inv
+ SEC
+ RTS
+
+.pfo_t                  \ pc_tu+X (16-bit) += dy, clamped to 0..192 into
+ CLC                    \ PCB+R_T1+Y
+ LDA pc_tu,X
+ ADC pf_dy
+ STA pc_tu,X
+ LDA pc_tu+1,X
+ ADC pf_dy+1
+ STA pc_tu+1,X
+ BMI pot2
+ BNE pot3
+ LDA pc_tu,X
+ CMP #193
+ BCC pot4
+.pot3
+ LDA #192
+ BRA pot4
+.pot2
+ LDA #0
+.pot4
+ STA PCB+R_T1,Y
+ RTS
+
+.pf_note
+ LDA #&80
+ STA pf_ph
+ LDA pf_r
+ STA pf_lr
+ LDA TYPE               \ (bankcheck: ok: game context)
+ STA pf_lt
+ LDA VIEW               \ (bankcheck: ok)
+ STA pf_lv
+ LDA MCNT               \ (bankcheck: ok)
+ STA pf_lm
+ LDA PC_N
+ STA pf_hn
+ LDA pc_inv
+ STA pf_hinv
+.pfn_xy
+ LDX #3
+.pfnx
+ LDA pcbx,X
+ STA pf_lx,X
+ DEX
+ BPL pfnx
  RTS
 
 \ pf_beach: a meridian planet's two great circles, normal to roofv and sidev
@@ -1184,6 +1332,18 @@ ENDIF                   \ (_PLANET_RINGS)
 .pf_cx EQUW 0           \ the planet's centre and radius (PF_HOOK)
 .pf_cy EQUW 0
 .pf_r  EQUB 0
+.pf_ph  EQUB 0          \ pf_hold's: bit 7, there are records to keep
+.pf_lr  EQUB 0          \ the last records' radius, TYPE, VIEW, MCNT
+.pf_lt  EQUB 0
+.pf_lv  EQUB 0
+.pf_lm  EQUB 0
+.pf_lx  EQUW 0          \ and centre (as pcbx, pcby)
+.pf_ly  EQUW 0
+.pf_hn  EQUB 0          \ and PC_N and pc_inv
+.pf_hinv EQUB 0
+.pf_dx  EQUW 0          \ the centre's move
+.pf_dy  EQUW 0
+.pf_k   EQUB 0
 IF _PLANET_MOON OR _PLANET_RINGS
 .pf_h  EQUB 0           \ h, the system's moon and ring (PF_HOOK)
 ENDIF

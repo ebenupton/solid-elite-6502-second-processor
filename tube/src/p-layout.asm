@@ -55,7 +55,7 @@ PFRAME% = P%
  INCLUDE "build/gfx-light-4.asm"         \ (L_SUN, from G_FRAME and G_HANGAR)
  INCLUDE "build/gfx-frame_cold-frame.asm"  \ (its "Area: ovl S" block, f_slot,
                                         \ in overlay S)
- INCLUDE "src/gfx-hangar.asm"
+ INCLUDE "build/gfx-hangar-frame.asm"  \ (streams.py's pass: F_HANG0 is overlay D's)
  INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's and MN_TURN's resident part:
  CPU 1                                  \ G_FRAME, G_PFHOOK, MOONHIT)
  INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
@@ -80,15 +80,8 @@ ENDIF
 .F_RP   SKIP 29 * MAXSH \ the ship records (F_SHIP): INWK 0-8, XX16, XX0
 F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
 F_SZH = F_RP + 7 * MAXSH
-.F_BX   SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
-.F_BY   SKIP 10         \ as F_BOMB found them
-.F_DCOL SKIP 2          \ disc colour index in each buffer's disc layer
-.f_tcol SKIP 1          \ (f_char1's column)
-.f_zsv  SKIP &22 + 16   \ F_FRAME's keep of &06-&27 and FZ's &D2-&E1
-.F_DLEND
+.F_DLEND                \ (the rest of the frame layer's small state is p-low.asm's)
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm)
-.F_SLV  SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
-                        \ gfx-frame_cold.asm; F_SLV+16 &80: none)
  INCLUDE "tsrc/p-disc0.asm"            \ (the disc heap's drop)
  INCLUDE "tsrc/p-probe1.asm"           \ (the lens flare's probes: fl_arm's helpers)
 .PRES_END                \ (the end of what is always resident)
@@ -104,8 +97,11 @@ F_SZH = F_RP + 7 * MAXSH
  INCLUDE "build/elite-stubs-x4.asm"    \ (overlay D's names for resident routines)
  INCLUDE "build/elite-source-cold.asm"
  INCLUDE "build/elite-data-cold.asm"
- INCLUDE "build/p-io-ovld.asm"          \ (the "ovl D" blocks of the Tube's files:
- INCLUDE "build/p-glue-ovld.asm"        \ streams.py's ovld passes)
+ INCLUDE "build/p-io-ovld.asm"          \ (the "ovl D" blocks of the Tube's files
+ INCLUDE "build/p-glue-ovld.asm"        \ and the renderer's: streams.py's ovld
+ INCLUDE "build/gfx-hooks-ovld.asm"     \ passes)
+ INCLUDE "build/gfx-frame_cold-ovld.asm"
+ INCLUDE "build/gfx-hangar-ovld.asm"
 .COLD_END%
 .OVL_D_END
 

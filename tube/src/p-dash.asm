@@ -165,7 +165,12 @@ PDN = P% - pdtl
 
 \ LOIN, LOINQ: a line from (X1, Y1) to (X2, Y2) in COL, the host's to draw
 \ (C_LOIN, with Master's LOINQ, into the direct-mode screen as LOIN and TTX66
-\ draw it); LOIN returns as the Master port's: Y kept, A = %00001001
+\ draw it); LOIN returns as the Master port's: Y kept, A = %00001001, and C
+\ as Master's LOINQ leaves it, which the game can read (DEATH's BOX, then
+\ nWq's DORND): clear but for lines of one or two pixels, where it is set
+\ for a point with X1 >= 128, for (X1, Y1) to (X1 + 1, Y1) with X1 MOD 4 = 0,
+\ and for (X1, Y1) to (X1, Y1 - 1) or (X1 + 1, Y1 - 1) with Y1 MOD 8 = 0
+\ (every line of up to two pixels each way, run through Master's LOINQ)
 
 .LOIN
 .LOINQ
@@ -181,5 +186,38 @@ PDN = P% - pdtl
  JSR ptx
  LDA COL
  JSR ptx
+ LDA Y1                 \ Y1 - Y2: 0 or 1, or no C
+ SEC
+ SBC Y2
+ BEQ lqh
+ LSR A
+ BNE lq0
+ LDA X2                 \ Y2 = Y1 - 1: X2 - X1 (C set), 0 or 1
+ SBC X1
+ LSR A
+ BNE lq0
+ LDA Y1                 \ and Y1 MOD 8 = 0
+ AND #7
+ BNE lq0
+ SEC
+ BCS lqx
+.lqh
+ LDA X2                 \ Y2 = Y1: X2 - X1 (C set)
+ SBC X1
+ BEQ lqp
+ CMP #1                 \ 1, and X1 MOD 4 = 0
+ BNE lq0
+ LDA X1
+ AND #3
+ BNE lq0
+ SEC
+ BCS lqx
+.lqp
+ LDA X1                 \ a point: X1 >= 128
+ ASL A
+ BCS lqx
+.lq0
+ CLC
+.lqx
  LDA #%00001001
  RTS

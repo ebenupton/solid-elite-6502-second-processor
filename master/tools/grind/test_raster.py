@@ -114,7 +114,7 @@ SRCH = os.path.join(MS, 'gfx-raster_hz.asm')       # (the bank 5 <-> 7 stubs, wh
 MERID = os.path.join(MS, 'gfx-merid.asm')
 MTEST = 0xA000
 MG = dict(INWK=0x9C, K3=0x14, K4=0x22, QSL=0x7000, QSH=0x7200,
-          TYPE=0x85, K=0x56, PF_CLS=0x0C03, VIEW=0x0C08, QQ2=0x0C10, FRIN=0x0841)
+          TYPE=0x85, MCNT=0x84, K=0x56, PF_CLS=0x0C03, VIEW=0x0C08, QQ2=0x0C10, FRIN=0x0841)
 MG['K%'] = 0x0400
 MERID_GAME = ''.join('%s = &%04X\n' % kv for kv in MG.items())
 # banded planets (gfx-planet7.asm's _PLANET_BANDS, master/build.sh's BANDS):
@@ -574,10 +574,10 @@ def _game_spans(cx, cy, r, clip=(1, 254, 1, 191)):
     return out
 
 
-def _b7(m, name, vals=None):
+def _b7(m, name, vals=None, off=0):
     """bank 7's bytes at a label (read, or written if vals)"""
     m.page(7)
-    a = m.syms[name]
+    a = m.syms[name] + off
     if vals is None:
         out = m.mem[a]
     else:
@@ -683,6 +683,82 @@ def test_caps(self, n):
     return 'pc_circ %d..%d cycles a circle, PC_ROWS %.0f cycles a row' % (min(h), max(h), sum(c for _, c in rr) / max(1, sum(k for k, _ in rr)))
 
 
+def _run7(m, addr, a=0, x=0, y=0):
+    """a routine of the meridian window (bank 7, already paged in, the guard
+    off) called with A, X, Y: its cycles"""
+    mpu, mem = m.mpu, m.mem
+    mpu.a, mpu.x, mpu.y, mpu.p = a, x, y, 0x24
+    ret = tr.RET - 1
+    mem[0x1FF], mem[0x1FE] = ret >> 8, ret & 0xFF
+    mpu.sp = 0xFD
+    mpu.pc = addr
+    c0 = mpu.processorCycles
+    step = mpu.step
+    while mpu.pc != tr.RET:
+        step()
+        if mpu.processorCycles - c0 > 100000:
+            raise RuntimeError('runaway at &%04X' % mpu.pc)
+    return mpu.processorCycles - c0
+
+
+def test_pmath(self, n):
+    """the circle engine's arithmetic against exact models: pm_isqrt for every
+    16-bit n (every 5th with --quick) against math.isqrt, pm_fdiv against
+    planet_caps.fdiv, pm_mul16 against the product and pm_sq16 (once the
+    engine has it) against the square, for 40 n (10 n) random
+    operands of every bit length (0 to 32 bits; 0 to 16 for pm_mul16 and
+    pm_sq16)"""
+    rnd, m = self.rnd, self.m
+    s, mem = m.syms, m.mem
+    m.page(7)
+    try:
+        cy = []
+        for v in range(0, 65536, 1 if n >= 400 else 5):
+            mem[0x20], mem[0x21] = v & 255, v >> 8
+            cy.append(_run7(m, s['pm_isqrt']))
+            f = _m.isqrt(v)
+            got = (m.mpu.a, mem[0x20] | mem[0x21] << 8)
+            if got != (f, v - f * f):
+                raise AssertionError('pm_isqrt(%d) = %s, want %s' % (v, got, (f, v - f * f)))
+        self.stat('pm_isqrt', sum(cy) / len(cy))
+        rb = lambda b: rnd.getrandbits(b) | (1 << (b - 1)) if b else 0
+        cy = []
+        P = s['pm_P']
+        for i in range(40 * n):
+            u, v = rb(rnd.randrange(33)), rb(rnd.randrange(33))
+            for k in range(4):
+                mem[P + k], mem[P + 4 + k] = (u >> 8 * k) & 255, (v >> 8 * k) & 255
+            cy.append(_run7(m, s['pm_fdiv'], x=0, y=4))
+            got = sum(mem[0x18 + k] << 8 * k for k in range(4))
+            if got != PCM.fdiv(u, v):
+                raise AssertionError('pm_fdiv(%d, %d) = %d, want %d' % (u, v, got, PCM.fdiv(u, v)))
+        self.stat('pm_fdiv', sum(cy) / len(cy))
+        cy = []
+        for i in range(40 * n):
+            u, v = rb(rnd.randrange(17)), rb(rnd.randrange(17))
+            mem[0x10], mem[0x11], mem[0x14], mem[0x15] = u & 255, u >> 8, v & 255, v >> 8
+            cy.append(_run7(m, s['pm_mul16']))
+            got = sum(mem[0x18 + k] << 8 * k for k in range(4))
+            if got != u * v:
+                raise AssertionError('pm_mul16(%d, %d) = %d' % (u, v, got))
+        self.stat('pm_mul16', sum(cy) / len(cy))
+        cy = []
+        for i in range(10 * n if 'pm_sq16' in s else 0):
+            u = rb(rnd.randrange(17))
+            mem[0x10], mem[0x11] = u & 255, u >> 8
+            cy.append(_run7(m, s['pm_sq16']))
+            got = sum(mem[0x18 + k] << 8 * k for k in range(4))
+            if got != u * u:
+                raise AssertionError('pm_sq16(%d) = %d' % (u, got))
+        if cy:
+            self.stat('pm_sq16', sum(cy) / len(cy))
+    finally:
+        m.page(5)
+    st = self.stats
+    return 'pm_isqrt %.0f, pm_fdiv %.0f, pm_mul16 %.0f%s cycles' % (st['pm_isqrt'][-1], st['pm_fdiv'][-1], st['pm_mul16'][-1],
+                                                                   ', pm_sq16 %.0f' % st['pm_sq16'][-1] if 'pm_sq16' in st else '')
+
+
 def _pfhook(self, vecs, typ, r, cx, cy, qq2, pos=None):
     """PF_HOOK on the machine for the planet (orientation vecs: nosev, roofv,
     sidev; TYPE typ; radius r; centre cx, cy; seed qq2), checked: A, X, Y,
@@ -712,6 +788,8 @@ def _pfhook(self, vecs, typ, r, cx, cy, qq2, pos=None):
         raise AssertionError('PF_HOOK did not keep A, X, Y, the flags and zero page &10-&28: %s %s %s'
                              % ((mpu.a, mpu.x, mpu.y, mpu.p), (a0, x0, y0), [(0x10 + k, a_, b_) for k, (a_, b_) in enumerate(zip(mem[0x10:0x29], zp)) if a_ != b_]))
     on = 6 <= r < 256
+    if mem[MG['INWK']:MG['INWK'] + 36] != inwk:
+        raise AssertionError('PF_HOOK did not keep INWK')
     base, circs = PCM.pf_records(inwk, qq2, typ) if on else (0, [])
     base, recs = _body(cx, cy, r, base, circs)
     n = sum(1 for c in recs if c is not None and not c['none'])
@@ -830,6 +908,60 @@ def test_pfhook(self, n):
         if on:
             self._pfrows(base, recs, cx, cy, r, 'PF_HOOK (type %d centre %d,%d r %d)' % (typ, cx, cy, r))
     return '%d moons, %d rings' % (len(self.stats.get('moons', [])), len(self.stats.get('rings', [])))
+
+
+def test_hold(self, n):
+    """PF_HOOK's held records (pf_hold): n random planets, each called on
+    over several iterations (MCNT one less each time) as it turns a little
+    and its centre moves: the records are made when MCNT is even (a multiple
+    of 4 in deep space, z at least 512 x 256) and otherwise kept from the
+    last call that made them, moved with the disc, so PC_ROWS gives the rows
+    of the planet as it was then at the new centre"""
+    rnd, m, mem = self.rnd, self.m, self.m.mem
+    self.set_clip((1, 254, 1, 191))
+    held = 0
+    for i in range(n):
+        vecs = _rand_frame(rnd)
+        ax, w = rnd.randrange(3), rnd.uniform(-0.1, 0.1)
+        typ = rnd.choice((128, 130))
+        r = rnd.randrange(6, 251)
+        cx, cy = rnd.randrange(-r // 2, 256 + r // 2), rnd.randrange(-r // 2, 192 + r // 2)
+        qq2 = [rnd.randrange(256) for _ in range(6)]
+        qq2[5] = (qq2[5] & 0x8C) | ((qq2[1] ^ qq2[3]) & 0x73)    # (no moon, no ring: h = 0)
+        deep = rnd.random() < 0.5
+        mask = 3 if deep else 1
+        zs = rnd.randrange(2, 100) if deep else rnd.randrange(2)
+        mem[MG['TYPE']] = typ
+        mem[MG['QQ2']:MG['QQ2'] + 6] = qq2
+        mem[MG['VIEW']] = 0
+        mcnt = (_b7(m, 'pf_lm') + 100) & 255    # (not the iteration after the last call)
+        made = None
+        for step in range(7):
+            if step:
+                mcnt = (mcnt - 1) & 255
+                cx += rnd.randrange(-3, 4)
+                cy += rnd.randrange(-3, 4)
+                vecs = _rotate(vecs, ax, w)
+            inwk = [0] * 36
+            inwk[6:9] = [rnd.randrange(256), rnd.randrange(256), zs]
+            for k, v in enumerate(vecs[0] + vecs[1] + vecs[2]):
+                inwk[9 + 2 * k], inwk[10 + 2 * k] = _smag(v)
+            mem[MG['INWK']:MG['INWK'] + 36] = inwk
+            mem[MG['MCNT']] = mcnt
+            for nm, v in (('K3', cx), ('K4', cy), ('K', r)):
+                mem[MG[nm]], mem[MG[nm] + 1] = v & 255, (v >> 8) & 255
+            m.guard = False
+            m.call(m.syms['PF_HOOK'], bank=7)
+            m.guard = True
+            hold = made is not None and (mcnt & mask) != 0
+            if hold:
+                held += 1
+            else:
+                made = inwk
+            base, circs = PCM.pf_records(made, qq2, typ)
+            base, recs = _body(cx, cy, r, base, circs)
+            self._pfrows(base, recs, cx, cy, r, 'PF_HOOK %s (type %d centre %d,%d r %d, step %d, MCNT %d)' % ('held' if hold else 'made', typ, cx, cy, r, step, mcnt))
+    return '%d held calls' % held
 
 
 def _check_moon(self, inwk, qq2, typ, cx, cy, r, E=None, view=0):
@@ -1317,6 +1449,8 @@ tr.Tester.test_disc2 = test_disc2
 tr.Tester.test_merid = test_merid
 tr.Tester.beach_rows = beach_rows
 tr.Tester.test_caps = test_caps
+tr.Tester.test_pmath = test_pmath
+tr.Tester.test_hold = test_hold
 tr.Tester.test_pfhook = test_pfhook
 tr.Tester._check_moon = _check_moon
 tr.Tester.cap_rows = cap_rows
@@ -1333,6 +1467,11 @@ if CAPS:     # (after the rest, which keep the random numbers they had)
 
 if HASD2:    # (after the others, which keep the random numbers they had)
     tr.EXTRA += [('disc2', 'test_disc2', 80, ('both',)), ('disc2', 'test_disc2', 80, ('kept',))] * 3
+
+if CAPS:     # (last: they use random numbers of their own)
+    tr.EXTRA += [('pmath', 'test_pmath', 400, ())]
+    if 'pf_hold' in open(os.path.join(MS, 'gfx-planet7.asm')).read():
+        tr.EXTRA += [('hold', 'test_hold', 100, ())]
 
 tr.assemble = assemble
 tr.Tester.test_lines = test_lines

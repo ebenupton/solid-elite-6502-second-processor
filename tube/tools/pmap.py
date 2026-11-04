@@ -95,8 +95,8 @@ if p < pws0:
     reg(p, pws0, "free", "free", "-", [], p)
 reg(pws0, code0, "frame layer's inputs (p-ws.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"], sy["PWS_END"])
 # the resident image
-reg(code0, sy["GLUE_END%"], "glue (p-low.asm: the Tube's I/O, the overlay manager, the stubs into overlay D, the panel's game halves)",
-    "code", "run (glue)", ["tube/src/p-low.asm", "build/elite-stubs.asm", "build/p-glue-frame.asm", "master/src/gfx-hooks.asm"])
+reg(code0, sy["GLUE_END%"], "glue (p-low.asm: the Tube's I/O, the overlay manager, the panel's game halves, the frame layer's small state)",
+    "code", "run (glue)", ["tube/src/p-low.asm", "build/elite-stubs.asm", "build/p-glue-frame.asm", "build/gfx-hooks-frame.asm"])
 reg(sy["GLUE_END%"], run_end + 1, "the run (the game's resident blocks, in the source's order)", "code", "run", ["build/elite-source-run.asm"])
 reg(sy["HZ_START"], sy["HZDATA_END%"], "game data (XX21, blueprints, QQ18 ...)", "data", "hot data", ["build/elite-data-hot.asm"])
 reg(sy["HZDATA_END%"], sy["HZ_END"], "hangar tables, moon and ring variables", "data", "hot data",
@@ -107,7 +107,7 @@ reg(sy["PF_START"], sy["PF_CODE_END"], "frame layer (parasite part)", "code", "f
      "build/gfx-ssun-frame.asm", "master/src/elite-moon.asm"])
 reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_SR with F_INIT, F_RP)", "buffers", "frame",
     ["tube/src/p-layout.asm", "master/src/gfx-finit.asm"])
-reg(sy["F_DLEND"], sy["hp_drop"], "text map (F_TM) and the docking slot's vertices (F_SLV)", "buffers", "frame", ["tube/src/p-layout.asm"])
+reg(sy["F_DLEND"], sy["hp_drop"], "text map (F_TM)", "buffers", "frame", ["tube/src/p-layout.asm"])
 reg(sy["hp_drop"], sy["PRES_END"], "the disc heap's drop and ps_getn, the lens flare's probes' fl_arm helpers", "code", "frame",
     ["tube/src/p-disc0.asm", "tube/src/p-probe1.asm"])
 o = sy["OVL_START"]

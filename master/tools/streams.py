@@ -146,14 +146,16 @@
 # "host" (the host's only: the IRQ, sound, keyboard scanning), "both" (the
 # host's and the parasite's: CHPR, whose glyphs the host draws), "hostb" and
 # "bothb" (the same for the host's sideways RAM copy, the dashboard's
-# drawing), "none" (neither side's: the Master port's own). The host's copies
-# are build/elite-source-host.asm and -hostb.asm, and the configuration with
-# the workspaces build/elite-source-ws.asm (the same as -config). Calls into
+# drawing), "none" (neither side's: the Master port's own), "both, ovl D" and
+# "bothb, ovl D" (the host's copy as "both" and "bothb", the parasite's in
+# overlay D). The host's copies are build/elite-source-host.asm and
+# -hostb.asm, and the configuration with the workspaces
+# build/elite-source-ws.asm (the same as -config). Calls into
 # overlay D go through a stub of the routine's name in build/elite-stubs.asm,
 # JSR povd : EQUW X_C (povdj for a target that never returns: tube/src/
 # p-ovl.asm loads overlay D if it is out); overlay D calls the resident code
-# directly. The data source is copied the same way: "Tube: ovl D" blocks are
-# overlay D's data (build/elite-data-cold.asm), "host" and "both" blocks the
+# directly. The data source is copied the same way: the blocks overlay D
+# takes are its data (build/elite-data-cold.asm), "host" and "both" blocks the
 # host's (build/elite-data-host.asm, "both" the parasite's too), the rest
 # resident (build/elite-data-hot.asm). The renderer's files that the parasite
 # assembles (FRAMEPASS below) are emitted in passes by tag lines.
@@ -163,6 +165,7 @@ TUBE = os.environ.get("TUBE") == "1"     # (the Tube's build: phase tube)
 TUBEF = re.compile(r"^\\       Tube: (.*)$")
 TUBETAG = {}                             # (block start line -> its "Tube:" field)
 TUBEOVL = set()                          # (the names of the blocks tagged "Tube: ovl D")
+OVLD = ("ovl D", "both, ovl D", "bothb, ovl D")   # (the tags that put a block in overlay D)
 
 SRC = "src/elite-source.asm"
 OUT = "build/elite-source-%s.asm"
@@ -243,7 +246,7 @@ def blocks(lines, tags=TAGS):
             m = TUBEF.match(l)
             if m:
                 t = m.group(1).strip()
-                if t not in ("host", "both", "hostb", "bothb", "none", "ovl D"):
+                if t not in ("host", "both", "hostb", "bothb", "none", "ovl D", "both, ovl D", "bothb, ovl D"):
                     sys.exit("%d: unknown Tube field %r" % (i + 1, t))
                 TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
@@ -972,7 +975,8 @@ def stub_none(lines, bl):
 # Model B host and (for the files it does not pass) the Master host assemble
 # the file itself, where the tag lines are comments
 FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm",
-             "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm")
+             "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
+             "tsrc/p-io.asm", "tsrc/p-glue.asm")
 FPASS = {"frame": "frame", "ovl S": "ovls", "hazel": "hazel", "ovl D": "ovld"}
 
 
@@ -1018,7 +1022,7 @@ def tube_data(errors):
     bl = []
     for s0, e0, name, area in dbl:
         t = dtag.get(s0)
-        a = None if not name else "bdata" if area == "bdata" else "cold" if t == "ovl D" else "hot"
+        a = None if not name else "bdata" if area == "bdata" else "cold" if t in OVLD else "hot"
         bl.append([s0, e0, name, a, t])
     nxt = "bdata"
     for b in reversed(bl):                 # (unnamed blocks: the next named one's)
@@ -1031,7 +1035,7 @@ def tube_data(errors):
         for a in ("bdata", "hot", "cold"):
             on = area == a and t != "host"
             out[a] += [lines[i] if on else "" for i in range(s0, e0)]
-        out["host"] += [lines[i] if t in ("host", "both") else "" for i in range(s0, e0)]
+        out["host"] += [lines[i] if t in ("host", "both", "both, ovl D") else "" for i in range(s0, e0)]
     for a in out:
         with open(DOUT % a, "w", encoding="latin-1") as f:
             f.write("\n".join(out[a]))
@@ -1042,7 +1046,7 @@ def tube_main(lines, bl, eff, macros, errors):
     """the Tube's copies (above, "The Tube"): config and ws, run, cold (overlay
     D), host, hostb; the stubs into overlay D; the data's; the frame passes"""
     for s0, e0, name, area in bl:
-        if TUBETAG.get(s0) == "ovl D":
+        if TUBETAG.get(s0) in OVLD:
             TUBEOVL.add(name)
     tag = lambda k: TUBETAG.get(bl[k][0])
     par = lambda k: tag(k) not in ("host", "hostb", "none")     # (the parasite's)
@@ -1092,7 +1096,7 @@ def tube_main(lines, bl, eff, macros, errors):
             on = copy_of[k] == a and (a == "config" or par(k))
             copies[a] += [lines[i] if on else "" for i in range(s0, e0)]
     # the hosts' copies: their blocks (not the configuration's)
-    for nm, tags in (("host", ("host", "both")), ("hostb", ("hostb", "bothb"))):
+    for nm, tags in (("host", ("host", "both", "both, ovl D")), ("hostb", ("hostb", "bothb", "bothb, ovl D"))):
         c = []
         for k, (s0, e0, name, area) in enumerate(bl):
             on = teff[k] != "config" and tag(k) in tags
@@ -1114,7 +1118,7 @@ def tube_main(lines, bl, eff, macros, errors):
           "overlay D; data %s%s"
           % (len(bl), sum(1 for k in range(len(bl)) if teff[k] == "run" and ASM[k] and par(k)),
              sum(1 for k in range(len(bl)) if teff[k] == "cold" and ASM[k]),
-             sum(1 for k in range(len(bl)) if tag(k) in ("host", "both", "hostb", "bothb") and ASM[k]),
+             sum(1 for k in range(len(bl)) if tag(k) in ("host", "both", "hostb", "bothb", "both, ovl D", "bothb, ovl D") and ASM[k]),
              nstubs[0], ", ".join("%s %d" % kv for kv in dn.items()),
              ", %d error(s)" % len(errors) if errors else ""))
     sys.exit(1 if errors else 0)
