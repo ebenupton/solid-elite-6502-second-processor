@@ -493,7 +493,7 @@ export function valAt(regions, buf, ad) {
 // host's own code (RAM) are recorded, as page &0D is off limits on the host
 async function bootTubeElite(opts) {
     const { bootTube } = await import("./tlib.mjs");
-    const t = await bootTube({ host: opts.tube, disc: opts.disc });
+    const t = await bootTube({ host: opts.tube, disc: opts.disc, mhz: +(process.env.TUBEMHZ || 3) });   // (the parasite's clock, as tmachine.mjs)
     t.s.keyDown(16); t.s.reset(true); t.host.execute(2e6 * 2); t.s.keyUp(16);
     const par = t.par, host = t.host;
     const cpu = {
