@@ -84,16 +84,25 @@ if "ss_d" in sy and sy["ss_d"] == p:          # (the sun's and moon's places aft
     e = sy["SS_OK"] + 1
     reg(p, e, "the sun's and the moon's places, S_SUN's and MN_TURN's variables (gfx-ssun.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"])
     p = e
-pd = sorted(x for x in [(VIA + 0x34, VIA + 0x35, "dummy ACCCON (VIA + &34)"), (ZPSAVE + 0x90, ZPSAVE + 0x100, "ZPSAVE (zero page &90-&FF)")]
-            if x[0] < pws0)
-for s, e, n in pd:
+if "VEC" in sy and sy["VEC"] == p:            # (VEC, WP's last variable, after the dashboard's)
+    reg(p, p + 2, "VEC (the IRQ1 vector's old value)", "workspace", "WP", ["master/src/elite-source.asm"])
+    p += 2
+pd = [(VIA + 0x34, VIA + 0x35, "dummy ACCCON (VIA + &34)", "WP", "master/src/elite-source.asm"),
+      (ZPSAVE + 0x90, ZPSAVE + 0x100, "ZPSAVE (zero page &90-&FF)", "WP", "master/src/elite-source.asm")]
+if "PWS_HOLE" in sy:                          # (the frame layer's state in the hole: p-ws.asm)
+    pd.append((sy["PWS_HOLE"], sy["PWS_HOLE_END"], "the hole's state (p-ws.asm: the disc heap's flags and counts, the probes, R_POLY's scratch)", "PWS", "tube/src/p-ws.asm"))
+pd = sorted(x for x in pd if x[0] < pws0)
+for s, e, n, ar, f in pd:
     if s > p:
         reg(p, s, "free", "free", "-", [], p)
-    reg(s, e, n, "workspace", "WP", ["master/src/elite-source.asm"])
+    reg(s, e, n, "workspace", ar, [f])
     p = e
 if p < pws0:
     reg(p, pws0, "free", "free", "-", [], p)
-reg(pws0, code0, "frame layer's inputs (p-ws.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"], sy["PWS_END"])
+plow = sy.get("PLOW", code0)
+reg(pws0, plow, "frame layer's inputs (p-ws.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"], sy["PWS_END"])
+if plow < code0:                              # (the low code, copied in by p_boot: p-layout.asm)
+    reg(plow, code0, "low code: the disc heap's drop and the surface's cold paths", "code", "low", ["tube/src/p-disc0.asm"], sy["PLOW_END"])
 # the resident image
 reg(code0, sy["GLUE_END%"], "glue (p-low.asm: the Tube's I/O, the overlay manager, the panel's game halves, the frame layer's small state)",
     "code", "run (glue)", ["tube/src/p-low.asm", "build/elite-stubs.asm", "build/p-glue-frame.asm", "build/gfx-hooks-frame.asm"])
@@ -107,9 +116,8 @@ reg(sy["PF_START"], sy["PF_CODE_END"], "frame layer (parasite part)", "code", "f
      "build/gfx-ssun-frame.asm", "master/src/elite-moon.asm"])
 reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_SR with F_INIT, F_RP)", "buffers", "frame",
     ["tube/src/p-layout.asm", "master/src/gfx-finit.asm"])
-reg(sy["F_DLEND"], sy["hp_drop"], "text map (F_TM)", "buffers", "frame", ["tube/src/p-layout.asm"])
-reg(sy["hp_drop"], sy["PRES_END"], "the disc heap's drop and ps_getn, the lens flare's probes' fl_arm helpers", "code", "frame",
-    ["tube/src/p-disc0.asm", "tube/src/p-probe1.asm"])
+reg(sy["F_DLEND"], sy["fa_col"], "text map (F_TM)", "buffers", "frame", ["tube/src/p-layout.asm"])
+reg(sy["fa_col"], sy["PRES_END"], "the lens flare's probes' fl_arm helpers", "code", "frame", ["tube/src/p-probe1.asm"])
 o = sy["OVL_START"]
 if sy["PRES_END"] < o:
     reg(sy["PRES_END"], o, "free (to the overlay region's page)", "free", "-", [], sy["PRES_END"])
