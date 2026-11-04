@@ -2997,3 +2997,32 @@ poses a type, z_hi 64 to 2): no frame draws nothing. Over the gate's run
 all in iterations 784-980: a boulder coming in through its gap, the
 differences its dot. The gate's speed is 11.11 it/s (11.13 before).
 
+## The circle engine's cost (after the frame's records)
+
+The planet's surface detail (PF_HOOK in game context: the circle engine's
+records) cost about 30,500 cycles a call whatever the planet's size, 12.4%
+of the gate's flight, and exact memoisation could never pay: no call's
+inputs were the previous call's, as the planet turns every iteration
+(harness/mscenes.mjs, harness/scenes.py: the speed by scene and the
+detail's cost by radius band). Four commits made its arithmetic faster with
+every frame unchanged: square roots from a table of 192 roots (721 to 192
+cycles, exact for every 16-bit input), multiplies through zero-page
+pointers into the page-aligned quarter squares (mul16 370 to 258, squares
+144), a tighter divide (about 1,020 to 730) and short products when a high
+byte is zero, with PF_HOOK saving &10-&26 only: 21,400 cycles a call, the
+gate 11.11 to 11.53 iterations a second. master/tools/grind/test_raster.py's
+pmath checks the arithmetic against exact models.
+
+Then two changes to the picture. The planet spins at half the original's
+rate, in the game: H_MVS4 (MVEIT part 7's last call) skips part 8, the
+planet's own pitch and roll, on iterations with MCNT odd, and the harness
+(harness/mlib.mjs, agentplay's lib.mjs) makes SNG47 skip the same turns, so
+the whole game state, the planet's vectors included, still matches (the
+vectors reach the game through K2, which H_CIRC leaves for MV40). And the
+records are made on exactly the iterations the planet turns, MCNT even (a
+multiple of 4 in deep space, the planet's z at least 512 x 256), the
+iterations between keeping them moved with the disc's centre (pf_hold, exact
+for the move). The lens flare moved to bank 6 to make room. The gate runs
+at 12.61 iterations a second against the patched SNG47's 14.14 (0.892),
+158,594 cycles a flight iteration.
+

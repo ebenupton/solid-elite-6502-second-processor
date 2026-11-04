@@ -89,8 +89,8 @@ IF _PLANET_MOON         \ (the moon's: MOON=on, master/build.sh)
 ENDIF
 
 IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
-.T_FLARE                \ (the lens flare, gfx-flare.asm: bank 7; X and Y
- LDA #MERIDBANK         \ passed)
+.T_FLARE                \ (the lens flare, gfx-flare.asm: bank 6; X and Y
+ LDA #GFXBANK           \ passed)
  STA &F4
  STA &FE30
  JSR R_FLARE            \ (C set: the sun was in sight, and Y .. X the rows

@@ -44,7 +44,7 @@
 \     circle's record into the next slot of PCB, from the axis pcv (pf_tilt's
 \     sign-magnitude words), its scale pcn, the cosine pcc and its sign
 \     pcneg and the body pcbx, pcby, pcr; its part of the base colour into
-\     pc_inv. It uses Elite's zero page &10-&28, which PF_HOOK saves, and
+\     pc_inv. It uses Elite's zero page &10-&26, which PF_HOOK saves, and
 \     reads main RAM only for the quarter squares (QSL, QSH);
 \
 \   * PC_ROWS (the planet's records) and PC_MROWS (the moon's), in the frame
@@ -59,9 +59,11 @@ pm_a  = &10             \ zero page workspace (Elite's, saved and restored):
 pm_b  = &14             \ multiplicand, dividend; multiplier, divisor;
 pm_p  = &18             \ product, quotient; temporary
 pm_tt = &20
-pmi_res = &23           \ pm_isqrt's
-pmi_one = &25
-pmi_s = &27             \ (&27-&28)
+pm_ql = &1C             \ PMQ's pointers into QSL and QSH (&1C-&1F)
+pm_qh = &1E
+pm_t8 = &22             \ its product's low byte
+pmi_n = &23             \ pm_isqrt's: n' (&23-&24) and a square (&25-&26)
+pmi_c = &25
 
 \ A circle's record (RSZ bytes, in its slot of PCB)
 R_A   = 0               \ a, 16.16 signed
@@ -229,9 +231,7 @@ ENDIF
  BIT pc_dnz
  BPL pcl5
  LDX #O_D               \ d^2 >> 16
- TXA
- TAY
- JSR pc_mul
+ JSR pc_sq
 .pcl5
  LDA pm_p+2             \ (d^2 >> 16, or 0)
  STA pv_dd
@@ -494,6 +494,14 @@ ENDIF
  STA pc_v
  LDA pc_v+1
  ADC pcby+1
+ PHA                    \ (unclamped, into pc_tw, for pf_hold)
+ TYA
+ ASL A
+ TAX
+ LDA pc_v
+ STA pc_tw,X
+ PLA
+ STA pc_tw+1,X
  BMI pct2
  BNE pct3
  LDA pc_v
@@ -529,6 +537,18 @@ ENDIF
  CMP #3
  BEQ pcy9
 .pcy2
+ LDA PC_N               \ (its unclamped thresholds, for pf_hold)
+ ASL A
+ ASL A
+ TAX
+ LDA pc_tw
+ STA pc_tu,X
+ LDA pc_tw+1
+ STA pc_tu+1,X
+ LDA pc_tw+2
+ STA pc_tu+2,X
+ LDA pc_tw+3
+ STA pc_tu+3,X
  LDX PC_N               \ the record into its slot
  INC PC_N
  LDY pcb_o+1,X
@@ -641,6 +661,15 @@ ENDIF
  STA pm_b+1
  JMP pm_mul16
 
+\ pc_sq: pm_p (4) = pv+X (2) squared
+
+.pc_sq
+ LDA pv,X
+ STA pm_a
+ LDA pv+1,X
+ STA pm_a+1
+ JMP pm_sq16
+
 \ pms_core: from the magnitudes and signs in pv_m, pm_sg and pm_nz, the
 \ circle's orientation terms: pm_sx, pm_sy, pm_inv, t (pm_tq), v (pm_v), a
 \ (pm_a32) and K2 (pm_K2)
@@ -664,18 +693,15 @@ ENDIF
  STA pm_sy
 .pms3
  LDX #0                 \ X2 = mx^2, Y2 = my^2, Z2 = mz^2, XY = mx my
- LDY #0
- JSR pc_mul
+ JSR pc_sq
  LDX #pm_X2-pm_P
  JSR pms_stp
  LDX #2
- LDY #2
- JSR pc_mul
+ JSR pc_sq
  LDX #pm_Y2-pm_P
  JSR pms_stp
  LDX #4
- LDY #4
- JSR pc_mul
+ JSR pc_sq
  LDX #pm_Z2-pm_P
  JSR pms_stp
  LDX #0
@@ -790,14 +816,14 @@ ENDIF
  RTS
 
 .pms_stp                 \ pm_P+X (4 bytes) = pm_p
- LDY #0
-.pmst1
- LDA pm_p,Y
+ LDA pm_p
  STA pm_P,X
- INX
- INY
- CPY #4
- BNE pmst1
+ LDA pm_p+1
+ STA pm_P+1,X
+ LDA pm_p+2
+ STA pm_P+2,X
+ LDA pm_p+3
+ STA pm_P+3,X
  RTS
 
 \ pm_fdiv: pm_p = U / V as 16.16 with a 12-bit mantissa (U = pm_P+X, V =
@@ -821,6 +847,10 @@ ENDIF
  LDA pm_p
  LDX pm_p+1
  RTS
+.pfd_e0
+ JMP pfd_0
+.pfd_es
+ JMP pfd_sat
 
 .pm_fdiv
  LDA pm_P,X             \ U -> pm_a, V -> pm_b
@@ -838,28 +868,10 @@ ENDIF
  LDA pm_P+2,Y
  STA pm_b+2
  LDA pm_P+3,Y
+ ORA pm_a+3             \ either >= 2^24: both lose their low byte (once:
+ BEQ pfd1               \ both are then below 2^24)
+ LDA pm_P+3,Y
  STA pm_b+3
- LDA #0
- STA pm_p
- STA pm_p+1
- STA pm_p+2
- STA pm_p+3
-.pfd1
- LDA pm_a               \ U = 0: 0
- ORA pm_a+1
- ORA pm_a+2
- ORA pm_a+3
- BNE P%+3
- RTS
- LDA pm_b               \ V = 0 (or gone): saturated
- ORA pm_b+1
- ORA pm_b+2
- ORA pm_b+3
- BNE P%+5
- JMP pfd_sat
- LDA pm_a+3             \ either >= 2^24: both lose a byte
- ORA pm_b+3
- BEQ pfd2
  LDX #0
 .pfd1a
  LDA pm_a+1,X
@@ -869,79 +881,154 @@ ENDIF
  INX
  CPX #3
  BNE pfd1a
- LDA #0
- STA pm_a+3
- STA pm_b+3
- BEQ pfd1
-.pfd2
- LDX #pm_a              \ normalise U, V: X = their zero page address
+.pfd1
+ LDA pm_a               \ U = 0: 0
+ ORA pm_a+1
+ ORA pm_a+2
+ BEQ pfd_e0
+ LDA pm_b               \ V = 0 (or gone): saturated
+ ORA pm_b+1
+ ORA pm_b+2
+ BEQ pfd_es
+ LDX #pm_b              \ normalise V: V' = (pm_b+2 pm_b+1), ev
  JSR pfd_norm
- STY pm_eu
- LDX #pm_b
- JSR pfd_norm
- TYA                    \ the shift 5 + ev - eu
+ STA pm_b+2
+ TYA
  CLC
  ADC #5
- SEC
- SBC pm_eu
  STA pm_eu
- LDY #12                \ q = floor(U' 2^11 / V'), U' and V' in bytes 1-2
- CLC                    \ (R = U', its bit 16 in C)
+ LDX #pm_a              \ and U: U' = (A pm_a+1), eu; the shift 5 + ev - eu
+ JSR pfd_norm
+ PHA
+ TYA
+ EOR #&FF
+ SEC
+ ADC pm_eu
+ STA pm_eu
+ PLA
+ STZ pm_p+1             \ q = floor(U' 2^11 / V'), its top 4 bits into
+ LDX #4                 \ pm_p+1, then 8 into pm_p, R = U' (A pm_a+1, its
+ CLC                    \ bit 16 in C)
 .pfd5
  BCS pfd6               \ R >= 2^16 > V': subtract
- LDA pm_a+1
- CMP pm_b+1
- LDA pm_a+2
- SBC pm_b+2
+ CMP pm_b+2
+ BCC pfd7
+ BNE pfd6
+ LDY pm_a+1
+ CPY pm_b+1
  BCC pfd7
 .pfd6
+ TAY
  LDA pm_a+1
  SBC pm_b+1
  STA pm_a+1
- LDA pm_a+2
+ TYA
  SBC pm_b+2
- STA pm_a+2
  SEC
 .pfd7
- ROL pm_p               \ the quotient bit (C)
- ROL pm_p+1
+ ROL pm_p+1             \ the quotient bit (C)
  ASL pm_a+1             \ R <<= 1
- ROL pm_a+2
- DEY
+ ROL A
+ DEX
  BNE pfd5
+ LDX #8
+.pfd5b
+ BCS pfd6b
+ CMP pm_b+2
+ BCC pfd7b
+ BNE pfd6b
+ LDY pm_a+1
+ CPY pm_b+1
+ BCC pfd7b
+.pfd6b
+ TAY
+ LDA pm_a+1
+ SBC pm_b+1
+ STA pm_a+1
+ TYA
+ SBC pm_b+2
+ SEC
+.pfd7b
+ ROL pm_p
+ ASL pm_a+1
+ ROL A
+ DEX
+ BNE pfd5b
+ STZ pm_p+2
+ STZ pm_p+3
  LDY pm_eu              \ shift q
- BPL pfd8
-.pfd7r
- LSR pm_p+1
- ROR pm_p
- INY
- BNE pfd7r
- RTS
+ BMI pfdr
+ TYA                    \ left: by bits (into pm_p+2), then by bytes
+ AND #7
+ BEQ pfd9
+ TAX
 .pfd8
- CPY #8
- BCC pfd9
- LDA pm_p+3             \ a byte at a time
+ ASL pm_p
+ ROL pm_p+1
+ ROL pm_p+2
+ DEX
+ BNE pfd8
+.pfd9
+ TYA
+ LSR A
+ LSR A
+ LSR A
+ BEQ pfd10
+ CMP #2
+ BCC pfdb1
+ BEQ pfdb2
+ CMP #3
  BNE pfd_sat
- LDA pm_p+2
+ LDA pm_p+1             \ by 3 bytes
+ ORA pm_p+2
+ BNE pfd_sat
+ LDA pm_p
+ STA pm_p+3
+ STZ pm_p
+ RTS
+.pfdb2
+ LDA pm_p+2             \ by 2 bytes
+ BNE pfd_sat
+ LDA pm_p+1
+ STA pm_p+3
+ LDA pm_p
+ STA pm_p+2
+ STZ pm_p+1
+ STZ pm_p
+ RTS
+.pfdb1
+ LDA pm_p+2             \ by 1 byte
  STA pm_p+3
  LDA pm_p+1
  STA pm_p+2
  LDA pm_p
  STA pm_p+1
- LDA #0
+ STZ pm_p
+ RTS
+.pfdr
+ CPY #256-11            \ right: by 12 or more, 0
+ BCC pfd_0
+ CPY #256-7
+ BCS pfdr1
+ LDA pm_p+1             \ (by 8 to 11: a byte first)
  STA pm_p
+ STZ pm_p+1
  TYA
- SBC #8                 \ (C set)
+ ADC #8                 \ (C = 0)
  TAY
- JMP pfd8
-.pfd9
- DEY
- BMI pfd10
- ASL pm_p
- ROL pm_p+1
- ROL pm_p+2
- ROL pm_p+3
- BCC pfd9
+ BEQ pfd10
+.pfdr1
+ LSR pm_p+1
+ ROR pm_p
+ INY
+ BNE pfdr1
+ RTS
+.pfd_0
+ STZ pm_p
+ STZ pm_p+1
+ STZ pm_p+2
+ STZ pm_p+3
+ RTS
 .pfd_sat
  LDA #&FF
  STA pm_p
@@ -951,63 +1038,171 @@ ENDIF
 .pfd10
  RTS
 
-.pfd_norm               \ the 24-bit value at zero page X (non-zero): shift
- LDY #0                 \ left until bit 23 is set; Y = the shifts
-.pfn1
- LDA 2,X
+.pfd_norm               \ the 24-bit value at zero page X (non-zero) shifted
+ LDY #0                 \ left until bit 23 is set: A = its top byte, its
+ LDA 2,X                \ next at 1,X; Y = the shifts
  BNE pfn2
  LDA 1,X                \ a byte at a time
- STA 2,X
- LDA 0,X
- STA 1,X
- LDA #0
- STA 0,X
- TYA
- CLC
- ADC #8
- TAY
- BNE pfn1
+ LDY 0,X
+ STY 1,X
+ STZ 0,X
+ LDY #8
+ CMP #0
+ BNE pfn2
+ LDY #16
+ LDA 1,X
+ STZ 1,X
 .pfn2
  BMI pfn3
+.pfn1
+ INY
  ASL 0,X
  ROL 1,X
- ROL 2,X
- INY
- LDA 2,X
- BPL pfn2
+ ROL A
+ BPL pfn1
 .pfn3
  RTS
 
 \ pm_mul16: pm_p (4) = pm_a (2) * pm_b (2), unsigned, from four 8 x 8
-\ products (Elite's quarter-square tables)
+\ products (Elite's quarter-square tables), or two or one when a high byte is
+\ zero; pm_sq16: pm_p (4) = pm_a (2)
+\ squared, from two squares and one product. Each product is PMQ's: the
+\ multiplier b's byte is the low byte of the pointers pm_ql and pm_qh (QSL + b
+\ and QSH + b: the tables are page aligned), so that (pm_ql),Y is QS(Y + b)
 
-.pm_mul16
- LDA pm_a
- LDX pm_b
- JSR pm_mul8
- STA pm_p+1
- LDA pm_m8
- STA pm_p
- LDA pm_a+1
- LDX pm_b+1
- JSR pm_mul8
- STA pm_p+3
- LDA pm_m8
- STA pm_p+2
- LDA pm_a
- LDX pm_b+1
- JSR pm_mul8
- JSR pmm_add
- LDA pm_a+1
- LDX pm_b
- JSR pm_mul8
-.pmm_add                \ pm_p += (A pm_m8) << 8
- TAY
- LDA pm_m8
+MACRO PMQ               \ (pm_t8 A) = Y * b, Y kept: QS(Y + b) - QS(|Y - b|)
+ TYA
+ SEC
+ SBC pm_ql
+ BCS pq1
+ EOR #&FF
+ ADC #1
+ SEC
+.pq1
+ TAX                    \ X = |Y - b|
+ LDA (pm_ql),Y          \ (bankcheck: ok: game context)
+ SBC QSL,X              \ (bankcheck: ok)
+ STA pm_t8
+ LDA (pm_qh),Y          \ (bankcheck: ok)
+ SBC QSH,X              \ (bankcheck: ok)
+ENDMACRO
+
+MACRO PMQB b            \ b, a byte at zero page address b, as the multiplier
+ LDA b
+ STA pm_ql
+ STA pm_qh
+ENDMACRO
+
+MACRO PMQH              \ the pointers' high bytes
+ LDA #HI(QSL)
+ STA pm_ql+1
+ LDA #HI(QSH)
+ STA pm_qh+1
+ENDMACRO
+
+.pmb0                   \ b < 256: al bl + ah bl << 8
+ STZ pm_p+3
+ LDY pm_a+1
+ BEQ pmb1
+ PMQ
+ TAX
+ LDA pm_t8
  CLC
  ADC pm_p+1
  STA pm_p+1
- TYA
+ TXA
+ ADC #0
+ STA pm_p+2
+ RTS
+.pmb1
+ STZ pm_p+2
+ RTS
+
+.pm_mul16
+ PMQH
+ PMQB pm_b              \ al bl
+ LDY pm_a
+ PMQ
+ STA pm_p+1
+ LDA pm_t8
+ STA pm_p
+ LDA pm_b+1
+ BEQ pmb0
+ LDY pm_a+1             \ ah bl
+ BEQ pma0
+ PMQ
+ TAX
+ LDA pm_t8
+ CLC
+ ADC pm_p+1
+ STA pm_p+1
+ TXA
+ ADC #0
+ STA pm_p+2
+ PMQB pm_b+1            \ ah bh
+ PMQ
+ TAX
+ LDA pm_t8
+ CLC
+ ADC pm_p+2
+ STA pm_p+2
+ TXA
+ ADC #0
+ STA pm_p+3
+ LDY pm_a               \ al bh
+ PMQ
+ TAX
+ LDA pm_t8
+ CLC
+ ADC pm_p+1
+ STA pm_p+1
+ TXA
+ ADC pm_p+2
+ STA pm_p+2
+ BCC P%+4
+ INC pm_p+3
+ RTS
+.pma0                   \ a < 256: al bl + al bh << 8
+ PMQB pm_b+1
+ LDY pm_a
+ PMQ
+ TAX
+ LDA pm_t8
+ CLC
+ ADC pm_p+1
+ STA pm_p+1
+ TXA
+ ADC #0
+ STA pm_p+2
+ STZ pm_p+3
+ RTS
+
+.pm_sq16
+ PMQH
+ PMQB pm_a              \ al^2 = QS(2 al)
+ LDY pm_a
+ LDA (pm_ql),Y          \ (bankcheck: ok: game context)
+ STA pm_p
+ LDA (pm_qh),Y          \ (bankcheck: ok)
+ STA pm_p+1
+ PMQB pm_a+1            \ ah^2
+ LDY pm_a+1
+ LDA (pm_ql),Y          \ (bankcheck: ok)
+ STA pm_p+2
+ LDA (pm_qh),Y          \ (bankcheck: ok)
+ STA pm_p+3
+ LDY pm_a               \ 2 al ah
+ PMQ
+ ASL pm_t8
+ ROL A
+ TAX
+ BCC P%+4
+ INC pm_p+3
+ LDA pm_t8
+ CLC
+ ADC pm_p+1
+ STA pm_p+1
+ TXA
  ADC pm_p+2
  STA pm_p+2
  BCC P%+4
@@ -1045,55 +1240,90 @@ ENDIF
  SBC QSH,Y              \ (bankcheck: ok)
  RTS
 
-\ pm_isqrt: A = floor(sqrt(pm_tt)) (16-bit), pm_tt = the remainder pm_tt - A^2:
-\ a bit at a time, the candidates' squares from the quarter-square table
-\ (c^2 = 4 f(c) + (c AND 1))
+\ pm_isqrt: A = f = floor(sqrt(pm_tt)) (16-bit), pm_tt = the remainder
+\ pm_tt - f^2. n is normalised to n' = 4^k n >= 2^14 (k = 0..7), so that
+\ f' = floor(sqrt(n')) is pis_t's floor(sqrt(256 h')) (h' = n' DIV 256) or
+\ one more (as sqrt(256 h' + 255) - sqrt(256 h') < 1); then f = f' >> k.
+\ The squares come from the quarter-square table (c^2 = 4 QS(c) + (c AND 1))
 
 .pm_isqrt
- LDA #0
- STA pmi_res
- LDA #&80
- STA pmi_one
-.pis1
- LDA pmi_res
- ORA pmi_one
- TAX
- JSR pis_sq
- LDA pm_tt
- CMP pmi_s
+ LDY #0                 \ k
+ LDX pm_tt
  LDA pm_tt+1
- SBC pmi_s+1
- BCC pis2
- STX pmi_res
-.pis2
- LSR pmi_one
  BNE pis1
- LDX pmi_res
+ TXA                    \ n < 256: n' = 256 n, k = 4
+ BEQ pis9               \ (n = 0: f = 0, the remainder 0)
+ LDX #0
+ LDY #4
+.pis1
+ STX pmi_n
+ CMP #64
+ BCS pis3
+.pis2                   \ n' = 4 n' until n' >= 2^14
+ ASL pmi_n
+ ROL A
+ ASL pmi_n
+ ROL A
+ INY
+ CMP #64
+ BCC pis2
+.pis3                   \ A = h' (64..255), Y = k
+ STA pmi_n+1
+ TAX
+ LDA pis_t-64,X         \ g = floor(sqrt(256 h'))
+ CMP #255
+ BEQ pis4               \ (g = 255: f' = 255, as n' < 256^2)
+ TAX
+ INX                    \ f' = g + 1 iff (g + 1)^2 <= n'
+ JSR pis_sq
+ LDA pmi_n
+ CMP pmi_c
+ LDA pmi_n+1
+ SBC pmi_c+1
+ TXA
+ BCS pis4
+ DEX
+ TXA
+.pis4
+ CPY #0                 \ f = f' >> k
+ BEQ pis6
+.pis5
+ LSR A
+ DEY
+ BNE pis5
+.pis6
+ TAX                    \ the remainder n - f^2
  JSR pis_sq
  LDA pm_tt
  SEC
- SBC pmi_s
+ SBC pmi_c
  STA pm_tt
  LDA pm_tt+1
- SBC pmi_s+1
+ SBC pmi_c+1
  STA pm_tt+1
- LDA pmi_res
+ TXA
+.pis9
  RTS
 
-.pis_sq                 \ pmi_s = X^2
+.pis_sq                 \ pmi_c = X^2 (X kept)
  LDA QSL,X              \ (bankcheck: ok: game context)
  ASL A
- STA pmi_s
+ STA pmi_c
  LDA QSH,X              \ (bankcheck: ok)
  ROL A
- ASL pmi_s
+ ASL pmi_c
  ROL A
- STA pmi_s+1
+ STA pmi_c+1
  TXA
  AND #1
- ORA pmi_s
- STA pmi_s
+ ORA pmi_c
+ STA pmi_c
  RTS
+
+.pis_t                  \ floor(sqrt(256 h)), h = 64..255 (pm_isqrt)
+ FOR h, 64, 255
+  EQUB INT(SQR(256 * h))
+ NEXT
 \ ******************************************************************************
 \
 \ PC_ROWS (the planet: slots 0 .. PC_N - 1, base colour pc_inv), PC_MROWS
@@ -1748,7 +1978,7 @@ O_RC = pv_rc - pv
 .pm_R2  SKIP 4
 .pm_Q2  SKIP 4
 .pm_m8  EQUB 0
-.pm_zsave SKIP 25       \ Elite's &10-&28 while PF_HOOK uses them
+.pm_zsave SKIP 23       \ Elite's &10-&26 while PF_HOOK uses them
 
 .pc_t   EQUB 0
 .pc_dnz EQUB 0          \ bit 7: d is not 0
@@ -1790,4 +2020,6 @@ pr_lt  = pm_P + 19      \ (2 a record: at most 6; over pm_m8 and pm_zsave)
 .pcc    EQUB 0          \ the circle's cosine (0.8) and its sign (bit 7)
 .pcneg  EQUB 0
 .pcn    EQUW 0          \ 2^24 / the axis' nominal length (>> 3)
+.pc_tw  SKIP 4          \ the record's thresholds T1, T2 before clamping (16-bit)
+.pc_tu  SKIP 4 * PCSLOTS \ and each slot's (pf_hold moves them with the disc)
 .PCB    SKIP RSZ * PCSLOTS  \ the records: the planet's, and the moon's crater

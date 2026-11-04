@@ -52,10 +52,11 @@ which spare RAM the port may take.
    7**: the rasteriser in bank 5 and ANDY, the frame layer in bank 6, and the
    meridian window (gfx-merid.asm, the circle engine that makes the planet's
    surface detail, and gfx-planet7.asm, its styles, the beach ball, craters
-   and bands, its moon and its ring with MOON=on and RINGS=on, and
-   gfx-flare.asm, the lens flare) in bank 7 after the cold pass, paged as
-   ROMSEL MERIDBANK (7) by its stubs only (G_PFHOOK in game context, T_CAPS,
-   T_MCAPS with MOON=on, and T_FLARE during the frame). What the frame layer
+   and bands, its moon and its ring with MOON=on and RINGS=on) in bank 7
+   after the cold pass, paged as ROMSEL MERIDBANK (7) by its stubs only
+   (G_PFHOOK in game context, T_CAPS, and T_MCAPS with MOON=on, during the
+   frame). The lens flare (gfx-flare.asm) is in bank 6 with the frame layer,
+   which T_FLARE pages for it. What the frame layer
    reads of the moon and the ring (MN_ON ..., RG_X ..., gfx-planetv.asm) is
    in the shared workspace (main RAM below
    &3000). Bank 7 is otherwise the cold pass's: one run from &8000, the cold
