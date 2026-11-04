@@ -3013,18 +3013,16 @@ byte is zero, with PF_HOOK saving &10-&26 only: 21,400 cycles a call, the
 gate 11.11 to 11.53 iterations a second. master/tools/grind/test_raster.py's
 pmath checks the arithmetic against exact models.
 
-Then two changes to the picture. The planet is drawn spinning at half the
-game's rate: the game keeps the original's spin (its vectors are not only
-drawn: H_CIRC leaves K2 from nosev for MV40, which adds it into the next
-object's y), and PF_HOOK turns the vectors it draws from back about the
-spin axis (nosev - sidev) by half the spin so far (pf_turn, pf_spin; INWK is
-put back), so the game state stays the original's. The game's vectors turn
-5.05 degrees an iteration with the player still, the drawing's 2.52
-(harness/mspin.mjs). And the records are made every other iteration,
-every fourth in deep space (the planet's z at least 512 x 256), the
-iterations between keeping them moved with the disc's centre (pf_hold,
-exact for the move). The lens flare moved to bank 6 to make the room. The
-gate runs at 12.16 iterations a second (164,483 cycles a flight iteration):
-open space 6.4% faster than with the faster arithmetic alone, ships about
-6.6%, big planet 6.5%, the Lave window 9.7%.
+Then two changes to the picture. The planet spins at half the original's
+rate, in the game: H_MVS4 (MVEIT part 7's last call) skips part 8, the
+planet's own pitch and roll, on iterations with MCNT odd, and the harness
+(harness/mlib.mjs, agentplay's lib.mjs) makes SNG47 skip the same turns, so
+the whole game state, the planet's vectors included, still matches (the
+vectors reach the game through K2, which H_CIRC leaves for MV40). And the
+records are made on exactly the iterations the planet turns, MCNT even (a
+multiple of 4 in deep space, the planet's z at least 512 x 256), the
+iterations between keeping them moved with the disc's centre (pf_hold, exact
+for the move). The lens flare moved to bank 6 to make room. The gate runs
+at 12.61 iterations a second against the patched SNG47's 14.14 (0.892),
+158,594 cycles a flight iteration.
 
