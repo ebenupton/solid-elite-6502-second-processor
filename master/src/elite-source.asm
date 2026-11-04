@@ -2222,6 +2222,18 @@ IF _TPART = 1
 
 ENDIF
 
+\ ******************************************************************************
+\
+\       Name: WSCAN (wait)
+\       Type: Subroutine
+\   Category: Screen mode
+\    Summary: Port: WSCAN's own wait for the vertical sync, its own block (the
+\             Tube's host waits: never run on the parasite, in overlay D)
+\       Area: low
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
  STZ DL                 \ Set DL to 0
 
 .DELL1K                 \ This label is a duplicate of a label in the DELT
@@ -2326,7 +2338,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound chip data to turn the volume down on all channels and to act
-\       Tube: both
+\       Tube: both, ovl D
 \             as a mask for choosing a tone channel in the range 0-2
 \       Area: low
 \
@@ -2356,7 +2368,7 @@ ENDIF
 \   Category: Sound
 \    Summary: Write sound data directly to the 76489 sound chip
 \       Area: low
-\       Tube: both
+\       Tube: both, ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -2393,6 +2405,18 @@ ENDIF
  LDA #%00001000         \ Deactivate the sound chip by setting bit 3 of the
  STA VIA+&40            \ 6522 System VIA output register ORB (SHEILA &40)
 
+\ ******************************************************************************
+\
+\       Name: SOUR1
+\       Type: Subroutine
+\   Category: Sound
+\    Summary: Port: SOUS1's RTS, its own block: NOISE branches to it (SOUS1 is
+\             in the Tube's overlay D)
+\       Area: low
+\       Tube: both
+\
+\ ******************************************************************************
+
 .SOUR1
 
  RTS                    \ Return from the subroutine
@@ -2404,7 +2428,7 @@ ENDIF
 \   Category: Sound
 \    Summary: Reset the sound buffers and turn off all sound channels
 \       Area: low
-\       Tube: both
+\       Tube: both, ovl D
 \
 \ ******************************************************************************
 
@@ -2937,6 +2961,7 @@ ENDIF
 \   Category: Loader
 \    Summary: Set the various vectors, interrupts and timers
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -3254,6 +3279,7 @@ ENDIF
 \    Summary: Copy the top part of zero page (&0090 to &00FF) into the buffer at
 \             &3000
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -6161,6 +6187,18 @@ IF _TPART <> 2          \ (Tube: the host draws from HLOIN3, X1, X2, Y1 and COL
 
 ENDIF
 
+\ ******************************************************************************
+\
+\       Name: HLOIN3
+\       Type: Subroutine
+\   Category: Drawing lines
+\    Summary: Port: HLOIN's drawing, its own block (the Tube's parasite runs it
+\             only on the screens drawn directly: overlay D)
+\       Area: hot, ACCCON X
+\       Tube: bothb, ovl D
+\
+\ ******************************************************************************
+
 .HLOIN3
 
 IF _TPART = 1
@@ -6824,6 +6862,20 @@ ENDIF
 IF _TPART <> 2          \ (Tube: the host draws from PIXEL's body, X, A, ZZ and
  JSR H_DOT              \ COL from the parasite: p-io.asm's p_pixel)
 ENDIF
+\ ******************************************************************************
+\
+\       Name: PIXELD
+\       Type: Subroutine
+\   Category: Drawing pixels
+\    Summary: Port: PIXEL's drawing, its own block (the Tube's parasite runs it
+\             only on the screens drawn directly: overlay D)
+\       Area: hot, ACCCON X
+\       Tube: bothb, ovl D
+\
+\ ******************************************************************************
+
+.PIXELD
+
 IF _TPART = 1
  JMP p_pixel
 ELSE              \ Port: in record mode, record the dot (an explosion
@@ -6955,6 +7007,17 @@ ENDIF
  RTS                    \ Return from the subroutine
 
 ENDIF
+
+\ ******************************************************************************
+\
+\       Name: PXOFF
+\       Type: Subroutine
+\   Category: Drawing pixels
+\    Summary: Port: PIXEL2's star off screen, its own block (after PIXELD)
+\       Area: hot, ACCCON X
+\       Tube: bothb
+\
+\ ******************************************************************************
 
 IF _TPART <> 2
 .PXOFF
@@ -7564,7 +7627,7 @@ ENDIF
 \   Category: Text
 \    Summary: Print a newline
 \       Area: low
-\       Tube: both
+\       Tube: both, ovl D
 \
 \ ******************************************************************************
 
@@ -7896,6 +7959,20 @@ ENDIF
  JSR H_DEL              \ Port: keep the renderer's text map, and in record mode
                         \ return through RR4 instead of blanking (gfx-hooks.asm)
 
+\ ******************************************************************************
+\
+\       Name: RRDEL
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Port: CHPR's deletion drawing, its own block (the Tube's parasite
+\             never runs it, as its H_DEL returns from CHPR: overlay D)
+\       Area: low
+\       Tube: both, ovl D
+\
+\ ******************************************************************************
+
+.RRDEL
+
  ASL A                  \ A contains YC (from above), so this sets A = YC * 2
 
  ASL SC                 \ Double the low byte of SC(1 0), catching bit 7 in the
@@ -7944,6 +8021,17 @@ ENDIF
  BEQ RR4                \ We are done deleting, so restore the registers and
                         \ return from the subroutine (this BNE is effectively
                         \ a JMP as ZES2 always returns with the Z flag set)
+
+\ ******************************************************************************
+\
+\       Name: RR2
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Port: CHPR's printing, its own block (after RRDEL)
+\       Area: low
+\       Tube: both
+\
+\ ******************************************************************************
 
 .RR2
 
@@ -8039,6 +8127,18 @@ ENDIF
                         \ starts at &4000 (page &40) and each screen row takes
                         \ up 2 pages (512 bytes)
 
+\ ******************************************************************************
+\
+\       Name: RREN
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Port: CHPR's glyph drawing, its own block (the Tube's parasite
+\             never runs it, as its H_CHAR returns from CHPR: overlay D)
+\       Area: low
+\       Tube: both, ovl D
+\
+\ ******************************************************************************
+
 .RREN
 
  STA SC+1               \ Store the page number of the destination screen
@@ -8128,6 +8228,17 @@ ENDIF
  DEY                    \ Decrement the loop counter
 
  BPL RRL1               \ Loop back for the next byte to print to the screen
+
+\ ******************************************************************************
+\
+\       Name: RR4
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Port: CHPR's exit, its own block (after RREN)
+\       Area: low
+\       Tube: both
+\
+\ ******************************************************************************
 
 .RR4
 
@@ -8361,7 +8472,7 @@ ENDIF
 \   Category: Utility routines
 \    Summary: Zero-fill a specific page
 \       Area: low
-\       Tube: both
+\       Tube: both, ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -8415,6 +8526,7 @@ ENDIF
 \   Category: Drawing the screen
 \    Summary: Clear the bottom three text rows of the space view
 \       Area: hot, ACCCON X
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -9748,6 +9860,7 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 \   Category: Utility routines
 \    Summary: Unscramble the main code
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -9878,6 +9991,18 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \ kill points, and we are in galaxy 0 or 1 (shown
                         \ in-game as galaxy 1 or 2), so it's time to start
                         \ mission 1 by calling BRIEF
+
+\ ******************************************************************************
+\
+\       Name: EN1
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Port: DOENTRY's missions, after the hangar, its own block (in the
+\             Tube's overlay D)
+\       Area: cold
+\       Tube: ovl D
+\
+\ ******************************************************************************
 
 .EN1
 
@@ -14978,6 +15103,17 @@ ENDIF
  ASSERT mla5 - mlb5 = MLSA - MLSB AND mla2 - mlb2 = MLSA - MLSB
  ASSERT mla4 - mlb4 = MLSA - MLSB AND MLSA - MLSB < 256
 
+\ ******************************************************************************
+\
+\       Name: fkl
+\       Type: Variable
+\   Category: Keyboard
+\    Summary: Port: FILLKL's variables, their own block (only FILLKL's own scan
+\             uses them: the Tube's overlay D)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
                         \ Port: FILLKL's variables (fkdet follows MVS5's rare
                         \ paths below)
 
@@ -16388,6 +16524,17 @@ ENDIF
  RTS
 
 
+\ ******************************************************************************
+\
+\       Name: fkdet
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Port: the keyboard columns with a key pressed, for FILLKL's own
+\             scan, its own block (the Tube's overlay D)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
 .fkdet
 
                         \ Port: for FILLKL, set fkl(0..fkn-1) to the keyboard
@@ -17263,6 +17410,18 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+\ ******************************************************************************
+\
+\       Name: DA1
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Port: TT26's justified paragraphs, its own block (on the Tube's
+\             parasite, which justifies only the extended tokens of the screens
+\             drawn directly, in overlay D)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
 .DA1
 
                         \ If we get here then we are justifying text and we have
@@ -17478,6 +17637,16 @@ ENDIF
 
  LDA #12                \ Set A = 12, so when we skip BELL and fall through into
                         \ CHPR, we print character 12, which is a newline
+
+\ ******************************************************************************
+\
+\       Name: DA7
+\       Type: Subroutine
+\   Category: Text
+\    Summary: Port: TT26's last newline, its own block (after DA1): falls into
+\             BELL
+\
+\ ******************************************************************************
 
 .DA7
 
@@ -24174,6 +24343,7 @@ ENDIF
 \    Summary: Clear the screen, display "INCOMING MESSAGE" and wait for 2
 \             seconds
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -29148,6 +29318,20 @@ ENDIF
  LDX QQ12               \ If we are not docked (QQ12 = 0) then jump to NLUNCH
  BEQ NLUNCH             \ to skip the launch tunnel and setup process
 
+\ ******************************************************************************
+\
+\       Name: TT110L
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Port: TT110's launch from the station, its own block (run only
+\             while docked: the Tube's overlay D)
+\       Area: cold
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.TT110L
+
  JSR LAUN               \ Show the space station launch tunnel
 
  JSR RES2               \ Reset a number of flight variables and workspaces
@@ -29192,6 +29376,16 @@ ENDIF
 
  JSR HFS1               \ Call HFS1 to draw 8 concentric rings to remove the
                         \ launch tunnel that we drew above
+
+\ ******************************************************************************
+\
+\       Name: NLUNCH
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Port: TT110's front view, its own block (after TT110L)
+\       Area: cold
+\
+\ ******************************************************************************
 
 .NLUNCH
 
@@ -32304,6 +32498,17 @@ IF _TPART = 1
  JMP p_det1             \ Port (Tube): the host's 6845
 
 ENDIF
+
+\ ******************************************************************************
+\
+\       Name: DET1 (6845)
+\       Type: Subroutine
+\   Category: Screen mode
+\    Summary: Port: DET1's own write to the 6845, its own block (the Tube's host
+\             has the 6845: never run on the parasite, in overlay D)
+\       Tube: ovl D
+\
+\ ******************************************************************************
 
  LDA #6                 \ Set A to 6 so we can update 6845 register R6 below
 
@@ -35997,6 +36202,17 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+\ ******************************************************************************
+\
+\       Name: TT17afterall
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Port: TT17 off the space view, its own block (the Tube's overlay
+\             D)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
 .TT17afterall
 
  JSR DOKEY              \ Scan the keyboard for flight controls and pause keys,
@@ -38238,6 +38454,18 @@ ENDIF
  AND #%11000000         \ keep going, otherwise return from the subroutine (as
  BEQ t95                \ t95 contains an RTS)
 
+\ ******************************************************************************
+\
+\       Name: T95D
+\       Type: Subroutine
+\   Category: Charts
+\    Summary: Port: T95 on a chart, its own block (the Tube's overlay D)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.T95D
+
  JSR hm                 \ Call hm to move the crosshairs to the target system
                         \ in (QQ9, QQ10), returning with A = 0
 
@@ -38402,6 +38630,7 @@ ENDIF
 \    Summary: Temporary storage for the stack pointer when jumping to the break
 \             handler at NEWBRK
 \       Area: low
+\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -38416,6 +38645,7 @@ ENDIF
 \   Category: Utility routines
 \    Summary: The standard BRKV handler for the game
 \       Area: low
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -38719,6 +38949,7 @@ ENDIF
 \    Summary: Main entry point for the Elite game code
 \  Deep dive: Program flow of the main game loop
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -38892,6 +39123,7 @@ ENDIF
 \   Category: Status
 \    Summary: Go to the docking bay (i.e. show the Status Mode screen)
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41864,6 +42096,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Scan the keyboard until a key is pressed
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -41923,6 +42156,16 @@ ENDIF
  LDY YSAV               \ Restore the original value of Y we stored above
 
  TAX                    \ Copy A into X
+
+\ ******************************************************************************
+\
+\       Name: out
+\       Type: Subroutine
+\   Category: Utility routines
+\    Summary: Port: TT217's RTS, its own block: the code around it returns
+\             through it (TT217 is in the Tube's overlay D)
+\
+\ ******************************************************************************
 
 .out
 
@@ -48700,6 +48943,17 @@ IF _TPART = 1
 
 ENDIF
 
+\ ******************************************************************************
+\
+\       Name: FILLKL (scan)
+\       Type: Subroutine
+\   Category: Keyboard
+\    Summary: Port: FILLKL's own scan of the keyboard, its own block (the Tube's
+\             host scans the keyboard: never run on the parasite, overlay D)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
  STX RdX+1              \ Store X = 0 as the operand of the LDX at RdX, which
                         \ holds the index into the flight keys for Rd2 below
 
@@ -49632,6 +49886,7 @@ ENDIF
 \   Category: Save and load
 \    Summary: Set the standard BRKV handler for the game
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 

@@ -196,8 +196,13 @@ TBUFN = 35
  JMP F_CHAR
 .G_DELCHAR
  JMP F_DELCHAR
-.G_CLRTEXT
+
+\       Area: ovl D
+
+.G_CLRTEXT              \ (H_CLYNS's, in overlay D)
  JMP F_CLRTEXT
+
+\       Area: frame
 
 \ pchr: send C_CHAR: A = the character, X = the cursor column CHPR was
 \ entered with: the host's CHPR draws it

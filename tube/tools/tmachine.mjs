@@ -102,7 +102,13 @@ export class TubeEliteMachine extends EliteMachine {
         while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }
         return r && r.endsWith("_C") ? r.slice(0, -2) : r;
     }
-    _at(h, pc) { return !!h && pc === h.a; }
+    // (a label in the overlay region is overlay D's, name_C, and is reached only
+    // while D is in: ovl_cur 1, p-ovl.asm; S's code shares its addresses)
+    _at(h, pc) {
+        if (!h || pc !== h.a) return false;
+        const sy = this.sy;
+        return !(sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < (sy.RING ?? 0xF400)) || this.ram[sy.ovl_cur] === 1;
+    }
 
     // as EliteMachine.tab, but DKS5's answer goes into X at DKS5T (A is the key)
     tab(pc) {

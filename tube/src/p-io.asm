@@ -810,6 +810,8 @@ ENDMACRO
  RTS
 .tfl_x EQUB 0
 
+\       Area: ovl D
+
 \ p_hloin: HLOIN3 (Master's drawing, the host's: C_HLOIN): a line from (X1, Y1)
 \ to (X2, Y1) in COL, leaving YSAV, X1, X2 and X as Master's does; keeps Y
 
@@ -862,6 +864,8 @@ ENDMACRO
  TAX
  RTS
 
+\       Area: frame
+
 .p_cls                  \ TTX66's screen clear (the direct-mode buffer)
  PHP
  LDA #C_CLS
@@ -879,6 +883,8 @@ ENDMACRO
  PLP
  RTS
 
+\       Area: ovl D
+
 .p_clyns                \ CLYNS's screen clear (keeps A and the flags)
  PHP
  PHA
@@ -887,6 +893,8 @@ ENDMACRO
  PLA
  PLP
  RTS
+
+\       Area: frame
 
 \ ******************************************************************************
 \
@@ -921,9 +929,13 @@ ENDMACRO
  STZ SOPR+2
  RTS
 
+\       Area: ovl D
+
 .p_soflush
  LDA #C_SOFLUSH
  JMP preq4
+
+\       Area: frame
 
 \ p_det1: DET1: 6845 R6 = X; returns as DET1 (A = 6)
 
@@ -1106,7 +1118,7 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  STA &FD                \ number, the message after it
  LDA #HI(R_NDX3)
  STA &FE
- JMP NEWBRK
+ JMP NEWBRK_C           \ (NEWBRK: overlay D's, as this is)
 
 \       Area: frame
 

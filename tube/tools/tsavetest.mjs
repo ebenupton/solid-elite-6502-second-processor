@@ -33,7 +33,9 @@ s.keyDown(16); s.reset(true); host.execute(2e6 * 2); s.keyUp(16);
 s._video.frameSkipCount = 0;
 const secs = n => { for (let k = 0; k < n * 10; k++) host.execute(2e5); };
 let iters = 0, brks = 0, oscli = 0;
-t.addParHook(pc => { if (pc === psy.p_sync) iters++; if (pc === psy.NEWBRK) brks++; if (pc === psy.p_oscli) oscli++; return false; });
+const NEWBRK = psy.NEWBRK_C ?? psy.NEWBRK;   // (NEWBRK and p_oscli are overlay D's, in on the disc
+const inD = () => t.par.memory[psy.ovl_cur] === 1;   // screens: S's code shares their addresses)
+t.addParHook(pc => { if (pc === psy.p_sync) iters++; if (pc === NEWBRK && inD()) brks++; if (pc === psy.p_oscli && inD()) oscli++; return false; });
 let shot = 0;
 const snap = async name => writeFileSync(`${OUT}/${String(shot++).padStart(2, "0")}-${name}.png`, await s.screenshot());
 const key = (k, hold = 0.15, after = 0.6) => { host.sysvia.keyDownRaw(BBC[k]); secs(hold); host.sysvia.keyUpRaw(BBC[k]); secs(after); };
