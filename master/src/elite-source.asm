@@ -20967,6 +20967,17 @@ ENDIF
  PLA                    \ Restore the view type from the stack
  STA QQ11
 
+\ ******************************************************************************
+\
+\       Name: HFS1
+\       Type: Subroutine
+\   Category: Drawing circles
+\    Summary: Port: HFS2's rings, its own block (the Tube's parasite draws them
+\             with D in: overlay D, after TT66 has left the space view)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
 .HFS1
 
  LDX #&FF               \ Port: the rings are drawn directly, even in record
@@ -24247,6 +24258,7 @@ ENDIF
 \    Summary: Start mission 1 and show the mission briefing
 \  Deep dive: The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24296,6 +24308,17 @@ ENDIF
 
  LDA #64                \ Set the main loop counter to 64, so the ship rotates
  STA MCNT               \ for 64 iterations through MVEIT
+
+\ ******************************************************************************
+\
+\       Name: BRL1
+\       Type: Subroutine
+\   Category: Missions
+\    Summary: Port: BRIEF's frames, its own block (on the Tube's parasite
+\             BRIEF's start, before the frames, is overlay D's)
+\       Area: cold
+\
+\ ******************************************************************************
 
 .BRL1
 

@@ -163,6 +163,7 @@ ENDIF
  INCLUDE "src/gfx-planet7.asm"
  CPU 1
  INCLUDE "build/gfx-frame_cold-ovls.asm"  \ (f_slot: the stars round a docking slot)
+ INCLUDE "build/gfx-hangar-ovls.asm"     \ (fh_rect: the hangar's rectangles, f_hback's, in F_FRAME)
  INCLUDE "build/gfx-ssun-ovls.asm"      \ (S_SUN's ss_seed and ss_draw)
  INCLUDE "tsrc/p-lost.asm"              \ (S's state rebuilt: r_lost)
 .OVL_S_END

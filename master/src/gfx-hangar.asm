@@ -125,6 +125,8 @@ HTOP = 16               \ the wall's top row: text row 1, the view's name, is on
  BNE fhb3
  JMP f_lines
 
+\       Area: ovl S
+
 \ fh_rect: fill pixels fz_t to fz_u-1 of rows A to Y-1 (R_POLY's rule) in the
 \ colour set
 
