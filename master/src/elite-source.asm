@@ -20323,7 +20323,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Launch a ship straight ahead of us, below the laser sights
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24864,7 +24863,6 @@ ENDIF
 \   Category: Market
 \    Summary: Work out if we have space for one tonne of cargo
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24916,7 +24914,6 @@ ENDIF
 \   Category: Market
 \    Summary: Work out if we have space for a specific amount of cargo
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28488,7 +28485,6 @@ ENDIF
 \   Category: Flight
 \    Summary: Print an error when a system is out of hyperspace range
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28508,7 +28504,6 @@ ENDIF
 \   Category: Text
 \    Summary: Print a text token followed by a question mark
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -34914,7 +34909,6 @@ ENDIF
 \    Summary: Draw the sun: Continue to move up the screen, drawing the new sun
 \             line by line
 \  Deep dive: Drawing the sun
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35184,8 +35178,6 @@ ENDIF
 \   RTS2                Contains an RTS
 \
 \ ******************************************************************************
-
-.SUN4                  \ (the Tube: the entry from part 3, in overlay D)
 
  LDA SUNX               \ Set YY(1 0) = SUNX(1 0), the x-coordinate of the
  STA YY                 \ vertical centre axis of the old sun that's currently
@@ -35601,7 +35593,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Draw a horizontal line given a centre and a half-width
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
