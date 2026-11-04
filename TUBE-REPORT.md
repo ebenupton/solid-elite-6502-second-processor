@@ -7,6 +7,165 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The circle engine's arithmetic, its holds and the half spin; room for overlay S (branch `tubediscs`, 2026-11-04)
+
+full-master 7b80a99 merged: the circle engine's Tier A arithmetic (pis_t,
+the 192-entry square root table; the zero-page-pointer 16 x 16 multiply;
+the tighter divide; short products), the circles' records made on the
+iterations the planet turns (MCNT even, a multiple of 4 in deep space) and
+held, moved with the disc, on the others, and the planet's half spin made
+in the game: H_MVS4 (MVEIT part 7's last MVS4) skips part 8 for the planet
+on iterations with MCNT odd. On the parasite H_MVS4 is resident, in the
+run. The SNG47 patch that matches it (master/tools/agentplay/lib.mjs,
+harness/mlib.mjs) applies to any build without H_MVS4, so the Tube's
+lockstep, pixel and speed replays get it as the Master port's do.
+gfx-merid.asm and gfx-planet7.asm have no Tube conditionals and grow by 984
+bytes: overlay S goes from 16,319 to 17,303 bytes, which from &B400 would be
+919 bytes past the ring.
+
+### Room: what the space view never runs, into overlay D
+
+Overlay S keeps every feature (the engine runs every iteration in flight,
+in game context and in the frame, so it must be in memory with the rest of
+the space view); the room comes from resident code that runs only on the
+screens drawn directly, or while docked, or never on the parasite at all
+(the host does it). Each part is a block of its own in elite-source.asm
+(headers only: the Master port assembles byte-identically), tagged "Tube:
+ovl D", or "both, ovl D" and "bothb, ovl D" (new in streams.py) where the
+hosts keep a copy of the block; the Tube halves go by their files' "Area:
+ovl D" passes (gfx-hooks.asm and gfx-hangar.asm are passed now too).
+
+| Moved to overlay D | Bytes | Why the space view never runs it |
+|---|---:|---|
+| FILLKL's own scan, fkdet, fkl to fkrb | 188 | never run: FILLKL jumps to p_fillkl first (the host scans the keyboard) |
+| DA1 to DA6 (TT26's justified paragraphs) | 138 | DTW4 bit 7 without bit 6 comes only from MT14, through overlay D's extended tokens |
+| DEEOR, COLD, setzp, SETINTS, SOFLUSH, SOUS1, SOOFF, p_soflush | 124 | the boot, once, with D in |
+| CLYNS, H_CLYNS, G_CLRTEXT, F_CLRTEXT, p_clyns | 86 | MESS and me2 call CLYNS only off the space view |
+| TT17afterall to TJS1 | 84 | TT17 off the space view |
+| EN1 to EN5 (DOENTRY's missions) | 78 | after the hangar (HALL, overlay D's), docked |
+| RREN, RRL1 (CHPR's glyph drawing); RRDEL and ZES2 (its deletion) | 77 | never run: H_CHAR and H_DEL return from CHPR first |
+| HLOIN3, p_hloin | 52 | HLOIN past H_HLOIN: off the space view |
+| TT217, NEWBRK, stackpt | 52 | the disc menu's keys and its error path (p-io.asm's, in D) |
+| BAY, BRIS, TT170, TT67K, F_HANG0 | 44 | docked, the briefings' first screen, the game's start |
+| TT110L (TT110's launch) | 43 | docked |
+| PIXELD, p_pixel | 34 | PIXEL past H_DOT: off the space view |
+| T95D (T95 on a chart) | 18 | on a chart |
+| DET1's 6845 write, WSCAN's wait | 18 | never run: they jump to p_det1 and p_wscan first |
+
+Nothing moved leads to a frame of the space view while it is on the stack:
+F_FRAME would load S and then, with D's routines on the stack, D back,
+every frame (TT102's "@", whose new commander restarts the title, stays
+resident). The labels the code around them shares stay resident as blocks
+of their own (SOUR1, RR2, RR4, DA7, out, NLUNCH, PXOFF), and every stub the
+run gained (BAY, BRIS, CLYNS, COLD, DA1, DEEOR, EN1, EN4, HLOIN3, PIXELD,
+RRDEL, RREN, T95D, TT110L, TT17afterall) is a call or fall-through from a
+path that is off the space view or never run. The frame layer's small state
+(F_BX, F_BY, F_DCOL, f_tcol, f_zsv, F_SLV: 125 bytes) moves into the glue,
+where the run's first ALIGN (before log, now at &2300) takes it into its
+padding.
+
+The resident code ends at &AFD0 (47 bytes free), OVL_START is &B000 and
+overlay S ends at &F396 (105 bytes free to the ring); D is 10,720 bytes
+(42 pages), 6,688 free. The hosts: the Master host stores the overlays' 97
+pages (D's 42 and S's code's 55, 8 more than before) in 105 slots, as bank
+4's STA-run page tails (bytes 192-255) now hold pages as bank 7's do (HSTB4
+on the disc, 8 of its 16 slots used); the Model B host's bank S holds D at
+42 of its 50 pages, and bank D S's code at 55 pages, 9 free. On the
+original's run1 (before the merge) the overlay loads are unchanged by the
+move: 20 of D and 20 of S, at the same iterations.
+
+Still possible without losses if S grows again: the parasite's stack page
+(the bottom of page 1 could hold a table once the parasite's deepest stack
+is measured); not workable: a third overlay for the engine (it runs every
+iteration). Not taken, with losses (bytes each): PMQ as a subroutine on the
+Tube (115), a three-page ring (256), the old square root (226), no kept rows
+(566). rp_mul16 and pm_mul16 (both 16 x 16 multiplies in S) are not
+interchangeable: rp_mul16's callers hold the rasteriser's edge state in the
+zero page pm_mul16 uses. No second copy of any table was found.
+
+### The original with the half spin plays run1 differently: a death, and LOINQ's C
+
+The planet's vectors reach the game through K2, so with the half spin
+run1's recorded keys play out a different game after the first launch: it
+flies on from the system it jumps to, is killed at iteration 10657 and
+starts again at Lave, and it never docks before 16000. The death showed a
+Tube bug that run1 had never reached: the parasite's LOIN and LOINQ
+(p-dash.asm: the host draws the line) left C as it came, where Master's
+LOINQ leaves it clear but for some lines of one or two pixels; DEATH's BOX
+ends with a LOINQ and nWq's first DORND takes C in, so the stardust and the
+random numbers differed. The parasite's LOINQ now returns C as Master's
+does: clear, but set for a point with X1 >= 128, for (X1, Y1) to (X1 + 1,
+Y1) with X1 MOD 4 = 0, and for (X1, Y1) to (X1, Y1 - 1) or (X1 + 1, Y1 - 1)
+with Y1 MOD 8 = 0 (Master's LOINQ, its listed bytes run in a 65C02 model,
+over every line of up to two pixels each way, 1.2 million, and 3,000 random
+lines: C on entry never matters, and every longer line ends with C clear).
+51 bytes, in the glue, which the ALIGN's padding takes. Checked first on
+the original's run1 with a death forced at iteration 1000 (a poke: FSH,
+ASH and ENERGY low, the planet at z = 256), which diverged at the death
+before and is clean after.
+
+The pixel references (scratch/master-ref.ssd, scratch/fbref,
+scratch/dashref) are made again from 7b80a99's build (the previous ones are
+kept as scratch/*-68c5dba).
+
+### SUN's part 3 and the space view (not changed)
+
+SUN's part 3, in overlay D since it made room for the disc heap, also runs
+in the space view whenever Elite's sun is on screen: SUN goes on past
+H_SUN for its random numbers and the line heap, and its part 2 falls into
+part 3's stub. Each such iteration loads D and then S back for the frame
+(run1 with the half spin from 15987; a sun posed in front loads them every
+iteration). The pixels and the game are right; the time is not. Moving part
+3 back to the resident code needs 155 bytes there (47 are free).
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical to 7b80a99's; lockstep 16,002
+  iterations against the patched SNG47 clean (through the death), TUBEINT
+  602 clean; pixels: 13,442 frames (Master host) and 13,443 (Model B)
+  matched, 0 mismatched; the dashboard 2,737 and 2,738, 0 mismatched; saves
+  byte-identical; storage 97 pages, 0 differ; crash and station ok.
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340), with the
+  Master host's parasite at 4 MHz and the Model B's at 3 MHz as the script
+  asks (harness/mlib.mjs's runElite now boots the Tube at TUBEMHZ, as
+  tmachine.mjs does; it ran every Tube at 3 MHz before).
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000: 734
+  frames, 90,861 band rows, 0 wrong (both hosts).
+* Before the merge, on the original's run1, each commit's gate: as before,
+  speeds within 0.02 it/s.
+
+### Speeds
+
+run1's windows (main-loop iterations per emulated second; the Master host's
+parasite at 4 MHz, the Model B host's at 3 MHz), with the half-spin
+original as the reference. As run1 now plays a different game after the
+first launch, 3420-3550 and 5355-5457 are open space (everything but the
+original at the 25 fps cap) where they were the docking and the second
+beach-ball approach, which is now 12105-12212 (the launch from Lave after
+the death):
+
+| | 1000-1400 | 3420-3550 | 0-3550 | 300-403 | 5355-5457 | 12105-12212 |
+|---|---:|---:|---:|---:|---:|---:|
+| Original (SNG47, the half spin) | 12.89 | 27.99 | 15.99 | 8.12 | 29.69 | 8.50 |
+| Master port (7b80a99) | 15.29 | 25.04 | 17.00 | 7.14 | 25.04 | 7.59 |
+| Tube, Master host | 23.27 | 25.04 | 22.10 | 11.33 | 25.04 | 12.71 |
+| Tube, Model B host | 20.55 | 25.04 | 20.39 | 9.40 | 25.04 | 10.29 |
+
+300-403 (the first launch: the same scene in both runs) compares with the
+original's run1: the Master port 6.46 to 7.14, the Master host 10.58 to
+11.33, the Model B host 8.71 to 9.40 (the arithmetic and the holds). The
+move into overlay D and LOINQ's C cost nothing: on the original's run1 the
+gate's five windows are as before within 0.02 it/s.
+
+The Master port's own gate run (harness/mcompare.mjs --iters 10000, with
+--tube and TUBEMHZ 4 or 3 for the Tube: the deterministic pilot's launches,
+fights, approaches and hyperspace jumps, the same game on every build;
+flight iterations per emulated second): the original 14.14, the Master
+port 12.61 (0.892), the Tube's Master host 19.84 (1.402), its Model B host
+17.04 (1.205).
+
+
 ## The distant dot under the faces (branch `tubediscs`, 2026-10-31)
 
 full-master 09cd0af and 68c5dba (f_sdot: a ship's distant dot drawn under its

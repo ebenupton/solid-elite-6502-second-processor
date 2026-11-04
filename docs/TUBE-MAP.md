@@ -29,8 +29,8 @@ sights, and the text map with its diff against what each buffer shows.
 | Free | &0CCF-&0D07 | 57 bytes (the moon's place, with MOON=on on the Master port: the Tube's build refuses MOON=on) |
 | Dummy SHEILA | &0D08 | the one SHEILA byte Master's code still writes on the parasite (ACCCON, VIA + &34) |
 | Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm (workspace: not in the image): the polygon and line inputs, the stars, the text map's row counts, the discs' and the flare's probes' scratch, R_POLY's and the kept rows' scratch, then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page); 76 bytes free |
-| Resident code and data | &1400-&B3E3 (28 free to &B3FF) | the glue (p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the stubs into overlay D, the panel's game halves), the run (every block not tagged "Tube: ovl D" or the hosts'), the game data (not QQ18, the recursive tokens: the hosts keep them, below), the frame layer's parasite part and its state (F_HW, F_SR, F_RP, the text map F_TM, F_SLV), then the disc heap's drop and the surface's cold paths (p-disc0.asm) and the flare's probes' helpers (p-probe1.asm) |
-| Overlay region | &B400-&F3FF | overlay D or overlay S (below); in direct mode ZPSAVE, above D, is getzp's buffer |
+| Resident code and data | &1400-&AFD0 (47 free to &AFFF) | the glue (p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves, and the frame layer's small state: F_BX, F_BY, F_DCOL, f_tcol, f_zsv, F_SLV, which the run's first ALIGN, before log at &2300, takes into its padding), the run (every block not tagged for overlay D or the hosts', with a stub at the place of each routine of D that the run calls), the game data (not QQ18, the recursive tokens: the hosts keep them, below), the frame layer's parasite part and its state (F_HW, F_SR, F_RP, the text map F_TM), then the disc heap's drop and the surface's cold paths (p-disc0.asm) and the flare's probes' helpers (p-probe1.asm) |
+| Overlay region | &B000-&F3FF | overlay D or overlay S (below); in direct mode ZPSAVE, above D, is getzp's buffer |
 | The ring | &F400-&F7FF | 4 pages, above both overlays and the boot's staging (p-layout.asm asserts it): the commands buffered while register 1 is full (p-io.asm; "The ring" below) |
 | High area | &F800-&FEE9 | phase A's second part (p-polyb.asm), the panel's second part (p-dash2.asm), the kept rows' T_KFRAME and pk_line (p-kept2.asm), the one-pass generator's tail; 6 bytes free to &FEEF. The client OS's copy lives here too: the host keeps whichever of the two is out (C_SWAP) |
 | Page &FF | &FF00-&FFF9 | p_crash, the flare's step and tables (gfx-flare6.asm), its probes' hooks (p-probe2.asm), the directly drawn stars; 9 bytes free |
@@ -39,8 +39,8 @@ sights, and the text map with its diff against what each buffer shows.
 
 | Overlay | Size | Free | Holds |
 |---|---|---|---|
-| D (direct mode) | 9,665 bytes, &B400-&D9C0 | 6,719 (less ZPSAVE's 112 at &EF90) | the cold blocks that run only on the screens drawn directly (the blocks tagged "Tube: ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title, the briefings' pauses, SUN's direct drawing, the default commander), with the extended tokens they print |
-| S (space mode) | 16,319 bytes, &B400-&F3BE | 65 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet; last, r_lost (p-lost.asm: the state rebuilt after S went out in space mode) |
+| D (direct mode) | 10,720 bytes, &B000-&D9DF | 6,688 (less ZPSAVE's 112 at &EF90) | the code that runs only on the screens drawn directly or while docked (the blocks tagged "Tube: ovl D", "both, ovl D" or "bothb, ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title, the briefings' pauses, SUN's direct drawing, the default commander; and the parts of resident routines that the space view never runs, each a block of its own: TT26's justified paragraphs (DA1), CLYNS, TT17's cursor keys (TT17afterall), T95 on a chart (T95D), HLOIN3, PIXEL's drawing (PIXELD), TT217 and NEWBRK, DOENTRY's missions (EN1), TT110's launch (TT110L), BAY, BRIS, TT170, TT67K, the boot's DEEOR, COLD, setzp, SETINTS and SOFLUSH), the code the parasite never runs because the host does it (FILLKL's own scan with fkdet, CHPR's glyph drawing RREN and deletion RRDEL with ZES2, DET1's 6845 write, WSCAN's wait), the Tube halves of these (p_hloin, p_pixel, p_clyns, p_soflush, G_CLRTEXT, H_CLYNS, F_CLRTEXT, F_HANG0: the files' "Area: ovl D" passes), with the extended tokens they print. None of it leads to a space-view frame while it is on the stack |
+| S (space mode) | 17,303 bytes, &B000-&F396 | 105 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet; last, r_lost (p-lost.asm: the state rebuilt after S went out in space mode) |
 
 Code outside an overlay calls into D through stubs that streams.py writes at
 the routines' places (`JSR povd : EQUW target`; povdj for the routines that
@@ -48,8 +48,8 @@ never return); povd loads D if it is out, and loads back the overlay that was
 in when the target returns, if that one has routines on the stack (ovl_dact
 scans the stack). F_FRAME and F_INIT load S. S's state is never kept: the
 hosts keep S's image from the state's end, and when S comes back the state
-is rebuilt. If S went out in space mode (a call into D during flight:
-DFAULT and STATUS, TT18, HALL, TT23 in run1), nothing is known of either
+is rebuilt. If S went out in space mode (a call into D during flight: the
+charts, TT18, SUN's part 3 in run1), nothing is known of either
 buffer, and r_lost (p-rast.asm) marks it all unknown: in each buffer every
 row inside the border dirty from the window's left to its right (2-253),
 no disc rows, no second disc, no kept rows, the disc heap empty (the
@@ -62,8 +62,11 @@ are resident, untouched. If S went out in direct mode, the next space-mode
 frame starts buffer 0 afresh (GSTASH, f_b0new), as after a disc command.
 
 A load is the overlay's whole pages through register 4, only on a change
-between the space view and a screen drawn directly: 13 loads of D and 14 of
-S in iterations 0-6000 of run1.
+between the space view and a screen drawn directly: 10 loads of D and 12 of
+S in iterations 0-15986 of run1 (as the half-spin original plays it), but
+for SUN's part 3, which is D's: with Elite's sun on screen in the space view
+(run1 from 15987), each iteration loads D for it and S back for the frame
+(TUBE-REPORT.md).
 
 ### The discs (p-disc.asm, p-rast.asm)
 
@@ -192,13 +195,13 @@ in shadow RAM at the same addresses (ACCCON X), the dashboard in shadow
 |---|---|---|
 | Main RAM | &0400-&04FF | ylookup, the page of each pixel row's character row (hstart makes it, h-cold.asm): one copy for the game's drawing in bank 6 (LOINQ, HLOIN, PIXEL) and the rasteriser in bank 5 and ANDY (r_ypg). &0400-&06FF held the MOS's Tube code, which hstart stops it calling; &0500-&06FF is free |
 | Main RAM | &0E40-&1EDB | the drawing code's workspace (gfx-ws.asm: the arrays the line and star code still write) |
-| Main RAM | &1EDC-&2DC5 | the game's host blocks (IRQ, sound, CHPR and its font, UP), the trampolines, the command loop and handlers (h-main.asm); 570 bytes free to &3000 |
+| Main RAM | &1EDC-&2D1F | the game's host blocks (IRQ, sound, CHPR and its font, UP), the trampolines, the command loop and handlers (h-main.asm); 736 bytes free to &3000 |
 | Main RAM | &3000-&3DFF, &7000-&7FFF | overlay pages (storage only; ACCCON X clear) |
 | Bank 5 | &8000-&8073, &9000-&B4B9 | the star records' I/O (gfx-raster_stio.asm); the shared region: the row runs (the span filler), R_SPAN, R_DOT, R_STARPLOT, R_STARERASE, R_SETBUF, the line code's cold part, r_dspin (C_DSPANS: each row set up once for all of its spans). The disc layer, the repair and the flare (3.9K + 1K) are gone; h-dead.asm points the names the kept code still patches at a scratch BRK |
 | ANDY | &8000-&85A4 | phase B's fill (entered at r_pcbs; each row's span read from register 1 as it fills, no dirty extents) and the line loops (R_LINE; no dirty extents); phase A (1.8K) is gone |
 | Bank 6 | &8000-&9C29 | f_glyph, f_enter, f_b0new's clear, f_unstar, f_direct0, the panel's drawing (h-panel.asm with the "Tube: hostb" blocks: DIALS, SCAN's dot and stick, DOT, MSBAR, the bulbs, LOINQ, HLOIN3, PIXEL), the primitives' handlers (h-prim.asm), the rarely run code (h-cold.asm), f_enter's buffer and HSW (the high area's copy); the STA runs from &9F00 |
-| Banks 4, 7 | &8000-&BFFF | the STA runs (h-sta.asm); bytes 192-255 of their pages: overlay pages kept as four 64-byte pieces (bank 7, HSTB7 on the disc); in bank 4 free (4,096 bytes in 64-byte pieces: room for 16 more overlay pages kept as bank 7's are, or tables read with bank 4 paged) |
-| Overlay storage | | 89 pages, all used (D's 38 and S's code's 51; tube/build.sh assigns them): main RAM above, bank 5's tail from &B800, bank 6's from &B700, ANDY's from &8600, HAZEL &CA00-&D9FF, and bank 7's 64-byte pieces |
+| Banks 4, 7 | &8000-&BFFF | the STA runs (h-sta.asm); bytes 192-255 of their pages: overlay pages kept as four 64-byte pieces (bank 7's, HSTB7 on the disc, then bank 4's, HSTB4: 8 of its 16 used, 2,048 bytes in 64-byte pieces free) |
+| Overlay storage | | 97 of 105 pages (D's 42 and S's code's 55; tube/build.sh assigns them): main RAM above, bank 5's tail from &B800, bank 6's from &B700, ANDY's from &8600, HAZEL &CA00-&D9FF, bank 7's 64-byte pieces, then bank 4's |
 | HAZEL | &C000-&DEE9 | the STA runs' tables and the code that enters them (to &C936), the overlays' storage from &CA00 to &D9FF, then from &DA00 the recursive tokens (QQ18 as stored) and where each starts: h4body's C_TOKEN reads them in the IRQ, wherever the host is (HAZEL is mapped but around a disc command, while the parasite waits). &DF00-&DFFF, the MOS's, is untouched |
 
 ## The Model B host (64K sideways RAM)
@@ -214,8 +217,8 @@ differ (no ACCCON; the screen base; the banks).
 | Buffer 1 | &4000-&6FFF | the Master port's addresses: direct mode unchanged |
 | Panel | &7000-&7DFF | the dashboard, the Master port's address |
 | &7E00-&7FB8 | | hwrch (WRCHV), the IRQ entry with the rupture's timer interrupt (hbi_t: point 2 whole, point 1's way into bank F), hbswap: not swapped; hrw at &7FE0 |
-| Bank S | &8000- | the swapped main RAM, then overlay D's image from &8E00 (storage only) |
-| Bank D | &8000-&B2FF | overlay S's image from its state's end (storage only); &B300-&BFFF free (13 pages: room for more overlay images or host tables) |
+| Bank S | &8000-&B7FF | the swapped main RAM, then overlay D's image from &8E00 (storage only, 42 of the 50 pages to &BFFF) |
+| Bank D | &8000-&B6FF | overlay S's image from its state's end (storage only); &B700-&BFFF free (9 pages: room for more overlay images or host tables) |
 | Bank P | &8000-&BFFF | phase B's fill and the polygon stream's entry (p_polyin) from &8000; the shared region from &9000 (r_dspin, the rows' set-up, R_SETBUF, r_spc, the per-x tables, R_SPAN, R_DOT, the stars); both buffers' row runs, a page per character row, so that none is patched for a buffer: buffer 1's (&4000) at &A000-&B7FF, buffer 0's (&1000) in the pages between, &8300-&8FFF, &9100-&98FF and &BC00-&BEFF; r_rpy0 (buffer 0's page per row, at &BF00) and r_rpy1 (buffer 1's, after the stars, in a page of its own: the room before it is free), which r_rowset's and phase B's LDA ,Y read, R_SETBUF patching the operand for the buffer; jump table at &BFC0 (P_PGFIX, P_POLY, P_LINE, P_MARKDIRTY, P_FLARE, P_LINEIN retired: BRK; JT + 3 is P_DSPANSIN) |
 | Bank F | &8000-&B775 | the command loop and handlers, f_glyph, f_enter, f_unstar, the panel's drawing, CHPR and its font, the sound, the interrupts (hb-irq.asm); then f_enter's buffer, then from &A72A the recursive tokens (QQ18 as stored, 960 bytes) and where each starts (298 bytes), which h4body's C_TOKEN reads in the IRQ (bank F paged); then from &AC14 the lines (hb-line.asm: R_LINE, its cold part, arithmetic, r_pset, tables and variables: C_LINE with no paging; f_bufpatch patches their screen base) |
 
