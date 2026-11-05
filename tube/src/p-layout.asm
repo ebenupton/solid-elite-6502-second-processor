@@ -82,9 +82,19 @@ F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
 F_SZH = F_RP + 7 * MAXSH
 .F_DLEND                \ (the rest of the frame layer's small state is p-low.asm's)
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm)
- INCLUDE "tsrc/p-disc0.asm"            \ (the disc heap's drop)
  INCLUDE "tsrc/p-probe1.asm"           \ (the lens flare's probes: fl_arm's helpers)
 .PRES_END                \ (the end of what is always resident)
+
+\ The low code (PLOW): resident too, in the workspace's tail below CODE%
+\ (p-ws.asm), which p_boot copies it into from the staging area
+PRES_ORG = P%
+ ORG PWS_END
+.PLOW
+ INCLUDE "tsrc/p-disc0.asm"            \ (the disc heap's drop)
+.PLOW_END
+ PRINT "Parasite: low code &", ~PLOW, "-&", ~PLOW_END-1, ", free to CODE%: ", CODE%-PLOW_END
+ ASSERT PLOW_END <= CODE%
+ ORG PRES_ORG
 
 
 \ The overlay region (p-ovl.asm): from OVL_START, page aligned, to RING. The
@@ -153,6 +163,7 @@ ENDIF
  INCLUDE "src/gfx-planet7.asm"
  CPU 1
  INCLUDE "build/gfx-frame_cold-ovls.asm"  \ (f_slot: the stars round a docking slot)
+ INCLUDE "build/gfx-hangar-ovls.asm"     \ (fh_rect: the hangar's rectangles, f_hback's, in F_FRAME)
  INCLUDE "build/gfx-ssun-ovls.asm"      \ (S_SUN's ss_seed and ss_draw)
  INCLUDE "tsrc/p-lost.asm"              \ (S's state rebuilt: r_lost)
 .OVL_S_END
@@ -229,6 +240,15 @@ NEXT
 .pbt0
  LDX #0
 .pbt1
+ CPX #PWS_HOLE_END-PWS_HOLE  \ (the hole's state starts zero, p-ws.asm)
+ BCS pbt3
+ STZ PWS_HOLE,X
+.pbt3
+ CPX #PLOW_END-PLOW     \ the low code
+ BCS pbt4
+ LDA PSTG_PL,X
+ STA PLOW,X
+.pbt4
  LDA PSTG_FF,X
  STA &FF00,X
  LDA PSTG_LO,X
@@ -257,6 +277,9 @@ NEXT
 .PSTG_LO
  COPYBLOCK &0200, &0400, P%
  ORG PSTG_LO + &200
+.PSTG_PL
+ COPYBLOCK PLOW, PLOW_END, P%
+ ORG PSTG_PL + PLOW_END - PLOW
 .PSTG_END
  PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to the ring: ", RING-PSTG_END
  ASSERT PSTG_END <= RING OR MEASURE

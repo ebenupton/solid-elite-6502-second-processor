@@ -138,6 +138,19 @@ ENDIF
 .pd_xr      SKIP 1
 .pd_wr      SKIP 1
 .pd_fl      SKIP 1
+.PWS_END
+ASSERT F_DSS = R_SS + 24 AND R_Y1 = R_Y0 + 4
+PRINT "Parasite workspace: &", ~PWS_START, "-&", ~PWS_END-1, ", free ", CODE%-PWS_END, " (and ", &0E00-PWS_FREE, " at &", ~PWS_FREE, ")"
+ASSERT PWS_END <= CODE%
+
+\ The rest of the frame layer's small state goes in the hole between WP's end
+\ (VEC, elite-source.asm's last WP variable) and the dummy SHEILA byte, so
+\ that the tail below PWS_END is free for the low code (p-layout.asm's PLOW,
+\ which p_boot copies in)
+
+PWS_ORG = P%
+ORG VEC + 2
+.PWS_HOLE
 .hp_dfl     SKIP 1          \ non-zero: the heap's drop has run
 .hp_dir     SKIP 1          \ hp_move: 1 when the arrays move up
 .hp_drops   SKIP 2          \ the heap's drops, and the frames drawn whole for want
@@ -165,7 +178,6 @@ ENDIF
 .r_cc       SKIP 1
 .r_m0       SKIP 1
 .r_v0       SKIP 1
-.PWS_END
-ASSERT F_DSS = R_SS + 24 AND R_Y1 = R_Y0 + 4
-PRINT "Parasite workspace: &", ~PWS_START, "-&", ~PWS_END-1, ", free ", CODE%-PWS_END, " (and ", &0E00-PWS_FREE, " at &", ~PWS_FREE, ")"
-ASSERT PWS_END <= CODE%
+.PWS_HOLE_END
+ASSERT PWS_HOLE_END <= VIA + &34    \ (the dummy SHEILA byte, &0D08)
+ORG PWS_ORG

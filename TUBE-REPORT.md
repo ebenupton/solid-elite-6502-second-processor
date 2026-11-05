@@ -7,6 +7,98 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## Nothing the space view runs in overlay D (branch `tubediscs`, 2026-11-05)
+
+SUN's part 3 had been in overlay D since the disc heap's room was made, but
+it also runs in the space view whenever Elite's sun is on screen: SUN goes
+on past H_SUN for its random numbers and the sun line heap, and its part 2
+fell into part 3's stub. Every such iteration loaded D for it and S back
+for the frame: run1 (the half-spin original's game) from iteration 15987
+ran at 3.11 it/s on the Master host. The pixels and the game were right.
+
+### What the space view runs, back in the resident code
+
+An audit of every call into overlay D (the 53 stubs, by their callers)
+found four more routines that flight reaches, none of them in run1; each
+is resident again, as on the Master port (its "Tube: ovl D" tag gone):
+
+| Back in the resident code | Bytes | The space view's call |
+|---|---:|---|
+| SUN's part 3 | 155 | Elite's sun on screen (SUN part 2 falls into it) |
+| EDGES | 49 | SUN's part 3, HLOIN2 (parts 2 and 4) and WPLS (the sun leaving the screen) |
+| FRS1, fq1 | 38 | FRMIS: a missile fired |
+| tnpr1, tnpr | 37 | the main loop's part 8: cargo scooped |
+| TT147, prq | 10 | hyp: "range?" when the fuel is too little |
+
+The resident code gains 289 bytes, less the six stubs it had (30): 259. The calls into
+D from flight that remain all leave the space view through a TT66 or a
+new game: the charts (TT22, TT23 ...), TT18 (the hyperspace tunnel),
+ESCAPE, DEATH's canisters (fq1, after its TT66), BEGIN and BAY.
+
+### The room (lossless)
+
+| Where | Bytes | What |
+|---|---:|---|
+| The low code, below CODE% | 101 | p-disc0.asm (the disc heap's drop, the surface's cold paths) assembled at the workspace's end (PLOW, &137F-&13E3), copied in by p_boot from the boot's staging area; the workspace ends 53 bytes lower as its last variables (the disc heap's flags and counts, the flare's probes, R_POLY's scratch) go into the hole between WP's VEC and the dummy SHEILA byte (&0CD1-&0D05, the moon's place on the Master port), which p_boot zeroes |
+| Overlay D | 58 | HFS1 to HF8, the tunnels' rings (63 bytes, a stub of 5): HFS2, with LAUN, stays resident and falls into HFS1's stub after its TT66, so a docking takes S out in direct mode as CIRCLE2's stub did |
+| Overlay D | 31 | BRIEF's start, before its frames (36 bytes, a stub of 5): reached only by DOENTRY's JMP, and its stub jumps (streams.py's NORETURN), so no call into D is on the stack for the briefing's frames (BRL1 on, resident) |
+| Overlay S | 36 | fh_rect, the hangar's rectangles (gfx-hangar.asm's new "Area: ovl S" block): only f_hback calls it, as F_FRAME's lines, with S in |
+
+Headers and tag lines only in the shared sources: the Master port
+assembles byte-identically. The resident code ends at &AFE9 (22 bytes
+free), OVL_START stays &B000; overlay D is 10,527 bytes (42 pages, 6,881
+free) and S 17,339 (69 bytes free to the ring), so the hosts' storage is
+as before (97 pages). Not workable, by the overlay manager's rules: DOENTRY
+past LAUN (HALL's frame would come back into D with S in), BRIEF's frames
+(no call into D on the stack to bring D back), the line clipping (LL145:
+an enemy's laser at us in flight). PAUSE and PAUSE2, D's, still run the
+briefings' rotating ship with D's routines on the stack, so each of those
+frames loads S and D back (19 loads of D and 18 of S in tdock's
+briefing, as before this work; the docked screens only).
+
+### Checks
+
+tube/tools/tswap.mjs now counts the swaps within the space view (S loaded
+back with GMODE bit 7 still set: no TT66 between the call into D and the
+next frame); tgate.sh runs it over run1 on both hosts with --max 0: 11
+loads of D and 12 of S, none within the space view (before: 27 and 28, 14
+within it). tube/tools/tdock.mjs, also in the gate, runs what run1 does
+not: a docking from the space view with the Constrictor mission's
+briefing (harness/mbrief.mjs's brief1 state, GOIN), its key waits, STATUS,
+the launch and 50 iterations of flight: the same labels reached and the
+same overlay loads as before, the same screens (but the rotating ship's
+phase at a key wait), no crash.
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical to 7b80a99's; lockstep 16,002
+  iterations clean, TUBEINT 602 clean; pixels 13,441 frames matched (7
+  sampling gaps), 0 mismatched; dashboard 2,738 matched; saves
+  byte-identical; storage 97 pages, 0 differ; crash, station and docking
+  ok; overlays as above.
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340).
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000:
+  734 frames, 90,862 band rows, 0 wrong (both hosts).
+
+### Speeds
+
+run1's windows, it/s (the Master host's parasite at 4 MHz, the Model B's at
+3 MHz); 15987-16000 is Elite's sun in flight:
+
+| | 1000-1400 | 0-3550 | 300-403 | 12105-12212 | 15987-16000 |
+|---|---:|---:|---:|---:|---:|
+| Original (SNG47, the half spin) | 12.89 | 15.99 | 8.12 | 8.50 | 22.76 |
+| Master port (7b80a99) | 15.29 | 17.00 | 7.14 | 7.59 | 25.69 |
+| Tube, Master host, before | 23.27 | 22.10 | 11.33 | 12.71 | 3.11 |
+| Tube, Master host | 23.28 | 22.10 | 11.33 | 12.72 | 25.40 |
+| Tube, Model B host | 20.55 | 20.39 | 9.40 | 10.30 | 23.62 |
+
+"Before" is 8595446's build (on the Model B host its windows other than
+the sun's were the same as now: 20.55, 20.39, 9.40, 10.29). Elsewhere nothing changed beyond 0.01 it/s (3420-3550 and 5355-5457 are at
+the 25 fps cap on every build).
+
+
 ## The circle engine's arithmetic, its holds and the half spin; room for overlay S (branch `tubediscs`, 2026-11-04)
 
 full-master 7b80a99 merged: the circle engine's Tier A arithmetic (pis_t,
@@ -107,16 +199,6 @@ before and is clean after.
 The pixel references (scratch/master-ref.ssd, scratch/fbref,
 scratch/dashref) are made again from 7b80a99's build (the previous ones are
 kept as scratch/*-68c5dba).
-
-### SUN's part 3 and the space view (not changed)
-
-SUN's part 3, in overlay D since it made room for the disc heap, also runs
-in the space view whenever Elite's sun is on screen: SUN goes on past
-H_SUN for its random numbers and the line heap, and its part 2 falls into
-part 3's stub. Each such iteration loads D and then S back for the frame
-(run1 with the half spin from 15987; a sun posed in front loads them every
-iteration). The pixels and the game are right; the time is not. Moving part
-3 back to the resident code needs 155 bytes there (47 are free).
 
 ### Gates (both hosts)
 

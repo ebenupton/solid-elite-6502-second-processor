@@ -374,9 +374,11 @@ def falls_through(stmt, macros):
 # needs a stub's address (a jump table: JMTB) names the stub itself, x4_H.
 #
 # NORETURN: the targets that never return to their caller, so that their
-# stubs jump and leave no return into the stub on the stack.
+# stubs jump and leave no return into the stub on the stack (BRIEF: on the
+# Tube, a call into overlay D left on the stack would load D back after every
+# frame of the briefing, p-ovl.asm's ovl_dact).
 
-NORETURN = {"BAY", "DEATH2", "TT170", "FRCE", "GOIN", "BEGIN"}
+NORETURN = {"BAY", "DEATH2", "TT170", "FRCE", "GOIN", "BEGIN", "BRIEF"}
 # the files outside elite-source.asm whose references to cold labels need
 # stubs (everything else that elite-layout.asm assembles)
 OTHERS = ("src/elite-layout.asm", "src/elite-measure.asm", "src/elite-glue.asm",

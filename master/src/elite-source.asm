@@ -20323,7 +20323,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Tactics
 \    Summary: Launch a ship straight ahead of us, below the laser sights
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20966,6 +20965,17 @@ ENDIF
 
  PLA                    \ Restore the view type from the stack
  STA QQ11
+
+\ ******************************************************************************
+\
+\       Name: HFS1
+\       Type: Subroutine
+\   Category: Drawing circles
+\    Summary: Port: HFS2's rings, its own block (the Tube's parasite draws them
+\             with D in: overlay D, after TT66 has left the space view)
+\       Tube: ovl D
+\
+\ ******************************************************************************
 
 .HFS1
 
@@ -24247,6 +24257,7 @@ ENDIF
 \    Summary: Start mission 1 and show the mission briefing
 \  Deep dive: The Constrictor mission
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24296,6 +24307,17 @@ ENDIF
 
  LDA #64                \ Set the main loop counter to 64, so the ship rotates
  STA MCNT               \ for 64 iterations through MVEIT
+
+\ ******************************************************************************
+\
+\       Name: BRL1
+\       Type: Subroutine
+\   Category: Missions
+\    Summary: Port: BRIEF's frames, its own block (on the Tube's parasite
+\             BRIEF's start, before the frames, is overlay D's)
+\       Area: cold
+\
+\ ******************************************************************************
 
 .BRL1
 
@@ -24841,7 +24863,6 @@ ENDIF
 \   Category: Market
 \    Summary: Work out if we have space for one tonne of cargo
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24893,7 +24914,6 @@ ENDIF
 \   Category: Market
 \    Summary: Work out if we have space for a specific amount of cargo
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28465,7 +28485,6 @@ ENDIF
 \   Category: Flight
 \    Summary: Print an error when a system is out of hyperspace range
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -28485,7 +28504,6 @@ ENDIF
 \   Category: Text
 \    Summary: Print a text token followed by a question mark
 \       Area: cold
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -34891,7 +34909,6 @@ ENDIF
 \    Summary: Draw the sun: Continue to move up the screen, drawing the new sun
 \             line by line
 \  Deep dive: Drawing the sun
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35161,8 +35178,6 @@ ENDIF
 \   RTS2                Contains an RTS
 \
 \ ******************************************************************************
-
-.SUN4                  \ (the Tube: the entry from part 3, in overlay D)
 
  LDA SUNX               \ Set YY(1 0) = SUNX(1 0), the x-coordinate of the
  STA YY                 \ vertical centre axis of the old sun that's currently
@@ -35578,7 +35593,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Draw a horizontal line given a centre and a half-width
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \

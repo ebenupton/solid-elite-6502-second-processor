@@ -4,7 +4,12 @@
 // iteration and overlay D routine, the emulated time each overlay load
 // takes, and the time of the iterations around each swap (--around N: the
 // swap's iteration and N after it), to compare two builds' cost of a swap.
-//   node tube/tools/tswap.mjs --log L --cand disc --csyms psyms [--host Master|B] [--to N] [--around N]
+// A swap within the space view is one where S comes back while the space
+// view is still on (GMODE bit 7 set at ovl_need: no TT66 between the call
+// into D and the next frame, as SUN's part 3 once did every iteration); a
+// swap that leaves the space view (a chart, the hyperspace tunnel, a death)
+// is not. --max N: exit status 1 if the swaps within the space view exceed N.
+//   node tube/tools/tswap.mjs --log L --cand disc --csyms psyms [--host Master|B] [--to N] [--around N] [--max N]
 import { TubeEliteMachine, loadSyms, CYCLES_PER_FRAME } from "./tmachine.mjs";
 import { EliteMachine } from "../../master/tools/agentplay/lib.mjs";
 import { DEFAULTS, seedBytes } from "../../master/tools/agentplay/session.mjs";
@@ -12,7 +17,7 @@ import { COMMANDERS } from "../../master/tools/agentplay/styles.mjs";
 import { parseArgs } from "../../harness/args.mjs";
 import { readFileSync } from "fs";
 
-const a = parseArgs({ log: "value", cand: "value", csyms: "value", host: "value", to: "value", around: "value" });
+const a = parseArgs({ log: "value", cand: "value", csyms: "value", host: "value", to: "value", around: "value", max: "value" });
 const L = { rlog: new Map(), rjoy: [[], []], ptr: [0, 0], pokes: new Map(), header: null };
 for (const l of readFileSync(a.log, "utf8").split("\n")) {
     if (!l) continue;
@@ -38,7 +43,9 @@ const cold = Object.entries(sy).filter(([k]) => k.endsWith("_C")).map(([k, v]) =
 const name = ad => (cold.find(([, v]) => v === ad) || [`&${ad.toString(16)}`])[0];
 const swaps = [], loads = { 1: [0, 0], 2: [0, 0], 3: [0, 0] };
 let open = null, sw = null, swT = 0;
+const inView = [];
 cand.t.addParHook(pc => {
+    if (pc === sy.ovl_need && m[sy.ovl_cur] === 1 && cand.cpu.a === 2 && (m[sy.GMODE] & 0x80)) inView.push(cand.iter);
     if (pc === sy.ovl_need && m[sy.ovl_cur] === 2 && cand.cpu.a === 1 && (m[sy.GMODE] & 0x80))
         { swaps.push({ it: cand.iter, to: name(m[sy.ot] + 256 * m[sy.ot + 1]) }); sw = cand.cyclesNow(); }
     if (pc === sy.ovn9 && sw !== null) { swT += cand.cyclesNow() - sw; sw = null; }
@@ -64,4 +71,6 @@ for (const i of its) for (let j = i; j <= i + AR; j++) if (itT[j] !== undefined)
 console.log(`swaps: ${swaps.length} in ${its.length} iterations; ${n} iterations around them (each and ${AR} after): ${sum.toFixed(0)} cycles (2 MHz), ${(n ? sum / n : 0).toFixed(0)} an iteration`);
 console.log(`the swaps out (ovl_need, S to D): ${(swT / Math.max(1, swaps.length)).toFixed(0)} cycles each (2 MHz)`);
 for (const [o, [c, t]] of Object.entries(loads)) if (c) console.log(`overlay ${["", "D", "S", "S's state"][o]} loads: ${c}, ${(t / c).toFixed(0)} cycles each (2 MHz)`);
+console.log(`swaps within the space view: ${inView.length}${inView.length ? ` (iterations ${inView.slice(0, 12).join(" ")}${inView.length > 12 ? " ..." : ""})` : ""}`);
 console.log(`to iteration ${cand.iter}`);
+if (a.max !== undefined && inView.length > +a.max) { console.log(`FAIL: more than ${a.max} swaps within the space view`); process.exit(1); }

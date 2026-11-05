@@ -26,10 +26,11 @@ sights, and the text map with its diff against what each buffer shows.
 | Region | Addresses | Holds |
 |---|---|---|
 | Zero page, stack, K%, WP | &0000-&0CCE | the game's workspaces, at the Master port's addresses; &E4-&F8: p-rast.asm's pointers and scratch; QSL (the quarter squares' low bytes) in pages 2-3 |
-| Free | &0CCF-&0D07 | 57 bytes (the moon's place, with MOON=on on the Master port: the Tube's build refuses MOON=on) |
+| The hole's state | &0CD1-&0D05 | after WP's last variable (VEC, &0CCF), in the moon's place (MOON=on on the Master port: the Tube's build refuses MOON=on): the end of the frame layer's small state (p-ws.asm's PWS_HOLE: the disc heap's flags and counts, the flare's probes, R_POLY's scratch), zeroed by p_boot; 2 bytes free |
 | Dummy SHEILA | &0D08 | the one SHEILA byte Master's code still writes on the parasite (ACCCON, VIA + &34) |
-| Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm (workspace: not in the image): the polygon and line inputs, the stars, the text map's row counts, the discs' and the flare's probes' scratch, R_POLY's and the kept rows' scratch, then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page); 76 bytes free |
-| Resident code and data | &1400-&AFD0 (47 free to &AFFF) | the glue (p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves, and the frame layer's small state: F_BX, F_BY, F_DCOL, f_tcol, f_zsv, F_SLV, which the run's first ALIGN, before log at &2300, takes into its padding), the run (every block not tagged for overlay D or the hosts', with a stub at the place of each routine of D that the run calls), the game data (not QQ18, the recursive tokens: the hosts keep them, below), the frame layer's parasite part and its state (F_HW, F_SR, F_RP, the text map F_TM), then the disc heap's drop and the surface's cold paths (p-disc0.asm) and the flare's probes' helpers (p-probe1.asm) |
+| Frame layer's inputs | &0D09-&13FF | tube/src/p-ws.asm (workspace: not in the image): the polygon and line inputs, the stars, the text map's row counts, the discs' and the flare's probes' scratch, the kept rows' scratch, then from &0E00 the 192-byte row arrays (R_NDISCL page aligned, R_NDISCR within a page), to &137E |
+| Low code | &137F-&13E3 | resident code below CODE%, in the workspace's tail (p-layout.asm's PLOW, which p_boot copies in from the staging area): the disc heap's drop and the surface's cold paths (p-disc0.asm); 28 bytes free |
+| Resident code and data | &1400-&AFE9 (22 free to &AFFF) | the glue (p-low.asm: Tube I/O, the overlay manager p-ovl.asm, the panel's game halves, and the frame layer's small state: F_BX, F_BY, F_DCOL, f_tcol, f_zsv, F_SLV, which the run's first ALIGN, before log at &2300, takes into its padding), the run (every block not tagged for overlay D or the hosts', with a stub at the place of each routine of D that the run calls), the game data (not QQ18, the recursive tokens: the hosts keep them, below), the frame layer's parasite part and its state (F_HW, F_SR, F_RP, the text map F_TM), then the flare's probes' helpers (p-probe1.asm) |
 | Overlay region | &B000-&F3FF | overlay D or overlay S (below); in direct mode ZPSAVE, above D, is getzp's buffer |
 | The ring | &F400-&F7FF | 4 pages, above both overlays and the boot's staging (p-layout.asm asserts it): the commands buffered while register 1 is full (p-io.asm; "The ring" below) |
 | High area | &F800-&FEE9 | phase A's second part (p-polyb.asm), the panel's second part (p-dash2.asm), the kept rows' T_KFRAME and pk_line (p-kept2.asm), the one-pass generator's tail; 6 bytes free to &FEEF. The client OS's copy lives here too: the host keeps whichever of the two is out (C_SWAP) |
@@ -39,8 +40,8 @@ sights, and the text map with its diff against what each buffer shows.
 
 | Overlay | Size | Free | Holds |
 |---|---|---|---|
-| D (direct mode) | 10,720 bytes, &B000-&D9DF | 6,688 (less ZPSAVE's 112 at &EF90) | the code that runs only on the screens drawn directly or while docked (the blocks tagged "Tube: ovl D", "both, ovl D" or "bothb, ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title, the briefings' pauses, SUN's direct drawing, the default commander; and the parts of resident routines that the space view never runs, each a block of its own: TT26's justified paragraphs (DA1), CLYNS, TT17's cursor keys (TT17afterall), T95 on a chart (T95D), HLOIN3, PIXEL's drawing (PIXELD), TT217 and NEWBRK, DOENTRY's missions (EN1), TT110's launch (TT110L), BAY, BRIS, TT170, TT67K, the boot's DEEOR, COLD, setzp, SETINTS and SOFLUSH), the code the parasite never runs because the host does it (FILLKL's own scan with fkdet, CHPR's glyph drawing RREN and deletion RRDEL with ZES2, DET1's 6845 write, WSCAN's wait), the Tube halves of these (p_hloin, p_pixel, p_clyns, p_soflush, G_CLRTEXT, H_CLYNS, F_CLRTEXT, F_HANG0: the files' "Area: ovl D" passes), with the extended tokens they print. None of it leads to a space-view frame while it is on the stack |
-| S (space mode) | 17,303 bytes, &B000-&F396 | 105 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet; last, r_lost (p-lost.asm: the state rebuilt after S went out in space mode) |
+| D (direct mode) | 10,527 bytes, &B000-&D91E | 6,881 (less ZPSAVE's 112 at &EF90) | the code that runs only on the screens drawn directly or while docked (the blocks tagged "Tube: ovl D", "both, ovl D" or "bothb, ovl D" in their headers: the charts, the market, equipment, the status and disc screens, the title, the briefings' pauses, the default commander; and the parts of resident routines that the space view never runs, each a block of its own: TT26's justified paragraphs (DA1), CLYNS, TT17's cursor keys (TT17afterall), T95 on a chart (T95D), HLOIN3, PIXEL's drawing (PIXELD), TT217 and NEWBRK, DOENTRY's missions (EN1), BRIEF's start before its frames (BRIEF, reached by povdj), the tunnels' rings after HFS2's TT66 (HFS1), TT110's launch (TT110L), BAY, BRIS, TT170, TT67K, the boot's DEEOR, COLD, setzp, SETINTS and SOFLUSH), the code the parasite never runs because the host does it (FILLKL's own scan with fkdet, CHPR's glyph drawing RREN and deletion RRDEL with ZES2, DET1's 6845 write, WSCAN's wait), the Tube halves of these (p_hloin, p_pixel, p_clyns, p_soflush, G_CLRTEXT, H_CLYNS, F_CLRTEXT, F_HANG0: the files' "Area: ovl D" passes), with the extended tokens they print. None of it runs in the space view (tube/tools/tswap.mjs: no swap within the space view over run1), and none of it leads to a space-view frame while it is on the stack but PAUSE's and PAUSE2's key waits in the briefings (each frame of the rotating ship loads S and then D back) |
+| S (space mode) | 17,339 bytes, &B000-&F3BA | 69 | its state first (3,328 bytes, 13 pages: the rasteriser's, p-rast.asm, with the disc heap), then the rasteriser's bookkeeping (the disc layer, the dirty extents, the star records' relay, the 16-bit polygons' rows), the discs drawn as changes (p-disc.asm), the polygons' row streams (p-emit.asm), the kept solid rows (p-kept.asm), R_POLY (p-polya.asm, p-onepass.asm), the text overlay and the sights (gfx-frame.asm's "Area: ovl S" blocks), the lens flare (gfx-flare.asm) and its probes (p-probe.asm), the hangar's rectangles (gfx-hangar.asm's fh_rect, for f_hback in F_FRAME), the planet's surface: the circle engine (gfx-merid.asm) and its styles, the beach ball, craters and bands, the ring's dots (gfx-planet7.asm), one image for every planet; last, r_lost (p-lost.asm: the state rebuilt after S went out in space mode) |
 
 Code outside an overlay calls into D through stubs that streams.py writes at
 the routines' places (`JSR povd : EQUW target`; povdj for the routines that
@@ -49,7 +50,7 @@ in when the target returns, if that one has routines on the stack (ovl_dact
 scans the stack). F_FRAME and F_INIT load S. S's state is never kept: the
 hosts keep S's image from the state's end, and when S comes back the state
 is rebuilt. If S went out in space mode (a call into D during flight: the
-charts, TT18, SUN's part 3 in run1), nothing is known of either
+charts, TT18), nothing is known of either
 buffer, and r_lost (p-rast.asm) marks it all unknown: in each buffer every
 row inside the border dirty from the window's left to its right (2-253),
 no disc rows, no second disc, no kept rows, the disc heap empty (the
@@ -62,11 +63,14 @@ are resident, untouched. If S went out in direct mode, the next space-mode
 frame starts buffer 0 afresh (GSTASH, f_b0new), as after a disc command.
 
 A load is the overlay's whole pages through register 4, only on a change
-between the space view and a screen drawn directly: 10 loads of D and 12 of
-S in iterations 0-15986 of run1 (as the half-spin original plays it), but
-for SUN's part 3, which is D's: with Elite's sun on screen in the space view
-(run1 from 15987), each iteration loads D for it and S back for the frame
-(TUBE-REPORT.md).
+between the space view and a screen drawn directly: 11 loads of D and 12 of
+S in iterations 0-16002 of run1 (as the half-spin original plays it), none
+within the space view (tswap.mjs, a gate in tgate.sh). Everything the space
+view runs is resident or in S: SUN's part 3 and EDGES (Elite's sun on
+screen: run1 from 15987), FRS1 (a missile fired), tnpr1 and tnpr (cargo
+scooped), TT147 and prq (hyp's "range?" with too little fuel). The calls
+into D from flight all leave the space view: the charts, TT18 (the
+hyperspace tunnel), ESCAPE, and DEATH's canisters (fq1) after its TT66.
 
 ### The discs (p-disc.asm, p-rast.asm)
 
