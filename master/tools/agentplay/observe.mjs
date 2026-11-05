@@ -37,14 +37,12 @@ export class Observer {
         const prev = m.onIter;
         if (m.onDashSync) {
             // (the Tube build: the host draws the panel from the parasite's command stream,
-            // behind the parasite; it is read where the host reaches the end of an
-            // iteration's frame (C_SYNC, tmachine.mjs), and compared with the reference's
-            // record of the same iteration (OBSOFF, 0: checked on both hosts, every record
-            // agrees). Whether that iteration was in flight is the parasite's state at its MLOOP)
+            // behind the parasite; it is read where the host has drawn all that the
+            // parasite sent before its MLOOP (tmachine.mjs). Whether that iteration was in
+            // flight is the parasite's state at its MLOOP)
             this.flightAt = new Map();
-            m.onIter = mm => { if (prev) prev(mm); this.flightAt.set(mm.iter, this.inFlight()); if (this.flightAt.size > 64) this.flightAt.delete(this.flightAt.keys().next().value); };
-            const OFF = +(process.env.OBSOFF ?? 0);
-            m.onDashSync(it => { const i = it + OFF; if (this.bg && this.flightAt.get(i)) this.q.push({ iter: i, ...this.decode() }); });
+            m.onDashSync(it => { if (this.bg && this.flightAt.get(it)) this.q.push({ iter: it, ...this.decode() }); });
+            m.onIter = mm => { if (prev) prev(mm); this.flightAt.set(mm.iter, this.inFlight()); if (this.flightAt.size > 64) this.flightAt.delete(this.flightAt.keys().next().value); mm.dashMark(mm.iter); };
         } else m.onIter = mm => { if (prev) prev(mm); this.onIter(); };
         // the dashboard image as the loader left it, at the game's entry (S%)
         this.bg = null;

@@ -227,10 +227,7 @@ export class TubeEliteMachine extends EliteMachine {
         const m = this.host.ramRomOs, a = this.hostKind === "B" ? 0x7000 : 0x8000 + 0x7000;
         return m.subarray(a, a + 0xe00);
     }
-    // fn(iteration) where the host reaches the end of that iteration's frame: C_SYNC, which
-    // the parasite sends at p_sync (hframe, after G_FRAME), as tfbreplay.mjs keys its hashes.
-    // The host's symbols are its build's (hsyms.txt, or hbmsyms.txt for the Model B host)
-    // beside the parasite's
+    // the host's symbols (hsyms.txt, or hbmsyms.txt for the Model B host), beside the parasite's
     hostSyms() {
         if (this._hsy === undefined) {
             const sp = this.opts.symsPath, f = sp && sp.replace(/[^/]*$/, this.hostKind === "B" ? "hbmsyms.txt" : "hsyms.txt");
@@ -238,24 +235,33 @@ export class TubeEliteMachine extends EliteMachine {
         }
         return this._hsy;
     }
+
+    // The host's panel as the reference's is at an iteration's MLOOP: the host draws from
+    // the parasite's command stream, behind it, so the panel is read where the host has
+    // taken every byte the parasite sent before its MLOOP and goes to read the next one
+    // (all that it drew before is drawn). The stream's bytes are counted as the parasite
+    // makes them: a send straight into register 1 (not the ring's drain, pbl's unrolled
+    // sends or ppump), or a store into the ring (STA (rq), p-io.asm); and as the host
+    // takes them from register 1. dashMark(iteration) at the parasite's MLOOP;
+    // fn(iteration) where the host's panel is that iteration's
     onDashSync(fn) {
-        const hsy = this.hostSyms();
-        if (!hsy) throw new Error("TubeEliteMachine.onDashSync: no host symbols beside the parasite's (symsPath)");
-        const q = [], P = this.sy.p_sync, host = this.host, HS = hsy.h_sync, HSB = hsy.h_syncb;
-        this.t.addParHook(pc => { if (pc === P) q.push(this.iter); return false; });
-        let seen = false;
-        host.debugInstruction.add(pc => {
-            if (pc !== HS && pc !== HSB) return false;
-            // (the Model B host: another bank may have code at h_sync's address; only bank F's
-            // NOP there is C_SYNC's. jsbeeb skips this hook on a slice's first instruction:
-            // h_sync is a NOP and h_syncb the instruction after it, so one of the two is seen)
-            if (host.readmem(HS) !== 0xea) return false;
-            if (pc === HS) seen = true;
-            else if (!seen) pc = HS;
-            else { seen = false; return false; }
-            if (q.length) fn(q.shift());
-            return false;
-        });
+        const sy = this.sy, par = this.t.par, tube = this.t.tube, mem = par.memory, c = this.cpu;
+        if (sy.pbl === undefined || sy.ppump === undefined) throw new Error("TubeEliteMachine.onDashSync: no pbl, ppump in the parasite's symbols");
+        let made = 0, taken = 0;
+        const marks = [];
+        this.dashMark = it => marks.push([it, made]);
+        const drain = pc => (pc >= sy.pbl && pc <= sy.pbl_end) || (pc >= sy.ppump && pc < sy.pflush);
+        const pw = tube.parasiteWrite.bind(tube);
+        tube.parasiteWrite = (a, v) => { if ((a & 7) === 1 && !drain(c.oldPcArray[c.oldPcIndex])) made++; return pw(a, v); };
+        this.t.addParHook(pc => { if (mem[pc] === 0x92 && mem[(pc + 1) & 0xffff] === 0xfa) made++; return false; });
+        const hr = tube.hostRead.bind(tube);
+        tube.hostRead = a => {
+            if ((a & 7) === 1 && (tube.hostStatus[0] & 0x80)) {
+                while (marks.length && marks[0][1] <= taken) fn(marks.shift()[0]);
+                taken++;
+            }
+            return hr(a);
+        };
     }
 
     // the bulbs' EOR bitmaps, as the port's (build/dashtab-spbt.asm, dashtab-ecbt.asm,

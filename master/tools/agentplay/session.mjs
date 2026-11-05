@@ -315,6 +315,7 @@ export class Session {
             // expected differences (overlapping scanner dots) are counted, not reported
             for (const x of all.filter(x => x.expected)) { this.obsExpected ||= {}; const k = this.obsExpected[x.what] ||= { n: 0, first: r.iter, example: x }; k.n++; }
             const diffs = all.filter(x => !x.expected);
+            if (process.env.OBSLOG) appendFileSync(process.env.OBSLOG, `${r.iter} ${diffs.map(x => x.what + ":" + JSON.stringify(x.ref) + "/" + JSON.stringify(x.cand)).join("; ")}\n`);
             if (diffs.length) {
                 this.obsDiffs++;
                 const key = diffs.map(x => x.what).join(",");

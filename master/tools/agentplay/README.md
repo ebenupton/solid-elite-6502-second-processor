@@ -88,8 +88,10 @@ dashboards look nothing alike:
 
 For the Tube build (`TUBE=Master` or `TUBE=B`, tube/tools/tmachine.mjs) the host draws
 the panel from the parasite's command stream, behind it: the host's panel (shadow &7000 on
-the Master host, main &7000 on the Model B's) is read where the host runs C_SYNC, the end
-of an iteration's frame, and compared with the reference's record of that iteration. The
+the Master host, main &7000 on the Model B's) is read where the host has taken every byte
+of the stream the parasite sent before its MLOOP and goes to read the next (the bytes
+counted as the parasite makes them, straight into register 1 or into its ring, and as the
+host takes them), and compared with the reference's record of that iteration. The
 host's page &0D is watched (but for HNMI, its minimal NMI handler), and the parasite's
 code coverage is written as the port's (overlay D's labels apart from S's). The hosts'
 symbols (hsyms.txt, hbmsyms.txt) must sit beside the parasite's; campaign.mjs copies them.
