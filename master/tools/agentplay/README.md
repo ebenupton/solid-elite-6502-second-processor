@@ -86,6 +86,14 @@ dashboards look nothing alike:
   This is the screen XORed with the dashboard image as the loader left it at S%. Each dot
   in one machine must have something drawn within 3 units and a line in the other.
 
+For the Tube build (`TUBE=Master` or `TUBE=B`, tube/tools/tmachine.mjs) the host draws
+the panel from the parasite's command stream, behind it: the host's panel (shadow &7000 on
+the Master host, main &7000 on the Model B's) is read where the host runs C_SYNC, the end
+of an iteration's frame, and compared with the reference's record of that iteration. The
+host's page &0D is watched (but for HNMI, its minimal NMI handler), and the parasite's
+code coverage is written as the port's (overlay D's labels apart from S's). The hosts'
+symbols (hsyms.txt, hbmsyms.txt) must sit beside the parasite's; campaign.mjs copies them.
+
 Pixels are never compared.
 
 **Other checks:**
@@ -138,7 +146,8 @@ Pixels are never compared.
   its own. It covers E.C.M., the energy bomb, the escape pod, the views, missiles, the
   galactic hyperdrive, hyperspace, in-system jumps, the docking computer and the charts.
   Pokes drain the shields and energy, heat the cabin or empty the tank, at an iteration
-  boundary in both machines. Docked, from the Status screen (up to three a dock, the agent's
+  boundary in both machines; `sun` (only by name, not in `all`) moves the sun to just
+  ahead, close enough for MA23's heat and fuel scooping. Docked, from the Status screen (up to three a dock, the agent's
   keys held back meanwhile): `disc` is the disc menu (`dcat`, `dnoload`, `dnodel`, `dsave`,
   `ddel`, `dbad`, `dname`, `ddefault`, `dexit`; `dcat1`, an empty drive, and `dnameesc`, a
   name abandoned with ESCAPE, only by name), and `docked` the screens the agent never visits
@@ -211,7 +220,8 @@ writes `campaign.json` and `campaign.md`, which give:
   whole-code coverage;
 - every finding, grouped across sessions.
 
-Plans are lists in campaign.mjs: `default` (22 sessions), `extra` (12 more: the missions'
+Plans are lists in campaign.mjs: `soak` (14 long curious-mode sessions, 2280 game minutes,
+for the Master port and both Tube hosts alike), `default` (22 sessions), `extra` (12 more: the missions'
 later stages, deaths, pods, a long career), `night`, `night2` (the disc menu and docked
 screens), `night3`, `night4` (40 generated sessions each) and `quick`. No workaround is
 used unless `--workaround` asks for one. The candidate (master/build's disc, symbols and

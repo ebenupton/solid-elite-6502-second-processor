@@ -77,7 +77,7 @@ export class Session {
         // (the Tube build: TUBE=Master or TUBE=B, the candidate is the parasite's game
         // with that host, tube/tools/tmachine.mjs)
         const Cand = process.env.TUBE ? (await import("../../../tube/tools/tmachine.mjs")).TubeEliteMachine : EliteMachine;
-        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
+        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, symsPath: cfg.csyms, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
         await this.ref.boot();
         await this.cand.boot();
         this.cand.opts.seedFrom = this.ref;
@@ -305,8 +305,11 @@ export class Session {
         // observables are decoded at MLOOP into each machine's queue: compare the pairs
         const { obsR, obsC } = this;
         while (obsR.q.length && obsC.q.length) {
+            // (paired by iteration: a machine that has no record for an iteration, as the
+            // Tube host's panel, sampled at its own sync points, may not, skips the other's)
+            if (obsR.q[0].iter < obsC.q[0].iter) { obsR.q.shift(); continue; }
+            if (obsC.q[0].iter < obsR.q[0].iter) { obsC.q.shift(); continue; }
             const r = obsR.q.shift(), c = obsC.q.shift();
-            if (r.iter !== c.iter) continue;
             this.obsChecked++;
             const all = Observer.compare(r, c);
             // expected differences (overlapping scanner dots) are counted, not reported

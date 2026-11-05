@@ -30,14 +30,27 @@ export class Observer {
     // is told by whether its symbols have the port's DILQ
     constructor(m) {
         this.m = m; this.q = [];
-        this.mode = m.sy.DILQ !== undefined ? 1 : 2;
+        this.mode = m.dashMode || (m.sy.DILQ !== undefined ? 1 : 2);
+        // (a machine whose dashboard is elsewhere, the Tube build's host: dashMem() is the
+        // panel's bytes from &7000, &E00 of them, in the host's memory)
+        this.dash = m.dashMem ? m.dashMem() : null;
         const prev = m.onIter;
-        m.onIter = mm => { if (prev) prev(mm); this.onIter(); };
+        if (m.onDashSync) {
+            // (the Tube build: the host draws the panel from the parasite's command stream,
+            // behind the parasite; it is read where the host reaches the end of an
+            // iteration's frame (C_SYNC, tmachine.mjs), and compared with the reference's
+            // record of the same iteration (OBSOFF, 0: checked on both hosts, every record
+            // agrees). Whether that iteration was in flight is the parasite's state at its MLOOP)
+            this.flightAt = new Map();
+            m.onIter = mm => { if (prev) prev(mm); this.flightAt.set(mm.iter, this.inFlight()); if (this.flightAt.size > 64) this.flightAt.delete(this.flightAt.keys().next().value); };
+            const OFF = +(process.env.OBSOFF ?? 0);
+            m.onDashSync(it => { const i = it + OFF; if (this.bg && this.flightAt.get(i)) this.q.push({ iter: i, ...this.decode() }); });
+        } else m.onIter = mm => { if (prev) prev(mm); this.onIter(); };
         // the dashboard image as the loader left it, at the game's entry (S%)
         this.bg = null;
         m.onEntry = () => this.captureBackground();
     }
-    scr(a) { return this.m.ram[SHADOW + a]; }
+    scr(a) { return this.dash ? this.dash[a - BASE] : this.m.ram[SHADOW + a]; }
     // the colour number of pixel x (0-255 coordinates) on dashboard line y (0-55)
     pix(x, y, mem = null) {
         const a = BASE + (y >> 3) * ROWB + (x >> 2) * 8 + (y & 7);
@@ -58,20 +71,20 @@ export class Observer {
     // a bulb's 16-byte bitmap: the original's in main RAM, the port's in bank 4 (SPBT, ECBT: build/dashtab-*.asm)
     pattern(sym) {
         this.pats ||= {};
+        if (!this.pats[sym] && this.m.bulbPattern) this.pats[sym] = this.m.bulbPattern(sym);
         if (!this.pats[sym]) {
             const a = this.m.sy[sym], cpu = this.m.cpu;
             this.pats[sym] = Array.from({ length: 16 }, (_, i) => this.mode === 1 ? cpu.ramRomOs[cpu.romOffset + 4 * 16384 + a + i - 0x8000] : this.m.rb(a + i));
         }
         return this.pats[sym];
     }
-    captureBackground() { this.bg = this.m.ram.slice(SHADOW + BASE, SHADOW + BASE + 0xe00); }
+    captureBackground() { this.bg = this.dash ? this.dash.slice(0, 0xe00) : this.m.ram.slice(SHADOW + BASE, SHADOW + BASE + 0xe00); }
 
+    // in flight (not docked, not on the title or the death screen), in a space view
+    inFlight() { const m = this.m, sy = m.sy; return !(m.rb(sy.QQ12) || m.rb(sy.QQ11) || m.rb(sy.MCNT) === 0xff); }
     onIter() {
-        const m = this.m, sy = m.sy;
-        if (!this.bg) return;
-        // in flight (not docked, not on the title or the death screen), in a space view
-        if (m.rb(sy.QQ12) || m.rb(sy.QQ11) || m.rb(sy.MCNT) === 0xff) return;
-        this.q.push({ iter: m.iter, ...this.decode() });
+        if (!this.bg || !this.inFlight()) return;
+        this.q.push({ iter: this.m.iter, ...this.decode() });
     }
 
     decode() {

@@ -18,6 +18,7 @@
 import { EliteMachine, loadSyms, CYCLES_PER_FRAME } from "../../master/tools/agentplay/lib.mjs";
 import { regionsFor, canonFor } from "../../harness/mlib.mjs";
 import { bootTube } from "../../harness/tlib.mjs";
+import { existsSync } from "fs";
 export { loadSyms, CYCLES_PER_FRAME };
 
 export class TubeEliteMachine extends EliteMachine {
@@ -66,13 +67,32 @@ export class TubeEliteMachine extends EliteMachine {
         par.writemem = (a, b) => { if (self.inGame && !self.started) self.written.add(a & 0xffff); return wm(a, b); };
         this.bootWrites = { remove: () => { par.writemem = wm; } };
         // the hooks, on the parasite (one table test per instruction)
+        // (whole-code coverage, opts.cover: self.vis, from the game's start (S%), one byte per
+        // parasite address, overlay D's code in the overlay region at &10000 up, as coverage())
+        const OVS = sy.OVL_START ?? 0x10000, OVC = sy.ovl_cur;
         t.addParHook(pc => {
             const c = self.cpu; c.oldPcIndex = (c.oldPcIndex + 1) & 255; c.oldPcArray[c.oldPcIndex] = pc;
+            const vis = self.vis;
+            if (vis) vis[pc >= OVS && pc < 0xf800 && par.memory[OVC] === 1 ? 0x10000 + pc : pc] = 1;
             if (!self.hookTab[pc]) return false;
             // (a hook in the overlay region, p-ovl.asm: only while the overlay
             // it was set in, D, is there)
             if (sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < 0xf800 && par.memory[sy.ovl_cur] !== 1) return false;
             return self.tab(pc);
+        });
+        // page &0D (the NMI routine, the extended vectors, the ROM table) on the host: no
+        // write from the host's own code (main RAM or sideways RAM, not the MOS or DFS)
+        // once the game has started (as EliteMachine's watch0d for the Master port)
+        if (this.opts.watch0d) host.debugWrite.add(a => {
+            if (!self.inGame || a < 0x0d00 || a > 0x0dff) return false;
+            const pc = host.oldPcArray[host.oldPcIndex], rs = host.romsel & 15;
+            if (pc >= 0x0d00 && pc < 0x0e00) return false;      // (the DFS's NMI code itself)
+            const hs = self.hostSyms();                         // (HNMI, h-cold.asm: the minimal NMI handler put back after a disc command, as the port's DOSNMI)
+            if (hs && hs.HNMI !== undefined && pc >= hs.HNMI && pc < hs.HNMI_END) return false;
+            const swr = this.hostKind === "B" ? !!(host.model?.swram?.[rs]) : rs >= 4 && rs <= 7;
+            const inRam = pc < 0x8000 || (pc < 0xc000 && swr) || (this.hostKind !== "B" && ((pc < 0x9000 && pc >= 0x8000 && (host.romsel & 0x80)) || (pc >= 0xc000 && pc < 0xe000 && (host.acccon & 8))));
+            if (inRam && self.page0d.length < 20) { self.page0d.push([self.iter, pc, a]); self.event("page0d", `host PC &${pc.toString(16)} (bank ${rs}) wrote &${a.toString(16)}`); }
+            return false;
         });
         this.s = t.s;
         this.s._video.frameSkipCount = +(process.env.FRAMESKIP || 25);
@@ -156,6 +176,79 @@ export class TubeEliteMachine extends EliteMachine {
                 console.log(`TUBEDBG stall: parasite ${near(this.sy, t.par.pc)}, host ${near(hs, t.host.pc)} (&${t.host.pc.toString(16)}), host I ${t.host.p.i}, R1 host status &${t.tube.hostStatus[0].toString(16)}, R4 par status &${t.tube.parasiteStatus[3].toString(16)}`);
             }
         }
+    }
+
+    // whole-code coverage of the parasite: every label whose span (to the next label) had an
+    // instruction run; overlay D's labels (name_C) in the overlay region apart from S's.
+    // Code labels never run: those that are the target of a JSR or JMP in the parasite's
+    // memory as it is at the end (with the overlay then in)
+    coverage() {
+        if (!this.vis) return null;
+        const sy = this.sy, vis = this.vis, mem = this.ram, OVS = sy.OVL_START ?? 0x10000;
+        const sets = { m: [], D: [], S: [] };
+        for (const [k, v] of Object.entries(sy)) {
+            if (v < 0x0800 || v > 0xffff || /^(CODE|LOAD)/.test(k)) continue;
+            if (v >= OVS && v < 0xf800) sets[k.endsWith("_C") ? "D" : "S"].push([k, v]); else sets.m.push([k, v]);
+        }
+        const targets = new Set();
+        for (let i = 0x0800; i < 0xfffd; i++) { const o = mem[i]; if (o === 0x20 || o === 0x4c) targets.add(mem[i + 1] | mem[i + 2] << 8); }
+        const reached = [], unreached = [];
+        for (const [set, labs] of Object.entries(sets)) {
+            labs.sort((a, b) => a[1] - b[1]);
+            const base = set === "D" ? 0x10000 : 0;
+            for (let i = 0; i < labs.length; i++) {
+                const [k, v] = labs[i], end = i + 1 < labs.length ? Math.max(v + 1, labs[i + 1][1]) : v + 1;
+                let hit = false;
+                for (let a = v; a < end && !hit; a++) hit = vis[base + a] === 1;
+                if (hit) reached.push(k); else if (targets.has(v)) unreached.push(k);
+            }
+        }
+        return { reached, unreached };
+    }
+
+    // the dashboard for observe.mjs: the host draws the Master port's mode 1 panel at
+    // &7000-&7DFF, in shadow RAM on the Master host, in main RAM on the Model B host
+    get dashMode() { return 1; }
+    dashMem() {
+        const m = this.host.ramRomOs, a = this.hostKind === "B" ? 0x7000 : 0x8000 + 0x7000;
+        return m.subarray(a, a + 0xe00);
+    }
+    // fn(iteration) where the host reaches the end of that iteration's frame: C_SYNC, which
+    // the parasite sends at p_sync (hframe, after G_FRAME), as tfbreplay.mjs keys its hashes.
+    // The host's symbols are its build's (hsyms.txt, or hbmsyms.txt for the Model B host)
+    // beside the parasite's
+    hostSyms() {
+        if (this._hsy === undefined) {
+            const sp = this.opts.symsPath, f = sp && sp.replace(/[^/]*$/, this.hostKind === "B" ? "hbmsyms.txt" : "hsyms.txt");
+            this._hsy = f && existsSync(f) ? loadSyms(f) : null;
+        }
+        return this._hsy;
+    }
+    onDashSync(fn) {
+        const hsy = this.hostSyms();
+        if (!hsy) throw new Error("TubeEliteMachine.onDashSync: no host symbols beside the parasite's (symsPath)");
+        const q = [], P = this.sy.p_sync, host = this.host, HS = hsy.h_sync, HSB = hsy.h_syncb;
+        this.t.addParHook(pc => { if (pc === P) q.push(this.iter); return false; });
+        let seen = false;
+        host.debugInstruction.add(pc => {
+            if (pc !== HS && pc !== HSB) return false;
+            // (the Model B host: another bank may have code at h_sync's address; only bank F's
+            // NOP there is C_SYNC's. jsbeeb skips this hook on a slice's first instruction:
+            // h_sync is a NOP and h_syncb the instruction after it, so one of the two is seen)
+            if (host.readmem(HS) !== 0xea) return false;
+            if (pc === HS) seen = true;
+            else if (!seen) pc = HS;
+            else { seen = false; return false; }
+            if (q.length) fn(q.shift());
+            return false;
+        });
+    }
+
+    // the bulbs' EOR bitmaps, as the port's (build/dashtab-spbt.asm, dashtab-ecbt.asm,
+    // made by tools/dashboard.py; both hosts draw the same)
+    bulbPattern(sym) {
+        return { SPBT: [0x07, 0x0C, 0x0D, 0x0E, 0x0F, 0x0C, 0x07, 0x00, 0x0E, 0x03, 0x0F, 0x07, 0x0B, 0x03, 0x0E, 0x00],
+            ECBT: [0x77, 0xCC, 0xDD, 0xCC, 0xDD, 0xCC, 0x77, 0x00, 0xEE, 0x33, 0xFF, 0x77, 0xFF, 0x33, 0xEE, 0x00] }[sym];
     }
 
     // the host's two screen buffers (main RAM's &4000-&6FFF, then shadow RAM's)
