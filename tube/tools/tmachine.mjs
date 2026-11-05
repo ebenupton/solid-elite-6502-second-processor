@@ -142,6 +142,20 @@ export class TubeEliteMachine extends EliteMachine {
             this.polls++; this.lastProgressCycles = this.cyclesNow();
             return false;
         }
+        if (this._at(this.H.NEWBRK, pc)) {
+            // the game's BRK handler. A disc error comes from the host: p_oscli copies its
+            // number and message into R_NDX3 and enters NEWBRK with (&FD) there, as the MOS's
+            // BRK leaves it (p-io.asm), so that is a filing-system error, as a DFS error
+            // in the Master port (fromRom); any other BRK is the parasite's own code's
+            const ep = this.rb(0xfd) | this.rb(0xfe) << 8, brkAt = (ep - 1) & 0xffff;
+            const fromRom = this.sy.R_NDX3 !== undefined && ep === this.sy.R_NDX3;
+            let msg = ""; for (let i = 1; i < 40; i++) { const ch = this.rb((ep + i) & 0xffff); if (!ch) break; msg += ch >= 32 && ch < 127 ? String.fromCharCode(ch) : "."; }
+            const code = this.rb(ep);
+            const rec = { iter: this.iter, at: brkAt, bank: fromRom ? "host" : "p", code, msg, polls: this.polls, label: fromRom ? null : this.labelOf(brkAt), fromRom };
+            this.brks.push(rec);
+            this.event(fromRom ? "brk-rom" : "brk", `BRK at &${brkAt.toString(16)} (${fromRom ? "the host's error" : "parasite" + (rec.label ? ", " + rec.label : "")}) error ${code}: ${msg}`);
+            return false;
+        }
         return super.tab(pc);
     }
     _callerAt(k, romsel = 0) {

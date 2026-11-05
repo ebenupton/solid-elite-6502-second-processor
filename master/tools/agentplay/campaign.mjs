@@ -198,7 +198,7 @@ if (!existsSync(`${CB}/symbols.txt`)) {
     copyFileSync(disc, `${CB}/elite-master-sng47.ssd`);
     copyFileSync(syms, `${CB}/symbols.txt`);
     const banks = syms.replace(/symbols\.txt$/, "banks.txt");
-    if (existsSync(banks)) copyFileSync(banks, `${CB}/banks.txt`);
+    if (banks !== syms && existsSync(banks)) copyFileSync(banks, `${CB}/banks.txt`);
     // (the Tube build, TUBE=Master|B: the parasite's symbols, and the hosts' beside them,
     // which tmachine.mjs reads for the panel's sync point and the host's NMI handler)
     for (const h of ["hsyms.txt", "hbmsyms.txt"]) { const f = syms.replace(/[^/]*$/, h); if (f !== syms && existsSync(f)) copyFileSync(f, `${CB}/${h}`); }
