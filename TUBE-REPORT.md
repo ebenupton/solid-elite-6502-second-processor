@@ -7,6 +7,126 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The soak against SNG47: three disc bugs (branch `tube-fix-oscli-case`, 2026-11-06)
+
+An elite-agent soak (agentplay with the Tube as the candidate, `TUBE=Master` and
+`TUBE=B`: 14 sessions a host, 2,118 game minutes, 1.79 million iterations
+compared with SNG47; scratch/soak in the soak-harness worktree) found three
+ways in which the Tube's disc commands did not do what the original does. All
+three come from one of SNG47's own bugs: DELT copies the name to delete one
+byte too far (X = 9, not 8), over the first byte of savosc's "SAVE", so after a
+delete the next save's command starts with whatever byte followed the name in
+INWK. The original keeps that broken command, and answers the save with "Bad
+string", "Bad command" or "Bad name", or saves if the byte is "s".
+
+### 1. A lower-case "save" (fixed in 2372163)
+
+The MOS takes "save" as SAVE; p_oscli recognised only upper-case S and L when
+choosing to send commbuf to the host (mode 1) and to bring it back (mode 2),
+so the host saved its stale buffer (soak-cur-death-s909 on the Model B host:
+six commander files of &FF). p_oscli now masks the byte with &DF first.
+
+### 2. The Master host crashed on an unrecognised command
+
+"<F2>AVE :0.E.CLAUDE ..." (or "XAVE", "AAVE", "/AVE", "<BD>AVE") is offered to
+the ROMs, which decline it; DFS then runs it as *RUN, finds no file in the
+directory or the library, and hands it back through FSCV 11. The MOS's FSCV
+11 handler answers "Bad command" only if &DF02 bit 7 is set; otherwise it
+selects the filing system that &DF00 names and, if that is the current one
+(&DF01), passes FSCV 11 to the filing system again. hstart, hzout and hzin
+moved all 32 pages of HAZEL, and only &DFC0-&DFFF (DFSST2) was put back for a
+disc command, so the MOS's page held the loader's staging zeros: &DF00 =
+&DF01 = &DF02 = 0, and DFS and the MOS called each other until the host's
+stack wrapped, DFS ran $.ELITE (the host's loader, at &2000 over the host's
+code) and the host ran main RAM at &3030 and wrote page &0D. The Model B host,
+with no HAZEL, was right.
+
+hzmv now moves 31 pages (&C000-&DEFF): the host's HAZEL contents end below
+&DF00 (the recursive tokens to &DEE9), so the MOS's page &DF00-&DFFF is the
+MOS's own at all times, and the host no longer saves and restores
+&DFC0-&DFFF (DFSST2 stays the Master port's). No new bytes; the host's code
+is 18 bytes shorter.
+
+### 3. A load of overlay D undid DELT's damage
+
+savosc is in overlay D, which each load of D restores from the host's image,
+so after a launch and a docking the command was whole again and the save
+worked where the original says "Bad string" (soak-cur-mission2-s903,
+iteration 5748, both hosts). savc0, one byte in the low code (PLOW, now 27
+bytes free; no resident or overlay S bytes), holds savosc's first byte: DELT
+copies it there after its loop, and the save puts it back into savosc before
+the command (12 bytes of overlay D code, which has 6,867 free). The Master
+port is unchanged.
+
+The soak harness's two workarounds for these bugs (deltsave, badcmd,
+`TUBEWA=none`) are gone.
+
+### Checks
+
+* tube/tools/tbadsave.mjs, both hosts: savosc's first byte poked as DELT
+  leaves it (savosc and savc0), a new game, docked, "@" 2 CLAUDE drive 0; the
+  same on SNG47 (master/reference). &F2, &BD, "X", "A", "/": "Bad command"
+  (254); 0 and &18: "Bad string" (253); &80: "Bad name" (204); "s": saved.
+  Every byte gets SNG47's error, number and message, on the parasite (once),
+  the host back in its loop with its stack whole (lowest &C4-&DD in the
+  command), never in main RAM. Before: the Master host ran main RAM for the
+  first five.
+* The three repros (master/tools/agentplay/repro/tube-*.jsonl), replayed on
+  both hosts with no workarounds: tube-oscli-lowercase-save 25,011
+  iterations clean, tube-badcommand-hostcrash 11,462 clean (it ran to its
+  log's end; before, the Master host crashed), tube-delt-savosc 5,747 clean
+  (both machines answer the save "Bad string" at iteration 5747).
+* harness/mlib.mjs: runElite's labelOf now takes overlay D's labels while D
+  is in and S's otherwise (D's and S's share addresses). With D's code moved
+  by 12 bytes, a key wait in gnum was named after a routine of S and
+  makePilot never answered it: tscenes.mjs's flight stopped at the Buy Cargo
+  screen (20 iterations of 318, until its time ran out).
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical; lockstep 16,002 iterations clean,
+  TUBEINT 602 clean; pixels 13,441 frames matched (7 sampling gaps), 0
+  mismatched; dashboard 2,738 matched; saves byte-identical; storage 97
+  pages, 0 differ; crash, station and docking ok; overlays 11 D and 12 S
+  loads, none within the space view. Speeds (it/s, 1000-1400, 0-3550,
+  300-403, 12105-12212, 15987-16000): Master host 23.27, 22.10, 11.33,
+  12.71, 25.34 (before: 23.28, 22.10, 11.33, 12.72, 25.40); Model B host
+  20.57, 20.39, 9.40, 10.30, 23.62 (before: 20.55, 20.39, 9.40, 10.30,
+  23.62).
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340).
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000:
+  734 frames, 90,862 band rows, 0 wrong (both hosts).
+* tsavetest.mjs (in tgate.sh): save, load, the error path and the catalogue
+  as before on both hosts.
+
+### The soak sessions again
+
+Every session that ended or diverged on these bugs (death-s909, load-s914,
+mission2-s903, debrief2-s906), and the others the workarounds had covered
+(debrief1-s905, wanted-s908, rich-s910, keyboard-s911, load-s913), replayed
+from its log with no workarounds (`TUBEWA=none`, now gone) on each host, to the
+log's end, observation on. load-s913 starts from the disc that jameson-s901
+saved (its E.CLAUDE added to this build's disc), and load-s914 from the disc
+that this replay of death-s909 saved (replay.mjs --savediscs).
+
+| session | iterations | Master host | Model B host |
+|---|---:|---|---|
+| soak-cur-death-s909 | 50,114 | clean | clean |
+| soak-load-s914 | 10 / 11 | clean | clean |
+| soak-cur-mission2-s903 | 171,106 | clean | clean |
+| soak-cur-debrief2-s906 | 63,256 | clean | clean |
+| soak-cur-debrief1-s905 | 73,765 | clean | clean |
+| soak-cur-wanted-s908 | 116,112 | clean | clean |
+| soak-cur-rich-s910 | 117,729 | clean | clean |
+| soak-cur-keyboard-s911 | 94,380 | clean | clean |
+| soak-load-s913 | 112,556 | clean | clean |
+
+That is 798,000 iterations a host with no findings: no divergence, no
+differing save file, no page &0D write. death-s909 and load-s914 used to end
+with six commander files of &FF and a control-flow divergence, debrief2-s906
+with a differing E.C, and mission2-s903 with the save at iteration 5748.
+
 ## Nothing the space view runs in overlay D (branch `tubediscs`, 2026-11-05)
 
 SUN's part 3 had been in overlay D since the disc heap's room was made, but
