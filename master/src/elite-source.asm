@@ -9969,6 +9969,21 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 
  JSR HALL               \ Show the ship hangar
 
+\ ******************************************************************************
+\
+\       Name: DOENTRYM
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Port: DOENTRY's wait and mission checks after the hangar, its own
+\             block (never returns; run only while docked: the Tube's overlay
+\             D, which BRIEF's start is in too)
+\       Area: cold
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.DOENTRYM
+
  LDY #44                \ Wait for 44/50 of a second (0.88 seconds)
  JSR DELAY
 
@@ -39125,6 +39140,20 @@ ENDIF
  LDX #COU               \ 7 ("PRESS SPACE OR FIRE,{single cap}COMMANDER.{cr}
  LDY #100               \ {cr}"), with the ship at a distance of 100, returning
  JSR TITLE              \ with the internal number of the key pressed in A
+
+\ ******************************************************************************
+\
+\       Name: BR1S
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Port: BR1's start of the game after the title screens, its own
+\             block (never returns: it falls into BAY; the Tube's overlay D)
+\       Area: cold
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.BR1S
 
  JSR ping               \ Set the target system coordinates (QQ9, QQ10) to the
                         \ current system coordinates (QQ0, QQ1) we just loaded
