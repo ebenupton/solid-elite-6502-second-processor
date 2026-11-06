@@ -205,6 +205,11 @@ again (most in under a minute; `msbar-carry` takes about five). The headers of
 `compass-stray-dot` and `look1-death` name a build from before both fixes, so they replay
 the bugs without `--cand` (while that build is left alone). `msbar-carry` and
 `ttx66-shadow-crash` were recorded on full-master's 3db0b1c^, so they need `--cand`.
+The three `tube-*` repros are the Tube soak's (TUBE=Master or TUBE=B, with `--cand
+tube/build/elite-tube.ssd` or `elite-tube-b.ssd` and `--csyms tube/build/psyms.txt`):
+`tube-oscli-lowercase-save` (a save command starting "s"), `tube-badcommand-hostcrash`
+(an unrecognised command, which crashed the Master host) and `tube-delt-savosc`
+(SNG47's DELT bug undone by a load of overlay D). They replay clean on both hosts.
 
 Two regression tests call routines directly in both machines, docked:
 `test-chpr-overflow.mjs` (CHPR's screen clear with the text off the bottom and for code 11)
