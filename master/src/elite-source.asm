@@ -17697,7 +17697,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Launch our escape pod
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -17751,6 +17750,20 @@ ENDIF
 
  BNE ESL1               \ Loop back to keep moving the Cobra until the AI flag
                         \ is 0, which gives it time to drift away from our pod
+
+\ ******************************************************************************
+\
+\       Name: ES2
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Port: ESCAPE's replacement ship after its frames, its own block
+\             (never returns: on the Tube's parasite overlay D, which the frames
+\             before it, in the space view, must not need)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.ES2
 
  JSR SCAN               \ Call SCAN to remove the Cobra from the scanner (by
                         \ redrawing it)
@@ -24441,7 +24454,6 @@ ENDIF
 \    Summary: Display a rotating ship, waiting until a key is pressed, then
 \             remove the ship from the screen
 \       Area: cold
-\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -43630,7 +43642,24 @@ ENDMACRO
  PHA                    \ the stack
  STZ QQ11
 
+IF _TPART = 1
+
+ LDA ovl_dn             \ Port (Tube): no calls into overlay D for the frame to
+ PHA                    \ see (p-ovl.asm's ovl_dact), so that it leaves S in:
+ STZ ovl_dn             \ LL9B's callers are resident, and those that go back
+                        \ into D after it (PAUSE, through MT23's stub) load D
+                        \ themselves, so the briefing's frames need no loads
+
+ENDIF
+
  JSR LL9F               \ Record the ship and render the frame
+
+IF _TPART = 1
+
+ PLA                    \ Port (Tube): the calls into overlay D back
+ STA ovl_dn
+
+ENDIF
 
  PLA                    \ Put the view type back
  STA QQ11
