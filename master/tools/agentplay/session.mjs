@@ -433,6 +433,9 @@ export class Session {
             // (a replay runs to where the session ended, or 50 reads past its last key without an end record)
             if (cfg.replay && cfg.until === undefined && (this.logEnd ? this.ref.iter >= this.logEnd.iter : this.ref.polls > this.lastPoll + 50)) break;
             if (cfg.replay && cfg.until !== undefined && this.ref.iter > cfg.until + (cfg.keepGoing || 0) + 1) break;
+            // (a log cut short where the reference waits for a key, as BRBR after a disc
+            // error: it reads on for ever with no key left in the log; stop 20000 reads on)
+            if (cfg.replay && this.ref.polls > this.lastPoll + 20000) { console.log(`the log's reads ran out at read ${this.lastPoll}: stopping`); break; }
             if (this.divShots && this.divShotFrame === undefined) { this.divShotFrame = this.frame + 3; this.ref.renderAll(); this.cand.renderAll(); }
             if (this.divShots && this.frame >= this.divShotFrame) { this.divShots = false; await this.shots(`divergence-${String(this.div.iter).padStart(6, "0")}`); }
             if (this.shotsDue !== undefined) { await this.shots(`it${String(this.shotsDue).padStart(6, "0")}`); this.shotsDue = undefined; }
