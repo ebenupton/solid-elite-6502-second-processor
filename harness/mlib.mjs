@@ -253,8 +253,15 @@ export async function runElite(opts) {
         (labs[m] ||= []).push([k, v]);
     }
     for (const l of Object.values(labs)) l.sort((a, b) => a[1] - b[1]);
+    // (the Tube: an address in the parasite's overlay region is overlay D's, labels name_C,
+    // while D is in (ovl_cur 1, p-ovl.asm), else overlay S's, whose labels share D's
+    // addresses: as tmachine.mjs's labelOf)
+    const ovlTop = 0xf800, inOvl = a => T && sy.OVL_START !== undefined && a >= sy.OVL_START && a < ovlTop;
+    const labsD = T ? (labs.m || []).filter(([k, v]) => inOvl(v) && k.endsWith("_C")) : [];
+    const labsS = T ? (labs.m || []).filter(([k, v]) => inOvl(v) && !k.endsWith("_C")) : [];
+    if (T) labs.m = (labs.m || []).filter(([k, v]) => !inOvl(v));
     const labelOf = (a, romsel = cpu.romsel) => {
-        const lab = labs[T ? "m" : mapAt(romsel, a)] || [];
+        const lab = inOvl(a) ? (rb(sy.ovl_cur) === 1 ? labsD : labsS) : labs[T ? "m" : mapAt(romsel, a)] || [];
         let lo = 0, hi = lab.length - 1, r = null;
         while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }
         return r && r.endsWith("_C") ? r.slice(0, -2) : r;      // (cold copies keep their names, plus _C)
