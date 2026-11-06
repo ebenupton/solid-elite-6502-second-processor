@@ -192,6 +192,7 @@ the same session, read for read.
 | `--cand`/`--csyms` | try a fixed build against the same inputs (always the two together) |
 | `--workaround none` | turn off a workaround the session used |
 | `--cut N --save FILE` | write the log cut short after iteration N, as a minimal repro |
+| `--savediscs` | write both discs at the end, as agentplay.mjs's, for a load session (`soak-load-*`) to replay from |
 
 Without `--cand`, a replay uses the discs named in the log's header, but only while they
 are still the builds the log was recorded with (their sha1s are in the header). Otherwise
