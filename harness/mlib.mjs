@@ -250,11 +250,15 @@ export async function runElite(opts) {
         if (v < 0x0800 || /^(CODE|LOAD)/.test(k)) continue;   // (section addresses, not routines)
         const m = mapOfLabel(sy, k);
         if (m === "m" && v >= 0x8000 && !T) continue;
-        (labs[m] ||= []).push([k, v]);
+        // (the Tube: the overlay region's labels by overlay, as overlay D's
+        // and S's addresses overlap: D's are its cold copies, X_C)
+        const ov = T && sy.OVL_START !== undefined && v >= sy.OVL_START && v < (sy.RING ?? 0xF400) ? (k.endsWith("_C") ? "D" : "S") : m;
+        (labs[ov] ||= []).push([k, v]);
     }
     for (const l of Object.values(labs)) l.sort((a, b) => a[1] - b[1]);
     const labelOf = (a, romsel = cpu.romsel) => {
-        const lab = labs[T ? "m" : mapAt(romsel, a)] || [];
+        const inOvl = T && sy.OVL_START !== undefined && a >= sy.OVL_START && a < (sy.RING ?? 0xF400);
+        const lab = labs[T ? (inOvl ? (cpu.ramRomOs[sy.ovl_cur] === 1 ? "D" : "S") : "m") : mapAt(romsel, a)] || [];
         let lo = 0, hi = lab.length - 1, r = null;
         while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }
         return r && r.endsWith("_C") ? r.slice(0, -2) : r;      // (cold copies keep their names, plus _C)
