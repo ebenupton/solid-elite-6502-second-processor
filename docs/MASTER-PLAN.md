@@ -3018,11 +3018,13 @@ rate, in the game: H_MVS4 (MVEIT part 7's last call) skips part 8, the
 planet's own pitch and roll, on iterations with MCNT odd, and the harness
 (harness/mlib.mjs, agentplay's lib.mjs) makes SNG47 skip the same turns, so
 the whole game state, the planet's vectors included, still matches (the
-vectors reach the game through K2, which H_CIRC leaves for MV40). And the
-records are made on exactly the iterations the planet turns, MCNT even (a
-multiple of 4 in deep space, the planet's z at least 512 x 256), the
-iterations between keeping them moved with the disc's centre (pf_hold, exact
-for the move). The lens flare moved to bank 6 to make room. The gate runs
-at 12.61 iterations a second against the patched SNG47's 14.14 (0.892),
-158,594 cycles a flight iteration.
+vectors reach the game through K2, which H_CIRC leaves for MV40). And a
+close planet's records are made every frame; in deep space (the planet's z
+at least 512 x 256) they are made on the iterations the planet turns, MCNT
+even, and the odd iterations keep the previous one's, moved with the disc's
+centre (pf_hold, exact for the move), so a kept frame shows the latest turn.
+The lens flare moved to bank 6 to make room. The gate runs at 12.08
+iterations a second against the patched SNG47's 14.14 (0.854), 165,538
+cycles a flight iteration; bank 7's meridian window ends at &B79B (2,148
+free).
 
