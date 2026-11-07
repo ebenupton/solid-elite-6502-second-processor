@@ -7,6 +7,111 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The rotating ships with no overlay loads (branch `tubediscs`, 2026-11-07)
+
+During the Constrictor briefing's key waits each frame of the ship loaded S
+and then D back: 2.29 frames a second on either host. Making PAUSE resident
+alone could not fix it: PAUSE is reached from DETOK, in D, through a call
+that stays on the stack (BRPS's stub), so F_FRAME's ovl_dact would still
+bring D back after every frame. PAUSE2 was never the problem: it only reads
+the keys, with no frames. The audit of every frame caller found the same
+pattern in one place the brief did not name, and it was worse: ESCAPE, in D,
+ran its 97 frames of the Cobra leaving at 3 frames a second, 31 s, in the
+space view (no recorded run presses it, so tswap never saw it).
+
+### What moved
+
+| Change | Resident bytes | |
+|---|---:|---|
+| PAUSE resident, with MT23's stub | +27 | 22 and 5: PAUSE falls into the stub after its last frame, which loads D for the rest of the token |
+| LL9B's hold, under IF _TPART = 1 | +11 | ovl_dn saved and zeroed round the frame, so ovl_dact sees no calls into D and S stays in. All LL9B's callers (BRL1, BRL2, PAS1, PAUSE) are resident |
+| ESCAPE resident to the end of its frames | +45 | 45 of code, its stub gone and ES2's in its place: ES2, the replacement ship (27 bytes), stays in D behind a stub that jumps |
+| DOENTRYM into D | -36 | DOENTRY's wait and mission checks after the hangar: 26 bytes less a stub of 5, and the stubs of EN1, EN4 and BRIEF (15), which nothing resident reaches now |
+| BR1S into D | -33 | BR1's start of the game after the title screens, 38 bytes less a stub of 5: it falls into BAY, whose stub loaded D there before |
+
+Net +14: the resident code ends at &AFF7 (8 bytes free), OVL_START stays
+&B000. Overlay D is 10,524 bytes (42 pages, 6,884 free); S is unchanged
+(17,339, 69 free); the hosts' storage is as before (97 pages). The low code's
+28 free bytes are not used. DOENTRYM, BR1S and ES2 are in streams.py's
+NORETURN, so their stubs jump and leave no call into D on the stack for the
+frames after them. Headers and the IF _TPART blocks only in the shared
+source: the Master port assembles byte-identically. The two frame changes
+are one commit because each alone trips F_TCH's page assertion (the layout
+between them moves it across a page).
+
+### Overlay loads and frame rates
+
+tdock.mjs, one boot, each screen reached from flight; loads of D / S:
+
+| | Before | After |
+|---|---:|---:|
+| Boot, title screens, first launch | 3 / 4 | 3 / 4 |
+| Constrictor briefing | 19 / 18 | 5 / 4 |
+| Constrictor debrief | 2 / 1 | 2 / 1 |
+| Mission 2 message (brief2), plans (brief3), debrief | 2 / 1 each | 2 / 1 each |
+| Escape pod to the hangar | 99 / 98 | 2 / 1 |
+| Loads between two frames | 109 | 0 |
+
+The title's rotating ships never swapped (TITLE and BR1 are resident, with
+nothing of D's on the stack), the hangar is one frame, and the mission 2
+screens and debriefs have no moving ship: their key waits are PAUSE2's. The
+loads left in the briefing are the changes between text and frames, which
+need D and S in turn.
+
+| Frames a second | Master host, before | after | Model B host, before | after |
+|---|---:|---:|---:|---:|
+| PAUSE's key waits | 2.29 | 24.38 | 2.29 | 23.54 |
+| ESCAPE's frames | 3.13 | 19.34 | 3.04 | 18.87 |
+| BRIEF's frames (no change: no loads before either) | 20.10 | 20.12 | 19.96 | 19.96 |
+
+ESCAPE's 97 frames now take 5.0 s (Master host), 31.0 s before.
+
+### Checks
+
+tube/tools/tdock.mjs now runs all five of harness/mbrief.mjs's mission states
+and an escape pod (the PC set to ESCAPE at a TT100), and fails on any overlay
+load between two frames (p_flip) with no TT66 and no text (TT26) between
+them. The text exception is needed: BR2's frame, the briefing's first text
+and PAUSE's first frame have loads between them that belong to the text. On
+5efa684's build the check fails with 109; on this one it passes with 0. In
+flight text is printed too, so tswap.mjs stays the gate for the space view.
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical to 7b80a99's; lockstep 16,002
+  iterations clean, TUBEINT 602 clean; pixels 13,441 frames matched (7
+  sampling gaps), 0 mismatched; dashboard 2,738 matched; saves
+  byte-identical; storage 97 pages, 0 differ; crash and station ok;
+  docking (tdock.mjs's six configs) ok with 0 loads between frames;
+  overlays over run1 11 loads of D and 12 of S, none within the space view.
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340), both hosts.
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000:
+  734 frames, 90,862 band rows, 0 wrong (both hosts).
+* harness/mlib.mjs's labelOf named a call site in overlay D after a label
+  of S at a nearby address, as the two overlays' addresses overlap. With D
+  3 bytes shorter, the deterministic pilot's wait in TT223 (t2) was named
+  ps_bnd, and the pilot, which answers each key read by its site, held the
+  key for ever: tscenes.sh's Tube runs stopped at iteration 20. It now
+  uses the overlay that is in, as tmachine.mjs's labelOf already did.
+
+### Speeds
+
+run1's windows, it/s:
+
+| | 1000-1400 | 3420-3550 | 0-3550 | 300-403 | 5355-5457 | 12105-12212 | 15987-16000 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Tube, Master host, before | 23.28 | 25.04 | 22.10 | 11.33 | 25.04 | 12.72 | 25.40 |
+| Tube, Master host | 23.28 | 25.04 | 22.10 | 11.33 | 25.04 | 12.73 | 25.35 |
+| Tube, Model B host, before | 20.55 | 25.04 | 20.39 | 9.40 | 25.04 | 10.30 | 23.62 |
+| Tube, Model B host | 20.57 | 25.04 | 20.39 | 9.40 | 25.04 | 10.30 | 23.62 |
+
+The one drop, 25.40 to 25.35 on the Master host's sun window (measured again
+on 5efa684's build: 78,751 cycles an iteration against 78,900), is 0.2% over
+13 iterations; nothing in flight runs the code that changed, but the run's
+addresses moved. Its cause was not traced.
+
+
 ## Nothing the space view runs in overlay D (branch `tubediscs`, 2026-11-05)
 
 SUN's part 3 had been in overlay D since the disc heap's room was made, but
@@ -51,10 +156,9 @@ free) and S 17,339 (69 bytes free to the ring), so the hosts' storage is
 as before (97 pages). Not workable, by the overlay manager's rules: DOENTRY
 past LAUN (HALL's frame would come back into D with S in), BRIEF's frames
 (no call into D on the stack to bring D back), the line clipping (LL145:
-an enemy's laser at us in flight). PAUSE and PAUSE2, D's, still run the
-briefings' rotating ship with D's routines on the stack, so each of those
-frames loads S and D back (19 loads of D and 18 of S in tdock's
-briefing, as before this work; the docked screens only).
+an enemy's laser at us in flight). PAUSE, D's, still ran the briefing's
+rotating ship with D's routines on the stack, so each of those frames
+loaded S and D back (fixed in the section above).
 
 ### Checks
 
