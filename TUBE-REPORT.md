@@ -7,6 +7,81 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The soak's fixes and full-master 883a65e merged (branch `tubediscs`, 2026-11-07)
+
+Two merges onto the briefing's and ESCAPE's frames with no overlay loads:
+the soak's three disc fixes (below, "The soak against SNG47") and
+full-master 883a65e, whose circle hold rule makes a close planet's records
+every frame and a distant one's (z at least 512 x 256) on the iterations
+with MCNT even, the ones it turns on; the half spin is unchanged.
+
+### Merges
+
+* harness/mlib.mjs: both lines fixed runElite's labelOf in the overlay
+  region; the one kept takes D's labels while D is in and S's otherwise, up
+  to RING (the ring is neither overlay's).
+* elite-source.asm: DELT's and the save's savc0 copies sit in blocks that are
+  in overlay D, next to the briefing's changes, with no overlap; streams.py
+  and p-layout.asm take both.
+* The Master port assembles byte-identically to full-master 883a65e.
+
+### The room
+
+| | Before | After |
+|---|---|---|
+| Resident code | &1400-&AFF7, 8 free | &1400-&AFF7, 8 free |
+| Low code (PLOW) | &137F-&13E3, 28 free | &137F-&13E4, 27 free (savc0) |
+| Overlay D | 10,524 bytes, 6,884 free | 10,538 bytes, 6,870 free (DELT's and the save's savc0 copies) |
+| Overlay S | 17,339 bytes, 69 free | 17,330 bytes, 78 free (pf_hold 9 bytes shorter) |
+| Master host's storage | 97 pages | 97 pages |
+| Master host's HAZEL | &C000-&DFFF | &C000-&DEFF: the MOS's page &DF00 is never the host's |
+
+### Pixel references
+
+scratch/master-ref.ssd, scratch/fbref and scratch/dashref made again from
+883a65e's build (fbreplay.mjs over run1: 14,597 frames hashed); the old
+ones kept as *-7b80a99.
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical; lockstep 16,002 iterations clean,
+  TUBEINT 602 clean; pixels 13,445 frames matched (3 sampling gaps), 0
+  mismatched; dashboard 2,738 matched; saves byte-identical; storage 97
+  pages, 0 differ; crash and station ok; docking (tdock.mjs's six configs)
+  ok with 0 loads between frames; overlays over run1 11 loads of D and 12 of
+  S, none within the space view.
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340).
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000:
+  734 frames, 90,862 band rows, 0 wrong.
+* tbadsave.mjs: &F2, &BD, "X", "A", "/" Bad command; 0 and &18 Bad string;
+  &80 Bad name; "s" saved: every byte as SNG47, the host back in its loop.
+* The soak's three repros clean: tube-oscli-lowercase-save 25,011
+  iterations, tube-badcommand-hostcrash 11,462, tube-delt-savosc 5,747.
+* harness/mcompare.mjs --iters 10000 --loose: MCOMPARE PASS on the Master
+  port and both hosts.
+
+### Speeds
+
+run1's windows, it/s (the Master host's parasite at 4 MHz, the Model B
+host's at 3 MHz):
+
+| | 1000-1400 | 3420-3550 | 0-3550 | 300-403 | 5355-5457 | 12105-12212 | 15987-16000 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Original (SNG47, the half spin) | 12.89 | 27.99 | 15.99 | 8.12 | 29.69 | 8.50 | 22.76 |
+| Master port (7b80a99) | 15.29 | 25.04 | 17.00 | 7.14 | 25.04 | 7.59 | 25.69 |
+| Master port (883a65e) | 14.16 | 25.04 | 16.33 | 6.94 | 25.04 | 7.37 | 25.69 |
+| Tube, Master host, before | 23.28 | 25.04 | 22.10 | 11.33 | 25.04 | 12.73 | 25.35 |
+| Tube, Master host | 22.72 | 25.04 | 21.82 | 11.10 | 25.03 | 12.43 | 25.34 |
+| Tube, Model B host, before | 20.57 | 25.04 | 20.39 | 9.40 | 25.04 | 10.30 | 23.62 |
+| Tube, Model B host | 19.52 | 25.04 | 19.90 | 9.18 | 25.04 | 10.03 | 23.62 |
+
+The drops are the close-up planet's records made every frame where they
+were held on alternate ones, as on the Master port. The Master port's own
+gate run (mcompare --iters 10000): the original 14.14, the Master port
+12.08 (0.854), the Tube's Master host 19.98 (1.413), its Model B host 16.90
+(1.194).
+
 ## The rotating ships with no overlay loads (branch `tubediscs`, 2026-11-07)
 
 During the Constrictor briefing's key waits each frame of the ship loaded S
