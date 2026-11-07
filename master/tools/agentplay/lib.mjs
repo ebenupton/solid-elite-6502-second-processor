@@ -17,15 +17,15 @@
 //
 // Also as mlib (and for the same reasons, documented there): at NOISE the three SOPR
 // bytes are cleared; at the LL5 call that feeds ALTIT, Q is cleared; in a build
-// without the port's H_MVS4 (SNG47) the planet's own pitch and roll are skipped
-// on odd iterations, as the port's half spin does (mlib's patch); at TT170 the
+// without the port's H_MVS4 (SNG47) the planet's own pitch and roll are made half
+// steps, as the port's half spin makes them (mlib's patch, halfPart8); at TT170 the
 // candidate's boot leftovers are seeded from the reference (seedFrom). At every MLOOP the
 // game state (mlib.regionsFor) is snapshotted.
 //
 // What it watches for besides: BRKs that reach the game's BRK handler (NEWBRK) with
 // where they came from, writes by game code to page &0D (off limits on the Master),
 // and the routine labels of each poll (control flow).
-import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank } from "../../../harness/mlib.mjs";
+import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank, halfPart8 } from "../../../harness/mlib.mjs";
 export { loadSyms, regionsFor };
 
 export const ROOT = decodeURIComponent(new URL("../../..", import.meta.url).pathname).replace(/\/$/, "") + "/";
@@ -306,14 +306,12 @@ export class EliteMachine {
             for (let i = 0; i < 3; i++) this.ram[sy.SOPR + i] = 0;
         } else if (H.P8 && this._at(H.P8, pc)) {
             // the planet's half spin (as mlib's): a build without H_MVS4 (SNG47)
-            // turns the planet by its own pitch and roll on even iterations only
-            if ((this.rb(sy.TYPE) & 0x80) && (this.rb(sy.MCNT) & 1)) {
-                this.p8save = [this.rb(sy.INWK + 29), this.rb(sy.INWK + 30)];
-                this.ram[sy.INWK + 29] = 0; this.ram[sy.INWK + 30] = 0;
-            }
-        } else if (this.p8save && this._at(H.MV5, pc)) {
-            this.ram[sy.INWK + 29] = this.p8save[0]; this.ram[sy.INWK + 30] = this.p8save[1];
-            this.p8save = null;
+            // gets the port's half steps, worked out at part 8's start and put in
+            // place of its own full steps at MV5
+            if (this.rb(sy.TYPE) & 0x80) this.p8vec = halfPart8(i => this.rb(sy.INWK + i));
+        } else if (this.p8vec && this._at(H.MV5, pc)) {
+            for (let i = 0; i < 18; i++) this.ram[sy.INWK + 9 + i] = this.p8vec[i];
+            this.p8vec = null;
         } else if (this._at(H.LL5, pc)) {
             const ret = (this.rb(0x101 + cpu.s) | this.rb(0x102 + cpu.s) << 8) + 1;
             const rc = a => cpu.readmem(a & 0xffff);     // (the caller's code, as paged: it may be in bank 4)
@@ -384,7 +382,7 @@ export class EliteMachine {
     // and MV5
     _findP8() {
         const sy = this.sy, cpu = this.cpu;
-        this.p8save = null;
+        this.p8vec = null;
         if (sy.H_MVS4 !== undefined || sy.MV8 === undefined || sy.MV5 === undefined) return;
         const m = mapOfLabel(sy, "MV8"), want = [0xa5, sy.INWK + 30, 0x29, 0x80, 0x85, sy.RAT2];
         for (let a = sy.MV8 - 6; a > sy.MV8 - 64; a--)
