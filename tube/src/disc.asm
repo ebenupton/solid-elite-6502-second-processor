@@ -7,14 +7,14 @@
 \ ******************************************************************************
 
  PUTFILE "build/M128Elt.bin", "ELITE", &FF0E00, &FF0E55
+ PUTFILE "build/HRASTA.pk", "HRASTA", &000000, &000000
+ PUTFILE "build/HBANK5.pk", "HBANK5", &000000, &000000
+ PUTFILE "build/HBANK6.pk", "HBANK6", &000000, &000000
+ PUTFILE "build/HSTB7.pk", "HSTB7", &000000, &000000
+ PUTFILE "build/HSTB4.pk", "HSTB4", &000000, &000000
+ PUTFILE "build/HSTZ.pk", "HSTZ", &000000, &000000
+ PUTFILE "build/HSTM2.pk", "HSTM2", &000000, &000000
+ PUTFILE "build/HSTM1.pk", "HSTM1", &000000, &000000
  PUTFILE "build/BDATA.unprot.bin", "BDATA", &000000, &000000
- PUTFILE "build/HRASTA.bin", "HRASTA", &000000, &000000
- PUTFILE "build/HBANK5.bin", "HBANK5", &000000, &000000
- PUTFILE "build/HBANK6.bin", "HBANK6", &000000, &000000
- PUTFILE "build/HSTZ.bin", "HSTZ", &000000, &000000
- PUTFILE "build/HSTM2.bin", "HSTM2", &000000, &000000
- PUTFILE "build/HSTM1.bin", "HSTM1", &000000, &000000
- PUTFILE "build/HSTB7.bin", "HSTB7", &000000, &000000
- PUTFILE "build/HSTB4.bin", "HSTB4", &000000, &000000
- PUTFILE "build/HMAIN.bin", "HMAIN", &FF1EDC, &FF1EDC
  PUTFILE "build/PCODE.bin", "PCODE", &001400, &001400
+ PUTFILE "build/HMAIN.bin", "HMAIN", &FF1EDC, &FF1EDC
