@@ -40326,6 +40326,17 @@ IF _SNG47
  BNE DELL1              \ Loop back to DELL1 to copy the next character until we
                         \ have copied the whole filename
 
+IF _TUBE
+
+ LDA savosc             \ Port (Tube): savosc is in overlay D, which each load
+ STA savc0              \ of D restores from the host's image, so the first
+                        \ byte that the bug above leaves there is kept in
+                        \ resident memory (savc0, tube/src/p-layout.asm's low
+                        \ code) and put back before each save, so that it
+                        \ persists as in SNG47
+
+ENDIF
+
  JSR getzp              \ Call getzp to store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
@@ -41036,6 +41047,13 @@ ELIF _COMPACT
                         \ can use it, and store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
+
+ENDIF
+
+IF _TUBE
+
+ LDA savc0              \ Port (Tube): savosc's first byte as DELT last left it
+ STA savosc             \ (see DELT)
 
 ENDIF
 

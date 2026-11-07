@@ -77,7 +77,7 @@ export class Session {
         // (the Tube build: TUBE=Master or TUBE=B, the candidate is the parasite's game
         // with that host, tube/tools/tmachine.mjs)
         const Cand = process.env.TUBE ? (await import("../../../tube/tools/tmachine.mjs")).TubeEliteMachine : EliteMachine;
-        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
+        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, symsPath: cfg.csyms, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
         await this.ref.boot();
         await this.cand.boot();
         this.cand.opts.seedFrom = this.ref;
@@ -305,13 +305,17 @@ export class Session {
         // observables are decoded at MLOOP into each machine's queue: compare the pairs
         const { obsR, obsC } = this;
         while (obsR.q.length && obsC.q.length) {
+            // (paired by iteration: a machine that has no record for an iteration, as the
+            // Tube host's panel, sampled at its own sync points, may not, skips the other's)
+            if (obsR.q[0].iter < obsC.q[0].iter) { obsR.q.shift(); continue; }
+            if (obsC.q[0].iter < obsR.q[0].iter) { obsC.q.shift(); continue; }
             const r = obsR.q.shift(), c = obsC.q.shift();
-            if (r.iter !== c.iter) continue;
             this.obsChecked++;
             const all = Observer.compare(r, c);
             // expected differences (overlapping scanner dots) are counted, not reported
             for (const x of all.filter(x => x.expected)) { this.obsExpected ||= {}; const k = this.obsExpected[x.what] ||= { n: 0, first: r.iter, example: x }; k.n++; }
             const diffs = all.filter(x => !x.expected);
+            if (process.env.OBSLOG) appendFileSync(process.env.OBSLOG, `${r.iter} ${diffs.map(x => x.what + ":" + JSON.stringify(x.ref) + "/" + JSON.stringify(x.cand)).join("; ")}\n`);
             if (diffs.length) {
                 this.obsDiffs++;
                 const key = diffs.map(x => x.what).join(",");
@@ -429,6 +433,9 @@ export class Session {
             // (a replay runs to where the session ended, or 50 reads past its last key without an end record)
             if (cfg.replay && cfg.until === undefined && (this.logEnd ? this.ref.iter >= this.logEnd.iter : this.ref.polls > this.lastPoll + 50)) break;
             if (cfg.replay && cfg.until !== undefined && this.ref.iter > cfg.until + (cfg.keepGoing || 0) + 1) break;
+            // (a log cut short where the reference waits for a key, as BRBR after a disc
+            // error: it reads on for ever with no key left in the log; stop 20000 reads on)
+            if (cfg.replay && this.ref.polls > this.lastPoll + 20000) { console.log(`the log's reads ran out at read ${this.lastPoll}: stopping`); break; }
             if (this.divShots && this.divShotFrame === undefined) { this.divShotFrame = this.frame + 3; this.ref.renderAll(); this.cand.renderAll(); }
             if (this.divShots && this.frame >= this.divShotFrame) { this.divShots = false; await this.shots(`divergence-${String(this.div.iter).padStart(6, "0")}`); }
             if (this.shotsDue !== undefined) { await this.shots(`it${String(this.shotsDue).padStart(6, "0")}`); this.shotsDue = undefined; }
