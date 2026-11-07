@@ -15,12 +15,10 @@
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
 IF _HOSTB = 0
- LDX #63                \ (Master: DFS's and the MOS's lasting bytes in HAZEL
-.hst4                   \ to DFSST and DFSST2, h_disc's hzout puts them back,
- LDA &C2C0,X            \ then HAZEL's ours from the loader's staging copy at
- STA DFSST,X            \ &4000, main RAM: hzin's second half)
- LDA &DFC0,X
- STA DFSST2,X
+ LDX #63                \ (Master: DFS's lasting bytes in HAZEL to DFSST,
+.hst4                   \ h_disc's hzout puts them back, then HAZEL's ours
+ LDA &C2C0,X            \ below the MOS's page &DF00 from the loader's staging
+ STA DFSST,X            \ copy at &4000, main RAM: hzin's second half)
  DEX
  BPL hst4
  LDA #4
@@ -260,13 +258,15 @@ ENDIF
 
 IF _HOSTB = 0
 \ hzout, hzin: the host keeps the overlays' storage and its span code in HAZEL
-\ (&C000-&DFFF), which DFS and the MOS use during a disc command: as the
-\ Master port's DOSCLI, HAZEL goes to main RAM &4000-&5FFF (buffer 0, not on
-\ show in direct mode; the parasite's p_oscli has set GSTASH) for the command,
-\ with DFS's and the MOS's lasting bytes (DFSST: &C2C0-&C2FF, DFSST2:
-\ &DFC0-&DFFF, which the loader took) put back and DFS's catalogue cache
-\ invalidated; afterwards the lasting bytes are taken again and HAZEL comes
-\ back. ACCCON X is clear (h_disc)
+\ (&C000-&DEFF), which DFS uses during a disc command: as the Master port's
+\ DOSCLI, HAZEL goes to main RAM &4000-&5EFF (buffer 0, not on show in direct
+\ mode; the parasite's p_oscli has set GSTASH) for the command, with DFS's
+\ lasting bytes (DFSST: &C2C0-&C2FF, which hstart took) put back and DFS's
+\ catalogue cache invalidated; afterwards the lasting bytes are taken again
+\ and HAZEL comes back. The MOS's page &DF00-&DFFF is never the host's, so
+\ the MOS's state there (the filing systems, DF00-DF02, which a *RUN that DFS
+\ cannot find consults, so that the MOS answers "Bad command" as on SNG47)
+\ stays whole. ACCCON X is clear (h_disc)
 
 .hzout
  LDX #&C0
@@ -276,8 +276,6 @@ IF _HOSTB = 0
 .hzo1
  LDA DFSST,X
  STA &C2C0,X
- LDA DFSST2,X
- STA &DFC0,X
  DEX
  BPL hzo1
  LDA #&FF
@@ -294,17 +292,15 @@ IF _HOSTB = 0
 .hzi1
  LDA &C2C0,X
  STA DFSST,X
- LDA &DFC0,X
- STA DFSST2,X
  DEX
  BPL hzi1
  LDX #&40
  LDY #&C0
-.hzmv                   \ 32 pages from page X to page Y
- STX hzm1+2
+.hzmv                   \ 31 pages from page X to page Y (HAZEL's below
+ STX hzm1+2             \ the MOS's page &DF00)
  STY hzm2+2
  LDY #0
- LDX #32
+ LDX #31
 .hzm1
  LDA &FF00,Y            \ (patched)
 .hzm2

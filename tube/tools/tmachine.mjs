@@ -18,6 +18,7 @@
 import { EliteMachine, loadSyms, CYCLES_PER_FRAME } from "../../master/tools/agentplay/lib.mjs";
 import { regionsFor, canonFor } from "../../harness/mlib.mjs";
 import { bootTube } from "../../harness/tlib.mjs";
+import { existsSync } from "fs";
 export { loadSyms, CYCLES_PER_FRAME };
 
 export class TubeEliteMachine extends EliteMachine {
@@ -66,13 +67,32 @@ export class TubeEliteMachine extends EliteMachine {
         par.writemem = (a, b) => { if (self.inGame && !self.started) self.written.add(a & 0xffff); return wm(a, b); };
         this.bootWrites = { remove: () => { par.writemem = wm; } };
         // the hooks, on the parasite (one table test per instruction)
+        // (whole-code coverage, opts.cover: self.vis, from the game's start (S%), one byte per
+        // parasite address, overlay D's code in the overlay region at &10000 up, as coverage())
+        const OVS = sy.OVL_START ?? 0x10000, OVC = sy.ovl_cur;
         t.addParHook(pc => {
             const c = self.cpu; c.oldPcIndex = (c.oldPcIndex + 1) & 255; c.oldPcArray[c.oldPcIndex] = pc;
+            const vis = self.vis;
+            if (vis) vis[pc >= OVS && pc < 0xf800 && par.memory[OVC] === 1 ? 0x10000 + pc : pc] = 1;
             if (!self.hookTab[pc]) return false;
             // (a hook in the overlay region, p-ovl.asm: only while the overlay
             // it was set in, D, is there)
             if (sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < 0xf800 && par.memory[sy.ovl_cur] !== 1) return false;
             return self.tab(pc);
+        });
+        // page &0D (the NMI routine, the extended vectors, the ROM table) on the host: no
+        // write from the host's own code (main RAM or sideways RAM, not the MOS or DFS)
+        // once the game has started (as EliteMachine's watch0d for the Master port)
+        if (this.opts.watch0d) host.debugWrite.add(a => {
+            if (!self.inGame || a < 0x0d00 || a > 0x0dff) return false;
+            const pc = host.oldPcArray[host.oldPcIndex], rs = host.romsel & 15;
+            if (pc >= 0x0d00 && pc < 0x0e00) return false;      // (the DFS's NMI code itself)
+            const hs = self.hostSyms();                         // (HNMI, h-cold.asm: the minimal NMI handler put back after a disc command, as the port's DOSNMI)
+            if (hs && hs.HNMI !== undefined && pc >= hs.HNMI && pc < hs.HNMI_END) return false;
+            const swr = this.hostKind === "B" ? !!(host.model?.swram?.[rs]) : rs >= 4 && rs <= 7;
+            const inRam = pc < 0x8000 || (pc < 0xc000 && swr) || (this.hostKind !== "B" && ((pc < 0x9000 && pc >= 0x8000 && (host.romsel & 0x80)) || (pc >= 0xc000 && pc < 0xe000 && (host.acccon & 8))));
+            if (inRam && self.page0d.length < 20) { self.page0d.push([self.iter, pc, a]); self.event("page0d", `host PC &${pc.toString(16)} (bank ${rs}) wrote &${a.toString(16)}`); }
+            return false;
         });
         this.s = t.s;
         this.s._video.frameSkipCount = +(process.env.FRAMESKIP || 25);
@@ -122,6 +142,20 @@ export class TubeEliteMachine extends EliteMachine {
             this.polls++; this.lastProgressCycles = this.cyclesNow();
             return false;
         }
+        if (this._at(this.H.NEWBRK, pc)) {
+            // the game's BRK handler. A disc error comes from the host: p_oscli copies its
+            // number and message into R_NDX3 and enters NEWBRK with (&FD) there, as the MOS's
+            // BRK leaves it (p-io.asm), so that is a filing-system error, as a DFS error
+            // in the Master port (fromRom); any other BRK is the parasite's own code's
+            const ep = this.rb(0xfd) | this.rb(0xfe) << 8, brkAt = (ep - 1) & 0xffff;
+            const fromRom = this.sy.R_NDX3 !== undefined && ep === this.sy.R_NDX3;
+            let msg = ""; for (let i = 1; i < 40; i++) { const ch = this.rb((ep + i) & 0xffff); if (!ch) break; msg += ch >= 32 && ch < 127 ? String.fromCharCode(ch) : "."; }
+            const code = this.rb(ep);
+            const rec = { iter: this.iter, at: brkAt, bank: fromRom ? "host" : "p", code, msg, polls: this.polls, label: fromRom ? null : this.labelOf(brkAt), fromRom };
+            this.brks.push(rec);
+            this.event(fromRom ? "brk-rom" : "brk", `BRK at &${brkAt.toString(16)} (${fromRom ? "the host's error" : "parasite" + (rec.label ? ", " + rec.label : "")}) error ${code}: ${msg}`);
+            return false;
+        }
         return super.tab(pc);
     }
     _callerAt(k, romsel = 0) {
@@ -156,6 +190,85 @@ export class TubeEliteMachine extends EliteMachine {
                 console.log(`TUBEDBG stall: parasite ${near(this.sy, t.par.pc)}, host ${near(hs, t.host.pc)} (&${t.host.pc.toString(16)}), host I ${t.host.p.i}, R1 host status &${t.tube.hostStatus[0].toString(16)}, R4 par status &${t.tube.parasiteStatus[3].toString(16)}`);
             }
         }
+    }
+
+    // whole-code coverage of the parasite: every label whose span (to the next label) had an
+    // instruction run; overlay D's labels (name_C) in the overlay region apart from S's.
+    // Code labels never run: those that are the target of a JSR or JMP in the parasite's
+    // memory as it is at the end (with the overlay then in)
+    coverage() {
+        if (!this.vis) return null;
+        const sy = this.sy, vis = this.vis, mem = this.ram, OVS = sy.OVL_START ?? 0x10000;
+        const sets = { m: [], D: [], S: [] };
+        for (const [k, v] of Object.entries(sy)) {
+            if (v < 0x0800 || v > 0xffff || /^(CODE|LOAD)/.test(k)) continue;
+            if (v >= OVS && v < 0xf800) sets[k.endsWith("_C") ? "D" : "S"].push([k, v]); else sets.m.push([k, v]);
+        }
+        const targets = new Set();
+        for (let i = 0x0800; i < 0xfffd; i++) { const o = mem[i]; if (o === 0x20 || o === 0x4c) targets.add(mem[i + 1] | mem[i + 2] << 8); }
+        const reached = [], unreached = [];
+        for (const [set, labs] of Object.entries(sets)) {
+            labs.sort((a, b) => a[1] - b[1]);
+            const base = set === "D" ? 0x10000 : 0;
+            for (let i = 0; i < labs.length; i++) {
+                const [k, v] = labs[i], end = i + 1 < labs.length ? Math.max(v + 1, labs[i + 1][1]) : v + 1;
+                let hit = false;
+                for (let a = v; a < end && !hit; a++) hit = vis[base + a] === 1;
+                if (hit) reached.push(k); else if (targets.has(v)) unreached.push(k);
+            }
+        }
+        return { reached, unreached };
+    }
+
+    // the dashboard for observe.mjs: the host draws the Master port's mode 1 panel at
+    // &7000-&7DFF, in shadow RAM on the Master host, in main RAM on the Model B host
+    get dashMode() { return 1; }
+    dashMem() {
+        const m = this.host.ramRomOs, a = this.hostKind === "B" ? 0x7000 : 0x8000 + 0x7000;
+        return m.subarray(a, a + 0xe00);
+    }
+    // the host's symbols (hsyms.txt, or hbmsyms.txt for the Model B host), beside the parasite's
+    hostSyms() {
+        if (this._hsy === undefined) {
+            const sp = this.opts.symsPath, f = sp && sp.replace(/[^/]*$/, this.hostKind === "B" ? "hbmsyms.txt" : "hsyms.txt");
+            this._hsy = f && existsSync(f) ? loadSyms(f) : null;
+        }
+        return this._hsy;
+    }
+
+    // The host's panel as the reference's is at an iteration's MLOOP: the host draws from
+    // the parasite's command stream, behind it, so the panel is read where the host has
+    // taken every byte the parasite sent before its MLOOP and goes to read the next one
+    // (all that it drew before is drawn). The stream's bytes are counted as the parasite
+    // makes them: a send straight into register 1 (not the ring's drain, pbl's unrolled
+    // sends or ppump), or a store into the ring (STA (rq), p-io.asm); and as the host
+    // takes them from register 1. dashMark(iteration) at the parasite's MLOOP;
+    // fn(iteration) where the host's panel is that iteration's
+    onDashSync(fn) {
+        const sy = this.sy, par = this.t.par, tube = this.t.tube, mem = par.memory, c = this.cpu;
+        if (sy.pbl === undefined || sy.ppump === undefined) throw new Error("TubeEliteMachine.onDashSync: no pbl, ppump in the parasite's symbols");
+        let made = 0, taken = 0;
+        const marks = [];
+        this.dashMark = it => marks.push([it, made]);
+        const drain = pc => (pc >= sy.pbl && pc <= sy.pbl_end) || (pc >= sy.ppump && pc < sy.pflush);
+        const pw = tube.parasiteWrite.bind(tube);
+        tube.parasiteWrite = (a, v) => { if ((a & 7) === 1 && !drain(c.oldPcArray[c.oldPcIndex])) made++; return pw(a, v); };
+        this.t.addParHook(pc => { if (mem[pc] === 0x92 && mem[(pc + 1) & 0xffff] === 0xfa) made++; return false; });
+        const hr = tube.hostRead.bind(tube);
+        tube.hostRead = a => {
+            if ((a & 7) === 1 && (tube.hostStatus[0] & 0x80)) {
+                while (marks.length && marks[0][1] <= taken) fn(marks.shift()[0]);
+                taken++;
+            }
+            return hr(a);
+        };
+    }
+
+    // the bulbs' EOR bitmaps, as the port's (build/dashtab-spbt.asm, dashtab-ecbt.asm,
+    // made by tools/dashboard.py; both hosts draw the same)
+    bulbPattern(sym) {
+        return { SPBT: [0x07, 0x0C, 0x0D, 0x0E, 0x0F, 0x0C, 0x07, 0x00, 0x0E, 0x03, 0x0F, 0x07, 0x0B, 0x03, 0x0E, 0x00],
+            ECBT: [0x77, 0xCC, 0xDD, 0xCC, 0xDD, 0xCC, 0x77, 0x00, 0xEE, 0x33, 0xFF, 0x77, 0xFF, 0x33, 0xEE, 0x00] }[sym];
     }
 
     // the host's two screen buffers (main RAM's &4000-&6FFF, then shadow RAM's)

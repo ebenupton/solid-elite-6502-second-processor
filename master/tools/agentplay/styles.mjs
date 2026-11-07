@@ -93,6 +93,13 @@ const POKES = {
     hurt: { every: 15000, when: flying, poke: () => [["FSH", 0, [0]], ["ASH", 0, [0]], ["ENERGY", 0, [12]]] },
     heat: { every: 20000, when: flying, poke: () => [["CABTMP", 0, [230]]] },
     fuel: { every: 20000, when: flying, poke: () => [["QQ14", 0, [3]]] },
+    // the sun up close: the sun (K%'s second slot, not the station: SSPR clear, not in
+    // witchspace) moved to just ahead, x and y within 20 x 256 and z 90-130 x 256 in front,
+    // where MA23's sun check (every 32 iterations) heats the cabin to 224 or more and, with
+    // fuel scoops fitted and the ship moving, scoops fuel; flying on into it kills
+    sun: { every: 20000, when: (r, sy) => flying(r, sy) && !r[sy.SSPR] && !r[sy.MJ] && r[sy.FRIN + 1],
+        poke: () => { const c = () => [Math.floor(rng() * 256), Math.floor(rng() * 21), rng() < 0.5 ? 0 : 0x80];
+            return [["K%", 37, [...c(), ...c(), Math.floor(rng() * 256), 90 + Math.floor(rng() * 41), 0]]]; } },
 };
 // the disc menu, while docked on the Status screen (up to three such actions a dock, and the
 // agent's keys are held back while it runs): catalogues, deletes, loads of a missing
@@ -160,9 +167,11 @@ function mulberry(a) { return () => { a |= 0; a = a + 0x6d2b79f5 | 0; let t = Ma
 // rate ("ecm,bomb*2")
 export function makeChaos(spec, seed) {
     const r = mulberry(seed * 7919 + 17);
-    const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...Object.keys(POKES)]
+    // ("all" is the overlay as it was before the sun poke: that one only by name)
+    const POKES_ALL = Object.keys(POKES).filter(n => n !== "sun");
+    const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...POKES_ALL]
         : spec.split(",").flatMap(n => n === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1" && k !== "dnameesc") : n === "docked" ? Object.keys(DOCKED)
-            : n === "all" ? [...Object.keys(ACTIONS).filter(k => !ACTIONS[k].disc), ...Object.keys(POKES)] : [n]);
+            : n === "all" ? [...Object.keys(ACTIONS).filter(k => !ACTIONS[k].disc), ...POKES_ALL] : [n]);
     const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
     let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = 0;
     const done = {};

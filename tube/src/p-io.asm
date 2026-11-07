@@ -1049,6 +1049,8 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  JSR ptx
  LDY #0                 \ the mode: SAVE 1, LOAD 2, else 0
  LDA (pov),Y
+ AND #&DF               \ (either case, as the MOS takes the command: after
+                        \ SNG47's DELT bug savosc can start with "s")
  LDX #1
  CMP #'S'
  BEQ pos2

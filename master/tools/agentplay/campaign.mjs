@@ -154,6 +154,30 @@ const PLANS = {
     // the sixth wave: as night5, seeds 400-423
     night6: wave5("n6", 400),
     night7: wave5("n7", 500),
+    // the soak (2026-11-05): long curious-mode sessions over every known feature, the same
+    // plan for the Master port and both Tube hosts (TUBE=Master, TUBE=B): a career from
+    // Jameson; both missions from their start (deadly: the Constrictor; mission2, galaxy3:
+    // the Thargoid plans) and their debriefings; the equipment (E.C.M., bomb, pod,
+    // missiles, docking computer, galactic hyperdrive) through the chaos overlay; the sun
+    // up close (the sun poke: heat, fuel scooping, death); a fugitive; deaths; the disc
+    // menu and the docked screens; keyboard and fair flying; then two careers loaded
+    // from phase 1's discs. 2280 game minutes in all
+    soak: [
+        ["soak-cur-jameson-s901", 360, "--seed", "901", "--mode", "curious", "--savediscs"],
+        ["soak-cur-deadly-s902", 300, "--seed", "902", "--commander", "deadly", "--mode", "curious", "--savediscs"],
+        ["soak-cur-mission2-s903", 180, "--seed", "903", "--commander", "mission2", "--mode", "curious", "--chaos", "docked,disc"],
+        ["soak-cur-gear-s907", 180, "--seed", "907", "--commander", "equipped", "--mode", "curious", "--chaos", "ecm*3,bomb*2,pod*2,ghyp*3,missile*3,unarm,jump*3,dock*4,hyper,sun*2,fuel"],
+        ["soak-cur-galaxy3-s904", 150, "--seed", "904", "--commander", "galaxy3", "--mode", "curious", "--chaos", "views*2,charts*2"],
+        ["soak-cur-wanted-s908", 150, "--seed", "908", "--commander", "wanted", "--mode", "curious", "--chaos", "ecm*2,missile*2,docked,disc"],
+        ["soak-cur-rich-s910", 150, "--seed", "910", "--commander", "rich", "--mode", "curious", "--chaos", "docked,disc,charts*2,views*2,sun"],
+        ["soak-cur-death-s909", 120, "--seed", "909", "--commander", "equipped", "--mode", "curious", "--chaos", "hurt*4,heat*2,sun*3,fuel*2,disc", "--savediscs"],
+        ["soak-cur-keyboard-s911", 120, "--seed", "911", "--commander", "trader", "--mode", "curious,keyboard", "--chaos", "all,docked,disc"],
+        ["soak-cur-fair-s912", 120, "--seed", "912", "--commander", "deadly", "--mode", "curious,fair", "--chaos", "sun*2,views*3,dock*2"],
+        ["soak-cur-debrief1-s905", 90, "--seed", "905", "--commander", "debrief1", "--mode", "curious", "--chaos", "disc,docked"],
+        ["soak-cur-debrief2-s906", 90, "--seed", "906", "--commander", "debrief2", "--mode", "curious", "--chaos", "disc,docked"],
+        ["soak-load-s913", 150, "--seed", "913", "--mode", "load,curious", "--from", "soak-cur-jameson-s901", "--chaos", "disc,docked"],
+        ["soak-load-s914", 120, "--seed", "914", "--mode", "load,curious", "--from", "soak-cur-death-s909", "--chaos", "disc,ghyp*2,pod"],
+    ],
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
@@ -174,7 +198,10 @@ if (!existsSync(`${CB}/symbols.txt`)) {
     copyFileSync(disc, `${CB}/elite-master-sng47.ssd`);
     copyFileSync(syms, `${CB}/symbols.txt`);
     const banks = syms.replace(/symbols\.txt$/, "banks.txt");
-    if (existsSync(banks)) copyFileSync(banks, `${CB}/banks.txt`);
+    if (banks !== syms && existsSync(banks)) copyFileSync(banks, `${CB}/banks.txt`);
+    // (the Tube build, TUBE=Master|B: the parasite's symbols, and the hosts' beside them,
+    // which tmachine.mjs reads for the panel's sync point and the host's NMI handler)
+    for (const h of ["hsyms.txt", "hbmsyms.txt"]) { const f = syms.replace(/[^/]*$/, h); if (f !== syms && existsSync(f)) copyFileSync(f, `${CB}/${h}`); }
 }
 const plan = PLANS[a.plan || "default"].filter(([n]) => !a.only || a.only.split(",").includes(n));
 

@@ -91,6 +91,9 @@ PRES_ORG = P%
  ORG PWS_END
 .PLOW
  INCLUDE "tsrc/p-disc0.asm"            \ (the disc heap's drop)
+.savc0 EQUB 'S'         \ savosc's first byte (elite-source.asm's DELT: SNG47's
+                        \ DELT bug can change it, and overlay D, which holds
+                        \ savosc, is restored from the host's image at each load)
 .PLOW_END
  PRINT "Parasite: low code &", ~PLOW, "-&", ~PLOW_END-1, ", free to CODE%: ", CODE%-PLOW_END
  ASSERT PLOW_END <= CODE%

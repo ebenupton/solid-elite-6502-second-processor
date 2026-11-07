@@ -9969,6 +9969,21 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 
  JSR HALL               \ Show the ship hangar
 
+\ ******************************************************************************
+\
+\       Name: DOENTRYM
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Port: DOENTRY's wait and mission checks after the hangar, its own
+\             block (never returns; run only while docked: the Tube's overlay
+\             D, which BRIEF's start is in too)
+\       Area: cold
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.DOENTRYM
+
  LDY #44                \ Wait for 44/50 of a second (0.88 seconds)
  JSR DELAY
 
@@ -17682,7 +17697,6 @@ ENDIF
 \       Type: Subroutine
 \   Category: Flight
 \    Summary: Launch our escape pod
-\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -17736,6 +17750,20 @@ ENDIF
 
  BNE ESL1               \ Loop back to keep moving the Cobra until the AI flag
                         \ is 0, which gives it time to drift away from our pod
+
+\ ******************************************************************************
+\
+\       Name: ES2
+\       Type: Subroutine
+\   Category: Flight
+\    Summary: Port: ESCAPE's replacement ship after its frames, its own block
+\             (never returns: on the Tube's parasite overlay D, which the frames
+\             before it, in the space view, must not need)
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.ES2
 
  JSR SCAN               \ Call SCAN to remove the Cobra from the scanner (by
                         \ redrawing it)
@@ -23079,10 +23107,11 @@ ENDIF
 \ Port: the planet (and the sun, whose counters are 0) turns by its own pitch
 \ and roll (MVEIT part 8: 1/16 radian each a step, its counters at 127) only
 \ on iterations with MCNT even, so it spins at half the original's rate, and
-\ the circles' records are made on the iterations it turns (gfx-planet7.asm's
-\ pf_hold). On the others part 8 is skipped, leaving RAT2 = 0 as part 8 does
-\ for counters at 127 or 0, and MVEIT goes on at MV5. The harness makes SNG47
-\ skip the same turns (6-harness/README.md), so the game states still match.
+\ in deep space the circles' records are made on the iterations it turns
+\ (gfx-planet7.asm's pf_hold). On the others part 8 is skipped, leaving RAT2 =
+\ 0 as part 8 does for counters at 127 or 0, and MVEIT goes on at MV5. The
+\ harness makes SNG47 skip the same turns (6-harness/README.md), so the game
+\ states still match.
 \ Here, after DVID4, so that it flows into the hot pass's second container in
 \ main RAM, which has the room.
 \
@@ -24426,7 +24455,6 @@ ENDIF
 \    Summary: Display a rotating ship, waiting until a key is pressed, then
 \             remove the ship from the screen
 \       Area: cold
-\       Tube: ovl D
 \
 \ ******************************************************************************
 
@@ -39126,6 +39154,20 @@ ENDIF
  LDY #100               \ {cr}"), with the ship at a distance of 100, returning
  JSR TITLE              \ with the internal number of the key pressed in A
 
+\ ******************************************************************************
+\
+\       Name: BR1S
+\       Type: Subroutine
+\   Category: Start and end
+\    Summary: Port: BR1's start of the game after the title screens, its own
+\             block (never returns: it falls into BAY; the Tube's overlay D)
+\       Area: cold
+\       Tube: ovl D
+\
+\ ******************************************************************************
+
+.BR1S
+
  JSR ping               \ Set the target system coordinates (QQ9, QQ10) to the
                         \ current system coordinates (QQ0, QQ1) we just loaded
 
@@ -40285,6 +40327,17 @@ IF _SNG47
  BNE DELL1              \ Loop back to DELL1 to copy the next character until we
                         \ have copied the whole filename
 
+IF _TUBE
+
+ LDA savosc             \ Port (Tube): savosc is in overlay D, which each load
+ STA savc0              \ of D restores from the host's image, so the first
+                        \ byte that the bug above leaves there is kept in
+                        \ resident memory (savc0, tube/src/p-layout.asm's low
+                        \ code) and put back before each save, so that it
+                        \ persists as in SNG47
+
+ENDIF
+
  JSR getzp              \ Call getzp to store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
@@ -40995,6 +41048,13 @@ ELIF _COMPACT
                         \ can use it, and store the top part of zero page in the
                         \ the buffer at &3000, as it gets corrupted by the MOS
                         \ during disc access
+
+ENDIF
+
+IF _TUBE
+
+ LDA savc0              \ Port (Tube): savosc's first byte as DELT last left it
+ STA savosc             \ (see DELT)
 
 ENDIF
 
@@ -43601,7 +43661,24 @@ ENDMACRO
  PHA                    \ the stack
  STZ QQ11
 
+IF _TPART = 1
+
+ LDA ovl_dn             \ Port (Tube): no calls into overlay D for the frame to
+ PHA                    \ see (p-ovl.asm's ovl_dact), so that it leaves S in:
+ STZ ovl_dn             \ LL9B's callers are resident, and those that go back
+                        \ into D after it (PAUSE, through MT23's stub) load D
+                        \ themselves, so the briefing's frames need no loads
+
+ENDIF
+
  JSR LL9F               \ Record the ship and render the frame
+
+IF _TPART = 1
+
+ PLA                    \ Port (Tube): the calls into overlay D back
+ STA ovl_dn
+
+ENDIF
 
  PLA                    \ Put the view type back
  STA QQ11

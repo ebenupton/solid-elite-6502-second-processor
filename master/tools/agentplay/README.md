@@ -86,6 +86,16 @@ dashboards look nothing alike:
   This is the screen XORed with the dashboard image as the loader left it at S%. Each dot
   in one machine must have something drawn within 3 units and a line in the other.
 
+For the Tube build (`TUBE=Master` or `TUBE=B`, tube/tools/tmachine.mjs) the host draws
+the panel from the parasite's command stream, behind it: the host's panel (shadow &7000 on
+the Master host, main &7000 on the Model B's) is read where the host has taken every byte
+of the stream the parasite sent before its MLOOP and goes to read the next (the bytes
+counted as the parasite makes them, straight into register 1 or into its ring, and as the
+host takes them), and compared with the reference's record of that iteration. The
+host's page &0D is watched (but for HNMI, its minimal NMI handler), and the parasite's
+code coverage is written as the port's (overlay D's labels apart from S's). The hosts'
+symbols (hsyms.txt, hbmsyms.txt) must sit beside the parasite's; campaign.mjs copies them.
+
 Pixels are never compared.
 
 **Other checks:**
@@ -138,7 +148,8 @@ Pixels are never compared.
   its own. It covers E.C.M., the energy bomb, the escape pod, the views, missiles, the
   galactic hyperdrive, hyperspace, in-system jumps, the docking computer and the charts.
   Pokes drain the shields and energy, heat the cabin or empty the tank, at an iteration
-  boundary in both machines. Docked, from the Status screen (up to three a dock, the agent's
+  boundary in both machines; `sun` (only by name, not in `all`) moves the sun to just
+  ahead, close enough for MA23's heat and fuel scooping. Docked, from the Status screen (up to three a dock, the agent's
   keys held back meanwhile): `disc` is the disc menu (`dcat`, `dnoload`, `dnodel`, `dsave`,
   `ddel`, `dbad`, `dname`, `ddefault`, `dexit`; `dcat1`, an empty drive, and `dnameesc`, a
   name abandoned with ESCAPE, only by name), and `docked` the screens the agent never visits
@@ -181,6 +192,7 @@ the same session, read for read.
 | `--cand`/`--csyms` | try a fixed build against the same inputs (always the two together) |
 | `--workaround none` | turn off a workaround the session used |
 | `--cut N --save FILE` | write the log cut short after iteration N, as a minimal repro |
+| `--savediscs` | write both discs at the end, as agentplay.mjs's, for a load session (`soak-load-*`) to replay from |
 
 Without `--cand`, a replay uses the discs named in the log's header, but only while they
 are still the builds the log was recorded with (their sha1s are in the header). Otherwise
@@ -193,6 +205,11 @@ again (most in under a minute; `msbar-carry` takes about five). The headers of
 `compass-stray-dot` and `look1-death` name a build from before both fixes, so they replay
 the bugs without `--cand` (while that build is left alone). `msbar-carry` and
 `ttx66-shadow-crash` were recorded on full-master's 3db0b1c^, so they need `--cand`.
+The three `tube-*` repros are the Tube soak's (TUBE=Master or TUBE=B, with `--cand
+tube/build/elite-tube.ssd` or `elite-tube-b.ssd` and `--csyms tube/build/psyms.txt`):
+`tube-oscli-lowercase-save` (a save command starting "s"), `tube-badcommand-hostcrash`
+(an unrecognised command, which crashed the Master host) and `tube-delt-savosc`
+(SNG47's DELT bug undone by a load of overlay D). They replay clean on both hosts.
 
 Two regression tests call routines directly in both machines, docked:
 `test-chpr-overflow.mjs` (CHPR's screen clear with the text off the bottom and for code 11)
@@ -211,7 +228,8 @@ writes `campaign.json` and `campaign.md`, which give:
   whole-code coverage;
 - every finding, grouped across sessions.
 
-Plans are lists in campaign.mjs: `default` (22 sessions), `extra` (12 more: the missions'
+Plans are lists in campaign.mjs: `soak` (14 long curious-mode sessions, 2280 game minutes,
+for the Master port and both Tube hosts alike), `default` (22 sessions), `extra` (12 more: the missions'
 later stages, deaths, pods, a long career), `night`, `night2` (the disc menu and docked
 screens), `night3`, `night4` (40 generated sessions each) and `quick`. No workaround is
 used unless `--workaround` asks for one. The candidate (master/build's disc, symbols and

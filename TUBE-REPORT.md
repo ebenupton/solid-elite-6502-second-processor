@@ -7,6 +7,305 @@ Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work o
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The soak's fixes and full-master 883a65e merged (branch `tubediscs`, 2026-11-07)
+
+Two merges onto the briefing's and ESCAPE's frames with no overlay loads:
+the soak's three disc fixes (below, "The soak against SNG47") and
+full-master 883a65e, whose circle hold rule makes a close planet's records
+every frame and a distant one's (z at least 512 x 256) on the iterations
+with MCNT even, the ones it turns on; the half spin is unchanged.
+
+### Merges
+
+* harness/mlib.mjs: both lines fixed runElite's labelOf in the overlay
+  region; the one kept takes D's labels while D is in and S's otherwise, up
+  to RING (the ring is neither overlay's).
+* elite-source.asm: DELT's and the save's savc0 copies sit in blocks that are
+  in overlay D, next to the briefing's changes, with no overlap; streams.py
+  and p-layout.asm take both.
+* The Master port assembles byte-identically to full-master 883a65e.
+
+### The room
+
+| | Before | After |
+|---|---|---|
+| Resident code | &1400-&AFF7, 8 free | &1400-&AFF7, 8 free |
+| Low code (PLOW) | &137F-&13E3, 28 free | &137F-&13E4, 27 free (savc0) |
+| Overlay D | 10,524 bytes, 6,884 free | 10,538 bytes, 6,870 free (DELT's and the save's savc0 copies) |
+| Overlay S | 17,339 bytes, 69 free | 17,330 bytes, 78 free (pf_hold 9 bytes shorter) |
+| Master host's storage | 97 pages | 97 pages |
+| Master host's HAZEL | &C000-&DFFF | &C000-&DEFF: the MOS's page &DF00 is never the host's |
+
+### Pixel references
+
+scratch/master-ref.ssd, scratch/fbref and scratch/dashref made again from
+883a65e's build (fbreplay.mjs over run1: 14,597 frames hashed); the old
+ones kept as *-7b80a99.
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical; lockstep 16,002 iterations clean,
+  TUBEINT 602 clean; pixels 13,445 frames matched (3 sampling gaps), 0
+  mismatched; dashboard 2,738 matched; saves byte-identical; storage 97
+  pages, 0 differ; crash and station ok; docking (tdock.mjs's six configs)
+  ok with 0 loads between frames; overlays over run1 11 loads of D and 12 of
+  S, none within the space view.
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340).
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000:
+  734 frames, 90,862 band rows, 0 wrong.
+* tbadsave.mjs: &F2, &BD, "X", "A", "/" Bad command; 0 and &18 Bad string;
+  &80 Bad name; "s" saved: every byte as SNG47, the host back in its loop.
+* The soak's three repros clean: tube-oscli-lowercase-save 25,011
+  iterations, tube-badcommand-hostcrash 11,462, tube-delt-savosc 5,747.
+* harness/mcompare.mjs --iters 10000 --loose: MCOMPARE PASS on the Master
+  port and both hosts.
+
+### Speeds
+
+run1's windows, it/s (the Master host's parasite at 4 MHz, the Model B
+host's at 3 MHz):
+
+| | 1000-1400 | 3420-3550 | 0-3550 | 300-403 | 5355-5457 | 12105-12212 | 15987-16000 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Original (SNG47, the half spin) | 12.89 | 27.99 | 15.99 | 8.12 | 29.69 | 8.50 | 22.76 |
+| Master port (7b80a99) | 15.29 | 25.04 | 17.00 | 7.14 | 25.04 | 7.59 | 25.69 |
+| Master port (883a65e) | 14.16 | 25.04 | 16.33 | 6.94 | 25.04 | 7.37 | 25.69 |
+| Tube, Master host, before | 23.28 | 25.04 | 22.10 | 11.33 | 25.04 | 12.73 | 25.35 |
+| Tube, Master host | 22.72 | 25.04 | 21.82 | 11.10 | 25.03 | 12.43 | 25.34 |
+| Tube, Model B host, before | 20.57 | 25.04 | 20.39 | 9.40 | 25.04 | 10.30 | 23.62 |
+| Tube, Model B host | 19.52 | 25.04 | 19.90 | 9.18 | 25.04 | 10.03 | 23.62 |
+
+The drops are the close-up planet's records made every frame where they
+were held on alternate ones, as on the Master port. The Master port's own
+gate run (mcompare --iters 10000): the original 14.14, the Master port
+12.08 (0.854), the Tube's Master host 19.98 (1.413), its Model B host 16.90
+(1.194).
+
+## The rotating ships with no overlay loads (branch `tubediscs`, 2026-11-07)
+
+During the Constrictor briefing's key waits each frame of the ship loaded S
+and then D back: 2.29 frames a second on either host. Making PAUSE resident
+alone could not fix it: PAUSE is reached from DETOK, in D, through a call
+that stays on the stack (BRPS's stub), so F_FRAME's ovl_dact would still
+bring D back after every frame. PAUSE2 was never the problem: it only reads
+the keys, with no frames. The audit of every frame caller found the same
+pattern in one place the brief did not name, and it was worse: ESCAPE, in D,
+ran its 97 frames of the Cobra leaving at 3 frames a second, 31 s, in the
+space view (no recorded run presses it, so tswap never saw it).
+
+### What moved
+
+| Change | Resident bytes | |
+|---|---:|---|
+| PAUSE resident, with MT23's stub | +27 | 22 and 5: PAUSE falls into the stub after its last frame, which loads D for the rest of the token |
+| LL9B's hold, under IF _TPART = 1 | +11 | ovl_dn saved and zeroed round the frame, so ovl_dact sees no calls into D and S stays in. All LL9B's callers (BRL1, BRL2, PAS1, PAUSE) are resident |
+| ESCAPE resident to the end of its frames | +45 | 45 of code, its stub gone and ES2's in its place: ES2, the replacement ship (27 bytes), stays in D behind a stub that jumps |
+| DOENTRYM into D | -36 | DOENTRY's wait and mission checks after the hangar: 26 bytes less a stub of 5, and the stubs of EN1, EN4 and BRIEF (15), which nothing resident reaches now |
+| BR1S into D | -33 | BR1's start of the game after the title screens, 38 bytes less a stub of 5: it falls into BAY, whose stub loaded D there before |
+
+Net +14: the resident code ends at &AFF7 (8 bytes free), OVL_START stays
+&B000. Overlay D is 10,524 bytes (42 pages, 6,884 free); S is unchanged
+(17,339, 69 free); the hosts' storage is as before (97 pages). The low code's
+28 free bytes are not used. DOENTRYM, BR1S and ES2 are in streams.py's
+NORETURN, so their stubs jump and leave no call into D on the stack for the
+frames after them. Headers and the IF _TPART blocks only in the shared
+source: the Master port assembles byte-identically. The two frame changes
+are one commit because each alone trips F_TCH's page assertion (the layout
+between them moves it across a page).
+
+### Overlay loads and frame rates
+
+tdock.mjs, one boot, each screen reached from flight; loads of D / S:
+
+| | Before | After |
+|---|---:|---:|
+| Boot, title screens, first launch | 3 / 4 | 3 / 4 |
+| Constrictor briefing | 19 / 18 | 5 / 4 |
+| Constrictor debrief | 2 / 1 | 2 / 1 |
+| Mission 2 message (brief2), plans (brief3), debrief | 2 / 1 each | 2 / 1 each |
+| Escape pod to the hangar | 99 / 98 | 2 / 1 |
+| Loads between two frames | 109 | 0 |
+
+The title's rotating ships never swapped (TITLE and BR1 are resident, with
+nothing of D's on the stack), the hangar is one frame, and the mission 2
+screens and debriefs have no moving ship: their key waits are PAUSE2's. The
+loads left in the briefing are the changes between text and frames, which
+need D and S in turn.
+
+| Frames a second | Master host, before | after | Model B host, before | after |
+|---|---:|---:|---:|---:|
+| PAUSE's key waits | 2.29 | 24.38 | 2.29 | 23.54 |
+| ESCAPE's frames | 3.13 | 19.34 | 3.04 | 18.87 |
+| BRIEF's frames (no change: no loads before either) | 20.10 | 20.12 | 19.96 | 19.96 |
+
+ESCAPE's 97 frames now take 5.0 s (Master host), 31.0 s before.
+
+### Checks
+
+tube/tools/tdock.mjs now runs all five of harness/mbrief.mjs's mission states
+and an escape pod (the PC set to ESCAPE at a TT100), and fails on any overlay
+load between two frames (p_flip) with no TT66 and no text (TT26) between
+them. The text exception is needed: BR2's frame, the briefing's first text
+and PAUSE's first frame have loads between them that belong to the text. On
+5efa684's build the check fails with 109; on this one it passes with 0. In
+flight text is printed too, so tswap.mjs stays the gate for the space view.
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical to 7b80a99's; lockstep 16,002
+  iterations clean, TUBEINT 602 clean; pixels 13,441 frames matched (7
+  sampling gaps), 0 mismatched; dashboard 2,738 matched; saves
+  byte-identical; storage 97 pages, 0 differ; crash and station ok;
+  docking (tdock.mjs's six configs) ok with 0 loads between frames;
+  overlays over run1 11 loads of D and 12 of S, none within the space view.
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340), both hosts.
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000:
+  734 frames, 90,862 band rows, 0 wrong (both hosts).
+* harness/mlib.mjs's labelOf named a call site in overlay D after a label
+  of S at a nearby address, as the two overlays' addresses overlap. With D
+  3 bytes shorter, the deterministic pilot's wait in TT223 (t2) was named
+  ps_bnd, and the pilot, which answers each key read by its site, held the
+  key for ever: tscenes.sh's Tube runs stopped at iteration 20. It now
+  uses the overlay that is in, as tmachine.mjs's labelOf already did.
+
+### Speeds
+
+run1's windows, it/s:
+
+| | 1000-1400 | 3420-3550 | 0-3550 | 300-403 | 5355-5457 | 12105-12212 | 15987-16000 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Tube, Master host, before | 23.28 | 25.04 | 22.10 | 11.33 | 25.04 | 12.72 | 25.40 |
+| Tube, Master host | 23.28 | 25.04 | 22.10 | 11.33 | 25.04 | 12.73 | 25.35 |
+| Tube, Model B host, before | 20.55 | 25.04 | 20.39 | 9.40 | 25.04 | 10.30 | 23.62 |
+| Tube, Model B host | 20.57 | 25.04 | 20.39 | 9.40 | 25.04 | 10.30 | 23.62 |
+
+The one drop, 25.40 to 25.35 on the Master host's sun window (measured again
+on 5efa684's build: 78,751 cycles an iteration against 78,900), is 0.2% over
+13 iterations; nothing in flight runs the code that changed, but the run's
+addresses moved. Its cause was not traced.
+
+## The soak against SNG47: three disc bugs (branch `tube-fix-oscli-case`, 2026-11-06)
+
+An elite-agent soak (agentplay with the Tube as the candidate, `TUBE=Master` and
+`TUBE=B`: 14 sessions a host, 2,118 game minutes, 1.79 million iterations
+compared with SNG47; scratch/soak in the soak-harness worktree) found three
+ways in which the Tube's disc commands did not do what the original does. All
+three come from one of SNG47's own bugs: DELT copies the name to delete one
+byte too far (X = 9, not 8), over the first byte of savosc's "SAVE", so after a
+delete the next save's command starts with whatever byte followed the name in
+INWK. The original keeps that broken command, and answers the save with "Bad
+string", "Bad command" or "Bad name", or saves if the byte is "s".
+
+### 1. A lower-case "save" (fixed in 2372163)
+
+The MOS takes "save" as SAVE; p_oscli recognised only upper-case S and L when
+choosing to send commbuf to the host (mode 1) and to bring it back (mode 2),
+so the host saved its stale buffer (soak-cur-death-s909 on the Model B host:
+six commander files of &FF). p_oscli now masks the byte with &DF first.
+
+### 2. The Master host crashed on an unrecognised command
+
+"<F2>AVE :0.E.CLAUDE ..." (or "XAVE", "AAVE", "/AVE", "<BD>AVE") is offered to
+the ROMs, which decline it; DFS then runs it as *RUN, finds no file in the
+directory or the library, and hands it back through FSCV 11. The MOS's FSCV
+11 handler answers "Bad command" only if &DF02 bit 7 is set; otherwise it
+selects the filing system that &DF00 names and, if that is the current one
+(&DF01), passes FSCV 11 to the filing system again. hstart, hzout and hzin
+moved all 32 pages of HAZEL, and only &DFC0-&DFFF (DFSST2) was put back for a
+disc command, so the MOS's page held the loader's staging zeros: &DF00 =
+&DF01 = &DF02 = 0, and DFS and the MOS called each other until the host's
+stack wrapped, DFS ran $.ELITE (the host's loader, at &2000 over the host's
+code) and the host ran main RAM at &3030 and wrote page &0D. The Model B host,
+with no HAZEL, was right.
+
+hzmv now moves 31 pages (&C000-&DEFF): the host's HAZEL contents end below
+&DF00 (the recursive tokens to &DEE9), so the MOS's page &DF00-&DFFF is the
+MOS's own at all times, and the host no longer saves and restores
+&DFC0-&DFFF (DFSST2 stays the Master port's). No new bytes; the host's code
+is 18 bytes shorter.
+
+### 3. A load of overlay D undid DELT's damage
+
+savosc is in overlay D, which each load of D restores from the host's image,
+so after a launch and a docking the command was whole again and the save
+worked where the original says "Bad string" (soak-cur-mission2-s903,
+iteration 5748, both hosts). savc0, one byte in the low code (PLOW, now 27
+bytes free; no resident or overlay S bytes), holds savosc's first byte: DELT
+copies it there after its loop, and the save puts it back into savosc before
+the command (12 bytes of overlay D code, which has 6,867 free). The Master
+port is unchanged.
+
+The soak harness's two workarounds for these bugs (deltsave, badcmd,
+`TUBEWA=none`) are gone.
+
+### Checks
+
+* tube/tools/tbadsave.mjs, both hosts: savosc's first byte poked as DELT
+  leaves it (savosc and savc0), a new game, docked, "@" 2 CLAUDE drive 0; the
+  same on SNG47 (master/reference). &F2, &BD, "X", "A", "/": "Bad command"
+  (254); 0 and &18: "Bad string" (253); &80: "Bad name" (204); "s": saved.
+  Every byte gets SNG47's error, number and message, on the parasite (once),
+  the host back in its loop with its stack whole (lowest &C4-&DD in the
+  command), never in main RAM. Before: the Master host ran main RAM for the
+  first five.
+* The three repros (master/tools/agentplay/repro/tube-*.jsonl), replayed on
+  both hosts with no workarounds: tube-oscli-lowercase-save 25,011
+  iterations clean, tube-badcommand-hostcrash 11,462 clean (it ran to its
+  log's end; before, the Master host crashed), tube-delt-savosc 5,747 clean
+  (both machines answer the save "Bad string" at iteration 5747).
+* harness/mlib.mjs: runElite's labelOf now takes overlay D's labels while D
+  is in and S's otherwise (D's and S's share addresses). With D's code moved
+  by 12 bytes, a key wait in gnum was named after a routine of S and
+  makePilot never answered it: tscenes.mjs's flight stopped at the Buy Cargo
+  screen (20 iterations of 318, until its time ran out).
+
+### Gates (both hosts)
+
+* tgate.sh: Master port byte-identical; lockstep 16,002 iterations clean,
+  TUBEINT 602 clean; pixels 13,441 frames matched (7 sampling gaps), 0
+  mismatched; dashboard 2,738 matched; saves byte-identical; storage 97
+  pages, 0 differ; crash, station and docking ok; overlays 11 D and 12 S
+  loads, none within the space view. Speeds (it/s, 1000-1400, 0-3550,
+  300-403, 12105-12212, 15987-16000): Master host 23.27, 22.10, 11.33,
+  12.71, 25.34 (before: 23.28, 22.10, 11.33, 12.72, 25.40); Model B host
+  20.57, 20.39, 9.40, 10.30, 23.62 (before: 20.55, 20.39, 9.40, 10.30,
+  23.62).
+* tscenes.sh: the 13 scenes, 0 drops, 0 drawn whole, only the known flare
+  frames differ (sunnear 416-417, sungrow and sunswap 339-340).
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000:
+  734 frames, 90,862 band rows, 0 wrong (both hosts).
+* tsavetest.mjs (in tgate.sh): save, load, the error path and the catalogue
+  as before on both hosts.
+
+### The soak sessions again
+
+Every session that ended or diverged on these bugs (death-s909, load-s914,
+mission2-s903, debrief2-s906), and the others the workarounds had covered
+(debrief1-s905, wanted-s908, rich-s910, keyboard-s911, load-s913), replayed
+from its log with no workarounds (`TUBEWA=none`, now gone) on each host, to the
+log's end, observation on. load-s913 starts from the disc that jameson-s901
+saved (its E.CLAUDE added to this build's disc), and load-s914 from the disc
+that this replay of death-s909 saved (replay.mjs --savediscs).
+
+| session | iterations | Master host | Model B host |
+|---|---:|---|---|
+| soak-cur-death-s909 | 50,114 | clean | clean |
+| soak-load-s914 | 10 / 11 | clean | clean |
+| soak-cur-mission2-s903 | 171,106 | clean | clean |
+| soak-cur-debrief2-s906 | 63,256 | clean | clean |
+| soak-cur-debrief1-s905 | 73,765 | clean | clean |
+| soak-cur-wanted-s908 | 116,112 | clean | clean |
+| soak-cur-rich-s910 | 117,729 | clean | clean |
+| soak-cur-keyboard-s911 | 94,380 | clean | clean |
+| soak-load-s913 | 112,556 | clean | clean |
+
+That is 798,000 iterations a host with no findings: no divergence, no
+differing save file, no page &0D write. death-s909 and load-s914 used to end
+with six commander files of &FF and a control-flow divergence, debrief2-s906
+with a differing E.C, and mission2-s903 with the save at iteration 5748.
+
 ## Nothing the space view runs in overlay D (branch `tubediscs`, 2026-11-05)
 
 SUN's part 3 had been in overlay D since the disc heap's room was made, but
@@ -51,10 +350,9 @@ free) and S 17,339 (69 bytes free to the ring), so the hosts' storage is
 as before (97 pages). Not workable, by the overlay manager's rules: DOENTRY
 past LAUN (HALL's frame would come back into D with S in), BRIEF's frames
 (no call into D on the stack to bring D back), the line clipping (LL145:
-an enemy's laser at us in flight). PAUSE and PAUSE2, D's, still run the
-briefings' rotating ship with D's routines on the stack, so each of those
-frames loads S and D back (19 loads of D and 18 of S in tdock's
-briefing, as before this work; the docked screens only).
+an enemy's laser at us in flight). PAUSE, D's, still ran the briefing's
+rotating ship with D's routines on the stack, so each of those frames
+loaded S and D back (fixed in the section above).
 
 ### Checks
 
