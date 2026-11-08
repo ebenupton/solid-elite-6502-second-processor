@@ -20922,6 +20922,7 @@ ENDIF
 \   Category: Drawing circles
 \    Summary: Make the launch sound and draw the launch tunnel
 \       Area: cold
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -20947,6 +20948,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing circles
 \    Summary: Draw the launch or hyperspace tunnel
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \
@@ -24815,6 +24817,7 @@ ENDIF
 \   Category: Universe
 \    Summary: Set the selected system to the current system
 \       Area: cold
+\       Tube: ovl D
 \
 \ ******************************************************************************
 

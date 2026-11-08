@@ -34,7 +34,19 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  DEX
  LDY YC
  JMP f_char1
+IF _TPART = 1             \ (Tube: the noting below is overlay D's, fch_dd, as
+.fch_d                  \ only the screens drawn directly reach it)
+ JSR povd
+ EQUW fch_dd
+ENDIF
+
+\       Area: ovl D
+
+IF _TPART = 1
+.fch_dd
+ELSE
 .fch_d
+ENDIF
  LDX f_dlog
  CPX #DLMAX
  BCS fchd2
@@ -54,6 +66,8 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  DEX
  LDY YC
  JMP f_drule
+
+\       Area: frame
 
 \ F_DELCHAR: clear the text map cell at (XC, YC) (TT26's delete)
 

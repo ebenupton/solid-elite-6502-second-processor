@@ -82,7 +82,6 @@ F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
 F_SZH = F_RP + 7 * MAXSH
 .F_DLEND                \ (the rest of the frame layer's small state is p-low.asm's)
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm)
- INCLUDE "tsrc/p-probe1.asm"           \ (the lens flare's probes: fl_arm's helpers)
 .PRES_END                \ (the end of what is always resident)
 
 \ The low code (PLOW): resident too, in the workspace's tail below CODE%
@@ -231,10 +230,36 @@ NEXT
  ORG OVL_D_END
 
 \ The boot's staging area, above overlay D (S and the next C_OVLGET of D
-\ overwrite it; tube/build.sh appends it to PCODE): p_boot (p_start's first
-\ call), the high area's image, the page at &FF00 and pages 2 and 3. p_boot drains a stray byte from
-\ the host in register 1, then copies them in over the client OS, which the
-\ game never uses again
+\ overwrite it; tube/build.sh appends it to PCODE): p_start, p_boot (its
+\ first call), the high area's image, the page at &FF00 and pages 2 and 3.
+\ p_boot drains a stray byte from the host in register 1, then copies them
+\ in over the client OS, which the game never uses again
+
+\ p_start: the parasite's entry (the loader starts it through the client
+\ OS's Tube code, its only use): the boot (p_boot) takes the parasite's
+\ memory over, then wakes the host's command loop with &FE (the host's
+\ WRCHV, as the MOS's Tube code passes the byte to OSWRCH), then the
+\ renderer's initialisation (F_INIT, as the Master port's loader calls it
+\ through G_INIT) and the game (S%). F_INIT loads overlay S over this
+\ staging area, so it returns straight to S% (pushed as its return address)
+
+.p_start
+ SEI
+ CLD
+ LDX #&FF
+ TXS
+ JSR p_boot
+ LDA #255               \ (the ring's write pointer: rpl, rph's start)
+ STA rq
+ LDA #HI(RING)
+ STA rq+1
+ LDA #&FE
+ JSR ptx
+ LDA #HI(S%-1)          \ (F_INIT's RTS goes to S%)
+ PHA
+ LDA #LO(S%-1)
+ PHA
+ JMP F_INIT
 
 .p_boot
  LDA &FEF8

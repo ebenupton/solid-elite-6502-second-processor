@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
-\ p-probe1.asm - the lens flare's probes (p-probe.asm): fl_arm's helpers, in
-\ the resident code's tail (p-layout.asm)
+\ p-probe1.asm - the lens flare's probes (p-probe.asm): fl_arm's helpers,
+\ resident, in the low area (p-low.asm)
 \
 \ ******************************************************************************
 
