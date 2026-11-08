@@ -5,12 +5,13 @@
 # lockstep replay of run1 against SNG47, the pixels against the Master port's
 # oracle (scratch/fbref), the disc menu, a deliberate BRK (tcrash.mjs), the station
 # in front of a planet over 65536 away (tstation.mjs), and the speed windows (flight
-# 1000-1400, 3420-3550, 0-3550, the beach balls 300-403, 5355-5457 and 12105-12212,
-# Elite's sun in flight 15987-16000), the Master host's at a 4 MHz parasite, the Model B's at 3 MHz; the overlay
-# swaps over run1 (tswap.mjs: none within the space view, e.g. Elite's sun on
-# screen from 15987) and dockings with the missions' briefings and
-# debriefings and an escape pod, each with the launch after it (tdock.mjs:
-# no overlay load between two frames, such as the rotating ships').
+# 1000-1400, 0-3550, two launches from Lave towards its beach ball 300-403 and
+# 14400-14507, the sun on screen 4000-4300), the Master host's at a 4 MHz
+# parasite, the Model B's at 3 MHz; the overlay swaps over run1 (tswap.mjs:
+# none within the space view, e.g. the sun on screen) and dockings with the
+# missions' briefings and debriefings and an escape pod, each with the launch
+# after it (tdock.mjs: no overlay load between two frames, such as the
+# rotating ships').
 # Run from the repository root after master/build.sh and tube/build.sh.
 # TO=N limits the lockstep and pixel runs to N iterations (default 16000).
 # Both hosts boot the one disc (elite-tube.ssd). MAXJ=N runs at most N
@@ -40,7 +41,7 @@ for H in Master B; do
     node tube/tools/tdock.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tdock-$H > $D/tdock-$H.log 2>/dev/null; tail -1 $D/tdock-$H.log > $D/dock-$H.txt ) &
   throttle; ( node tube/tools/tswap.mjs --log $LOG --cand $S --csyms $D/psyms.txt --host $H --to $TO --max 0 > $D/swap-$H.txt 2>&1; echo "exit $?" >> $D/swap-$H.txt ) &
   M=3; [ $H = Master ] && M=4   # (the target clocks: the Master host's internal 4 MHz co-processor, a 3 MHz one on the Model B)
-  throttle; ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,3420-3550,0-3550,300-403,5355-5457,12105-12212,15987-16000 > $D/speed-$H.txt 2>&1 ) &
+  throttle; ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,0-3550,300-403,14400-14507,4000-4300 > $D/speed-$H.txt 2>&1 ) &
 done
 wait
 cat $D/master.txt
