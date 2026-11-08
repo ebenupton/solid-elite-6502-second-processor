@@ -10,7 +10,7 @@ import { loadSyms } from "../../harness/mlib.mjs";
 import { parseArgs } from "../../harness/args.mjs";
 const a = parseArgs({ host: "value", disc: "value", psyms: "value" });
 const HOST = a.host || "Master";
-const DISC = a.disc || `${ROOT}tube/build/elite-tube${HOST === "B" ? "-b" : ""}.ssd`;
+const DISC = a.disc || `${ROOT}tube/build/elite-tube.ssd`;
 const psy = loadSyms(a.psyms || `${ROOT}tube/build/psyms.txt`);
 const t = await bootTube({ host: HOST, disc: DISC });
 const s = t.s, host = t.host, pm = t.par.memory;

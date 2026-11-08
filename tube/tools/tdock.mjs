@@ -33,7 +33,7 @@ import { writeFileSync, mkdirSync } from "fs";
 import { parseArgs } from "../../harness/args.mjs";
 const a = parseArgs({ host: "value", disc: "value", psyms: "value", out: "value", configs: "value", max: "value" });
 const HOST = a.host || "Master";
-const DISC = a.disc || `${ROOT}tube/build/elite-tube${HOST === "B" ? "-b" : ""}.ssd`;
+const DISC = a.disc || `${ROOT}tube/build/elite-tube.ssd`;
 const sy = loadSyms(a.psyms || `${ROOT}tube/build/psyms.txt`);
 const OUT = a.out || `${ROOT}scratch/tdock-${HOST}`;
 const MAX = +(a.max || 0);

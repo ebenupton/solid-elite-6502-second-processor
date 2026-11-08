@@ -16,7 +16,7 @@ import { loadSyms } from "../../harness/mlib.mjs";
 import { parseArgs } from "../../harness/args.mjs";
 const a = parseArgs({ host: "value", disc: "value", psyms: "value", bytes: "value", natural: "value" });
 const HOST = a.host || "Master";
-const DISC = a.disc || `${ROOT}tube/build/elite-tube${HOST === "B" ? "-b" : ""}.ssd`;
+const DISC = a.disc || `${ROOT}tube/build/elite-tube.ssd`;
 const psy = loadSyms(a.psyms || `${ROOT}tube/build/psyms.txt`);
 const hsy = loadSyms((a.psyms || `${ROOT}tube/build/psyms.txt`).replace(/psyms\.txt$/, HOST === "B" ? "hbmsyms.txt" : "hsyms.txt"));
 const BYTES = (a.bytes || "f2,bd,58,41,2f,0,80,18,73").split(",").map(x => parseInt(x, 16));

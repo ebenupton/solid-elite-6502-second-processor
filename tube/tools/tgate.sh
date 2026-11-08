@@ -13,31 +13,34 @@
 # no overlay load between two frames, such as the rotating ships').
 # Run from the repository root after master/build.sh and tube/build.sh.
 # TO=N limits the lockstep and pixel runs to N iterations (default 16000).
+# Both hosts boot the one disc (elite-tube.ssd). MAXJ=N runs at most N
+# emulators at once (default: all twelve).
 set -u
 D=$1; TO=${TO:-16000}
+throttle() { while [ $(jobs -pr | wc -l) -ge ${MAXJ:-99} ]; do sleep 2; done; }
 mkdir -p $D
-cp tube/build/elite-tube.ssd tube/build/elite-tube-b.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt tube/build/hstore.bin $D/
+cp tube/build/elite-tube.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt tube/build/hstore.bin $D/
 if cmp -s master/build/elite-master-sng47.ssd scratch/master-ref.ssd; then echo "master: byte-identical" > $D/master.txt; else echo "master: DIFFERS" > $D/master.txt; fi
 LOG=scratch/curious/run1/inputs.jsonl
 for H in Master B; do
-  S=$D/elite-tube.ssd; [ $H = B ] && S=$D/elite-tube-b.ssd
-  ( TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rp$H --until $TO --noobserve --cand $S --csyms $D/psyms.txt > $D/lockstep-$H.txt 2>&1 ) &
+  S=$D/elite-tube.ssd
+  throttle; ( TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rp$H --until $TO --noobserve --cand $S --csyms $D/psyms.txt > $D/lockstep-$H.txt 2>&1 ) &
   if [ $H = Master ]; then   # (the Master host's overlay storage untouched by anything else after the run)
-    ( node tube/tools/tstore.mjs --log $LOG --cand $S --csyms $D/psyms.txt --store $D/hstore.bin --host $H --to $TO 2>&1 | tail -1 > $D/store-$H.txt ) &
+    throttle; ( node tube/tools/tstore.mjs --log $LOG --cand $S --csyms $D/psyms.txt --store $D/hstore.bin --host $H --to $TO 2>&1 | tail -1 > $D/store-$H.txt ) &
   fi
   if [ $H = Master ]; then   # (the Master's internal co-processor, reachable only with ACCCON's ITU set: harness/tlib.mjs TUBEINT=1)
-    ( TUBEINT=1 TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rpint --until 600 --noobserve --cand $S --csyms $D/psyms.txt > $D/lockint-$H.txt 2>&1 ) &
+    throttle; ( TUBEINT=1 TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rpint --until 600 --noobserve --cand $S --csyms $D/psyms.txt > $D/lockint-$H.txt 2>&1 ) &
   fi
-  ( node tube/tools/tfbreplay.mjs --log $LOG --out $D/fb$H --cand $S --csyms $D/psyms.txt --host $H --from 0 --to $TO > $D/fb-$H.log 2>&1;
+  throttle; ( node tube/tools/tfbreplay.mjs --log $LOG --out $D/fb$H --cand $S --csyms $D/psyms.txt --host $H --from 0 --to $TO > $D/fb-$H.log 2>&1;
     node tube/tools/fbcmp.mjs scratch/fbref/fb.json $D/fb$H/fb.json --to $((TO - 1)) > $D/pixels-$H.txt 2>&1
     node tube/tools/fbcmp.mjs scratch/dashref/dash.json $D/fb$H/dash.json --to $((TO - 1)) > $D/dash-$H.txt 2>&1 ) &
-  ( node tube/tools/tsavetest.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tsave-$H > $D/tsave-$H.txt 2>&1; echo "exit $?" >> $D/tsave-$H.txt
+  throttle; ( node tube/tools/tsavetest.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tsave-$H > $D/tsave-$H.txt 2>&1; echo "exit $?" >> $D/tsave-$H.txt
     node tube/tools/tcrash.mjs --host $H --disc $S --psyms $D/psyms.txt 2>/dev/null | tail -1 > $D/crash-$H.txt
     node tube/tools/tstation.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tstation-$H 2>/dev/null | tail -1 > $D/station-$H.txt
     node tube/tools/tdock.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tdock-$H > $D/tdock-$H.log 2>/dev/null; tail -1 $D/tdock-$H.log > $D/dock-$H.txt ) &
-  ( node tube/tools/tswap.mjs --log $LOG --cand $S --csyms $D/psyms.txt --host $H --to $TO --max 0 > $D/swap-$H.txt 2>&1; echo "exit $?" >> $D/swap-$H.txt ) &
+  throttle; ( node tube/tools/tswap.mjs --log $LOG --cand $S --csyms $D/psyms.txt --host $H --to $TO --max 0 > $D/swap-$H.txt 2>&1; echo "exit $?" >> $D/swap-$H.txt ) &
   M=3; [ $H = Master ] && M=4   # (the target clocks: the Master host's internal 4 MHz co-processor, a 3 MHz one on the Model B)
-  ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,3420-3550,0-3550,300-403,5355-5457,12105-12212,15987-16000 > $D/speed-$H.txt 2>&1 ) &
+  throttle; ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,3420-3550,0-3550,300-403,5355-5457,12105-12212,15987-16000 > $D/speed-$H.txt 2>&1 ) &
 done
 wait
 cat $D/master.txt

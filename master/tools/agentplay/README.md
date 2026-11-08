@@ -56,8 +56,8 @@ The rest of mlib's determinism measures are kept:
 - SOPR is cleared at NOISE;
 - Q is cleared before the ALTIT square root;
 - in a build without the port's H_MVS4 (SNG47), the planet's own pitch and roll
-  (MVEIT part 8) are skipped on iterations with MCNT odd, as the port's half spin
-  skips them;
+  (MVEIT part 8) are made the port's half steps (mlib's halfPart8, put in place of
+  its full steps at MV5);
 - the candidate's boot leftovers are seeded from the reference at TT170.
 
 **Game state.** At every MLOOP both machines' state is snapshotted, using mlib's regions:
@@ -206,7 +206,7 @@ again (most in under a minute; `msbar-carry` takes about five). The headers of
 the bugs without `--cand` (while that build is left alone). `msbar-carry` and
 `ttx66-shadow-crash` were recorded on full-master's 3db0b1c^, so they need `--cand`.
 The three `tube-*` repros are the Tube soak's (TUBE=Master or TUBE=B, with `--cand
-tube/build/elite-tube.ssd` or `elite-tube-b.ssd` and `--csyms tube/build/psyms.txt`):
+tube/build/elite-tube.ssd` and `--csyms tube/build/psyms.txt`):
 `tube-oscli-lowercase-save` (a save command starting "s"), `tube-badcommand-hostcrash`
 (an unrecognised command, which crashed the Master host) and `tube-delt-savosc`
 (SNG47's DELT bug undone by a load of overlay D). They replay clean on both hosts.
