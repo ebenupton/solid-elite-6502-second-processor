@@ -5,8 +5,10 @@
 #                      Tube glue, one flat run from CODE%
 #   build/H*.bin       the host's images (main RAM and sideways RAM banks)
 #   build/psyms.txt, build/hsyms.txt   the two assemblies' symbols
-#   build/elite-tube.ssd   the disc (SHIFT+BREAK on a host with a 6502 Second
-#                      Processor)
+#   build/elite-tube.ssd   the disc, for both hosts (SHIFT+BREAK on a BBC
+#                      Master, or a Model B with 64K of sideways RAM, with a
+#                      6502 Second Processor): tube/src/disc.asm
+#   (tube/tools/discbudget.py prints the disc's room at the end)
 #
 # Options (environment), as master/build.sh's: BANDS=on (banded planets),
 # RINGS=on (planet rings), MOON=on (moons), each off by default. FILL=rows:
@@ -280,7 +282,6 @@ for n, top in (("HRASTA", 0x5300), ("HBANK5", 0x5300), ("HBANK6", 0x5300), ("HST
     assert 0x1300 + os.path.getsize("build/%s.pk" % n) <= top, n
 PY
 $BEEBASM -i tsrc/loader.asm -v > build/compile-l.txt 2>&1 || { grep -iE "error" -A3 build/compile-l.txt | head; exit 1; }
-$BEEBASM -i tsrc/disc.asm -boot ELITE -do build/elite-tube.ssd -title "E L I T E" >> build/compile.txt 2>&1 || { tail -20 build/compile.txt; exit 1; }
 grep -E "^(Parasite|Host)" build/compile-p.txt build/compile-h.txt | sed 's/^build\/compile-.\.txt://'
 # the Model B host (tube/src/hb-*.asm): the host's sources made NMOS
 # (tube/tools/nmos.py, with the hand fixes it asks for), then bank D, bank P
@@ -519,7 +520,7 @@ print("Model B: bank operands to patch:", sum(1 for l in out if l.startswith(" E
 PY
 grep -h "^Model B" build/compile-hbmain.txt || true
 grep -h "^Model B" build/compile-hbp.txt || true
-# the Model B loader and disc
+# the Model B loader
 python3 - <<'PY'
 import re, os
 sy = {}
@@ -535,6 +536,10 @@ import re
 m = re.search(r"'ENTRY':(\d+)", open("build/lbsyms.txt").read())
 open("build/hb-entry.asm", "w").write("ENTRY_B = &%04X\n" % int(m.group(1)))
 PY
-( echo ' INCLUDE "build/hb-entry.asm"'; cat tsrc/disc-b.asm ) > build/disc-b.asm
-$BEEBASM -i build/disc-b.asm -boot ELITE -do build/elite-tube-b.ssd -title "E L I T E" > build/compile-db.txt 2>&1 || { echo "Model B disc:"; tail -5 build/compile-db.txt; }
 grep -h "^Model B loader" build/compile-lb.txt || true
+# the disc (tube/src/disc.asm): both hosts' files, one parasite image,
+# and the boot (tube/src/boot.asm) that runs the host's loader
+$BEEBASM -i tsrc/boot.asm -v > build/compile-boot.txt 2>&1 || { echo "The disc's boot:"; grep -iE "error" -A3 build/compile-boot.txt | head -8; exit 1; }
+( echo ' INCLUDE "build/hb-entry.asm"'; cat tsrc/disc.asm ) > build/disc.asm
+$BEEBASM -i build/disc.asm -boot ELITE -do build/elite-tube.ssd -title "E L I T E" > build/compile-dc.txt 2>&1 || { echo "Disc:"; tail -5 build/compile-dc.txt; exit 1; }
+python3 $TUBE_DIR/tools/discbudget.py build/elite-tube.ssd

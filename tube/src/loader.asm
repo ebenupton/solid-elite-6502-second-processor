@@ -833,9 +833,8 @@ ENDIF
  EQUW &3000, 0
 
  EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000 (last:
- EQUB HOMEBANK, %00001111 \ on the disc it follows the images, so that a disc
- EQUW &7000, &0E00      \ shared with the Model B host can put its files
-                        \ after it)
+ EQUB HOMEBANK, %00001111 \ on the disc, tube/src/disc.asm, it follows the
+ EQUW &7000, &0E00      \ images, and the Model B host's files follow it)
 
  EQUW 0
 
