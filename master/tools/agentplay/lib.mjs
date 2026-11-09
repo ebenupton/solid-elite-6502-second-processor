@@ -17,7 +17,7 @@
 //
 // Also as mlib (and for the same reasons, documented there): at NOISE the three SOPR
 // bytes are cleared; at the LL5 call that feeds ALTIT, Q is cleared; in a build
-// without the port's H_MVS4 (SNG47) the planet's own pitch and roll are made half
+// without the port's half steps (SNG47) the planet's own pitch and roll are made half
 // steps, as the port's half spin makes them (mlib's patch, halfPart8); at TT170 the
 // candidate's boot leftovers are seeded from the reference (seedFrom). At every MLOOP the
 // game state (mlib.regionsFor) is snapshotted.
@@ -305,9 +305,9 @@ export class EliteMachine {
         } else if (this._at(H.NOISE, pc)) {
             for (let i = 0; i < 3; i++) this.ram[sy.SOPR + i] = 0;
         } else if (H.P8 && this._at(H.P8, pc)) {
-            // the planet's half spin (as mlib's): a build without H_MVS4 (SNG47)
-            // gets the port's half steps, worked out at part 8's start and put in
-            // place of its own full steps at MV5
+            // the planet's half spin (as mlib's): a build without the port's
+            // half steps (SNG47) gets them, worked out at part 8's start and put
+            // in place of its own full steps at MV5
             if (this.rb(sy.TYPE) & 0x80) this.p8vec = halfPart8(i => this.rb(sy.INWK + i));
         } else if (this.p8vec && this._at(H.MV5, pc)) {
             for (let i = 0; i < 18; i++) this.ram[sy.INWK + 9 + i] = this.p8vec[i];
@@ -377,13 +377,14 @@ export class EliteMachine {
         }
         return false;
     }
-    // the half spin's patch (mlib's): for a build without the port's H_MVS4, MVEIT
+    // the half spin's patch (mlib's): for a build without the port's half
+    // steps (MVS5's for the planet, which has the label mvs5hf), MVEIT
     // part 8's first instruction (LDA INWK+30, AND #&80, STA RAT2, before MV8)
     // and MV5
     _findP8() {
         const sy = this.sy, cpu = this.cpu;
         this.p8vec = null;
-        if (sy.H_MVS4 !== undefined || sy.MV8 === undefined || sy.MV5 === undefined) return;
+        if (sy.mvs5hf !== undefined || sy.MV8 === undefined || sy.MV5 === undefined) return;
         const m = mapOfLabel(sy, "MV8"), want = [0xa5, sy.INWK + 30, 0x29, 0x80, 0x85, sy.RAT2];
         for (let a = sy.MV8 - 6; a > sy.MV8 - 64; a--)
             if (want.every((b, i) => physRead(cpu, m, a + i) === b)) {

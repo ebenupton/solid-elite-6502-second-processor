@@ -55,7 +55,7 @@ The rest of mlib's determinism measures are kept:
 
 - SOPR is cleared at NOISE;
 - Q is cleared before the ALTIT square root;
-- in a build without the port's H_MVS4 (SNG47), the planet's own pitch and roll
+- in a build without the port's half steps (SNG47), the planet's own pitch and roll
   (MVEIT part 8) are made the port's half steps (mlib's halfPart8, put in place of
   its full steps at MV5);
 - the candidate's boot leftovers are seeded from the reference at TT170.
