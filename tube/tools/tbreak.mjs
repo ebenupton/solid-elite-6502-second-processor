@@ -27,7 +27,7 @@ secs(a.host === "B" ? 34 : 28); await snap("title");
 key("N"); secs(3); key("SPACE"); secs(4); await snap("docked");
 key("F0", 0.2, 12); await snap("flight");
 let hb = 0;
-if (t) { const { loadSyms } = await import("../../harness/mlib.mjs"); const hs = loadSyms(a.disc.replace(/elite-tube(-b)?\.ssd$/, a.host === "B" ? "hbmsyms.txt" : "hsyms.txt")); if (hs.hbreak) host.debugInstruction.add(pc => { if (pc === hs.hbreak) hb++; return false; }); }
+if (t) { const { loadSyms } = await import("../../harness/mlib.mjs"); const hs = loadSyms(a.disc.replace(/elite-tube\.ssd$/, a.host === "B" ? "hbmsyms.txt" : "hsyms.txt")); if (hs.hbreak) host.debugInstruction.add(pc => { if (pc === hs.hbreak) hb++; return false; }); }
 if (a.shift) s.keyDown(16);
 s.reset(false); host.execute(2e6 * 1);
 if (a.shift) s.keyUp(16);

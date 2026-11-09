@@ -19,6 +19,8 @@
  INCLUDE "src/gfx-gvars.asm"            \ the renderer's shared variables
  INCLUDE "build/p-glue-frame.asm"       \ the G_ stubs, the text hooks (streams.py's pass)
  INCLUDE "build/gfx-hooks-frame.asm"    \ the hooks in Elite's drawing code (streams.py's pass)
+ INCLUDE "tsrc/p-probe1.asm"            \ the lens flare's probes' helpers (in the run's
+                                        \ first ALIGN's padding, below)
  INCLUDE "build/p-io-frame.asm"         \ the Tube (streams.py's pass)
  INCLUDE "tsrc/p-ovl.asm"               \ the overlay region's stubs' helpers
  INCLUDE "tsrc/p-dash.asm"              \ the dashboard's parasite halves

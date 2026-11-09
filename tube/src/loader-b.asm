@@ -277,7 +277,8 @@ BUF = &1C00             \ where each image is loaded before its copy
 .MESSB  EQUS "L.BDATA FFFF7000" : EQUB 13
 .MESS3  EQUS "DIR E" : EQUB 13
 .MESSP  EQUS "L.PCODE 0000", STR$~(PCODEAT) : EQUB 13
-.NORAM  EQUS "Elite (Tube) needs 64K of sideways RAM.", 13, 10, 0
+.NORAM  EQUB 22, 7 : EQUS "This ELITE needs 64K of sideways RAM", 13, 10
+        EQUS "(four 16K banks).", 13, 10, 0
 
  INCLUDE "build/hb-patch.asm"
 .LEND

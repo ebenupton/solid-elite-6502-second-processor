@@ -1139,26 +1139,3 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 .TTX66M                 \ (CHPR's call of TTX66: no banks here)
  JMP TTX66
 
-
-
-\ p_start: the parasite's entry (the loader starts it through the client
-\ OS's Tube code, its only use): the boot (p_boot, in the staging area above
-\ overlay D, p-layout.asm) takes the parasite's memory over, then wakes the
-\ host's command loop with &FE (the host's WRCHV, as the MOS's Tube code
-\ passes the byte to OSWRCH), then the renderer's initialisation (G_INIT,
-\ as the Master port's loader calls it) and the game (S%)
-
-.p_start
- SEI
- CLD
- LDX #&FF
- TXS
- JSR p_boot
- LDA #255               \ (the ring's write pointer: rpl, rph's start)
- STA rq
- LDA #HI(RING)
- STA rq+1
- LDA #&FE
- JSR ptx
- JSR G_INIT
- JMP S%

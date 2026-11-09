@@ -1,11 +1,236 @@
 # Tube Elite: report
 
-Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work on `tubediscs` in `~/elite-full-tubeplanets`, published as github.com/ebenupton/solid-elite-6502-second-processor. Two discs:
-`tube/build/elite-tube.ssd` (BBC Master host) and `tube/build/elite-tube-b.ssd`
-(BBC Micro Model B host with 64K of sideways RAM), both built by
-`sh tube/build.sh` (which also builds everything below; `sh master/build.sh` first).
+Branch `tube` in `~/elite-full-tube` (not pushed, not merged); the latest work on `tubediscs` in `~/elite-full-tubeplanets`, published as github.com/ebenupton/solid-elite-6502-second-processor. One disc
+for both hosts, `tube/build/elite-tube.ssd` (a BBC Master, or a BBC Micro
+Model B with 64K of sideways RAM, with a 6502 Second Processor), built by
+`sh tube/build.sh` (which also builds everything below; `sh master/build.sh`
+first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
+
+## full-master 539288d merged: the planet's half steps every iteration (branch `tubediscs`, 2026-11-08)
+
+full-master 539288d turns the planet by half the original's angle on every
+iteration (H_MVS4 after part 7's last MVS4, with MVS5H's 1/32-radian steps)
+where it used to turn by the full angle on the iterations with MCNT even,
+and the harness gives SNG47 the same half steps (harness/mlib.mjs's
+halfPart8, in place of zeroing the counters on odd iterations). The parasite
+is a 65C02 running the same game source, so H_MVS4 and MVS5H arrive as they
+are; runElite's patch applies only to a build without H_MVS4, so on the Tube
+it is SNG47, the lockstep's reference, that gets halfPart8.
+
+### Merges
+
+* The one disc (below) and full-master 539288d merged with no conflicts. The Master port assembles
+  byte-identically to full-master 539288d.
+
+### The room (lossless)
+
+H_MVS4 and MVS5H are hot code, resident on the parasite: 146 bytes more,
+the resident code to &B089, so the overlay region would have started at
+&B100 and overlay S ended 178 bytes past the ring. What moved, all on the
+parasite:
+
+| What | Where to | Resident bytes freed |
+|---|---|---:|
+| LAUN, HFS2 (the launch and hyperspace tunnels, falling into HFS1's rings, D's already; DOENTRY reaches LAUN through a stub) | overlay D ("Tube: ovl D") | 20 |
+| ping (TT102's "O" on a chart, through a stub) | overlay D | 6 |
+| F_HANGAR, fhg_pat (gfx-hangar.asm; only G_HANGAR, D's, calls them) | overlay D ("Area: ovl D") | 20 |
+| fch_d, fchd2 (gfx-frame_cold.asm: F_CHAR's noting of the text drawn directly, as fch_dd under _TPART = 1, behind a stub fch_d) | overlay D | 35 |
+| pchr (p-glue.asm: C_CHAR for the text drawn directly, behind a stub) | overlay D | 44 |
+| p_start, G_INIT | the boot's staging area, with p_boot | 33 |
+| p-probe1.asm (the flare's probes' helpers, 83 bytes) | the low area, into the padding of the run's first ALIGN, which pchr, G_INIT and p_start left | 83 |
+
+Code before that ALIGN (before log at &2300) frees nothing by itself: the
+padding takes it, so the probes' helpers went in to fill it, before p-io.asm
+so that pbl's unrolled sends (in one page) need no pad. p_start calls F_INIT
+last, with S% pushed as its return address, since F_INIT loads overlay S
+over the staging area. The stubs (JSR povd : EQUW) for pchr and fch_d are
+reached only on the screens drawn directly, where D is in.
+
+| | Before | After |
+|---|---|---|
+| Resident code | &1400-&AFF7, 8 free | &1400-&AFE4, 27 free |
+| Low code (PLOW) | 27 free | 27 free |
+| Overlay D | 10,538 bytes (42 pages), 6,870 free | 10,679 bytes (42 pages), 6,729 free |
+| Overlay S | 17,330 bytes, 78 free | 17,330 bytes, 78 free |
+| Master host's storage | 97 pages | 97 pages |
+| The disc | 646 of 800 sectors | 648 of 800 sectors (PCODE 209) |
+
+### run1 against the new reference
+
+With the half steps the patched SNG47 plays run1's keys out as a different
+game after the first launch. What run1 shows now (the Master port's frames,
+every 25 iterations): docked at Lave, a launch towards Lave's beach ball and
+a hyperspace jump (300-403), flight with the beach ball ahead (1000-1400),
+deep space and the side and rear views to about 3,600, the sun on screen in
+the rear view (3975-4325), charts and long flight to 13,900, Lave's planet
+in the rear view, a death (14041) and a reload, a launch from Lave flying
+into its beach ball until it fills the screen (14400-15400), a second death
+(15422), the status screen and the galactic chart, docked, at 16,000. It
+never docks. The windows 12105-12212 (now open space) and 15987-16000 (now
+the galactic chart) no longer show what they did; the speed windows are
+now flight 1000-1400, 0-3550, the beach ball launches 300-403 and
+14400-14507, and the sun 4000-4300 (tgate.sh's too).
+
+### Pixel references
+
+scratch/master-ref.ssd, scratch/fbref and scratch/dashref made again from
+539288d's build (fbreplay.mjs over run1: 18,196 frames hashed); the old
+ones kept as *-883a65e.
+
+### Gates (both hosts, from the one disc)
+
+* tgate.sh (MAXJ=3): Master port byte-identical; lockstep 16,002 iterations
+  clean on both hosts, TUBEINT (the internal co-processor) 602 clean;
+  pixels 16,972 frames matched (5 sampling gaps), 0 mismatched, dashboard
+  3,433 matched (1 gap), on both; saves byte-identical; storage 97 pages, 0
+  differ; crash and station ok; docking (tdock.mjs's six configs) ok with 0
+  loads between frames; overlays over run1 13 loads of D and 13 of S, none
+  within the space view (the swaps out of it: TT18's tunnel, the charts,
+  the two deaths).
+* tscenes.sh: the 13 scenes on both hosts, 0 drops, 0 drawn whole, only the
+  known flare frames differ (sunnear 416-417, sungrow and sunswap 339-340).
+* tdrows.mjs, iterations 300-420, 1000-1400, 4000-4300 and 14400-14520, on
+  both hosts: 939 frames, 96,918 band rows, 0 wrong.
+* tbadsave.mjs on both hosts: &F2, &BD, "X", "A", "/" Bad command; 0 and
+  &18 Bad string; &80 Bad name; "s" saved: every byte as SNG47.
+* tloadcmp.mjs: the Master host reaches the title 22.82 s after SHIFT+BREAK,
+  the Model B host 22.75 s; with no second processor the Master and the
+  Model B say so, and so does a Model B with no sideways RAM, in mode 7.
+* The soak's three repros: all three replay in lockstep clean on both hosts
+  (tube-oscli-lowercase-save 25,011 iterations, tube-badcommand-hostcrash
+  11,464, tube-delt-savosc 5,211), but none reaches its point any more:
+  they were recorded against the original with the counters zeroed on odd
+  iterations, and with the half steps SNG47 leaves the recorded game (a key
+  logged at DOKEY read at TL1) at iterations 1,861, 1,995 and 3,052, before
+  the disc commands they were cut for. What they checked, tbadsave.mjs
+  checks directly (above).
+* harness/mcompare.mjs --iters 10000 --loose: MCOMPARE PASS on the Master
+  port and both hosts (below).
+
+### Speeds
+
+run1's windows, it/s (the Master host's parasite at 4 MHz, the Model B
+host's at 3 MHz):
+
+| | Flight 1000-1400 | 0-3550 | Beach 300-403 | Beach 14400-14507 | Sun 4000-4300 |
+|---|---:|---:|---:|---:|---:|
+| Original (SNG47, the half steps) | 12.76 | 15.51 | 8.10 | 9.06 | 28.77 |
+| Master port (539288d) | 14.11 | 16.04 | 6.95 | 8.08 | 25.04 |
+| Tube, Master host | 22.60 | 21.69 | 11.08 | 13.90 | 25.04 |
+| Tube, Model B host | 19.41 | 19.73 | 9.16 | 11.16 | 25.05 |
+
+The first launch (300-403) is the one window whose scene is as it was
+before the half steps: the Master host 11.10 before, 11.08 now, the Model B
+host 9.18 and 9.16. The other windows show a different game from before,
+so their figures do not compare with 53948c1's. In the sun's window
+the original's wireframe sun runs at 28.77 and the solid builds are held by
+the 25 fps cap. The Master port's own gate run (harness/mcompare.mjs
+--iters 10000 --loose, MCOMPARE PASS on all three; the deterministic
+pilot's launches, fights, approaches and jumps, the same game on every
+build; flight iterations per emulated second): the original 15.93, the
+Master port 15.15 (0.951), the Tube's Master host 22.98 (1.443), its Model B
+host 21.05 (1.321).
+
+## One disc for both hosts (branch `tubediscs`, 2026-11-07)
+
+`tube/build/elite-tube.ssd` boots on a BBC Master 128 (with a 6502 Second
+Processor or its internal 65C102) and on a BBC Micro Model B with 64K of
+sideways RAM and a 6502 Second Processor; it replaces each host's own disc.
+docs/TUBE-MAP.md "The disc" has the catalogue and the boot.
+
+### The disc budget
+
+An 80-track single-sided DFS disc: 800 sectors (the catalogue 2), 31 files.
+Each host needs its loader (the Master's 6 sectors, the Model B's 3), its
+images (the Master's eight, 302 sectors as images; the Model B's five, 242)
+and the two files the hosts share: BDATA (15) and PCODE (208), the
+parasite's image, which was already one build for both hosts (`_HOSTB`
+FALSE in p-layout.asm; the hosts differ only on their side of the
+protocol). With the images as they were, all of it would just fit (795
+sectors), with no room for saved commanders.
+
+What does not need to be on the disc: the Master host's images are mostly
+empty pages (40 of bank 5's 64, 29 of bank 6's) and the STA runs' pages,
+whose code hstart's s_gen already writes at the host's start (37.6K; the
+images held 24K of those pages to carry 6K of overlay storage in bytes
+192-255). Packing those images' zero runs (tube/tools/zpack.py; the loader
+unpacks) takes them from 302 sectors to 153:
+
+| Image | As image | Packed |
+|---|---:|---:|
+| HRASTA (ANDY) | 16 | 16 |
+| HBANK5 | 64 | 16 |
+| HBANK6 | 64 | 34 |
+| HSTB7 | 64 | 17 |
+| HSTB4 | 32 | 8 |
+| HSTZ (HAZEL) | 32 | 31 |
+| HSTM2 | 16 | 17 |
+| HSTM1 | 14 | 14 |
+
+The disc: 646 of 800 sectors, 20 of 31 files; 154 sectors and 11 files free
+for commanders. The Model B host's row runs (48 pages of bank P) and its
+images' empty pages (about 40 sectors packed) are left as they are, the
+Model B loader patching bank numbers at image offsets. If the disc ever
+runs short, those row runs are the next thing to generate at boot (48
+sectors).
+
+### The boot
+
+!BOOT runs ELITE (tube/src/boot.asm, 44 bytes at &0900): OSBYTE 0 with X=1
+returns the MOS version, 3 or more on a Master (3.20, 3.50; 4 the ET, 5 the
+Compact), 1 on a Model B (2 a B+), and it *RUNs ELITEM (the Master loader)
+or ELITEB (the Model B loader). Each loader checks the Tube and its
+sideways RAM and stops with a mode 7 message if either is missing.
+tloadcmp.mjs's boots:
+
+* Master, no second processor: "This ELITE needs a 6502 co-processor:
+  *CONFIGURE TUBE, then SHIFT+BREAK."
+* Model B, no second processor: "This ELITE needs a 6502 Second Processor."
+* Model B with a second processor and no sideways RAM: "This ELITE needs 64K
+  of sideways RAM (four 16K banks)." (this message had gone to the game's
+  mode 1 screen, unreadable; it now clears to mode 7 first, as the others do)
+
+The files sit in the order the loaders read them (the Master: its images,
+BDATA, PCODE, HMAIN; the Model B: BDATA, its images, PCODE), so each host's
+reads run through the disc with one seek forward; the Master loader's FTAB
+copies BDATA last.
+
+### Boot time (jsbeeb, SHIFT+BREAK to the title screen)
+
+The Master host 22.98 s (28.29 s with its images unpacked: 149 fewer
+sectors to read, and unpacking costs less than reading them), the Model B
+host 22.91 s. hstart's generation of the STA runs and
+tables (the parasite's start to TITLE) is 0.73 s on the Master, 0.40 s on
+the Model B.
+
+### Checks
+
+* tloadcmp.mjs --ref: the host's RAM, shadow RAM, ANDY, HAZEL, the sideways
+  RAM banks and the parasite's memory at TITLE byte-identical with what
+  tubediscs 53948c1's boot left (on the Model B, the stash bank's first
+  &E00 bytes, the MOS's main RAM as hstart found it, differ by the MOS
+  clocks, DFS's catalogue and the boot program at &0900, as they must).
+* The Master port builds byte-identically (scratch/master-ref.ssd).
+
+### Gates (both hosts, from the one disc)
+
+* tgate.sh (MAXJ=3): Master port byte-identical; lockstep 16,002 iterations
+  clean on both hosts, TUBEINT (the internal co-processor) 602 clean;
+  pixels 13,445 frames matched (3 sampling gaps), 0 mismatched, dashboard
+  2,738 matched, on both; saves byte-identical; storage 97 pages, 0 differ;
+  crash and station ok; docking (six configs) ok with 0 loads between
+  frames; overlays 11 loads of D and 12 of S, none within the space view.
+* tscenes.sh: the 13 scenes on both hosts, 0 drops, 0 drawn whole, only the
+  known flare frames differ (sunnear 416-417, sungrow and sunswap 339-340).
+* tdrows.mjs, iterations 300-420, 1000-1400, 12105-12220 and 15900-16000, on
+  both hosts: 734 frames, 90,862 band rows, 0 wrong.
+* tbadsave.mjs on both hosts: &F2, &BD, "X", "A", "/" Bad command; 0 and
+  &18 Bad string; &80 Bad name; "s" saved: every byte as SNG47.
+* Speeds as before (the same images): run1's windows within 0.1% (0-3550
+  within 0.45%: it starts at the boot's end, whose phase against the vsync
+  moves with the boot's length).
 
 ## The soak's fixes and full-master 883a65e merged (branch `tubediscs`, 2026-11-07)
 
@@ -1743,8 +1968,8 @@ flight it/s, SNG47 / candidate):
 
 ## Verification commands
 
-- Lockstep: `TUBE=Master|B node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out DIR --until 16000 --noobserve --cand tube/build/elite-tube[-b].ssd --csyms tube/build/psyms.txt` → `REPLAY CLEAN ... 16002 iterations compared, 29887 reads, findings 0` (both hosts, final build).
-- Pixels: Master reference `node master/tools/agentplay/fbreplay.mjs --log scratch/curious/run1/inputs.jsonl --out scratch/fbref --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt --from 0 --to 16000`; candidate `node tube/tools/tfbreplay.mjs --log ... --out DIR --cand tube/build/elite-tube[-b].ssd --csyms tube/build/psyms.txt [--host B] --from 0 --to 16000`; compare `node tube/tools/fbcmp.mjs scratch/fbref/fb.json DIR/fb.json --to 15999` → `14611 matched, 3 sampling gaps, 0 mismatched` (both hosts). Sampling gaps are frames one side's hash point did not see (timing), not differences.
+- Lockstep: `TUBE=Master|B node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out DIR --until 16000 --noobserve --cand tube/build/elite-tube.ssd --csyms tube/build/psyms.txt` → `REPLAY CLEAN ... 16002 iterations compared, 29887 reads, findings 0` (both hosts, final build).
+- Pixels: Master reference `node master/tools/agentplay/fbreplay.mjs --log scratch/curious/run1/inputs.jsonl --out scratch/fbref --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt --from 0 --to 16000`; candidate `node tube/tools/tfbreplay.mjs --log ... --out DIR --cand tube/build/elite-tube.ssd --csyms tube/build/psyms.txt [--host B] --from 0 --to 16000`; compare `node tube/tools/fbcmp.mjs scratch/fbref/fb.json DIR/fb.json --to 15999` → `14611 matched, 3 sampling gaps, 0 mismatched` (both hosts). Sampling gaps are frames one side's hash point did not see (timing), not differences.
 - Faster parasite: `TUBEMHZ=24` before the tools above.
 - Disc menu: `node tube/tools/tsavetest.mjs --host Master|B` (exit 0; screenshots in scratch/tsave-*/).
 - Host profile: `node tube/tools/thprof.mjs ...` (Master host), parasite waits included.

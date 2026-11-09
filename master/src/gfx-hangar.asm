@@ -29,7 +29,10 @@
 HTOP = 16               \ the wall's top row: text row 1, the view's name, is on
                         \ black above it
 
-\ F_HANGAR: the hangar's frame (G_HANGAR, from HALL)
+\       Area: ovl D
+
+\ F_HANGAR: the hangar's frame (G_HANGAR, from HALL; the Tube's overlay D,
+\ as G_HANGAR is)
 
 .F_HANGAR
  LDX #LO(f_hback)
@@ -42,8 +45,6 @@ HTOP = 16               \ the wall's top row: text row 1, the view's name, is on
  STX ff_lin+1
  STY ff_lin+2
  RTS
-
-\       Area: ovl D
 
 \ F_HANG0: before the hangar's ships are recorded (G_HANG0): the hangar's
 \ light (LLT, gfx-light.asm: towards the top right and the viewer, as the

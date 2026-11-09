@@ -14,7 +14,7 @@ for t in $T; do
   O=$D/mr-$name; mkdir -p $O
   node master/tools/agentplay/fbreplay.mjs --inject "$spec" --log $LOG --out $O/ref --cand $MS --csyms $MY --from $f --to $to > $O/ref.log 2>&1
   for H in Master B; do
-    S=$D/elite-tube.ssd; [ $H = B ] && S=$D/elite-tube-b.ssd
+    S=$D/elite-tube.ssd
     node tube/tools/tfbreplay.mjs --inject "$spec" --log $LOG --out $O/$H --cand $S --csyms $D/psyms.txt --host $H --from $f --to $to > $O/$H.log 2>&1
     p=$(node tube/tools/fbcmp.mjs $O/ref/fb.json $O/$H/fb.json --to $((to - 1)) 2>&1 | tail -1)
     echo "$name $H: $p"

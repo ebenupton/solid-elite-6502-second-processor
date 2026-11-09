@@ -460,7 +460,8 @@ ENDIF
  STX YY                 \ Save the entry's offset
 
  LDA FTAB+1,X           \ Fetch the high byte of the entry's OSCLI command,
- BEQ LDEND              \ which is zero at the end of the table
+ BNE P%+5               \ which is zero at the end of the table
+ JMP LDEND
 
  TAY                    \ Run the command in (Y X), which loads the file at
  LDA FTAB,X             \ &1300
@@ -486,10 +487,12 @@ ENDIF
  LDA FTAB+5,X
  STA P+1
 
- LDA FTAB+6,X           \ LEN(1 0) = the number of bytes (non-zero)
- STA LEN
+ LDA FTAB+6,X           \ LEN(1 0) = the number of bytes, or 0 for a packed
+ STA LEN                \ file (tube/tools/zpack.py)
  LDA FTAB+7,X
  STA LEN+1
+ ORA LEN
+ BEQ LDZ
 
 .LDC
 
@@ -511,6 +514,51 @@ ENDIF
  LDA LEN
  ORA LEN+1
  BNE LDC
+ BRA LDN
+
+.LDZ                    \ Port (Tube): a packed file, a token at a time: 0 the
+                        \ end, 1-127 that many bytes to copy, 128-255 (token -
+ LDA (ZP)               \ 127) zeros
+ BEQ LDN
+ TAX
+ JSR LDI
+ TXA
+ BMI LDZ0
+
+.LDZ1                   \ Copy X bytes
+ LDA (ZP)
+ JSR LDI
+ JSR LDO
+ DEX
+ BNE LDZ1
+ BRA LDZ
+
+.LDZ0                   \ Write token - 127 zeros
+ AND #&7F
+ TAX
+ INX
+
+.LDZ2
+ LDA #0
+ JSR LDO
+ DEX
+ BNE LDZ2
+ BRA LDZ
+
+.LDI                    \ Next source byte
+ INC ZP
+ BNE P%+4
+ INC ZP+1
+ RTS
+
+.LDO                    \ Write A to the destination, then the next
+ STA (P)
+ INC P
+ BNE P%+4
+ INC P+1
+ RTS
+
+.LDN
 
  LDA #%00001001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
  ORA ACCHI              \ it)
@@ -522,7 +570,7 @@ ENDIF
  CLC
  ADC #8
  TAX
- BNE LDF
+ JMP LDF
 
 .LDEND
 
@@ -742,48 +790,51 @@ ENDIF
 \
 \ Eight bytes per file: the OSCLI command that loads it to &1300, the ROMSEL
 \ and ACCCON values to copy it with, the destination, and the number of bytes
-\ (a multiple of 256). The table ends with a zero command address.
+\ (a multiple of 256), or 0 for a file packed by tube/tools/zpack.py (the
+\ host's images: their empty pages and the STA runs' pages, which s_gen
+\ fills, take no room on the disc; BDATA, the Model B host's too, is not
+\ packed). The table ends with a zero command address.
 \
 \ ******************************************************************************
 
 .FTAB
 
- EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000
- EQUB HOMEBANK, %00001111
- EQUW &7000, &0E00
-
  EQUW MESS8             \ HRASTA: the rasteriser's polygon window, ANDY
  EQUB &85, %00001001
- EQUW &8000, RALEN
+ EQUW &8000, 0
 
  EQUW MESS9             \ HBANK5: the rasteriser, bank 5
  EQUB 5, %00001001
- EQUW &8000, B5LEN
+ EQUW &8000, 0
 
  EQUW MESS10            \ HBANK6: the frame layer's host part, bank 6
  EQUB 6, %00001001
- EQUW &8000, B6LEN
+ EQUW &8000, 0
 
  EQUW MESS16            \ HSTB7: and in bank 7, bytes 192-255 of the STA runs'
  EQUB 7, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
- EQUW &8000, B7LEN      \ around them; before HSTZ is staged at &4000, as up
-                        \ to 16K through &1300 reach &52FF)
+ EQUW &8000, 0          \ around them)
 
  EQUW MESS17            \ HSTB4: and the same in bank 4
  EQUB 4, %00001001
- EQUW &8000, B4LEN
+ EQUW &8000, 0
 
  EQUW MESS13            \ HSTZ: the host's HAZEL (the overlays' storage there),
  EQUB 6, %00001001      \ staged in main RAM at &4000 until LTRUN copies it in
- EQUW &4000, &2000      \ (DFS uses HAZEL until the last disc access)
+ EQUW &4000, 0          \ (DFS uses HAZEL until the last disc access)
 
  EQUW MESS14            \ HSTM2: the overlays' storage in main RAM &7000-&7FFF
  EQUB 6, %00001001
- EQUW &7000, &1000
+ EQUW &7000, 0
 
- EQUW MESS15            \ HSTM1: and in main RAM &3000-&3DFF (last: the files
- EQUB 6, %00001001      \ before it pass through &1300 up to &52FF)
- EQUW &3000, &0E00
+ EQUW MESS15            \ HSTM1: and in main RAM &3000-&3DFF (tube/build.sh
+ EQUB 6, %00001001      \ checks that no file staged at &1300 reaches a main
+                        \ RAM destination)
+ EQUW &3000, 0
+
+ EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000 (last:
+ EQUB HOMEBANK, %00001111 \ on the disc, tube/src/disc.asm, it follows the
+ EQUW &7000, &0E00      \ images, and the Model B host's files follow it)
 
  EQUW 0
 

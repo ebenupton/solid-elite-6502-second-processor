@@ -70,10 +70,6 @@
  JSR F_SHPPT
  JMP gback
 
-.G_INIT
- JSR F_INIT
- JMP gback
-
 .G_BOMB
  JSR F_BOMB
  JMP gback
@@ -205,9 +201,15 @@ TBUFN = 35
 \       Area: frame
 
 \ pchr: send C_CHAR: A = the character, X = the cursor column CHPR was
-\ entered with: the host's CHPR draws it
+\ entered with: the host's CHPR draws it. Only outside record and space mode
+\ (H_CHAR's), on the screens drawn directly, so in overlay D (pchr_d), with
+\ its stub here
 
-.pchr
+.pchr JSR povd : EQUW pchr_d
+
+\       Area: ovl D
+
+.pchr_d
  PHA
  LDA #C_CHAR
  JSR ptx
@@ -228,6 +230,8 @@ TBUFN = 35
  JSR ptx
  LDA GMODE
  JMP ptx
+
+\       Area: frame
 
 \ H_CHAR: CHPR (RR3) is about to draw the character in K3 at (XC-1, YC), with
 \ A = YC: the text map has it, and outside record and space mode the host
