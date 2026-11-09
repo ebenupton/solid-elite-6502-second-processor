@@ -3014,10 +3014,12 @@ gate 11.11 to 11.53 iterations a second. master/tools/grind/test_raster.py's
 pmath checks the arithmetic against exact models.
 
 Then two changes to the picture. The planet spins at half the original's
-rate, in the game, and smoothly: for the planet H_MVS4 (MVEIT part 7's last
-call) does part 8, its own pitch and roll, with MVS5H, half MVS5's step on
-every iteration (x' = x (1 - 1/2048) + d y / 32, y' = y (1 - 1/2048) - d x /
-32, worked out as MVS5 works out its step: 2.5 degrees an iteration), and the
+rate, in the game, and smoothly: MVS5, which part 8 calls for each pair of
+coordinates, takes half its step for the planet (TYPE 128 or more; the sun
+never reaches part 8) on every iteration (x' = x (1 - 1/2048) + d y / 32,
+y' = y (1 - 1/2048) - d x / 32, worked out as for its full step with one
+more shift of each term, each skipped for a ship by BIT TYPE, BPL, 24 cycles
+a call: 2.5 degrees an iteration; part 8 is the original's), and the
 harness (harness/mlib.mjs's halfPart8, agentplay's lib.mjs) gives SNG47 the
 same half steps, put in place of its own at MV5, so the whole game state,
 the planet's vectors included, still matches (the vectors reach the game
@@ -3027,9 +3029,9 @@ records are made every frame; in deep space (the planet's z at least 512 x
 256) they are made on the iterations with MCNT even, and the odd iterations
 keep the previous one's, moved with the disc's centre (pf_hold, exact for
 the move), so a kept frame lacks one half step (on a disc of radius 45 at
-most). The lens flare moved to bank 6 to make room. The gate runs at 15.15
-iterations a second against the patched SNG47's 15.93 (0.951), 132,026
+most). The lens flare moved to bank 6 to make room. The gate runs at 15.21
+iterations a second against the patched SNG47's 15.93 (0.955), 131,505
 cycles a flight iteration (the half steps change the run the pilot flies);
 bank 7's meridian window ends at &B79B (2,148 free), and the hot pass's
-main RAM container at &7FF1 (14 free).
+main RAM containers at &3FBD (66 free) and &7FB7 (72 free).
 
