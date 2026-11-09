@@ -10,11 +10,11 @@ A version of [Solid Elite for the BBC Master](https://github.com/ebenupton/solid
 
 What's new:
 
-* **Everything in the Master port, on a second processor.** Solid ships lit by the sun; solid planets drawn by one circle engine (beach balls for meridian planets, true spherical craters for crater planets), spinning at half the original's rate, their surfaces remade every frame close up, and in deep space on the iterations they turn, every other frame; solid suns with a lens flare, still drawn near the planet where the original drops the sun for the space station; a double-buffered, flicker-free four-colour screen at up to 25 frames a second; the new dashboard; kept solid rows when docking; the solid hangar and briefing ship. Every frame the Tube version draws is pixel for pixel the Master port's.
-* **The original game, exactly.** The game logic is Acornsoft's: given the same keypresses, the Tube version plays out the same game as the original (with the planet turning at half its rate, as the Master port's does), iteration for iteration, and its save files are byte-identical with the original's.
+* **Everything in the Master port, on a second processor.** Solid ships lit by the sun; solid planets drawn by one circle engine (beach balls for meridian planets, true spherical craters for crater planets), spinning smoothly at half the original's rate, by half steps every iteration, their surfaces remade every frame close up and every other frame in deep space, the frames between moved with the disc; solid suns with a lens flare, still drawn near the planet where the original drops the sun for the space station; a double-buffered, flicker-free four-colour screen at up to 25 frames a second; the new dashboard; kept solid rows when docking; the solid hangar and briefing ship. Every frame the Tube version draws is pixel for pixel the Master port's.
+* **The original game, exactly.** The game logic is Acornsoft's: given the same keypresses, the Tube version plays out the same game as the original (with the planet turning by half the original's angle on every iteration, as the Master port's does), iteration for iteration, and its save files are byte-identical with the original's.
 * **Every disc incremental.** Each screen buffer remembers what it shows of every row of the planet and the sun; each frame sends the host only what changed. An edge that moved is sent as the strip it moved through, and an unchanged row costs the parasite a few compares. The planet's surface and a second disc (the sun beside the planet) are remembered in one disc heap on the parasite.
 * **The host is a dumb renderer.** It draws lines, points, spans, text and the dashboard; it does the keyboard, sound, disc, vsync and the buffer flip; and it stores the parasite's overlay images and its own star records. Everything that decides what to draw (the game, the 3D maths, the rasteriser's bookkeeping, the planets' surfaces, the flare, the text) is on the parasite, so the two processors work in parallel: the parasite works out the next frame while the host draws this one.
-* **Two hosts.** A BBC Master fills spans through straight-line store runs in its sideways RAM. A Model B with 64K of sideways RAM keeps a set of row runs per screen buffer, and splits the 3D view from the dashboard with a CRTC vertical rupture (two CRTC frames a field, set up by a timer interrupt).
+* **Two hosts, one disc.** The same disc boots on either host and loads that host's code. A BBC Master fills spans through straight-line store runs in its sideways RAM. A Model B with 64K of sideways RAM keeps a set of row runs per screen buffer, and splits the 3D view from the dashboard with a CRTC vertical rupture (two CRTC frames a field, set up by a timer interrupt).
 
 <p align="center">
 <img src="images/solid-elite-craters.png" width="32%" alt="A planet with three green craters on a blue sea">
@@ -29,12 +29,14 @@ What's new:
 
 ## Playing it
 
-| Disc | Host | Second processor |
-|---|---|---|
-| [solid-elite-tube-master.ssd](solid-elite-tube-master.ssd) | BBC Master 128 | a 6502 Second Processor, or the Master's internal 65C102 co-processor (4 MHz) |
-| [solid-elite-tube-modelb.ssd](solid-elite-tube-modelb.ssd) | BBC Micro Model B with 64K of sideways RAM (four banks) | a 6502 Second Processor (3 MHz) |
+One disc, [solid-elite-tube.ssd](solid-elite-tube.ssd), for either host:
 
-Attach the second processor (on a Master, the internal co-processor works), load the disc and press SHIFT-BREAK. The game plays as BBC Master Elite does: the same keys, the same saved commanders. BREAK during play does not recover yet; a cold SHIFT-BREAK boot is fine. In an emulator, choose a Master 128 or a Model B with a 6502 second processor (and, for the Model B, sideways RAM in four banks). For a BBC Master with no second processor, play the [Master port](https://github.com/ebenupton/solid-elite-bbc-master) itself.
+| Host | Second processor |
+|---|---|
+| BBC Master 128 | a 6502 Second Processor, or the Master's internal 65C102 co-processor (4 MHz) |
+| BBC Micro Model B with 64K of sideways RAM (four banks) | a 6502 Second Processor (3 MHz) |
+
+Attach the second processor (on a Master, the internal co-processor works), load the disc and press SHIFT-BREAK: the disc finds out which host it is on and loads that host's code; without a second processor, or on a Model B without four banks of sideways RAM, it says so. The game plays as BBC Master Elite does: the same keys, the same saved commanders. BREAK during play does not recover yet; a cold SHIFT-BREAK boot is fine. In an emulator, choose a Master 128 or a Model B with a 6502 second processor (and, for the Model B, sideways RAM in four banks). For a BBC Master with no second processor, play the [Master port](https://github.com/ebenupton/solid-elite-bbc-master) itself.
 
 ## Building it
 
@@ -42,7 +44,7 @@ Attach the second processor (on a Master, the internal co-processor works), load
 sh master/build.sh && sh tube/build.sh
 ```
 
-This builds `tube/build/elite-tube.ssd` (Master host), `tube/build/elite-tube-b.ssd` (Model B host) and `master/build/elite-master-sng47.ssd` (the Master port); the two discs in the root are copies of the Tube ones. You need Python 3; BeebAsm is in `tools/` (a macOS arm64 binary; elsewhere set `BEEBASM` to your own build of BeebAsm 1.11). Nothing else is needed to build.
+This builds `tube/build/elite-tube.ssd` (the disc, for both hosts) and `master/build/elite-master-sng47.ssd` (the Master port); the disc in the root is a copy of `tube/build/elite-tube.ssd`. You need Python 3; BeebAsm is in `tools/` (a macOS arm64 binary; elsewhere set `BEEBASM` to your own build of BeebAsm 1.11). Nothing else is needed to build.
 
 ## The layout
 
@@ -52,23 +54,23 @@ The Master host keeps the Master port's screen (two buffers at `&4000`, one in s
 
 ## Speed
 
-Main-loop iterations per emulated second over windows of one recorded game: flight (iterations 1000-1400), the first 3,550 iterations, two launches from Lave towards its beach-ball planet (300-403 and 12105-12212), and flight with the sun on screen (15987-16000). The original is Acornsoft's SNG47 on a BBC Master, with wireframe ships and planets, and with the planet turning at half its rate as the Master port's does (the comparison makes it skip the other turns); the Master port and the Tube versions draw solid, double-buffered frames, capped at 25 frames a second.
+Main-loop iterations per emulated second over windows of one recorded game: flight with Lave's beach-ball planet ahead (iterations 1000-1400), the first 3,550 iterations, two launches from Lave towards its beach ball (300-403 and 14400-14507), and flight with the sun on screen (4000-4300). The original is Acornsoft's SNG47 on a BBC Master, with wireframe ships and planets, and with the planet turning by the Master port's half steps (the comparison gives it the same half steps); the Master port and the Tube versions draw solid, double-buffered frames, capped at 25 frames a second.
 
-| | Flight 1000-1400 | 0-3550 | Beach 300-403 | Beach 12105-12212 | Sun 15987-16000 |
+| | Flight 1000-1400 | 0-3550 | Beach 300-403 | Beach 14400-14507 | Sun 4000-4300 |
 |---|---:|---:|---:|---:|---:|
-| Original (SNG47, BBC Master, wireframe) | 12.89 | 15.99 | 8.12 | 8.50 | 22.76 |
-| Master port (BBC Master, no second processor) | 14.16 | 16.33 | 6.94 | 7.37 | 25.69 |
-| Tube, Master host, 4 MHz second processor | 22.72 | 21.82 | 11.10 | 12.43 | 25.34 |
-| Tube, Model B host, 3 MHz second processor | 19.52 | 19.90 | 9.18 | 10.03 | 23.62 |
+| Original (SNG47, BBC Master, wireframe) | 12.76 | 15.51 | 8.10 | 9.06 | 28.77 |
+| Master port (BBC Master, no second processor) | 14.11 | 16.04 | 6.95 | 8.08 | 25.04 |
+| Tube, Master host, 4 MHz second processor | 22.60 | 21.69 | 11.08 | 13.90 | 25.04 |
+| Tube, Model B host, 3 MHz second processor | 19.41 | 19.73 | 9.16 | 11.16 | 25.05 |
 
-With the Master as host, the Tube version runs at 1.3 to 1.7 times the Master port's speed where the Master port is below the 25 fps cap, and faster than the original in every window. In the Master port's own gate run (a deterministic pilot's 10,000 iterations of launches, fights, station approaches and hyperspace jumps, the same game on every build: flight iterations per emulated second), the original runs at 14.14, the Master port at 12.08, the Tube version at 19.98 with the Master host and at 16.90 with the Model B host. The recorded game no longer docks: with the planet's half spin its keys play out a different game after the first launch, so the docking window of earlier versions of this table is gone (the solid station filling the screen is where the Tube version was slower than the original).
+With the Master as host, the Tube version runs at 1.35 to 1.72 times the Master port's speed where the Master port is below the 25 fps cap, and faster than the original in every window but the sun's, where the original's wireframe sun runs at 28.77 and the solid builds are held by the cap. In the Master port's own gate run (a deterministic pilot's 10,000 iterations of launches, fights, station approaches and hyperspace jumps, the same game on every build: flight iterations per emulated second), the original runs at 15.93, the Master port at 15.15, the Tube version at 22.98 with the Master host and at 21.05 with the Model B host. The recorded game no longer docks: with the planet's half steps its keys play out a different game after the first launch, so the windows are where that game now shows these scenes.
 
 ## Testing
 
 Every change was checked against Acornsoft's release (SNG47) and against the Master port:
 
-* **The gate** (`sh tube/tools/tgate.sh DIR`, on both hosts) runs the recorded game for 16,002 iterations in lockstep with SNG47, comparing the game state at every iteration (with the Master port's two patches to the original: `Q` set to 0 at the altitude check, and the planet's own pitch and roll skipped on odd iterations, its half spin); requires every frame and the dashboard to be pixel-identical with the Master port's; saves and loads commanders and compares the files byte for byte with the original's; and checks a crash, the station, dockings with every mission briefing and debriefing and an escape pod (no overlay load between two frames of a rotating ship), the overlay storage and swaps (none within the space view), the internal co-processor, and the speeds.
-* **A soak against SNG47**: 28 long sessions played by Dom Pajak's [elite-agent](https://github.com/8bitkick/elite-agent) (14 a host, 1.79 million iterations), replayed on the Tube version and the original in lockstep, found three ways in which the Tube version's disc commands did not do what the original's do, all after SNG47's own DELT bug (a delete overwrites the first byte of the next save's command): a save command in lower case was not sent to the host, the Master host crashed on an unrecognised command (it had taken the MOS's page `&DF00` for itself), and a load of the overlay holding the save command undid the bug's damage. All three are fixed (`tube/tools/tbadsave.mjs` checks every such command is answered as SNG47 answers it), and their three repros (`master/tools/agentplay/repro/tube-*.jsonl`) replay clean on both hosts.
+* **The gate** (`sh tube/tools/tgate.sh DIR`, on both hosts) runs the recorded game for 16,002 iterations in lockstep with SNG47, comparing the game state at every iteration (with the Master port's two patches to the original: `Q` set to 0 at the altitude check, and the planet turned by the same half steps as the port's, which the harness works out at the start of part 8 of `MVEIT` exactly as the port's `MVS5H` does and puts in place of the original's full steps); requires every frame and the dashboard to be pixel-identical with the Master port's; saves and loads commanders and compares the files byte for byte with the original's; and checks a crash, the station, dockings with every mission briefing and debriefing and an escape pod (no overlay load between two frames of a rotating ship), the overlay storage and swaps (none within the space view), the internal co-processor, and the speeds.
+* **A soak against SNG47**: 28 long sessions played by Dom Pajak's [elite-agent](https://github.com/8bitkick/elite-agent) (14 a host, 1.79 million iterations), replayed on the Tube version and the original in lockstep, found three ways in which the Tube version's disc commands did not do what the original's do, all after SNG47's own DELT bug (a delete overwrites the first byte of the next save's command): a save command in lower case was not sent to the host, the Master host crashed on an unrecognised command (it had taken the MOS's page `&DF00` for itself), and a load of the overlay holding the save command undid the bug's damage. All three are fixed, and `tube/tools/tbadsave.mjs` checks on both hosts that every such command is answered as SNG47 answers it. (The three repros, `master/tools/agentplay/repro/tube-*.jsonl`, still replay in lockstep on both hosts, but were recorded before the planet's half steps: the original now leaves those sessions before the commands they were cut for.)
 * **Posed scenes** (`sh tube/tools/tscenes.sh DIR`): 13 planet and sun scenes compared frame by frame with the Master port, with no disc row dropped or drawn whole; `tube/tools/tdrows.mjs` checks every disc row the parasite sends against what the row must show.
 
 The tests need files that are not in this repository, which you must supply:
