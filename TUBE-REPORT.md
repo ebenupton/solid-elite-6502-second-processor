@@ -8,7 +8,7 @@ first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
-## full-master 539288d merged: the planet's half steps every iteration (branch `tubediscs`, 2026-11-08)
+## full-master 539288d and 027a258 merged: the planet's half steps every iteration (branch `tubediscs`, 2026-11-09)
 
 full-master 539288d turns the planet by half the original's angle on every
 iteration (H_MVS4 after part 7's last MVS4, with MVS5H's 1/32-radian steps)
@@ -19,10 +19,19 @@ is a 65C02 running the same game source, so H_MVS4 and MVS5H arrive as they
 are; runElite's patch applies only to a build without H_MVS4, so on the Tube
 it is SNG47, the lockstep's reference, that gets halfPart8.
 
+full-master 027a258 then makes the half steps the original's MVS5's own,
+with guarded extra shifts for the planet (MVS5's label mvs5hf, which the
+harness now looks for in place of H_MVS4), in place of the 166-byte
+H_MVS4/MVS5H copy: the same results, bit for bit, the same game state and
+every frame the same as 539288d's. The parasite gets 117 bytes of hot code
+back; the room made for H_MVS4 below is kept (all of it lossless), so the
+resident code now has 144 bytes free.
+
 ### Merges
 
-* The one disc (below) and full-master 539288d merged with no conflicts. The Master port assembles
-  byte-identically to full-master 539288d.
+* The one disc (below), full-master 539288d and then 027a258 merged with no
+  conflicts. The Master port assembles byte-identically to full-master
+  027a258.
 
 ### The room (lossless)
 
@@ -50,7 +59,7 @@ reached only on the screens drawn directly, where D is in.
 
 | | Before | After |
 |---|---|---|
-| Resident code | &1400-&AFF7, 8 free | &1400-&AFE4, 27 free |
+| Resident code | &1400-&AFF7, 8 free | &1400-&AFE4, 27 free (with 539288d's H_MVS4); &1400-&AF6F, 144 free (027a258) |
 | Low code (PLOW) | 27 free | 27 free |
 | Overlay D | 10,538 bytes (42 pages), 6,870 free | 10,679 bytes (42 pages), 6,729 free |
 | Overlay S | 17,330 bytes, 78 free | 17,330 bytes, 78 free |
@@ -75,15 +84,17 @@ now flight 1000-1400, 0-3550, the beach ball launches 300-403 and
 
 ### Pixel references
 
-scratch/master-ref.ssd, scratch/fbref and scratch/dashref made again from
-539288d's build (fbreplay.mjs over run1: 18,196 frames hashed); the old
-ones kept as *-883a65e.
+scratch/fbref and scratch/dashref made again from 539288d's build
+(fbreplay.mjs over run1: 18,196 frames hashed; the old ones kept as
+*-883a65e), and scratch/master-ref.ssd from 027a258's (539288d's kept as
+master-ref-539288d.ssd): 027a258's frames are 539288d's, which the pixel
+gate below confirms on the Tube.
 
 ### Gates (both hosts, from the one disc)
 
-* tgate.sh (MAXJ=3): Master port byte-identical; lockstep 16,002 iterations
-  clean on both hosts, TUBEINT (the internal co-processor) 602 clean;
-  pixels 16,972 frames matched (5 sampling gaps), 0 mismatched, dashboard
+* tgate.sh (MAXJ=3), on the build with 027a258: Master port byte-identical;
+  lockstep 16,002 iterations clean on both hosts, TUBEINT (the internal
+  co-processor) 602 clean; pixels 16,972 frames matched (5 sampling gaps), 0 mismatched, dashboard
   3,433 matched (1 gap), on both; saves byte-identical; storage 97 pages, 0
   differ; crash and station ok; docking (tdock.mjs's six configs) ok with 0
   loads between frames; overlays over run1 13 loads of D and 13 of S, none
@@ -98,7 +109,8 @@ ones kept as *-883a65e.
 * tloadcmp.mjs: the Master host reaches the title 22.82 s after SHIFT+BREAK,
   the Model B host 22.75 s; with no second processor the Master and the
   Model B say so, and so does a Model B with no sideways RAM, in mode 7.
-* The soak's three repros: all three replay in lockstep clean on both hosts
+* The soak's three repros (on the build with 539288d, whose game is
+  027a258's): all three replay in lockstep clean on both hosts
   (tube-oscli-lowercase-save 25,011 iterations, tube-badcommand-hostcrash
   11,464, tube-delt-savosc 5,211), but none reaches its point any more:
   they were recorded against the original with the counters zeroed on odd
@@ -117,21 +129,21 @@ host's at 3 MHz):
 | | Flight 1000-1400 | 0-3550 | Beach 300-403 | Beach 14400-14507 | Sun 4000-4300 |
 |---|---:|---:|---:|---:|---:|
 | Original (SNG47, the half steps) | 12.76 | 15.51 | 8.10 | 9.06 | 28.77 |
-| Master port (539288d) | 14.11 | 16.04 | 6.95 | 8.08 | 25.04 |
-| Tube, Master host | 22.60 | 21.69 | 11.08 | 13.90 | 25.04 |
-| Tube, Model B host | 19.41 | 19.73 | 9.16 | 11.16 | 25.05 |
+| Master port (027a258) | 14.16 | 16.09 | 6.96 | 8.10 | 25.04 |
+| Tube, Master host | 22.60 | 21.70 | 11.10 | 13.92 | 25.05 |
+| Tube, Model B host | 19.46 | 19.75 | 9.17 | 11.19 | 25.04 |
 
 The first launch (300-403) is the one window whose scene is as it was
-before the half steps: the Master host 11.10 before, 11.08 now, the Model B
-host 9.18 and 9.16. The other windows show a different game from before,
+before the half steps: the Master host 11.10 before and now, the Model B
+host 9.18 and 9.17. The other windows show a different game from before,
 so their figures do not compare with 53948c1's. In the sun's window
 the original's wireframe sun runs at 28.77 and the solid builds are held by
 the 25 fps cap. The Master port's own gate run (harness/mcompare.mjs
 --iters 10000 --loose, MCOMPARE PASS on all three; the deterministic
 pilot's launches, fights, approaches and jumps, the same game on every
 build; flight iterations per emulated second): the original 15.93, the
-Master port 15.15 (0.951), the Tube's Master host 22.98 (1.443), its Model B
-host 21.05 (1.321).
+Master port 15.21 (0.955), the Tube's Master host 22.99 (1.443), its Model B
+host 21.08 (1.323).
 
 ## One disc for both hosts (branch `tubediscs`, 2026-11-07)
 
