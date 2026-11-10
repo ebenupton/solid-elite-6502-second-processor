@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ p-ws.asm - the parasite's part of the renderer's shared workspace
-\ (gfx-ws.asm in the Master port): only what the frame layer leaves for the
+\ (elite-gfx.asm in the Master port): only what the frame layer leaves for the
 \ rasteriser, whose state is the host's. From &0D09, after the dummy SHEILA
 \ byte (elite-source.asm's VIA + &34, &0D08), to CODE% (&1400): the smaller
 \ arrays first, then from &0E00 the 192-byte row arrays, R_NDISCL page aligned

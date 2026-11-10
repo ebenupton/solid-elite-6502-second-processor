@@ -13,7 +13,7 @@
 \ and the cold data), then the frame layer (the renderer's files with
 \ _TPART = 1: the part that records and turns the display list into the
 \ rasteriser's inputs) and its state. Below CODE%, the renderer's shared
-\ workspace at the Master port's addresses (gfx-ws.asm), where the frame
+\ workspace at the Master port's addresses (elite-gfx.asm), where the frame
 \ layer leaves the rasteriser's inputs for the commands to send. Saved as
 \ PCODE from CODE%.
 \

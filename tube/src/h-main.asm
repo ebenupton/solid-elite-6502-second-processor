@@ -130,12 +130,6 @@ ENDIF
 IF _HOSTB = 0             \ (the Model B host's: hb-ovl.asm)
 ENDIF
 
-IF _HOSTB = 0
-.hdead                  \ (h-dead.asm's names: never run; R_SETBUF's patches of
- BRK                    \ their operands write here)
- EQUB 0, 0, 0
-ENDIF
-
 IF _HOSTB = 0             \ (the Model B host's: hb-main.asm, at a fixed place)
 .hrw                    \ register 1 empty: ring the parasite's doorbell (any
  BIT HR1S               \ byte through register 1, host to parasite), and again
@@ -157,11 +151,10 @@ ENDIF
 
 .h_init                 \ C_INIT: F_INIT's host part: the drawing code's state
 IF _HOSTB = 0             \ (R_INIT's part that the drawing reads: the stars'
- LDA #&FF               \ colour, no stars, no polygon rows, buffer 0's patches;
- STA R_SCOL             \ the Model B host's are set per command, and its R_PN
- LDA #0                 \ is bank P's)
+ LDA #&FF               \ colour, no stars, buffer 0's patches; the Model B
+ STA R_SCOL             \ host's are set per command)
+ LDA #0
  STA R_SN
- STA R_PN
  LDA #RASTBANK           \ (R_PRBUF is in bank 5's shared region: with bank 6
  STA &FE30              \ paged, this store went into bank 6, where the
  LDA #1                 \ overlays' storage now is)
@@ -195,7 +188,11 @@ ELSE
  CPY #&70
 ENDIF
  BNE hin1
- LDX #23+NDSTAR
+IF _HOSTB
+ LDX #23+NDSTAR         \ (and F_DSS after R_SS: hb-ws.asm)
+ELSE
+ LDX #NDSTAR-1
+ENDIF
 .hin2
  STA R_SS,X
  DEX

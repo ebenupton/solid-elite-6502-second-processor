@@ -1259,6 +1259,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 .f_sec EQUB 0           \ secondary disc
 
 ENDIF
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the disc layer is the parasite's)
 .f_discdirty            \ DIRTY[b][y] |= DISC[b][y] for all rows
  LDY #191
 .fdd1
@@ -1282,6 +1283,7 @@ ENDIF
  CPY #&FF
  BNE fdd1
  RTS
+ENDIF
 
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ f_sunrows / f_plrows: a disc's spans into R_NDISCL/R and R_NDT/R_NDB, from

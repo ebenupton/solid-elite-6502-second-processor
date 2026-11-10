@@ -242,7 +242,7 @@ R_BDX11 = 0
 R_BDX01 = 0
 R_BDX20 = 0
 R_BDX21 = 0
-ELSE
+ELIF _TPART <> 2              \ (the Tube's Master host: no two-colour discs)
 .R_BDN0  SKIP 192       \ boundaries per row, 0..3, or &40: more (unknown);
                         \ bit 7: the colour at the span's left end
 .R_BDX10 SKIP 192       \ their x (raw), the second ...
@@ -305,6 +305,7 @@ ENDIF
 
 \       Area: frame
 
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the disc layer is the parasite's)
 \ r_dw: span A..X (A <= X) in RZ_COL on the row set up; tracks wmin/wmax
 .r_dw
 {
@@ -341,6 +342,7 @@ ENDIF
   LDA #&40
 .^r_pt102 STA r_bdn,Y
   RTS
+ENDIF
 
 IF _HOSTB AND _RBANK = 2
   ORG R_BDN0 + &980             \ (Model B, bank P: buffer 0's runs between, hb-p.asm)
@@ -354,13 +356,15 @@ ENDIF
 \ Per-buffer row arrays: buffer 1's are buffer 0's + &300 (R_SETBUF adds 3 to
 \ the high byte of every patched operand).
 \ ============================================================================
+r_ystart = R_PYS        \ polygon rows ystart..ylast, yend = ylast + 1
+r_yend = R_PYE
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: phase B's rows only)
 r_ta = R_PTA            \ polygon edge tables (raster_scr)
-r_ystart = R_PYS        \ polygon rows ystart..ylast, yend = ylast + 1, any x
-r_ylast = R_PYL1        \ outside CL..CR (raster_scr: bank 7's phase A sets
-r_yend = R_PYE          \ them for 16-bit polygons), CR + 1
-r_xclip = R_PXC
+r_ylast = R_PYL1        \ (any x outside CL..CR: raster_scr; bank 7's phase A
+r_xclip = R_PXC         \ sets them for 16-bit polygons), CR + 1
 r_cr1 = R_PCR1
 r_tb = R_PTB
+ENDIF
 
 \ the API arrays live in raster_vars.asm; the rasteriser's private state,
 \ R_PRBUF (the current buffer), R_PRDYT/R_PRDYB (per buffer: rows that may
@@ -369,6 +373,7 @@ r_tb = R_PTB
 \ erased, not yet in WL), R_PRWT/R_PRWB (rows of WL/WR that may be non-empty)
 \ and R_PRBMODE (per buffer: its rows may hold boundaries), is at the end of
 \ the shared region (gfx-raster_lcold.asm)
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the star records only)
 r_dl = R_DIRTYL0
 r_dr = R_DIRTYR0
 r_sl = R_DISCL0
@@ -381,6 +386,7 @@ r_bdn = R_BDN0          \ per-buffer boundary rows (patched like r_dl)
 r_bdx0 = R_BDX00
 r_bdx1 = R_BDX10
 r_bdx2 = R_BDX20
+ENDIF
 IF _TPART <> 2             \ (the Tube's hosts: no R_DISC2)
 r_s2l = R_S2L0           \ the second disc's spans (R_DISC2: bank 5, elite-gfx.asm)
 r_s2r = R_S2R0
@@ -399,6 +405,7 @@ IF _HOSTB = 0
 .go
   STA R_PRBUF
   TAX
+IF _TPART <> 2             \ (the Tube's Master host: the star records' operands only)
   LDA r_sbh_dl,X          \ group r_dl
   STA r_pt408+2
   STA r_pt409+2
@@ -421,6 +428,7 @@ IF _HOSTB = 0
   STA r_pt24+2
   STA r_pt47+2
   STA r_pt49+2
+ENDIF
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
   STA r_pt36+2
@@ -437,6 +445,7 @@ IF _HOSTB = 0
   STA r_pt30+2
   STA r_pt34+2
   STA r_pt414+2
+IF _TPART <> 2
   LDA r_sbh_sl,X          \ group r_sl
   STA r_pt17+2
   STA r_pt21+2
@@ -468,7 +477,6 @@ IF _HOSTB = 0
   STA r_pt509+2
   STA r_pt511+2
   STA r_pt514+2
-IF _TPART <> 2             \ (the Tube's hosts: no R_DISC2)
   LDA r_sbh_s2l,X         \ group r_s2l: the second disc's spans (R_DISC2,
   STA r_pt500+2           \ gfx-raster_disc2.asm)
   STA r_pt501+2
@@ -483,8 +491,10 @@ IF _TPART <> 2             \ (the Tube's hosts: no R_DISC2)
   STA r_pt515+2
   STA r_pt517+2
   STA r_pt519+2
-ENDIF
   JMP r_sbpoly             \ (phase B's operands, in the polygon window)
+ELSE
+  RTS
+ENDIF
 }
 ELSE
 .R_SETBUF                 \ (Model B: this bank's operands only; hb-main's
@@ -698,7 +708,7 @@ ENDIF
 \ ============================================================================
 
 
-IF _HOSTB = 0 OR _RBANK = 2
+IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 2
 \ R_SETBUF's last part: phase B's DIRTY operands, in the polygon window (ANDY:
 \ entered and left with ROMSEL RASTBANK, X = buffer)
 .r_sbpoly
@@ -850,7 +860,8 @@ R_ENDPAGE 9
 .r_cidx EQUB 0, 0
 .r_ccnt EQUB 0, 0
 .r_cend EQUB 0, 0
-IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's)
+IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 1     \ (Model B: bank D's; the Tube's
+                          \ Master host: the disc layer is the parasite's)
 .r_smx                    \ r_dmb, an unchanged dirty row (X; A = dL + 1): a
   DEC A                   \ dirty extent clear of the span only needs blacking
   CMP R_NDISCR,X          \ (r_dp1, as r_drg would)
@@ -870,9 +881,9 @@ IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's)
   TXA
   TAY
   JMP r_gd1
-ENDIF
 ASSERT HI(R_DIRTYR0) = HI(R_DIRTYL0) + 1 AND HI(R_DIRTYR1) = HI(R_DIRTYL1) + 1
 ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
+ENDIF
 R_ENDPAGE 10
 .r_run11 R_RUN 11
 .r_ov SKIP 59           \ variables of routines never active together
@@ -934,6 +945,7 @@ R_ENDPAGE 13
   BEQ ok2
   BCS out
 .ok2
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host keeps no dirty extents)
   TYA                     \ extend the buffer's row range by row Y
   LDY R_PRBUF
   CMP R_PRDYT,Y
@@ -945,26 +957,31 @@ R_ENDPAGE 13
   STA R_PRDYB,Y
 .n4
   TAY                     \ Y = row again
+ENDIF
   JMP r_pset              \ tail call
 .out
   RTS
 }
 \ R_SETBUF's and r_dbm's high bytes of each buffer's arrays
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the star records' only)
 .r_sbh_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
 ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1)
 .r_sbh_dr EQUB HI(R_DIRTYR0), HI(R_DIRTYR1)
 ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
+ENDIF
 .r_sbh_s0a EQUB HI(r_s0a), HI(r_s1a)
 ASSERT LO(r_s0a) = LO(r_s1a)
 .r_sbh_s0x EQUB HI(r_s0x), HI(r_s1x)
 ASSERT LO(r_s0x) = LO(r_s1x)
 .r_sbh_s0y EQUB HI(r_s0y), HI(r_s1y)
 ASSERT LO(r_s0y) = LO(r_s1y)
+IF _TPART <> 2 OR _HOSTB
 .r_sbh_sl EQUB HI(R_DISCL0), HI(R_DISCL1)
 .r_sbh_s0k EQUB HI(r_s0k), HI(r_s1k)
 ASSERT LO(r_s0k) = LO(r_s1k)
 .r_sbh_s0r EQUB HI(r_s0r), HI(r_s1r)
 ASSERT LO(r_s0r) = LO(r_s1r)
+ENDIF
 .r_sbh_s0b EQUB HI(r_s0b), HI(r_s1b)
 ASSERT LO(r_s0b) = LO(r_s1b)
 R_ENDPAGE 14
@@ -1058,7 +1075,8 @@ R_ENDPAGE 16
 }
 R_ENDPAGE 17
 .r_run18 R_RUN 18
-.R_MARKDIRTY
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the dirty extents and the disc
+.R_MARKDIRTY              \ layer are the parasite's)
 {
   LDA R_XL
 .^r_pt05 CMP r_dl,Y
@@ -1092,12 +1110,14 @@ ASSERT LO(R_BDN0) = LO(R_BDN1)
 ASSERT LO(R_DISCL0) = LO(R_DISCL1)
 .r_sbh_sr EQUB HI(R_DISCR0), HI(R_DISCR1)
 ASSERT LO(R_DISCR0) = LO(R_DISCR1)
+ENDIF
 R_ENDPAGE 18
 .r_run19 R_RUN 19
 R_ENDPAGE 19
 .r_run20 R_RUN 20
 R_ENDPAGE 20
 .r_run21 R_RUN 21
+IF _TPART <> 2 OR _HOSTB
 .r_dp1
 {
   JSR r_rowset
@@ -1123,9 +1143,10 @@ R_ENDPAGE 20
   LDX R_XL
   JMP r_spc
 }
+ENDIF
 R_ENDPAGE 21
 .r_run22 R_RUN 22
-IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's)
+IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 1     \ (Model B: bank D's)
 \ r_bmn: black on [r_ba, r_bb] minus [r_nL, r_nR]
 .r_bmn
 {
@@ -1161,7 +1182,7 @@ IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's)
 ENDIF
 R_ENDPAGE 22
 .r_run23 R_RUN 23
-IF _HOSTB = 0 OR _RBANK = 1
+IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 1
 .r_crep5                  \ R_DISCROWS: r7_crep (returns X = R_PRBUF)
   STZ R_PRCWB
   LDA R_PRDYZ
@@ -1504,8 +1525,8 @@ ENDIF
 ENDIF
 \ r_lput2: pixels RZ_SB .. RZ_TA+1 of row RZ_Y in RZ_COL (row pointers set).
 \ Clobbers A, X, Y.
-IF _HOSTB = 0 OR _RBANK = 1     \ (Model B: bank D's, but the table)
-.r_lput2
+IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 1     \ (Model B: bank D's, but the table;
+.r_lput2                  \ the Tube's Master host: the disc layer is the parasite's)
 {
   LDA RZ_TA+1
   TAY                     \ Y = last pixel
@@ -1586,7 +1607,7 @@ FOR y, 0, 191             \ high byte of row y's byte 0
   EQUB &40 + 2 * (y DIV 8)
 NEXT
 ENDIF
-IF _HOSTB = 0 OR _RBANK = 1
+IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 1
 .long
   STX R_XL                \ up to 4 bytes: masked ends, whole bytes stored
   TYA                     \ through a byte pointer
@@ -1662,11 +1683,7 @@ ENDIF
   LDY RZ_Y                \ a span (r_rowset for the run page)
   JSR r_rowset
   LDX R_XL
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  JMP s_lspan             \ (the Tube's Master host: in HAZEL, h-sta.asm: the
-ELSE                      \ line's bank in, and this window back after)
   JMP r_spc
-ENDIF
 }
 ELSE
 }

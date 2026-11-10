@@ -141,7 +141,9 @@ zero_reg = None             # a register known to hold 0 (a run of converted STZ
 consumed = set()            # lines already emitted inside a (zp) block
 IZP = re.compile(r"^\(\s*([^,)]+)\s*\)$")
 # conditional blocks that the Model B host never assembles (IF ... _HOSTB = 0,
-# and the ELSE of IF _HOSTB): left as they are, without complaint
+# and the ELSE of IF _HOSTB): left as they are, without complaint. The IF and
+# ENDIF of a block it always assembles, with no ELSE (IF _TPART <> 2 OR
+# _HOSTB: the Master host's), are no barrier to the registers' liveness
 INACT = set()
 stack = []
 for k, l in enumerate(lines):
@@ -151,11 +153,14 @@ for k, l in enumerate(lines):
         off = (bool(re.search(r"_HOSTB\s*=\s*0\b", cond)) and "OR" not in cond) or \
               bool(re.match(r"^_TPART\s*(<>\s*2|=\s*[01])\s*$", cond))   # (the host's _TPART is 2)
         on = cond == "_HOSTB"
-        stack.append([off, on])
+        stack.append([off, on, k if re.match(r"^_TPART\s*<>\s*2\s+OR\s+_HOSTB$", cond) else None])
     elif re.match(r"^ELSE\b", t) and stack:
-        off, on = stack[-1]; stack[-1] = [on, off]
+        off, on, _ = stack[-1]; stack[-1] = [on, off, None]
     elif re.match(r"^ENDIF\b", t) and stack:
-        stack.pop()
+        st = stack.pop()
+        if st[2] is not None and not any(s0[0] for s0 in stack):
+            P[st[2]] = (P[st[2]][0], "", "", P[st[2]][3])
+            P[k] = (P[k][0], "", "", P[k][3])
     elif any(st[0] for st in stack):
         INACT.add(k)
 for k, l in enumerate(lines):

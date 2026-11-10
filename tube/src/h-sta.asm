@@ -56,9 +56,8 @@ ASSERT HI(RUN6) + 24 <= &C0
 
 .s_rbk EQUB 0           \ the row's run's bank (r_rowset)
 
-\ The row's bank in, from HAZEL (the callers in the rasteriser's windows
-\ would page themselves out): phase B's first row, and the line code's long
-\ spans, which have that window back after
+\ The row's bank in, from HAZEL (phase B's set-up, in the rasteriser's
+\ window, would page itself out): phase B's first row
 
 .s_pbxe
  LDA s_rbk
@@ -68,13 +67,6 @@ ASSERT HI(RUN6) + 24 <= &C0
  LDA s_rbk
  STA &FE30
  JMP r_pbx_o
-.s_lspan
- LDA s_rbk
- STA &FE30
- JSR r_spc
- LDA #RASTPOLY
- STA &FE30
- RTS
 
 \ s_gen: make the runs (hstart, once). Returns with bank 6 (GFXBANK) paged
 

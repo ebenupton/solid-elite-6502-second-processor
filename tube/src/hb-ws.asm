@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ hb-ws.asm - the Model B host's constants and workspace (docs/TUBE-MAP.md),
-\ in place of gfx-ws.asm (the Master host's), for the Model B assemblies:
+\ in place of the Master host's (build/h-ws.asm), for the Model B assemblies:
 \ hb-d.asm (bank D, the rasteriser's disc side), hb-p.asm (bank P, its
 \ polygon side) and hb-main.asm (bank F, main RAM and the stash bank S)
 \

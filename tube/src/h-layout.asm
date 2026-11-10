@@ -6,10 +6,11 @@
 \   * zero page, K% and WP: the game's definitions (build/elite-source-ws.asm),
 \     so that the host's copies of the game's drawing code see their
 \     variables where the parasite has them (the commands carry the values);
-\   * the renderer's shared workspace at &0E40-&1EDB (gfx-ws.asm), then from
-\     &1EDC (below &3000, as code that runs with ACCCON X set must be) the
-\     game's host blocks (the sound, the IRQ, CHPR and its font, UP), the
-\     renderer's glue and the command loop (h-main.asm);
+\   * the kernel's workspace from &0E00: of the renderer's shared workspace,
+\     only what the host's code names (below); then from CODE% (&1EDC, below
+\     &3000, as code that runs with ACCCON X set must be) the game's host
+\     blocks (the sound, the IRQ, CHPR and its font, UP), the renderer's glue
+\     and the command loop (h-main.asm);
 \   * the rasteriser in bank 5 and ANDY, the frame layer's host part (the text
 \     map, the text overlay, the sights) in bank 6, as the Master port's;
 \   * the STA runs (h-sta.asm) in banks 4, 5, 6 and 7, their pages' tails
@@ -36,7 +37,18 @@ _RBANK = 0
 OVLBANK = 4             \ the parasite's overlays' images (storage only: h_ovlget):
 OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "build/elite-source-ws.asm"
- INCLUDE "build/gfx-ws.asm"
+
+\ The kernel's workspace: of the renderer's shared workspace (elite-gfx.asm),
+\ only what the host's code names, at the host's own addresses (tube/build.sh
+\ writes build/h-ws.asm from these lines, the declarations in the source's
+\ order; a name the host's code uses that is not listed fails the assembly):
+\ the lines' end points, phase B's colours and rows, the stars, the directly
+\ drawn stars' sizes and DFS's lasting bytes
+\ HWS R_X0 R_Y0 R_X1 R_Y1 R_COL2 R_COL3 R_PYS R_PYE
+\ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS DFSST
+ ORG &0E00
+ INCLUDE "build/h-ws.asm"
+ PRINT "Host: the kernel's workspace &", ~HWS_START, "-&", ~HWS_END-1
 
 HLOW = &0400            \ (free after the boot: see above)
 HLOW_END = &0700
@@ -54,7 +66,6 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
 .H_END
  PRINT "Host: main code &", ~H_START, "-&", ~H_END-1, ", free to &3000: ", &3000-H_END
  SAVE "build/HMAIN.bin", H_START, H_END, hwrch
- INCLUDE "tsrc/h-dead.asm"
 
 
  CLEAR &8000, &C000      \ bank 5: the rasteriser's shared region and disc window

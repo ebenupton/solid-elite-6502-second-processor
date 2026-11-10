@@ -22,13 +22,6 @@ RUN6 = &9F00            \ (h-layout.asm's bound on bank 6, as h-sta.asm's)
  LDA s_rbk
  STA &FE30
  JMP r_pbx_o
-.s_lspan
- LDA s_rbk
- STA &FE30
- JSR r_spc
- LDA #RASTPOLY
- STA &FE30
- RTS
 
 \ s_clr: &4000-&6FFF black in the buffer ACCCON X chooses (f_b0new, C_CLS).
 \ Returns with bank 6 (GFXBANK) paged, as h-sta.asm's
