@@ -31,6 +31,9 @@ export class Observer {
     constructor(m) {
         this.m = m; this.q = [];
         this.mode = m.sy.DILQ !== undefined ? 1 : 2;
+        // stray dots the harness's pokes leave on the scanner (see pokePhantoms), and each
+        // slot's dot as last decoded
+        this.phantoms = []; this.slotDots = [];
         const prev = m.onIter;
         m.onIter = mm => { if (prev) prev(mm); this.onIter(); };
         // the dashboard image as the loader left it, at the game's entry (S%)
@@ -69,6 +72,7 @@ export class Observer {
     onIter() {
         const m = this.m, sy = m.sy;
         if (!this.bg) return;
+        this.pokePhantoms();
         // in flight (not docked, not on the title or the death screen), in a space view
         if (m.rb(sy.QQ12) || m.rb(sy.QQ11) || m.rb(sy.MCNT) === 0xff) return;
         this.q.push({ iter: m.iter, ...this.decode() });
@@ -108,6 +112,7 @@ export class Observer {
         const d = this.dots();
         out.dots = d.dots; out.lit = d.lit;
         out.ships = this.shipDots();
+        out.phantoms = this.phantoms;
         return out;
     }
     colourClass(c, x0, y) {
@@ -158,23 +163,51 @@ export class Observer {
     // the original's SCAN computes X1, Y1 and Y2 (8-bit arithmetic and all)
     shipDots() {
         const m = this.m, sy = m.sy, out = [];
+        this.slotDots = [];
         for (let i = 0; i < 12; i++) {
-            const type = m.rb(sy.FRIN + i);
-            if (!type) break;
-            if (type & 0x80) continue;
-            const b = sy["K%"] + 37 * i, r = k => m.rb(b + k);
-            if (!(r(31) & 0x10) || ((r(1) | r(4) | r(7)) & 0xc0)) continue;
-            const x1 = (125 + (r(2) & 0x80 ? (-r(1)) & 255 : r(1))) & 0xfe;
-            let a = r(7) >> 2, c = 0;
-            if (r(8) & 0x80) { a ^= 255; c = 1; }
-            const y2 = ((a + 35 + c) & 255) ^ 255;
-            a = r(4) >> 1; c = 0;
-            if (!(r(5) & 0x80)) { a ^= 255; c = 1; }
-            let y1 = a + y2 + c; const neg = (y1 & 0x80) !== 0; y1 &= 255;
-            y1 = !neg ? 246 : Math.min(246, Math.max(194, y1));
-            out.push([x1, y1 - 192, type, y2 - 192]);
+            if (!m.rb(sy.FRIN + i)) break;
+            const d = this.slotDot(i);
+            this.slotDots[i] = d;
+            if (d) out.push(d);
         }
         return out;
+    }
+    // slot i's dot, as shipDots, or null if it has none
+    slotDot(i) {
+        const m = this.m, sy = m.sy;
+        const type = m.rb(sy.FRIN + i);
+        if (!type || (type & 0x80)) return null;
+        const b = sy["K%"] + 37 * i, r = k => m.rb(b + k);
+        if (!(r(31) & 0x10) || ((r(1) | r(4) | r(7)) & 0xc0)) return null;
+        const x1 = (125 + (r(2) & 0x80 ? (-r(1)) & 255 : r(1))) & 0xfe;
+        let a = r(7) >> 2, c = 0;
+        if (r(8) & 0x80) { a ^= 255; c = 1; }
+        const y2 = ((a + 35 + c) & 255) ^ 255;
+        a = r(4) >> 1; c = 0;
+        if (!(r(5) & 0x80)) { a ^= 255; c = 1; }
+        let y1 = a + y2 + c; const neg = (y1 & 0x80) !== 0; y1 &= 255;
+        y1 = !neg ? 246 : Math.min(246, Math.max(194, y1));
+        return [x1, y1 - 192, type, y2 - 192];
+    }
+
+    // A harness poke (styles.mjs: the scoop pokes, which put an object under the nose,
+    // and any other that moves a ship) changes a ship's coordinates between the SCAN that
+    // drew its dot and the one that would erase it, in both machines alike: the old dot
+    // and stick stay on the scanner, and the next erase draws one at the new position,
+    // which nothing erases either. Neither belongs to a ship in K%, so when a ship's dot
+    // later crosses one, the two mix as overlapping ships' dots do (and differently in the
+    // two palettes: the original's white Thargoid and yellow missile are both the port's
+    // yellow, for one). Each is kept here as [x, line, 0, stick base, iteration], from
+    // the slot's dot as last decoded and as the poke leaves it, until neither screen
+    // shows anything there (compare)
+    pokePhantoms() {
+        const pk = this.m.pokes && this.m.pokes.get(this.m.iter);
+        if (!pk) return;
+        const slots = new Set(pk.filter(([sym, off]) => sym === "K%" && off % 37 < 9).map(([, off]) => Math.floor(off / 37)));
+        for (const i of slots) {
+            const now = this.slotDot(i), was = this.slotDots[i];
+            for (const d of [was, now]) if (d) this.phantoms.push([d[0], d[1], 0, d[3], this.m.iter]);
+        }
     }
 
     // differences between the original's record r and the port's c
@@ -204,8 +237,21 @@ export class Observer {
         // (a blob of dots and sticks side by side: count the ships whose dots fall in its box)
         // (a blob of dots and sticks side by side: count the ships whose dot or stick, from
         // the dot's line to the stick's base, falls in its box)
-        const overlap = ([x, y, n = 1, e = x + 3]) => (r.ships || []).filter(([sx, sy, , sb = sy]) =>
+        // (the stray dots that pokes leave count as ships here, by their dots alone: a dot
+        // beside a stray stick finds the stick lit in both screens: pokePhantoms)
+        const ph = r.phantoms || [], objs = [...(r.ships || []), ...ph.map(([x, y]) => [x, y])];
+        const overlap = ([x, y, n = 1, e = x + 3]) => objs.filter(([sx, sy, , sb = sy]) =>
             sx >= x - 4 && sx <= e + 4 && Math.min(sy, sb) - 1 <= y + 2 && Math.max(sy, sb) + 1 >= y - n - 1).length >= 2;
+        // a stray dot that neither screen shows, with no ship near it, has been EORed away
+        // (by another, mostly: the next poke's): forget it (but not before the erase that
+        // draws one at a poke's new position, in the iteration after the poke)
+        for (let i = ph.length - 1; i >= 0; i--) {
+            const [px, py, , pb, at] = ph[i], y0 = Math.min(py, pb) - 1, y1 = Math.max(py, pb) + 1;
+            if (r.iter - at < 2) continue;
+            const box = lit => lit.some(v => { const xx = v & 255, yy = v >> 8; return xx >= px - 3 && xx <= px + 4 && yy >= y0 && yy <= y1; });
+            const shipNear = (r.ships || []).some(([sx, sy, , sb = sy]) => Math.abs(sx - px) <= 8 && Math.min(sy, sb) - 2 <= y1 && Math.max(sy, sb) + 2 >= y0);
+            if (!box(r.lit) && !box(c.lit) && !shipNear) ph.splice(i, 1);
+        }
         const ov = [...miss.filter(overlap), ...extra.filter(overlap)];
         if (ov.length) out.push({ what: "scanner dots overlapping (expected)", ref: miss.filter(overlap), cand: extra.filter(overlap), expected: true });
         miss = miss.filter(d => !overlap(d)); extra = extra.filter(d => !overlap(d));
