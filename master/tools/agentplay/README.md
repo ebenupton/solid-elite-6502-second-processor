@@ -114,8 +114,9 @@ Pixels are never compared.
   The patch goes into NA% (with its checksum) at the first QU5, before DFAULT copies it.
   The choices are:
   - `jameson`, `trader`, `equipped`, `rich`, `deadly`, `mission2` and `wanted`;
-  - for the missions: `debrief1` (the Constrictor destroyed), `galaxy3` (Ceerdi, with mission
-    1 done) and `debrief2` (Birera, with the plans);
+  - for the missions: `orarra` (galaxy 2 at Orarra, mission 1 under way: the Constrictor is
+    there at the launch), `debrief1` (the Constrictor destroyed), `galaxy3` (Ceerdi, with
+    mission 1 done) and `debrief2` (Birera, with the plans);
   - `diso`: at Diso, all fitted, with Quator (14, 137), a system with a moon, selected (the
     moon movie's start, `moonmovie.mjs`).
 - `--mode`: elite-agent's own modes. The choices are `efficient`, `curious`, `fair`,
@@ -138,12 +139,18 @@ Pixels are never compared.
   its own. It covers E.C.M., the energy bomb, the escape pod, the views, missiles, the
   galactic hyperdrive, hyperspace, in-system jumps, the docking computer and the charts.
   Pokes drain the shields and energy, heat the cabin or empty the tank, at an iteration
-  boundary in both machines. Docked, from the Status screen (up to three a dock, the agent's
+  boundary in both machines. Some pokes come only by name, not in `all`: `sun` puts the sun
+  just ahead (heat, fuel scooping, death by heat); `ghypfill` refits the galactic
+  hyperdrive, so that `ghyp` can cross several galaxies; `scoop`, `scoopnow` and
+  `scoophold` put something scoopable from the bubble (a cargo canister, escape pod,
+  alloy plate, splinter or Thargon) under the nose, slow, for the scoops
+  (`scoopnow` inside the scoop test at once, `scoophold` with the hold emptied first, as a
+  full hold destroys the object instead). Docked, from the Status screen (up to three a dock, the agent's
   keys held back meanwhile): `disc` is the disc menu (`dcat`, `dnoload`, `dnodel`, `dsave`,
   `ddel`, `dbad`, `dname`, `ddefault`, `dexit`; `dcat1`, an empty drive, and `dnameesc`, a
   name abandoned with ESCAPE, only by name), and `docked` the screens the agent never visits
   or gets wrong (`dmarket`, `dchart`, `dequip`, `dsell`). `all`, `disc` and `docked` can be
-  items of a list.
+  items of a list, with a factor too (`disc*2`: each of its actions at twice the rate).
 - `--seed`: sets RAND at TT170. It also seeds the chaos overlay.
 
 All of this goes through the input log, so every session replays exactly.
@@ -209,11 +216,19 @@ writes `campaign.json` and `campaign.md`, which give:
 - each session's settings and result;
 - coverage, as the original's routine entries summed over the campaign, and the original's
   whole-code coverage;
+- what each session reached: the galaxies, cargo and fuel scooped (from the reference's
+  state at every MLOOP: the hold or the tank going up in flight) and deaths, and the
+  features seen over the campaign (summary.json's `features`: the escape pod and energy
+  bomb used, missiles fired, E.C.M., the docking computer, mission stages as TP changes,
+  witchspace, the sun close, the Constrictor and Thargoids about);
 - every finding, grouped across sessions.
 
 Plans are lists in campaign.mjs: `default` (22 sessions), `extra` (12 more: the missions'
 later stages, deaths, pods, a long career), `night`, `night2` (the disc menu and docked
-screens), `night3`, `night4` (40 generated sessions each) and `quick`. No workaround is
+screens), `night3`, `night4` (40 generated sessions each), `soak` (14 long curious-mode
+sessions, to run at `--scale 0.25`: both missions through every briefing and debriefing,
+all eight galaxies, cargo and fuel scooped, the equipment, deaths, the disc menu and docked
+screens, two loads), `soakquick` (the soak's new kinds, briefly) and `quick`. No workaround is
 used unless `--workaround` asks for one. The candidate (master/build's disc, symbols and
 banks, or `--cand`/`--csyms`) is copied into `DIR/cand-build` when the campaign first
 starts, and every session runs that copy, so a rebuild during a campaign changes nothing.
