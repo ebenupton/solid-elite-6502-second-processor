@@ -491,12 +491,21 @@ ENDIF
 .h4body
  LDA HR4D
  CMP #C_KEYS
+IF _HOSTB = 0
+ BNE P%+5
+ JMP h4k
+ CMP #C_IRB             \ (the Master host: the short answer early, h4irq)
+ BEQ h4i
+ CMP #C_TOKEN
+ BEQ h4t
+ELSE
  BNE P%+5
  JMP hk_body
  CMP #C_TOKEN
  BEQ h4t
  CMP #C_IRB
  BEQ h4i
+ENDIF
  CMP #C_WSCAN           \ C_WSCAN: pending, the next vsync interrupt answers it
  BEQ h4w                \ (H_VSYNC; Model B: hb_irq)
  CMP #C_NOISE
@@ -507,8 +516,14 @@ ENDIF
  BIT HR4S
  BPL h4d
  LDA HR4D
+IF _HOSTB = 0
+ CLI                    \ (the Master host: interrupts on once register 4's
+ENDIF                   \ bytes are all read, so timer 1 is not held off: h4irq)
  JMP hdks_body
 .h4i
+IF _HOSTB = 0
+ CLI                    \ (the Master host: as C_DKS's)
+ENDIF
  LDA VIA+&40
  HTX
  RTS
@@ -516,6 +531,9 @@ ENDIF
  BIT HR4S               \ the null included (the host keeps QQ18 as it keeps
  BPL h4t                \ the overlays' images: data only, build/HQQ18.bin, and
  LDX HR4D               \ where each token starts, build/htokix.asm)
+IF _HOSTB = 0
+ CLI                    \ (the Master host: as C_DKS's)
+ENDIF
  LDA HTOKL,X
  STA h4tl+1
  LDA HTOKH,X
@@ -561,13 +579,22 @@ ENDIF
 .hwsp EQUB 0            \ bit 7: a C_WSCAN waits for the next vsync
 
 IF _HOSTB = 0
-\ h4irq: IRQ1V while the game runs (h4on bit 7): register 4's requests
-\ first, then the game's IRQ1. Off while the MOS runs a disc command, whose
-\ Tube traffic uses register 4 itself
+\ h4irq: IRQ1V while the game runs (h4on bit 7): timer 1 first, then
+\ register 4's requests, then the rest of the game's IRQ1. Off while the MOS
+\ runs a disc command, whose Tube traffic uses register 4 itself. Timer 1 is
+\ the split at the panel's top: IRQ1 sets ACCCON D there (the panel is in
+\ shadow RAM), and the write must land in line 191's horizontal blanking, or
+\ when main RAM's buffer is on show the panel's top lines come from main RAM
+\ (&7000 up) for a field. So a request never holds it off for long: a timer
+\ 1 interrupt goes straight to IRQ1, and so does one that comes as a
+\ request starts; a request runs with interrupts on once register 4's bytes
+\ are read (C_KEYS, C_IRB, C_DKS, C_TOKEN: a nested request is answered whole)
 
 .h4irq
- BIT h4on
- BPL h4x
+ BIT VIA+&4D            \ timer 1 (the split at the panel's top) before any
+ BVS h4x                \ request: IRQ1's ACCCON D write must land in line
+ BIT h4on               \ 191's blanking, and a request waits (the Tube's
+ BPL h4x                \ interrupt stays asserted, so it comes back after)
  BIT HR4S
  BMI h4r
 .h4x
@@ -575,11 +602,25 @@ IF _HOSTB = 0
 .h4r
  PHX
  PHY
+ LDA &FC                \ (A as interrupted, kept on the stack: an interrupt
+ PHA                    \ within the request overwrites &FC)
+ BIT VIA+&4D            \ timer 1 again, as the request has not started: if
+ BVS h4u                \ it has fired since, the split first
  JSR h4body
+ PLA
  PLY
  PLX
- LDA &FC
  RTI
+.h4u
+ PLA
+ PLY
+ PLX
+ JMP IRQ1
+.h4k                    \ C_KEYS: the scan runs with interrupts on (register
+ CLI                    \ 4's interrupt is cleared, as HR4D has been read), so
+ JSR hk_body            \ that timer 1 can still make the split in time, as a
+ SEI                    \ scan is longer than the blanking; vsync is masked
+ RTS                    \ while it scans
 .h4on EQUB 0
 ENDIF
 
