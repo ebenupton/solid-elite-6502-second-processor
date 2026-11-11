@@ -70,11 +70,7 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCLUDE "build/gfx-raster-kernel.asm"
  INCLUDE "build/gfx-raster_lcold-kernel.asm"
  INCLUDE "build/gfx-raster_polyb-kernel.asm"
-IF _HSTA
  INCLUDE "tsrc/h-sta.asm"
-ELSE
- INCLUDE "tsrc/h-rows.asm"   \ (FILL=rows: the row runs, bank 5's)
-ENDIF
  INCLUDE "build/elite-source-host.asm"
  INCLUDE "src/gfx-gvars.asm"
  INCLUDE "src/gfx-tramp.asm"

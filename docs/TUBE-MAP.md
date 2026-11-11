@@ -293,15 +293,12 @@ banks and patches their numbers into the images (build/hb-patch.asm).
 
 The Master host fills spans through full `STA abs` runs (h-sta.asm: one
 run per line of the 3D view, an `STA abs` per byte, 37.6K, the same
-address in both buffers, made at the host's start). `FILL=rows sh
-tube/build.sh` builds it instead with the row runs (h-rows.asm: one run
-per character row, `STA abs,Y` with Y the row, all in bank 5, as the
-Master port's and the Model B host's, but with no patching: the two
-buffers are at the same address), for comparison; the code that enters
-the runs stays where it is. At a 3 MHz parasite the STA runs are
-0.3-2.2% faster than the row runs (TUBE-REPORT.md). The Model B host has
-the row runs, a set per buffer (48 pages of bank P, its lines moved to
-bank F to make the room), so that no run is patched for a buffer.
+address in both buffers, made at the host's start). At a 3 MHz parasite
+they are 0.3-2.2% faster than the row runs (one run per character row,
+`STA abs,Y` with Y the row, as the Master port's: TUBE-REPORT.md). The
+Model B host has the row runs, a set per buffer (48 pages of bank P, its
+lines moved to bank F to make the room), so that no run is patched for a
+buffer.
 
 The Model B host's NMOS code is tube/tools/nmos.py's conversion with hand
 fixes (tube/build.sh's --sub) where nmos.py, which keeps every register

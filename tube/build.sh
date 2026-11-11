@@ -11,10 +11,7 @@
 #   (tube/tools/discbudget.py prints the disc's room at the end)
 #
 # Options (environment), as master/build.sh's: BANDS=on (banded planets),
-# RINGS=on (planet rings), MOON=on (moons), each off by default. FILL=rows:
-# the Master host fills spans through the row runs (one per character row,
-# in bank 5, as the Master port's and the Model B host's) instead of its STA
-# runs (h-sta.asm), for comparison.
+# RINGS=on (planet rings), MOON=on (moons), each off by default.
 #
 # The game's source is master/src's, assembled with _TUBE (and the renderer's
 # files with _TPART = 1 for the parasite's part, 2 for the host's). The stage
@@ -43,7 +40,6 @@ _PLANET_RINGS=$( [ "${RINGS:-off}" = on ] && echo TRUE || echo FALSE )
 _PLANET_MOON=$( [ "${MOON:-off}" = on ] && echo TRUE || echo FALSE )
 _TUBE=TRUE
 _TDUMB=TRUE
-_HSTA=$( [ "${FILL:-sta}" = rows ] && echo FALSE || echo TRUE )
 EOF
 : > build/compile.txt
 python3 tools/dashboard.py build > /dev/null
