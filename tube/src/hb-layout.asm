@@ -35,13 +35,13 @@
 \     own variables (hb-kernel.asm, in a scope of its own, as the per-x
 \     tables are in bank 7 too);
 \   * bank 7 (GFXBANK, the resting bank, paged whenever the host runs outside
-\     bank 4): all of the host's other code, one run from &8000 in the
-\     Master host's order: what the Master host keeps in its kernel (the
-\     renderer's shared variables, the command loop, the interrupts, the
-\     game's host blocks), then what it keeps in bank 7 (the panel's
-\     drawing, its log tables last, the second copy of the per-x tables
-\     after them, page aligned, the lines that read them, the frame
-\     layer's host part, the rarely run code, the handlers, the rasteriser's
+\     bank 4): all of the host's other code, one run from &8000: first the
+\     page aligned tables (the panel's log tables, then the second copy of
+\     the per-x tables), then in the Master host's order what the Master
+\     host keeps in its kernel (the renderer's shared variables, the
+\     command loop, the interrupts, the game's host blocks), then what it
+\     keeps in bank 7 (the panel's drawing, the lines, the frame layer's
+\     host part, the rarely run code, the handlers, the rasteriser's
 \     own place: R_SETBUF, the dots, the stars, r_pset); then the recursive
 \     tokens; then the room it leaves; then its workspace, one run to the
 \     bank's top: f_enter's buffers, of the renderer's shared workspace
@@ -131,6 +131,14 @@ r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
  GUARD &C000
  ORG &8000
 .F_START
+ INCLUDE "build/elite-source-hostba.asm"  \ (first, as the bank's first pages are:
+ ASSERT log = F_START                     \ log, logL and alogh, then the per-x
+.r_xo                   \ tables: bank 4's (gfx-raster.asm's, the span kernel's)
+ R_XOTAB                \ again, from the one source (gfx-raster_xtab.asm), for
+.r_lm                   \ R_LINE, r_pset and the stars, all page aligned)
+ R_LMTAB
+.r_rm
+ R_RMTAB
  INCLUDE "build/nmos/gfx-gvars.asm"
  CPU 0
  INCLUDE "build/nmos/h-main.asm"
@@ -140,14 +148,8 @@ r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
  CPU 0
  INCLUDE "build/nmos/gfx-gluehooks.asm"
  CPU 0
- INCLUDE "build/nmos/elite-source-hostb.asm"   \ (the panel's drawing: its log tables
- CPU 0                                         \ last, page aligned)
-.r_xo                   \ the per-x tables: bank 4's (gfx-raster.asm's, the span
- R_XOTAB                \ kernel's) again, from the one source (gfx-raster_xtab.asm),
-.r_lm                   \ for R_LINE (after them), r_pset and the stars
- R_LMTAB
-.r_rm
- R_RMTAB
+ INCLUDE "build/nmos/elite-source-hostb.asm"   \ (the panel's drawing)
+ CPU 0
  INCLUDE "build/nmos/gfx-raster_line.asm"
  CPU 0
  INCLUDE "build/nmos/gfx-frame.asm"

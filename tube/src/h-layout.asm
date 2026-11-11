@@ -92,16 +92,18 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  GUARD H_WS
 .H_START
  CPU 1
-\ The renderer's shared variables and the command loop, then the span
-\ kernel: the code that enters the STA runs (the blocks of the rasteriser's
-\ files tagged "Area: kernel", streams.py's passes: r_rowset, r_spc, the
-\ per-x tables, page aligned, R_SPAN, r_dspin, phase B), the runs' tables
-\ and generator (h-sta.asm)
+\ The per-x tables (the rasteriser's block tagged "Area: kernel, aligned"),
+\ then the span kernel, the code that enters the STA runs (the blocks of the
+\ rasteriser's files tagged "Area: kernel", streams.py's passes: r_rowset,
+\ r_spc, R_SPAN, phase B, r_dspin: in this order r_spc's and r_dspin's
+\ loops cross no page), then the renderer's shared variables and the command
+\ loop, the runs' tables and generator (h-sta.asm)
+ INCLUDE "build/gfx-raster-kalign.asm"   \ (first, as the kernel's first page is:
+ INCLUDE "build/gfx-raster-kernel.asm"   \ the per-x tables, page aligned)
+ INCLUDE "build/gfx-raster_polyb-kernel.asm"
+ INCLUDE "build/gfx-raster_lcold-kernel.asm"
  INCLUDE "src/gfx-gvars.asm"
  INCLUDE "tsrc/h-main.asm"
- INCLUDE "build/gfx-raster-kernel.asm"
- INCLUDE "build/gfx-raster_lcold-kernel.asm"
- INCLUDE "build/gfx-raster_polyb-kernel.asm"
  INCLUDE "tsrc/h-sta.asm"
  INCLUDE "build/elite-source-host.asm"
  INCLUDE "src/gfx-gluehooks.asm"
@@ -129,10 +131,11 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  GUARD &C000
  ORG &9400
 .B7_START
- INCLUDE "src/gfx-raster_line.asm"        \ (first: the log tables after it start
- INCLUDE "build/elite-source-hostb.asm"   \ a page with no padding before them)
+ INCLUDE "build/elite-source-hostba.asm"  \ (first, as the bank's first page is:
+ ASSERT log = B7_START                    \ log, logL and alogh, page aligned)
+ INCLUDE "src/gfx-raster_line.asm"
+ INCLUDE "build/elite-source-hostb.asm"
  CPU 1
- ASSERT log = dsg9 + 1
  INCLUDE "src/gfx-frame.asm"
  INCLUDE "src/gfx-frame_cold.asm"
  INCLUDE "tsrc/h-cold.asm"

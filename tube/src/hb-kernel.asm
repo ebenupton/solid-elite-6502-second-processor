@@ -1,10 +1,11 @@
 \ ******************************************************************************
 \
 \ hb-kernel.asm - the Model B host's span kernel, in bank 4 after the row runs
-\ (hb-layout.asm): the code that enters them, the rasteriser's blocks tagged
-\ "Area: kernel" (streams.py's passes: r_rowset, r_sbruns, r_spc, the per-x
-\ tables, R_SPAN, r_dspin, phase B) and phase B's set-up and entry, then the
-\ run pages' tables; and the trampolines into it, in main RAM (hb-res2.asm).
+\ (hb-layout.asm): the per-x tables (the rasteriser's block tagged "Area:
+\ kernel, aligned"), the code that enters the runs, the rasteriser's blocks
+\ tagged "Area: kernel" (streams.py's passes: r_rowset, r_sbruns, r_spc,
+\ R_SPAN, r_dspin, phase B) and phase B's set-up and entry, then the run
+\ pages' tables; and the trampolines into it, in main RAM (hb-res2.asm).
 \ Its names are its own: tube/build.sh assembles it in a scope (its INCLUDEs
 \ flattened into build/nmos/hb-kernel.asm, as BeebAsm includes no file within
 \ braces), because the per-x tables have the same names in bank 7, where the
@@ -18,7 +19,8 @@
 \ hb-layout.asm's HWS lines: tube/build.sh writes build/hb-wsp.asm from
 \ these): phase B's colours and rows, which p_polyin receives
 \ HWSP R_COL2 R_COL3 R_PYS R_PYE
- INCLUDE "build/hb-wsp.asm"
+ INCLUDE "build/gfx-raster-kalign.asm"   \ (first, as the bank's &B000 is: the
+ INCLUDE "build/hb-wsp.asm"              \ per-x tables, page aligned)
  INCLUDE "build/nmos/gfx-raster-kernel.asm"
  CPU 0
  INCLUDE "build/nmos/gfx-raster_lcold-kernel.asm"

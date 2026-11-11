@@ -702,14 +702,14 @@ ENDIF
 \ (free to the per-x tables)
 .r_tfree
 
-\       Area: kernel
+\       Area: kernel, aligned
 
 \ ============================================================================
 \ Page-aligned per-x tables, at &9C00: the row runs after them start at &A000
 \ (a page whose number is a multiple of 32: asserted below)
 \ ============================================================================
-IF _TPART = 2               \ (the Tube's hosts: in the kernel, the Model B's in bank 4)
-ALIGN &100
+IF _TPART = 2               \ (the Tube's hosts: first in the kernel, the Model B's
+ASSERT LO(P%) = 0           \ in bank 4: a pass of their own, build/gfx-raster-kalign.asm)
 ELSE
 ASSERT P% <= r_start + &C00
 SKIP r_start + &C00 - P%

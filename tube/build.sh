@@ -273,7 +273,7 @@ with open("build/hbanks.txt", "w") as f:
     for src in ("build/gfx-raster-frame.asm", "build/gfx-raster_lcold-frame.asm", "src/gfx-raster_poly.asm",
                 "build/gfx-raster_polyb-frame.asm", "src/gfx-raster_line.asm", "src/gfx-raster_lineb.asm",
                 "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "tsrc/h-cold.asm",
-                "tsrc/h-panel.asm", "tsrc/h-prim.asm", "build/elite-source-hostb.asm"):
+                "tsrc/h-panel.asm", "tsrc/h-prim.asm", "build/elite-source-hostb.asm", "build/elite-source-hostba.asm"):
         for m in re.finditer(r"^\s*\.([A-Za-z_][\w%]*)", open(src, encoding="latin-1").read(), re.M):
             f.write("%s 7\n" % m.group(1))
 PY

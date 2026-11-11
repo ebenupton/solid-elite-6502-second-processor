@@ -148,10 +148,12 @@
 # "bothb" (the same for the host's sideways RAM copy, the dashboard's
 # drawing), "none" (neither side's: the Master port's own), "both, ovl D" and
 # "bothb, ovl D" (the host's copy as "both" and "bothb", the parasite's in
-# overlay D), and "bothb, aligned" (the host's as "bothb", the parasite's in
-# a resident pass of its own, build/elite-source-aligned.asm: the page aligned
-# tables, which p-layout.asm places where they need no padding). The host's copies are build/elite-source-host.asm and
-# -hostb.asm, and the configuration with the workspaces
+# overlay D), and "bothb, aligned" (the page aligned tables: on each side a
+# pass of its own, which the layouts place where they need no padding, the
+# parasite's resident, build/elite-source-aligned.asm, p-layout.asm, the
+# host's build/elite-source-hostba.asm). The host's copies are
+# build/elite-source-host.asm, -hostb.asm and -hostba.asm, and the
+# configuration with the workspaces
 # build/elite-source-ws.asm (the same as -config). Calls into
 # overlay D go through a stub of the routine's name in build/elite-stubs.asm,
 # JSR povd : EQUW X_C (povdj for a target that never returns: tube/src/
@@ -974,6 +976,9 @@ def stub_none(lines, bl):
 #   \       Area: kernel            (the Master host's kernel, main RAM: the
 #                                    code that enters the STA runs,
 #                                    tube/src/h-layout.asm)
+#   \       Area: kernel, aligned   (the kernel's page aligned tables, first
+#                                    in the kernel, where they need no
+#                                    padding)
 #   \       Area: ovl D             (the parasite's overlay D: p-layout.asm)
 #   \       Area: page FE           (the parasite's page at &FE00, below the
 #                                    Tube's registers)
@@ -983,7 +988,8 @@ def stub_none(lines, bl):
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
-# build/<file>-kernel.asm, build/<file>-ovld.asm, and the parasite's
+# build/<file>-kernel.asm, build/<file>-kalign.asm, build/<file>-ovld.asm,
+# and the parasite's
 # build/<file>-fe.asm, -ff.asm and -boot.asm. The Master port,
 # the Model B host and (for the files it does not pass) the Master host
 # assemble the file itself, where the tag lines are comments. The parasite
@@ -995,7 +1001,7 @@ FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", 
              "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm", "tsrc/p-rast.asm",
              "tsrc/p-disc.asm", "tsrc/p-emit.asm", "tsrc/p-kept.asm", "tsrc/p-poly.asm", "tsrc/p-onepass.asm",
              "tsrc/p-probe.asm", "tsrc/p-lost.asm")
-FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "ovl D": "ovld",
+FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "kernel, aligned": "kalign", "ovl D": "ovld",
          "page FE": "fe", "page FF": "ff", "boot": "boot"}
 
 
@@ -1063,7 +1069,7 @@ def tube_data(errors):
 
 def tube_main(lines, bl, eff, macros, errors):
     """the Tube's copies (above, "The Tube"): config and ws, run, cold (overlay
-    D), host, hostb; the stubs into overlay D; the data's; the frame passes"""
+    D), host, hostb, hostba; the stubs into overlay D; the data's; the frame passes"""
     for s0, e0, name, area in bl:
         if TUBETAG.get(s0) in OVLD:
             TUBEOVL.add(name)
@@ -1118,7 +1124,8 @@ def tube_main(lines, bl, eff, macros, errors):
             copies[a] += [lines[i] if on else "" for i in range(s0, e0)]
     # the hosts' copies: their blocks (not the configuration's)
     for nm, tags in (("host", ("host", "both", "both, ovl D")),
-                     ("hostb", ("hostb", "bothb", "bothb, ovl D", "bothb, aligned"))):
+                     ("hostb", ("hostb", "bothb", "bothb, ovl D")),
+                     ("hostba", ("bothb, aligned",))):
         c = []
         for k, (s0, e0, name, area) in enumerate(bl):
             on = teff[k] != "config" and tag(k) in tags
