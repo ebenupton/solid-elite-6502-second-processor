@@ -1622,9 +1622,13 @@ ENDIF
                         \
                         \   * 0 = we have crashed into the surface
 
+IF _TPART = 2 AND _HOSTB = 0  \ Port (Tube, the Master host: SWAP is with DASHV,
+ SKIP 1                 \ below)
+ELSE
 .SWAP
-
- SKIP 1                 \ Temporary storage, used to store a flag that records
+ SKIP 1
+ENDIF
+                        \ Temporary storage, used to store a flag that records
                         \ whether or not we had to swap a line's start and end
                         \ coordinates around when clipping the line in routine
                         \ LL145 (the flag is used in places like BLINE to swap
@@ -2091,6 +2095,9 @@ ENDIF
  SKIP 1                 \ Used to store the number of particles in the explosion
                         \ cloud, though the number is never actually used
 
+IF _TPART = 2 AND _HOSTB = 0  \ Port (Tube, the Master host: JOPOS is with DASHV,
+ SKIP 3                 \ below)
+ELSE
 .JOPOS
 
  SKIP 1                 \ Contains the high byte of the latest value from ADC
@@ -2104,6 +2111,7 @@ ENDIF
  SKIP 1                 \ Contains the high byte of the latest value from ADC
                         \ channel 3 (the Bitstik rotation value), which gets
                         \ updated regularly by the IRQ1 interrupt handler
+ENDIF
 
                         \ Port: the CMYK dashboard's variables (DIALS, SCAN,
                         \ DOT, MSBAR and their helpers, in bank 4), here as they
@@ -2112,6 +2120,11 @@ ENDIF
 IF _HOSTB                \ (Tube, Model B host: these are in bank F, as its main
  DASHV_S% = P%          \ RAM holds its own code here, DASHV_B in tube/src/cmds.asm)
  ORG DASHV_B
+ELIF _TPART = 2          \ (Tube, the Master host: in its kernel's workspace, with
+ DASHV_S% = P%          \ the two others of WP its code uses, SWAP and JOPOS, so
+ ORG HWP                \ that it keeps nothing in WP: tube/src/h-layout.asm)
+.SWAP   SKIP 1
+.JOPOS  SKIP 3
 ENDIF
 
 .DASHV
@@ -2144,7 +2157,7 @@ ENDIF
 .dlen   SKIP 1          \ SCAN: the stick's length (signed)
 .dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
 
-IF _HOSTB               \ (Tube, Model B host: DIALS' and DOT's inputs from WP,
+IF _TPART = 2           \ (Tube, the hosts: DIALS' and DOT's inputs from WP,
 .dQQ14   SKIP 1         \ which h-panel.asm receives into these)
 .dCABTMP SKIP 1
 .dGNTMP  SKIP 1

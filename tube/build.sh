@@ -165,6 +165,24 @@ PY
 # the host
 $BEEBASM -i tsrc/h-layout.asm -v > build/compile-h.txt 2>&1 || { grep -iE "error" -A3 build/compile-h.txt | head -30; exit 1; }
 $BEEBASM -i tsrc/h-layout.asm -d > build/hsyms.txt 2>/dev/null
+# the Master host keeps nothing in the game's workspace (&0700-&0CFF: the
+# panel's variables of WP are in its kernel, h-layout.asm's HWP) and writes
+# page &0D only in HNMI: no instruction of its listing has an absolute
+# operand there
+python3 - <<'PY'
+import re
+h = {}
+for m in re.finditer(r"'([^']+)':(\d+)", open("build/hsyms.txt").read()):
+    h.setdefault(m.group(1), int(m.group(2)))
+bad = []
+for l in open("build/compile-h.txt", encoding="latin-1"):
+    m = re.match(r"^\s+([0-9A-F]{4})\s+(?:[0-9A-F]{2} ){3}\s*[A-Z]{3}\s+&([0-9A-F]{4})", l)
+    if m:
+        pc, a = int(m.group(1), 16), int(m.group(2), 16)
+        if 0x0700 <= a < 0x0D00 or (0x0D00 <= a < 0x0E00 and not h["HNMI"] <= pc < h["HNMI_END"]):
+            bad.append(l.strip())
+assert not bad, "the host names &0700-&0DFF:\n" + "\n".join(bad[:10])
+PY
 # build/hbanks.txt: the host's labels in sideways RAM and the ROMSEL value of
 # their bank (7), for the profilers
 python3 - <<'PY'

@@ -3,9 +3,12 @@
 \ h-layout.asm - the host's memory (docs/TUBE-MAP.md): phase 1, a BBC Master
 \ host, laid out as the Master port's display side
 \
-\   * zero page, K% and WP: the game's definitions (build/elite-source-ws.asm),
-\     so that the host's copies of the game's drawing code see their
-\     variables where the parasite has them (the commands carry the values);
+\   * zero page: the game's definitions (build/elite-source-ws.asm), so that
+\     the host's copies of the game's drawing code see their variables where
+\     the parasite has them (the commands carry the values). K% and WP have
+\     names here only as the game's definitions: the host keeps nothing in
+\     &0700-&0CFF (tube/build.sh checks its listing), and the panel's few
+\     variables of WP are in the kernel's workspace (HWP);
 \   * CHPR's font at &0400-&06FF, the pages of the MOS's Tube code, which
 \     runs the boot and then is never called again (hstart clears &027A,
 \     and the disc commands are the host's own I/O, h_disc): the loader
@@ -13,8 +16,9 @@
 \   * the kernel, main RAM below &3000, which every bank and either setting
 \     of ACCCON X sees: from &0E00 its workspace, ylookup (the page of each
 \     pixel row's character row, which hstart makes: one copy for the game's
-\     drawing and the rasteriser, as r_ypg) and of the renderer's shared
-\     workspace only what the host's code names (below), f_enter's buffers;
+\     drawing and the rasteriser, as r_ypg), the panel's variables of WP
+\     (HWP), of the renderer's shared workspace only what the host's code
+\     names (below), f_enter's buffers;
 \     then from KCODE, above the loader's part that loads it, the span
 \     kernel (the code that enters the STA runs, and their tables), the
 \     game's host blocks (the sound, the IRQ, CHPR, UP), the renderer's
@@ -46,6 +50,8 @@ _RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
  INCLUDE "build/povl.asm"
+HWP = &0F00             \ the panel's variables of WP: the game's workspace
+                        \ puts SWAP, JOPOS and DASHV here (elite-source.asm)
  INCLUDE "build/elite-source-ws.asm"
 GFXBANK = 7             \ the host's code (the frame layer's host part, the
                         \ rasteriser's, the commands'): the resting bank
@@ -68,6 +74,8 @@ HSTS0 = &2D00           \ overlay S's first stored page (h_ovlget): the
  ORG &0E00
 .ylookup SKIP 256       \ (hstart makes it: h-cold.asm)
 r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
+ ASSERT P% = HWP AND SWAP = HWP
+ ORG dCOMY + 1          \ (after the panel's variables of WP, at HWP)
  INCLUDE "build/h-ws.asm"
 .F_HW   SKIP 256        \ (f_enter's buffers)
 .F_HW2  SKIP 256
