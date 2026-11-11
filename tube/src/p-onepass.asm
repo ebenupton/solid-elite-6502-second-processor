@@ -46,8 +46,6 @@
 \
 \ ******************************************************************************
 
-\       Area: ovl S
-
 f_x0 = &1C              \ side 0 (chain A, forward): x, error
 f_t0 = &1D
 f_x1 = &1E              \ side 1 (chain B, backward): x, error
@@ -100,6 +98,8 @@ o16dh  = O16 + 9
 o16t4  = O16 + 10
 OCY    = R_NDX3         \ (17) oo_scan: the vertices' y clamped into 0..192
 ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
+
+\       Area: ovl S
 
 \ ------------------------------------------------------------------------------
 \ The entries: op_16 from r7_pf16 (gfx-raster_polyb.asm: r7_n, r7_top,
@@ -718,11 +718,11 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
 ASSERT fb1 - fb0 = s1 - s0 AND fd1 - fd0 = s1 - s0 AND fa1 - fa0 = s1 - s0 AND fn1 - fn0 = s1 - s0
 ASSERT f_t0 = f_x0 + 1 AND f_t1 = f_x1 + 1
 
-\       Area: high
+\       Area: frame
 
 \ The scan of a polygon's vertices (oo_scan) and the 16-bit polygons' edges
-\ (oe16, o16cur, o16adv, o16s0, o16s1): resident, in the high area
-\ (p-layout.asm's PHIGH)
+\ (oe16, o16cur, o16adv, o16s0, o16s1): resident (p-layout.asm, after the
+\ frame layer)
 
 \ oo_scan: the polygon's vertices in order (n >= 4), their y clamped into
 \ 0..192 (OCY: as far as rows 0..191 go, an edge covers the same rows), with

@@ -394,9 +394,9 @@ PKZMAX = 192            \ while the ships are drawn (the disc layer is done)
 .pk_zn EQUB 0           \ (the scratch, pk_t .. pk_b: p-ws.asm)
 .pk_col SKIP 4          \ the stream's four colours (pem_head, in K mode)
 
-\       Area: high
+\       Area: frame
 
-\ pk_line and T_KFRAME: resident, in the high area (p-layout.asm's PHIGH)
+\ pk_line and T_KFRAME: resident (p-layout.asm, after the frame layer)
 
 \ pk_line: (R_LINE, in K mode) the rows of the line R_X0,R_Y0 - R_X1,R_Y1,
 \ clipped to 0..191, not kept

@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ p-ovl.asm - the parasite's overlay region (docs/TUBE-MAP.md): one region of
-\ the parasite's memory, from OVL_START to &F800, holds one of the overlays
+\ the parasite's memory, from OVL_START to the ring, holds one of the overlays
 \ whose images the host keeps (storage only):
 \
 \   * overlay D, the direct-mode overlay: the cold blocks that run only on

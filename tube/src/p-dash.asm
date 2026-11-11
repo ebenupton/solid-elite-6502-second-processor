@@ -222,11 +222,6 @@ PDN = P% - pdtl
  LDA #%00001001
  RTS
 
-\       Area: high
-
-\ MSBAR and the bulbs: resident, in the high area (p-layout.asm's PHIGH),
-\ never used during a disc command
-
 \ MSBAR: missile indicator X (1-4) in colour Y (C_PMSBAR); returns as the
 \ Master port's: X kept, Y = 0, T = X * 16, A = %00001001, C clear
 

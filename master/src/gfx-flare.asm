@@ -758,9 +758,9 @@ ASSERT HI(fl_htab) = HI(P% - 1)
 .fl_sh  SKIP 2
 .fl_lev SKIP 1          \ the level less 3, turned down by the probes (-5..0)
 
-\       Area: top
+\       Area: frame
 
-\ (The Tube's parasite: f_flt is resident, in the page at &FF00)
+\ (The Tube's parasite: f_flt is resident, the flare in overlay S)
 
 \ f_flt: F_FRAME's text step, after the flare (in place of JSR f_text2).
 \ Without the sun (GSUNON = 0) it costs a test. With it: when the view is

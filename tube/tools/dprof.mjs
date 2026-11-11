@@ -29,12 +29,12 @@ const m = new TubeEliteMachine({ host: a.host || "Master", name: "t", disc: a.ca
 await m.boot();
 const W = a.windows.split(",").map(s => s.split("-").map(Number));
 const par = m.t.par, pm = par.memory, tube = m.t.tube, host = m.host;
-const OS = sy.OVL_START, all = Object.entries(sy).filter(([k, v]) => v >= 0x0800 && !/^(CODE|LOAD)/.test(k));
+const OS = sy.OVL_START, OE = sy.OVL_END ?? 0xf800, all = Object.entries(sy).filter(([k, v]) => v >= 0x0800 && !/^(CODE|LOAD)/.test(k));
 const srt = l => l.sort((x, y) => x[1] - y[1]);
-const LR = srt(all.filter(([k, v]) => v < OS || v >= 0xf800)), LS = srt(all.filter(([k, v]) => v >= OS && v < 0xf800 && !k.endsWith("_C"))),
-    LD = srt(all.filter(([k, v]) => v >= OS && v < 0xf800 && k.endsWith("_C")));
+const LR = srt(all.filter(([k, v]) => v < OS || v >= OE)), LS = srt(all.filter(([k, v]) => v >= OS && v < OE && !k.endsWith("_C"))),
+    LD = srt(all.filter(([k, v]) => v >= OS && v < OE && k.endsWith("_C")));
 const find = (lab, x) => { let lo = 0, hi = lab.length - 1, r = null; while (lo <= hi) { const k = (lo + hi) >> 1; if (lab[k][1] <= x) { r = lab[k][0]; lo = k + 1; } else hi = k - 1; } return r; };
-const labelOf = x => x >= OS && x < 0xf800 ? (pm[sy.ovl_cur] === 1 ? find(LD, x) : find(LS, x)) : find(LR, x);
+const labelOf = x => x >= OS && x < OE ? (pm[sy.ovl_cur] === 1 ? find(LD, x) : find(LS, x)) : find(LR, x);
 const lcache = new Map();
 let added = 0, prevC = null, addedAtLast = 0, on = false, prevLab = null, cur = null;
 const origExec = par.execute;
@@ -50,7 +50,7 @@ m.t.addParHook(pc => {
     if (on && prevLab) { cur.lab[prevLab] = (cur.lab[prevLab] || 0) + d; const cx = cst.length ? cst[cst.length - 1][0] : "-"; cur.cx[cx] = (cur.cx[cx] || 0) + d;
         const tp = cst.length ? cst.map(z => z[0]).filter((z, i, A) => A.indexOf(z) === i) : ["-"]; for (const z of tp) cur.inc[z] = (cur.inc[z] || 0) + d; }
     while (cst.length && par.s > cst[cst.length - 1][1]) cst.pop();
-    { const cn = CTX.get(pc); if (cn !== undefined && !(pc >= OS && pc < 0xf800 && pm[sy.ovl_cur] === 1)) { if (on) { cur.calls[cn] = (cur.calls[cn] || 0) + 1; const pk = (cst.length ? cst[cst.length - 1][0] : "-") + ">" + cn; cur.pc2[pk] = (cur.pc2[pk] || 0) + 1; } cst.push([cn, par.s]); } }
+    { const cn = CTX.get(pc); if (cn !== undefined && !(pc >= OS && pc < OE && pm[sy.ovl_cur] === 1)) { if (on) { cur.calls[cn] = (cur.calls[cn] || 0) + 1; const pk = (cst.length ? cst[cst.length - 1][0] : "-") + ">" + cn; cur.pc2[pk] = (cur.pc2[pk] || 0) + 1; } cst.push([cn, par.s]); } }
     if (!on) { prevLab = null; return false; }
     const op = pm[pc];
     let lab;
@@ -60,7 +60,7 @@ m.t.addParHook(pc => {
         lab = fail ? "WAIT@" + labelOf(pc) : labelOf(pc);
     } else if ((op === 0x50 || op === 0x10 || op === 0x30 || op === 0x70) && pm[pc - 3] === 0x2c && pm[pc - 1] === 0xfe) lab = prevLab;
     else {
-        if (pc >= OS && pc < 0xf800) lab = labelOf(pc);
+        if (pc >= OS && pc < OE) lab = labelOf(pc);
         else { lab = lcache.get(pc); if (lab === undefined) { lab = labelOf(pc); lcache.set(pc, lab); } }
     }
     const e = ENT.get(pc); if (e) cur.ent[e] = (cur.ent[e] || 0) + 1;

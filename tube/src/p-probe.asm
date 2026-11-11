@@ -1,8 +1,8 @@
 \ ******************************************************************************
 \
 \ p-probe.asm - the lens flare's probes on the parasite (overlay S; fl_arm's
-\ helpers in the glue, and what p_emit and R_DOT reach while the probes are
-\ armed in the page at &FF00: the last two blocks)
+\ helpers, and what p_emit and R_DOT reach while the probes are armed,
+\ resident: the last block)
 \
 \ The Master port's R_FLARE (gfx-flare.asm) turns the flare down by how much
 \ of the sun is in sight: nine probes of the back buffer as drawn so far,
@@ -118,7 +118,8 @@
 
 \       Area: frame
 
-\ fl_arm's helpers: resident, in the glue (p-low.asm)
+\ Resident (p-layout.asm, after the frame layer): fl_arm's helpers, and what
+\ p_emit and R_DOT reach while the probes are armed, with their disarming
 
 \ fa_col: probe X's pixel (row Y) in disc A's colour (1 the sun, 2 the planet,
 \ colour A), by the row's parity (keeps X, Y)
@@ -184,11 +185,6 @@
 .fas9
  PLX
  RTS
-
-\       Area: top
-
-\ What p_emit and R_DOT reach while the probes are armed, and their
-\ disarming: resident, in the page at &FF00
 
 \ fp_off: not armed (R_FLARE, fl_arm); p_emit's first instruction back
 

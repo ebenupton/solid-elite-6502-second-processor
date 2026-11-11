@@ -137,6 +137,66 @@ PY
 # the parasite
 $BEEBASM -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -v > build/compile-p.txt 2>&1 || { grep -iE "error" -A3 build/compile-p.txt | head -30; exit 1; }
 $BEEBASM -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -d > build/psyms.txt 2>/dev/null
+# the parasite's map (tube/src/p-layout.asm, docs/TUBE-MAP.md, whose ASSERTs
+# keep the overlays and the boot's staging below the ring, and the ring's
+# pages below the top pages): its places in order with no overlap (the
+# workspace from WP's end, the resident code from where it ends, the page
+# aligned tables ending at the overlay region, the two top pages clear of
+# the Tube's registers), and every byte the listing assembles inside the
+# place its pass names: a file's "Area: ovl S" blocks in overlay S, "ovl D" in overlay
+# D, "page FE" and "page FF" in the top pages, "boot" in the boot's staging,
+# the aligned tables in theirs, the game's configuration below the Tube's
+# workspace, the rest in the resident code; and no pass
+# copy that assembles anything is left out of every assembly
+python3 - <<'PY'
+import re, glob
+sy = {}
+for m in re.finditer(r"'([^']+)':(\d+)", open("build/psyms.txt").read()):
+    sy.setdefault(m.group(1), int(m.group(2)))
+code0 = sy["PCODE_START"]
+place = {"game's workspaces": (0, sy["PWS_START"]), "resident": (code0, sy["PRES_CODE_END"]),
+         "aligned": (sy["TAB_START"], sy["TAB_END"]), "D": (sy["OVL_START"], sy["OVL_D_END"]),
+         "S": (sy["OVL_START"], sy["OVL_S_END"]), "boot": (sy["OVL_D_END"], sy["PSTG_END"]),
+         "fe": (0xFE00, sy["PFE_END"]), "ff": (0xFF00, sy["PFF_END"]),
+         "vectors": (0xFFFA, 0x10000)}
+bad = []
+def need(c, what):
+    if not c: bad.append(what)
+need(sy["PWS_START"] == sy["VEC"] + 2 and sy["PWS_END"] == code0, "the workspace runs from WP's end to the code")
+need(sy["PRES_CODE_END"] <= sy["TAB_START"] and sy["TAB_START"] % 256 == 0, "the code ends below the aligned tables, which start a page")
+need(sy["TAB_END"] == sy["OVL_START"] and sy["OVL_START"] % 256 == 0, "the aligned tables end where the overlay region starts")
+need(sy["PFE_END"] <= 0xFEF0 and sy["PFF_END"] <= 0xFFFA, "the top pages clear of the Tube's registers and the vectors")
+need(sy["pbl"] >> 8 == (sy["pbl_end"] - 1) >> 8, "pbl within one page")
+def where(f):
+    m = re.match(r"build/[\w-]+-(ovls|ovld|fe|ff|boot)\.asm$", f)
+    if m: return {"ovls": "S", "ovld": "D", "fe": "fe", "ff": "ff", "boot": "boot"}[m.group(1)]
+    if f in ("build/elite-source-cold.asm", "build/elite-data-cold.asm", "build/elite-stubs-x4.asm"): return "D"
+    if f == "build/elite-source-aligned.asm": return "aligned"
+    if f == "build/elite-source-config.asm": return "game's workspaces"   # (VEC, at WP's end)
+    if f.startswith(("build/", "src/", "tsrc/")) and f != "tsrc/p-layout.asm": return "resident"
+    return None
+stack, inc = [], set()
+for l in open("build/compile-p.txt", encoding="latin-1"):
+    m = re.match(r"^Including file (\S+)", l)
+    if m:
+        stack.append(m.group(1)); inc.add(m.group(1)); continue
+    if l.startswith("Processed file"):
+        stack = stack[:-1]; continue
+    m = re.match(r"^\s+([0-9A-F]{4})\s+((?:[0-9A-F]{2} )*[0-9A-F]{2})(?:\s|$)", l)
+    if not m or not stack: continue
+    a, n = int(m.group(1), 16), len(m.group(2).split())
+    w = next((where(f) for f in stack if where(f) and where(f) != "resident"), where(stack[0]))
+    if w is None: continue
+    lo, hi = place[w]
+    if not (lo <= a and a + n <= hi):
+        bad.append("&%04X (%s): outside %s, &%04X-&%04X" % (a, stack[-1], w, lo, hi - 1))
+for f in sorted(glob.glob("build/*-frame.asm") + glob.glob("build/*-ovls.asm") + glob.glob("build/*-ovld.asm") +
+                glob.glob("build/*-fe.asm") + glob.glob("build/*-ff.asm") + glob.glob("build/*-boot.asm")):
+    body = [l.split("\\")[0].strip() for l in open(f, encoding="latin-1")]
+    if any(body) and f not in inc and not f.startswith("build/gfx-raster"):   # (the rasteriser's: the hosts')
+        bad.append("%s assembles something and no assembly includes it" % f)
+assert not bad, "the parasite's map:\n" + "\n".join(bad[:12])
+PY
 # the commander checksum in the default commander, NA2% (as elite-checksum.py):
 # in overlay D's image (HOVD) and PCODE's copy of it (the parasite starts with
 # D in)

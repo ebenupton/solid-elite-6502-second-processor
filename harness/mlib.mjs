@@ -252,12 +252,12 @@ export async function runElite(opts) {
         if (m === "m" && v >= 0x8000 && !T) continue;
         // (the Tube: the overlay region's labels by overlay, as overlay D's
         // and S's addresses overlap: D's are its cold copies, X_C)
-        const ov = T && sy.OVL_START !== undefined && v >= sy.OVL_START && v < (sy.RING ?? 0xF400) ? (k.endsWith("_C") ? "D" : "S") : m;
+        const ov = T && sy.OVL_START !== undefined && v >= sy.OVL_START && v < (sy.OVL_END ?? 0xF400) ? (k.endsWith("_C") ? "D" : "S") : m;
         (labs[ov] ||= []).push([k, v]);
     }
     for (const l of Object.values(labs)) l.sort((a, b) => a[1] - b[1]);
     const labelOf = (a, romsel = cpu.romsel) => {
-        const inOvl = T && sy.OVL_START !== undefined && a >= sy.OVL_START && a < (sy.RING ?? 0xF400);
+        const inOvl = T && sy.OVL_START !== undefined && a >= sy.OVL_START && a < (sy.OVL_END ?? 0xF400);
         const lab = labs[T ? (inOvl ? (cpu.ramRomOs[sy.ovl_cur] === 1 ? "D" : "S") : "m") : mapAt(romsel, a)] || [];
         let lo = 0, hi = lab.length - 1, r = null;
         while (lo <= hi) { const m = (lo + hi) >> 1; if (lab[m][1] <= a) { r = lab[m][0]; lo = m + 1; } else hi = m - 1; }
@@ -297,7 +297,7 @@ export async function runElite(opts) {
     const hook = (name, off = 0) => { const n = sy[name + "_C"] !== undefined ? name + "_C" : name; return { a: sy[n] + off, m: mapOfLabel(sy, n) }; };
     // (the Tube: a label in the parasite's overlay region is overlay D's, name_C,
     // and is reached only while D is in: ovl_cur 1, p-ovl.asm)
-    const ovlD = h => T && sy.OVL_START !== undefined && h.a >= sy.OVL_START && h.a < (sy.RING ?? 0xF400);
+    const ovlD = h => T && sy.OVL_START !== undefined && h.a >= sy.OVL_START && h.a < (sy.OVL_END ?? 0xF400);
     const at = (h, pc) => pc === h.a && (h.m === "m" || h.m === mapAt(cpu.romsel, pc)) && (!ovlD(h) || cpu.ramRomOs[sy.ovl_cur] === 1);
     const H_RDK = hook("RDKEY", 5), H_DKS5 = T ? hook("DKS5T") : hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"), H_LL5 = hook("LL5"),
         H_TT100 = hook("TT100"), H_QU5 = hook("QU5"), H_BAY = hook("BAY"), H_MT26 = hook("MT26"), H_TT170 = hook("TT170");

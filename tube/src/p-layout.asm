@@ -8,9 +8,9 @@
 \ fields, the renderer's files and the Tube's own by "Area:" tag lines;
 \ tools/streams.py writes a copy of each file for each place, the other
 \ lines blanked (build/<file>-<pass>.asm: frame, the file's own place,
-\ which is the resident code; ovld, overlay D; ovls, overlay S; high, top
-\ and boot), and this file includes each copy at its place, as the
-\ Master port's layout includes its low, hot and cold passes.
+\ which is the resident code; ovld, overlay D; ovls, overlay S; fe and ff,
+\ the top pages; boot), and this file includes each copy at its place, as
+\ the Master port's layout includes its low, hot and cold passes.
 \
 \ The game's copies (tools/streams.py with TUBE=1) are assembled with _TUBE
 \ and _TPART = 1; the far-call stubs between its hot and cold areas are plain
@@ -61,14 +61,23 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/gfx-light-4.asm"         \ (L_SUN, from G_FRAME and G_HANGAR)
  INCLUDE "build/gfx-frame_cold-frame.asm"  \ (its "Area: ovl S" block, f_slot,
                                         \ in overlay S)
+ INCLUDE "build/gfx-flare-frame.asm"    \ (the flare's step in F_FRAME, f_flt; the
+ CPU 1                                  \ flare in overlay S)
  INCLUDE "build/gfx-hangar-frame.asm"  \ (streams.py's pass: F_HANG0 is overlay D's)
  INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's and MN_TURN's resident part:
  CPU 1                                  \ G_FRAME, G_PFHOOK, MOONHIT)
  INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
+\ the resident parts of overlay S's files (their "Area: frame" blocks)
+ INCLUDE "build/p-probe-frame.asm"      \ (the lens flare's probes' resident part)
+ INCLUDE "build/p-disc-frame.asm"       \ (the disc heap's drop, the surface's cold ends)
+ INCLUDE "build/p-poly-frame.asm"       \ (R_POLY's phase A from r_e8)
+ CPU 1
+ INCLUDE "build/p-kept-frame.asm"       \ (kept solid rows: pk_line, T_KFRAME)
+ INCLUDE "build/p-onepass-frame.asm"    \ (R_POLY in one pass: oo_scan, the 16-bit edges)
  INCLUDE "src/gfx-finit.asm"            \ (F_INIT, run once before the first frame;
                                         \ the frame layer's state is in the
                                         \ workspace, p-ws.asm)
-PRES_CODE_END = P%
+.PRES_CODE_END
 
 \ The page aligned tables (the game's blocks tagged "Tube: bothb, aligned":
 \ log, logL, alogh, then the quarter squares' QSH), the last of what is
@@ -103,7 +112,7 @@ PRES_CODE_END = P%
 
  PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_CODE_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_CODE_END-1, " (", PRES_CODE_END-PF_START, " bytes); the aligned tables &", ~TAB_START, "-&", ~TAB_END-1, "; free between: ", TAB_START-PRES_CODE_END
  PRINT "Parasite: overlay region &", ~OVL_START, "-&", ~RING-1, " (", RING-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to the ring: ", RING-OVL_D_END
- ASSERT PCODE_END <= RING
+ ASSERT PCODE_END <= RING AND RING + &400 = &FE00   \ (the ring's four pages, below the top pages)
  ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above
                         \ overlay D's pages, which a load of D rewrites; elite-source.asm)
  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
@@ -117,7 +126,7 @@ PRES_CODE_END = P%
  IF MEASURE             \ (tube/build.sh MEASURE=1: sizes only, no usable image)
   CLEAR OVL_START, &FFFF
  ELSE
-  CLEAR OVL_START, &F800
+  CLEAR OVL_START, RING
  ENDIF
  ORG OVL_START
 .OVL_S_START
@@ -153,50 +162,44 @@ ENDIF
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to the ring: ", RING-OVL_S_END
  ASSERT OVL_S_END <= RING OR MEASURE    \ (the ring above: p-io.asm)
  SAVE "build/HOVS.bin", OVL_START, (OVL_S_END + 255) AND &FF00
+ ORG RING
+.OVL_END                \ (the overlay region's end: the ring, for the tools)
 
-\ The high code (PHIGH, the "Area: high" passes): &F800-&FEEF, where the
-\ client OS is until the boot (p_boot) copies it in from the staging area;
-\ then the page at &FF00 (the "Area: top" passes) with the vectors
-\ (&FFFA-&FFFF): NMI an RTI (the host never writes register 3 again), RESET
-\ p_start, IRQ and BRK pirq (the ring's doorbell, p-io.asm; a BRK goes on to
-\ p_crash)
- ORG &F800
-.PHIGH_START
- INCLUDE "build/p-poly-high.asm"    \ (R_POLY's phase A from r_e8)
- CPU 1
- INCLUDE "build/p-dash-high.asm"    \ (the dashboard's parasite halves: MSBAR, the bulbs)
- INCLUDE "build/p-kept-high.asm"    \ (kept solid rows: pk_line, T_KFRAME)
- INCLUDE "build/p-onepass-high.asm" \ (R_POLY in one pass: oo_scan, the 16-bit edges)
-.PHIGH_END
- PRINT "Parasite: high code &F800-&", ~PHIGH_END-1, ", free to &FEF0: ", &FEF0-PHIGH_END
- ASSERT PHIGH_END <= &FEF0 OR MEASURE
- SAVE "build/PHIGH.bin", PHIGH_START, PHIGH_END
+\ The top pages, round the Tube's registers (&FEF0-&FEFF) and the vectors:
+\ the client OS's until the boot (p_boot) copies them in from the staging
+\ area. The page at &FE00 (the "Area: page FE" passes): pirq's unrolled
+\ sends (pbl, within the page) and p_crash; the page at &FF00 ("Area: page
+\ FF"): pirq, the ring's doorbell (p-io.asm), then the vectors (&FFFA-&FFFF):
+\ NMI an RTI (the host never writes register 3 again), RESET p_start, IRQ
+\ and BRK pirq (a BRK goes on to p_crash)
+ ORG &FE00
+.PFE_START
+ INCLUDE "build/p-io-fe.asm"            \ (pbl, p_crash, p_nmi)
+.PFE_END
+ PRINT "Parasite: the page at &FE00 to &", ~PFE_END-1, ", free to &FEF0: ", &FEF0-PFE_END
+ ASSERT PFE_END <= &FEF0
  CLEAR &FF00, &10000       \ (and its guard, elite-source-run.asm's &FEF0)
  ORG &FF00
 .PFF_START
- INCLUDE "build/p-io-top.asm"           \ (p_crash, p_nmi)
- INCLUDE "build/gfx-flare-top.asm"      \ (the flare's step in F_FRAME, f_flt: out
- CPU 1                                  \ of the run, OVL_START is lower for it)
- INCLUDE "build/p-probe-top.asm"        \ (the lens flare's probes' resident part)
+ INCLUDE "build/p-io-ff.asm"            \ (pirq)
 .PFF_END
  PRINT "Parasite: the page at &FF00 to &", ~PFF_END-1, ", free to &FFFA: ", &FFFA-PFF_END
-
  ASSERT PFF_END <= &FFFA
  ORG &FFFA
  EQUW p_nmi, p_start, pirq
 
- CLEAR OVL_D_END, &F800
+ CLEAR OVL_D_END, RING
  ORG OVL_D_END
 
 \ The boot's staging area, above overlay D (S and the next C_OVLGET of D
 \ overwrite it; tube/build.sh appends it to PCODE): p_start and p_boot (the
 \ "Area: boot" pass, p-io.asm), then the images p_boot copies in over the
-\ client OS: the high area and the page at &FF00
+\ client OS: the two top pages
 
  INCLUDE "build/p-io-boot.asm"          \ (p_start, p_boot)
-.PSTG_HI
- COPYBLOCK &F800, &FEF0, P%
- ORG PSTG_HI + &6F0
+.PSTG_FE
+ COPYBLOCK &FE00, &FEF0, P%
+ ORG PSTG_FE + &F0
 .PSTG_FF
  COPYBLOCK &FF00, &FFFF, P%
  ORG PSTG_FF + &FF

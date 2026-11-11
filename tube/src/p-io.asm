@@ -60,12 +60,13 @@ fl_t  = &0E
 \
 \ ******************************************************************************
 
-RING    = &F400         \ the ring's pages (above both overlays and the boot's
-                        \ staging: p-layout.asm asserts it): 4, giving overlay S
-                        \ the room for the discs (7 were 0.8% faster in flight
-                        \ on the Master host, 11 about 2% faster than 4, 3 were
-                        \ 3-6% slower in the beach-ball windows; one stalls)
-RINGEND = &F800
+RING    = &FA00         \ the ring's pages (above both overlays and the boot's
+                        \ staging, below the top pages: p-layout.asm asserts
+                        \ it): 4, giving overlay S the room for the discs (7
+                        \ were 0.8% faster in flight on the Master host, 11
+                        \ about 2% faster than 4, 3 were 3-6% slower in the
+                        \ beach-ball windows; one stalls)
+RINGEND = &FE00
 rq      = &FA           \ the write pointer (zero page the game leaves free)
 rpz     = &FE           \ the IRQ's read pointer (0, the reader's page)
 PR1N    = 24            \ register 1's FIFO, parasite to host
@@ -537,6 +538,8 @@ RINGN = (RINGEND - RING) DIV 256 * 255
 .ppd9
  RTS
 
+\       Area: page FF
+
 \ pirq: the parasite's IRQ (BRK: p_crash). The host's doorbell: up to PBN
 \ bytes from the ring into register 1, which the doorbell says is empty, in
 \ segments (to the writer, or to the end of the reader's page); the doorbell
@@ -671,10 +674,11 @@ RINGN = (RINGEND - RING) DIV 256 * 255
 .pia   EQUB 0
 .pix   EQUB 0
 .piy   EQUB 0
-IF HI(P%) <> HI(P% + PBN * 6)
- SKIP &100 - LO(P%)     \ (the unrolled sends in one page: pirq patches a low byte)
-ENDIF
-.pbl                    \ (pirq's unrolled sends: entered n from the end)
+
+\       Area: page FE
+
+.pbl                    \ (pirq's unrolled sends, entered n from the end: in one
+                        \ page, as pirq patches a low byte)
 FOR i, 1, PBN
  LDA (rpz),Y
  STA PR1D
@@ -683,6 +687,8 @@ NEXT
 .pbl_end
  JMP pirab
  ASSERT HI(pbl) = HI(pbl_end)
+
+\       Area: frame
 
 \ preq: send A to the host through register 2, waiting for room: the
 \ requests (keys, a key test, the vsync, port B, the star records), which the
@@ -1139,7 +1145,7 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 .TTX66M                 \ (CHPR's call of TTX66: no banks here)
  JMP TTX66
 
-\       Area: top
+\       Area: page FE
 
 \ p_crash: a BRK (a crash, pirq's way on): A, X, Y and S kept here (the
 \ stack's top at &0101+S: the flags, then the BRK's address+2), then a loop.
@@ -1192,7 +1198,7 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 \ Tube's workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
 \ makes QSL (elite-qs.asm) in pages 2 and 3, then copies the staged images
 \ (p-layout.asm) in over the client OS, which the game never uses again:
-\ the page at &FF00 and the high area.
+\ the two top pages.
 \ QSL+x is q(x) = x^2 DIV 4's low byte, and QSL+256+x (256+x)^2 DIV 4's,
 \ q(x) + 128x's: q(x) with bit 7 flipped when x is odd; q(x+1) = q(x) +
 \ (x+1) DIV 2, kept in rq (p_start sets it after)
@@ -1234,13 +1240,9 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  LSR A
  ADC rq
  STA rq
-FOR i, 0, 5
- LDA PSTG_HI + i * 256,X
- STA &F800 + i * 256,X
-NEXT
- CPX #&F0
+ CPX #&F0                \ (&FEF0-&FEFF: the Tube's registers)
  BCS pbt2
- LDA PSTG_HI + &600,X
+ LDA PSTG_FE,X
  STA &FE00,X
 .pbt2
  INX

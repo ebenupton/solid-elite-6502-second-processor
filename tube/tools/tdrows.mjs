@@ -42,7 +42,7 @@ const R_DCE = 0x0e, R_DCO = 0x0f, pr_y = 0xf0, pr_a = 0xec, pr_b = 0xed, pr_ce =
 const need = ["pdr0", "ps_end", "psb", "T_RESETBUF", "R_INIT", "r_buf", "r_bt", "r_bb", "R_NDT", "R_NDB", "R_NDF", "R_NDN", "R_NDX0", "R_NDX1", "R_NDX2", "R_NDX3",
     "R_NDISCL", "R_NDISCR", "R_DBE", "R_DBO", "R_DISCL0", "R_DISCR0", "R_DISCL1", "R_DISCR1", "R_DIRTYL0", "R_DIRTYR0", "R_DIRTYL1", "R_DIRTYR1", "ovl_cur", "OVL_START"];
 for (const n of need) if (sy[n] === undefined) { console.error("no symbol " + n); process.exit(2); }
-const inS = pc => pc < sy.OVL_START || pc >= 0xf800 || pm[sy.ovl_cur] !== 1;   // (overlay S's labels: not while D is in)
+const inS = pc => pc < sy.OVL_START || pc >= (sy.OVL_END ?? 0xf800) || pm[sy.ovl_cur] !== 1;   // (overlay S's labels: not while D is in)
 
 // the model: per buffer, row and pixel, the byte it shows (UNK: not known)
 const UNK = 256;
