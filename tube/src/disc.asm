@@ -18,7 +18,7 @@
 \ ******************************************************************************
 
  PUTFILE "build/BOOT.bin", "ELITE", &FF0900, &FF0900
- PUTFILE "build/M128Elt.bin", "ELITEM", &FF0E00, &FF0E55
+ PUTFILE "build/M128Elt.bin", "ELITEM", &FF0000 + LOAD_M, &FF0000 + ENTRY_M
  PUTFILE "build/LOADB.bin", "ELITEB", &FF1900, &FF1900 + (ENTRY_B - &1900)
 \ the Master host's files (tube/src/loader.asm: LDD, then FTAB)
  PUTFILE "build/HOVD.bin", "HOVD", &000000, &000000

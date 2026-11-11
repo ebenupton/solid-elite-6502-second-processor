@@ -14,18 +14,18 @@
 \     and the disc commands are the host's own I/O, h_disc): the loader
 \     puts it in buffer 0 (HFONTST), and hstart moves it there;
 \   * the kernel, main RAM below &3000, which every bank and either setting
-\     of ACCCON X sees: from &0E00 its workspace, ylookup (the page of each
-\     pixel row's character row, which hstart makes: one copy for the game's
-\     drawing and the rasteriser, as r_ypg), the panel's variables of WP
-\     (HWP), of the renderer's shared workspace only what the host's code
-\     names (below), f_enter's buffers;
-\     then from KCODE, above the loader's part that loads it, the span
-\     kernel (the code that enters the STA runs, and their tables), the
-\     game's host blocks (the sound, the IRQ, CHPR, UP), the renderer's
-\     glue, the command loop (h-main.asm) and the recursive tokens, which
-\     the IRQ reads. Only the kernel pages a line's bank, and it pages bank
-\     7 back. Then the disc commands' buffers (h-cold.asm, cmds.asm's
-\     HDBUF);
+\     of ACCCON X sees: from &0E00 its code, the command loop (h-main.asm),
+\     the span kernel (the code that enters the STA runs, and their
+\     tables), the game's host blocks (the sound, the IRQ, CHPR, UP), the
+\     renderer's glue and the recursive tokens, which the IRQ reads; then
+\     the room it leaves (where the loader runs at the boot); then its
+\     workspace, one run up to the disc commands' buffers (h-cold.asm,
+\     cmds.asm's HDBUF): f_enter's buffers, of the renderer's shared
+\     workspace only what the host's code names (below), the panel's
+\     variables of WP (HWP) and ylookup (the page of each pixel row's
+\     character row, which hstart makes: one copy for the game's drawing
+\     and the rasteriser, as r_ypg). Only the kernel pages a line's bank,
+\     and it pages bank 7 back;
 \   * bank 7 (GFXBANK, the resting bank, paged whenever the host runs
 \     outside the STA runs): all of the host's other code, one run from
 \     &9400: the lines, the dots, the stars and phase B's set-up, the frame
@@ -50,9 +50,13 @@ _RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
  INCLUDE "build/povl.asm"
-HWP = &0F00             \ the panel's variables of WP: the game's workspace
-                        \ puts SWAP, JOPOS and DASHV here (elite-source.asm)
+HYL = HDBUF - &200      \ ylookup: the workspace's top page, below the disc
+                        \ commands' buffers (h-cold.asm, cmds.asm's HDBUF)
+HWP = HYL - 47          \ the panel's variables of WP, below it: the game's
+                        \ workspace puts SWAP, JOPOS, DASHV ... dstab and
+                        \ dQQ14 ... dCOMY here (elite-source.asm; asserted)
  INCLUDE "build/elite-source-ws.asm"
+ INCLUDE "build/h-wsc.asm"
 GFXBANK = 7             \ the host's code (the frame layer's host part, the
                         \ rasteriser's, the commands'): the resting bank
 
@@ -66,42 +70,41 @@ GFXBANK = 7             \ the host's code (the frame layer's host part, the
 \ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS
 HFONT = &0400           \ (CHPR's font: FONT%, elite-source.asm)
 HFONTST = &4000         \ (where the loader puts it, buffer 0, for hstart)
-KCODE = &1240           \ (the kernel's code: tube/src/loader.asm asserts that
-                        \ its part that runs after loading this is below)
 HSTS0 = &2D00           \ overlay S's first stored page (h_ovlget): the
                         \ kernel's room's last three pages, after the disc
-                        \ commands' buffers (h-cold.asm, cmds.asm's HDBUF)
- ORG &0E00
-.ylookup SKIP 256       \ (hstart makes it: h-cold.asm)
-r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
- ASSERT P% = HWP AND SWAP = HWP
- ORG dCOMY + 1          \ (after the panel's variables of WP, at HWP)
- INCLUDE "build/h-ws.asm"
+                        \ commands' buffers
+ ORG HWP - HWS_LEN - 2 * &100 - 2 * NDSTAR
+.H_WS                   \ (one run, ending where the disc buffers start)
 .F_HW   SKIP 256        \ (f_enter's buffers)
 .F_HW2  SKIP 256
 .F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
 .F_DSY  SKIP NDSTAR
- ASSERT P% <= KCODE
- PRINT "Host: the kernel's workspace &0E00-&", ~P%-1, ", free to the code at &", ~KCODE, ": ", KCODE-P%
+ INCLUDE "build/h-ws.asm"
+ ASSERT P% = HWP AND SWAP = HWP AND dCOMY + 1 = HYL
+ ORG HYL
+.ylookup SKIP 256       \ (hstart makes it: h-cold.asm)
+r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
+ ASSERT P% = HDBUF - &100
+ PRINT "Host: the kernel's workspace &", ~H_WS, "-&", ~P%-1
 
 
-
- ORG KCODE
- GUARD HDBUF - &100
+ ORG &0E00
+ GUARD H_WS
 .H_START
  CPU 1
-\ The span kernel: the code that enters the STA runs (the blocks of the
-\ rasteriser's files tagged "Area: kernel", streams.py's passes: r_rowset,
-\ r_spc, the per-x tables, R_SPAN, r_dspin, phase B), the runs' tables and
-\ generator (h-sta.asm)
+\ The renderer's shared variables and the command loop, then the span
+\ kernel: the code that enters the STA runs (the blocks of the rasteriser's
+\ files tagged "Area: kernel", streams.py's passes: r_rowset, r_spc, the
+\ per-x tables, page aligned, R_SPAN, r_dspin, phase B), the runs' tables
+\ and generator (h-sta.asm)
+ INCLUDE "src/gfx-gvars.asm"
+ INCLUDE "tsrc/h-main.asm"
  INCLUDE "build/gfx-raster-kernel.asm"
  INCLUDE "build/gfx-raster_lcold-kernel.asm"
  INCLUDE "build/gfx-raster_polyb-kernel.asm"
  INCLUDE "tsrc/h-sta.asm"
  INCLUDE "build/elite-source-host.asm"
- INCLUDE "src/gfx-gvars.asm"
  INCLUDE "src/gfx-gluehooks.asm"
- INCLUDE "tsrc/h-main.asm"
 \ The recursive tokens (QQ18, as stored: build/HQQ18.bin) and where each
 \ starts (build/htokix.asm): data that h4body's C_TOKEN sends to the
 \ parasite (elite-source.asm's ex) from the IRQ, wherever the host is, as
@@ -110,7 +113,7 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCBIN "build/HQQ18.bin"
  INCLUDE "build/htokix.asm"
 .H_END
- PRINT "Host: the kernel's code &", ~H_START, "-&", ~H_END-1, ", free to the disc buffers at &", ~HDBUF-&100, ": ", HDBUF-&100-H_END
+ PRINT "Host: the kernel's code &", ~H_START, "-&", ~H_END-1, ", free to the workspace at &", ~H_WS, ": ", H_WS-H_END
  SAVE "build/HKERN.bin", H_START, H_END, hwrch
  ASSERT HDBUF + &100 = HSTS0
 

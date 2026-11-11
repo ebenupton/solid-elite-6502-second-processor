@@ -19,13 +19,13 @@ files.
 |---|---:|---|
 | !BOOT | 1 | `*RUN ELITE` (beebasm's -boot) |
 | ELITE | 1 | the boot (tube/src/boot.asm, 44 bytes at &0900): OSBYTE 0's MOS version, 3 or more on a Master (3.20, 3.50; 4 the ET, 5 the Compact), 1 on a Model B (2 the B+); `*RUN ELITEM` or `*RUN ELITEB` |
-| ELITEM | 6 | the Master host's loader (tube/src/loader.asm, &0E00, entered at &0E55): checks the Tube (OSBYTE &EA) and sideways RAM in banks 4-7, draws Saturn, loads its files (below) and puts each into place, loads PCODE, starts the parasite |
+| ELITEM | 6 | the Master host's loader (tube/src/loader.asm, &2700, entered at &2755: above the kernel's code, which it copies to &0E00): checks the Tube (OSBYTE &EA) and sideways RAM in banks 4-7, draws Saturn, loads its files (below) and puts each into place, loads PCODE, starts the parasite |
 | ELITEB | 3 | the Model B host's loader (tube/src/loader-b.asm, &1900): checks the Tube, finds the first four sideways RAM slots, loads its images to &1C00, patches their bank numbers in and copies them, loads BDATA and PCODE, starts the parasite |
 | HOVD, HCODE, HOVS | 134 | the Master host's files, plain images: overlay D's stored image (42 pages, dealt into the STA runs' pages' tails), the host's code (bank 7 from &9400), overlay S's stored image (55 pages: main RAM from &2D00 and at &7000, bank 7 below its code) |
 | BDATA | 15 | the dashboard's image, both hosts' (the Master's loader copies it to shadow &7000, the Model B's loads it to &7000) |
 | HBD, HBP, HBF, HBS, HBE | 242 | the Model B host's images (banks D, P, F and S, and &7E00), as images |
 | PCODE | 209 | the parasite's code, both hosts' (one build, `_HOSTB` FALSE: nothing in the parasite depends on the host) |
-| HMAIN | 27 | the Master host's main RAM: CHPR's font, then the kernel (&1240) |
+| HMAIN | 27 | the Master host's main RAM: CHPR's font, then the kernel's code (&0E00) |
 
 640 of 800 sectors, 15 of 31 files: 160 sectors and 16 files free for saved
 commanders. The files are in the order the loaders read them: the Master's
@@ -49,7 +49,7 @@ the disc: the loader deals HOVD into their pages' tails, bytes 192-255, 64
 bytes at a time (LDD), before s_gen writes the runs around them, so the
 run banks need no image of their own. Every other file is a plain image
 that the loader copies into place (FTAB: HCODE to bank 7, HOVS in three
-parts, BDATA to shadow &7000, HMAIN's kernel to &1240). The Model B host's
+parts, BDATA to shadow &7000, HMAIN's kernel to &0E00). The Model B host's
 images are plain too (its loader patches bank numbers into each image at
 offsets the build lists); its row runs (48 pages of bank P, two sets) are
 regular enough to generate if the disc ever needs 48 more sectors.
@@ -259,9 +259,11 @@ is spare.
    where every bank and either setting of ACCCON X sees it: the IRQ (h4irq,
    IRQ1, the sound), WRCHV's hwrch and CHPR, BRKV's hdbrk, the command loop,
    the requests and the recursive tokens they send, the storage reader, and
-   the span kernel, which pages a line's bank in to enter its run. The room
-   the kernel leaves at its top is the disc commands' buffers, then the
-   first of overlay S's pages (h-layout.asm asserts both).
+   the span kernel, which pages a line's bank in to enter its run. Its code
+   runs up from &0E00 and its workspace down from the disc commands'
+   buffers, with the one free gap between them; above the buffers is the
+   first of overlay S's pages (h-layout.asm asserts that the workspace
+   ends at the buffers, the code below it, the buffers below S).
 2. **One code bank.** Bank 7 (GFXBANK) is paged whenever the host runs
    outside a run. All host code that is not the kernel is there, in one run
    from &9400, and calls itself and the kernel with JSR. Only the kernel
@@ -302,8 +304,9 @@ is spare.
 |---|---|---|---:|
 | Zero page and stack | &0000-&00FF, &0100-&01FF | the game's zero page (build/elite-source-ws.asm), where the host's copies of the game's drawing code keep their variables, as the parasite does (the commands carry the values); &E4-&E5 hsp; the rasteriser's zero page &06-&27. The game's other workspaces (K%, WP) have names on the host only because it assembles the game's drawing and panel blocks against the game's definitions: it stores nothing there (K%'s first pages are the font's), and the build fails on an instruction of the host's that names &0700-&0CFF, or page &0D outside HNMI | - |
 | Font | main &0400-&06FF | CHPR's font (FONT%, h-layout.asm's HFONT), the three pages the MOS's Tube code leaves after the boot (hstart clears &027A, so the MOS never calls it again): the loader puts the font in buffer 0 (HFONTST, &4000) with HMAIN, and hstart moves it here | 0 |
-| Kernel: workspace | main &0E00-&11BA | ylookup (&0E00, a page: the page of each pixel row's character row, hstart's, for the game's drawing and the rasteriser, as r_ypg); the panel's variables of WP (HWP, &0F00-&0F2E: SWAP, JOPOS, DASHV ... dstab and the dials' and the compass's inputs dQQ14 ... dCOMY, which the game's workspace puts here for the Master host, as it puts them in bank F for the Model B host); of the renderer's shared workspace, R_X0 ... R_Y1, R_COL2, R_COL3, R_PYS, R_PYE, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&0F2F-&0F90); f_enter's buffers F_HW and F_HW2 and f_unstar's F_DSX and F_DSY (&0F91-&11BA). The loader runs here before the kernel's code is loaded | 133 (to KCODE, &1240) |
-| Kernel: code | main &1240-&2998 | from KCODE, above the loader's part that runs after loading it (the loader asserts it): the span kernel (r_rowset, r_spc, the per-x tables at &1300-&16FF, R_SPAN, r_dspin, phase B to &1935; s_pg and s_bk, s_gen, s_clr to &1B50: h-sta.asm); the game's host blocks (the sound, IRQ1 at &1C8C, CHPR at &1CFC, UP); the renderer's shared variables and its text and IRQ hooks (gfx-gvars.asm, gfx-gluehooks.asm); the command loop (h-main.asm from hwrch, &1EA3: the handlers that enter the runs, hbank, the storage reader h_ovlget, the requests h4body and the IRQ's h4irq); the recursive tokens (QQ18 as stored and where each starts, &24AF-&2998), which C_TOKEN reads in the IRQ. 10 bytes of padding before the per-x tables | 359 |
+| Kernel: code | main &0E00-&257D | the renderer's shared variables (gfx-gvars.asm); the command loop (h-main.asm from hwrch, &0E0F: the handlers that enter the runs, the storage reader h_ovlget, hbank, the requests h4body and the IRQ's h4irq); the span kernel (r_rowset, r_spc, the per-x tables at &1500-&18FF after 47 bytes of padding, R_SPAN, r_dspin, phase B to &1B35; s_pg and s_bk, s_gen, s_clr to &1D50: h-sta.asm); the game's host blocks (the sound, IRQ1 at &1E8C, CHPR at &1EFC, UP); the text and IRQ hooks (gfx-gluehooks.asm); the recursive tokens (QQ18 as stored and where each starts, &2094-&257D), which C_TOKEN reads in the IRQ | - |
+| Free | main &257E-&2744 | the kernel's room, between its code and its workspace (at the boot, the loader runs at &2700-&2C3D, above the code it copies and below overlay S's first page: the loader asserts both) | 455 |
+| Kernel: workspace | main &2745-&2AFF | one run ending below the disc buffers: f_enter's buffers F_HW and F_HW2 and f_unstar's F_DSX and F_DSY (&2745-&296E); of the renderer's shared workspace, R_X0 ... R_Y1, R_COL2, R_COL3, R_PYS, R_PYE, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&296F-&29D0); the panel's variables of WP (HWP, &29D1-&29FF: SWAP, JOPOS, DASHV ... dstab and the dials' and the compass's inputs dQQ14 ... dCOMY, which the game's workspace puts here for the Master host, as it puts them in bank F for the Model B host); ylookup (&2A00, a page: the page of each pixel row's character row, hstart's, for the game's drawing and the rasteriser, as r_ypg). No padding | - |
 | Disc buffers | main &2B00-&2CFF | HDSTR (&2B00), HDERR (&2B80) and HDBUF (&2C00, cmds.asm's: savosc and lodosc name it) for h_disc | - |
 | Stored: S 0-18 | main &2D00-&3FFF (ACCCON X clear) | 19 pages of overlay S: the kernel's room's last three, then main RAM under shadow &3000-&3FFF | 0 |
 | Buffer 0 | main &4000-&6FFF | the screen; at the boot, also the loader's copy of HMAIN (the font, then the kernel's code) | - |
@@ -323,12 +326,15 @@ Overlay D has 48 pages of tails for its 42; overlay S has 55 pages for its
 13 pages of state), so it needs no room to grow. ANDY is the reserve for D
 and for the host's code.
 
-The loader (tube/src/loader.asm) loads HOVD to &1300 and deals it into the
-tails, quarter q to line q's page (LDD); then (FTAB) HCODE, copied to bank 7
-from &9400; HOVS, copied in three parts, bank 7's and &7000's first, as its
-first part's place, &2D00, is where the file is loaded; BDATA, to shadow
-&7000; HMAIN, loaded to buffer 0, whose kernel part it copies to &1240,
-leaving the font for hstart. Then it loads PCODE into the parasite and
+The loader (tube/src/loader.asm) runs at &2700-&2C3D, in the kernel's
+free room, workspace and disc buffers, where nothing is loaded. It loads
+HOVD to buffer 0 (&4000) and deals it into the tails, quarter q to line
+q's page (LDD); then (FTAB) HCODE, loaded to &4000 and copied to bank 7
+from &9400; HOVS, loaded to &4000 and copied in three parts, bank 7's and
+&7000's first, as the image covers &7000-&76FF and its first part goes to
+&2D00; BDATA, loaded to &0E00 (below &3000, as it is copied to shadow
+&7000 with ACCCON X set); HMAIN, loaded to &4000, whose kernel part it
+copies to &0E00, last, leaving the font for hstart. Then it loads PCODE into the parasite and
 starts it through the MOS's Tube code, which passes the parasite's first
 byte, &FE, to hwrch: hstart pages bank 7, moves the font to &0400, makes
 ylookup and the STA runs (s_gen), and the command loop begins.

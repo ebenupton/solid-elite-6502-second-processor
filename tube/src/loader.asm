@@ -45,17 +45,22 @@
 \
 \ ******************************************************************************
 
- CODE% = &0E00          \ The address where the code will be run
+ CODE% = &2700          \ The address where the code will be run (Port (Tube):
+                        \ above the host's kernel, which it copies to &0E00,
+                        \ and below overlay S's first page, asserted at the end)
  ASSERT CODE% >= &0E00  \ Port: page &0D is off limits (docs/MASTER-MEMORY.md),
                         \ except for the minimal NMI handler (see NMIH)
 
  FDC = &FE28            \ Port: the BBC Master's 1770 disc controller: status
                         \ (read) and command (write) register
 
- LOAD% = &0E00          \ The address where the code will be loaded
+ LOAD% = CODE%          \ The address where the code will be loaded
 
  N% = 67 + 18           \ N% is set to the number of bytes in the VDU table, so
                         \ we can loop through them below
+
+ STAGE = &4000          \ Port (Tube): where the host's files are loaded before
+                        \ they are copied (buffer 0, main RAM: ACCCON X clear)
 
  INCLUDE "build/tube-addresses.asm"     \ Port: S%, the main entry point in
                                         \ the game code (was S% = &2C6C),
@@ -297,8 +302,8 @@ ENDIF
 
 .ENTRY
 
- ASSERT ENTRY = &0E55   \ Port: the execution address that elite-disc.asm gives
-                        \ M128Elt (the CMYK palette made B% 18 bytes longer)
+ ASSERT ENTRY = CODE% + &55   \ Port: the execution address that tube/src/disc.asm
+                        \ gives M128Elt (the CMYK palette made B% 18 bytes longer)
 
  LDA VIA+&34            \ Port (Tube): keep ACCCON's ITU and IFJ (bits 4 and 5)
  AND #%00110000         \ as the MOS set them, in every value the loader writes:
@@ -444,7 +449,7 @@ ENDIF
 
 
                         \ Port (Tube): the host's overlay D, its stored image
-                        \ (HOVD), to &1300, then dealt into the STA runs'
+                        \ (HOVD), to STAGE, then dealt into the STA runs'
                         \ pages 64 bytes at a time: quarter q to bytes 192-255
                         \ of line q's page, page &80 + q MOD 64 of bank 4 +
                         \ q DIV 64 (the host's h-sta.asm; hstart's s_gen
@@ -456,8 +461,9 @@ ENDIF
 
  SEI                    \ No interrupts while ROMSEL is changed
 
- STZ ZP                 \ ZP(1 0) = &1300, the source
- LDA #&13
+ LDA #LO(STAGE)         \ ZP(1 0) = STAGE, the source
+ STA ZP
+ LDA #HI(STAGE)
  STA ZP+1
 
  LDA #&C0               \ P(1 0) = the quarter's destination
@@ -497,8 +503,8 @@ ENDIF
  CLI
 
                         \ Port: load the game's other files other than BCODE,
-                        \ one at a time, to &1300 (below &3000, so it is
-                        \ visible when ACCCON X is set), or (HMAIN) to buffer 0,
+                        \ one at a time, to STAGE (BDATA, which is copied to
+                        \ shadow RAM with ACCCON X set, below &3000, at &0E00),
                         \ then copy each one, or its parts, to where they
                         \ belong, as listed in FTAB: main or shadow RAM, or a
                         \ sideways RAM bank
@@ -805,21 +811,21 @@ ENDIF
 
  EQUW MESSC             \ HCODE: the host's code, bank 7 from B7AT
  EQUB 7, %00000001
- EQUW &1300, B7AT, B7LEN
+ EQUW STAGE, B7AT, B7LEN
 
  EQUW MESSS             \ HOVS: the host's overlay S, its stored image, in
  EQUB 7, %00000001      \ three parts in address order (h-layout.asm), copied
- EQUW &1300 + (SN1 + SN2) * 256, &8000, SN3 * 256  \ last first, as the first's
+ EQUW STAGE + (SN1 + SN2) * 256, &8000, SN3 * 256 \ last first, as the first's
  EQUW 0                 \ place is where the others are loaded: bank 7 below
  EQUB 7, %00000001      \ its code, main RAM &7000-&7FFF and from HSTS0
- EQUW &1300 + SN1 * 256, &7000, SN2 * 256          \ (tube/build.sh checks that
- EQUW 0                 \ no file loaded at &1300 reaches a destination it
+ EQUW STAGE + SN1 * 256, &7000, SN2 * 256         \ (tube/build.sh checks that
+ EQUW 0                 \ no file loaded at STAGE reaches a destination it
  EQUB 7, %00000001      \ must not)
- EQUW &1300, HSTS0, SN1 * 256
+ EQUW STAGE, HSTS0, SN1 * 256
 
  EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000 (on the
  EQUB HOMEBANK, %00000111 \ disc, tube/src/disc.asm, the Model B host's files
- EQUW &1300, &7000, &0E00 \ follow it)
+ EQUW &0E00, &7000, &0E00 \ follow it)
 
  EQUW MESSH             \ HMAIN, loaded to buffer 0: CHPR's font, which the
  EQUB 7, %00000001      \ host moves to &0400 when it starts (hstart), then
@@ -844,7 +850,7 @@ ENDIF
 
 .MESS1
 
- EQUS "L.BDATA FFFF1300"    \ This is short for "*LOAD BDATA FFFF1300"
+ EQUS "L.BDATA FFFF0E00"    \ This is short for "*LOAD BDATA FFFF0E00"
  EQUB 13
 
 \ ******************************************************************************
@@ -867,17 +873,17 @@ ENDIF
 
 .MESSD
 
- EQUS "L.HOVD FFFF1300"     \ Port (Tube): the host's files
+ EQUS "L.HOVD FFFF", STR$~(STAGE)   \ Port (Tube): the host's files
  EQUB 13
 
 .MESSC
 
- EQUS "L.HCODE FFFF1300"
+ EQUS "L.HCODE FFFF", STR$~(STAGE)
  EQUB 13
 
 .MESSS
 
- EQUS "L.HOVS FFFF1300"
+ EQUS "L.HOVS FFFF", STR$~(STAGE)
  EQUB 13
 
 .MESSP
@@ -886,16 +892,6 @@ ENDIF
 .MESSH
  EQUS "L.HMAIN FFFF", STR$~(HFONTST)
  EQUB 13
-.LOW_LOADER_END
-
-\ Port: Saturn's drawing code and tables come last, above &1300 if need be:
-\ they are used only before the first file is loaded to &1300, and everything
-\ the loader runs after that (FTAB, the OS command strings, the copies, the
-\ NMI handler and the vectors) is below &1300, asserted here
-
- ASSERT LOW_LOADER_END <= &1300
- ASSERT LOW_LOADER_END <= HMAINAT   \ Port (Tube): and below the host's kernel,
-                                    \ which LDEND loads over the rest
 
 \ ******************************************************************************
 \
@@ -1607,5 +1603,7 @@ ENDIF
 \ ******************************************************************************
 
  PRINT "S.M128Elt ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ ASSERT CODE% >= HMAINAT + HMAINLEN     \ Port (Tube): clear of the kernel it
+ ASSERT P% <= HSTS0                     \ copies and of overlay S's pages
  SAVE "build/M128Elt.bin", CODE%, P%, LOAD%
 
