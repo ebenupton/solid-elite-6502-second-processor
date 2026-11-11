@@ -9411,6 +9411,10 @@ IF _TPART = 1           \ Port (Tube): the parasite's glyph nibbles for H_CHAR
  INCLUDE "build/fontw.asm"  \ host draws the glyphs)
 ENDIF
 
+IF _TPART = 2 AND _HOSTB = 0    \ Port (Tube, the Master host): the font has the
+ FONT% = HI(HFONT)      \ pages the MOS's Tube code leaves (tube/src/h-layout.asm)
+ELSE
+
  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
 
  ALIGN &100             \ Port: the font must start on a page boundary, as only
@@ -9421,6 +9425,8 @@ ENDIF
 IF _TPART <> 1          \ Port (Tube: the parasite draws no glyphs, the host
  INCBIN "src/fonts/P.FONT.bin"  \ does: its H_CHAR reads only W's nibble of a
 ENDIF                   \ glyph, from PFONTW above)
+
+ENDIF
 
 \ ******************************************************************************
 \

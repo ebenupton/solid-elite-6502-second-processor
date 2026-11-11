@@ -577,8 +577,8 @@ ENDIF
  CLI                    \ Enable interrupts
 
  LDX #LO(MESSP)         \ Port (Tube): load the parasite's code (PCODE, to the
- LDY #HI(MESSP)         \ parasite's memory), then the host's main code (HMAIN,
- JSR OSCLI              \ main RAM from &1EDC, above this loader)
+ LDY #HI(MESSP)         \ parasite's memory), then the host's kernel (HMAIN,
+ JSR OSCLI              \ main RAM from HMAINAT, above this part of the loader)
  LDX #LO(MESSH)
  LDY #HI(MESSH)
  JSR OSCLI
@@ -930,6 +930,8 @@ ENDIF
 \ NMI handler and the vectors) is below &1300, asserted here
 
  ASSERT LOW_LOADER_END <= &1300
+ ASSERT LOW_LOADER_END <= HMAINAT   \ Port (Tube): and below the host's kernel,
+                                    \ which LDEND loads over the rest
 
 \ ******************************************************************************
 \

@@ -6,11 +6,18 @@
 \   * zero page, K% and WP: the game's definitions (build/elite-source-ws.asm),
 \     so that the host's copies of the game's drawing code see their
 \     variables where the parasite has them (the commands carry the values);
-\   * the kernel's workspace from &0E00: of the renderer's shared workspace,
-\     only what the host's code names (below); then from CODE% (&1EDC, below
-\     &3000, as code that runs with ACCCON X set must be) the game's host
-\     blocks (the sound, the IRQ, CHPR and its font, UP), the renderer's glue
-\     and the command loop (h-main.asm);
+\   * CHPR's font at &0400-&06FF, the pages of the MOS's Tube code, which
+\     runs the boot and then is never called again (hstart clears &027A,
+\     and the disc commands are the host's own I/O, h_disc): the loader
+\     brings it after the kernel's code, and hstart moves it there;
+\   * the kernel, main RAM below &3000, which every bank and either setting
+\     of ACCCON X sees: from &0E00 its workspace, ylookup (the page of each
+\     pixel row's character row, which hstart makes: one copy for the game's
+\     drawing and the rasteriser, as r_ypg) and of the renderer's shared
+\     workspace only what the host's code names (below); then from KCODE,
+\     above the loader's part that loads it, the game's host blocks (the
+\     sound, the IRQ, CHPR, UP), the renderer's glue, the command loop
+\     (h-main.asm) and the recursive tokens, which the IRQ reads;
 \   * the rasteriser in bank 5 and ANDY, the frame layer's host part (the text
 \     map, the text overlay, the sights) in bank 6, as the Master port's;
 \   * the STA runs (h-sta.asm) in banks 4, 5, 6 and 7, their pages' tails
@@ -18,13 +25,6 @@
 \     bank 4's are free); the planet is wholly the parasite's;
 \   * the screen: buffer 0 in main RAM, buffer 1 and the dashboard in shadow
 \     RAM, as the Master port's.
-\   * &0400-&06FF (HLOW): the MOS's Tube code, which runs the boot and then
-\     is never called again (hstart clears &027A, and the disc commands are
-\     the host's own I/O, h_disc): main RAM below &3000, which every bank
-\     sees. &0400-&04FF holds ylookup, the page of each pixel row's
-\     character row, which hstart makes: one copy for the game's drawing in
-\     bank 6 (LOINQ, HLOIN, PIXEL) and the rasteriser in bank 5 and ANDY, as
-\     r_ypg. &0500-&06FF is free.
 \
 \ ******************************************************************************
 
@@ -46,16 +46,18 @@ OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
 \ drawn stars' sizes and DFS's lasting bytes
 \ HWS R_X0 R_Y0 R_X1 R_Y1 R_COL2 R_COL3 R_PYS R_PYE
 \ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS DFSST
+HFONT = &0400           \ (CHPR's font: FONT%, elite-source.asm)
+KCODE = &1240           \ (the kernel's code: tube/src/loader.asm asserts that
+                        \ its part that runs after loading this is below)
  ORG &0E00
- INCLUDE "build/h-ws.asm"
- PRINT "Host: the kernel's workspace &", ~HWS_START, "-&", ~HWS_END-1
-
-HLOW = &0400            \ (free after the boot: see above)
-HLOW_END = &0700
-ylookup = HLOW          \ (hstart makes it: h-cold.asm)
+.ylookup SKIP 256       \ (hstart makes it: h-cold.asm)
 r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
+ INCLUDE "build/h-ws.asm"
+ ASSERT P% <= KCODE
+ PRINT "Host: the kernel's workspace &0E00-&", ~P%-1, ", free to the code at &", ~KCODE, ": ", KCODE-P%
 
- ORG CODE%
+
+ ORG KCODE
  GUARD &3000
 .H_START
  INCLUDE "build/elite-source-host.asm"
@@ -63,9 +65,20 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCLUDE "src/gfx-tramp.asm"
  INCLUDE "src/gfx-gluehooks.asm"
  INCLUDE "tsrc/h-main.asm"
+\ The recursive tokens (QQ18, as stored: build/HQQ18.bin) and where each
+\ starts (build/htokix.asm): data that h4body's C_TOKEN sends to the
+\ parasite (elite-source.asm's ex) from the IRQ, wherever the host is, as
+\ the overlays' images are kept
+.HQQ18
+ INCBIN "build/HQQ18.bin"
+ INCLUDE "build/htokix.asm"
 .H_END
- PRINT "Host: main code &", ~H_START, "-&", ~H_END-1, ", free to &3000: ", &3000-H_END
- SAVE "build/HMAIN.bin", H_START, H_END, hwrch
+\ CHPR's font, after the code in the loaded image (HMAIN): hstart moves it
+\ to HFONT, and this room is the kernel's free room
+.HFONTST
+ INCBIN "src/fonts/P.FONT.bin"
+ PRINT "Host: the kernel's code &", ~H_START, "-&", ~H_END-1, ", the font after it to &", ~P%-1, ", free to &3000: ", &3000-P%
+ SAVE "build/HMAIN.bin", H_START, P%, hwrch
 
 
  CLEAR &8000, &C000      \ bank 5: the rasteriser's shared region and disc window
@@ -128,20 +141,3 @@ ENDIF
  PRINT "Host: HAZEL &C000-&", ~HZ_END-1, ", free to the storage at &", ~HZ_STORE, ": ", HZ_STORE-HZ_END
  SAVE "build/HHAZ.bin", &C000, HZ_END, &C000
 
-
-\ The recursive tokens (QQ18, as stored: build/HQQ18.bin) and where each
-\ starts (build/htokix.asm), at HAZEL's top below the MOS's page &DF00: data
-\ that h4body's C_TOKEN sends to the parasite (elite-source.asm's ex), as the
-\ overlays' images are kept. HAZEL is mapped wherever the host's IRQ finds it
-\ (h_disc moves it out and back around a disc command, while the parasite
-\ waits)
-HZ_TEXT = &DA00
- CLEAR HZ_TEXT, &DF00
- GUARD &DF00
- ORG HZ_TEXT
-.HQQ18
- INCBIN "build/HQQ18.bin"
- INCLUDE "build/htokix.asm"
-.HZ_TEXT_END
- PRINT "Host: the recursive tokens &", ~HZ_TEXT, "-&", ~HZ_TEXT_END-1, ", free to &DF00: ", &DF00-HZ_TEXT_END
- SAVE "build/HTEXT.bin", HZ_TEXT, HZ_TEXT_END, HZ_TEXT

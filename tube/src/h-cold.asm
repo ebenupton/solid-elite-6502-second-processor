@@ -15,7 +15,17 @@
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
 IF _HOSTB = 0
- LDX #63                \ (Master: DFS's lasting bytes in HAZEL to DFSST,
+ LDX #0                 \ (Master: CHPR's font from after the kernel's code,
+.hst6                   \ where the loader put it, to the Tube code's pages,
+ LDA HFONTST,X          \ h-layout.asm)
+ STA HFONT,X
+ LDA HFONTST+&100,X
+ STA HFONT+&100,X
+ LDA HFONTST+&200,X
+ STA HFONT+&200,X
+ INX
+ BNE hst6
+ LDX #63                \ (DFS's lasting bytes in HAZEL to DFSST,
 .hst4                   \ h_disc's hzout puts them back, then HAZEL's ours
  LDA &C2C0,X            \ below the MOS's page &DF00 from the loader's staging
  STA DFSST,X            \ copy at &4000, main RAM: hzin's second half)

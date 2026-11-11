@@ -19,7 +19,7 @@ import { BBC } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/js
 import { toSsdOrDsd } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/disc.js";
 import { bootTube, ROOT } from "../../harness/tlib.mjs";
 import { loadSyms } from "../../harness/mlib.mjs";
-import { writeFileSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync, readFileSync } from "fs";
 import { parseArgs } from "../../harness/args.mjs";
 const a = parseArgs({ host: "value", disc: "value", psyms: "value", out: "value" });
 const HOST = a.host || "Master";
@@ -100,10 +100,12 @@ const fmt = f && f.length === 256;
 const blockOk = fmt && [...f.slice(9, 13)].every((b, i) => b === MARK[i]);
 console.log("E.TESTA:", f ? `${f.length} bytes` : "missing", blockOk ? "(the commander block: CASH at offset 9)" : "(CASH NOT at offset 9)");
 console.log(`disc commands (p_oscli): ${oscli}, errors (NEWBRK): ${brks}, frames in the 16 s after the launch: ${flying}`);
-// the host's ylookup, which hstart made in main RAM (h-layout.asm's HLOW,
-// hb-ws.asm's), must come through the disc commands whole
-const YL = HOST === "B" ? 0x0E00 : 0x0400;
+// the host's ylookup, which hstart made in main RAM (h-layout.asm's,
+// hb-ws.asm's), and the Master host's CHPR font, which hstart moved to
+// &0400 (h-layout.asm's HFONT), must come through the disc commands whole
+const YL = HOST === "B" ? 0x0E00 : loadSyms(`${ROOT}tube/build/hsyms.txt`).ylookup;
 let ylOk = true;
 for (let y = 0; y < 256; y++) if (host.ramRomOs[YL + y] !== (0x40 + 2 * (y >> 3))) ylOk = false;
-console.log(`ylookup (host &${YL.toString(16)}) after the disc commands:`, ylOk ? "intact" : "CHANGED");
+if (HOST !== "B") { const font = readFileSync(`${ROOT}master/src/fonts/P.FONT.bin`); for (let i = 0; i < font.length; i++) if (host.ramRomOs[0x400 + i] !== font[i]) ylOk = false; }
+console.log(`ylookup (host &${YL.toString(16)})${HOST === "B" ? "" : " and the font (&400)"} after the disc commands:`, ylOk ? "intact" : "CHANGED");
 process.exit(ok && fmt && blockOk && ylOk && brks === 1 && oscli >= 4 && flying > 20 ? 0 : 1);

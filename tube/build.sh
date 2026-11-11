@@ -251,10 +251,6 @@ img = put(None, 0xC000, 0x2000, 6, (0xC0, 0xE0))
 hz = open("build/HHAZ.bin", "rb").read()        # (HAZEL's code, h-layout.asm, below the storage)
 assert img[:len(hz)] == bytes(len(hz))
 img[:len(hz)] = hz
-tx = open("build/HTEXT.bin", "rb").read()       # (the recursive tokens, at HZ_TEXT)
-o = h["HQQ18"] - 0xC000
-assert img[o:o + len(tx)] == bytes(len(tx))
-img[o:o + len(tx)] = tx
 open("build/HSTZ.bin", "wb").write(img)
 for rom, fn in ((0x47, "build/HSTB7.bin"), (0x44, "build/HSTB4.bin")):
     b7 = bytearray()                            # (the pieces: bank 7's and bank 4's STA runs'
@@ -553,6 +549,6 @@ grep -h "^Model B loader" build/compile-lb.txt || true
 # the disc (tube/src/disc.asm): both hosts' files, one parasite image,
 # and the boot (tube/src/boot.asm) that runs the host's loader
 $BEEBASM -i tsrc/boot.asm -v > build/compile-boot.txt 2>&1 || { echo "The disc's boot:"; grep -iE "error" -A3 build/compile-boot.txt | head -8; exit 1; }
-( echo ' INCLUDE "build/hb-entry.asm"'; cat tsrc/disc.asm ) > build/disc.asm
+( echo ' INCLUDE "build/hb-entry.asm"'; echo ' INCLUDE "build/tube-addresses.asm"'; cat tsrc/disc.asm ) > build/disc.asm
 $BEEBASM -i build/disc.asm -boot ELITE -do build/elite-tube.ssd -title "E L I T E" > build/compile-dc.txt 2>&1 || { echo "Disc:"; tail -5 build/compile-dc.txt; exit 1; }
 python3 $TUBE_DIR/tools/discbudget.py build/elite-tube.ssd

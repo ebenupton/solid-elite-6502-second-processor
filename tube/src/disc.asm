@@ -37,4 +37,4 @@
  PUTFILE "build/HBE.bin", "HBE", &000000, &000000
 \ both hosts' parasite code, then the Master host's main RAM code
  PUTFILE "build/PCODE.bin", "PCODE", &001400, &001400
- PUTFILE "build/HMAIN.bin", "HMAIN", &FF1EDC, &FF1EDC
+ PUTFILE "build/HMAIN.bin", "HMAIN", &FF0000 + HMAINAT, &FF0000 + HMAINAT
