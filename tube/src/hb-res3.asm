@@ -1,4 +1,4 @@
-\ hb-res3.asm - the Model B host's main RAM code (hb-res.asm): hb_pers: at MR_E, not swapped for disc commands
+\ hb-res3.asm - the Model B host's main RAM code (hb-res.asm): hb_pers: at &7E00, beyond the panel, which no disc command touches
 
 .hwrch                  \ WRCHV while the MOS's Tube code runs the host: &FE
  CMP #&FE               \ from the parasite starts the command loop; anything
@@ -119,58 +119,6 @@
  PAGE GFXBANK
  JSR h4body
  JMP irq9
-
-.hbswap                 \ exchange main RAM's &0236-&0CFF, &0E00-&10FF with the
- PAGE STASHBANK         \ stash bank's copy (the MOS's while the game runs,
- LDX #0                 \ ours while a disc command does). Interrupts off.
-.hbs1                   \ After the first (hstart's), &0400-&06FF is left out
-FOR p, &0300, &0300, &100  \ (hbsk: the MOS's Tube code, which the MOS no longer
- LDA p,X
- LDY HBS_IMG + (p - &0236),X
- STA HBS_IMG + (p - &0236),X
- TYA
- STA p,X
-NEXT
-.hbsk                   \ calls once hstart has cleared &027A)
- BIT hbs4               \ (JMP hbs4 after the first)
-FOR p, &0400, &0600, &100
- LDA p,X
- LDY HBS_IMG + (p - &0236),X
- STA HBS_IMG + (p - &0236),X
- TYA
- STA p,X
-NEXT
-.hbs4
-FOR p, &0700, &0C00, &100
- LDA p,X
- LDY HBS_IMG + (p - &0236),X
- STA HBS_IMG + (p - &0236),X
- TYA
- STA p,X
-NEXT
-FOR p, &0E00, &1000, &100
- LDA p,X
- LDY HBS_IMG + &0ACA + (p - &0E00),X
- STA HBS_IMG + &0ACA + (p - &0E00),X
- TYA
- STA p,X
-NEXT
- INX
- BEQ hbs2
- JMP hbs1
-.hbs2
- LDX #&CA - 1           \ and &0236-&02FF
-.hbs3
- LDA &0236,X
- LDY HBS_IMG,X
- STA HBS_IMG,X
- TYA
- STA &0236,X
- DEX
- CPX #&FF
- BNE hbs3
- PAGE GFXBANK
- RTS
 
 .hrw                    \ register 1 empty: ring the parasite's doorbell (h-main.asm's
  BIT HR1S               \ Master copy says how): here, as banks F and P both call it

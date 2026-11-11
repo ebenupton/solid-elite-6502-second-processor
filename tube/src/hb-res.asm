@@ -3,12 +3,12 @@
 \ hb-res.asm - the Model B host's main-RAM code (docs/TUBE-MAP.md), NMOS,
 \ in two parts (hb-layout.asm):
 \
-\   hb_tramp  hb-res2.asm, at &0236, in the span kernel's scope (hb-kernel.asm):
-\             the trampolines from bank F (the resting bank, where the command
-\             loop and its handlers are) into bank P
+\   hb_tramp  hb-res2.asm, after the storage reader at &0F00, in the span
+\             kernel's scope (hb-kernel.asm): the trampolines from bank F (the
+\             resting bank, where the command loop and its handlers are) into
+\             bank P
 \   hb_pers   hb-res3.asm, at &7E00 (beyond the panel, which no disc command
-\             touches): WRCHV's hwrch, the IRQ's entry, the exchange of the
-\             MOS's main RAM with ours (hbswap) and hrw
+\             touches): WRCHV's hwrch, the IRQ's entry and hrw
 \
 \ ******************************************************************************
 

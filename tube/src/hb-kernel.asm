@@ -14,6 +14,11 @@
 \ ******************************************************************************
 
 .P_KSTART
+\ The span kernel's own variables, of the renderer's shared workspace (as
+\ hb-layout.asm's HWS lines: tube/build.sh writes build/hb-wsp.asm from
+\ these): phase B's colours and rows, which p_polyin receives
+\ HWSP R_COL2 R_COL3 R_PYS R_PYE
+ INCLUDE "build/hb-wsp.asm"
  INCLUDE "build/nmos/gfx-raster-kernel.asm"
  CPU 0
  INCLUDE "build/nmos/gfx-raster_lcold-kernel.asm"
@@ -114,8 +119,8 @@ NEXT
 .*P_KEND
  PRINT "Model B bank P: the runs &8000-&AFFF, the span kernel &", ~P_KSTART, "-&", ~P_KEND-1, ", free to &C000: ", &C000-P_KEND
 
- ORG MR_A               \ (main RAM: the trampolines into bank P)
- GUARD MR_AEND
+ ORG MR_D_END           \ (main RAM, after the storage reader: the trampolines
+ GUARD &1000            \ into bank P)
  INCLUDE "tsrc/hb-res2.asm"
 .MR_A_END
- PRINT "Model B main RAM: &", ~MR_A, "-&", ~MR_A_END-1, " (free ", MR_AEND-MR_A_END, ")"
+ PRINT "Model B &0E00-&", ~MR_A_END-1, ": ylookup, the storage reader, the trampolines (free ", &1000-MR_A_END, ")"

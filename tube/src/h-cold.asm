@@ -15,11 +15,7 @@
  BNE hst1               \ the host's MOS neither passes Escape, events or errors
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
-IF _HOSTB
- JSR hbswap             \ (Model B: our main RAM in, the MOS's out; from now on
- LDA #&4C               \ the disc commands' swaps leave &0400-&06FF ours: JMP)
- STA hbsk
-ELSE
+IF _HOSTB = 0
  LDA #4                 \ (Master: main RAM)
  TRB &FE34
 ENDIF
@@ -33,6 +29,9 @@ ENDIF
  STA HFONT+&200,X
  INX
  BNE hst6
+IF _HOSTB
+ JSR hbswap             \ (Model B: our low pages in, DFS's out)
+ENDIF
  JSR s_gen              \ (the runs: the Master host's STA runs, h-sta.asm, in
                         \ banks 4, 5 and 6; the Model B host's row runs, in bank
                         \ P, hb-kernel.asm)
@@ -142,7 +141,7 @@ ENDIF
  STA BRKV+1
 IF _HOSTB
  SEI
- JSR hbswap             \ (Model B: the MOS's main RAM in, ours kept)
+ JSR hbswap             \ (Model B: DFS's pages in, ours kept)
  CLI
 ENDIF
  LDX #LO(HDSTR)
@@ -251,6 +250,22 @@ ELSE
  JMP T1SYNC             \ (CLIs)
 ENDIF
 
+IF _HOSTB
+.hbswap                 \ (Model B) exchange &0E00-&10FF (DFS's workspace: the
+ LDX #0                 \ host's low pages, hb-layout.asm, and buffer 0's first)
+.hbs1                   \ with bank F's HBST (DFS's while the game runs, the
+FOR p, 0, 2             \ host's while a disc command does). Interrupts off
+ LDA &0E00 + p * &100,X
+ LDY HBST + p * &100,X
+ STA HBST + p * &100,X
+ TYA
+ STA &0E00 + p * &100,X
+NEXT
+ INX
+ BNE hbs1
+ RTS
+ENDIF
+
 .hdm  EQUB 0
 .hdst EQUB 0
 .hdsp EQUB 0
@@ -263,7 +278,7 @@ ENDIF
 .HNMI
 IF _HOSTB
  RTS                    \ (Model B: DFS 1.2's 8271, no 1770 to quieten)
-ENDIF
+ELSE
  SEI
  LDA #&D0
  STA &FE28
@@ -287,4 +302,5 @@ ENDIF
  LDA #&48
  STA &0D00
  RTS
+ENDIF
 .HNMI_END

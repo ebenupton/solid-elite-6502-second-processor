@@ -242,6 +242,9 @@ ENDIF
 
 \       Area: kernel
 
+r_ystart = R_PYS        \ polygon rows ystart..ylast, yend = ylast + 1
+r_yend = R_PYE
+
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
 \ (RZ_PP+1 and r_jsr+2).  Clobbers A.
 .r_rowset
@@ -352,8 +355,6 @@ ENDIF
 \ Per-buffer row arrays: buffer 1's are buffer 0's + &300 (R_SETBUF adds 3 to
 \ the high byte of every patched operand).
 \ ============================================================================
-r_ystart = R_PYS        \ polygon rows ystart..ylast, yend = ylast + 1
-r_yend = R_PYE
 IF _TPART <> 2             \ (the Tube's hosts: phase B's rows only)
 r_ta = R_PTA            \ polygon edge tables (raster_scr)
 r_ylast = R_PYL1        \ (any x outside CL..CR: raster_scr; bank 7's phase A

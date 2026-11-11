@@ -6,10 +6,10 @@
 // tables). With --ref, a second disc's boot on the same host, and at TITLE
 // the host's memory compared byte for byte: the main RAM the host's files
 // fill (the Master's font at &0400, its kernel's code, overlay S's pages
-// from &2D00 and at &7000-&7FFF; the Model B's &0E00-&0FFF and &7000-&7FFF),
-// shadow RAM and the sideways RAM banks (the Master's 4-7; the Model B's
-// slots 0-15, the stash bank's from &8E00, overlay D's image), and the
-// parasite's
+// from &2D00 and at &7000-&7FFF; the Model B's font at &0400, &0E00-&0FFF and
+// &7000-&7FFF), shadow RAM and the sideways RAM banks (the Master's 4-7; the
+// Model B's slots 0-15, but for its code bank's top three pages, HBST, which
+// hold DFS's workspace as the boot left it), and the parasite's
 // &0200-&FFFF (the regions the loaders stage files in, the zero page, stack
 // and MOS workspace are not compared: they hold the loader's leftovers and
 // the MOS's own state).
@@ -26,7 +26,7 @@ import { parseArgs } from "../../harness/args.mjs";
 const a = parseArgs({ host: "value", disc: "value", ref: "value", psyms: "value", swram: "value", notube: "flag", shot: "value" });
 const HOST = a.host || "Master";
 const psy = loadSyms(a.psyms || `${ROOT}tube/build/psyms.txt`);
-const hsy = HOST === "Master" ? loadSyms(`${ROOT}tube/build/hsyms.txt`) : {};
+const hsy = loadSyms(`${ROOT}tube/build/${HOST === "Master" ? "hsyms" : "hbmsyms"}.txt`);
 
 // the mode 7 screen's text (the loaders' messages), from the MOS's screen start
 function mode7(cpu) {
@@ -78,10 +78,11 @@ const RO = 128 * 1024;
 const regions = HOST === "Master"
     ? [["main &0400-&06FF: the font", 0x0400, 0x0700], ["main: the kernel's code", hsy.H_START, hsy.H_END], ["main &2D00-&3FFF", 0x2d00, 0x4000], ["main &7000-&7FFF", 0x7000, 0x8000],
        ["shadow &3000-&7FFF", 0xb000, 0x10000], ...[4, 5, 6, 7].map(b => [`bank ${b}`, RO + b * 16384, RO + (b + 1) * 16384])]
-    : [["main &0E00-&0FFF", 0x0e00, 0x1000], ["main &7000-&7FFF", 0x7000, 0x8000], ...Array.from({ length: 16 }, (_, b) =>
-        // (the stash bank S, the fourth RAM slot (tlib.mjs's default: 4-7), from &8E00: below that it
-        // holds the MOS's main RAM as hstart found it, with its clocks, DFS's catalogue and the boot's leftovers)
-        b === 7 ? [`slot ${b} from &8E00`, RO + b * 16384 + 0xe00, RO + (b + 1) * 16384] : [`slot ${b}`, RO + b * 16384, RO + (b + 1) * 16384])];
+    : [["main &0400-&06FF: the font", 0x0400, 0x0700], ["main &0E00-&0FFF", 0x0e00, 0x1000], ["main &7000-&7FFF", 0x7000, 0x8000], ...Array.from({ length: 16 }, (_, b) =>
+        // (the code bank F, the third RAM slot (tlib.mjs's default: 4-7), below HBST: above it are
+        // DFS's pages as hstart found them, with DFS's catalogue and the boot's leftovers)
+        // (HBST is where the panel's variables end: hb-layout.asm asserts dCOMY + 1 = HBST)
+        b === 6 ? [`slot ${b} below HBST`, RO + b * 16384, RO + b * 16384 + hsy.dCOMY + 1 - 0x8000] : [`slot ${b}`, RO + b * 16384, RO + (b + 1) * 16384])];
 
 const A = await boot(a.disc);
 console.log(`${HOST} ${a.disc}: the parasite started at ${A.marks.p_start?.toFixed(2)} s, the title at ${A.marks.TITLE?.toFixed(2)} s`);
