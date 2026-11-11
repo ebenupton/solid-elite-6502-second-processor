@@ -178,10 +178,10 @@ r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
 \ workspace is only what the host's code names (tube/build.sh writes
 \ build/hb-wsn.asm from these lines, the declarations in the source's order,
 \ and their length, HBWS_LEN, in build/hb-wsc.asm; a name the host's code
-\ uses that is not listed fails the assembly): the lines' end points and
-\ colours, the stars and the directly drawn stars' sizes. The span kernel's
+\ uses that is not listed fails the assembly): the lines' end points, the
+\ stars and the directly drawn stars' sizes. The span kernel's
 \ own are its HWSP lines (hb-kernel.asm)
-\ HWS R_X0 R_Y0 R_X1 R_Y1 R_COL2 R_COL3
+\ HWS R_X0 R_Y0 R_X1 R_Y1
 \ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS
  INCLUDE "build/hb-wsc.asm"
  ORG HWP - HBWS_LEN - 2 * &100 - 2 * NDSTAR

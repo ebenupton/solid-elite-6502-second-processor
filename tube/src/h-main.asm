@@ -314,15 +314,13 @@ ELSE                      \ goes, to the end mark (gfx-raster_poly.asm's r_pcbs)
  JMP hbank
 ENDIF
 
-.h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1
- HRX
- STA zR_COLE
+.h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1 (a
+ HRX                    \ line takes the first two: COL2 and COL3 are the
+ STA zR_COLE            \ polygons')
  HRX
  STA zR_COLO
  HRX
- STA R_COL2
  HRX
- STA R_COL3
  LDX #0
 .hli1
  HRX

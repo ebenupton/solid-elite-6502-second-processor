@@ -3123,6 +3123,8 @@ ENDIF
 
  PHA                    \ Store the original value of A on the stack
 
+IF _TPART <> 2          \ (Tube: the host answers C_WSCAN at the vsync, H_VSYNC;
+                        \ DL is the parasite's)
  LDA VSCAN+1            \ Set the line scan counter to the value of VSCAN+1
  STA DL                 \ (which contains 30 by default and doesn't change), so
                         \ routines like WSCAN can set DL to 0 and then wait for
@@ -3130,6 +3132,7 @@ ENDIF
                         \ 
                         \ Port: VSCAN+1 contains 72, and WSCAN only needs DL to
                         \ become non-zero
+ENDIF
 
                         \ Port: the original restarted timer 1 here (T1C-L =
                         \ VSCAN+1, T1C-H = VSCAN: 14622 us from now), so the
@@ -3168,6 +3171,8 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2 OR _HOSTB = 0  \ (Tube: the Model B host's split is its own rupture,
+                        \ hb-irq.asm)
 .VSCAN
 
  EQUB 57                \ Defines the split position in the split-screen mode
@@ -3188,6 +3193,7 @@ ENDIF
                         \ IRQ1's write then comes 45-53 cycles after timer 1
                         \ fires, so 72 centres that 26-cycle spread in the
                         \ 64-cycle gap; DL only needs it to be non-zero
+ENDIF
 
 \ ******************************************************************************
 \
@@ -6579,12 +6585,14 @@ ENDIF
 \
 \ ******************************************************************************
 
-.orange
+IF _TPART <> 2          \ (Tube: HLOIN's, the parasite's; the host draws from
+.orange                 \ HLOIN3, with the colour it is sent)
 
  EQUB %10100101         \ Four mode 1 pixels of colour 2, 1, 2, 1 (red/yellow)
  EQUB %10100101
  EQUB %01011010         \ Four mode 1 pixels of colour 1, 2, 1, 2 (yellow/red)
  EQUB %01011010
+ENDIF
 
 \ ******************************************************************************
 \
@@ -7478,9 +7486,11 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .HANGFLAG
 
  EQUB 0
+ENDIF
 
 \ ******************************************************************************
 \
@@ -8740,19 +8750,25 @@ ENDIF
  STA SC+1
 
  JSR PZW2               \ high values: danger colour, low values: safe (2)
- STX K+1
+IF _TPART <> 2          \ (Tube: the host draws only: K and T1 as Master are
+ STX K+1                \ the game's, the parasite's)
  STA K
+ENDIF
  STY dK
  LDA #DCN_SAFE2
  STA dK1
 
+IF _TPART <> 2
  LDA #14                \ (T1 as Master)
  STA T1
+ENDIF
  LDA #28                \ speed: 0-40, one pixel per unit, danger from 28
  STA dT
  LDA DELTA
  JSR DIL
 
+IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
+                        \ the game's, the parasite's)
  STZ R                  \ Roll and pitch, calculated as Master (ADDK), for
  STZ P                  \ the side effects on P, R, S, T, T1, U
  LDA #8
@@ -8762,9 +8778,8 @@ ENDIF
  LSR A
  ORA ALP2
  EOR #%10000000
-IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
  JSR ADDK
-ENDIF                  \ the game's, the parasite's)
+ENDIF
 
                         \ The roll marker: at 15 -/+ ALP1 / 2 (0..30), on the
                         \ side Master's ADD put it
@@ -8785,13 +8800,13 @@ ENDIF                  \ the game's, the parasite's)
 .drl2
  JSR DIL2               \ (returns C set, as Master's DIL2)
 
+IF _TPART <> 2         \ (Tube: as the roll's)
  LDA BETA               \ The pitch, as Master
  LDX BET1
  BEQ P%+4
  SBC #1
-IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
  JSR ADDK
-ENDIF                  \ the game's, the parasite's)
+ENDIF
 
                         \ The pitch marker: at 15 +/- (2 * BET1 - 1), with
                         \ BETA's sign (sign-magnitude), 15 when BET1 = 0
@@ -8822,22 +8837,31 @@ ENDIF                  \ the game's, the parasite's)
                         \ bottom bank up
 
  JSR PZW                \ high values: safe colour, low values: danger
+IF _TPART <> 2          \ (Tube: as above, and the banks as Master in XX15)
  STX K
  STA K+1
+ENDIF
  STY dK1
+IF _TPART <> 2
  LDY #0
+ENDIF
  LDA #DCN_SAFE
  STA dK
  LDX #3
+IF _TPART <> 2
  STX T1
+ENDIF
  LDA #6                 \ danger below 6 pixels (Master's 3 of 16)
  STA dT
 
 .dll23
+IF _TPART <> 2
  STY XX15,X
+ENDIF
  STZ dbank,X
  DEX
  BPL dll23
+IF _TPART <> 2
  LDX #3
  LDA ENERGY
  LSR A
@@ -8857,6 +8881,7 @@ ENDIF                  \ the game's, the parasite's)
 .dll26
  LDA Q
  STA XX15,X
+ENDIF
 .dll27
  LDX #3
  LDA ENERGY
@@ -8903,9 +8928,11 @@ ENDIF                  \ the game's, the parasite's)
  LSR A
  JSR DIL
 
+IF _TPART <> 2          \ (Tube: as above)
  LDA #YELLOW2           \ fuel: 0-70 -> 0-35 (clipped at 32)
  STA K
  STA K+1
+ENDIF
  LDA #DCN_FUEL
  STA dK
  STA dK1
@@ -8914,13 +8941,17 @@ ENDIF                  \ the game's, the parasite's)
  JSR DIL
 
  JSR PZW2               \ temperatures: high values danger, low safe (2)
+IF _TPART <> 2          \ (Tube: as above)
  STX K+1
  STA K
+ENDIF
  STY dK
  LDA #DCN_SAFE2
  STA dK1
+IF _TPART <> 2
  LDX #11
  STX T1
+ENDIF
  LDA #22                \ danger from 22 pixels (Master's 11 of 16)
  STA dT
  LDA dCABTMP
@@ -8935,11 +8966,15 @@ ENDIF                  \ the game's, the parasite's)
  JSR DIL
 
  LDA #240               \ altitude: 0-255 -> 0-31, one colour
+IF _TPART <> 2          \ (Tube: as above)
  STA T1
+ENDIF
  STA dT
+IF _TPART <> 2
  LDA #YELLOW2
  STA K
  STA K+1
+ENDIF
  LDA #DCN_ALT
  STA dK
  STA dK1
@@ -8976,13 +9011,16 @@ ENDIF
 \
 \ PZW: X = the safe colour byte, A = the danger colour byte, as Master's (red,
 \ or green on every other 8 iterations if flashing is enabled), and Y = the
-\ danger colour number. PZW2: the same with the second safe colour
+\ danger colour number. PZW2: the same with the second safe colour. (Tube:
+\ the host's DIALS takes Y only: the colour bytes were Master's K, the game's)
 \
 \ ******************************************************************************
 
 .PZW2
+IF _TPART <> 2
  LDX #WHITE2
  EQUB &2C               \ skip the next instruction (BIT abs)
+ENDIF
 
 \ ******************************************************************************
 \
@@ -9000,17 +9038,23 @@ ENDIF
 \ ******************************************************************************
 
 .PZW
+IF _TPART <> 2          \ (Tube: Y only, PZW2's)
  LDX #STRIPE
+ENDIF
  LDA MCNT
  AND #%00001000
  AND FLH
  BEQ pzw1
  LDY #DCN_FLASH
+IF _TPART <> 2
  LDA #GREEN2
+ENDIF
  RTS
 .pzw1
  LDY #DCN_DANGER
+IF _TPART <> 2
  LDA #RED2
+ENDIF
  RTS
 
 \ ******************************************************************************
@@ -9675,6 +9719,9 @@ ENDIF                   \ (tube/src/p-layout.asm)
                         \   * #GREEN2 = the object in the compass is behind us,
                         \     so the dot is green
 
+IF _TPART <> 2          \ (Tube: the configuration and the unused bytes are the
+                        \ parasite's; the host keeps COMC, CATF, DNOIZ, FLH and
+                        \ VOL, which its commands set)
 .dials
 
  SKIP 14                \ These bytes appear to be unused
@@ -9682,6 +9729,8 @@ ENDIF                   \ (tube/src/p-layout.asm)
 .mscol
 
  SKIP 4                 \ This byte appears to be unused
+
+ENDIF
 
 .CATF
 
@@ -9701,9 +9750,12 @@ ENDIF                   \ (tube/src/p-layout.asm)
                         \ of the catalogue, between the two lists of filenames,
                         \ so it can be dropped without affecting the layout)
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .DFLAG
 
  SKIP 1                 \ This byte appears to be unused
+
+ENDIF
 
 .DNOIZ
 
@@ -9716,6 +9768,7 @@ ENDIF                   \ (tube/src/p-layout.asm)
                         \ Toggled by pressing "S" when paused, see the DK4
                         \ routine for details
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .DAMP
 
  SKIP 1                 \ Keyboard damping configuration setting
@@ -9757,6 +9810,8 @@ ENDIF                   \ (tube/src/p-layout.asm)
                         \ force a mis-jump. See routine ee5 for the "AND PATG"
                         \ instruction that implements this logic
 
+ENDIF
+
 .FLH
 
  SKIP 1                 \ Flashing console bars configuration setting
@@ -9768,6 +9823,7 @@ ENDIF                   \ (tube/src/p-layout.asm)
                         \ Toggled by pressing "F" when paused, see the DKS3
                         \ routine for details
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .JSTGY
 
  SKIP 1                 \ Reverse joystick Y-channel configuration setting
@@ -9829,6 +9885,8 @@ ENDIF                   \ (tube/src/p-layout.asm)
                         \ routine for details
 
  SKIP 1                 \ This byte appears to be unused
+
+ENDIF
 
 .VOL
 

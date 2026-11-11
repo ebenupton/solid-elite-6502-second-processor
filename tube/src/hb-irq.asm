@@ -21,8 +21,9 @@
 \ (R13 is 0 for every start address, hb_t1init's) and the latch's high byte.
 \ The timer's interrupt saves only A: point 2 runs in main RAM (irqm's hbi_t,
 \ hb-res3.asm), point 1 here, paged in by hbi_t (the flip's state is here).
-\ The vsync interrupt (CA1) does what the Master port's does: the sound
-\ (SOINT), DL, and one joystick channel (the Model B's ADC at &FEC0).
+\ The vsync interrupt (CA1) does what the Master host's does: a pending
+\ C_WSCAN answered, the sound (SOINT) and one joystick channel (the Model
+\ B's ADC at &FEC0).
 \
 \ ******************************************************************************
 
@@ -32,8 +33,6 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
 
 .hb_irq                 \ vsync (irqm; timer 1 is irqm's hbi_t, hb-res3.asm)
  LDA &FE41              \ (clears CA1's flag)
- LDA #72                \ (VSCAN+1, as the Master port's LINSCN)
- STA DL
  BIT hwsp               \ a pending C_WSCAN answered (h4body)
  BPL hbi_w
  LDA #0

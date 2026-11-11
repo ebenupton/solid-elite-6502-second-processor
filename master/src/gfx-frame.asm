@@ -41,10 +41,12 @@ fz_u    = FZ+15
 \ (non-zero = draw directly even though QQ11 = 0), GSIGHT, GLASV.
 
 .F_BACK     EQUB 1      \ the buffer being drawn (the one not displayed)
+IF _TPART <> 2             \ (the text map: not the Tube's hosts')
 .F_TCH      SKIP 24     \ per text row: bit b set (P) = the row changed since
                         \ buffer b's text steps last ran on it (whole in a
                         \ page: f_text1 reads it every frame, by row)
 ASSERT HI(F_TCH) = HI(F_TCH + 23)
+ENDIF
 
 IF _TPART <> 2             \ (the records: not the Tube's hosts')
 .F_NSHIP    EQUB 0      \ ships recorded this frame
@@ -89,9 +91,11 @@ FC_SIGHT = 5            \ laser sights
 FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 FC_PARTB = &FF          \ (the particles' colour byte: F_PDOT)
+IF _TPART <> 2             \ (the frame's: not the Tube's hosts')
 .F_CPE
  EQUB &00, &FF, &F0, &0F, FC_PARTB, &0F, &FF
 F_CPO = F_CPE           \ (the odd rows' bytes are the even rows')
+ENDIF
 
 \ F_INIT: one-off initialisation (called by the loader / startup) is in F_SR
 \ (elite-gfx.asm), which it leaves to the ship records.
@@ -527,8 +531,10 @@ ELSE
  LDA #0
  STA GMODE
  STA GFLIP
+IF _TPART <> 2             \ (the Tube's hosts: the frame's, the parasite's)
  STA GSIGHT
  STA GLASV
+ENDIF
  LDA #1
  STA GFRONT
 IF _HOSTB = 0             \ (Model B: the IRQ shows buffer GFRONT)
@@ -553,8 +559,7 @@ ENDIF
  RTS
 
 IF _TPART = 2 AND _TDUMB
-.f_ysav EQUB 0          \ (the dumb host: f_unstar's)
-.f_tmp  EQUB 0
+.f_tmp  EQUB 0          \ (the dumb host: f_unstar's)
 ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
@@ -1172,7 +1177,9 @@ ENDIF
 ENDIF
 IF _HOSTB
 .fbp_b EQUB HI(BUF0), &40
+IF _TDUMB = FALSE          \ (the dumb host: as above)
 .fbp_d EQUB HI(BUF0) - &40, 0
+ENDIF
 ENDIF
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: the glyphs' base only)
 .fbp_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)

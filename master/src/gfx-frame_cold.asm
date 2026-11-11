@@ -360,7 +360,9 @@ ENDIF
 \ it, for f_enter to carry on from (it then copies the border across)
 
 .f_b0new
+IF _TPART <> 2             \ (the Tube's hosts: the parasite's)
  STZ GSTASH
+ENDIF
 IF _TPART = 1             \ (Tube: the screen is the host's: C_CLRBUF 0)
  LDA #C_CLRBUF
  JSR ptx
