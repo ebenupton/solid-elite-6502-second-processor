@@ -48,7 +48,7 @@ ELSE
   CMP #0                  \ (A = 0: nothing to draw)
   BEQ out
 IF _TPART = 1
-  JMP p_spans             \ (Tube: the tables to the host, tube/src/p-polya.asm)
+  JMP p_spans             \ (Tube: the tables to the host, tube/src/p-poly.asm)
 ELSE
   JMP r_pcbd
 ENDIF
@@ -306,13 +306,13 @@ IF _TDUMB = FALSE          \ (the dumb host: the rows come one by one from the
 .d3
 ELSE
 .^r_pcbs                  \ (the dumb host: C_SPANS, rows from r_ystart, each read
-  LDA #192                \ from the parasite in phase B's loop until its end mark,
+  LDA #R_ROWS             \ from the parasite in phase B's loop until its end mark,
   STA r_yend              \ or past row 191, which has none: h-main.asm)
 ENDIF
   \ phase B set-up
   LDY r_ystart
   JSR r_rowset
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   LDA RZ_PP+1
   STA r_jsr2_e+2
   STA r_jsr2_o+2
@@ -324,7 +324,7 @@ ENDIF
   LDA r_yend
   STA pb_ye_e+1
   STA pb_ye_o+1
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2 OR _HSTA = FALSE
+IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
   LDA #190                \ nothing planted
   STA RZ_PP
 ENDIF
@@ -350,7 +350,7 @@ ENDIF
   LSR A
   BCC ev
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  JMP s_pbxo              \ (the Tube's Master host: the line's bank in, HAZEL)
+  JMP s_pbxo              \ (the Tube's Master host: the line's bank in, h-sta.asm)
 ELSE
   JMP r_pbx_o             \ odd first row (Y = RZ_Y)
 ENDIF
@@ -369,7 +369,7 @@ ENDIF
 
 IF _TPART <> 1
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: its own place's pass;
- INCLUDE "build/gfx-raster_polyb-frame.asm"        \ phase B is in HAZEL, h-layout.asm)
+ INCLUDE "build/gfx-raster_polyb-frame.asm"        \ phase B is in the kernel, h-layout.asm)
 ELSE
  INCLUDE "src/gfx-raster_polyb.asm"
 ENDIF

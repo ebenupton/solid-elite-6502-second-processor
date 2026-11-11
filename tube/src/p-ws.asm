@@ -1,12 +1,17 @@
 \ ******************************************************************************
 \
-\ p-ws.asm - the parasite's part of the renderer's shared workspace
-\ (gfx-ws.asm in the Master port): only what the frame layer leaves for the
-\ rasteriser, whose state is the host's. From &0D09, after the dummy SHEILA
-\ byte (elite-source.asm's VIA + &34, &0D08), to CODE% (&1400): the smaller
-\ arrays first, then from &0E00 the 192-byte row arrays, R_NDISCL page aligned
-\ (pr_* and the disc layer index it from its page: p-rast.asm); the free
-\ space below is one block, from WP's end
+\ p-ws.asm - the Tube's workspace on the parasite: one run from WP's end (VEC,
+\ elite-source.asm's last WP variable) to below CODE%, written, never loaded
+\ (p_boot zeroes it). In order: the dummy ACCCON byte; the disc heap's flags
+\ and counts, the flare's probes and R_POLY's scratch; the part of the
+\ renderer's shared workspace (elite-gfx.asm in the Master port) that the
+\ frame layer leaves for the rasteriser, whose state is the host's: the
+\ smaller arrays, then from &0E00 the 192-byte row arrays, R_NDISCL page
+\ aligned (pr_* and the disc layer index it from its page: p-rast.asm); in
+\ the pages between them, the frame layer's buffers F_HW, F_HW2 and the text
+\ map; then R_NDISCR's page, and the frame layer's small state, F_SR and
+\ the ship records, and the directly drawn stars. No padding: the page
+\ aligned arrays start where the declarations before them end
 \
 \ ******************************************************************************
 
@@ -50,8 +55,38 @@ ps_e  = &1E
 pe_wt = &1F
 pe_wb = &20
 
-ORG &0D09
+ORG VEC + 2
 .PWS_START
+.PACC       SKIP 1          \ the dummy ACCCON byte: what Master's code writes to
+                            \ SHEILA &34 (VIA + &34, elite-source.asm)
+ASSERT PACC = VIA + &34
+.hp_dfl     SKIP 1          \ non-zero: the heap's drop has run
+.hp_dir     SKIP 1          \ hp_move: 1 when the arrays move up
+.hp_drops   SKIP 2          \ the heap's drops, and the frames drawn whole for want
+.hp_whole   SKIP 2          \ of room (resident: kept while overlay S is out)
+.fp_on      SKIP 1          \ the probes: bit 7 arming, bit 6 armed; their places
+.fp_x       SKIP 9          \ (fp_y 255: none) and pixels
+.fp_y       SKIP 9
+.fp_b       SKIP 9
+.fp_l       SKIP 1
+.fp_r       SKIP 1
+.fp_c       SKIP 1
+.r_ystart   SKIP 1          \ (R_POLY's scratch: p-poly.asm)
+.r_ylast    SKIP 1
+.r_yend     SKIP 1
+.r_xclip    SKIP 1
+.r_cr1      SKIP 1
+.r_n        SKIP 1
+.r_i0       SKIP 1
+.r_i1       SKIP 1
+.r_yminL    SKIP 1
+.r_yminH    SKIP 1
+.r_ymaxL    SKIP 1
+.r_ymaxH    SKIP 1
+.r_top      SKIP 1
+.r_cc       SKIP 1
+.r_m0       SKIP 1
+.r_v0       SKIP 1
 .R_PXL      SKIP 16         \ vertex x, low bytes (one page: the polygons' code)
 .R_PXH      SKIP 16
 .R_PYL      SKIP 16
@@ -86,16 +121,19 @@ ASSERT HI(R_PXL) = HI(R_PYH + 15)
 .pk_w       SKIP 1
 .pk_a       SKIP 1
 .pk_b       SKIP 1
-.PWS_FREE   SKIP &0E00 - P% \ (free)
-ASSERT P% = &0E00
+.F_DCOL     SKIP 2          \ disc colour index in each buffer's disc layer
 .R_NDISCL   SKIP 192        \ new disc spans, left ends (page aligned)
 ASSERT LO(R_NDISCL) = 0
 .R_NDX0     SKIP 192        \ this frame's boundaries
 .R_NDX1     SKIP 192
 .R_NDN      SKIP 192        \ per disc row: the boundaries' count (bits 0-6) and
                             \ the colour at the span's left end (bit 7)
-ORG (P% + 255) AND &FF00
+.F_HW       SKIP 256        \ planet half-widths (page aligned: the disc rows read
+.F_HW2      SKIP 256        \ sun half-widths    F_HW,X and F_HW2,X across no page)
+.F_TM       SKIP 768        \ the text map (gfx-frame.asm)
+ASSERT LO(F_HW) = 0 AND LO(F_TM) = 0
 .R_NDISCR   SKIP 192        \ (in one page: f_discspans's symmetric loop)
+ASSERT LO(R_NDISCR) = 0
 .R_NDX2     SKIP 192
 .R_NDX3     SKIP 192
 \ the sun near the planet (S_SUN, gfx-ssun.asm), the moon's place (MN_TURN:
@@ -138,46 +176,22 @@ ENDIF
 .pd_xr      SKIP 1
 .pd_wr      SKIP 1
 .pd_fl      SKIP 1
+\ the frame layer's small state
+.F_BX       SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
+.F_BY       SKIP 10         \ as F_BOMB found them
+.f_tcol     SKIP 1          \ (f_char1's column)
+.f_zsv      SKIP &22 + 16   \ F_FRAME's keep of &06-&27 and FZ's &D2-&E1
+.F_SLV      SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
+                            \ gfx-frame_cold.asm; F_SLV+16 &80: none)
+F_SRN = MAXSH * 15          \ (the most faces is 15)
+.F_SR       SKIP F_SRN      \ the ships' faces' levels (F_SHIP; F_INIT's keep of
+                            \ &06-&27 before the first frame)
+.F_RP       SKIP 29 * MAXSH \ the ship records (F_SHIP): INWK 0-8, XX16, XX0
+F_SZL = F_RP + 6 * MAXSH    \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
+F_SZH = F_RP + 7 * MAXSH
+.F_DSX      SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm)
+.F_DSY      SKIP NDSTAR
 .PWS_END
 ASSERT F_DSS = R_SS + 24 AND R_Y1 = R_Y0 + 4
-PRINT "Parasite workspace: &", ~PWS_START, "-&", ~PWS_END-1, ", free ", CODE%-PWS_END, " (and ", &0E00-PWS_FREE, " at &", ~PWS_FREE, ")"
+PRINT "Parasite workspace: &", ~PWS_START, "-&", ~PWS_END-1
 ASSERT PWS_END <= CODE%
-
-\ The rest of the frame layer's small state goes in the hole between WP's end
-\ (VEC, elite-source.asm's last WP variable) and the dummy SHEILA byte, so
-\ that the tail below PWS_END is free for the low code (p-layout.asm's PLOW,
-\ which p_boot copies in)
-
-PWS_ORG = P%
-ORG VEC + 2
-.PWS_HOLE
-.hp_dfl     SKIP 1          \ non-zero: the heap's drop has run
-.hp_dir     SKIP 1          \ hp_move: 1 when the arrays move up
-.hp_drops   SKIP 2          \ the heap's drops, and the frames drawn whole for want
-.hp_whole   SKIP 2          \ of room (resident: kept while overlay S is out)
-.fp_on      SKIP 1          \ the probes: bit 7 arming, bit 6 armed; their places
-.fp_x       SKIP 9          \ (fp_y 255: none) and pixels
-.fp_y       SKIP 9
-.fp_b       SKIP 9
-.fp_l       SKIP 1
-.fp_r       SKIP 1
-.fp_c       SKIP 1
-.r_ystart   SKIP 1          \ (R_POLY's scratch: p-polya.asm)
-.r_ylast    SKIP 1
-.r_yend     SKIP 1
-.r_xclip    SKIP 1
-.r_cr1      SKIP 1
-.r_n        SKIP 1
-.r_i0       SKIP 1
-.r_i1       SKIP 1
-.r_yminL    SKIP 1
-.r_yminH    SKIP 1
-.r_ymaxL    SKIP 1
-.r_ymaxH    SKIP 1
-.r_top      SKIP 1
-.r_cc       SKIP 1
-.r_m0       SKIP 1
-.r_v0       SKIP 1
-.PWS_HOLE_END
-ASSERT PWS_HOLE_END <= VIA + &34    \ (the dummy SHEILA byte, &0D08)
-ORG PWS_ORG

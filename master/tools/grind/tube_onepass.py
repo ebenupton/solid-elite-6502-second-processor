@@ -1,13 +1,14 @@
 """tube_onepass.py -- test_onepass.py's --tube mode: a differential test of the
-Tube parasite's R_POLY (tube/src/p-polya.asm, gfx-raster_poly.asm and
+Tube parasite's R_POLY (tube/src/p-poly.asm, gfx-raster_poly.asm and
 gfx-raster_onepass.asm, p-emit.asm) between two builds.
 
     python3 master/tools/grind/test_onepass.py --tube REF CAND [--seed N] [--n N]
         [--kinds k,..] [--corpus F] [--kmode]
 
-REF and CAND are tube build directories (PCODE.bin, HOVS.bin, PHIGH.bin,
-psyms.txt).  Each build's parasite image (the resident code, overlay S over
-the overlay region, the high area) runs in its own py65 65C02; register 1's
+REF and CAND are tube build directories (PCODE.bin, HOVS.bin, psyms.txt,
+and PHIGH.bin if the build has a high area).  Each build's parasite image
+(the resident code with the boot's copies, overlay S over the overlay
+region, the high area if any) runs in its own py65 65C02; register 1's
 status always has room, and every byte written to its data register is
 recorded.  For each polygon (R_PN, R_PXL/PXH/PYL/PYH, the clip window, the
 four colours) both run T_POLY; the recorded bytes and the rasteriser's state
@@ -47,17 +48,20 @@ class Par:
         pc = open(os.path.join(d, 'PCODE.bin'), 'rb').read()
         code = self.syms.get('PSTG_END', self.syms['PCODE_END']) - len(pc)   # (with the boot's staging)
         mem[code:code + len(pc)] = pc
-        if 'PSTG_FF' in self.syms:              # (p_boot's copies: the page at &FF00, pages 2 and 3)
+        if 'PSTG_FE' in self.syms:              # (p_boot's copies: the top pages)
+            f = self.syms['PSTG_FE']
+            mem[0xFE00:0xFEF0] = mem[f:f + 0xF0]
+        if 'PSTG_FF' in self.syms:
             f = self.syms['PSTG_FF']
             mem[0xFF00:0x10000] = mem[f:f + 256]
-            if 'PSTG_LO' in self.syms:
-                lo = self.syms['PSTG_LO']
-                mem[0x200:0x400] = mem[lo:lo + 512]
+        for n in range(512):                    # (QSL, which p_boot makes in pages 2 and 3)
+            mem[0x200 + n] = n * n // 4 & 255
         ov = open(os.path.join(d, 'HOVS.bin'), 'rb').read()
         o = self.syms['OVL_START']
         mem[o:o + len(ov)] = ov
-        hi = open(os.path.join(d, 'PHIGH.bin'), 'rb').read()
-        mem[0xF800:0xF800 + len(hi)] = hi
+        if os.path.exists(os.path.join(d, 'PHIGH.bin')):   # (a build with the high area)
+            hi = open(os.path.join(d, 'PHIGH.bin'), 'rb').read()
+            mem[0xF800:0xF800 + len(hi)] = hi
         self.out = []
         par = self
 

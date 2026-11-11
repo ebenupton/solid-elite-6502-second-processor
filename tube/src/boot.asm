@@ -8,7 +8,7 @@
 \ (tube/src/loader-b.asm, the Model B host with 64K of sideways RAM), each of
 \ which checks for the 6502 Second Processor and the sideways RAM it needs,
 \ and stops with a message if either is missing. NMOS code, at &0900 (the
-\ cassette and RS423 buffers): below both loaders (&0E00, &1900) and the
+\ cassette and RS423 buffers): below both loaders (&2700, &1900) and the
 \ pages they load files through.
 \
 \ ******************************************************************************

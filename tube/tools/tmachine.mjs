@@ -69,15 +69,15 @@ export class TubeEliteMachine extends EliteMachine {
         // the hooks, on the parasite (one table test per instruction)
         // (whole-code coverage, opts.cover: self.vis, from the game's start (S%), one byte per
         // parasite address, overlay D's code in the overlay region at &10000 up, as coverage())
-        const OVS = sy.OVL_START ?? 0x10000, OVC = sy.ovl_cur;
+        const OVS = sy.OVL_START ?? 0x10000, OVC = sy.ovl_cur, OVE = sy.OVL_END ?? 0xf800;   // (OVL_END: the ring's start, p-layout.asm)
         t.addParHook(pc => {
             const c = self.cpu; c.oldPcIndex = (c.oldPcIndex + 1) & 255; c.oldPcArray[c.oldPcIndex] = pc;
             const vis = self.vis;
-            if (vis) vis[pc >= OVS && pc < 0xf800 && par.memory[OVC] === 1 ? 0x10000 + pc : pc] = 1;
+            if (vis) vis[pc >= OVS && pc < OVE && par.memory[OVC] === 1 ? 0x10000 + pc : pc] = 1;
             if (!self.hookTab[pc]) return false;
             // (a hook in the overlay region, p-ovl.asm: only while the overlay
             // it was set in, D, is there)
-            if (sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < 0xf800 && par.memory[sy.ovl_cur] !== 1) return false;
+            if (sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < OVE && par.memory[sy.ovl_cur] !== 1) return false;
             return self.tab(pc);
         });
         // page &0D (the NMI routine, the extended vectors, the ROM table) on the host: no
@@ -110,9 +110,10 @@ export class TubeEliteMachine extends EliteMachine {
         // (the overlay region, p-ovl.asm: the labels of the overlay in it, D's
         // being the cold copy's, name_C, S's the others)
         const sy = this.sy;
-        if (sy.OVL_START !== undefined && a >= sy.OVL_START && a < 0xf800) {
+        const OVE = sy.OVL_END ?? 0xf800;
+        if (sy.OVL_START !== undefined && a >= sy.OVL_START && a < OVE) {
             const d = this.ram[sy.ovl_cur] === 1;
-            const lab = (this.labsOvl ||= this.labs.m.filter(([k, v]) => v >= sy.OVL_START && v < 0xf800));
+            const lab = (this.labsOvl ||= this.labs.m.filter(([k, v]) => v >= sy.OVL_START && v < OVE));
             let r = null;
             for (const [k, v] of lab) if (v <= a && k.endsWith("_C") === d) r = k;
             return r && r.endsWith("_C") ? r.slice(0, -2) : r;
@@ -127,7 +128,7 @@ export class TubeEliteMachine extends EliteMachine {
     _at(h, pc) {
         if (!h || pc !== h.a) return false;
         const sy = this.sy;
-        return !(sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < (sy.RING ?? 0xF400)) || this.ram[sy.ovl_cur] === 1;
+        return !(sy.OVL_START !== undefined && pc >= sy.OVL_START && pc < (sy.OVL_END ?? 0xF400)) || this.ram[sy.ovl_cur] === 1;
     }
 
     // as EliteMachine.tab, but DKS5's answer goes into X at DKS5T (A is the key)
@@ -198,11 +199,11 @@ export class TubeEliteMachine extends EliteMachine {
     // memory as it is at the end (with the overlay then in)
     coverage() {
         if (!this.vis) return null;
-        const sy = this.sy, vis = this.vis, mem = this.ram, OVS = sy.OVL_START ?? 0x10000;
+        const sy = this.sy, vis = this.vis, mem = this.ram, OVS = sy.OVL_START ?? 0x10000, OVE = sy.OVL_END ?? 0xf800;
         const sets = { m: [], D: [], S: [] };
         for (const [k, v] of Object.entries(sy)) {
             if (v < 0x0800 || v > 0xffff || /^(CODE|LOAD)/.test(k)) continue;
-            if (v >= OVS && v < 0xf800) sets[k.endsWith("_C") ? "D" : "S"].push([k, v]); else sets.m.push([k, v]);
+            if (v >= OVS && v < OVE) sets[k.endsWith("_C") ? "D" : "S"].push([k, v]); else sets.m.push([k, v]);
         }
         const targets = new Set();
         for (let i = 0x0800; i < 0xfffd; i++) { const o = mem[i]; if (o === 0x20 || o === 0x4c) targets.add(mem[i + 1] | mem[i + 2] << 8); }

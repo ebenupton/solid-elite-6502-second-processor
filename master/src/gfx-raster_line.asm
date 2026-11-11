@@ -30,6 +30,7 @@
   STA l_e
   LDA l_x0
   STA l_x
+IF _TPART <> 2             \ (the Tube's hosts keep no dirty extents)
   LDX R_PRBUF
   LDA l_y0
   LDY l_y1
@@ -47,6 +48,7 @@
   BCC t4
   STA R_PRDYB,X
 .t4
+ENDIF
   RTS
 }
 \ rl_lswap: R_LINE's 8-bit ends exchanged
@@ -113,6 +115,7 @@
 \ ----------------------------------------------------------------------------
 .rl_gen
 {
+IF _TPART <> 2             \ (the Tube's hosts keep no dirty extents)
   LDA R_Y0                \ rows touched -> this buffer's row range
   CMP R_Y1
   LDA R_Y0+1
@@ -164,6 +167,7 @@
   BEQ pd
   JSR rl_lpat
 .pd
+ENDIF
   LDX #2                  \ d = P1 - P0 -> rl_dx (x), rl_dy (y); |d| -> rl_ax, rl_ay
 .dl
   SEC
@@ -459,6 +463,4 @@ ENDIF
   STA l_b
   JMP rl_lgo
 }
-IF _HOSTB = 0
  INCLUDE "src/gfx-raster_lineb.asm"
-ENDIF

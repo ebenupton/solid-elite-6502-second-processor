@@ -9,7 +9,7 @@ two-phase path.
 
 The --tube mode (master/tools/grind/tube_onepass.py) is a differential test
 of the Tube parasite's R_POLY: two builds' parasite images (REF, CAND: tube
-build directories with PCODE.bin, HOVS.bin, PHIGH.bin and psyms.txt) run in
+build directories with PCODE.bin, HOVS.bin and psyms.txt) run in
 py65 on the same polygons, and every byte each sends the host (register 1)
 and the rasteriser's state after each polygon (the dirty extents, the disc
 spans' arrays, which hold the kept rows) must be the same.  Its kinds add

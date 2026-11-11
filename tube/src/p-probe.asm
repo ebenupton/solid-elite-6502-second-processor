@@ -1,6 +1,8 @@
 \ ******************************************************************************
 \
-\ p-probe.asm - the lens flare's probes on the parasite (overlay S)
+\ p-probe.asm - the lens flare's probes on the parasite (overlay S; fl_arm's
+\ helpers, and what p_emit and R_DOT reach while the probes are armed,
+\ resident: the last block)
 \
 \ The Master port's R_FLARE (gfx-flare.asm) turns the flare down by how much
 \ of the sun is in sight: nine probes of the back buffer as drawn so far,
@@ -24,6 +26,8 @@
 \ followed: they cover a probe's pixel only by chance, a pixel wide
 \
 \ ******************************************************************************
+
+\       Area: ovl S
 
 \ fl_arm: (F_FRAME, after f_disc2) the probes armed if f_flt will run the
 \ flare (its tests: the sun drawn, the front view, its centre on the screen)
@@ -111,3 +115,151 @@
  STA p_emit+2
 .fa9
  RTS
+
+\       Area: frame
+
+\ Resident (p-layout.asm, after the frame layer): fl_arm's helpers, and what
+\ p_emit and R_DOT reach while the probes are armed, with their disarming
+
+\ fa_col: probe X's pixel (row Y) in disc A's colour (1 the sun, 2 the planet,
+\ colour A), by the row's parity (keeps X, Y)
+
+.fa_col
+ CMP #1
+ BNE fac1
+ TYA
+ LSR A
+ LDA #FC_SUNE
+ BCC fac2
+ LDA #FC_SUNO
+ BRA fac2
+.fac1
+ TYA
+ LSR A
+ LDA #FC_PLANE
+ BCC fac2
+ LDA #FC_PLANO
+.fac2
+ STA fp_b,X
+ RTS
+
+\ fa_sgt: probe X's pixel (row Y) the sights' colour if they are in this
+\ buffer, the pixel is on one of their arms (x = SGX or y = SGY, SGIN to
+\ SGOUT pixels from the centre: f_sight2) and nothing written this frame
+\ covers it (f_wcov, as f_sight2 asks: this frame's written extent on the
+\ row, R_WL .. R_WR, or this buffer's dirty extent); else as it was (keeps
+\ X, Y). (A row's written extent spans what it holds, so a pixel inside it
+\ that the row's writes went round counts as written)
+
+.fa_sgt
+ LDA fp_x,X
+ PHX
+ TAX                    \ (X: the pixel's x)
+ CPY #SGY
+ BNE fas1
+ SBC #SGX-SGY           \ the arms' row: d = x - SGX (C set; x < 32: d one
+ BRA fas2               \ less, and far off either way)
+.fas1
+ CMP #SGX               \ the arms' column: d = y - SGY (C set)
+ BNE fas9
+ TYA
+.fas2
+ SBC #SGY
+ BPL P%+5
+ EOR #&FF
+ INC A
+ CMP #SGIN              \ |d| in SGIN .. SGOUT: on an arm
+ BCC fas9
+ CMP #SGOUT+1
+ BCS fas9
+ TXA
+ JSR f_wcov             \ (A = X = x) written over?
+ BCS fas9
+ LDX F_BACK             \ the sights in this buffer?
+ LDA F_SGS,X
+ BEQ fas9
+ PLX
+ LDA F_CPE+FC_SIGHT
+ STA fp_b,X
+ RTS
+.fas9
+ PLX
+ RTS
+
+\ fp_off: not armed (R_FLARE, fl_arm); p_emit's first instruction back
+
+.fp_off
+ STZ fp_on
+ LDA #&2C               \ (BIT op_st)
+ STA p_emit
+ LDA #LO(op_st)
+ STA p_emit+1
+ LDA #HI(op_st)
+ STA p_emit+2
+ RTS
+
+\ fp_emit: (p_emit's first instruction while armed) polygon row Y, pixels X
+\ .. A - 1: each probe on it takes the row's colour; then p_emit's own BIT
+\ op_st, whose flags it returns with (keeps A, X, Y)
+
+.fp_emit
+ STA fp_r
+ STX fp_l
+ PHX
+ TYA
+ AND #3
+ TAX
+ LDA R_COLE,X           \ (R_COLE, R_COLO: zero page &06, &07)
+ CPX #2
+ BCC fpe1
+ LDA R_COL2-2,X
+.fpe1
+ STA fp_c
+ LDX #8
+.fpe2
+ TYA
+ CMP fp_y,X
+ BNE fpe3
+ LDA fp_x,X
+ CMP fp_l
+ BCC fpe3
+ CMP fp_r
+ BCS fpe3
+ LDA fp_c
+ STA fp_b,X
+.fpe3
+ DEX
+ BPL fpe2
+ PLX
+ LDA fp_r
+ BIT op_st
+ RTS
+
+\ fp_pix: (R_DOT's pdclip while armed) pixel X, Y in R_COLE/R_COLO by the
+\ row's parity (keeps X, Y)
+
+.fp_pix
+ STX fp_l
+ TYA
+ LSR A
+ LDA R_COLE
+ BCC P%+4
+ LDA R_COLO
+ STA fp_c
+ PHX
+ LDX #8
+.fpp1
+ TYA
+ CMP fp_y,X
+ BNE fpp2
+ LDA fp_x,X
+ CMP fp_l
+ BNE fpp2
+ LDA fp_c
+ STA fp_b,X
+.fpp2
+ DEX
+ BPL fpp1
+ PLX
+ RTS
+

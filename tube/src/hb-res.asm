@@ -1,14 +1,14 @@
 \ ******************************************************************************
 \
-\ hb-res.asm - the Model B host's main-RAM code (docs/TUBE-MAP.md), NMOS.
-\ hb-main.asm assembles each part in its region (hb-ws.asm):
+\ hb-res.asm - the Model B host's main-RAM code (docs/TUBE-MAP.md), NMOS,
+\ in two parts (hb-layout.asm):
 \
-\   hb_fixed  at RUNP: the entry points banks D and P call (runp, p_rowrepr)
-\   hb_tramp  the trampolines from bank F (the resting bank, where the command
-\             loop and its handlers are) into banks D and P
-\   hb_pers   at MR_E (&7E00-&7FFF, beyond the panel, which no disc command
-\             touches): WRCHV's hwrch, the IRQ's entry and the exchange of the
-\             MOS's main RAM with ours (hbswap)
+\   hb_tramp  hb-res2.asm, after the storage reader at &0F00, in the span
+\             kernel's scope (hb-kernel.asm): the trampolines from bank 7 (the
+\             resting bank, where the command loop and its handlers are) into
+\             bank 4
+\   hb_pers   hb-res3.asm, at &7E00 (beyond the panel, which no disc command
+\             touches): WRCHV's hwrch, the IRQ's entry and hrw
 \
 \ ******************************************************************************
 
@@ -27,4 +27,4 @@ ENDMACRO
 
 
 \ the parts, which hb-main.asm assembles each in its region:
-\   hb-res1.asm (hb_fixed), hb-res2.asm (hb_tramp), hb-res3.asm (hb_pers)
+\   hb-res2.asm (hb_tramp), hb-res3.asm (hb_pers)

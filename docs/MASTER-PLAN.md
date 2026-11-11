@@ -468,7 +468,7 @@ buffer's dirty extent for its row (the rows' range goes to R_MARKDIRTY),
 so the next frame on this buffer repairs it like any other shape. It never
 touches game state.
 
-Layout (master/src/gfx-flare6.asm, gfx-flare.asm):
+Layout (master/src/gfx-flare.asm):
 * F_FRAME's `JSR f_text2` is `JSR f_flt` (bank 6, at its end): without the
   sun a test of GSUNON (10 cycles); with it fl_xb (4 for buffer 0) and
   ACCCON X = 1 around FL_MAIN, in shadow RAM, and X put back for this buffer

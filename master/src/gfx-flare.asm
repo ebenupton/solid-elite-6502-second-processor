@@ -41,7 +41,7 @@
 \ state; T_FLARE does the rest in bank 5 when R_FLARE returns with C set
 \ (the sun in sight): k_clear in K mode, and the rows written (Y .. X, if
 \ any) into the repair's row range through R_MARKDIRTY.
-\ The frame layer's f_flt (gfx-flare6.asm, bank 6) makes the tests that need
+\ The frame layer's f_flt (at this file's end) makes the tests that need
 \ bank 6's state (the view, the sun's centre on the screen, not behind the
 \ planet: F_HW) and enters R_FLARE through T_FLARE. ACCCON X is as the frame
 \ layer has it, mapping the back buffer at &4000-&7FFF, so fl_or writes
@@ -51,19 +51,21 @@
 \
 \ ******************************************************************************
 
+\       Area: ovl S
+
 \ Zero page: the rasteriser's scratch &10-&27, which F_FRAME saves and
 \ restores, and R_COLE, R_COLO and R_DCE (&06, &07, &0E: saved too, and set
 \ again before any use after the flare)
 
 fl_lq   = &06           \ a span's first byte's mask (before the row's)
 fl_rq   = &07           \ its last byte's
-IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's, as gfx-flare6.asm reads it first)
+IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's)
 fl_t    = &0E
 ENDIF
-IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's, as gfx-flare6.asm reads it first)
+IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's)
 fl_dx   = &10           \ the sun's x - 128 (signed)
 ENDIF
-IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's, as gfx-flare6.asm reads it first)
+IF _TPART <> 1          \ (the Tube's parasite: p-io.asm's)
 fl_dy   = &11           \ the sun's y - 96 (signed; fl_dx + 1)
 ENDIF
 fl_u    = &12           \ the ghost's ink
@@ -755,3 +757,42 @@ ASSERT HI(fl_htab) = HI(P% - 1)
 .fl_sl  SKIP 2          \ the centres' sums S (x, y)
 .fl_sh  SKIP 2
 .fl_lev SKIP 1          \ the level less 3, turned down by the probes (-5..0)
+
+\       Area: frame
+
+\ (The Tube's parasite: f_flt is resident, the flare in overlay S)
+
+\ f_flt: F_FRAME's text step, after the flare (in place of JSR f_text2).
+\ Without the sun (GSUNON = 0) it costs a test. With it: when the view is
+\ the front one and the sun's centre is on the screen (x 1..255, y 0..191),
+\ the flare (R_FLARE, through T_FLARE) with fl_dx and fl_dy (the
+\ centre less (128, 96)) and this buffer's dirty extents' pages. R_FLARE's
+\ probes see what hides the sun: ships, and the planet, which f_disc2 keeps
+\ in front of a smaller (further) sun, so there is no test that the centre
+\ is outside the planet's disc.
+
+.f_flt
+ LDA GSUNON
+ BEQ flt9
+ LDA VIEW               \ the front view, and the sun's centre on the
+ ORA F_SUX+1            \ screen: x 1..255, y 0..191
+ ORA F_SUY+1
+ BNE flt9
+ LDA F_SUX
+ BEQ flt9
+ EOR #&80
+ STA fl_dx
+ LDA F_SUY
+ CMP #192
+ BCS flt9
+ SBC #95                \ (C = 0: - 96)
+ STA fl_dy
+ LDA f_sec              \ FL_BEH bit 7: the sun is the secondary disc, behind
+ LSR A                  \ the planet (f_sec = 1)
+ ROR A
+ STA FL_BEH
+ LDX fsw_d1+2           \ this buffer's dirty extents (f_bufpatch)
+ LDY fsw_d2+2
+ JSR T_FLARE
+.flt9
+ JMP f_text2

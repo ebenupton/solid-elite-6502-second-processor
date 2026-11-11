@@ -13,8 +13,6 @@
  LDA #ELITEBANK
  RTS
 
-.gA EQUB 0
-
 .G_FRAME                \ (the sun near the planet first, S_SUN, gfx-ssun.asm,
  JSR S_SUN              \ then in a space view the light for the next
  LDA QQ11               \ iteration's ships, L_SUN, gfx-light.asm: both in

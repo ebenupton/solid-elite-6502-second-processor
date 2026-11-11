@@ -1,8 +1,9 @@
 \ ******************************************************************************
 \
-\ h-cold.asm - the host's rarely run code, in bank 6 (the resting bank, so
-\ the command loop reaches it directly): the command loop's start (from
-\ hwrch, which pages bank 6) and the disc command (the host's own OSCLI)
+\ h-cold.asm - the host's rarely run code, in the resting bank (bank 7, on
+\ both hosts), so that the command loop reaches it directly: the command
+\ loop's start (from hwrch, which pages the resting bank) and the disc
+\ command (the host's own OSCLI)
 \
 \ ******************************************************************************
 
@@ -15,27 +16,26 @@
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
 IF _HOSTB = 0
- LDX #63                \ (Master: DFS's lasting bytes in HAZEL to DFSST,
-.hst4                   \ h_disc's hzout puts them back, then HAZEL's ours
- LDA &C2C0,X            \ below the MOS's page &DF00 from the loader's staging
- STA DFSST,X            \ copy at &4000, main RAM: hzin's second half)
- DEX
- BPL hst4
- LDA #4
+ LDA #4                 \ (Master: main RAM)
  TRB &FE34
- LDX #&40
- LDY #&C0
- JSR hzmv
-IF _HSTA
- JSR s_gen              \ (the STA runs, h-sta.asm, in banks 4, 7 and 6)
 ENDIF
-ENDIF
-.hst1
+ LDX #0                 \ CHPR's font from where the loader put it to the Tube
+.hst6                   \ code's pages (h-layout.asm, hb-ws.asm)
+ LDA HFONTST,X
+ STA HFONT,X
+ LDA HFONTST+&100,X
+ STA HFONT+&100,X
+ LDA HFONTST+&200,X
+ STA HFONT+&200,X
+ INX
+ BNE hst6
 IF _HOSTB
- JSR hbswap             \ (Model B: our main RAM in, the MOS's out; from now on
- LDA #&4C               \ the disc commands' swaps leave &0400-&06FF ours: JMP)
- STA hbsk
+ JSR hbswap             \ (Model B: our low pages in, DFS's out)
 ENDIF
+ JSR s_gen              \ (the runs: the Master host's STA runs, h-sta.asm, in
+                        \ banks 4, 5 and 6; the Model B host's row runs, in bank
+                        \ P, hb-kernel.asm)
+.hst1
  LDX #0                 \ ylookup (h-layout.asm, hb-ws.asm): &40 + 2 * (y DIV 8),
 .hst5                   \ as elite-source.asm's table, for the game's drawing
  TXA                    \ and the rasteriser (r_ypg)
@@ -83,14 +83,13 @@ ENDIF
 \ CHPR's zero page and W, CATF), the mode (1 SAVE, 2 LOAD, else 0), for those
 \ the parasite's commbuf (256 bytes, into HDBUF), then the command to its CR
 \ (into HDSTR): the host's MOS runs it as the host's own I/O (OSCLI, from
-\ here, with HDBUF named in the SAVE and LOAD commands: FFFF3F00). Then
+\ here, with HDBUF named in the SAVE and LOAD commands: cmds.asm). Then
 \ through register 4: 0, or &FF and the MOS's error (number, message, 0:
 \ BRKV's hdbrk, main RAM, brings it to h_derr); the context back; for a load
 \ HDBUF back. The client OS on the parasite takes no part
 
-HDBUF = &3F00           \ (main RAM on both hosts: the Master's free &3000-&3FFF
-HDSTR = &3E00           \ with ACCCON X clear, the Model B's buffer 0, not on
-HDERR = &3E80           \ show in direct mode)
+HDSTR = HDBUF - &100    \ (below HDBUF: h-layout.asm, hb-ws.asm)
+HDERR = HDBUF - &80
 
 .h_disc
  LDA #0                 \ (the MOS's register 4 while it runs: h4body off)
@@ -110,8 +109,8 @@ HDERR = &3E80           \ show in direct mode)
  HRX
  STA CATF
 IF _HOSTB = 0
- LDA #4                 \ (main RAM at &3000-&3FFF)
- TRB &FE34
+ LDA #4                 \ (main RAM at &3000-&7FFF while the MOS runs the
+ TRB &FE34              \ command)
 ENDIF
  HRX                    \ the mode
  STA hdm
@@ -142,10 +141,8 @@ ENDIF
  STA BRKV+1
 IF _HOSTB
  SEI
- JSR hbswap             \ (Model B: the MOS's main RAM in, ours kept)
+ JSR hbswap             \ (Model B: DFS's pages in, ours kept)
  CLI
-ELSE
- JSR hzout              \ (Master: HAZEL's ours out, DFS's lasting bytes in)
 ENDIF
  LDX #LO(HDSTR)
  LDY #HI(HDSTR)
@@ -164,11 +161,8 @@ ENDIF
 IF _HOSTB
  JSR hbswap             \ (Model B: ours back)
 ELSE
- LDA #4                 \ (Master: ACCCON X clear, Y set, whatever the MOS
- TRB &FE34              \ left; then DFS's lasting bytes kept, HAZEL's ours
- LDA #8                 \ back)
- TSB &FE34
- JSR hzin
+ LDA #4                 \ (Master: ACCCON X clear, whatever the MOS left)
+ TRB &FE34
 ENDIF
  JSR HNMI               \ (quieten the 1770, the minimal NMI handler back)
  JSR hdints             \ (the interrupts as hstart sets them: the MOS's command
@@ -256,61 +250,19 @@ ELSE
  JMP T1SYNC             \ (CLIs)
 ENDIF
 
-IF _HOSTB = 0
-\ hzout, hzin: the host keeps the overlays' storage and its span code in HAZEL
-\ (&C000-&DEFF), which DFS uses during a disc command: as the Master port's
-\ DOSCLI, HAZEL goes to main RAM &4000-&5EFF (buffer 0, not on show in direct
-\ mode; the parasite's p_oscli has set GSTASH) for the command, with DFS's
-\ lasting bytes (DFSST: &C2C0-&C2FF, which hstart took) put back and DFS's
-\ catalogue cache invalidated; afterwards the lasting bytes are taken again
-\ and HAZEL comes back. The MOS's page &DF00-&DFFF is never the host's, so
-\ the MOS's state there (the filing systems, DF00-DF02, which a *RUN that DFS
-\ cannot find consults, so that the MOS answers "Bad command" as on SNG47)
-\ stays whole. ACCCON X is clear (h_disc)
-
-.hzout
- LDX #&C0
- LDY #&40
- JSR hzmv
- LDX #63
-.hzo1
- LDA DFSST,X
- STA &C2C0,X
- DEX
- BPL hzo1
- LDA #&FF
- STA &C282
- STA &C287
- STA &C28B
- STA &C28C
- STA &C28D
- STA &C28E
- RTS
-
-.hzin
- LDX #63
-.hzi1
- LDA &C2C0,X
- STA DFSST,X
- DEX
- BPL hzi1
- LDX #&40
- LDY #&C0
-.hzmv                   \ 31 pages from page X to page Y (HAZEL's below
- STX hzm1+2             \ the MOS's page &DF00)
- STY hzm2+2
- LDY #0
- LDX #31
-.hzm1
- LDA &FF00,Y            \ (patched)
-.hzm2
- STA &FF00,Y            \ (patched)
- INY
- BNE hzm1
- INC hzm1+2
- INC hzm2+2
- DEX
- BNE hzm1
+IF _HOSTB
+.hbswap                 \ (Model B) exchange &0E00-&10FF (DFS's workspace: the
+ LDX #0                 \ host's low pages, hb-layout.asm, and buffer 0's first)
+.hbs1                   \ with bank 7's HBST (DFS's while the game runs, the
+FOR p, 0, 2             \ host's while a disc command does). Interrupts off
+ LDA &0E00 + p * &100,X
+ LDY HBST + p * &100,X
+ STA HBST + p * &100,X
+ TYA
+ STA &0E00 + p * &100,X
+NEXT
+ INX
+ BNE hbs1
  RTS
 ENDIF
 
@@ -326,7 +278,7 @@ ENDIF
 .HNMI
 IF _HOSTB
  RTS                    \ (Model B: DFS 1.2's 8271, no 1770 to quieten)
-ENDIF
+ELSE
  SEI
  LDA #&D0
  STA &FE28
@@ -350,4 +302,5 @@ ENDIF
  LDA #&48
  STA &0D00
  RTS
+ENDIF
 .HNMI_END

@@ -2,11 +2,16 @@
 \
 \ loader-b.asm - the Tube version's loader for a BBC Micro Model B host with
 \ 64K of sideways RAM (docs/TUBE-MAP.md), NMOS, run at &1900 (above DFS's
-\ workspace): the screen mode, the host's images into the first four
-\ sideways RAM banks found (D, P, F and the stash bank S, their bank numbers
-\ patched in: build/hb-patch.asm), the panel to &7000, hb-res3.asm's part to
-\ &7E00, the parasite's code, then WRCHV = hwrch and the parasite started
-\ through the MOS's Tube code (as the Master host's loader.asm does).
+\ workspace): the screen mode, then its files, each loaded to BUF and copied
+\ (FTAB, in the disc's order): overlay D's and overlay S's stored images to
+\ banks 5 and 6 from &8000 (HOVD, HOVS: the Master host's loader reads the
+\ same files), the panel to &7000 (BDATA), the span kernel to bank 4 from
+\ &B000 (HBK), the host's code to bank 7 (HBC) and the persistent block to
+\ &7E00 (HBE), the bank numbers patched into the host's images
+\ (build/hb-patch.asm), banks 4 to 7 being the first four sideways RAM banks
+\ found (hb-layout.asm); the parasite's code, then WRCHV = hwrch and the
+\ parasite started through the MOS's Tube code (as the Master host's
+\ loader.asm does).
 \
 \ ******************************************************************************
 
@@ -125,10 +130,7 @@ BUF = &1C00             \ where each image is loaded before its copy
  JMP P%
 .sr9
 
- LDX #LO(MESSB)         \ the panel first (its file runs on to &7EFF, where
- LDY #HI(MESSB)         \ HBE goes after)
- JSR OSCLI
- LDX #0                 \ the images
+ LDX #0                 \ the files
 .ld1
  STX T
  LDA FTAB+1,X
@@ -213,8 +215,8 @@ BUF = &1C00             \ where each image is loaded before its copy
  LDY #0
  JMP OSBYTE
 
-\ PATCH: the image at BUF, its table at (PT): each entry, bank kind (bits 14-15)
-\ and offset, gets the bank's number
+\ PATCH: the image at BUF, its table at (PT): each entry, bank (bits 14-15: 0-3
+\ for banks 4-7) and offset, gets the bank's number
 .PATCH
  LDY #0
  LDA (PT),Y
@@ -252,29 +254,32 @@ BUF = &1C00             \ where each image is loaded before its copy
 .SLOTS SKIP 4
 
 .FTAB                   \ command, patch table, destination high byte, bank
- EQUW MESSD, PT_HBD     \ index (&FF: main RAM), length
- EQUB &80, 0
- EQUW &4000
- EQUW MESSPB, PT_HBP
- EQUB &80, 1
- EQUW &4000
- EQUW MESSF, PT_HBF
+ EQUW MESSOD, PT_NONE   \ index (0-3: banks 4-7; &FF: main RAM), length, in the
+ EQUB &80, 1            \ disc's order (disc.asm)
+ EQUW HOVD_LEN
+ EQUW MESSOS, PT_NONE
  EQUB &80, 2
- EQUW HBF_LEN
- EQUW MESSS, PT_HBS
+ EQUW HOVS_LEN
+ EQUW MESSB, PT_NONE    \ (the panel, both hosts')
+ EQUB &70, &FF
+ EQUW BDATA_LEN
+ EQUW MESSK, PT_HBK     \ (bank 4's span kernel: its runs are hstart's)
+ EQUB &B0, 0
+ EQUW HBK_LEN
+ EQUW MESSC, PT_HBC
  EQUB &80, 3
- EQUW HBS_LEN
+ EQUW &4000
  EQUW MESSE, PT_HBE
  EQUB &7E, &FF
  EQUW &0200
  EQUW 0
 
-.MESSD  EQUS "L.HBD FFFF", STR$~(BUF) : EQUB 13
-.MESSPB EQUS "L.HBP FFFF", STR$~(BUF) : EQUB 13
-.MESSF  EQUS "L.HBF FFFF", STR$~(BUF) : EQUB 13
-.MESSS  EQUS "L.HBS FFFF", STR$~(BUF) : EQUB 13
+.MESSOD EQUS "L.HOVD FFFF", STR$~(BUF) : EQUB 13
+.MESSOS EQUS "L.HOVS FFFF", STR$~(BUF) : EQUB 13
+.MESSK  EQUS "L.HBK FFFF", STR$~(BUF) : EQUB 13
+.MESSC  EQUS "L.HBC FFFF", STR$~(BUF) : EQUB 13
 .MESSE  EQUS "L.HBE FFFF", STR$~(BUF) : EQUB 13
-.MESSB  EQUS "L.BDATA FFFF7000" : EQUB 13
+.MESSB  EQUS "L.BDATA FFFF", STR$~(BUF) : EQUB 13
 .MESS3  EQUS "DIR E" : EQUB 13
 .MESSP  EQUS "L.PCODE 0000", STR$~(PCODEAT) : EQUB 13
 .NORAM  EQUB 22, 7 : EQUS "This ELITE needs 64K of sideways RAM", 13, 10

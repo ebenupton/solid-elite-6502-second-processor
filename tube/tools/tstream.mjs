@@ -38,8 +38,8 @@ const host = m.host;
 const dir = a.csyms.replace(/[^/]*$/, "");
 const hs = loadSyms(a.hsyms || dir + (HB ? "hbmsyms.txt" : "hsyms.txt"));
 const HDISP = hs.hdisp, HLOOP = hs.hloop;
-const HRW = HB ? 0x7fe0 : hs.hrw;
-const inLoop = () => !HB || (host.romsel & 15) === 6;
+const HRW = hs.hrw;
+const inLoop = () => !HB || (host.romsel & 15) === 7;
 const CN = {};
 for (const l of readFileSync(new URL("../src/cmds.asm", import.meta.url), "utf8").split("\n")) { const mm = l.match(/^(C_[A-Z0-9_]+)\s*=\s*(\d+)/); if (mm) CN[+mm[2]] = mm[1]; }
 const W = a.windows.split(",").map(s => s.split("-").map(Number));

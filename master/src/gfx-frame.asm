@@ -41,10 +41,12 @@ fz_u    = FZ+15
 \ (non-zero = draw directly even though QQ11 = 0), GSIGHT, GLASV.
 
 .F_BACK     EQUB 1      \ the buffer being drawn (the one not displayed)
+IF _TPART <> 2             \ (the text map: not the Tube's hosts')
 .F_TCH      SKIP 24     \ per text row: bit b set (P) = the row changed since
                         \ buffer b's text steps last ran on it (whole in a
                         \ page: f_text1 reads it every frame, by row)
 ASSERT HI(F_TCH) = HI(F_TCH + 23)
+ENDIF
 
 IF _TPART <> 2             \ (the records: not the Tube's hosts')
 .F_NSHIP    EQUB 0      \ ships recorded this frame
@@ -89,9 +91,11 @@ FC_SIGHT = 5            \ laser sights
 FC_STAR = 6             \ stardust (logical colour; stars use a solid ink)
 
 FC_PARTB = &FF          \ (the particles' colour byte: F_PDOT)
+IF _TPART <> 2             \ (the frame's: not the Tube's hosts')
 .F_CPE
  EQUB &00, &FF, &F0, &0F, FC_PARTB, &0F, &FF
 F_CPO = F_CPE           \ (the odd rows' bytes are the even rows')
+ENDIF
 
 \ F_INIT: one-off initialisation (called by the loader / startup) is in F_SR
 \ (elite-gfx.asm), which it leaves to the ship records.
@@ -527,8 +531,10 @@ ELSE
  LDA #0
  STA GMODE
  STA GFLIP
+IF _TPART <> 2             \ (the Tube's hosts: the frame's, the parasite's)
  STA GSIGHT
  STA GLASV
+ENDIF
  LDA #1
  STA GFRONT
 IF _HOSTB = 0             \ (Model B: the IRQ shows buffer GFRONT)
@@ -553,8 +559,7 @@ ENDIF
  RTS
 
 IF _TPART = 2 AND _TDUMB
-.f_ysav EQUB 0          \ (the dumb host: f_unstar's)
-.f_tmp  EQUB 0
+.f_tmp  EQUB 0          \ (the dumb host: f_unstar's)
 ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ ------------------------------------------------------------------------------
@@ -836,7 +841,7 @@ ENDIF
  JSR T_KCOMMIT          \ (K mode: the kept rows still pending blacked)
  JSR f_dots             \ particles, distant ships
  JSR f_lasers           \ our laser beams and the sights
- JSR f_flt              \ the lens flare (gfx-flare6.asm), then the text on top
+ JSR f_flt              \ the lens flare (gfx-flare.asm's f_flt), then the text on top
  JSR f_sight2           \ and the sights
 .ff_stars
  LDA #NOST+1            \ stardust, on black only (last: erasing it next
@@ -1059,7 +1064,11 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host keeps no state of the screen
  STZ MO_ON+1            \ (no moon in it)
  ENDIF
 ENDIF
+IF _TPART = 2
+ JSR R_SETBUF           \ bankcheck: ok (the Tube's hosts: R_SETBUF in their code bank)
+ELSE
  JSR T_SETBUF
+ENDIF
 IF _TPART <> 2 OR _TDUMB = FALSE
  JSR T_RESETBUF
  LDA #&FF
@@ -1105,6 +1114,7 @@ MACRO FPATCH lab, a0, a1
  STA lab+2
 ENDMACRO
 
+IF _TPART <> 2 OR _TDUMB = FALSE OR _HOSTB   \ (the Tube's Master host: nothing)
 .f_bufpatch             \ (each array's two copies differ only in the high byte)
  LDX F_BACK
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: the glyphs' base only)
@@ -1126,10 +1136,6 @@ ENDIF
 IF _HOSTB                 \ (Model B: the back buffer's screen, BUF0 or &4000)
  LDA fbp_b,X
  STA fgl_b+1
-IF _TDUMB
- STA r_bs2+1            \ (the lines' screen base: bank F's, tube/src/hb-line.asm)
- STA r_bs8+1
-ENDIF
 IF _TDUMB = FALSE
  LDA fbp_d,X
  STA fz_t
@@ -1168,9 +1174,12 @@ IF _TDUMB = FALSE
 ENDIF
  ENDIF
  RTS
+ENDIF
 IF _HOSTB
 .fbp_b EQUB HI(BUF0), &40
+IF _TDUMB = FALSE          \ (the dumb host: as above)
 .fbp_d EQUB HI(BUF0) - &40, 0
+ENDIF
 ENDIF
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: the glyphs' base only)
 .fbp_dl EQUB HI(R_DIRTYL0), HI(R_DIRTYL1)
@@ -1259,6 +1268,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 .f_sec EQUB 0           \ secondary disc
 
 ENDIF
+IF _TPART <> 2             \ (the Tube's hosts: the disc layer is the parasite's)
 .f_discdirty            \ DIRTY[b][y] |= DISC[b][y] for all rows
  LDY #191
 .fdd1
@@ -1282,6 +1292,7 @@ ENDIF
  CPY #&FF
  BNE fdd1
  RTS
+ENDIF
 
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ f_sunrows / f_plrows: a disc's spans into R_NDISCL/R and R_NDT/R_NDB, from

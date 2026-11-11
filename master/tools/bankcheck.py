@@ -72,7 +72,7 @@ FILES = {"../build/elite-source-config.asm": "main", "../build/elite-source-low.
          "gfx-raster_line.asm": "bank5a", "gfx-raster_lcold.asm": "bank5", "gfx-raster_strips.asm": "bank5d",
          "gfx-raster_init.asm": "bank5", "gfx-raster_reset.asm": "bank5", "gfx-raster_wspan.asm": "bank5",
          "gfx-frame.asm": "bank6", "gfx-faces.asm": "bank6", "gfx-light6.asm": "bank6", "gfx-light.asm": "bank6", "gfx-finit.asm": "bank6",
-         "gfx-frame_cold.asm": "bank6", "gfx-flare6.asm": "bank6", "gfx-hangar.asm": "bank6", "gfx-hangar6.asm": "bank6", "gfx-flare.asm": "bank7m",
+         "gfx-frame_cold.asm": "bank6", "gfx-flare.asm": "bank6", "gfx-hangar.asm": "bank6", "gfx-hangar6.asm": "bank6",
          "gfx-merid.asm": "bank7m", "gfx-planet7.asm": "bank7m", "gfx-planetv.asm": "hazel",  # (the shared workspace)
          "gfx-raster_kept.asm": "bank5d", "gfx-raster_disc2.asm": "bank5", "gfx-ssun.asm": "bank4", "elite-moon.asm": "bank4", "gfx-kept7.asm": "bank7m"}
 # the copies of elite-source.asm that tools/streams.py writes, one per area

@@ -60,12 +60,13 @@ fl_t  = &0E
 \
 \ ******************************************************************************
 
-RING    = &F400         \ the ring's pages (above both overlays and the boot's
-                        \ staging: p-layout.asm asserts it): 4, giving overlay S
-                        \ the room for the discs (7 were 0.8% faster in flight
-                        \ on the Master host, 11 about 2% faster than 4, 3 were
-                        \ 3-6% slower in the beach-ball windows; one stalls)
-RINGEND = &F800
+RING    = &FA00         \ the ring's pages (above both overlays and the boot's
+                        \ staging, below the top pages: p-layout.asm asserts
+                        \ it): 4, giving overlay S the room for the discs (7
+                        \ were 0.8% faster in flight on the Master host, 11
+                        \ about 2% faster than 4, 3 were 3-6% slower in the
+                        \ beach-ball windows; one stalls)
+RINGEND = &FE00
 rq      = &FA           \ the write pointer (zero page the game leaves free)
 rpz     = &FE           \ the IRQ's read pointer (0, the reader's page)
 PR1N    = 24            \ register 1's FIFO, parasite to host
@@ -537,6 +538,8 @@ RINGN = (RINGEND - RING) DIV 256 * 255
 .ppd9
  RTS
 
+\       Area: page FF
+
 \ pirq: the parasite's IRQ (BRK: p_crash). The host's doorbell: up to PBN
 \ bytes from the ring into register 1, which the doorbell says is empty, in
 \ segments (to the writer, or to the end of the reader's page); the doorbell
@@ -671,10 +674,11 @@ RINGN = (RINGEND - RING) DIV 256 * 255
 .pia   EQUB 0
 .pix   EQUB 0
 .piy   EQUB 0
-IF HI(P%) <> HI(P% + PBN * 6)
- SKIP &100 - LO(P%)     \ (the unrolled sends in one page: pirq patches a low byte)
-ENDIF
-.pbl                    \ (pirq's unrolled sends: entered n from the end)
+
+\       Area: page FE
+
+.pbl                    \ (pirq's unrolled sends, entered n from the end: in one
+                        \ page, as pirq patches a low byte)
 FOR i, 1, PBN
  LDA (rpz),Y
  STA PR1D
@@ -683,6 +687,8 @@ NEXT
 .pbl_end
  JMP pirab
  ASSERT HI(pbl) = HI(pbl_end)
+
+\       Area: frame
 
 \ preq: send A to the host through register 2, waiting for room: the
 \ requests (keys, a key test, the vsync, port B, the star records), which the
@@ -759,7 +765,7 @@ ENDMACRO
 
 \ The trampolines into the rasteriser (gfx-tramp.asm in the Master port)
 
-.T_POLY                 \ R_POLY: phase A here (p-polya.asm), the rows to the host
+.T_POLY                 \ R_POLY: phase A here (p-poly.asm), the rows to the host
  PHA
  PHX
  PHY
@@ -1010,8 +1016,8 @@ ENDMACRO
 \ the host's MOS runs it as the host's own I/O (h_disc, h-cold.asm): the
 \ printing's context (QQ11 OR GFORCE, GMODE, CHPR's zero page, W, CATF), the
 \ mode (1 SAVE, 2 LOAD, else 0) with, for those, commbuf's 256 bytes (the
-\ host saves from and loads into its buffer at &3F00, which savosc and lodosc
-\ name), then the command. The host answers through register 4: 0, or &FF
+\ host saves from and loads into its buffer, cmds.asm's HDBUF, which savosc
+\ and lodosc name), then the command. The host answers through register 4: 0, or &FF
 \ and the error's number, message and 0 (then NEWBRK prints it, as after the
 \ MOS's BRK); then the printing's context back, and for a load commbuf. As
 \ DOSCLI: GSTASH is set (the Master port's next space-mode frame clears
@@ -1139,3 +1145,106 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 .TTX66M                 \ (CHPR's call of TTX66: no banks here)
  JMP TTX66
 
+\       Area: page FE
+
+\ p_crash: a BRK (a crash, pirq's way on): A, X, Y and S kept here (the
+\ stack's top at &0101+S: the flags, then the BRK's address+2), then a loop.
+\ p_nmi: the NMI vector's (the host never writes register 3 again)
+
+.p_crash
+ STA pcra
+ STX pcrx
+ STY pcry
+ TSX
+ STX pcrs
+.pcrsh
+ JMP pcrsh
+.p_nmi
+ RTI
+.pcra EQUB 0
+.pcrx EQUB 0
+.pcry EQUB 0
+.pcrs EQUB 0
+
+\       Area: boot
+
+\ p_start: the parasite's entry (the loader starts it through the client
+\ OS's Tube code, its only use): the boot (p_boot) takes the parasite's
+\ memory over, then wakes the host's command loop with &FE (the host's
+\ WRCHV, as the MOS's Tube code passes the byte to OSWRCH), then the
+\ renderer's initialisation (F_INIT, as the Master port's loader calls it
+\ through G_INIT) and the game (S%). F_INIT loads overlay S over the boot,
+\ so it returns straight to S% (pushed as its return address)
+
+.p_start
+ SEI
+ CLD
+ LDX #&FF
+ TXS
+ JSR p_boot
+ LDA #255               \ (the ring's write pointer: rpl, rph's start)
+ STA rq
+ LDA #HI(RING)
+ STA rq+1
+ LDA #&FE
+ JSR ptx
+ LDA #HI(S%-1)          \ (F_INIT's RTS goes to S%)
+ PHA
+ LDA #LO(S%-1)
+ PHA
+ JMP F_INIT
+
+\ p_boot: drains a stray byte from the host in register 1, zeroes the
+\ Tube's workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
+\ makes QSL (elite-qs.asm) in pages 2 and 3, then copies the staged images
+\ (p-layout.asm) in over the client OS, which the game never uses again:
+\ the two top pages.
+\ QSL+x is q(x) = x^2 DIV 4's low byte, and QSL+256+x (256+x)^2 DIV 4's,
+\ q(x) + 128x's: q(x) with bit 7 flipped when x is odd; q(x+1) = q(x) +
+\ (x+1) DIV 2, kept in rq (p_start sets it after)
+
+.p_boot
+ LDA &FEF8
+ BPL pbt0
+ LDA &FEF9
+.pbt0
+ LDA #LO(PWS_START)     \ the workspace starts zero
+ STA rq
+ LDA #HI(PWS_START)
+ STA rq+1
+ LDA #0
+.pbz1
+ STA (rq)
+ INC rq
+ BNE P%+4
+ INC rq+1
+ LDX rq
+ CPX #LO(PWS_END)
+ BNE pbz1
+ LDX rq+1
+ CPX #HI(PWS_END)
+ BNE pbz1
+ STZ rq                 \ (q(0))
+ LDX #0
+.pbt1
+ LDA PSTG_FF,X
+ STA &FF00,X
+ TXA                    \ QSL+x and QSL+256+x (C: x odd)
+ LSR A
+ LDA rq
+ STA QSL,X
+ BCC P%+4
+ EOR #&80
+ STA QSL+256,X
+ TXA                    \ q(x+1) = q(x) + x DIV 2 + (x AND 1)
+ LSR A
+ ADC rq
+ STA rq
+ CPX #&F0                \ (&FEF0-&FEFF: the Tube's registers)
+ BCS pbt2
+ LDA PSTG_FE,X
+ STA &FE00,X
+.pbt2
+ INX
+ BNE pbt1
+ RTS

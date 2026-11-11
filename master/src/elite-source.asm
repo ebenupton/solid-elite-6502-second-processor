@@ -55,7 +55,8 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &1400          \ Port (Tube): the parasite's (tube/src/p-ws.asm below)
+ CODE% = &1B34          \ Port (Tube): the parasite's, where the Tube's workspace
+                        \ ends (tube/src/p-ws.asm, p-layout.asm asserts it)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
                         \ the renderer's shared workspace below it (gfx-ws.asm)
@@ -297,17 +298,7 @@ ENDIF
                         \ in by the stubs (build/elite-stubs.asm) while cold code
                         \ runs (ANDY is the rasteriser's)
 
-IF _TPART = 1
-
- VIA = &0D08 - &34      \ Port (Tube): the parasite has no SHEILA (only the Tube's
-                        \ registers, at &FEF8): what Master's code still writes
-                        \ there (ACCCON's X bit, around the drawing whose screen
-                        \ writes go to the host, the only SHEILA write left)
-                        \ lands in one byte, &0D08, below the frame layer's
-                        \ inputs (tube/src/p-ws.asm), and what it reads (the
-                        \ keyboard, the timers) is replaced (docs/TUBE-MAP.md)
-
-ELSE
+IF _TPART <> 1          \ (Tube: the parasite's VIA follows VEC, below)
 
  VIA = &FE00            \ Memory-mapped space for accessing internal hardware,
                         \ such as the video ULA, 6845 CRTC and 6522 VIAs (also
@@ -1622,9 +1613,13 @@ ENDIF
                         \
                         \   * 0 = we have crashed into the surface
 
+IF _TPART = 2           \ Port (Tube, the hosts: SWAP is with DASHV, below)
+ SKIP 1
+ELSE
 .SWAP
-
- SKIP 1                 \ Temporary storage, used to store a flag that records
+ SKIP 1
+ENDIF
+                        \ Temporary storage, used to store a flag that records
                         \ whether or not we had to swap a line's start and end
                         \ coordinates around when clipping the line in routine
                         \ LL145 (the flag is used in places like BLINE to swap
@@ -2091,6 +2086,9 @@ ENDIF
  SKIP 1                 \ Used to store the number of particles in the explosion
                         \ cloud, though the number is never actually used
 
+IF _TPART = 2           \ Port (Tube, the hosts: JOPOS is with DASHV, below)
+ SKIP 3
+ELSE
 .JOPOS
 
  SKIP 1                 \ Contains the high byte of the latest value from ADC
@@ -2104,14 +2102,17 @@ ENDIF
  SKIP 1                 \ Contains the high byte of the latest value from ADC
                         \ channel 3 (the Bitstik rotation value), which gets
                         \ updated regularly by the IRQ1 interrupt handler
+ENDIF
 
                         \ Port: the CMYK dashboard's variables (DIALS, SCAN,
                         \ DOT, MSBAR and their helpers, in bank 4), here as they
                         \ run with ACCCON X set (shadow RAM at &3000-&7FFF)
 
-IF _HOSTB                \ (Tube, Model B host: these are in bank F, as its main
- DASHV_S% = P%          \ RAM holds its own code here, DASHV_B in tube/src/cmds.asm)
- ORG DASHV_B
+IF _TPART = 2           \ (Tube, the hosts: in the host's workspace, with the two
+ DASHV_S% = P%          \ others of WP its code uses, SWAP and JOPOS, so that it
+ ORG HWP                \ keeps nothing in WP: tube/src/h-layout.asm, hb-ws.asm)
+.SWAP   SKIP 1
+.JOPOS  SKIP 3
 ENDIF
 
 .DASHV
@@ -2144,7 +2145,7 @@ ENDIF
 .dlen   SKIP 1          \ SCAN: the stick's length (signed)
 .dstab  SKIP 8          \ SCAN: the stick's byte for each line of a row
 
-IF _HOSTB               \ (Tube, Model B host: DIALS' and DOT's inputs from WP,
+IF _TPART = 2           \ (Tube, the hosts: DIALS' and DOT's inputs from WP,
 .dQQ14   SKIP 1         \ which h-panel.asm receives into these)
 .dCABTMP SKIP 1
 .dGNTMP  SKIP 1
@@ -2198,6 +2199,19 @@ ENDIF
  EQUW &8888             \ This gets set to the value of the original IRQ1 vector
                         \ by the STARTUP routine
 
+IF _TPART = 1
+
+ VIA = P% - &34         \ Port (Tube): the parasite has no SHEILA (only the Tube's
+                        \ registers, at &FEF8): what Master's code still writes
+                        \ there (ACCCON's X bit, around the drawing whose screen
+                        \ writes go to the host, the only SHEILA write left)
+                        \ lands in one byte, the first after VEC, the start of
+                        \ the Tube's workspace (tube/src/p-ws.asm's PACC), and
+                        \ what it reads (the keyboard, the timers) is replaced
+                        \ (docs/TUBE-MAP.md)
+
+ENDIF
+
 \ ******************************************************************************
 \
 \       Name: WSCAN
@@ -2228,9 +2242,9 @@ ENDIF
 \       Type: Subroutine
 \   Category: Screen mode
 \    Summary: Port: WSCAN's own wait for the vertical sync, its own block (the
-\             Tube's host waits: never run on the parasite, in overlay D)
+\             Tube's host waits: never run on the parasite, not assembled there)
 \       Area: low
-\       Tube: ovl D
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -3109,6 +3123,8 @@ ENDIF
 
  PHA                    \ Store the original value of A on the stack
 
+IF _TPART <> 2          \ (Tube: the host answers C_WSCAN at the vsync, H_VSYNC;
+                        \ DL is the parasite's)
  LDA VSCAN+1            \ Set the line scan counter to the value of VSCAN+1
  STA DL                 \ (which contains 30 by default and doesn't change), so
                         \ routines like WSCAN can set DL to 0 and then wait for
@@ -3116,6 +3132,7 @@ ENDIF
                         \ 
                         \ Port: VSCAN+1 contains 72, and WSCAN only needs DL to
                         \ become non-zero
+ENDIF
 
                         \ Port: the original restarted timer 1 here (T1C-L =
                         \ VSCAN+1, T1C-H = VSCAN: 14622 us from now), so the
@@ -3154,6 +3171,8 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2 OR _HOSTB = 0  \ (Tube: the Model B host's split is its own rupture,
+                        \ hb-irq.asm)
 .VSCAN
 
  EQUB 57                \ Defines the split position in the split-screen mode
@@ -3174,6 +3193,7 @@ ENDIF
                         \ IRQ1's write then comes 45-53 cycles after timer 1
                         \ fires, so 72 centres that 26-cycle spread in the
                         \ 64-cycle gap; DL only needs it to be non-zero
+ENDIF
 
 \ ******************************************************************************
 \
@@ -3885,6 +3905,7 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the host's C_LOIN calls LOINQ: h-panel.asm)
 .LOIN
 
  STY YSAV               \ Store Y in YSAV so we can retrieve it below
@@ -3914,6 +3935,7 @@ ENDIF                   \ IFJ (bits 4 and 5) are kept; the Tube's host never
  LDY YSAV               \ Retrieve the value of Y we stored above
 
  RTS                    \ Return from the subroutine
+ENDIF
 
 \ ******************************************************************************
 \
@@ -6563,12 +6585,14 @@ ENDIF
 \
 \ ******************************************************************************
 
-.orange
+IF _TPART <> 2          \ (Tube: HLOIN's, the parasite's; the host draws from
+.orange                 \ HLOIN3, with the colour it is sent)
 
  EQUB %10100101         \ Four mode 1 pixels of colour 2, 1, 2, 1 (red/yellow)
  EQUB %10100101
  EQUB %01011010         \ Four mode 1 pixels of colour 1, 2, 1, 2 (yellow/red)
  EQUB %01011010
+ENDIF
 
 \ ******************************************************************************
 \
@@ -7240,9 +7264,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ECBLB2
+IF _TPART <> 2          \ (Tube: the E.C.M. is the parasite's; the host lights
+.ECBLB2                 \ the bulb, C_PBULB)
  LDA #32
  STA ECMA
+ENDIF
 
 \ ******************************************************************************
 \
@@ -7460,9 +7486,11 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .HANGFLAG
 
  EQUB 0
+ENDIF
 
 \ ******************************************************************************
 \
@@ -7631,6 +7659,7 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the host prints only what it is sent)
 .TT67K
 
                         \ This does the same as the existing TT67 routine, which
@@ -7644,6 +7673,7 @@ ENDIF
  LDA #12                \ Set A to a carriage return character
 
                         \ Fall through into TT26 to print the newline
+ENDIF
 
 \ ******************************************************************************
 \
@@ -8458,12 +8488,14 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the host's CHPR enters at ZES2 only)
 .ZES1
 
  LDY #0                 \ If we set Y = SC = 0 and fall through into ZES2
  STY SC                 \ below, then we will zero-fill 255 bytes starting from
                         \ SC - in other words, we will zero-fill the whole of
                         \ page X
+ENDIF
 
 \ ******************************************************************************
 \
@@ -8718,19 +8750,25 @@ ENDIF
  STA SC+1
 
  JSR PZW2               \ high values: danger colour, low values: safe (2)
- STX K+1
+IF _TPART <> 2          \ (Tube: the host draws only: K and T1 as Master are
+ STX K+1                \ the game's, the parasite's)
  STA K
+ENDIF
  STY dK
  LDA #DCN_SAFE2
  STA dK1
 
+IF _TPART <> 2
  LDA #14                \ (T1 as Master)
  STA T1
+ENDIF
  LDA #28                \ speed: 0-40, one pixel per unit, danger from 28
  STA dT
  LDA DELTA
  JSR DIL
 
+IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
+                        \ the game's, the parasite's)
  STZ R                  \ Roll and pitch, calculated as Master (ADDK), for
  STZ P                  \ the side effects on P, R, S, T, T1, U
  LDA #8
@@ -8740,9 +8778,8 @@ ENDIF
  LSR A
  ORA ALP2
  EOR #%10000000
-IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
  JSR ADDK
-ENDIF                  \ the game's, the parasite's)
+ENDIF
 
                         \ The roll marker: at 15 -/+ ALP1 / 2 (0..30), on the
                         \ side Master's ADD put it
@@ -8763,13 +8800,13 @@ ENDIF                  \ the game's, the parasite's)
 .drl2
  JSR DIL2               \ (returns C set, as Master's DIL2)
 
+IF _TPART <> 2         \ (Tube: as the roll's)
  LDA BETA               \ The pitch, as Master
  LDX BET1
  BEQ P%+4
  SBC #1
-IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
  JSR ADDK
-ENDIF                  \ the game's, the parasite's)
+ENDIF
 
                         \ The pitch marker: at 15 +/- (2 * BET1 - 1), with
                         \ BETA's sign (sign-magnitude), 15 when BET1 = 0
@@ -8800,22 +8837,31 @@ ENDIF                  \ the game's, the parasite's)
                         \ bottom bank up
 
  JSR PZW                \ high values: safe colour, low values: danger
+IF _TPART <> 2          \ (Tube: as above, and the banks as Master in XX15)
  STX K
  STA K+1
+ENDIF
  STY dK1
+IF _TPART <> 2
  LDY #0
+ENDIF
  LDA #DCN_SAFE
  STA dK
  LDX #3
+IF _TPART <> 2
  STX T1
+ENDIF
  LDA #6                 \ danger below 6 pixels (Master's 3 of 16)
  STA dT
 
 .dll23
+IF _TPART <> 2
  STY XX15,X
+ENDIF
  STZ dbank,X
  DEX
  BPL dll23
+IF _TPART <> 2
  LDX #3
  LDA ENERGY
  LSR A
@@ -8835,6 +8881,7 @@ ENDIF                  \ the game's, the parasite's)
 .dll26
  LDA Q
  STA XX15,X
+ENDIF
 .dll27
  LDX #3
  LDA ENERGY
@@ -8881,9 +8928,11 @@ ENDIF                  \ the game's, the parasite's)
  LSR A
  JSR DIL
 
+IF _TPART <> 2          \ (Tube: as above)
  LDA #YELLOW2           \ fuel: 0-70 -> 0-35 (clipped at 32)
  STA K
  STA K+1
+ENDIF
  LDA #DCN_FUEL
  STA dK
  STA dK1
@@ -8892,13 +8941,17 @@ ENDIF                  \ the game's, the parasite's)
  JSR DIL
 
  JSR PZW2               \ temperatures: high values danger, low safe (2)
+IF _TPART <> 2          \ (Tube: as above)
  STX K+1
  STA K
+ENDIF
  STY dK
  LDA #DCN_SAFE2
  STA dK1
+IF _TPART <> 2
  LDX #11
  STX T1
+ENDIF
  LDA #22                \ danger from 22 pixels (Master's 11 of 16)
  STA dT
  LDA dCABTMP
@@ -8913,11 +8966,15 @@ ENDIF                  \ the game's, the parasite's)
  JSR DIL
 
  LDA #240               \ altitude: 0-255 -> 0-31, one colour
+IF _TPART <> 2          \ (Tube: as above)
  STA T1
+ENDIF
  STA dT
+IF _TPART <> 2
  LDA #YELLOW2
  STA K
  STA K+1
+ENDIF
  LDA #DCN_ALT
  STA dK
  STA dK1
@@ -8954,13 +9011,16 @@ ENDIF
 \
 \ PZW: X = the safe colour byte, A = the danger colour byte, as Master's (red,
 \ or green on every other 8 iterations if flashing is enabled), and Y = the
-\ danger colour number. PZW2: the same with the second safe colour
+\ danger colour number. PZW2: the same with the second safe colour. (Tube:
+\ the host's DIALS takes Y only: the colour bytes were Master's K, the game's)
 \
 \ ******************************************************************************
 
 .PZW2
+IF _TPART <> 2
  LDX #WHITE2
  EQUB &2C               \ skip the next instruction (BIT abs)
+ENDIF
 
 \ ******************************************************************************
 \
@@ -8978,17 +9038,23 @@ ENDIF
 \ ******************************************************************************
 
 .PZW
+IF _TPART <> 2          \ (Tube: Y only, PZW2's)
  LDX #STRIPE
+ENDIF
  LDA MCNT
  AND #%00001000
  AND FLH
  BEQ pzw1
  LDY #DCN_FLASH
+IF _TPART <> 2
  LDA #GREEN2
+ENDIF
  RTS
 .pzw1
  LDY #DCN_DANGER
+IF _TPART <> 2
  LDA #RED2
+ENDIF
  RTS
 
 \ ******************************************************************************
@@ -9411,6 +9477,15 @@ IF _TPART = 1           \ Port (Tube): the parasite's glyph nibbles for H_CHAR
  INCLUDE "build/fontw.asm"  \ host draws the glyphs)
 ENDIF
 
+IF _TPART = 2           \ Port (Tube, the hosts): the font has the pages the
+ FONT% = HI(HFONT)      \ MOS's Tube code leaves (tube/src/h-layout.asm, hb-ws.asm)
+ELIF _TPART = 1
+ FONT% = HI(P%)         \ Port (Tube): the parasite has no font (the host draws the
+                        \ glyphs: H_CHAR reads only W's nibble of a glyph, from
+                        \ PFONTW above), so no alignment here: CHPR's pointer
+                        \ into it is never read (H_CHAR)
+ELSE
+
  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
 
  ALIGN &100             \ Port: the font must start on a page boundary, as only
@@ -9418,9 +9493,9 @@ ENDIF
 
  FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
 
-IF _TPART <> 1          \ Port (Tube: the parasite draws no glyphs, the host
- INCBIN "src/fonts/P.FONT.bin"  \ does: its H_CHAR reads only W's nibble of a
-ENDIF                   \ glyph, from PFONTW above)
+ INCBIN "src/fonts/P.FONT.bin"
+
+ENDIF
 
 \ ******************************************************************************
 \
@@ -9430,7 +9505,7 @@ ENDIF                   \ glyph, from PFONTW above)
 \    Summary: Binary logarithm table (high byte)
 \       Area: hot, ACCCON X
 \
-\       Tube: bothb
+\       Tube: bothb, aligned
 \ ------------------------------------------------------------------------------
 \
 \ At byte n, the table contains the high byte of:
@@ -9513,7 +9588,7 @@ ENDIF
 \    Summary: Binary logarithm table (low byte)
 \       Area: hot, ACCCON X
 \
-\       Tube: bothb
+\       Tube: bothb, aligned
 \ ------------------------------------------------------------------------------
 \
 \ Byte n contains the low byte of:
@@ -9593,7 +9668,7 @@ ENDIF
 \    Summary: Binary antilogarithm table
 \       Area: hot, ACCCON X
 \
-\       Tube: bothb
+\       Tube: bothb, aligned
 \ ------------------------------------------------------------------------------
 \
 \ At byte n, the table contains:
@@ -9615,8 +9690,8 @@ ENDIF
  NEXT
 
 IF _TUBE AND _TPART = 1 \ Port (Tube): the parasite's quarter squares follow the
- INCLUDE "src/elite-qs.asm"  \ log tables, page aligned with them, so that the
-ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
+ INCLUDE "src/elite-qs.asm"  \ log tables, page aligned with them, in their pass
+ENDIF                   \ (tube/src/p-layout.asm)
 
 \ ******************************************************************************
 \
@@ -9644,6 +9719,9 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \   * #GREEN2 = the object in the compass is behind us,
                         \     so the dot is green
 
+IF _TPART <> 2          \ (Tube: the configuration and the unused bytes are the
+                        \ parasite's; the host keeps COMC, CATF, DNOIZ, FLH and
+                        \ VOL, which its commands set)
 .dials
 
  SKIP 14                \ These bytes appear to be unused
@@ -9651,6 +9729,8 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
 .mscol
 
  SKIP 4                 \ This byte appears to be unused
+
+ENDIF
 
 .CATF
 
@@ -9670,9 +9750,12 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \ of the catalogue, between the two lists of filenames,
                         \ so it can be dropped without affecting the layout)
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .DFLAG
 
  SKIP 1                 \ This byte appears to be unused
+
+ENDIF
 
 .DNOIZ
 
@@ -9685,6 +9768,7 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \ Toggled by pressing "S" when paused, see the DK4
                         \ routine for details
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .DAMP
 
  SKIP 1                 \ Keyboard damping configuration setting
@@ -9726,6 +9810,8 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \ force a mis-jump. See routine ee5 for the "AND PATG"
                         \ instruction that implements this logic
 
+ENDIF
+
 .FLH
 
  SKIP 1                 \ Flashing console bars configuration setting
@@ -9737,6 +9823,7 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \ Toggled by pressing "F" when paused, see the DKS3
                         \ routine for details
 
+IF _TPART <> 2          \ (Tube: the parasite's)
 .JSTGY
 
  SKIP 1                 \ Reverse joystick Y-channel configuration setting
@@ -9798,6 +9885,8 @@ ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
                         \ routine for details
 
  SKIP 1                 \ This byte appears to be unused
+
+ENDIF
 
 .VOL
 
@@ -15124,8 +15213,8 @@ ENDIF
 \       Type: Variable
 \   Category: Keyboard
 \    Summary: Port: FILLKL's variables, their own block (only FILLKL's own scan
-\             uses them: the Tube's overlay D)
-\       Tube: ovl D
+\             uses them: not assembled on the Tube's parasite)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -16600,8 +16689,8 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Port: the keyboard columns with a key pressed, for FILLKL's own
-\             scan, its own block (the Tube's overlay D)
-\       Tube: ovl D
+\             scan, its own block (not assembled on the Tube's parasite)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -32608,8 +32697,8 @@ ENDIF
 \       Type: Subroutine
 \   Category: Screen mode
 \    Summary: Port: DET1's own write to the 6845, its own block (the Tube's host
-\             has the 6845: never run on the parasite, in overlay D)
-\       Tube: ovl D
+\             has the 6845: never run on the parasite, not assembled there)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -40349,9 +40438,9 @@ IF _TUBE
  LDA savosc             \ Port (Tube): savosc is in overlay D, which each load
  STA savc0              \ of D restores from the host's image, so the first
                         \ byte that the bug above leaves there is kept in
-                        \ resident memory (savc0, tube/src/p-layout.asm's low
-                        \ code) and put back before each save, so that it
-                        \ persists as in SNG47
+                        \ resident memory (savc0, tube/src/p-ovl.asm) and put
+                        \ back before each save, so that it persists as in
+                        \ SNG47
 
 ENDIF
 
@@ -40888,9 +40977,9 @@ ENDIF
 
 .savosc
 
-IF _SNG47 AND _TUBE      \ Port (Tube): from the host's buffer (tube/src/h-cold.asm's
+IF _SNG47 AND _TUBE      \ Port (Tube): from the host's buffer (tube/src/cmds.asm's
                         \ HDBUF), where the host's own disc command saves it
- EQUS "SAVE :1.E.JAMESON  FFFF3F00 +100 0 0"
+ EQUS "SAVE :1.E.JAMESON  FFFF", STR$~(HDBUF), " +100 0 0"
  EQUB 13
 
 ELIF _SNG47
@@ -40920,7 +41009,7 @@ ENDIF
 
 IF _SNG47 AND _TUBE      \ Port (Tube): into the host's buffer (HDBUF)
 
- EQUS "LOAD :1.E.JAMESON  FFFF3F00"
+ EQUS "LOAD :1.E.JAMESON  FFFF", STR$~(HDBUF)
  EQUB 13
 
 ELIF _SNG47
@@ -49097,8 +49186,9 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Port: FILLKL's own scan of the keyboard, its own block (the Tube's
-\             host scans the keyboard: never run on the parasite, overlay D)
-\       Tube: ovl D
+\             host scans the keyboard: never run on the parasite, not assembled
+\             there)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -49350,7 +49440,7 @@ IF _TPART = 1
  TXA                    \ injection point, tube/harness), and return as below:
  RTS                    \ A = X, N from bit 7
 
-ENDIF
+ELSE
 
  LDX #3                 \ Set X to 3, so it's ready to send to SHEILA once
                         \ interrupts have been disabled
@@ -49387,6 +49477,8 @@ ENDIF
  TXA                    \ Transfer X into A
 
  RTS                    \ Return from the subroutine
+
+ENDIF
 
 ENDIF
 

@@ -24,12 +24,12 @@ await m.boot();
 const FROM = +a.from, TO = +a.to, pm = m.t.par.memory;
 const cnt = new Map(); let on = false, tot = 0, waits = 0;
 // labels: the overlay region's by the overlay in (D: name_C), the rest as they are
-const OS = sy.OVL_START, all = Object.entries(sy).filter(([k, v]) => v >= 0x0800 && !/^(CODE|LOAD)/.test(k));
+const OS = sy.OVL_START, OE = sy.OVL_END ?? 0xf800, all = Object.entries(sy).filter(([k, v]) => v >= 0x0800 && !/^(CODE|LOAD)/.test(k));
 const srt = l => l.sort((x, y) => x[1] - y[1]);
-const LR = srt(all.filter(([k, v]) => v < OS || v >= 0xf800)), LS = srt(all.filter(([k, v]) => v >= OS && v < 0xf800 && !k.endsWith("_C"))),
-    LD = srt(all.filter(([k, v]) => v >= OS && v < 0xf800 && k.endsWith("_C")));
+const LR = srt(all.filter(([k, v]) => v < OS || v >= OE)), LS = srt(all.filter(([k, v]) => v >= OS && v < OE && !k.endsWith("_C"))),
+    LD = srt(all.filter(([k, v]) => v >= OS && v < OE && k.endsWith("_C")));
 const find = (lab, x) => { let lo = 0, hi = lab.length - 1, r = null; while (lo <= hi) { const k = (lo + hi) >> 1; if (lab[k][1] <= x) { r = lab[k][0]; lo = k + 1; } else hi = k - 1; } return r; };
-const labelOf = x => x >= OS && x < 0xf800 ? (pm[sy.ovl_cur] === 1 ? find(LD, x) : find(LS, x)) : find(LR, x);
+const labelOf = x => x >= OS && x < OE ? (pm[sy.ovl_cur] === 1 ? find(LD, x) : find(LS, x)) : find(LR, x);
 m.t.addParHook(pc => {
     if (!on) return false;
     tot++;

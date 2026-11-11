@@ -4,10 +4,12 @@
 \
 \ The host owns the screen, the sound chip and the keyboard, and executes the
 \ parasite's commands (tube/src/cmds.asm). Its drawing is the Master port's:
-\ the rasteriser (banks 5 and ANDY), the frame layer's text map, text overlay
-\ and sights (bank 6, gfx-frame.asm's host part), CHPR, the IRQ and the sound
-\ (elite-source.asm's blocks tagged "Tube: host" or "both"). Bank 6 is paged
-\ in between commands (the trampolines into the rasteriser page it back).
+\ the rasteriser, the frame layer's host part (gfx-frame.asm), CHPR, the IRQ
+\ and the sound (elite-source.asm's blocks tagged "Tube: host" or "both").
+\ The Master host's code is bank 7's, paged whenever it runs outside the STA
+\ runs, and the kernel's in main RAM (h-layout.asm): only the kernel pages a
+\ line's bank in, and it pages bank 7 back (hbank). The Model B host's
+\ resting bank is bank 7 (the trampolines into its rasteriser page it back).
 \
 \ Entered through WRCHV (hwrch): the loader starts the parasite through the
 \ MOS's Tube code, which leaves the host in its idle loop, passing register
@@ -27,7 +29,7 @@ IF _HOSTB = 0             \ (Model B: in main RAM, hb-res.asm)
 .hwrch
  CMP #&FE
  BNE hwr1
- LDA #GFXBANK           \ (hstart is in bank 6: h-cold.asm)
+ LDA #GFXBANK           \ (hstart is in the resting bank: h-cold.asm)
  STA &F4
  STA &FE30
  JMP hstart
@@ -93,25 +95,22 @@ HCTXN = 12
 
 .htab
  EQUW h_sync, h_init, h_bad, h_bad, h_bad, h_bad, h_bad, h_span
- EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_keys
- EQUW h_dks, h_wscan, h_noise, h_soflush, h_bad, h_bad, h_bad, h_cls
- EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_disc, h_bad, h_bad
+ EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_bad
+ EQUW h_bad, h_bad, h_bad, h_bad, h_bad, h_bad, h_bad, h_cls
+ EQUW h_boxc, h_clyns, h_bad, h_det1, h_bad, h_disc, h_bad, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
  EQUW h_clrbuf, h_eordot, h_directd, h_bad, h_loin, h_bad, h_hloin, h_pixel, h_dspans
 ASSERT P% - htab = C_MAX
 
 .hloop
- BIT HR2S               \ a request (register 2) first, then the next command
- BMI hreq
- BIT HR1S
+ BIT HR1S               \ the next command
  BMI hlp1
  BVC hloop              \ (register 1 empty: the parasite's doorbell, through
  STA HR1D               \ register 1 to it, unless one already waits there;
  BVS hloop              \ p-io.asm's ring)
 .hlp1
  LDA HR1D
-.hdisp
  TAX
 IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
  LDA htab,X
@@ -123,17 +122,8 @@ IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
 ELSE
  JMP (htab,X)
 ENDIF
-.hreq
- LDA HR2D
- JMP hdisp
 
 IF _HOSTB = 0             \ (the Model B host's: hb-ovl.asm)
-ENDIF
-
-IF _HOSTB = 0
-.hdead                  \ (h-dead.asm's names: never run; R_SETBUF's patches of
- BRK                    \ their operands write here)
- EQUB 0, 0, 0
 ENDIF
 
 IF _HOSTB = 0             \ (the Model B host's: hb-main.asm, at a fixed place)
@@ -156,21 +146,14 @@ ENDIF
  JMP hloop              \ instruction)
 
 .h_init                 \ C_INIT: F_INIT's host part: the drawing code's state
-IF _HOSTB = 0             \ (R_INIT's part that the drawing reads: the stars'
- LDA #&FF               \ colour, no stars, no polygon rows, buffer 0's patches;
- STA R_SCOL             \ the Model B host's are set per command, and its R_PN
- LDA #0                 \ is bank P's)
- STA R_SN
- STA R_PN
- LDA #RASTBANK           \ (R_PRBUF is in bank 5's shared region: with bank 6
- STA &FE30              \ paged, this store went into bank 6, where the
- LDA #1                 \ overlays' storage now is)
- STA R_PRBUF
- LDA #GFXBANK
- STA &FE30
+ LDA #&FF               \ (R_INIT's part that the drawing reads: the stars'
+ STA R_SCOL             \ colour, no stars, buffer 0's patches)
  LDA #0
- JSR T_SETBUF
-ENDIF
+ STA R_SN
+ LDA #1
+ STA R_PRBUF
+ LDA #0
+ JSR R_SETBUF
 IF _HOSTB = 0
  LDA #4                 \ clear main RAM's screen (buffer 0)
  TRB &FE34
@@ -195,7 +178,7 @@ ELSE
  CPY #&70
 ENDIF
  BNE hin1
- LDX #23+NDSTAR
+ LDX #NDSTAR-1
 .hin2
  STA R_SS,X
  DEX
@@ -203,90 +186,87 @@ ENDIF
  JMP hloop
 
 \ h_ovlget: C_OVLGET: overlay A's image (the parasite's p-ovl.asm), whole pages
-\ from its place in the host's storage (h_ovl: storage only), through register 4
+\ from its place in the host's storage (storage only), through register 4
 
 .h_ovlget
 IF _HOSTB
  JMP hb_ovlget          \ (Model B: main RAM, hb-ovl.asm)
-ELSE                      \ (the Master host: page by page, wherever the build
- HRX                    \ put each page, build/hstore.asm: main RAM with ACCCON
- JSR hov_at             \ X clear, sideways RAM, ANDY or HAZEL)
-.hog0
- JSR hov_pg
- BVS hogq
+ELSE                      \ (the Master host: h-layout.asm's storage)
+ HRX
+ CMP #1
+ BNE hos0
+ LDA #4                 \ D: its page p is quarters 4p to 4p+3, bytes 192-255
+ STA hogb               \ of the pages of lines 4p to 4p+3's runs, page &80
+ LDA #&80               \ + 4p MOD 64 of bank 4 + 4p DIV 64 (h-sta.asm)
+ STA hogq1+2
+ LDX #4 * OVLD_PAGES    \ (the quarters)
+.hod0
+ LDA hogb
+ STA &FE30
+.hogq
+ LDY #&C0
+.hogq1
+ LDA &FF00,Y            \ (patched: the quarter's line's page)
+ HTX
+ INY
+ BNE hogq1
+ INC hogq1+2
+ LDA hogq1+2
+ CMP #&C0
+ BNE hod1
+ LDA #&80               \ (the next bank's first line)
+ STA hogq1+2
+ INC hogb
+ DEX
+ BNE hod0
+ BEQ hogx
+.hod1
+ DEX
+ BNE hogq
+ BEQ hogx
+.hos0                   \ S: its pages from its three extents, in address
+ LDA &FE34              \ order: main RAM with ACCCON X clear (only X is
+ AND #4                 \ touched: TRB/TSB), then bank 7's, which is paged
+ STA hova
+ LDA #4
+ TRB &FE34
+ LDX #0
+.hos1
+ LDA hse_pg,X
+ STA hog1+2
+ LDA hse_n,X
+ STA hogn
+.hos2
+ LDY #0
 .hog1
  LDA &FF00,Y            \ (patched: the page)
  HTX
  INY
  BNE hog1
-.hog8
- INC hogp
+ INC hog1+2
  DEC hogn
- BNE hog0
- BRA hogx
-.hogq                   \ (a page kept as four 64-byte pieces, bytes 192-255
- LDY #&C0               \ of four pages: hov_pg)
-.hogq1
- LDA &FF00,Y            \ (patched: the piece's page)
- HTX
- INY
- BNE hogq1
- INC hogq1+2
- DEX
- BNE hogq
- BRA hog8
-.hogx
+ BNE hos2
+ INX
+ CPX #3
+ BNE hos1
  LDA hova               \ (ACCCON's X as it was)
  TSB &FE34
+.hogx
  LDA #GFXBANK
- STA &F4
  STA &FE30
  JMP hloop
-.hov_at                 \ A = the overlay: its first page and count; ACCCON X
- TAX                    \ clear (main RAM at &3000-&7FFF), its old value in
- LDA h_ovf-1,X          \ hova
- STA hogp
- LDA h_ovn-1,X
- STA hogn
- LDA &FE34              \ (only X is touched: TRB/TSB, never a whole write)
- AND #4
- STA hova
- LDA #4
- TRB &FE34
- RTS
-.hov_pg                 \ page hogp in: its ROMSEL, and its address into the
- LDX hogp               \ loop; Y = 0. V set for a page kept as four pieces
- LDA st_rom,X           \ (ROMSEL with bit 6 set: bytes 192-255 of four pages
- BIT #&40               \ from st_hi, the STA runs' tails, h-sta.asm), X = 4
- BNE hvp1
- STA &FE30
- LDA st_hi,X
- STA hog1+2
- LDY #0
- CLV
- RTS
-.hvp1
- AND #&BF
- STA &FE30
- LDA st_hi,X
- STA hogq1+2
- LDX #4
- BIT hvp_v              \ (V set)
- RTS
-.hvp_v EQUB &40
-.hogp EQUB 0
+.hse_pg EQUB HI(HSTS0), &70, &80        \ (S's extents: h-layout.asm)
+.hse_n  EQUB &40 - HI(HSTS0), &10, HI(B7_START) - &80
+.hogb EQUB 0
 .hogn EQUB 0
 .hova EQUB 0
- INCLUDE "build/hstore.asm"
 ENDIF
 
-IF _HOSTB = 0             \ (the Model B host's: hb-res2.asm)
-.T_STERASE              \ (h-prim.asm's: bank 5's R_STARERASE)
- LDA #RASTBANK
- STA &F4
- STA &FE30
- JSR R_STARERASE
- JMP tback
+IF _HOSTB = 0
+.hbank                  \ after the kernel's drawing through the STA runs, which
+ LDA #GFXBANK           \ leaves a line's bank paged: bank 7 back, then the
+ STA &FE30              \ next command
+ JMP hloop
 ENDIF
 
 .h_span                 \ C_SPAN: Y, XL, XR, COLE, COLO
@@ -300,19 +280,20 @@ ENDIF
  STA zR_COLE
  HRX
  STA zR_COLO
- JSR T_SPAN
+IF _HOSTB
+ JSR T_SPAN             \ (Model B: bank 4's R_SPAN)
  JMP hloop
+ELSE
+ JSR R_SPAN
+ JMP hbank
+ENDIF
 
 .h_dspans               \ C_DSPANS: rows of spans (p-rast.asm's R_DISCROWS), read
 IF _HOSTB                 \ and drawn by r_dspin (gfx-raster_lcold.asm): the row,
  JMP hb_dspans          \ then XL, XR, the row's colour for each span, &FF ending
 ELSE                      \ the row; &FF for a row ends
- LDA #RASTBANK
- STA &F4
- STA &FE30
  JSR r_dspin
- JSR tback
- JMP hloop
+ JMP hbank
 ENDIF
 
 .h_spans                \ C_SPANS: polygon rows (p-emit.asm): COLE, COLO, COL2,
@@ -329,23 +310,17 @@ ELSE                      \ goes, to the end mark (gfx-raster_poly.asm's r_pcbs)
  STA R_COL3
  HRX
  STA R_PYS
- LDA #RASTPOLY
- STA &F4
- STA &FE30
  JSR r_pcbs
- JSR tback
- JMP hloop
+ JMP hbank
 ENDIF
 
-.h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1
- HRX
- STA zR_COLE
+.h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1 (a
+ HRX                    \ line takes the first two: COL2 and COL3 are the
+ STA zR_COLE            \ polygons')
  HRX
  STA zR_COLO
  HRX
- STA R_COL2
  HRX
- STA R_COL3
  LDX #0
 .hli1
  HRX
@@ -353,7 +328,7 @@ ENDIF
  INX
  CPX #8
  BNE hli1
- JSR T_LINE
+ JSR R_LINE
  JMP hloop
 
 .h_dot                  \ C_DOT: COLE, COLO, x, y, size
@@ -368,7 +343,7 @@ ENDIF
  HRX
  LDX hdx
  LDY hdy
- JSR T_DOT
+ JSR R_DOT
  JMP hloop
 .hdx EQUB 0
 .hdy EQUB 0
@@ -400,10 +375,7 @@ ENDIF
 \ order, then 0. As FILLKL (and fkdet): the columns with a key held in rows
 \ 1-7 first, then each row's keys in those columns
 
-.h_keys                 \ (its body a subroutine: h4body calls it too)
- JSR hk_body
- JMP hloop
-.hk_body
+.hk_body                \ (h4body's)
  LDA #%00000010         \ (vsync masked during the scan, as FILLKL)
  STA VIA+&4E
  STZ hkn
@@ -463,11 +435,8 @@ ENDIF
 .hkr EQUB 0
 .hkl SKIP 13
 
-.h_dks                  \ C_DKS: is key A held (DKS5): A with bit 7 if so
- HR2X
- JSR hdks_body
- JMP hloop
-.hdks_body              \ (PHP/PLP, not SEI/CLI: h4body runs it in the IRQ)
+.hdks_body              \ C_DKS: is key A held (DKS5): A with bit 7 if so
+                        \ (PHP/PLP, not SEI/CLI: h4body runs it in the IRQ)
  LDX #3
  PHP
  SEI
@@ -624,26 +593,6 @@ IF _HOSTB = 0
 .h4on EQUB 0
 ENDIF
 
-.h_wscan                \ C_WSCAN: answer at the next vsync
- STZ DL
-.hws1
- LDA DL
- BEQ hws1
- HTX
- JMP hloop
-
-.h_noise                \ C_NOISE: Y, DNOIZ
- HRX
- TAY
- HRX
- STA DNOIZ
- JSR NOISE
- JMP hloop
-
-.h_soflush              \ C_SOFLUSH
- JSR SOFLUSH
- JMP hloop
-
 .h_cls                  \ C_CLS: TTX66's clear, shadow &4000-&6FFF
 IF _HOSTB = 0
  LDA #4
@@ -651,8 +600,7 @@ IF _HOSTB = 0
  JSR s_clr              \ (the Master host: through the STA runs, h-sta.asm)
  LDA #4
  TRB &FE34
- JMP hloop
-ENDIF
+ELSE
  LDA #&40
  STA hcl1+2
  LDA #0
@@ -665,9 +613,6 @@ ENDIF
  LDY hcl1+2
  CPY #&70
  BNE hcl1
-IF _HOSTB = 0
- LDA #4
- TRB &FE34
 ENDIF
  JMP hloop
 
@@ -726,11 +671,6 @@ ENDIF
  STA &FE00
  STX &FE01
  CLI
- JMP hloop
-
-.h_irb                  \ C_IRB: the System VIA's port B
- LDA VIA+&40
- HTX
  JMP hloop
 
 

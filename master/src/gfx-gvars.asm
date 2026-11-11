@@ -13,7 +13,8 @@
                         \ Master's direct-mode screen)
 .GFLIP   EQUB 0         \ non-zero: show buffer GPEND at the next vsync
 .GPEND   EQUB 0
-IF _HOSTB = 0             \ (the Tube's Model B host: hb-irq.asm's hb_vl)
+IF _HOSTB = 0 AND _TPART <> 1  \ (the Tube's Model B host: hb-irq.asm's hb_vl;
+                        \ the parasite has no vsync)
 .GVLAST  EQUB 0         \ non-zero: the last vsync flipped (H_VSYNC: 25 fps cap)
 ENDIF
 IF _TPART <> 2             \ (not the Tube's hosts': the frame runs on the parasite)
@@ -24,18 +25,17 @@ IF _TPART <> 2             \ (not the Tube's hosts': the frame runs on the paras
 .GPRJ    EQUB 0         \ bit 7: the frame is running game code (T_GAME)
 ENDIF
 .GFORCE  EQUB 0         \ non-zero: draw directly even though QQ11 = 0
+IF _TPART <> 2             \ (not the Tube's hosts': the frame's, the parasite's)
 .GSIGHT  EQUB 0         \ non-zero: draw the laser sights
 .GLASV   EQUB 0         \ non-zero: our laser beams are showing
 .GNF     EQUB 0         \ faces of the ship being recorded
 .GTYPE   EQUB 0         \ the type whose faces the ship being recorded uses
 .GSUNON  EQUB 0         \ non-zero: SUN drew the sun this frame (LSO, SUNX valid)
 .GSUNR   EQUB 0         \ the sun's radius this frame
-IF _TPART <> 2
 .LLT     EQUB 24, 24, &E8 \ the light towards the sun, x, y, z (* 41.3): L_SUN
                         \ (bank 4) writes it, L_REC (bank 6) reads it
                         \ (gfx-light.asm); the fixed light until L_SUN first
                         \ runs
-ENDIF
 .GSTASH  EQUB 0         \ bit 7: a disc command has stashed HAZEL in buffer 0
                         \ (DOSCLI), which the next space-mode frame clears
 .PF_CLS  EQUB 0         \ the planet's class (bits 0-1: 0 meridian, the beach
@@ -44,13 +44,16 @@ ENDIF
                         \ gfx-merid.asm's PC_ROWS)
 .GWARP   EQUB 0         \ bit 7: TT66 is an in-system jump's (WARP sets it,
                         \ F_DIRECT clears it)
+ENDIF
 
 IF _TPART <> 2             \ (the Tube's hosts: kept rows are the parasite's)
 \ Kept solid rows (gfx-raster_kept.asm), shared by the frame layer, the
 \ rasteriser's windows and the trampolines
 .KMODE   EQUB 0         \ bit 7: K mode this frame (the station close by)
+IF _TPART = 0           \ (the Tube's parasite keeps no KF: p-kept.asm)
 .KBIT    EQUB 1         \ this frame's buffer's bit in KF (1 or 2)
 .KBITN   EQUB &FE       \ and its complement
+ENDIF
 .KPLO    EQUB &FF       \ the pending rows: KPLO..KPHI
 .KPHI    EQUB 0
 .KREC    EQUB 0         \ kept rows found pending this frame (r7_rowrep)

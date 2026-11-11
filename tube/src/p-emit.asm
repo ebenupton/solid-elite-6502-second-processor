@@ -17,6 +17,8 @@
 \
 \ ******************************************************************************
 
+\       Area: ovl S
+
 \ p_emit: Y = row, X = left (the first pixel), A = right + 1 (exclusive, > X).
 \ Rows come in increasing order. Keeps Y
 

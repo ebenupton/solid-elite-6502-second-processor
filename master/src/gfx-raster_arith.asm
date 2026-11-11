@@ -1,10 +1,12 @@
 \ (gfx-raster.asm's polygon arithmetic, its own file so that the Tube's
-\ parasite can assemble it for its phase A: tube/src/p-polya.asm)
+\ parasite can assemble it for its phase A: tube/src/p-poly.asm)
 \ ----------------------------------------------------------------------------
 \ The polygon window's arithmetic (R_POLY's phase A, gfx-raster_poly.asm),
 \ here for room: r_div8, r_dvq and the 32-bit multiply and divide with their
 \ variables (none uses anything of the polygon window's)
 \ ----------------------------------------------------------------------------
+IF _TPART <> 2             \ (the Tube's hosts: the lines' multiply and divide
+                          \ only; phase A is the parasite's)
 \ r_div8: A / r_v0 -> r_m0 quotient, A remainder (clobbers X).
 .r_div8
 {
@@ -82,6 +84,7 @@
   STX r_v0
   JMP r_div8
 }
+ENDIF
 \ the 32-bit multiply and divide
 .rp_m0 EQUB 0           \ 32-bit dividend / product; quotient m0,m1
 .rp_m1 EQUB 0

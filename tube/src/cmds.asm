@@ -26,15 +26,15 @@ PR4D = &FEFF
 \ and as the host sees them
 HR1S = &FEE0            \ register 1 status: bit 7 data from the parasite
 HR1D = &FEE1
-HR2S = &FEE2
-HR2D = &FEE3
 HR4S = &FEE6            \ register 4 status: bit 6 room for the parasite
 HR4D = &FEE7
 
 \ The commands (opcode = 2 * n). The dumb host (docs/TUBE-MAP.md) draws what
 \ the parasite decides; the opcodes of the commands it no longer has (the
 \ rasteriser's and the text map's state, the disc layer, Master's byte writes,
-\ the meridian window) are h_bad's, retired
+\ the meridian window) are h_bad's, retired, as are those of the requests in
+\ its command table: they come through register 4 only (h4body), and
+\ nothing comes through register 2
 C_SYNC     = 0          \ the end of a main-loop iteration's frame: nothing to do
                         \ (the harness's frame marker)
 C_INIT     = 2          \ F_INIT: the drawing code's state, buffer 0 cleared
@@ -99,7 +99,10 @@ C_DSPANS   = 108        \ the disc layer's spans (R_DISCROWS), sent as made: the
                         \ 1-191, XL 2-253: the clip window's), &FF 0 at the end
 C_MAX      = 110
 
-DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
+HDBUF = &2C00           \ the hosts' buffer for a disc command's SAVE and LOAD,
+                        \ which savosc and lodosc name (main RAM on both hosts:
+                        \ the Master's below its overlay storage, h-layout.asm;
+                        \ the Model B's buffer 0, not on show in direct mode)
 
 
 \ the host's Tube I/O
@@ -111,9 +114,6 @@ MACRO HRX               \ A = the next byte from the parasite (register 1); if
  LDA HR1D
 ENDMACRO
 
-IF _HOSTB                 \ (the Model B host: hrw in main RAM, beyond the panel,
- hrw = &7FE0              \ which banks F and P both call; hb-main.asm)
-ENDIF
 
 MACRO HTX               \ send A to the parasite (register 4)
  BIT HR4S
@@ -121,9 +121,3 @@ MACRO HTX               \ send A to the parasite (register 4)
  STA HR4D
 ENDMACRO
 
-
-MACRO HR2X              \ A = the next byte from the parasite's register 2 (a
- BIT HR2S               \ request's operand)
- BPL P%-3
- LDA HR2D
-ENDMACRO

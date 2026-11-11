@@ -45,17 +45,22 @@
 \
 \ ******************************************************************************
 
- CODE% = &0E00          \ The address where the code will be run
+ CODE% = &2700          \ The address where the code will be run (Port (Tube):
+                        \ above the host's kernel, which it copies to &0E00,
+                        \ and below overlay S's first page, asserted at the end)
  ASSERT CODE% >= &0E00  \ Port: page &0D is off limits (docs/MASTER-MEMORY.md),
                         \ except for the minimal NMI handler (see NMIH)
 
  FDC = &FE28            \ Port: the BBC Master's 1770 disc controller: status
                         \ (read) and command (write) register
 
- LOAD% = &0E00          \ The address where the code will be loaded
+ LOAD% = CODE%          \ The address where the code will be loaded
 
  N% = 67 + 18           \ N% is set to the number of bytes in the VDU table, so
                         \ we can loop through them below
+
+ STAGE = &4000          \ Port (Tube): where the host's files are loaded before
+                        \ they are copied (buffer 0, main RAM: ACCCON X clear)
 
  INCLUDE "build/tube-addresses.asm"     \ Port: S%, the main entry point in
                                         \ the game code (was S% = &2C6C),
@@ -297,8 +302,8 @@ ENDIF
 
 .ENTRY
 
- ASSERT ENTRY = &0E55   \ Port: the execution address that elite-disc.asm gives
-                        \ M128Elt (the CMYK palette made B% 18 bytes longer)
+ ASSERT ENTRY = CODE% + &55   \ Port: the execution address that tube/src/disc.asm
+                        \ gives M128Elt (the CMYK palette made B% 18 bytes longer)
 
  LDA VIA+&34            \ Port (Tube): keep ACCCON's ITU and IFJ (bits 4 and 5)
  AND #%00110000         \ as the MOS set them, in every value the loader writes:
@@ -360,11 +365,8 @@ ENDIF
  JSR OSB                \ pressed
                         \
                         \ Port: X = 3, not 1 (the Master port's fa36d40): a
-                        \ BREAK is then a power-on reset. With memory kept,
-                        \ the MOS's reset hung (a garbled screen, with or
-                        \ without SHIFT), most likely on its workspace in
-                        \ ANDY and HAZEL, where the host's code and the
-                        \ overlays' storage are
+                        \ BREAK is then a power-on reset, whatever the game
+                        \ has left in memory
 
  LDA #13                \ Call OSBYTE with A = 13, X = 0 and Y = 0 to disable
  LDX #0                 \ the "output buffer empty" event
@@ -406,7 +408,7 @@ ENDIF
  CPY #N%                \ Loop back for the next byte until we have done them
  BNE LOOP               \ all (the number of bytes was set in N% above)
 
- LDA #%00001111         \ Set the Access Control latch at SHEILA &34, as
+ LDA #%00000111         \ Set the Access Control latch at SHEILA &34, as
  ORA ACCHI              \ follows (Port (Tube): bits 4 and 5 as they were):
  STA VIA+&34
                         \
@@ -414,20 +416,19 @@ ENDIF
                         \   * Bit 6 = TST = 0: Must be set to 0
                         \   * Bit 5 = IFJ: kept
                         \   * Bit 4 = ITU: kept (internal or external co-pro)
-                        \   * Bit 3 = Y = 1: &C000-&DFFF set to 8K private RAM
+                        \   * Bit 3 = Y = 0: &C000-&DFFF the MOS's (Port
+                        \     (Tube): the host has no use for HAZEL)
                         \   * Bit 2 = X = 1: &3000-&7FFF set to 20K shadow RAM
                         \   * Bit 1 = E = 1: All shadow RAM locations accessible
                         \   * Bit 0 = D = 1: Display shadow RAM as screen memory
                         \
                         \ In short, this switches the screen memory, which is in
                         \ shadow RAM, into the memory map at &3000-&7FFF, so now
-                        \ we can poke directly to the screen memory, and it also
-                        \ maps the filing system RAM space into &C000-&DFFF
-                        \ (HAZEL), in place of the MOS VDU workspace
+                        \ we can poke directly to the screen memory
 
  JSR PLL1               \ Call PLL1 to draw Saturn
 
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control latch at
+ LDA #%00000001         \ Clear bits 1 and 2 of the Access Control latch at
  ORA ACCHI              \ SHEILA &34, which changes the following:
  STA VIA+&34
                         \
@@ -447,26 +448,86 @@ ENDIF
  JSR OSB
 
 
-                        \ Port: load the game's files other than BCODE, one at a
-                        \ time, to &1300 (below &3000, so it is visible when
-                        \ ACCCON X is set), then copy each one to where it
-                        \ belongs, as listed in FTAB: shadow RAM, or a sideways
-                        \ RAM bank (with ANDY when ROMSEL bit 7 is set)
+                        \ Port (Tube): the host's overlay D, its stored image
+                        \ (HOVD), to STAGE, then dealt into the STA runs'
+                        \ pages 64 bytes at a time: quarter q to bytes 192-255
+                        \ of line q's page, page &80 + q MOD 64 of bank 4 +
+                        \ q DIV 64 (the host's h-sta.asm; hstart's s_gen
+                        \ writes the runs around them)
+
+ LDX #LO(MESSD)
+ LDY #HI(MESSD)
+ JSR OSCLI
+
+ SEI                    \ No interrupts while ROMSEL is changed
+
+ LDA #LO(STAGE)         \ ZP(1 0) = STAGE, the source
+ STA ZP
+ LDA #HI(STAGE)
+ STA ZP+1
+
+ LDA #&C0               \ P(1 0) = the quarter's destination
+ STA P
+
+ LDX #4                 \ X = the bank, Y = the quarters left
+ LDY #DQUARTERS
+
+.LDD1
+
+ STX LATCH              \ Page in bank X
+ STX VIA+&30
+
+ LDA #&80               \ From its first line's page
+ STA P+1
+
+.LDD2
+
+ LDA #64                \ Copy a quarter (LDC leaves P(1 0) at the next page)
+ STA LEN
+ STZ LEN+1
+ JSR LDC
+ LDA #&C0
+ STA P
+
+ DEY                    \ Until all are copied
+ BEQ LDD3
+
+ LDA P+1                \ Next line, or the next bank's first
+ CMP #&C0
+ BNE LDD2
+ INX
+ BRA LDD1
+
+.LDD3
+
+ CLI
+
+                        \ Port: load the game's other files other than BCODE,
+                        \ one at a time, to STAGE (BDATA, which is copied to
+                        \ shadow RAM with ACCCON X set, below &3000, at &0E00),
+                        \ then copy each one, or its parts, to where they
+                        \ belong, as listed in FTAB: main or shadow RAM, or a
+                        \ sideways RAM bank
 
  LDX #0                 \ X = offset of the FTAB entry
 
 .LDF
 
+ CPX #FTAB_END - FTAB   \ Until the table's end
+ BNE P%+5
+ JMP LDEND
+
  STX YY                 \ Save the entry's offset
 
  LDA FTAB+1,X           \ Fetch the high byte of the entry's OSCLI command,
- BNE P%+5               \ which is zero at the end of the table
- JMP LDEND
+ BEQ LDF1               \ which is zero for another part of the same file
 
- TAY                    \ Run the command in (Y X), which loads the file at
- LDA FTAB,X             \ &1300
+ TAY                    \ Run the command in (Y X), which loads the file
+ LDA FTAB,X
  TAX
  JSR OSCLI
+
+.LDF1
 
  SEI                    \ No interrupts while ROMSEL and ACCCON are changed
 
@@ -478,24 +539,26 @@ ENDIF
  ORA ACCHI
  STA VIA+&34
 
- STZ ZP                 \ ZP(1 0) = &1300, the source
- LDA #&13
+ LDA FTAB+4,X           \ ZP(1 0) = the source
+ STA ZP
+ LDA FTAB+5,X
  STA ZP+1
 
- LDA FTAB+4,X           \ P(1 0) = the destination
+ LDA FTAB+6,X           \ P(1 0) = the destination
  STA P
- LDA FTAB+5,X
+ LDA FTAB+7,X
  STA P+1
 
- LDA FTAB+6,X           \ LEN(1 0) = the number of bytes, or 0 for a packed
- STA LEN                \ file (tube/tools/zpack.py)
- LDA FTAB+7,X
+ LDA FTAB+8,X           \ LEN(1 0) = the number of bytes
+ STA LEN
+ LDA FTAB+9,X
  STA LEN+1
- ORA LEN
- BEQ LDZ
 
-.LDC
+ JSR LDC                \ Copy it
+ BRA LDN
 
+.LDC                    \ Port (Tube): copy LEN(1 0) bytes from ZP(1 0) to
+                        \ P(1 0)
  LDA (ZP)               \ Copy a byte
  STA (P)
 
@@ -514,53 +577,11 @@ ENDIF
  LDA LEN
  ORA LEN+1
  BNE LDC
- BRA LDN
-
-.LDZ                    \ Port (Tube): a packed file, a token at a time: 0 the
-                        \ end, 1-127 that many bytes to copy, 128-255 (token -
- LDA (ZP)               \ 127) zeros
- BEQ LDN
- TAX
- JSR LDI
- TXA
- BMI LDZ0
-
-.LDZ1                   \ Copy X bytes
- LDA (ZP)
- JSR LDI
- JSR LDO
- DEX
- BNE LDZ1
- BRA LDZ
-
-.LDZ0                   \ Write token - 127 zeros
- AND #&7F
- TAX
- INX
-
-.LDZ2
- LDA #0
- JSR LDO
- DEX
- BNE LDZ2
- BRA LDZ
-
-.LDI                    \ Next source byte
- INC ZP
- BNE P%+4
- INC ZP+1
- RTS
-
-.LDO                    \ Write A to the destination, then the next
- STA (P)
- INC P
- BNE P%+4
- INC P+1
  RTS
 
 .LDN
 
- LDA #%00001001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
+ LDA #%00000001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
  ORA ACCHI              \ it)
  STA VIA+&34
 
@@ -568,7 +589,7 @@ ENDIF
 
  LDA YY                 \ Next entry
  CLC
- ADC #8
+ ADC #10
  TAX
  JMP LDF
 
@@ -577,10 +598,7 @@ ENDIF
  CLI                    \ Enable interrupts
 
  LDX #LO(MESSP)         \ Port (Tube): load the parasite's code (PCODE, to the
- LDY #HI(MESSP)         \ parasite's memory), then the host's main code (HMAIN,
- JSR OSCLI              \ main RAM from &1EDC, above this loader)
- LDX #LO(MESSH)
- LDY #HI(MESSH)
+ LDY #HI(MESSP)         \ parasite's memory)
  JSR OSCLI
 
  LDX #LO(MESS3)         \ Set (Y X) to point to MESS3 ("DIR E")
@@ -593,16 +611,10 @@ ENDIF
 
 .LTRUN
 
-                        \ Port: that was the last disc access, so DFS is done
-                        \ with HAZEL: stash DFS's and the MOS's lasting bytes,
-                        \ as the game uses their places (DOSCLI puts them back
-                        \ for each disc command): &C2C0-&C2FF and &DFC0-&DFFF
-                        \ (ACCCON Y = 1 maps HAZEL at &C000-&DFFF), then copy
-                        \ HAZEL's contents (the game data and the renderer's
-                        \ glue) from their staging copy at &4000 into place
+                        \ Port: that was the last disc access
 
  SEI
- LDA #%00001001
+ LDA #%00000001
  ORA ACCHI
  STA VIA+&34
 
@@ -634,8 +646,7 @@ ENDIF
                         \ ROM may have hooked one (the machine this was reported
                         \ on hooks BYTEV through an extended vector), and a
                         \ hook would then run on every call and could write its
-                        \ private workspace, a page of HAZEL (the table at
-                        \ &0DF0), which the renderer uses. Kept: BRKV and IRQ1V
+                        \ private workspace. Kept: BRKV and IRQ1V
                         \ (&0202-&0205) and WRCHV (&020E-&020F), which the game
                         \ sets itself, and the filing system vectors FILEV to
                         \ FSCV (&0212-&021F), which must stay the DFS's for the
@@ -788,55 +799,39 @@ ENDIF
 \
 \ ------------------------------------------------------------------------------
 \
-\ Eight bytes per file: the OSCLI command that loads it to &1300, the ROMSEL
-\ and ACCCON values to copy it with, the destination, and the number of bytes
-\ (a multiple of 256), or 0 for a file packed by tube/tools/zpack.py (the
-\ host's images: their empty pages and the STA runs' pages, which s_gen
-\ fills, take no room on the disc; BDATA, the Model B host's too, is not
-\ packed). The table ends with a zero command address.
+\ Ten bytes per copy: the OSCLI command that loads the file (0: another part
+\ of the file just loaded), the ROMSEL and ACCCON values to copy it with,
+\ the source, the destination, and the number of bytes. The files are plain
+\ images; overlay D's (HOVD), dealt into the STA runs' pages, is not here
+\ (LDD).
 \
 \ ******************************************************************************
 
 .FTAB
 
- EQUW MESS8             \ HRASTA: the rasteriser's polygon window, ANDY
- EQUB &85, %00001001
- EQUW &8000, 0
+ EQUW MESSC             \ HCODE: the host's code, bank 7 from B7AT
+ EQUB 7, %00000001
+ EQUW STAGE, B7AT, B7LEN
 
- EQUW MESS9             \ HBANK5: the rasteriser, bank 5
- EQUB 5, %00001001
- EQUW &8000, 0
+ EQUW MESSS             \ HOVS: the host's overlay S, its stored image, in
+ EQUB 7, %00000001      \ three parts in address order (h-layout.asm), copied
+ EQUW STAGE + (SN1 + SN2) * 256, &8000, SN3 * 256 \ last first, as the first's
+ EQUW 0                 \ place is where the others are loaded: bank 7 below
+ EQUB 7, %00000001      \ its code, main RAM &7000-&7FFF and from HSTS0
+ EQUW STAGE + SN1 * 256, &7000, SN2 * 256         \ (tube/build.sh checks that
+ EQUW 0                 \ no file loaded at STAGE reaches a destination it
+ EQUB 7, %00000001      \ must not)
+ EQUW STAGE, HSTS0, SN1 * 256
 
- EQUW MESS10            \ HBANK6: the frame layer's host part, bank 6
- EQUB 6, %00001001
- EQUW &8000, 0
+ EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000 (on the
+ EQUB HOMEBANK, %00000111 \ disc, tube/src/disc.asm, the Model B host's files
+ EQUW &0E00, &7000, &0E00 \ follow it)
 
- EQUW MESS16            \ HSTB7: and in bank 7, bytes 192-255 of the STA runs'
- EQUB 7, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
- EQUW &8000, 0          \ around them)
-
- EQUW MESS17            \ HSTB4: and the same in bank 4
- EQUB 4, %00001001
- EQUW &8000, 0
-
- EQUW MESS13            \ HSTZ: the host's HAZEL (the overlays' storage there),
- EQUB 6, %00001001      \ staged in main RAM at &4000 until LTRUN copies it in
- EQUW &4000, 0          \ (DFS uses HAZEL until the last disc access)
-
- EQUW MESS14            \ HSTM2: the overlays' storage in main RAM &7000-&7FFF
- EQUB 6, %00001001
- EQUW &7000, 0
-
- EQUW MESS15            \ HSTM1: and in main RAM &3000-&3DFF (tube/build.sh
- EQUB 6, %00001001      \ checks that no file staged at &1300 reaches a main
-                        \ RAM destination)
- EQUW &3000, 0
-
- EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000 (last:
- EQUB HOMEBANK, %00001111 \ on the disc, tube/src/disc.asm, it follows the
- EQUW &7000, &0E00      \ images, and the Model B host's files follow it)
-
- EQUW 0
+ EQUW MESSH             \ HMAIN, loaded to buffer 0: CHPR's font, which the
+ EQUB 7, %00000001      \ host moves to &0400 when it starts (hstart), then
+ EQUW HFONTST + &300, HMAINAT, HMAINLEN  \ the host's kernel, copied to HMAINAT,
+                        \ above this part of the loader
+.FTAB_END
 
 .OSB
 
@@ -855,7 +850,7 @@ ENDIF
 
 .MESS1
 
- EQUS "L.BDATA FFFF1300"    \ This is short for "*LOAD BDATA FFFF1300"
+ EQUS "L.BDATA FFFF0E00"    \ This is short for "*LOAD BDATA FFFF0E00"
  EQUB 13
 
 \ ******************************************************************************
@@ -876,60 +871,27 @@ ENDIF
 
 
 
-.MESS8
+.MESSD
 
- EQUS "L.HRASTA FFFF1300"    \ Port: *LOAD RASTA FFFF1300
+ EQUS "L.HOVD FFFF", STR$~(STAGE)   \ Port (Tube): the host's files
  EQUB 13
 
-.MESS9
+.MESSC
 
- EQUS "L.HBANK5 FFFF1300"    \ Port: *LOAD BANK5 FFFF1300
+ EQUS "L.HCODE FFFF", STR$~(STAGE)
  EQUB 13
 
-.MESS10
+.MESSS
 
- EQUS "L.HBANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
- EQUB 13
-
-.MESS13
-
- EQUS "L.HSTZ FFFF1300"     \ Port (Tube): the host's overlay storage
- EQUB 13
-
-.MESS14
-
- EQUS "L.HSTM2 FFFF1300"
- EQUB 13
-
-.MESS15
-
- EQUS "L.HSTM1 FFFF1300"
- EQUB 13
-
-.MESS16
-
- EQUS "L.HSTB7 FFFF1300"
- EQUB 13
-
-.MESS17
-
- EQUS "L.HSTB4 FFFF1300"
+ EQUS "L.HOVS FFFF", STR$~(STAGE)
  EQUB 13
 
 .MESSP
  EQUS "L.PCODE 0000", STR$~(PCODEAT)   \ Port (Tube): the parasite's code, to its
  EQUB 13                           \ memory (a 32-bit address, high word 0)
 .MESSH
- EQUS "L.HMAIN FFFF", STR$~(HMAINAT)
+ EQUS "L.HMAIN FFFF", STR$~(HFONTST)
  EQUB 13
-.LOW_LOADER_END
-
-\ Port: Saturn's drawing code and tables come last, above &1300 if need be:
-\ they are used only before the first file is loaded to &1300, and everything
-\ the loader runs after that (FTAB, the OS command strings, the copies, the
-\ NMI handler and the vectors) is below &1300, asserted here
-
- ASSERT LOW_LOADER_END <= &1300
 
 \ ******************************************************************************
 \
@@ -1641,5 +1603,7 @@ ENDIF
 \ ******************************************************************************
 
  PRINT "S.M128Elt ", ~CODE%, " ", ~P%, " ", ~LOAD%, " ", ~LOAD%
+ ASSERT CODE% >= HMAINAT + HMAINLEN     \ Port (Tube): clear of the kernel it
+ ASSERT P% <= HSTS0                     \ copies and of overlay S's pages
  SAVE "build/M128Elt.bin", CODE%, P%, LOAD%
 

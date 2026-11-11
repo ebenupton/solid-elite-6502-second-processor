@@ -9,10 +9,10 @@
 \ window.
 \ ============================================================================
 
+IF _TPART <> 2             \ (the Tube's hosts keep no dirty extents)
 \ rl_lpat: X = buffer: patch R_LINE's DIRTY operands for it
 .rl_lpat
   STX rl_lbuf
-IF _TDUMB = FALSE          \ (the Tube's dumb host keeps no dirty extents)
   LDA r_sbh_dl,X
   STA lyl_p0+2
   STA lyl_p1+2
@@ -31,19 +31,21 @@ IF _TDUMB = FALSE          \ (the Tube's dumb host keeps no dirty extents)
   STA lxu_p3+2
   STA lxd_p2+2
   STA lxd_p3+2
-ENDIF
   RTS
+ENDIF
 
 \ rl_line: R_LINE with both ends inside the window (8-bit); rl_lgo: a line
 \ prepared by rl_gen (l_x0 = l_x, l_y0, l_e, l_a, l_b, l_n, l_k; the DIRTY
 \ operands patched)
 .rl_line
 {
+IF _TPART <> 2             \ (the Tube's hosts keep no dirty extents)
   LDX R_PRBUF
   CPX rl_lbuf
   BEQ pd
   JSR rl_lpat
 .pd
+ENDIF
   LDA R_X0
   STA l_x0
   LDA R_Y0

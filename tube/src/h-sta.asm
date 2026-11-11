@@ -1,64 +1,48 @@
 \ ******************************************************************************
 \
-\ h-sta.asm - the Master host's STA runs (h-layout.asm, in HAZEL): one run per
+\ h-sta.asm - the Master host's STA runs (h-layout.asm, the kernel): one run per
 \ screen line of the 3D view (192), an STA abs per byte of the line (the
 \ line's byte for column c is &4000 + &200 * (L DIV 8) + (L AND 7) + 8c, the
 \ same address in both buffers, main and shadow RAM, ACCCON X choosing) then
 \ an RTS.
 \ They are made at the host's start (s_gen, from hstart), not carried on the
 \ disc. The code that enters them (r_spc, phase B; r_rowset sets RZ_PP and
-\ s_rbk from the tables here) is in HAZEL with them, so a run's bank can be
-\ paged in unconditionally for each span (LDA s_rbk : STA &FE30), with no
-\ copy in &F4
+\ s_rbk from the tables here) is in the kernel with them, main RAM, so a
+\ run's bank can be paged in unconditionally for each span (LDA s_rbk : STA
+\ &FE30), with no copy in &F4
 \
 \ ******************************************************************************
 
 s_opSTA = &8D           \ STA abs (the runs' stores; r_opRTS planted over one)
-RUN6 = &9F00            \ (bank 6's runs, after its code: h-layout.asm asserts)
+R_ROWS = 192            \ the lines of the 3D view, with a run each
 
 \ Each line's run is at the start of a page of its own: STA abs for columns
 \ 1-63 (column 0 is never inside a span: r_spc enters at xl DIV 4 + 1), then
 \ an RTS, 190 bytes, so r_j's offsets are the entry and the plant in the page
-\ with no sums. Lines 0-63 are in bank 4 and 64-127 in bank 7 (&8000 on),
-\ 128-143 in bank 5's &8000-&8FFF, 144-167 in bank 5's 24 pages that held the
-\ row runs (r_run0 on: their tails stay after offset 190) and 168-191 in bank
-\ 6 from RUN6. Pages' bytes 192-255 in banks 7 and 4 hold overlay pages kept
-\ as four 64-byte pieces (h-main.asm's h_ovlget; bank 4's as many as the
-\ overlays need, tube/build.sh)
+\ with no sums. The runs are in line order: line L's is page &80 + L MOD 64
+\ of bank 4 + L DIV 64, so banks 4, 5 and 6 hold lines 0-63, 64-127 and
+\ 128-191. Bytes 192-255 of line L's page hold quarter L of overlay D's
+\ stored image (h-main.asm's h_ovlget, tube/build.sh)
 
 .s_pg                   \ per line: its run's page, and its bank
-FOR L, 0, 191
- IF L < 64
-  EQUB &80 + L
- ELIF L < 128
-  EQUB &80 + L - 64
- ELIF L < 144
-  EQUB &80 + L - 128
- ELIF L < 168
-  EQUB HI(r_run0) + L - 144
- ELSE
-  EQUB HI(RUN6) + L - 168
- ENDIF
+FOR L, 0, R_ROWS - 1
+ EQUB &80 + L MOD 64
 NEXT
 .s_bk
-FOR L, 0, 191
- IF L < 64
-  EQUB 4
- ELIF L < 128
-  EQUB 7
- ELIF L < 168
-  EQUB RASTBANK
- ELSE
-  EQUB GFXBANK
- ENDIF
+FOR L, 0, R_ROWS - 1
+ EQUB 4 + L DIV 64
 NEXT
-ASSERT HI(RUN6) + 24 <= &C0
+
+\ Phase B steps a row at a time and stops at r_yend, which r_pcbs sets to
+\ R_ROWS (gfx-raster_poly.asm), one past the last line, before it reads a
+\ row's page and bank here: line R_ROWS would be page &80 of bank 7, a
+\ stored page of overlay S. (The last line's run is in bank 6.)
+ASSERT 4 + (R_ROWS - 1) DIV 64 = 6
 
 .s_rbk EQUB 0           \ the row's run's bank (r_rowset)
 
-\ The row's bank in, from HAZEL (the callers in the rasteriser's windows
-\ would page themselves out): phase B's first row, and the line code's long
-\ spans, which have that window back after
+\ The row's bank in, from the kernel (phase B's set-up, r_pcbs, in bank 7,
+\ would page itself out): phase B's first row
 
 .s_pbxe
  LDA s_rbk
@@ -68,15 +52,8 @@ ASSERT HI(RUN6) + 24 <= &C0
  LDA s_rbk
  STA &FE30
  JMP r_pbx_o
-.s_lspan
- LDA s_rbk
- STA &FE30
- JSR r_spc
- LDA #RASTPOLY
- STA &FE30
- RTS
 
-\ s_gen: make the runs (hstart, once). Returns with bank 6 (GFXBANK) paged
+\ s_gen: make the runs (hstart, once). Returns with bank 7 (GFXBANK) paged
 
 .s_gen
  LDX #0                 \ X = the line
@@ -118,7 +95,7 @@ ASSERT HI(RUN6) + 24 <= &C0
  LDA #r_opRTS
  STA (RZ_PP),Y
  INX
- CPX #192
+ CPX #R_ROWS
  BNE sg1
  LDA #GFXBANK
  STA &FE30
@@ -127,7 +104,7 @@ ASSERT HI(RUN6) + 24 <= &C0
 
 \ s_clr: lines 0-191 black (the whole of &4000-&6FFF in the buffer ACCCON X
 \ chooses): column 0, then the line's run (f_b0new, C_CLS). Returns with
-\ bank 6 (GFXBANK) paged
+\ bank 7 (GFXBANK) paged
 
 .s_clr
  LDX #0
@@ -151,7 +128,7 @@ ASSERT HI(RUN6) + 24 <= &C0
 .scl2
  JSR &FF00              \ (patched: the line's run)
  INX
- CPX #192
+ CPX #R_ROWS
  BNE scl1
  LDA #GFXBANK
  STA &FE30

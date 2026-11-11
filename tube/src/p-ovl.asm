@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ p-ovl.asm - the parasite's overlay region (docs/TUBE-MAP.md): one region of
-\ the parasite's memory, from OVL_START to &F800, holds one of the overlays
+\ the parasite's memory, from OVL_START to the ring, holds one of the overlays
 \ whose images the host keeps (storage only):
 \
 \   * overlay D, the direct-mode overlay: the cold blocks that run only on
@@ -266,3 +266,9 @@ OVL_S = 2
  EQUB HI(OVL_D_END + 255), HI(OVL_S_END + 255)
 .ovst                   \ and its start
  EQUB HI(OVL_START), HI(S_STATE_END)
+
+\ savc0: savosc's first byte (elite-source.asm's DELT: SNG47's DELT bug can
+\ change it, and overlay D, which holds savosc, is restored from the host's
+\ image at each load)
+
+.savc0 EQUB 'S'

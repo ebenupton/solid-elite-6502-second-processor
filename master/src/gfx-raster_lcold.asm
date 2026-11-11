@@ -100,7 +100,7 @@
   RTS
 }
 
-\       Area: hazel
+\       Area: kernel
 
 IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
 \ r_dspin: C_DSPANS (tube/src/h-main.asm's h_dspans): the disc layer's rows of
@@ -149,16 +149,18 @@ ENDIF
 \       Area: frame
 
 
-IF _HOSTB = FALSE          \ (the Tube's Model B host: tube/src/hb-ws.asm's)
 \ The rasteriser's private state (here, in bank 5's shared region, which
 \ both its windows see; only the rasteriser reads or writes it, and R_INIT
 \ sets it up): the state the disc window and the polygon window share
 .R_PRBUF    SKIP 1
+IF _TPART <> 2             \ (the Tube's hosts: the star records' count only)
 .R_PRDYT    SKIP 2
 .R_PRDYB    SKIP 2
 .R_PRDST    SKIP 2
 .R_PRDSB    SKIP 2
+ENDIF
 .R_PRSCNT   SKIP 2
+IF _TPART <> 2
 .R_PRECNT   SKIP 2
 .R_PRWT     SKIP 1
 .R_PRWB     SKIP 1

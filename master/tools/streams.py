@@ -148,8 +148,12 @@
 # "bothb" (the same for the host's sideways RAM copy, the dashboard's
 # drawing), "none" (neither side's: the Master port's own), "both, ovl D" and
 # "bothb, ovl D" (the host's copy as "both" and "bothb", the parasite's in
-# overlay D). The host's copies are build/elite-source-host.asm and
-# -hostb.asm, and the configuration with the workspaces
+# overlay D), and "bothb, aligned" (the page aligned tables: on each side a
+# pass of its own, which the layouts place where they need no padding, the
+# parasite's resident, build/elite-source-aligned.asm, p-layout.asm, the
+# host's build/elite-source-hostba.asm). The host's copies are
+# build/elite-source-host.asm, -hostb.asm and -hostba.asm, and the
+# configuration with the workspaces
 # build/elite-source-ws.asm (the same as -config). Calls into
 # overlay D go through a stub of the routine's name in build/elite-stubs.asm,
 # JSR povd : EQUW X_C (povdj for a target that never returns: tube/src/
@@ -246,7 +250,8 @@ def blocks(lines, tags=TAGS):
             m = TUBEF.match(l)
             if m:
                 t = m.group(1).strip()
-                if t not in ("host", "both", "hostb", "bothb", "none", "ovl D", "both, ovl D", "bothb, ovl D"):
+                if t not in ("host", "both", "hostb", "bothb", "none", "ovl D", "both, ovl D", "bothb, ovl D",
+                             "bothb, aligned"):
                     sys.exit("%d: unknown Tube field %r" % (i + 1, t))
                 TUBETAG[out[-1][0]] = t
     for k, b in enumerate(out):
@@ -389,9 +394,9 @@ OTHERS = ("src/elite-layout.asm", "src/elite-measure.asm", "src/elite-glue.asm",
 TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm",
            "src/gfx-hooks.asm", "src/gfx-gvars.asm", "src/gfx-finit.asm", "src/gfx-faces.asm",
            "src/gfx-light.asm", "src/gfx-light6.asm", "src/gfx-hangar.asm", "src/gfx-hangar6.asm",
-           "src/gfx-flare.asm", "src/gfx-flare6.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
+           "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
            "src/elite-moon.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm",
-           "tsrc/p-dash2.asm", "tsrc/p-low.asm", "tsrc/p-layout.asm")
+           "tsrc/p-low.asm", "tsrc/p-layout.asm")
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*%?")
 
 
@@ -968,20 +973,36 @@ def stub_none(lines, bl):
 #
 #   \       Area: ovl S             (the parasite's overlay S: p-layout.asm)
 #   \       Area: frame             (back to the file's own place)
-#   \       Area: hazel             (the Master host's HAZEL: the code that
-#                                    enters the STA runs, tube/src/h-layout.asm)
+#   \       Area: kernel            (the Master host's kernel, main RAM: the
+#                                    code that enters the STA runs,
+#                                    tube/src/h-layout.asm)
+#   \       Area: kernel, aligned   (the kernel's page aligned tables, first
+#                                    in the kernel, where they need no
+#                                    padding)
 #   \       Area: ovl D             (the parasite's overlay D: p-layout.asm)
+#   \       Area: page FE           (the parasite's page at &FE00, below the
+#                                    Tube's registers)
+#   \       Area: page FF           (the parasite's page at &FF00)
+#   \       Area: boot              (the parasite's boot, above overlay D)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
-# build/<file>-hazel.asm and build/<file>-ovld.asm. The Master port, the
-# Model B host and (for the files it does not pass) the Master host assemble
-# the file itself, where the tag lines are comments
+# build/<file>-kernel.asm, build/<file>-kalign.asm, build/<file>-ovld.asm,
+# and the parasite's
+# build/<file>-fe.asm, -ff.asm and -boot.asm. The Master port,
+# the Model B host and (for the files it does not pass) the Master host
+# assemble the file itself, where the tag lines are comments. The parasite
+# places every one of its files by these passes (p-layout.asm): a file whose
+# blocks go to more than one place is still one file
 FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm",
              "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
-             "tsrc/p-io.asm", "tsrc/p-glue.asm")
-FPASS = {"frame": "frame", "ovl S": "ovls", "hazel": "hazel", "ovl D": "ovld"}
+             "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
+             "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm", "tsrc/p-rast.asm",
+             "tsrc/p-disc.asm", "tsrc/p-emit.asm", "tsrc/p-kept.asm", "tsrc/p-poly.asm", "tsrc/p-onepass.asm",
+             "tsrc/p-probe.asm", "tsrc/p-lost.asm")
+FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "kernel, aligned": "kalign", "ovl D": "ovld",
+         "page FE": "fe", "page FF": "ff", "boot": "boot"}
 
 
 def frame_passes(path, errors):
@@ -1048,7 +1069,7 @@ def tube_data(errors):
 
 def tube_main(lines, bl, eff, macros, errors):
     """the Tube's copies (above, "The Tube"): config and ws, run, cold (overlay
-    D), host, hostb; the stubs into overlay D; the data's; the frame passes"""
+    D), host, hostb, hostba; the stubs into overlay D; the data's; the frame passes"""
     for s0, e0, name, area in bl:
         if TUBETAG.get(s0) in OVLD:
             TUBEOVL.add(name)
@@ -1061,12 +1082,14 @@ def tube_main(lines, bl, eff, macros, errors):
             copy_of[k] = "config"
         elif bl[k][2] in TUBEOVL:
             copy_of[k] = "cold"
+        elif TUBETAG.get(bl[k][0]) == "bothb, aligned":
+            copy_of[k] = "aligned"         # (resident, in a pass of its own)
         elif not ASM[k] and k and copy_of.get(k - 1) == "cold":
             copy_of[k] = "cold"            # (a block that assembles nothing: the one before it's)
         else:
             copy_of[k] = "run"
     teff = ["config" if copy_of[k] == "config" else "cold" if copy_of[k] == "cold" else "run"
-            for k in range(len(bl))]
+            for k in range(len(bl))]      # (the aligned pass is resident: "run")
     # fall-through between the resident code and overlay D: a seam (glue);
     # into a block that is not the parasite's: an error
     falls = []
@@ -1094,21 +1117,23 @@ def tube_main(lines, bl, eff, macros, errors):
     # (branches between the resident code and overlay D go through the stubs:
     # glue)
     copies = {}
-    for a in ("config", "run", "cold"):
+    for a in ("config", "run", "cold", "aligned"):
         copies[a] = []
         for k, (s0, e0, name, area) in enumerate(bl):
             on = copy_of[k] == a and (a == "config" or par(k))
             copies[a] += [lines[i] if on else "" for i in range(s0, e0)]
     # the hosts' copies: their blocks (not the configuration's)
-    for nm, tags in (("host", ("host", "both", "both, ovl D")), ("hostb", ("hostb", "bothb", "bothb, ovl D"))):
+    for nm, tags in (("host", ("host", "both", "both, ovl D")),
+                     ("hostb", ("hostb", "bothb", "bothb, ovl D")),
+                     ("hostba", ("bothb, aligned",))):
         c = []
         for k, (s0, e0, name, area) in enumerate(bl):
             on = teff[k] != "config" and tag(k) in tags
             c += [lines[i] if on else "" for i in range(s0, e0)]
         with open(OUT % nm, "w", encoding="latin-1") as f:
             f.write("\n".join(c))
-    nstubs = glue(copies, errors, lines, bl, teff, copy_of, falls, ["run"])
-    for a in ("config", "run", "cold"):
+    nstubs = glue(copies, errors, lines, bl, teff, copy_of, falls, ["run", "aligned"])
+    for a in ("config", "run", "cold", "aligned"):
         with open(OUT % a, "w", encoding="latin-1") as f:
             f.write("\n".join(copies[a]))
     with open(OUT % "ws", "w", encoding="latin-1") as f:
@@ -1122,7 +1147,8 @@ def tube_main(lines, bl, eff, macros, errors):
           "overlay D; data %s%s"
           % (len(bl), sum(1 for k in range(len(bl)) if teff[k] == "run" and ASM[k] and par(k)),
              sum(1 for k in range(len(bl)) if teff[k] == "cold" and ASM[k]),
-             sum(1 for k in range(len(bl)) if tag(k) in ("host", "both", "hostb", "bothb", "both, ovl D", "bothb, ovl D") and ASM[k]),
+             sum(1 for k in range(len(bl)) if tag(k) in ("host", "both", "hostb", "bothb", "both, ovl D", "bothb, ovl D",
+                                                          "bothb, aligned") and ASM[k]),
              nstubs[0], ", ".join("%s %d" % kv for kv in dn.items()),
              ", %d error(s)" % len(errors) if errors else ""))
     sys.exit(1 if errors else 0)
