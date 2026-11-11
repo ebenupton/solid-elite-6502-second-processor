@@ -995,7 +995,9 @@ ENDIF
 
 \ R_LINE's variables (gfx-raster_line.asm, gfx-raster_lcold.asm)
 .rl_lct SKIP 8          \ R_LINE: colour byte by row AND 7
+IF _TPART <> 2             \ (the Tube's hosts keep no dirty extents)
 .rl_lbuf EQUB &FF       \ buffer R_LINE's DIRTY operands are patched for
+ENDIF
 \ rl_gen's variables (16-bit: lo, hi)
 .rl_dx SKIP 2            \ P1 - P0: x, y (rl_dx + 2)
 .rl_dy SKIP 2

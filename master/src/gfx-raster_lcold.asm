@@ -153,11 +153,14 @@ ENDIF
 \ both its windows see; only the rasteriser reads or writes it, and R_INIT
 \ sets it up): the state the disc window and the polygon window share
 .R_PRBUF    SKIP 1
+IF _TPART <> 2             \ (the Tube's hosts: the star records' count only)
 .R_PRDYT    SKIP 2
 .R_PRDYB    SKIP 2
 .R_PRDST    SKIP 2
 .R_PRDSB    SKIP 2
+ENDIF
 .R_PRSCNT   SKIP 2
+IF _TPART <> 2
 .R_PRECNT   SKIP 2
 .R_PRWT     SKIP 1
 .R_PRWB     SKIP 1
@@ -169,3 +172,4 @@ ENDIF
 .R_PRDYA    SKIP 1
 .R_PRDYZ    SKIP 1
 .R_PRCWB    SKIP 1
+ENDIF
