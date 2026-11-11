@@ -135,8 +135,8 @@ n = int(re.search(r"^TBUFN = (\d+)", open("tsrc/p-glue.asm").read(), re.M).group
 assert d <= n, "TBUF (p-glue.asm) needs %d bytes" % d
 PY
 # the parasite
-$BEEBASM -D OPTEST=${OPTEST:-0} -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -v > build/compile-p.txt 2>&1 || { grep -iE "error" -A3 build/compile-p.txt | head -30; exit 1; }
-$BEEBASM -D OPTEST=${OPTEST:-0} -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -d > build/psyms.txt 2>/dev/null
+$BEEBASM -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -v > build/compile-p.txt 2>&1 || { grep -iE "error" -A3 build/compile-p.txt | head -30; exit 1; }
+$BEEBASM -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -d > build/psyms.txt 2>/dev/null
 # the commander checksum in the default commander, NA2% (as elite-checksum.py):
 # in overlay D's image (HOVD) and PCODE's copy of it (the parasite starts with
 # D in)

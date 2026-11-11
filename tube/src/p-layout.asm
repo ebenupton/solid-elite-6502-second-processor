@@ -69,14 +69,6 @@ PFRAME% = P%
  INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
 .PF_CODE_END
 PRINT "Parasite: frame code end at &", ~P%
-IF OPTEST                \ (a test build for test_onepass.py --tube only: the
-.F_HW                   \ one-pass generator over the frame layer's buffers)
- INCLUDE "build/p-onepass-ovls.asm"
- SKIP F_HW + 2048 - P%
-F_HW2 = F_HW + 256
-F_SR = F_HW + 512
-F_INIT = F_HW
-ELSE
 .F_HW   SKIP 256        \ planet half-widths
 .F_HW2  SKIP 256        \ sun half-widths
 F_SRN = MAXSH * 15      \ (the most faces is 15)
@@ -84,7 +76,6 @@ F_SRN = MAXSH * 15      \ (the most faces is 15)
  SKIP &22               \ once before the first frame, in its room
  INCLUDE "src/gfx-finit.asm"
  SKIP F_SR + F_SRN - P%
-ENDIF
 .F_RP   SKIP 29 * MAXSH \ the ship records (F_SHIP): INWK 0-8, XX16, XX0
 F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
 F_SZH = F_RP + 7 * MAXSH
@@ -160,9 +151,7 @@ ENDIF
  INCLUDE "build/p-kept-ovls.asm"        \ (kept solid rows)
  INCLUDE "build/p-poly-ovls.asm"        \ (R_POLY's set-up and arithmetic, C_DSPANS's
  CPU 1                                  \ encoder: only ever run with S in)
-IF OPTEST = 0
  INCLUDE "build/p-onepass-ovls.asm"     \ (R_POLY in one pass)
-ENDIF
  INCLUDE "build/gfx-frame-ovls.asm"    \ (the text overlay and the sights)
  CPU 1
  INCLUDE "build/gfx-flare-ovls.asm"
@@ -210,14 +199,6 @@ ENDIF
 .PFF_END
  PRINT "Parasite: the page at &FF00 to &", ~PFF_END-1, ", free to &FFFA: ", &FFFA-PFF_END
 
-\ QSL, the quarter squares' low bytes (elite-qs.asm: QSH is in the run), in
-\ the client OS's pages 2 and 3 (its vectors and error buffer)
- CLEAR &0200, &0400
- ORG &0200
-.QSL
-FOR n, 0, 511
- EQUB LO(n * n DIV 4)
-NEXT
  ASSERT PFF_END <= &FFFA
  ORG &FFFA
  EQUW p_nmi, p_start, pirq
@@ -228,7 +209,7 @@ NEXT
 \ The boot's staging area, above overlay D (S and the next C_OVLGET of D
 \ overwrite it; tube/build.sh appends it to PCODE): p_start and p_boot (the
 \ "Area: boot" pass, p-io.asm), then the images p_boot copies in over the
-\ client OS: the high area, the page at &FF00, pages 2 and 3 and the low code
+\ client OS: the high area, the page at &FF00 and the low code
 
  INCLUDE "build/p-io-boot.asm"          \ (p_start, p_boot)
 .PSTG_HI
@@ -238,9 +219,6 @@ NEXT
  COPYBLOCK &FF00, &FFFF, P%
  ORG PSTG_FF + &FF
  EQUB HI(pirq)          \ (&FFFF: COPYBLOCK's end is 16-bit)
-.PSTG_LO
- COPYBLOCK &0200, &0400, P%
- ORG PSTG_LO + &200
 .PSTG_PL
  COPYBLOCK PLOW, PLOW_END, P%
  ORG PSTG_PL + PLOW_END - PLOW

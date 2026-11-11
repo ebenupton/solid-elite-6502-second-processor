@@ -47,12 +47,11 @@ class Par:
         pc = open(os.path.join(d, 'PCODE.bin'), 'rb').read()
         code = self.syms.get('PSTG_END', self.syms['PCODE_END']) - len(pc)   # (with the boot's staging)
         mem[code:code + len(pc)] = pc
-        if 'PSTG_FF' in self.syms:              # (p_boot's copies: the page at &FF00, pages 2 and 3)
+        if 'PSTG_FF' in self.syms:              # (p_boot's copy: the page at &FF00)
             f = self.syms['PSTG_FF']
             mem[0xFF00:0x10000] = mem[f:f + 256]
-            if 'PSTG_LO' in self.syms:
-                lo = self.syms['PSTG_LO']
-                mem[0x200:0x400] = mem[lo:lo + 512]
+        for n in range(512):                    # (QSL, which p_boot makes in pages 2 and 3)
+            mem[0x200 + n] = n * n // 4 & 255
         ov = open(os.path.join(d, 'HOVS.bin'), 'rb').read()
         o = self.syms['OVL_START']
         mem[o:o + len(ov)] = ov

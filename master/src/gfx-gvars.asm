@@ -13,7 +13,8 @@
                         \ Master's direct-mode screen)
 .GFLIP   EQUB 0         \ non-zero: show buffer GPEND at the next vsync
 .GPEND   EQUB 0
-IF _HOSTB = 0             \ (the Tube's Model B host: hb-irq.asm's hb_vl)
+IF _HOSTB = 0 AND _TPART <> 1  \ (the Tube's Model B host: hb-irq.asm's hb_vl;
+                        \ the parasite has no vsync)
 .GVLAST  EQUB 0         \ non-zero: the last vsync flipped (H_VSYNC: 25 fps cap)
 ENDIF
 IF _TPART <> 2             \ (not the Tube's hosts': the frame runs on the parasite)
@@ -49,8 +50,10 @@ IF _TPART <> 2             \ (the Tube's hosts: kept rows are the parasite's)
 \ Kept solid rows (gfx-raster_kept.asm), shared by the frame layer, the
 \ rasteriser's windows and the trampolines
 .KMODE   EQUB 0         \ bit 7: K mode this frame (the station close by)
+IF _TPART = 0           \ (the Tube's parasite keeps no KF: p-kept.asm)
 .KBIT    EQUB 1         \ this frame's buffer's bit in KF (1 or 2)
 .KBITN   EQUB &FE       \ and its complement
+ENDIF
 .KPLO    EQUB &FF       \ the pending rows: KPLO..KPHI
 .KPHI    EQUB 0
 .KREC    EQUB 0         \ kept rows found pending this frame (r7_rowrep)

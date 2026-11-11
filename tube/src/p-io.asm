@@ -1189,15 +1189,19 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  JMP F_INIT
 
 \ p_boot: drains a stray byte from the host in register 1, zeroes the
-\ hole's state (p-ws.asm), then copies the staged images (p-layout.asm) in
-\ over the client OS, which the game never uses again: the low code, the
-\ page at &FF00, pages 2 and 3, and the high area
+\ hole's state (p-ws.asm), makes QSL (elite-qs.asm) in pages 2 and 3, then
+\ copies the staged images (p-layout.asm) in over the client OS, which the
+\ game never uses again: the low code, the page at &FF00 and the high area.
+\ QSL+x is q(x) = x^2 DIV 4's low byte, and QSL+256+x (256+x)^2 DIV 4's,
+\ q(x) + 128x's: q(x) with bit 7 flipped when x is odd; q(x+1) = q(x) +
+\ (x+1) DIV 2, kept in rq (p_start sets it after)
 
 .p_boot
  LDA &FEF8
  BPL pbt0
  LDA &FEF9
 .pbt0
+ STZ rq                 \ (q(0))
  LDX #0
 .pbt1
  CPX #PWS_HOLE_END-PWS_HOLE  \ (the hole's state starts zero, p-ws.asm)
@@ -1211,10 +1215,17 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 .pbt4
  LDA PSTG_FF,X
  STA &FF00,X
- LDA PSTG_LO,X
- STA &0200,X
- LDA PSTG_LO + 256,X
- STA &0300,X
+ TXA                    \ QSL+x and QSL+256+x (C: x odd)
+ LSR A
+ LDA rq
+ STA QSL,X
+ BCC P%+4
+ EOR #&80
+ STA QSL+256,X
+ TXA                    \ q(x+1) = q(x) + x DIV 2 + (x AND 1)
+ LSR A
+ ADC rq
+ STA rq
 FOR i, 0, 5
  LDA PSTG_HI + i * 256,X
  STA &F800 + i * 256,X

@@ -2,8 +2,7 @@
 \
 \ p-ws.asm - the parasite's part of the renderer's shared workspace
 \ (elite-gfx.asm in the Master port): only what the frame layer leaves for the
-\ rasteriser, whose state is the host's. From &0D09, after the dummy SHEILA
-\ byte (elite-source.asm's VIA + &34, &0D08), to CODE% (&1400): the smaller
+\ rasteriser, whose state is the host's. From &0D09 to CODE% (&1400): the smaller
 \ arrays first, then from &0E00 the 192-byte row arrays, R_NDISCL page aligned
 \ (pr_* and the disc layer index it from its page: p-rast.asm); the free
 \ space below is one block, from WP's end
@@ -143,13 +142,16 @@ ASSERT F_DSS = R_SS + 24 AND R_Y1 = R_Y0 + 4
 PRINT "Parasite workspace: &", ~PWS_START, "-&", ~PWS_END-1, ", free ", CODE%-PWS_END, " (and ", &0E00-PWS_FREE, " at &", ~PWS_FREE, ")"
 ASSERT PWS_END <= CODE%
 
-\ The rest of the frame layer's small state goes in the hole between WP's end
-\ (VEC, elite-source.asm's last WP variable) and the dummy SHEILA byte, so
-\ that the tail below PWS_END is free for the low code (p-layout.asm's PLOW,
-\ which p_boot copies in)
+\ After WP's end (VEC, elite-source.asm's last WP variable): the dummy
+\ ACCCON byte, then the rest of the frame layer's small state, in the hole
+\ below the frame layer's inputs, so that the tail below PWS_END is free for
+\ the low code (p-layout.asm's PLOW, which p_boot copies in)
 
 PWS_ORG = P%
 ORG VEC + 2
+.PACC       SKIP 1          \ the dummy ACCCON byte: what Master's code writes to
+                            \ SHEILA &34 (VIA + &34, elite-source.asm)
+ASSERT PACC = VIA + &34
 .PWS_HOLE
 .hp_dfl     SKIP 1          \ non-zero: the heap's drop has run
 .hp_dir     SKIP 1          \ hp_move: 1 when the arrays move up
@@ -179,5 +181,5 @@ ORG VEC + 2
 .r_m0       SKIP 1
 .r_v0       SKIP 1
 .PWS_HOLE_END
-ASSERT PWS_HOLE_END <= VIA + &34    \ (the dummy SHEILA byte, &0D08)
+ASSERT PWS_HOLE_END <= PWS_START
 ORG PWS_ORG

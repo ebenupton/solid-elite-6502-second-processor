@@ -297,17 +297,7 @@ ENDIF
                         \ in by the stubs (build/elite-stubs.asm) while cold code
                         \ runs (ANDY is the rasteriser's)
 
-IF _TPART = 1
-
- VIA = &0D08 - &34      \ Port (Tube): the parasite has no SHEILA (only the Tube's
-                        \ registers, at &FEF8): what Master's code still writes
-                        \ there (ACCCON's X bit, around the drawing whose screen
-                        \ writes go to the host, the only SHEILA write left)
-                        \ lands in one byte, &0D08, below the frame layer's
-                        \ inputs (tube/src/p-ws.asm), and what it reads (the
-                        \ keyboard, the timers) is replaced (docs/TUBE-MAP.md)
-
-ELSE
+IF _TPART <> 1          \ (Tube: the parasite's VIA follows VEC, below)
 
  VIA = &FE00            \ Memory-mapped space for accessing internal hardware,
                         \ such as the video ULA, 6845 CRTC and 6522 VIAs (also
@@ -2208,6 +2198,19 @@ ENDIF
  EQUW &8888             \ This gets set to the value of the original IRQ1 vector
                         \ by the STARTUP routine
 
+IF _TPART = 1
+
+ VIA = P% - &34         \ Port (Tube): the parasite has no SHEILA (only the Tube's
+                        \ registers, at &FEF8): what Master's code still writes
+                        \ there (ACCCON's X bit, around the drawing whose screen
+                        \ writes go to the host, the only SHEILA write left)
+                        \ lands in one byte, the first after VEC, the start of
+                        \ the Tube's workspace (tube/src/p-ws.asm's PACC), and
+                        \ what it reads (the keyboard, the timers) is replaced
+                        \ (docs/TUBE-MAP.md)
+
+ENDIF
+
 \ ******************************************************************************
 \
 \       Name: WSCAN
@@ -2238,9 +2241,9 @@ ENDIF
 \       Type: Subroutine
 \   Category: Screen mode
 \    Summary: Port: WSCAN's own wait for the vertical sync, its own block (the
-\             Tube's host waits: never run on the parasite, in overlay D)
+\             Tube's host waits: never run on the parasite, not assembled there)
 \       Area: low
-\       Tube: ovl D
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -15140,8 +15143,8 @@ ENDIF
 \       Type: Variable
 \   Category: Keyboard
 \    Summary: Port: FILLKL's variables, their own block (only FILLKL's own scan
-\             uses them: the Tube's overlay D)
-\       Tube: ovl D
+\             uses them: not assembled on the Tube's parasite)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -16616,8 +16619,8 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Port: the keyboard columns with a key pressed, for FILLKL's own
-\             scan, its own block (the Tube's overlay D)
-\       Tube: ovl D
+\             scan, its own block (not assembled on the Tube's parasite)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -32624,8 +32627,8 @@ ENDIF
 \       Type: Subroutine
 \   Category: Screen mode
 \    Summary: Port: DET1's own write to the 6845, its own block (the Tube's host
-\             has the 6845: never run on the parasite, in overlay D)
-\       Tube: ovl D
+\             has the 6845: never run on the parasite, not assembled there)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -49113,8 +49116,9 @@ ENDIF
 \       Type: Subroutine
 \   Category: Keyboard
 \    Summary: Port: FILLKL's own scan of the keyboard, its own block (the Tube's
-\             host scans the keyboard: never run on the parasite, overlay D)
-\       Tube: ovl D
+\             host scans the keyboard: never run on the parasite, not assembled
+\             there)
+\       Tube: none
 \
 \ ******************************************************************************
 
@@ -49366,7 +49370,7 @@ IF _TPART = 1
  TXA                    \ injection point, tube/harness), and return as below:
  RTS                    \ A = X, N from bit 7
 
-ENDIF
+ELSE
 
  LDX #3                 \ Set X to 3, so it's ready to send to SHEILA once
                         \ interrupts have been disabled
@@ -49403,6 +49407,8 @@ ENDIF
  TXA                    \ Transfer X into A
 
  RTS                    \ Return from the subroutine
+
+ENDIF
 
 ENDIF
 
