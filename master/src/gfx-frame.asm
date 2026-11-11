@@ -836,7 +836,7 @@ ENDIF
  JSR T_KCOMMIT          \ (K mode: the kept rows still pending blacked)
  JSR f_dots             \ particles, distant ships
  JSR f_lasers           \ our laser beams and the sights
- JSR f_flt              \ the lens flare (gfx-flare6.asm), then the text on top
+ JSR f_flt              \ the lens flare (gfx-flare.asm's f_flt), then the text on top
  JSR f_sight2           \ and the sights
 .ff_stars
  LDA #NOST+1            \ stardust, on black only (last: erasing it next

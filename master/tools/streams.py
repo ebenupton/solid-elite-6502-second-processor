@@ -389,9 +389,9 @@ OTHERS = ("src/elite-layout.asm", "src/elite-measure.asm", "src/elite-glue.asm",
 TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm",
            "src/gfx-hooks.asm", "src/gfx-gvars.asm", "src/gfx-finit.asm", "src/gfx-faces.asm",
            "src/gfx-light.asm", "src/gfx-light6.asm", "src/gfx-hangar.asm", "src/gfx-hangar6.asm",
-           "src/gfx-flare.asm", "src/gfx-flare6.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
+           "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
            "src/elite-moon.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm",
-           "tsrc/p-dash2.asm", "tsrc/p-low.asm", "tsrc/p-layout.asm")
+           "tsrc/p-low.asm", "tsrc/p-layout.asm")
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*%?")
 
 
@@ -972,17 +972,29 @@ def stub_none(lines, bl):
 #                                    code that enters the STA runs,
 #                                    tube/src/h-layout.asm)
 #   \       Area: ovl D             (the parasite's overlay D: p-layout.asm)
+#   \       Area: high              (the parasite's high area, &F800-&FEEF)
+#   \       Area: low               (the parasite's low code, the workspace's
+#                                    tail below CODE%)
+#   \       Area: top               (the parasite's page at &FF00)
+#   \       Area: boot              (the parasite's boot, above overlay D)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
-# build/<file>-kernel.asm and build/<file>-ovld.asm. The Master port, the
-# Model B host and (for the files it does not pass) the Master host assemble
-# the file itself, where the tag lines are comments
+# build/<file>-kernel.asm, build/<file>-ovld.asm, and the parasite's
+# build/<file>-high.asm, -low.asm, -top.asm and -boot.asm. The Master port,
+# the Model B host and (for the files it does not pass) the Master host
+# assemble the file itself, where the tag lines are comments. The parasite
+# places every one of its files by these passes (p-layout.asm): a file whose
+# blocks go to more than one place is still one file
 FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm",
              "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
-             "tsrc/p-io.asm", "tsrc/p-glue.asm")
-FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "ovl D": "ovld"}
+             "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
+             "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm", "tsrc/p-rast.asm",
+             "tsrc/p-disc.asm", "tsrc/p-emit.asm", "tsrc/p-kept.asm", "tsrc/p-poly.asm", "tsrc/p-onepass.asm",
+             "tsrc/p-probe.asm", "tsrc/p-lost.asm")
+FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "ovl D": "ovld",
+         "high": "high", "low": "low", "top": "top", "boot": "boot"}
 
 
 def frame_passes(path, errors):

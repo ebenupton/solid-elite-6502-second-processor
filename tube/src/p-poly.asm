@@ -1,14 +1,18 @@
 \ ******************************************************************************
 \
-\ p-polya.asm - phase 3 (docs/TUBE-PLAN.md): R_POLY's phase A on the parasite.
+\ p-poly.asm - phase 3 (docs/TUBE-PLAN.md): R_POLY's phase A on the parasite.
 \ The Master port's own phase A (gfx-raster_poly.asm, assembled with
 \ _TPART = 1: the clipping and the edge walking, 8-bit and 16-bit paths, into
-\ the per-row tables) runs here, in the high area (p-layout.asm's PHIGH);
+\ the per-row tables) runs here: its set-up and arithmetic in overlay S, the
+\ rest (gfx-raster_polyb.asm, from r_e8) in the high area (p-layout.asm's
+\ PHIGH);
 \ p_spans sends the host the rows' tables and the colours (C_POLY), and the
 \ host goes on from r_pcbd (the orientation, the horizontal clip, the
 \ trimming, the dirty rows, then phase B) as before.
 \
 \ ******************************************************************************
+
+\       Area: ovl S
 
 RZ_PA   = &10           \ (gfx-raster.asm's zero page: F_FRAME has saved &06-&27)
 RZ_PB   = &12
@@ -33,5 +37,11 @@ r_tb = R_NDX3           \ boundaries have gone to the host, as the ships come af
                         \ (R_POLY's scratch, r_ystart .. r_v0: p-ws.asm)
 
  INCLUDE "src/gfx-raster_arith.asm"
- INCLUDE "src/gfx-raster_poly.asm"      \ (R_POLY, r_pf8; the rest: p-polyb.asm)
+ INCLUDE "src/gfx-raster_poly.asm"      \ (R_POLY, r_pf8; the rest below)
+
+\       Area: high
+
+\ R_POLY's phase A from r_e8 (resident, in the high area)
+
+ INCLUDE "src/gfx-raster_polyb.asm"
 

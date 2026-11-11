@@ -40365,7 +40365,7 @@ IF _TUBE
  LDA savosc             \ Port (Tube): savosc is in overlay D, which each load
  STA savc0              \ of D restores from the host's image, so the first
                         \ byte that the bug above leaves there is kept in
-                        \ resident memory (savc0, tube/src/p-layout.asm's low
+                        \ resident memory (savc0, tube/src/p-ovl.asm's low
                         \ code) and put back before each save, so that it
                         \ persists as in SNG47
 

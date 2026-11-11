@@ -759,7 +759,7 @@ ENDMACRO
 
 \ The trampolines into the rasteriser (gfx-tramp.asm in the Master port)
 
-.T_POLY                 \ R_POLY: phase A here (p-polya.asm), the rows to the host
+.T_POLY                 \ R_POLY: phase A here (p-poly.asm), the rows to the host
  PHA
  PHX
  PHY
@@ -1139,3 +1139,91 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 .TTX66M                 \ (CHPR's call of TTX66: no banks here)
  JMP TTX66
 
+\       Area: top
+
+\ p_crash: a BRK (a crash, pirq's way on): A, X, Y and S kept here (the
+\ stack's top at &0101+S: the flags, then the BRK's address+2), then a loop.
+\ p_nmi: the NMI vector's (the host never writes register 3 again)
+
+.p_crash
+ STA pcra
+ STX pcrx
+ STY pcry
+ TSX
+ STX pcrs
+.pcrsh
+ JMP pcrsh
+.p_nmi
+ RTI
+.pcra EQUB 0
+.pcrx EQUB 0
+.pcry EQUB 0
+.pcrs EQUB 0
+
+\       Area: boot
+
+\ p_start: the parasite's entry (the loader starts it through the client
+\ OS's Tube code, its only use): the boot (p_boot) takes the parasite's
+\ memory over, then wakes the host's command loop with &FE (the host's
+\ WRCHV, as the MOS's Tube code passes the byte to OSWRCH), then the
+\ renderer's initialisation (F_INIT, as the Master port's loader calls it
+\ through G_INIT) and the game (S%). F_INIT loads overlay S over the boot,
+\ so it returns straight to S% (pushed as its return address)
+
+.p_start
+ SEI
+ CLD
+ LDX #&FF
+ TXS
+ JSR p_boot
+ LDA #255               \ (the ring's write pointer: rpl, rph's start)
+ STA rq
+ LDA #HI(RING)
+ STA rq+1
+ LDA #&FE
+ JSR ptx
+ LDA #HI(S%-1)          \ (F_INIT's RTS goes to S%)
+ PHA
+ LDA #LO(S%-1)
+ PHA
+ JMP F_INIT
+
+\ p_boot: drains a stray byte from the host in register 1, zeroes the
+\ hole's state (p-ws.asm), then copies the staged images (p-layout.asm) in
+\ over the client OS, which the game never uses again: the low code, the
+\ page at &FF00, pages 2 and 3, and the high area
+
+.p_boot
+ LDA &FEF8
+ BPL pbt0
+ LDA &FEF9
+.pbt0
+ LDX #0
+.pbt1
+ CPX #PWS_HOLE_END-PWS_HOLE  \ (the hole's state starts zero, p-ws.asm)
+ BCS pbt3
+ STZ PWS_HOLE,X
+.pbt3
+ CPX #PLOW_END-PLOW     \ the low code
+ BCS pbt4
+ LDA PSTG_PL,X
+ STA PLOW,X
+.pbt4
+ LDA PSTG_FF,X
+ STA &FF00,X
+ LDA PSTG_LO,X
+ STA &0200,X
+ LDA PSTG_LO + 256,X
+ STA &0300,X
+FOR i, 0, 5
+ LDA PSTG_HI + i * 256,X
+ STA &F800 + i * 256,X
+NEXT
+ CPX #&F0
+ BCS pbt2
+ LDA PSTG_HI + &600,X
+ STA &FE00,X
+.pbt2
+ INX
+ BNE pbt1
+ RTS

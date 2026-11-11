@@ -102,7 +102,7 @@ if p < pws0:
 plow = sy.get("PLOW", code0)
 reg(pws0, plow, "frame layer's inputs (p-ws.asm)", "workspace", "PWS", ["tube/src/p-ws.asm"], sy["PWS_END"])
 if plow < code0:                              # (the low code, copied in by p_boot: p-layout.asm)
-    reg(plow, code0, "low code: the disc heap's drop and the surface's cold paths", "code", "low", ["tube/src/p-disc0.asm"], sy["PLOW_END"])
+    reg(plow, code0, "low code: the disc heap's drop and the surface's cold paths", "code", "low", ["tube/src/p-disc.asm", "tube/src/p-ovl.asm"], sy["PLOW_END"])
 # the resident image
 reg(code0, sy["GLUE_END%"], "glue (p-low.asm: the Tube's I/O, the overlay manager, the panel's game halves, the frame layer's small state)",
     "code", "run (glue)", ["tube/src/p-low.asm", "build/elite-stubs.asm", "build/p-glue-frame.asm", "build/gfx-hooks-frame.asm"])
@@ -117,7 +117,7 @@ reg(sy["PF_START"], sy["PF_CODE_END"], "frame layer (parasite part)", "code", "f
 reg(sy["PF_CODE_END"], sy["F_DLEND"], "frame layer state (F_HW, F_HW2, F_SR with F_INIT, F_RP)", "buffers", "frame",
     ["tube/src/p-layout.asm", "master/src/gfx-finit.asm"])
 reg(sy["F_DLEND"], sy["fa_col"], "text map (F_TM)", "buffers", "frame", ["tube/src/p-layout.asm"])
-reg(sy["fa_col"], sy["PRES_END"], "the lens flare's probes' fl_arm helpers", "code", "frame", ["tube/src/p-probe1.asm"])
+reg(sy["fa_col"], sy["PRES_END"], "the lens flare's probes' fl_arm helpers", "code", "frame", ["tube/src/p-probe.asm"])
 o = sy["OVL_START"]
 if sy["PRES_END"] < o:
     reg(sy["PRES_END"], o, "free (to the overlay region's page)", "free", "-", [], sy["PRES_END"])
@@ -125,7 +125,7 @@ reg(o, RING, "overlay D (direct mode)", "overlay", "ovl D",
     ["build/elite-source-cold.asm", "build/elite-data-cold.asm", "build/p-io-ovld.asm", "build/p-glue-ovld.asm"],
     sy["OVL_D_END"], alt="D")
 reg(o, RING, "overlay S (space mode): state, then code", "overlay", "ovl S",
-    ["tube/src/p-rast.asm", "tube/src/p-disc.asm", "tube/src/p-emit.asm", "tube/src/p-kept.asm", "tube/src/p-polya.asm",
+    ["tube/src/p-rast.asm", "tube/src/p-disc.asm", "tube/src/p-emit.asm", "tube/src/p-kept.asm", "tube/src/p-poly.asm",
      "tube/src/p-onepass.asm", "build/gfx-frame-ovls.asm", "master/src/gfx-flare.asm", "tube/src/p-probe.asm", "master/src/gfx-merid.asm",
      "master/src/gfx-planet7.asm", "build/gfx-frame_cold-ovls.asm", "build/gfx-ssun-ovls.asm"], sy["OVL_S_END"], alt="S")
 reg(sy["OVL_D_END"], RING, "boot staging (p_boot and the high area's images: boot only)", "boot", "ovl D's tail",
@@ -135,10 +135,10 @@ if ZPSAVE + 0x90 >= o:
         "workspace", "ovl D's tail", ["master/src/elite-source.asm"], alt="D")
 reg(RING, 0xF800, "command ring", "buffers", "ring", ["tube/src/p-io.asm"])
 reg(0xF800, 0xFEF0, "high area (phase A's tail, the panel's tail, kept rows, one-pass tail)", "code", "high",
-    ["tube/src/p-polyb.asm", "tube/src/p-dash2.asm", "tube/src/p-kept2.asm", "tube/src/p-onepass2.asm"], sy["PHIGH_END"])
+    ["tube/src/p-poly.asm", "tube/src/p-dash.asm", "tube/src/p-kept.asm", "tube/src/p-onepass.asm"], sy["PHIGH_END"])
 reg(0xFEF0, 0xFF00, "Tube registers (&FEF8-&FEFF) and guard", "io", "-", [])
 reg(0xFF00, 0xFFFA, "page &FF: p_crash, the flare's step and tables, its probes' hooks, the directly drawn stars", "code", "page FF",
-    ["tube/src/p-layout.asm", "master/src/gfx-flare6.asm", "tube/src/p-probe2.asm"], sy["PFF_END"])
+    ["tube/src/p-io.asm", "master/src/gfx-flare.asm", "tube/src/p-probe.asm"], sy["PFF_END"])
 reg(0xFFFA, 0x10000, "vectors (NMI, RESET, IRQ/BRK)", "vectors", "-", ["tube/src/p-layout.asm"])
 
 sha = sys.argv[4] if len(sys.argv) > 4 else subprocess.run(["git", "-C", ROOT, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip() \

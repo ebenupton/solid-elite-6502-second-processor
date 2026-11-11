@@ -266,3 +266,11 @@ OVL_S = 2
  EQUB HI(OVL_D_END + 255), HI(OVL_S_END + 255)
 .ovst                   \ and its start
  EQUB HI(OVL_START), HI(S_STATE_END)
+
+\       Area: low
+
+\ savc0: savosc's first byte (elite-source.asm's DELT: SNG47's DELT bug can
+\ change it, and overlay D, which holds savosc, is restored from the host's
+\ image at each load)
+
+.savc0 EQUB 'S'

@@ -1,5 +1,5 @@
 \ (gfx-raster_poly.asm's second part, from r_e8: its own file so that the Tube's
-\ parasite can place the two parts apart, tube/src/p-polya.asm)
+\ parasite can place the two parts apart, tube/src/p-poly.asm)
 
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)
 \ r_e8: edge r_i0 -> r_i1 of an 8-bit polygon into the table at (RZ_T4)

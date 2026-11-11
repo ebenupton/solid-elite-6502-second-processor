@@ -26,6 +26,8 @@
 \
 \ ******************************************************************************
 
+\       Area: ovl S
+
 \ zero page: the rasteriser's &06-&27 (F_FRAME saves and restores them), and
 \ these, which the game leaves free
 

@@ -1,5 +1,5 @@
 """tube_onepass.py -- test_onepass.py's --tube mode: a differential test of the
-Tube parasite's R_POLY (tube/src/p-polya.asm, gfx-raster_poly.asm and
+Tube parasite's R_POLY (tube/src/p-poly.asm, gfx-raster_poly.asm and
 gfx-raster_onepass.asm, p-emit.asm) between two builds.
 
     python3 master/tools/grind/test_onepass.py --tube REF CAND [--seed N] [--n N]

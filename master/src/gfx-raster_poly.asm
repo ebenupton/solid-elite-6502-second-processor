@@ -48,7 +48,7 @@ ELSE
   CMP #0                  \ (A = 0: nothing to draw)
   BEQ out
 IF _TPART = 1
-  JMP p_spans             \ (Tube: the tables to the host, tube/src/p-polya.asm)
+  JMP p_spans             \ (Tube: the tables to the host, tube/src/p-poly.asm)
 ELSE
   JMP r_pcbd
 ENDIF

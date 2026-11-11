@@ -204,8 +204,7 @@ INCLUDE "src/gfx-light6.asm"   \ the lighting tables (and the first ramps)
 INCLUDE "build/gfx-light-6.asm"   \ the lighting's L_REC (gfx-light.asm's second
                                \ pass; L_SUN, its first, is at bank 4's end)
 INCLUDE "src/gfx-frame_cold.asm"
-INCLUDE "src/gfx-flare.asm"    \ the lens flare (T_FLARE)
-INCLUDE "src/gfx-flare6.asm"   \ its step in F_FRAME
+INCLUDE "src/gfx-flare.asm"    \ the lens flare (T_FLARE) and its step in F_FRAME
 INCLUDE "src/gfx-hangar.asm"   \ the hangar's frame (HALL; its tables: gfx-hangar6.asm)
 .B6_CODE_END
 .F_RP   SKIP 29 * MAXSH \ the ship records (F_SHIP): INWK 0-8, XX16, XX0

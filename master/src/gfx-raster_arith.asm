@@ -1,5 +1,5 @@
 \ (gfx-raster.asm's polygon arithmetic, its own file so that the Tube's
-\ parasite can assemble it for its phase A: tube/src/p-polya.asm)
+\ parasite can assemble it for its phase A: tube/src/p-poly.asm)
 \ ----------------------------------------------------------------------------
 \ The polygon window's arithmetic (R_POLY's phase A, gfx-raster_poly.asm),
 \ here for room: r_div8, r_dvq and the 32-bit multiply and divide with their

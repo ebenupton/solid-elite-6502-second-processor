@@ -162,7 +162,7 @@ ORG VEC + 2
 .fp_l       SKIP 1
 .fp_r       SKIP 1
 .fp_c       SKIP 1
-.r_ystart   SKIP 1          \ (R_POLY's scratch: p-polya.asm)
+.r_ystart   SKIP 1          \ (R_POLY's scratch: p-poly.asm)
 .r_ylast    SKIP 1
 .r_yend     SKIP 1
 .r_xclip    SKIP 1
