@@ -253,9 +253,9 @@ ring's pointers step by pages).
 Commands go through register 1 (the parasite polls its room bit, or
 buffers in the ring: above; the host's loop polls its data bit, ringing the
 parasite's doorbell while it is empty): an even opcode, which the host dispatches through a
-table, then the operands. Requests that need an answer go through register 2
-(preq), which the host's loop reads before the next command, and are answered
-through register 4.
+table, then the operands. Requests go through register 4 (preq4), which the
+host's IRQ answers at once, through register 4; nothing goes through
+register 2.
 
 | Group | Commands |
 |---|---|
@@ -264,14 +264,15 @@ through register 4.
 | Lines and points | C_LINE (four colours, two 16-bit points), C_DOT (two colours, x, y, size), C_STARS (plot on black only; the host keeps the records), C_STARERASE (black the records' pixels), C_EORDOT (EOR a directly drawn star away); the direct-mode screen: C_LOIN, C_HLOIN, C_PIXEL (Master's LOINQ, HLOIN3, PIXEL) |
 | Text | C_GLYPH (a cell: character, column, row; space mode), C_CHAR (CHPR, direct mode), C_CLS, C_BOXC, C_CLYNS |
 | Panel | C_PDIALS (the dials' inputs), C_PDOT (the compass), C_PSCAN (a ship on the scanner), C_PMSBAR (a missile), C_PBULB (a bulb) |
-| I/O | C_NOISE, C_SOFLUSH (sound), C_DET1 (6845 R6), C_OSCLI (a disc command: the host's MOS runs it) |
+| I/O | C_DET1 (6845 R6), C_OSCLI (a disc command: the host's MOS runs it) |
 | Requests (register 4, answered by the host's IRQ) | C_KEYS (the keys held), C_DKS (one key), C_WSCAN (the next vsync), C_IRB (port B), C_NOISE, C_SOFLUSH, C_TOKEN n (recursive token n's bytes as QQ18 stores them, its null included: elite-source.asm's ex prints them from TBUF with the original loop) |
 | Storage | C_OVLGET n (request: overlay n's pages) |
 
 The opcodes of the commands the dumb host no longer has (the frame begin and
 end, the disc layer's state, dirty marks, the polygon's phase A rows, the
 flare, Master's byte writes, the meridian window, the text map) are retired
-(h_bad).
+(h_bad), as are the requests' entries in the command table (C_KEYS, C_DKS,
+C_WSCAN, C_NOISE, C_SOFLUSH, C_IRB: register 4's only).
 
 ### The ring (p-io.asm)
 
@@ -357,8 +358,12 @@ is spare.
    for HNMI's minimal NMI handler, and shadow RAM outside the screen and the
    panel. Every ROMSEL write is a plain 4 to 7: bit 7, ANDY, is never set.
 7. **The source stays where it is.** The rasteriser's blocks tagged
-   `Area: kernel` (streams.py's passes) are the span kernel; the rest of
-   each file is its own place's pass, in bank 7. Of the renderer's shared
+   `Area: kernel` (streams.py's passes) are the span kernel, and the one
+   tagged `Area: kernel, aligned` (the per-x tables) its first pages; the
+   rest of each file is its own place's pass, in bank 7, whose first pages
+   are the game's aligned tables (log, logL, alogh: their own pass,
+   build/elite-source-hostba.asm). An aligned pass first where a page
+   starts needs no padding, and nothing before it must end on a page. Of the renderer's shared
    workspace (elite-gfx.asm) the kernel declares only what the host's code
    names (h-layout.asm's `HWS` lines: tube/build.sh writes build/h-ws.asm
    from them); a name the host's code uses that is not listed fails the
@@ -370,8 +375,8 @@ is spare.
 |---|---|---|---:|
 | Zero page and stack | &0000-&00FF, &0100-&01FF | the game's zero page (build/elite-source-ws.asm), where the host's copies of the game's drawing code keep their variables, as the parasite does (the commands carry the values); &E4-&E5 hsp; the rasteriser's zero page &06-&27. The game's other workspaces (K%, WP) have names on the host only because it assembles the game's drawing and panel blocks against the game's definitions: it stores nothing there (K%'s first pages are the font's), and the build fails on an instruction of the host's that names &0700-&0CFF, or page &0D outside HNMI | - |
 | Font | main &0400-&06FF | CHPR's font (FONT%, h-layout.asm's HFONT), the three pages the MOS's Tube code leaves after the boot (hstart clears &027A, so the MOS never calls it again): the loader puts the font in buffer 0 (HFONTST, &4000) with HMAIN, and hstart moves it here | 0 |
-| Kernel: code | main &0E00-&257D | the renderer's shared variables (gfx-gvars.asm); the command loop (h-main.asm from hwrch, &0E0F: the handlers that enter the runs, the storage reader h_ovlget, hbank, the requests h4body and the IRQ's h4irq); the span kernel (r_rowset, r_spc, the per-x tables at &1500-&18FF after 47 bytes of padding, R_SPAN, r_dspin, phase B to &1B35; s_pg and s_bk, s_gen, s_clr to &1D50: h-sta.asm); the game's host blocks (the sound, IRQ1 at &1E8C, CHPR at &1EFC, UP); the text and IRQ hooks (gfx-gluehooks.asm); the recursive tokens (QQ18 as stored and where each starts, &2094-&257D), which C_TOKEN reads in the IRQ | - |
-| Free | main &257E-&2744 | the kernel's room, between its code and its workspace (at the boot, the loader runs at &2700-&2C3D, above the code it copies and below overlay S's first page: the loader asserts both) | 455 |
+| Kernel: code | main &0E00-&2492 | the per-x tables r_xo, r_jm, r_lm, r_rm (&0E00-&11FF, first, as the kernel's first page is aligned: the rasteriser's block tagged `Area: kernel, aligned`); the span kernel (r_rowset at &1200, r_spc, R_SPAN, phase B from &12D5, r_dspin at &14A0: in this order r_spc's and r_dspin's loops cross no page); the renderer's shared variables (gfx-gvars.asm, &14EC); the command loop (h-main.asm from hwrch, &14F2: the handlers that enter the runs, the storage reader h_ovlget, hbank, the requests h4body and the IRQ's h4irq); s_pg and s_bk, s_gen, s_clr (&1A74-&1C8E: h-sta.asm); the game's host blocks (the sound, IRQ1 at &1DCA, CHPR at &1E32, UP); the text and IRQ hooks (gfx-gluehooks.asm); the recursive tokens (QQ18 as stored and where each starts, &1FA9-&2492), which C_TOKEN reads in the IRQ. No padding | - |
+| Free | main &2493-&2744 | the kernel's room, between its code and its workspace (at the boot, the loader runs at &2700-&2C3D, above the code it copies and below overlay S's first page: the loader asserts both) | 690 |
 | Kernel: workspace | main &2745-&2AFF | one run ending below the disc buffers: f_enter's buffers F_HW and F_HW2 and f_unstar's F_DSX and F_DSY (&2745-&296E); of the renderer's shared workspace, R_X0 ... R_Y1, R_COL2, R_COL3, R_PYS, R_PYE, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&296F-&29D0); the panel's variables of WP (HWP, &29D1-&29FF: SWAP, JOPOS, DASHV ... dstab and the dials' and the compass's inputs dQQ14 ... dCOMY, which the game's workspace puts here for the Master host, as it puts them at the Model B host's HWP, in bank 7); ylookup (&2A00, a page: the page of each pixel row's character row, hstart's, for the game's drawing and the rasteriser, as r_ypg). No padding | - |
 | Disc buffers | main &2B00-&2CFF | HDSTR (&2B00), HDERR (&2B80) and HDBUF (&2C00, cmds.asm's: savosc and lodosc name it) for h_disc | - |
 | Stored: S 0-18 | main &2D00-&3FFF (ACCCON X clear) | 19 pages of overlay S: the kernel's room's last three, then main RAM under shadow &3000-&3FFF | 0 |
@@ -382,7 +387,7 @@ is spare.
 | Runs 64-127 | bank 5 &8000-&BFFF | lines 64-127; D's quarters 64-127 (pages 16-31) | 0 |
 | Runs 128-191 | bank 6 &8000-&BFFF | lines 128-191; D's quarters 128-163 (pages 32-40), then 28 tails free | 1792 (28 tails of 64 bytes) |
 | Stored: S 35-54 | bank 7 &8000-&93FF | 20 pages of overlay S at the bank's bottom, a fixed place whatever the code's size | 0 |
-| Host code | bank 7 &9400-&B811 | one run: R_LINE and its loops (gfx-raster_line.asm, first, so that the log tables after it start a page with no padding); the panel's drawing (the blocks tagged "Tube: hostb": SCAND, LOIN, HLOIN, PIXEL, DOT, the bulbs, MSBAR, DIALS, DSEG; log, logL, alogh at &A700-&A9FF); the frame layer's host part (gfx-frame.asm and gfx-frame_cold.asm: F_BACK, f_direct0, f_enter, f_glyph, f_b0new, f_unstar, &AA00); the rarely run code (h-cold.asm: hstart, h_disc, HNMI); the panel's and the drawing primitives' handlers (h-panel.asm, h-prim.asm); the rasteriser's own place (gfx-raster.asm: R_SETBUF, the star records r_s0y ... r_s1b, r_pclip, r_pset, R_LINE's variables, R_DOT, R_STARERASE, R_STARPLOT, from &B1E8; gfx-raster_lcold.asm: the lines' cold part and the rasteriser's private state); phase B's set-up (r_pcbs, &B7C9) | 2030 |
+| Host code | bank 7 &9400-&B6A2 | one run: log, logL, alogh (&9400-&96FF, first, as the bank's first page is aligned: the blocks tagged "Tube: bothb, aligned", build/elite-source-hostba.asm); R_LINE and its loops (gfx-raster_line.asm, &9700); the panel's drawing (the blocks tagged "Tube: hostb": SCAND, HLOIN, PIXEL, DOT, the bulbs, MSBAR, DIALS, DSEG, &9BCC); the frame layer's host part (gfx-frame.asm and gfx-frame_cold.asm: F_BACK, f_direct0, f_enter, f_glyph, f_b0new, f_unstar, &A8EF); the rarely run code (h-cold.asm: hstart, h_disc, HNMI); the panel's and the drawing primitives' handlers (h-panel.asm, h-prim.asm); the rasteriser's own place (gfx-raster.asm: R_SETBUF, the star records r_s0y ... r_s1b, r_pclip, r_pset, R_LINE's variables, R_DOT, R_STARERASE, R_STARPLOT, from &B08F; gfx-raster_lcold.asm: the lines' cold part and the rasteriser's private state, of which the hosts keep R_PRBUF and R_PRSCNT); phase B's set-up (r_pcbs, &B65A) | 2397 |
 | HAZEL | &C000-&DFFF | the MOS's and its filing systems': nothing of the host's | - |
 | Buffer 1, panel | shadow &4000-&7DFF | the screen and the dashboard | - |
 | Shadow &3000-&3FFF, &7E00-&7FFF | | unused | 4608 |
@@ -443,9 +448,10 @@ leaves the MOS's own alone.
 2. **Bank 7 is the resting bank.** It is paged whenever the host runs
    outside bank 4. The command loop, every handler, the interrupts' bodies,
    the lines, dots and stars, the panel and the text are one run from
-   &8000 in the Master host's order (what the Master keeps in its kernel,
-   then what it keeps in bank 7), with their private tables and the
-   recursive tokens after it, and calls itself with JSR.
+   &8000, after the aligned tables (log, logL, alogh, then the per-x
+   tables' second copy), in the Master host's order (what the Master keeps
+   in its kernel, then what it keeps in bank 7), with their private tables
+   and the recursive tokens after it, and calls itself with JSR.
 3. **The runs are addressed by row.** The run for character row r of
    buffer b starts page &80 + 24b + r of bank 4: 63 `STA abs,Y` (Y the
    pixel row), an RTS and the 'nothing planted' target, bytes 0-190;
@@ -501,13 +507,13 @@ leaves the MOS's own alone.
 | Persistent block | &7E00-&7EEE | beyond the panel, never swapped (hb-res3.asm): hwrch (WRCHV), hdbrk, irqm (IRQ1V: register 4's requests, timer 1 and vsync are the host's, anything else the MOS's), hbi_t (the rupture's point 2 whole, point 1's way into bank 7), irq4, hrw; and their variables | 239 | 273 |
 | Bank 4: buffer 0's runs | &8000-&97FF | rows 0-23, a page each (hstart's) | 24 pp | 24 tails of 65 |
 | Bank 4: buffer 1's runs | &9800-&AFFF | rows 0-23 | 24 pp | 24 tails of 65 |
-| Bank 4: span kernel | &B000-&BA25 | hb-kernel.asm in its scope: its variables R_COL2, R_COL3, R_PYS, R_PYE; the rasteriser's blocks tagged `Area: kernel` (r_rowset, r_sbruns, r_spc; the per-x tables r_xo, r_jm, r_lm, r_rm at &B100-&B4FF after 43 bytes of padding; R_SPAN; r_dspin); phase B's set-up and fill (gfx-raster_poly.asm and polyb, from r_pcbs at &B561); p_polyin; r_rpy0 (&B800) and r_rpy1 (&B900), each in a page of its own (102 bytes of padding); r_rgen. The loader copies HBK here | 2598 | 1498 |
+| Bank 4: span kernel | &B000-&BA25 | hb-kernel.asm in its scope: the per-x tables r_xo, r_jm, r_lm, r_rm (&B000-&B3FF, first: the rasteriser's block tagged `Area: kernel, aligned`); its variables R_COL2, R_COL3, R_PYS, R_PYE; the rasteriser's blocks tagged `Area: kernel` (r_rowset, r_sbruns, r_spc; R_SPAN; r_dspin); phase B's set-up and fill (gfx-raster_poly.asm and polyb, from r_pcbs at &B536); p_polyin; r_rpy0 (&B800) and r_rpy1 (&B900), each in a page of its own (145 bytes of padding); r_rgen. The loader copies HBK here | 2598 | 1498 |
 | Bank 5: overlay D | &8000-&A8FF | D's 41 pages, the loader's copy of HOVD | 41 pp | 23 pp |
 | Bank 6: overlay S | &8000-&B6FF | S's 55 pages from its state's end, the loader's copy of HOVS | 55 pp | 9 pp |
-| Bank 7: code | &8000-&AF38 | one run (the loader copies HBC, the whole bank): the renderer's shared variables (gfx-gvars.asm), the command loop (h-main.asm), the interrupts' bodies (hb-irq.asm), the game's host blocks (the sound, CHPR, UP) and the text hooks (gfx-gluehooks.asm); the panel's drawing (the blocks tagged "Tube: hostb", log, logL, alogh last at &9600-&98FF after 8 bytes of padding); the second copy of the per-x tables r_xo, r_lm, r_rm (&9900-&9BFF); R_LINE (gfx-raster_line.asm and lineb); the frame layer's host part (gfx-frame.asm, gfx-frame_cold.asm); the rarely run code (h-cold.asm: hstart, h_disc, hbswap); the handlers (h-panel.asm, h-prim.asm); the rasteriser's own place (gfx-raster.asm: R_SETBUF, the star records, r_pclip, r_pset, R_DOT, R_STARERASE, R_STARPLOT; gfx-raster_lcold.asm: the lines' cold part and the rasteriser's private state) | 12089 | - |
-| Bank 7: tokens | &AF39-&B422 | the recursive tokens (QQ18 as stored) and where each starts, which C_TOKEN reads in the IRQ (irqm pages bank 7) | 1258 | - |
-| Bank 7: free | &B423-&BA46 | the room the code leaves (the font's first place starts in its last 71 bytes) | - | 1572 |
-| Bank 7: workspace | &BA47-&BFFF | one run: f_enter's buffers F_HW, F_HW2 and f_unstar's F_DSX, F_DSY (&BA47-&BC70); of the renderer's shared workspace R_X0 ... R_Y1, R_COL2, R_COL3, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&BC71-&BCD0); the panel's variables of WP (HWP, &BCD1-&BCFF); DFS's three pages while the game runs (HBST, &BD00-&BFFF), where the loader puts the host's image of &0E00-&10FF for hstart's first hbswap. CHPR's font is first put at &BA00-&BCFF, across the workspace and the room below it, and moved before anything uses them | 1465 | 0 |
+| Bank 7: code | &8000-&AD44 | one run (the loader copies HBC, the whole bank): log, logL, alogh (&8000-&82FF, first: the blocks tagged "Tube: bothb, aligned") and the second copy of the per-x tables r_xo, r_lm, r_rm (&8300-&85FF); the renderer's shared variables (gfx-gvars.asm), the command loop (h-main.asm), the interrupts' bodies (hb-irq.asm), the game's host blocks (the sound, CHPR, UP) and the text hooks (gfx-gluehooks.asm); the panel's drawing (the blocks tagged "Tube: hostb"); R_LINE (gfx-raster_line.asm and lineb); the frame layer's host part (gfx-frame.asm, gfx-frame_cold.asm); the rarely run code (h-cold.asm: hstart, h_disc, hbswap); the handlers (h-panel.asm, h-prim.asm); the rasteriser's own place (gfx-raster.asm: R_SETBUF, the star records, r_pclip, r_pset, R_DOT, R_STARERASE, R_STARPLOT; gfx-raster_lcold.asm: the lines' cold part and the rasteriser's private state, of which the hosts keep R_PRBUF and R_PRSCNT). No padding | 11589 | - |
+| Bank 7: tokens | &AD45-&B22E | the recursive tokens (QQ18 as stored) and where each starts, which C_TOKEN reads in the IRQ (irqm pages bank 7) | 1258 | - |
+| Bank 7: free | &B22F-&BA48 | the room the code leaves (the font's first place starts in its last 73 bytes) | - | 2074 |
+| Bank 7: workspace | &BA49-&BFFF | one run: f_enter's buffers F_HW, F_HW2 and f_unstar's F_DSX, F_DSY (&BA49-&BC72); of the renderer's shared workspace R_X0 ... R_Y1, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&BC73-&BCD0); the panel's variables of WP (HWP, &BCD1-&BCFF); DFS's three pages while the game runs (HBST, &BD00-&BFFF), where the loader puts the host's image of &0E00-&10FF for hstart's first hbswap. CHPR's font is first put at &BA00-&BCFF, across the workspace and the room below it, and moved before anything uses them | 1463 | 0 |
 
 Overlay D can reach 64 pages in bank 5; S is at its ceiling of 55 already.
 The two overlay banks keep 31 whole pages free between them, and bank 4 its
