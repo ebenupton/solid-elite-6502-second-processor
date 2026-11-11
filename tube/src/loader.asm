@@ -360,11 +360,8 @@ ENDIF
  JSR OSB                \ pressed
                         \
                         \ Port: X = 3, not 1 (the Master port's fa36d40): a
-                        \ BREAK is then a power-on reset. With memory kept,
-                        \ the MOS's reset hung (a garbled screen, with or
-                        \ without SHIFT), most likely on its workspace in
-                        \ ANDY and HAZEL, where the host's code and the
-                        \ overlays' storage are
+                        \ BREAK is then a power-on reset, whatever the game
+                        \ has left in memory
 
  LDA #13                \ Call OSBYTE with A = 13, X = 0 and Y = 0 to disable
  LDX #0                 \ the "output buffer empty" event
@@ -406,7 +403,7 @@ ENDIF
  CPY #N%                \ Loop back for the next byte until we have done them
  BNE LOOP               \ all (the number of bytes was set in N% above)
 
- LDA #%00001111         \ Set the Access Control latch at SHEILA &34, as
+ LDA #%00000111         \ Set the Access Control latch at SHEILA &34, as
  ORA ACCHI              \ follows (Port (Tube): bits 4 and 5 as they were):
  STA VIA+&34
                         \
@@ -414,20 +411,19 @@ ENDIF
                         \   * Bit 6 = TST = 0: Must be set to 0
                         \   * Bit 5 = IFJ: kept
                         \   * Bit 4 = ITU: kept (internal or external co-pro)
-                        \   * Bit 3 = Y = 1: &C000-&DFFF set to 8K private RAM
+                        \   * Bit 3 = Y = 0: &C000-&DFFF the MOS's (Port
+                        \     (Tube): the host has no use for HAZEL)
                         \   * Bit 2 = X = 1: &3000-&7FFF set to 20K shadow RAM
                         \   * Bit 1 = E = 1: All shadow RAM locations accessible
                         \   * Bit 0 = D = 1: Display shadow RAM as screen memory
                         \
                         \ In short, this switches the screen memory, which is in
                         \ shadow RAM, into the memory map at &3000-&7FFF, so now
-                        \ we can poke directly to the screen memory, and it also
-                        \ maps the filing system RAM space into &C000-&DFFF
-                        \ (HAZEL), in place of the MOS VDU workspace
+                        \ we can poke directly to the screen memory
 
  JSR PLL1               \ Call PLL1 to draw Saturn
 
- LDA #%00001001         \ Clear bits 1 and 2 of the Access Control latch at
+ LDA #%00000001         \ Clear bits 1 and 2 of the Access Control latch at
  ORA ACCHI              \ SHEILA &34, which changes the following:
  STA VIA+&34
                         \
@@ -450,8 +446,8 @@ ENDIF
                         \ Port: load the game's files other than BCODE, one at a
                         \ time, to &1300 (below &3000, so it is visible when
                         \ ACCCON X is set), then copy each one to where it
-                        \ belongs, as listed in FTAB: shadow RAM, or a sideways
-                        \ RAM bank (with ANDY when ROMSEL bit 7 is set)
+                        \ belongs, as listed in FTAB: main or shadow RAM, or a
+                        \ sideways RAM bank
 
  LDX #0                 \ X = offset of the FTAB entry
 
@@ -563,7 +559,7 @@ ENDIF
 
 .LDN
 
- LDA #%00001001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
+ LDA #%00000001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
  ORA ACCHI              \ it)
  STA VIA+&34
 
@@ -609,16 +605,10 @@ ENDIF
 
 .LTRUN
 
-                        \ Port: that was the last disc access, so DFS is done
-                        \ with HAZEL: stash DFS's and the MOS's lasting bytes,
-                        \ as the game uses their places (DOSCLI puts them back
-                        \ for each disc command): &C2C0-&C2FF and &DFC0-&DFFF
-                        \ (ACCCON Y = 1 maps HAZEL at &C000-&DFFF), then copy
-                        \ HAZEL's contents (the game data and the renderer's
-                        \ glue) from their staging copy at &4000 into place
+                        \ Port: that was the last disc access
 
  SEI
- LDA #%00001001
+ LDA #%00000001
  ORA ACCHI
  STA VIA+&34
 
@@ -650,8 +640,7 @@ ENDIF
                         \ ROM may have hooked one (the machine this was reported
                         \ on hooks BYTEV through an extended vector), and a
                         \ hook would then run on every call and could write its
-                        \ private workspace, a page of HAZEL (the table at
-                        \ &0DF0), which the renderer uses. Kept: BRKV and IRQ1V
+                        \ private workspace. Kept: BRKV and IRQ1V
                         \ (&0202-&0205) and WRCHV (&020E-&020F), which the game
                         \ sets itself, and the filing system vectors FILEV to
                         \ FSCV (&0212-&021F), which must stay the DFS's for the
@@ -816,32 +805,32 @@ ENDIF
 .FTAB
 
  EQUW MESS9             \ HBANK7: the host's code, bank 7, and overlay S's
- EQUB 7, %00001001      \ pages below it
+ EQUB 7, %00000001      \ pages below it
  EQUW &8000, 0
 
  EQUW MESS17            \ HSTB4: overlay D's pages in bytes 192-255 of the STA
- EQUB 4, %00001001      \ runs' pages of bank 4 (h-sta.asm; hstart's s_gen
+ EQUB 4, %00000001      \ runs' pages of bank 4 (h-sta.asm; hstart's s_gen
  EQUW &8000, 0          \ writes the runs around them)
 
  EQUW MESS18            \ HSTB5: and of bank 5
- EQUB 5, %00001001
+ EQUB 5, %00000001
  EQUW &8000, 0
 
  EQUW MESS19            \ HSTB6: and of bank 6
- EQUB 6, %00001001
+ EQUB 6, %00000001
  EQUW &8000, 0
 
  EQUW MESS14            \ HSTM2: overlay S's pages in main RAM &7000-&7FFF
- EQUB 7, %00001001
+ EQUB 7, %00000001
  EQUW &7000, 0
 
  EQUW MESS15            \ HSTM1: and in main RAM from &2D00 (tube/build.sh
- EQUB 7, %00001001      \ checks that no file staged at &1300 reaches a main
+ EQUB 7, %00000001      \ checks that no file staged at &1300 reaches a main
                         \ RAM destination)
  EQUW &2D00, 0
 
  EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000 (last:
- EQUB HOMEBANK, %00001111 \ on the disc, tube/src/disc.asm, it follows the
+ EQUB HOMEBANK, %00000111 \ on the disc, tube/src/disc.asm, it follows the
  EQUW &7000, &0E00      \ images, and the Model B host's files follow it)
 
  EQUW 0

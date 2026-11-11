@@ -53,10 +53,10 @@ GFXBANK = 7             \ the host's code (the frame layer's host part, the
 \ only what the host's code names, at the host's own addresses (tube/build.sh
 \ writes build/h-ws.asm from these lines, the declarations in the source's
 \ order; a name the host's code uses that is not listed fails the assembly):
-\ the lines' end points, phase B's colours and rows, the stars, the directly
-\ drawn stars' sizes and DFS's lasting bytes
+\ the lines' end points, phase B's colours and rows, the stars and the
+\ directly drawn stars' sizes
 \ HWS R_X0 R_Y0 R_X1 R_Y1 R_COL2 R_COL3 R_PYS R_PYE
-\ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS DFSST
+\ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS
 HFONT = &0400           \ (CHPR's font: FONT%, elite-source.asm)
 HFONTST = &4000         \ (where the loader puts it, buffer 0, for hstart)
 KCODE = &1240           \ (the kernel's code: tube/src/loader.asm asserts that
