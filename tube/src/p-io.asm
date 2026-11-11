@@ -1010,8 +1010,8 @@ ENDMACRO
 \ the host's MOS runs it as the host's own I/O (h_disc, h-cold.asm): the
 \ printing's context (QQ11 OR GFORCE, GMODE, CHPR's zero page, W, CATF), the
 \ mode (1 SAVE, 2 LOAD, else 0) with, for those, commbuf's 256 bytes (the
-\ host saves from and loads into its buffer at &3F00, which savosc and lodosc
-\ name), then the command. The host answers through register 4: 0, or &FF
+\ host saves from and loads into its buffer, cmds.asm's HDBUF, which savosc
+\ and lodosc name), then the command. The host answers through register 4: 0, or &FF
 \ and the error's number, message and 0 (then NEWBRK prints it, as after the
 \ MOS's BRK); then the printing's context back, and for a load commbuf. As
 \ DOSCLI: GSTASH is set (the Master port's next space-mode frame clears

@@ -21,8 +21,8 @@ R_ROWS = 192            \ the lines of the 3D view, with a run each
 \ an RTS, 190 bytes, so r_j's offsets are the entry and the plant in the page
 \ with no sums. The runs are in line order: line L's is page &80 + L MOD 64
 \ of bank 4 + L DIV 64, so banks 4, 5 and 6 hold lines 0-63, 64-127 and
-\ 128-191. Pages' bytes 192-255 hold overlay pages kept as four 64-byte
-\ pieces (h-main.asm's h_ovlget, tube/build.sh)
+\ 128-191. Bytes 192-255 of line L's page hold quarter L of overlay D's
+\ stored image (h-main.asm's h_ovlget, tube/build.sh)
 
 .s_pg                   \ per line: its run's page, and its bank
 FOR L, 0, R_ROWS - 1

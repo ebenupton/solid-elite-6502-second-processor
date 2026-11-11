@@ -100,6 +100,10 @@ C_DSPANS   = 108        \ the disc layer's spans (R_DISCROWS), sent as made: the
 C_MAX      = 110
 
 DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
+HDBUF = &2C00           \ the hosts' buffer for a disc command's SAVE and LOAD,
+                        \ which savosc and lodosc name (main RAM on both hosts:
+                        \ the Master's below its overlay storage, h-layout.asm;
+                        \ the Model B's buffer 0, not on show in direct mode)
 
 
 \ the host's Tube I/O

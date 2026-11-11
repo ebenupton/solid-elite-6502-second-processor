@@ -16,9 +16,17 @@
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
 IF _HOSTB = 0
- LDX #0                 \ (Master: CHPR's font from after the kernel's code,
-.hst6                   \ where the loader put it, to the Tube code's pages,
- LDA HFONTST,X          \ h-layout.asm)
+ LDX #63                \ (Master: DFS's lasting bytes in HAZEL to DFSST,
+.hst4                   \ h_disc's hzout puts them back)
+ LDA &C2C0,X
+ STA DFSST,X
+ DEX
+ BPL hst4
+ LDA #4                 \ (main RAM)
+ TRB &FE34
+ LDX #0                 \ CHPR's font from buffer 0, where the loader put it,
+.hst6                   \ to the Tube code's pages (h-layout.asm)
+ LDA HFONTST,X
  STA HFONT,X
  LDA HFONTST+&100,X
  STA HFONT+&100,X
@@ -26,17 +34,6 @@ IF _HOSTB = 0
  STA HFONT+&200,X
  INX
  BNE hst6
- LDX #63                \ (DFS's lasting bytes in HAZEL to DFSST,
-.hst4                   \ h_disc's hzout puts them back, then HAZEL's ours
- LDA &C2C0,X            \ below the MOS's page &DF00 from the loader's staging
- STA DFSST,X            \ copy at &4000, main RAM: hzin's second half)
- DEX
- BPL hst4
- LDA #4
- TRB &FE34
- LDX #&40
- LDY #&C0
- JSR hzmv
  JSR s_gen              \ (the STA runs, h-sta.asm, in banks 4, 5 and 6)
 ENDIF
 .hst1
@@ -92,14 +89,18 @@ ENDIF
 \ CHPR's zero page and W, CATF), the mode (1 SAVE, 2 LOAD, else 0), for those
 \ the parasite's commbuf (256 bytes, into HDBUF), then the command to its CR
 \ (into HDSTR): the host's MOS runs it as the host's own I/O (OSCLI, from
-\ here, with HDBUF named in the SAVE and LOAD commands: FFFF3F00). Then
+\ here, with HDBUF named in the SAVE and LOAD commands: cmds.asm). Then
 \ through register 4: 0, or &FF and the MOS's error (number, message, 0:
 \ BRKV's hdbrk, main RAM, brings it to h_derr); the context back; for a load
 \ HDBUF back. The client OS on the parasite takes no part
 
-HDBUF = &3F00           \ (main RAM on both hosts: the Master's free &3000-&3FFF
-HDSTR = &3E00           \ with ACCCON X clear, the Model B's buffer 0, not on
-HDERR = &3E80           \ show in direct mode)
+IF _HOSTB
+HDSTR = &3E00           \ (Model B: buffer 0, not on show in direct mode)
+HDERR = &3E80
+ELSE
+HDSTR = HDBUF - &100    \ (the Master host: below the kernel's code and HDBUF,
+HDERR = HDBUF - &80     \ h-layout.asm)
+ENDIF
 
 .h_disc
  LDA #0                 \ (the MOS's register 4 while it runs: h4body off)
@@ -119,8 +120,8 @@ HDERR = &3E80           \ show in direct mode)
  HRX
  STA CATF
 IF _HOSTB = 0
- LDA #4                 \ (main RAM at &3000-&3FFF)
- TRB &FE34
+ LDA #4                 \ (main RAM at &3000-&7FFF while the MOS runs the
+ TRB &FE34              \ command)
 ENDIF
  HRX                    \ the mode
  STA hdm

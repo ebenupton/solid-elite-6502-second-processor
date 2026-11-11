@@ -198,81 +198,80 @@ ENDIF
  JMP hloop
 
 \ h_ovlget: C_OVLGET: overlay A's image (the parasite's p-ovl.asm), whole pages
-\ from its place in the host's storage (h_ovl: storage only), through register 4
+\ from its place in the host's storage (storage only), through register 4
 
 .h_ovlget
 IF _HOSTB
  JMP hb_ovlget          \ (Model B: main RAM, hb-ovl.asm)
-ELSE                      \ (the Master host: page by page, wherever the build
- HRX                    \ put each page, build/hstore.asm: main RAM with ACCCON
- JSR hov_at             \ X clear, sideways RAM, ANDY or HAZEL)
-.hog0
- JSR hov_pg
- BVS hogq
+ELSE                      \ (the Master host: h-layout.asm's storage)
+ HRX
+ CMP #1
+ BNE hos0
+ LDA #4                 \ D: its page p is quarters 4p to 4p+3, bytes 192-255
+ STA hogb               \ of the pages of lines 4p to 4p+3's runs, page &80
+ LDA #&80               \ + 4p MOD 64 of bank 4 + 4p DIV 64 (h-sta.asm)
+ STA hogq1+2
+ LDX #4 * OVLD_PAGES    \ (the quarters)
+.hod0
+ LDA hogb
+ STA &FE30
+.hogq
+ LDY #&C0
+.hogq1
+ LDA &FF00,Y            \ (patched: the quarter's line's page)
+ HTX
+ INY
+ BNE hogq1
+ INC hogq1+2
+ LDA hogq1+2
+ CMP #&C0
+ BNE hod1
+ LDA #&80               \ (the next bank's first line)
+ STA hogq1+2
+ INC hogb
+ DEX
+ BNE hod0
+ BEQ hogx
+.hod1
+ DEX
+ BNE hogq
+ BEQ hogx
+.hos0                   \ S: its pages from its three extents, in address
+ LDA &FE34              \ order: main RAM with ACCCON X clear (only X is
+ AND #4                 \ touched: TRB/TSB), then bank 7's, which is paged
+ STA hova
+ LDA #4
+ TRB &FE34
+ LDX #0
+.hos1
+ LDA hse_pg,X
+ STA hog1+2
+ LDA hse_n,X
+ STA hogn
+.hos2
+ LDY #0
 .hog1
  LDA &FF00,Y            \ (patched: the page)
  HTX
  INY
  BNE hog1
-.hog8
- INC hogp
+ INC hog1+2
  DEC hogn
- BNE hog0
- BRA hogx
-.hogq                   \ (a page kept as four 64-byte pieces, bytes 192-255
- LDY #&C0               \ of four pages: hov_pg)
-.hogq1
- LDA &FF00,Y            \ (patched: the piece's page)
- HTX
- INY
- BNE hogq1
- INC hogq1+2
- DEX
- BNE hogq
- BRA hog8
-.hogx
+ BNE hos2
+ INX
+ CPX #3
+ BNE hos1
  LDA hova               \ (ACCCON's X as it was)
  TSB &FE34
+.hogx
  LDA #GFXBANK
- STA &F4
  STA &FE30
  JMP hloop
-.hov_at                 \ A = the overlay: its first page and count; ACCCON X
- TAX                    \ clear (main RAM at &3000-&7FFF), its old value in
- LDA h_ovf-1,X          \ hova
- STA hogp
- LDA h_ovn-1,X
- STA hogn
- LDA &FE34              \ (only X is touched: TRB/TSB, never a whole write)
- AND #4
- STA hova
- LDA #4
- TRB &FE34
- RTS
-.hov_pg                 \ page hogp in: its ROMSEL, and its address into the
- LDX hogp               \ loop; Y = 0. V set for a page kept as four pieces
- LDA st_rom,X           \ (ROMSEL with bit 6 set: bytes 192-255 of four pages
- BIT #&40               \ from st_hi, the STA runs' tails, h-sta.asm), X = 4
- BNE hvp1
- STA &FE30
- LDA st_hi,X
- STA hog1+2
- LDY #0
- CLV
- RTS
-.hvp1
- AND #&BF
- STA &FE30
- LDA st_hi,X
- STA hogq1+2
- LDX #4
- BIT hvp_v              \ (V set)
- RTS
-.hvp_v EQUB &40
-.hogp EQUB 0
+.hse_pg EQUB HI(HSTS0), &70, &80        \ (S's extents: h-layout.asm)
+.hse_n  EQUB &40 - HI(HSTS0), &10, HI(B7_START) - &80
+.hogb EQUB 0
 .hogn EQUB 0
 .hova EQUB 0
- INCLUDE "build/hstore.asm"
 ENDIF
 
 IF _HOSTB = 0

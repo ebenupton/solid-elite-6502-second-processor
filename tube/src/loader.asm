@@ -494,26 +494,7 @@ ENDIF
  ORA LEN
  BEQ LDZ
 
-.LDC
-
- LDA (ZP)               \ Copy a byte
- STA (P)
-
- INC ZP                 \ Next source byte
- BNE P%+4
- INC ZP+1
-
- INC P                  \ Next destination byte
- BNE P%+4
- INC P+1
-
- LDA LEN                \ Count it off LEN(1 0)
- BNE P%+4
- DEC LEN+1
- DEC LEN
- LDA LEN
- ORA LEN+1
- BNE LDC
+ JSR LDC                \ Copy it
  BRA LDN
 
 .LDZ                    \ Port (Tube): a packed file, a token at a time: 0 the
@@ -558,6 +539,28 @@ ENDIF
  INC P+1
  RTS
 
+.LDC                    \ Port (Tube): copy LEN(1 0) bytes from ZP(1 0) to
+                        \ P(1 0)
+ LDA (ZP)               \ Copy a byte
+ STA (P)
+
+ INC ZP                 \ Next source byte
+ BNE P%+4
+ INC ZP+1
+
+ INC P                  \ Next destination byte
+ BNE P%+4
+ INC P+1
+
+ LDA LEN                \ Count it off LEN(1 0)
+ BNE P%+4
+ DEC LEN+1
+ DEC LEN
+ LDA LEN
+ ORA LEN+1
+ BNE LDC
+ RTS
+
 .LDN
 
  LDA #%00001001         \ Main RAM back at &3000-&7FFF (ACCCON as the game has
@@ -577,11 +580,24 @@ ENDIF
  CLI                    \ Enable interrupts
 
  LDX #LO(MESSP)         \ Port (Tube): load the parasite's code (PCODE, to the
- LDY #HI(MESSP)         \ parasite's memory), then the host's kernel (HMAIN,
- JSR OSCLI              \ main RAM from HMAINAT, above this part of the loader)
- LDX #LO(MESSH)
- LDY #HI(MESSH)
+ LDY #HI(MESSP)         \ parasite's memory), then HMAIN to buffer 0: CHPR's
+ JSR OSCLI              \ font, which the host moves to &0400 when it starts
+ LDX #LO(MESSH)         \ (hstart), then the host's kernel, which is copied
+ LDY #HI(MESSH)         \ to HMAINAT, above this part of the loader
  JSR OSCLI
+ LDA #LO(HFONTST + &300)
+ STA ZP
+ LDA #HI(HFONTST + &300)
+ STA ZP+1
+ LDA #LO(HMAINAT)
+ STA P
+ LDA #HI(HMAINAT)
+ STA P+1
+ LDA #LO(HMAINLEN)
+ STA LEN
+ LDA #HI(HMAINLEN)
+ STA LEN+1
+ JSR LDC
 
  LDX #LO(MESS3)         \ Set (Y X) to point to MESS3 ("DIR E")
  LDY #HI(MESS3)
@@ -799,30 +815,30 @@ ENDIF
 
 .FTAB
 
- EQUW MESS8             \ HRASTA: the overlays' storage in ANDY
- EQUB &85, %00001001
+ EQUW MESS9             \ HBANK7: the host's code, bank 7, and overlay S's
+ EQUB 7, %00001001      \ pages below it
  EQUW &8000, 0
 
- EQUW MESS9             \ HBANK7: the host's code, bank 7, and the overlays'
- EQUB 7, %00001001      \ storage below it
+ EQUW MESS17            \ HSTB4: overlay D's pages in bytes 192-255 of the STA
+ EQUB 4, %00001001      \ runs' pages of bank 4 (h-sta.asm; hstart's s_gen
+ EQUW &8000, 0          \ writes the runs around them)
+
+ EQUW MESS18            \ HSTB5: and of bank 5
+ EQUB 5, %00001001
  EQUW &8000, 0
 
- EQUW MESS17            \ HSTB4: and in bank 4, bytes 192-255 of the STA runs'
- EQUB 4, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
- EQUW &8000, 0          \ around them)
-
- EQUW MESS13            \ HSTZ: the host's HAZEL (the overlays' storage there),
- EQUB 6, %00001001      \ staged in main RAM at &4000 until LTRUN copies it in
- EQUW &4000, 0          \ (DFS uses HAZEL until the last disc access)
-
- EQUW MESS14            \ HSTM2: the overlays' storage in main RAM &7000-&7FFF
+ EQUW MESS19            \ HSTB6: and of bank 6
  EQUB 6, %00001001
+ EQUW &8000, 0
+
+ EQUW MESS14            \ HSTM2: overlay S's pages in main RAM &7000-&7FFF
+ EQUB 7, %00001001
  EQUW &7000, 0
 
- EQUW MESS15            \ HSTM1: and in main RAM &3000-&3DFF (tube/build.sh
- EQUB 6, %00001001      \ checks that no file staged at &1300 reaches a main
+ EQUW MESS15            \ HSTM1: and in main RAM from &2D00 (tube/build.sh
+ EQUB 7, %00001001      \ checks that no file staged at &1300 reaches a main
                         \ RAM destination)
- EQUW &3000, 0
+ EQUW &2D00, 0
 
  EQUW MESS1             \ BDATA: the dashboard image, shadow RAM &7000 (last:
  EQUB HOMEBANK, %00001111 \ on the disc, tube/src/disc.asm, it follows the
@@ -868,19 +884,9 @@ ENDIF
 
 
 
-.MESS8
-
- EQUS "L.HRASTA FFFF1300"    \ Port: *LOAD RASTA FFFF1300
- EQUB 13
-
 .MESS9
 
  EQUS "L.HBANK7 FFFF1300"
- EQUB 13
-
-.MESS13
-
- EQUS "L.HSTZ FFFF1300"     \ Port (Tube): the host's overlay storage
  EQUB 13
 
 .MESS14
@@ -898,11 +904,21 @@ ENDIF
  EQUS "L.HSTB4 FFFF1300"
  EQUB 13
 
+.MESS18
+
+ EQUS "L.HSTB5 FFFF1300"
+ EQUB 13
+
+.MESS19
+
+ EQUS "L.HSTB6 FFFF1300"
+ EQUB 13
+
 .MESSP
  EQUS "L.PCODE 0000", STR$~(PCODEAT)   \ Port (Tube): the parasite's code, to its
  EQUB 13                           \ memory (a 32-bit address, high word 0)
 .MESSH
- EQUS "L.HMAIN FFFF", STR$~(HMAINAT)
+ EQUS "L.HMAIN FFFF", STR$~(HFONTST)
  EQUB 13
 .LOW_LOADER_END
 

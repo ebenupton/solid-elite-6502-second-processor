@@ -19,10 +19,10 @@
  PUTFILE "build/M128Elt.bin", "ELITEM", &FF0E00, &FF0E55
  PUTFILE "build/LOADB.bin", "ELITEB", &FF1900, &FF1900 + (ENTRY_B - &1900)
 \ the Master host's images (tube/src/loader.asm's FTAB)
- PUTFILE "build/HRASTA.pk", "HRASTA", &000000, &000000
  PUTFILE "build/HBANK7.pk", "HBANK7", &000000, &000000
  PUTFILE "build/HSTB4.pk", "HSTB4", &000000, &000000
- PUTFILE "build/HSTZ.pk", "HSTZ", &000000, &000000
+ PUTFILE "build/HSTB5.pk", "HSTB5", &000000, &000000
+ PUTFILE "build/HSTB6.pk", "HSTB6", &000000, &000000
  PUTFILE "build/HSTM2.pk", "HSTM2", &000000, &000000
  PUTFILE "build/HSTM1.pk", "HSTM1", &000000, &000000
 \ both hosts' dashboard
@@ -35,4 +35,4 @@
  PUTFILE "build/HBE.bin", "HBE", &000000, &000000
 \ both hosts' parasite code, then the Master host's main RAM code
  PUTFILE "build/PCODE.bin", "PCODE", &001400, &001400
- PUTFILE "build/HMAIN.bin", "HMAIN", &FF0000 + HMAINAT, &FF0000 + HMAINAT
+ PUTFILE "build/HMAIN.bin", "HMAIN", &FF0000 + HFONTST, &FF0000 + HMAINAT

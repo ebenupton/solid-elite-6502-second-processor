@@ -9,7 +9,7 @@
 \   * CHPR's font at &0400-&06FF, the pages of the MOS's Tube code, which
 \     runs the boot and then is never called again (hstart clears &027A,
 \     and the disc commands are the host's own I/O, h_disc): the loader
-\     brings it after the kernel's code, and hstart moves it there;
+\     puts it in buffer 0 (HFONTST), and hstart moves it there;
 \   * the kernel, main RAM below &3000, which every bank and either setting
 \     of ACCCON X sees: from &0E00 its workspace, ylookup (the page of each
 \     pixel row's character row, which hstart makes: one copy for the game's
@@ -19,16 +19,21 @@
 \     host blocks (the sound, the IRQ, CHPR, UP), the renderer's glue, the
 \     command loop (h-main.asm), the recursive tokens, which the IRQ reads,
 \     and the span kernel: the code that enters the STA runs, and their
-\     tables. Only the kernel pages a line's bank, and it pages bank 7 back;
+\     tables. Only the kernel pages a line's bank, and it pages bank 7 back.
+\     Then the disc commands' buffers (h-cold.asm, cmds.asm's HDBUF);
 \   * bank 7 (GFXBANK, the resting bank, paged whenever the host runs
 \     outside the STA runs): all of the host's other code, one run from
 \     &9400: the lines, the dots, the stars and phase B's set-up, the frame
 \     layer's host part, the panel's drawing, the commands' handlers and
 \     the rarely run code;
-\   * the STA runs (h-sta.asm) in banks 4, 5 and 6, in line order;
-\   * the overlays' storage (build/hstore.asm): main RAM &3000-&3DFF and
-\     &7000-&7FFF, ANDY, bank 7 below its code, HAZEL from &CA00, then the
-\     STA runs' pages' tails in bank 4; the planet is wholly the parasite's;
+\   * the STA runs (h-sta.asm) in banks 4, 5 and 6, in line order: line L's
+\     run starts page &80 + L MOD 64 of bank 4 + L DIV 64;
+\   * the overlays' storage (h-main.asm's h_ovlget): D in the STA runs'
+\     pages' tails, bytes 192-255, its page p in the tails of lines 4p to
+\     4p+3; S in three extents in address order: main RAM from HSTS0 to
+\     &3FFF and &7000-&7FFF (ACCCON X clear), then bank 7 below its code.
+\     ANDY and HAZEL are not the host's; the planet is wholly the
+\     parasite's;
 \   * the screen: buffer 0 in main RAM, buffer 1 and the dashboard in shadow
 \     RAM, as the Master port's.
 \
@@ -40,8 +45,6 @@ _RBANK = 0
 
  INCLUDE "tsrc/cmds.asm"
  INCLUDE "build/povl.asm"
-OVLBANK = 4             \ the parasite's overlays' images (storage only: h_ovlget):
-OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "build/elite-source-ws.asm"
 GFXBANK = 7             \ the host's code (the frame layer's host part, the
                         \ rasteriser's, the commands'): the resting bank
@@ -55,8 +58,12 @@ GFXBANK = 7             \ the host's code (the frame layer's host part, the
 \ HWS R_X0 R_Y0 R_X1 R_Y1 R_COL2 R_COL3 R_PYS R_PYE
 \ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS DFSST
 HFONT = &0400           \ (CHPR's font: FONT%, elite-source.asm)
+HFONTST = &4000         \ (where the loader puts it, buffer 0, for hstart)
 KCODE = &1240           \ (the kernel's code: tube/src/loader.asm asserts that
                         \ its part that runs after loading this is below)
+HSTS0 = &2D00           \ overlay S's first stored page (h_ovlget): the
+                        \ kernel's room's last three pages, after the disc
+                        \ commands' buffers (h-cold.asm, cmds.asm's HDBUF)
  ORG &0E00
 .ylookup SKIP 256       \ (hstart makes it: h-cold.asm)
 r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
@@ -71,7 +78,7 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
 
 
  ORG KCODE
- GUARD &3000
+ GUARD HDBUF - &100
 .H_START
  CPU 1
 \ The span kernel: the code that enters the STA runs (the blocks of the
@@ -94,12 +101,16 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCBIN "build/HQQ18.bin"
  INCLUDE "build/htokix.asm"
 .H_END
-\ CHPR's font, after the code in the loaded image (HMAIN): hstart moves it
-\ to HFONT, and this room is the kernel's free room
-.HFONTST
+ PRINT "Host: the kernel's code &", ~H_START, "-&", ~H_END-1, ", free to the disc buffers at &", ~HDBUF-&100, ": ", HDBUF-&100-H_END
+ SAVE "build/HKERN.bin", H_START, H_END, hwrch
+ ASSERT HDBUF + &100 = HSTS0
+
+\ CHPR's font, which the loader puts in buffer 0 with the kernel's code
+\ after it (HMAIN: tube/build.sh) for hstart to move to HFONT
+ CLEAR HFONTST, HFONTST + &300
+ ORG HFONTST
  INCBIN "src/fonts/P.FONT.bin"
- PRINT "Host: the kernel's code &", ~H_START, "-&", ~H_END-1, ", the font after it to &", ~P%-1, ", free to &3000: ", &3000-P%
- SAVE "build/HMAIN.bin", H_START, P%, hwrch
+ SAVE "build/HFONT.bin", HFONTST, P%
 
 
  CLEAR &8000, &C000      \ bank 7: the host's code, one run from &9400
@@ -120,4 +131,6 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCLUDE "src/gfx-raster_poly.asm"
 .B7_END
  PRINT "Host: bank 7 &", ~B7_START, "-&", ~B7_END-1, ", free to &C000: ", &C000-B7_END
+ ASSERT (&40 - HI(HSTS0)) + &10 + (HI(B7_START) - &80) = OVLS_PAGES - OVLS0_PAGES
+ ASSERT 4 * OVLD_PAGES <= R_ROWS     \ (D's quarters, in the lines' runs' tails)
  SAVE "build/HBANK7.bin", B7_START, B7_END, B7_START
