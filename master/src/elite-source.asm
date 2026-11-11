@@ -9426,6 +9426,11 @@ ENDIF
 
 IF _TPART = 2           \ Port (Tube, the hosts): the font has the pages the
  FONT% = HI(HFONT)      \ MOS's Tube code leaves (tube/src/h-layout.asm, hb-ws.asm)
+ELIF _TPART = 1
+ FONT% = HI(P%)         \ Port (Tube): the parasite has no font (the host draws the
+                        \ glyphs: H_CHAR reads only W's nibble of a glyph, from
+                        \ PFONTW above), so no alignment here: CHPR's pointer
+                        \ into it is never read (H_CHAR)
 ELSE
 
  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)
@@ -9435,9 +9440,7 @@ ELSE
 
  FONT% = HI(P%)         \ Set FONT% to the high byte of the font file address
 
-IF _TPART <> 1          \ Port (Tube: the parasite draws no glyphs, the host
- INCBIN "src/fonts/P.FONT.bin"  \ does: its H_CHAR reads only W's nibble of a
-ENDIF                   \ glyph, from PFONTW above)
+ INCBIN "src/fonts/P.FONT.bin"
 
 ENDIF
 
@@ -9449,7 +9452,7 @@ ENDIF
 \    Summary: Binary logarithm table (high byte)
 \       Area: hot, ACCCON X
 \
-\       Tube: bothb
+\       Tube: bothb, aligned
 \ ------------------------------------------------------------------------------
 \
 \ At byte n, the table contains the high byte of:
@@ -9532,7 +9535,7 @@ ENDIF
 \    Summary: Binary logarithm table (low byte)
 \       Area: hot, ACCCON X
 \
-\       Tube: bothb
+\       Tube: bothb, aligned
 \ ------------------------------------------------------------------------------
 \
 \ Byte n contains the low byte of:
@@ -9612,7 +9615,7 @@ ENDIF
 \    Summary: Binary antilogarithm table
 \       Area: hot, ACCCON X
 \
-\       Tube: bothb
+\       Tube: bothb, aligned
 \ ------------------------------------------------------------------------------
 \
 \ At byte n, the table contains:
@@ -9634,8 +9637,8 @@ ENDIF
  NEXT
 
 IF _TUBE AND _TPART = 1 \ Port (Tube): the parasite's quarter squares follow the
- INCLUDE "src/elite-qs.asm"  \ log tables, page aligned with them, so that the
-ENDIF                   \ run has one alignment's padding (docs/TUBE-MAP.md)
+ INCLUDE "src/elite-qs.asm"  \ log tables, page aligned with them, in their pass
+ENDIF                   \ (tube/src/p-layout.asm)
 
 \ ******************************************************************************
 \
@@ -40368,9 +40371,9 @@ IF _TUBE
  LDA savosc             \ Port (Tube): savosc is in overlay D, which each load
  STA savc0              \ of D restores from the host's image, so the first
                         \ byte that the bug above leaves there is kept in
-                        \ resident memory (savc0, tube/src/p-ovl.asm's low
-                        \ code) and put back before each save, so that it
-                        \ persists as in SNG47
+                        \ resident memory (savc0, tube/src/p-ovl.asm) and put
+                        \ back before each save, so that it persists as in
+                        \ SNG47
 
 ENDIF
 

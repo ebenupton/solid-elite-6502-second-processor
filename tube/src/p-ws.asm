@@ -144,8 +144,7 @@ ASSERT PWS_END <= CODE%
 
 \ After WP's end (VEC, elite-source.asm's last WP variable): the dummy
 \ ACCCON byte, then the rest of the frame layer's small state, in the hole
-\ below the frame layer's inputs, so that the tail below PWS_END is free for
-\ the low code (p-layout.asm's PLOW, which p_boot copies in)
+\ below the frame layer's inputs
 
 PWS_ORG = P%
 ORG VEC + 2

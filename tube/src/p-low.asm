@@ -19,15 +19,13 @@
  INCLUDE "src/gfx-gvars.asm"            \ the renderer's shared variables
  INCLUDE "build/p-glue-frame.asm"       \ the G_ stubs, the text hooks (streams.py's pass)
  INCLUDE "build/gfx-hooks-frame.asm"    \ the hooks in Elite's drawing code (streams.py's pass)
- INCLUDE "build/p-probe-frame.asm"      \ the lens flare's probes' helpers (in the run's
-                                        \ first ALIGN's padding, below)
+ INCLUDE "build/p-probe-frame.asm"      \ the lens flare's probes' helpers
  INCLUDE "build/p-io-frame.asm"         \ the Tube (streams.py's pass)
  INCLUDE "build/p-ovl-frame.asm"        \ the overlay region's stubs' helpers
  INCLUDE "build/p-dash-frame.asm"       \ the dashboard's parasite halves
+ INCLUDE "build/p-disc-frame.asm"       \ the disc heap's drop, the surface's cold ends
 
-\ The frame layer's small state (p-layout.asm keeps the rest), here before
-\ the game's run: the run's first ALIGN (elite-source.asm's, before log)
-\ takes it into its padding, where it costs the resident code nothing
+\ The frame layer's small state (p-layout.asm keeps the rest)
 
 .F_BX   SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
 .F_BY   SKIP 10         \ as F_BOMB found them

@@ -1517,10 +1517,10 @@
 .pdw9
  RTS
 
-\       Area: low
+\       Area: frame
 
 \ The disc heap's drop and the cold ends of the surface's rows (ps_nd0,
-\ ps_whole): resident, in the low code (p-layout.asm's PLOW)
+\ ps_whole): resident, in the glue (p-low.asm)
 
 \ ------------------------------------------------------------------------------
 \ hp_drop: both bodies' states dropped (hp_drops): the surface's rows of

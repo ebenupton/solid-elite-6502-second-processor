@@ -1191,7 +1191,7 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 \ p_boot: drains a stray byte from the host in register 1, zeroes the
 \ hole's state (p-ws.asm), makes QSL (elite-qs.asm) in pages 2 and 3, then
 \ copies the staged images (p-layout.asm) in over the client OS, which the
-\ game never uses again: the low code, the page at &FF00 and the high area.
+\ game never uses again: the page at &FF00 and the high area.
 \ QSL+x is q(x) = x^2 DIV 4's low byte, and QSL+256+x (256+x)^2 DIV 4's,
 \ q(x) + 128x's: q(x) with bit 7 flipped when x is odd; q(x+1) = q(x) +
 \ (x+1) DIV 2, kept in rq (p_start sets it after)
@@ -1208,11 +1208,6 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  BCS pbt3
  STZ PWS_HOLE,X
 .pbt3
- CPX #PLOW_END-PLOW     \ the low code
- BCS pbt4
- LDA PSTG_PL,X
- STA PLOW,X
-.pbt4
  LDA PSTG_FF,X
  STA &FF00,X
  TXA                    \ QSL+x and QSL+256+x (C: x odd)

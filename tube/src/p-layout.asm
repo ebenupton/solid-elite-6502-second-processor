@@ -8,22 +8,21 @@
 \ fields, the renderer's files and the Tube's own by "Area:" tag lines;
 \ tools/streams.py writes a copy of each file for each place, the other
 \ lines blanked (build/<file>-<pass>.asm: frame, the file's own place,
-\ which is the resident code; ovld, overlay D; ovls, overlay S; high, low,
-\ top and boot), and this file includes each copy at its place, as the
+\ which is the resident code; ovld, overlay D; ovls, overlay S; high, top
+\ and boot), and this file includes each copy at its place, as the
 \ Master port's layout includes its low, hot and cold passes.
 \
 \ The game's copies (tools/streams.py with TUBE=1) are assembled with _TUBE
 \ and _TPART = 1; the far-call stubs between its hot and cold areas are plain
-\ jumps. In order from CODE%: the run (its head with the low area, p-low.asm,
-\ then the quarter squares, page aligned, and the rest of the run), Master's
-\ drawing (the blocks tagged bank 4, whose screen writes go to the host),
-\ the game data (elite-data.asm's hot blocks), the cold area (the cold blocks
-\ and the cold data), then the frame layer (the renderer's files with
-\ _TPART = 1: the part that records and turns the display list into the
-\ rasteriser's inputs) and its state. Below CODE%, the renderer's shared
-\ workspace at the Master port's addresses (elite-gfx.asm), where the frame
-\ layer leaves the rasteriser's inputs for the commands to send. Saved as
-\ PCODE from CODE%.
+\ jumps. In order from CODE%: the glue (p-low.asm), the game's run (every
+\ block not tagged for overlay D, the hosts or the aligned pass, in the
+\ source's order), the game data (elite-data.asm's hot blocks), the frame
+\ layer (the renderer's files with _TPART = 1: the part that records and
+\ turns the display list into the rasteriser's inputs), then, after the
+\ resident code's one gap, the page aligned tables, ending where the
+\ overlay region starts. Below CODE%, the Tube's workspace (p-ws.asm),
+\ where the frame layer leaves the rasteriser's inputs for the commands to
+\ send. Saved as PCODE from CODE%.
 \
 \ ******************************************************************************
 
@@ -34,6 +33,7 @@ _RBANK = 0
  INCLUDE "tsrc/cmds.asm"
 
  INCLUDE "build/elite-source-config.asm"   \ (the configuration and the workspaces)
+ INCLUDE "tsrc/p-ws.asm"                \ (the Tube's workspace, after WP)
 
  ORG CODE%
 .PCODE_START
@@ -51,9 +51,6 @@ PRINT "Parasite: glue &", ~CODE%, "-&", ~GLUE_END%-1, ", the game's run to &", ~
 .HZ_END                                 \ f_reset writes them out of space mode)
 
 PRINT "Parasite: data end at &", ~P%
-PFRAME% = P%
- INCLUDE "tsrc/p-ws.asm"                \ (ORG &0E00: the frame layer's inputs)
- ORG PFRAME%
 
 .PF_START
  INCLUDE "build/gfx-frame-frame.asm"   \ (streams.py's frame pass)
@@ -81,27 +78,24 @@ F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
 F_SZH = F_RP + 7 * MAXSH
 .F_DLEND                \ (the rest of the frame layer's small state is p-low.asm's)
 .F_TM   SKIP 768        \ the text map (gfx-frame.asm)
+PRES_CODE_END = P%
+
+\ The page aligned tables (the game's blocks tagged "Tube: bothb, aligned":
+\ log, logL, alogh, then the quarter squares' QSH), the last of what is
+\ always resident: they end where the overlay region starts, a page, so
+\ that neither they nor the code before them is padded. The room between
+\ the code and them is the resident code's one gap
+ ORG (P% + 255) AND &FF00
+.TAB_START
+ INCLUDE "build/elite-source-aligned.asm"
+.TAB_END
 .PRES_END                \ (the end of what is always resident)
-
-\ The low code (PLOW, the "Area: low" passes): resident too, in the
-\ workspace's tail below CODE% (p-ws.asm), which p_boot copies it into from
-\ the staging area
-PRES_ORG = P%
- ORG PWS_END
-.PLOW
- INCLUDE "build/p-disc-low.asm"     \ (the disc heap's drop)
- INCLUDE "build/p-ovl-low.asm"      \ (savc0, savosc's first byte)
-.PLOW_END
- PRINT "Parasite: low code &", ~PLOW, "-&", ~PLOW_END-1, ", free to CODE%: ", CODE%-PLOW_END
- ASSERT PLOW_END <= CODE%
- ORG PRES_ORG
-
+ ASSERT LO(TAB_END) = 0
 
 \ The overlay region (p-ovl.asm): from OVL_START, page aligned, to RING. The
 \ parasite's image holds overlay D there (the cold area: the direct-mode
 \ blocks tagged "Tube: ovl D", then the extended tokens); the host keeps its
 \ image (HOVD), whole pages
- ORG (P% + 255) AND &FF00
 .OVL_START
 .COLD_START%
  INCLUDE "build/elite-stubs-x4.asm"    \ (overlay D's names for resident routines)
@@ -117,7 +111,7 @@ PRES_ORG = P%
 
 .PCODE_END
 
- PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_END-1, " (", PRES_END-PF_START, " bytes)"
+ PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_CODE_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_CODE_END-1, " (", PRES_CODE_END-PF_START, " bytes); the aligned tables &", ~TAB_START, "-&", ~TAB_END-1, "; free between: ", TAB_START-PRES_CODE_END
  PRINT "Parasite: overlay region &", ~OVL_START, "-&", ~RING-1, " (", RING-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to the ring: ", RING-OVL_D_END
  ASSERT PCODE_END <= RING
  ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above
@@ -209,7 +203,7 @@ ENDIF
 \ The boot's staging area, above overlay D (S and the next C_OVLGET of D
 \ overwrite it; tube/build.sh appends it to PCODE): p_start and p_boot (the
 \ "Area: boot" pass, p-io.asm), then the images p_boot copies in over the
-\ client OS: the high area, the page at &FF00 and the low code
+\ client OS: the high area and the page at &FF00
 
  INCLUDE "build/p-io-boot.asm"          \ (p_start, p_boot)
 .PSTG_HI
@@ -219,9 +213,6 @@ ENDIF
  COPYBLOCK &FF00, &FFFF, P%
  ORG PSTG_FF + &FF
  EQUB HI(pirq)          \ (&FFFF: COPYBLOCK's end is 16-bit)
-.PSTG_PL
- COPYBLOCK PLOW, PLOW_END, P%
- ORG PSTG_PL + PLOW_END - PLOW
 .PSTG_END
  PRINT "Parasite: the boot's staging &", ~OVL_D_END, "-&", ~PSTG_END-1, ", free to the ring: ", RING-PSTG_END
  ASSERT PSTG_END <= RING OR MEASURE
