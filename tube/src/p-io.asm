@@ -1189,9 +1189,10 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  JMP F_INIT
 
 \ p_boot: drains a stray byte from the host in register 1, zeroes the
-\ hole's state (p-ws.asm), makes QSL (elite-qs.asm) in pages 2 and 3, then
-\ copies the staged images (p-layout.asm) in over the client OS, which the
-\ game never uses again: the page at &FF00 and the high area.
+\ Tube's workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
+\ makes QSL (elite-qs.asm) in pages 2 and 3, then copies the staged images
+\ (p-layout.asm) in over the client OS, which the game never uses again:
+\ the page at &FF00 and the high area.
 \ QSL+x is q(x) = x^2 DIV 4's low byte, and QSL+256+x (256+x)^2 DIV 4's,
 \ q(x) + 128x's: q(x) with bit 7 flipped when x is odd; q(x+1) = q(x) +
 \ (x+1) DIV 2, kept in rq (p_start sets it after)
@@ -1201,13 +1202,25 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  BPL pbt0
  LDA &FEF9
 .pbt0
+ LDA #LO(PWS_START)     \ the workspace starts zero
+ STA rq
+ LDA #HI(PWS_START)
+ STA rq+1
+ LDA #0
+.pbz1
+ STA (rq)
+ INC rq
+ BNE P%+4
+ INC rq+1
+ LDX rq
+ CPX #LO(PWS_END)
+ BNE pbz1
+ LDX rq+1
+ CPX #HI(PWS_END)
+ BNE pbz1
  STZ rq                 \ (q(0))
  LDX #0
 .pbt1
- CPX #PWS_HOLE_END-PWS_HOLE  \ (the hole's state starts zero, p-ws.asm)
- BCS pbt3
- STZ PWS_HOLE,X
-.pbt3
  LDA PSTG_FF,X
  STA &FF00,X
  TXA                    \ QSL+x and QSL+256+x (C: x odd)

@@ -25,12 +25,3 @@
  INCLUDE "build/p-dash-frame.asm"       \ the dashboard's parasite halves
  INCLUDE "build/p-disc-frame.asm"       \ the disc heap's drop, the surface's cold ends
 
-\ The frame layer's small state (p-layout.asm keeps the rest)
-
-.F_BX   SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
-.F_BY   SKIP 10         \ as F_BOMB found them
-.F_DCOL SKIP 2          \ disc colour index in each buffer's disc layer
-.f_tcol SKIP 1          \ (f_char1's column)
-.f_zsv  SKIP &22 + 16   \ F_FRAME's keep of &06-&27 and FZ's &D2-&E1
-.F_SLV  SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
-                        \ gfx-frame_cold.asm; F_SLV+16 &80: none)

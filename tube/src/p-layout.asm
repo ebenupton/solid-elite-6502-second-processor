@@ -34,6 +34,7 @@ _RBANK = 0
 
  INCLUDE "build/elite-source-config.asm"   \ (the configuration and the workspaces)
  INCLUDE "tsrc/p-ws.asm"                \ (the Tube's workspace, after WP)
+ ASSERT CODE% = PWS_END                 \ (the code starts where the workspace ends)
 
  ORG CODE%
 .PCODE_START
@@ -64,20 +65,9 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's and MN_TURN's resident part:
  CPU 1                                  \ G_FRAME, G_PFHOOK, MOONHIT)
  INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
-.PF_CODE_END
-PRINT "Parasite: frame code end at &", ~P%
-.F_HW   SKIP 256        \ planet half-widths
-.F_HW2  SKIP 256        \ sun half-widths
-F_SRN = MAXSH * 15      \ (the most faces is 15)
-.F_SR                   \ the ships' faces' levels (F_SHIP), with F_INIT, run
- SKIP &22               \ once before the first frame, in its room
- INCLUDE "src/gfx-finit.asm"
- SKIP F_SR + F_SRN - P%
-.F_RP   SKIP 29 * MAXSH \ the ship records (F_SHIP): INWK 0-8, XX16, XX0
-F_SZL = F_RP + 6 * MAXSH  \ (the ship's z, INWK 6-7: the sort's, T_KFRAME's)
-F_SZH = F_RP + 7 * MAXSH
-.F_DLEND                \ (the rest of the frame layer's small state is p-low.asm's)
-.F_TM   SKIP 768        \ the text map (gfx-frame.asm)
+ INCLUDE "src/gfx-finit.asm"            \ (F_INIT, run once before the first frame;
+                                        \ the frame layer's state is in the
+                                        \ workspace, p-ws.asm)
 PRES_CODE_END = P%
 
 \ The page aligned tables (the game's blocks tagged "Tube: bothb, aligned":
@@ -188,8 +178,6 @@ ENDIF
  INCLUDE "build/gfx-flare-top.asm"      \ (the flare's step in F_FRAME, f_flt: out
  CPU 1                                  \ of the run, OVL_START is lower for it)
  INCLUDE "build/p-probe-top.asm"        \ (the lens flare's probes' resident part)
-.F_DSX  SKIP NDSTAR     \ the stars drawn directly (gfx-frame_cold.asm)
-.F_DSY  SKIP NDSTAR
 .PFF_END
  PRINT "Parasite: the page at &FF00 to &", ~PFF_END-1, ", free to &FFFA: ", &FFFA-PFF_END
 

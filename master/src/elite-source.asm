@@ -55,7 +55,8 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &1400          \ Port (Tube): the parasite's (tube/src/p-ws.asm below)
+ CODE% = &1B34          \ Port (Tube): the parasite's, where the Tube's workspace
+                        \ ends (tube/src/p-ws.asm, p-layout.asm asserts it)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
                         \ the renderer's shared workspace below it (gfx-ws.asm)

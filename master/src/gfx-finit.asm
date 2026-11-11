@@ -5,7 +5,9 @@
 \ Master port: INCLUDEd by elite-gfx.asm in bank 6's F_SR (the ship records),
 \ after the 34 bytes where F_INIT keeps Elite's &06-&27 while the rasteriser's
 \ R_INIT uses them: the loader calls it once (G_INIT) before the first frame,
-\ and from the first frame on F_SR holds the ship records.
+\ and from the first frame on F_SR holds the ship records. (The Tube's
+\ parasite: resident, after the frame layer's code, with F_SR in the Tube's
+\ workspace, tube/src/p-ws.asm.)
 \
 \ ******************************************************************************
 
