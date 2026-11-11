@@ -968,20 +968,21 @@ def stub_none(lines, bl):
 #
 #   \       Area: ovl S             (the parasite's overlay S: p-layout.asm)
 #   \       Area: frame             (back to the file's own place)
-#   \       Area: hazel             (the Master host's HAZEL: the code that
-#                                    enters the STA runs, tube/src/h-layout.asm)
+#   \       Area: kernel            (the Master host's kernel, main RAM: the
+#                                    code that enters the STA runs,
+#                                    tube/src/h-layout.asm)
 #   \       Area: ovl D             (the parasite's overlay D: p-layout.asm)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
-# build/<file>-hazel.asm and build/<file>-ovld.asm. The Master port, the
+# build/<file>-kernel.asm and build/<file>-ovld.asm. The Master port, the
 # Model B host and (for the files it does not pass) the Master host assemble
 # the file itself, where the tag lines are comments
 FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm",
              "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
              "tsrc/p-io.asm", "tsrc/p-glue.asm")
-FPASS = {"frame": "frame", "ovl S": "ovls", "hazel": "hazel", "ovl D": "ovld"}
+FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "ovl D": "ovld"}
 
 
 def frame_passes(path, errors):

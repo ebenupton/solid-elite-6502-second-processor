@@ -17,7 +17,8 @@
 \     workspace only what the host's code names (below); then from KCODE,
 \     above the loader's part that loads it, the game's host blocks (the
 \     sound, the IRQ, CHPR, UP), the renderer's glue, the command loop
-\     (h-main.asm) and the recursive tokens, which the IRQ reads;
+\     (h-main.asm), the recursive tokens, which the IRQ reads, and the
+\     span kernel: the code that enters the STA runs, and their tables;
 \   * the rasteriser in bank 5 and ANDY, the frame layer's host part (the text
 \     map, the text overlay, the sights) in bank 6, as the Master port's;
 \   * the STA runs (h-sta.asm) in banks 4, 5, 6 and 7, their pages' tails
@@ -57,9 +58,23 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  PRINT "Host: the kernel's workspace &0E00-&", ~P%-1, ", free to the code at &", ~KCODE, ": ", KCODE-P%
 
 
+
  ORG KCODE
  GUARD &3000
 .H_START
+ CPU 1
+\ The span kernel: the code that enters the STA runs (the blocks of the
+\ rasteriser's files tagged "Area: kernel", streams.py's passes: r_rowset,
+\ r_spc, the per-x tables, R_SPAN, r_dspin, phase B), the runs' tables and
+\ generator (h-sta.asm)
+ INCLUDE "build/gfx-raster-kernel.asm"
+ INCLUDE "build/gfx-raster_lcold-kernel.asm"
+ INCLUDE "build/gfx-raster_polyb-kernel.asm"
+IF _HSTA
+ INCLUDE "tsrc/h-sta.asm"
+ELSE
+ INCLUDE "tsrc/h-rows.asm"   \ (FILL=rows: the row runs, bank 5's)
+ENDIF
  INCLUDE "build/elite-source-host.asm"
  INCLUDE "src/gfx-gvars.asm"
  INCLUDE "src/gfx-tramp.asm"
@@ -85,7 +100,7 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  GUARD &C000
  ORG &9000
  INCLUDE "build/gfx-raster-frame.asm"         \ (streams.py's passes: the blocks
- INCLUDE "build/gfx-raster_lcold-frame.asm"   \ tagged "Area: hazel" are in HAZEL)
+ INCLUDE "build/gfx-raster_lcold-frame.asm"   \ tagged "Area: kernel" are in the kernel)
 .B5_END
  PRINT "Host: bank 5 &8000-&", ~B5_END-1
  SAVE "build/HBANK5.bin", &8000, B5_END, &8000
@@ -117,27 +132,4 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, "), its STA runs from &", ~RUN6
  ASSERT B6_END <= RUN6
  SAVE "build/HBANK6.bin", &8000, B6_END, &8000
-
-\ HAZEL (&C000-&DFFF, ACCCON Y): the STA runs' tables and generator
-\ (h-sta.asm) and the code that enters the runs (the "Area: hazel" blocks of
-\ the rasteriser's files: r_rowset, r_spc, R_SPAN, the per-x tables, r_dspin,
-\ phase B), then from HZ_STORE the overlays' storage (build/hstore.asm). The
-\ loader stages it in main RAM, hstart copies it in (DFS uses HAZEL until
-\ then) and h_disc moves it out and back around a disc command
-HZ_STORE = &CA00
- CLEAR &C000, &E000
- GUARD HZ_STORE
- ORG &C000
-.HZ_START
-IF _HSTA
- INCLUDE "tsrc/h-sta.asm"
-ELSE
- INCLUDE "tsrc/h-rows.asm"   \ (FILL=rows: the row runs, bank 5's)
-ENDIF
- INCLUDE "build/gfx-raster-hazel.asm"
- INCLUDE "build/gfx-raster_lcold-hazel.asm"
- INCLUDE "build/gfx-raster_polyb-hazel.asm"
-.HZ_END
- PRINT "Host: HAZEL &C000-&", ~HZ_END-1, ", free to the storage at &", ~HZ_STORE, ": ", HZ_STORE-HZ_END
- SAVE "build/HHAZ.bin", &C000, HZ_END, &C000
 

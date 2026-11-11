@@ -350,7 +350,7 @@ ENDIF
   LSR A
   BCC ev
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
-  JMP s_pbxo              \ (the Tube's Master host: the line's bank in, HAZEL)
+  JMP s_pbxo              \ (the Tube's Master host: the line's bank in, h-sta.asm)
 ELSE
   JMP r_pbx_o             \ odd first row (Y = RZ_Y)
 ENDIF
@@ -369,7 +369,7 @@ ENDIF
 
 IF _TPART <> 1
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: its own place's pass;
- INCLUDE "build/gfx-raster_polyb-frame.asm"        \ phase B is in HAZEL, h-layout.asm)
+ INCLUDE "build/gfx-raster_polyb-frame.asm"        \ phase B is in the kernel, h-layout.asm)
 ELSE
  INCLUDE "src/gfx-raster_polyb.asm"
 ENDIF

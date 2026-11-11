@@ -159,6 +159,8 @@
 \ into DIRTY (R_MARKDIRTY) first.
 \ ============================================================================
 
+\       Area: kernel
+
 CPU 1
 
 R_COLE  = &06
@@ -208,6 +210,8 @@ l_k  = &22              \ kind (0..3)
 r_opSTA = &99           \ STA abs,Y (the row runs are indexed by the row, as bank 7's)
 r_opRTS = &60
 
+\       Area: frame
+
 
 \ (bank 5 from &9000: the rasteriser's shared region, seen with either window)
 .r_start
@@ -233,7 +237,7 @@ ELSE
 .r_bs10
  SKIP 3
 ENDIF
- INCLUDE "build/nmos/gfx-raster_lcold-hazel.asm"   \ (r_dspin: the lines are bank F's)
+ INCLUDE "build/nmos/gfx-raster_lcold-kernel.asm"  \ (r_dspin: the lines are bank F's)
  CPU 1
 R_BDX10 = 0                   \ (and the arrays' names, unused here)
 R_BDX00 = 0
@@ -255,7 +259,7 @@ ELIF _TPART <> 2              \ (the Tube's Master host: no two-colour discs)
 ASSERT R_BDN1 = R_BDN0 + &300 AND R_BDX01 = R_BDX00 + &300 AND R_BDX21 = R_BDX20 + &300
 ENDIF
 
-\       Area: hazel
+\       Area: kernel
 
 \ Row set-up.  Y = row (0..191; kept).  Sets RZ_Y, RZ_PA, RZ_PB, the run page
 \ (RZ_PP+1 and r_jsr+2).  Clobbers A.
@@ -564,7 +568,7 @@ ENDIF
 .r_sbdelta EQUB HI(BUF0) - &40, 0
 
 ENDIF
-\       Area: hazel
+\       Area: kernel
 
 \ ============================================================================
 \ r_spc: the span core.  Row set up (r_rowset), RZ_COL = colour byte,
@@ -742,13 +746,13 @@ ENDIF
 \ (free to the per-x tables)
 .r_tfree
 
-\       Area: hazel
+\       Area: kernel
 
 \ ============================================================================
 \ Page-aligned per-x tables, at &9C00: the row runs after them start at &A000
 \ (a page whose number is a multiple of 32: asserted below)
 \ ============================================================================
-IF _TPART = 2               \ (the Tube's hosts: in HAZEL, or bank P's own layout)
+IF _TPART = 2               \ (the Tube's hosts: in the kernel, or bank P's own layout)
 ALIGN &100
 ELSE
 ASSERT P% <= r_start + &C00
@@ -802,7 +806,7 @@ MACRO R_ENDPAGE r
 ENDMACRO
 
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: the per-x
- ALIGN &100                                  \ tables before here are in HAZEL)
+ ALIGN &100                                  \ tables before here are in the kernel)
 ENDIF
 .r_run0 R_RUN 0
 .r_s0y SKIP 48          \ star records, buffer 0: row
@@ -992,7 +996,7 @@ ENDIF
 R_ENDPAGE 15
 .r_run16 R_RUN 16
 
-\       Area: hazel
+\       Area: kernel
 
 .R_SPAN
 {

@@ -5,7 +5,7 @@
 \ runs (gfx-raster.asm's R_RUN, one per character row, STA abs,Y with Y the
 \ row) are all in bank 5, the same address in both buffers, main and shadow
 \ RAM (ACCCON X choosing), as the Master port's. The code that enters them
-\ stays in HAZEL, as with the STA runs, and pages bank 5 as it would a
+\ stays in the kernel, as with the STA runs, and pages bank 5 as it would a
 \ line's bank
 \
 \ ******************************************************************************

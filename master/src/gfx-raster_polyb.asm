@@ -176,7 +176,7 @@ ENDIF
 
 ENDIF
 
-\       Area: hazel
+\       Area: kernel
 
 IF _TPART <> 1             \ (Tube: phase B is the host's)
 \ ----------------------------------------------------------------------------

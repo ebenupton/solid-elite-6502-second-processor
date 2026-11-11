@@ -100,7 +100,7 @@
   RTS
 }
 
-\       Area: hazel
+\       Area: kernel
 
 IF _TDUMB AND _TPART = 2   \ (the Tube's dumb host)
 \ r_dspin: C_DSPANS (tube/src/h-main.asm's h_dspans): the disc layer's rows of

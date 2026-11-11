@@ -241,17 +241,13 @@ def put(fn, base, size, rom, lim):
             img[o:o + 256] = d
     return img
 h["RUN6"] = int(re.search(r"^RUN6 = &([0-9A-F]+)", open("tsrc/h-sta.asm").read(), re.M).group(1), 16)
-assert h["B5_END"] <= 0xB800 and h["RA_END"] <= 0x8600 and h["RUN6"] + 24 * 256 <= 0xB700 and h["HZ_END"] <= 0xCA00, "the host's code runs into its storage"
+assert h["B5_END"] <= 0xB800 and h["RA_END"] <= 0x8600 and h["RUN6"] + 24 * 256 <= 0xB700, "the host's code runs into its storage"
 img = put("build/HBANK5.bin", 0x8000, 0x4000, 5, (0xB8, 0xC0)); open("build/HBANK5.bin", "wb").write(img)
 img = put("build/HBANK6.bin", 0x8000, 0x4000, 6, (0xB7, 0xC0)); open("build/HBANK6.bin", "wb").write(img)
 img = put("build/HRASTA.bin", 0x8000, 0x1000, 0x85, (0x86, 0x90)); open("build/HRASTA.bin", "wb").write(img)
 open("build/HSTM1.bin", "wb").write(put(None, 0x3000, 0xE00, 6, (0x30, 0x3E)))
 open("build/HSTM2.bin", "wb").write(put(None, 0x7000, 0x1000, 6, (0x70, 0x80)))
-img = put(None, 0xC000, 0x2000, 6, (0xC0, 0xE0))
-hz = open("build/HHAZ.bin", "rb").read()        # (HAZEL's code, h-layout.asm, below the storage)
-assert img[:len(hz)] == bytes(len(hz))
-img[:len(hz)] = hz
-open("build/HSTZ.bin", "wb").write(img)
+open("build/HSTZ.bin", "wb").write(put(None, 0xC000, 0x2000, 6, (0xC0, 0xE0)))
 for rom, fn in ((0x47, "build/HSTB7.bin"), (0x44, "build/HSTB4.bin")):
     b7 = bytearray()                            # (the pieces: bank 7's and bank 4's STA runs'
     for r, hi, d in pages:                      # pages from &8000, only their bytes 192-255
@@ -445,7 +441,7 @@ $NM build/gfx-raster_lcold-frame.asm build/nmos/gfx-raster_lcold-frame.asm --rep
   LDX l_x0" --sub "  PLX
   DEC l_n=  LDX &E7
   DEC l_n" > /dev/null
-$NM build/gfx-raster_lcold-hazel.asm build/nmos/gfx-raster_lcold-hazel.asm --report build/nmos/gfx-raster_lcold-hazel.txt > /dev/null
+$NM build/gfx-raster_lcold-kernel.asm build/nmos/gfx-raster_lcold-kernel.asm --report build/nmos/gfx-raster_lcold-kernel.txt > /dev/null
 $NM src/gfx-flare.asm build/nmos/gfx-flare.asm --report build/nmos/gfx-flare.txt \
   --sub " BPL P%+5
  EOR #&FF

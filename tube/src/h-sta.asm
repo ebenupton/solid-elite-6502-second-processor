@@ -1,15 +1,15 @@
 \ ******************************************************************************
 \
-\ h-sta.asm - the Master host's STA runs (h-layout.asm, in HAZEL): one run per
+\ h-sta.asm - the Master host's STA runs (h-layout.asm, the kernel): one run per
 \ screen line of the 3D view (192), an STA abs per byte of the line (the
 \ line's byte for column c is &4000 + &200 * (L DIV 8) + (L AND 7) + 8c, the
 \ same address in both buffers, main and shadow RAM, ACCCON X choosing) then
 \ an RTS.
 \ They are made at the host's start (s_gen, from hstart), not carried on the
 \ disc. The code that enters them (r_spc, phase B; r_rowset sets RZ_PP and
-\ s_rbk from the tables here) is in HAZEL with them, so a run's bank can be
-\ paged in unconditionally for each span (LDA s_rbk : STA &FE30), with no
-\ copy in &F4
+\ s_rbk from the tables here) is in the kernel with them, main RAM, so a
+\ run's bank can be paged in unconditionally for each span (LDA s_rbk : STA
+\ &FE30), with no copy in &F4
 \
 \ ******************************************************************************
 
@@ -56,7 +56,7 @@ ASSERT HI(RUN6) + 24 <= &C0
 
 .s_rbk EQUB 0           \ the row's run's bank (r_rowset)
 
-\ The row's bank in, from HAZEL (phase B's set-up, in the rasteriser's
+\ The row's bank in, from the kernel (phase B's set-up, in the rasteriser's
 \ window, would page itself out): phase B's first row
 
 .s_pbxe
