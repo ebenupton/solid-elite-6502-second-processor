@@ -254,7 +254,10 @@ export class TubeEliteMachine extends EliteMachine {
         const drain = pc => (pc >= sy.pbl && pc <= sy.pbl_end) || (pc >= sy.ppump && pc < sy.pflush);
         const pw = tube.parasiteWrite.bind(tube);
         tube.parasiteWrite = (a, v) => { if ((a & 7) === 1 && !drain(c.oldPcArray[c.oldPcIndex])) made++; return pw(a, v); };
-        this.t.addParHook(pc => { if (mem[pc] === 0x92 && mem[(pc + 1) & 0xffff] === 0xfa) made++; return false; });
+        // (a store into the ring only: p_boot zeroes the Tube's workspace with STA (rq)
+        // too, rq then pointing below the ring, which starts at OVL_END, p-layout.asm)
+        const RS = sy.OVL_END ?? 0xF400;
+        this.t.addParHook(pc => { if (mem[pc] === 0x92 && mem[(pc + 1) & 0xffff] === 0xfa && (mem[0xfa] | mem[0xfb] << 8) >= RS) made++; return false; });
         const hr = tube.hostRead.bind(tube);
         tube.hostRead = a => {
             if ((a & 7) === 1 && (tube.hostStatus[0] & 0x80)) {
