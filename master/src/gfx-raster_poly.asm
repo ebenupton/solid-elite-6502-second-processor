@@ -306,7 +306,7 @@ IF _TDUMB = FALSE          \ (the dumb host: the rows come one by one from the
 .d3
 ELSE
 .^r_pcbs                  \ (the dumb host: C_SPANS, rows from r_ystart, each read
-  LDA #192                \ from the parasite in phase B's loop until its end mark,
+  LDA #R_ROWS             \ from the parasite in phase B's loop until its end mark,
   STA r_yend              \ or past row 191, which has none: h-main.asm)
 ENDIF
   \ phase B set-up

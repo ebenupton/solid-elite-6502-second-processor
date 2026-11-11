@@ -351,7 +351,7 @@ ENDIF
 IF _HOSTB AND _RBANK = 2
   ORG R_BDN0 + &980             \ (Model B, bank P: buffer 0's runs between, hb-p.asm)
 ENDIF
-IF _HOSTB = 0 OR _RBANK = 2
+IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 2
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
 ASSERT r_s1a = r_s0a + &300 AND r_s1b = r_s0b + &300
 ENDIF
@@ -432,6 +432,24 @@ IF _TPART <> 2             \ (the Tube's Master host: the star records' operands
   STA r_pt24+2
   STA r_pt47+2
   STA r_pt49+2
+ENDIF
+IF _TPART = 2             \ (the Tube's Master host: the operands' low bytes too,
+  LDA r_sbl_s0a,X         \ as its star records share no run pages)
+  STA r_pt32+1
+  STA r_pt36+1
+  STA r_pt416+1
+  STA r_pt418+1
+  LDA r_sbl_s0b,X
+  STA r_pt33+1
+  STA r_pt37+1
+  LDA r_sbl_s0x,X
+  STA r_pt31+1
+  STA r_pt35+1
+  STA r_pt415+1
+  LDA r_sbl_s0y,X
+  STA r_pt30+1
+  STA r_pt34+1
+  STA r_pt414+1
 ENDIF
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
@@ -787,11 +805,11 @@ NEXT
 \ The store runs: one page per character row r (24), STA &4000+&200r+8c-8r,Y (Y =
 \ the row: the same form as bank 7's r7_rrun) for
 \ c = 1..63 then RTS (190 bytes).  The 66 bytes after each run hold variables.
+\ (The Tube's Master host has no row runs: its STA runs are h-sta.asm's, in
+\ banks of their own, so what follows here is one run of code and variables.)
 \ ============================================================================
 MACRO R_RUN r
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: a line's STA
-  SKIP 191                                     \ run here, h-sta.asm's s_gen makes it)
-ELSE
+IF _TPART <> 2 OR _HOSTB
   FOR c, 1, 63
     STA &4000 + r * &200 + c * 8 - r * 8, Y
   NEXT
@@ -801,20 +819,21 @@ ENDIF
 ENDMACRO
 
 MACRO R_ENDPAGE r
+IF _TPART <> 2 OR _HOSTB
   ASSERT P% <= r_run0 + (r + 1) * &100
   ALIGN &100
+ENDIF
 ENDMACRO
 
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: the per-x
- ALIGN &100                                  \ tables before here are in the kernel)
-ENDIF
 .r_run0 R_RUN 0
 .r_s0y SKIP 48          \ star records, buffer 0: row
 .r_dsz EQUB 0           \ R_DOT
 .r_dx EQUB 0
 .r_dy EQUB 0
 .r_k EQUB 0             \ stars
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: unused)
 .r_si EQUB 0
+ENDIF
 R_ENDPAGE 0
 .r_run1 R_RUN 1
 .r_s0x SKIP 48          \ buffer 0: x of first pixel
@@ -835,18 +854,23 @@ R_ENDPAGE 5
 .r_s0b SKIP 48          \ buffer 0: mask set in column x DIV 4 + 1
 R_ENDPAGE 6
 .r_run7 R_RUN 7
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: unused, or phase A's)
 .r_s0r SKIP 48          \ star records, buffer 0: row
+ENDIF
 R_ENDPAGE 7
 .r_run8 R_RUN 8
+IF _TPART <> 2 OR _HOSTB
 .r_s1r SKIP 48          \ buffer 1: row
 .r_m0 EQUB 0            \ r_div8, r_dvq: quotient
 .r_v0 EQUB 0            \ r_div8: divisor
 .r_sbd EQUB 0           \ R_SETBUF delta
+ENDIF
 R_ENDPAGE 8
 .r_run9 R_RUN 9
 .r_s1b SKIP 48
 R_ENDPAGE 9
 .r_run10 R_RUN 10
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the disc layer is the parasite's)
 .r_cx EQUB 0            \ COLE EOR COLO
 .r_cb1 EQUB 0           \ CB + 1
 .r_n EQUB 0
@@ -864,6 +888,7 @@ R_ENDPAGE 9
 .r_cidx EQUB 0, 0
 .r_ccnt EQUB 0, 0
 .r_cend EQUB 0, 0
+ENDIF
 IF (_HOSTB = 0 AND _TPART <> 2) OR _RBANK = 1     \ (Model B: bank D's; the Tube's
                           \ Master host: the disc layer is the parasite's)
 .r_smx                    \ r_dmb, an unchanged dirty row (X; A = dL + 1): a
@@ -890,11 +915,16 @@ ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
 ENDIF
 R_ENDPAGE 10
 .r_run11 R_RUN 11
+IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the disc layer is the parasite's)
 .r_ov SKIP 59           \ variables of routines never active together
+ENDIF
 R_ENDPAGE 11
 .r_run12 R_RUN 12
+IF _TPART <> 2 OR _HOSTB
 .r_s1k SKIP 48          \ buffer 1: star's first pixel
+ENDIF
 R_ENDPAGE 12
+IF _TPART <> 2 OR _HOSTB
 \ overlay: R_DISCROWS rows
 r_oL = r_ov + 4
 r_oR = r_ov + 5
@@ -931,8 +961,11 @@ rs_t2 = RZ_T2
 rs_t3 = RZ_T3
 rs_t4 = RZ_T4
 rs_t5 = RZ_T5
+ENDIF
 .r_run13 R_RUN 13
+IF _TPART <> 2 OR _HOSTB
 .r_s0k SKIP 48          \ buffer 0: star's first pixel
+ENDIF
 R_ENDPAGE 13
 .r_run14 R_RUN 14
 .r_pclip
@@ -974,12 +1007,10 @@ ASSERT LO(R_DIRTYL0) = LO(R_DIRTYL1)
 ASSERT LO(R_DIRTYR0) = LO(R_DIRTYR1)
 ENDIF
 .r_sbh_s0a EQUB HI(r_s0a), HI(r_s1a)
-ASSERT LO(r_s0a) = LO(r_s1a)
 .r_sbh_s0x EQUB HI(r_s0x), HI(r_s1x)
-ASSERT LO(r_s0x) = LO(r_s1x)
 .r_sbh_s0y EQUB HI(r_s0y), HI(r_s1y)
-ASSERT LO(r_s0y) = LO(r_s1y)
 IF _TPART <> 2 OR _HOSTB
+ASSERT LO(r_s0a) = LO(r_s1a) AND LO(r_s0x) = LO(r_s1x) AND LO(r_s0y) = LO(r_s1y)
 .r_sbh_sl EQUB HI(R_DISCL0), HI(R_DISCL1)
 .r_sbh_s0k EQUB HI(r_s0k), HI(r_s1k)
 ASSERT LO(r_s0k) = LO(r_s1k)
@@ -987,7 +1018,14 @@ ASSERT LO(r_s0k) = LO(r_s1k)
 ASSERT LO(r_s0r) = LO(r_s1r)
 ENDIF
 .r_sbh_s0b EQUB HI(r_s0b), HI(r_s1b)
+IF _TPART <> 2 OR _HOSTB
 ASSERT LO(r_s0b) = LO(r_s1b)
+ELSE
+.r_sbl_s0a EQUB LO(r_s0a), LO(r_s1a)  \ (the Tube's Master host: and the low bytes,
+.r_sbl_s0x EQUB LO(r_s0x), LO(r_s1x)  \ as its records share no run pages)
+.r_sbl_s0y EQUB LO(r_s0y), LO(r_s1y)
+.r_sbl_s0b EQUB LO(r_s0b), LO(r_s1b)
+ENDIF
 R_ENDPAGE 14
 .r_run15 R_RUN 15
 IF _HOSTB = 0

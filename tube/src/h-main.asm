@@ -4,10 +4,12 @@
 \
 \ The host owns the screen, the sound chip and the keyboard, and executes the
 \ parasite's commands (tube/src/cmds.asm). Its drawing is the Master port's:
-\ the rasteriser (banks 5 and ANDY), the frame layer's text map, text overlay
-\ and sights (bank 6, gfx-frame.asm's host part), CHPR, the IRQ and the sound
-\ (elite-source.asm's blocks tagged "Tube: host" or "both"). Bank 6 is paged
-\ in between commands (the trampolines into the rasteriser page it back).
+\ the rasteriser, the frame layer's host part (gfx-frame.asm), CHPR, the IRQ
+\ and the sound (elite-source.asm's blocks tagged "Tube: host" or "both").
+\ The Master host's code is bank 7's, paged whenever it runs outside the STA
+\ runs, and the kernel's in main RAM (h-layout.asm): only the kernel pages a
+\ line's bank in, and it pages bank 7 back (hbank). The Model B host's
+\ resting bank is bank F (the trampolines into its rasteriser page it back).
 \
 \ Entered through WRCHV (hwrch): the loader starts the parasite through the
 \ MOS's Tube code, which leaves the host in its idle loop, passing register
@@ -27,7 +29,7 @@ IF _HOSTB = 0             \ (Model B: in main RAM, hb-res.asm)
 .hwrch
  CMP #&FE
  BNE hwr1
- LDA #GFXBANK           \ (hstart is in bank 6: h-cold.asm)
+ LDA #GFXBANK           \ (hstart is in the resting bank: h-cold.asm)
  STA &F4
  STA &FE30
  JMP hstart
@@ -155,14 +157,10 @@ IF _HOSTB = 0             \ (R_INIT's part that the drawing reads: the stars'
  STA R_SCOL             \ host's are set per command)
  LDA #0
  STA R_SN
- LDA #RASTBANK           \ (R_PRBUF is in bank 5's shared region: with bank 6
- STA &FE30              \ paged, this store went into bank 6, where the
- LDA #1                 \ overlays' storage now is)
+ LDA #1
  STA R_PRBUF
- LDA #GFXBANK
- STA &FE30
  LDA #0
- JSR T_SETBUF
+ JSR R_SETBUF
 ENDIF
 IF _HOSTB = 0
  LDA #4                 \ clear main RAM's screen (buffer 0)
@@ -277,13 +275,11 @@ ELSE                      \ (the Master host: page by page, wherever the build
  INCLUDE "build/hstore.asm"
 ENDIF
 
-IF _HOSTB = 0             \ (the Model B host's: hb-res2.asm)
-.T_STERASE              \ (h-prim.asm's: bank 5's R_STARERASE)
- LDA #RASTBANK
- STA &F4
- STA &FE30
- JSR R_STARERASE
- JMP tback
+IF _HOSTB = 0
+.hbank                  \ after the kernel's drawing through the STA runs, which
+ LDA #GFXBANK           \ leaves a line's bank paged: bank 7 back, then the
+ STA &FE30              \ next command
+ JMP hloop
 ENDIF
 
 .h_span                 \ C_SPAN: Y, XL, XR, COLE, COLO
@@ -297,19 +293,20 @@ ENDIF
  STA zR_COLE
  HRX
  STA zR_COLO
- JSR T_SPAN
+IF _HOSTB
+ JSR T_SPAN             \ (Model B: bank D's R_SPAN)
  JMP hloop
+ELSE
+ JSR R_SPAN
+ JMP hbank
+ENDIF
 
 .h_dspans               \ C_DSPANS: rows of spans (p-rast.asm's R_DISCROWS), read
 IF _HOSTB                 \ and drawn by r_dspin (gfx-raster_lcold.asm): the row,
  JMP hb_dspans          \ then XL, XR, the row's colour for each span, &FF ending
 ELSE                      \ the row; &FF for a row ends
- LDA #RASTBANK
- STA &F4
- STA &FE30
  JSR r_dspin
- JSR tback
- JMP hloop
+ JMP hbank
 ENDIF
 
 .h_spans                \ C_SPANS: polygon rows (p-emit.asm): COLE, COLO, COL2,
@@ -326,12 +323,8 @@ ELSE                      \ goes, to the end mark (gfx-raster_poly.asm's r_pcbs)
  STA R_COL3
  HRX
  STA R_PYS
- LDA #RASTPOLY
- STA &F4
- STA &FE30
  JSR r_pcbs
- JSR tback
- JMP hloop
+ JMP hbank
 ENDIF
 
 .h_line                 \ C_LINE: the four colours, R_X0, R_Y0, R_X1, R_Y1
@@ -350,7 +343,11 @@ ENDIF
  INX
  CPX #8
  BNE hli1
- JSR T_LINE
+IF _HOSTB
+ JSR T_LINE             \ (Model B: bank F's R_LINE, hb-line.asm)
+ELSE
+ JSR R_LINE
+ENDIF
  JMP hloop
 
 .h_dot                  \ C_DOT: COLE, COLO, x, y, size
@@ -365,7 +362,11 @@ ENDIF
  HRX
  LDX hdx
  LDY hdy
- JSR T_DOT
+IF _HOSTB
+ JSR T_DOT              \ (Model B: bank P's R_DOT)
+ELSE
+ JSR R_DOT
+ENDIF
  JMP hloop
 .hdx EQUB 0
 .hdy EQUB 0

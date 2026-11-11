@@ -1059,7 +1059,11 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host keeps no state of the screen
  STZ MO_ON+1            \ (no moon in it)
  ENDIF
 ENDIF
+IF _TPART = 2 AND _HOSTB = 0
+ JSR R_SETBUF           \ bankcheck: ok (the Tube's Master host: one bank)
+ELSE
  JSR T_SETBUF
+ENDIF
 IF _TPART <> 2 OR _TDUMB = FALSE
  JSR T_RESETBUF
  LDA #&FF

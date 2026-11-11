@@ -14,16 +14,21 @@
 \     of ACCCON X sees: from &0E00 its workspace, ylookup (the page of each
 \     pixel row's character row, which hstart makes: one copy for the game's
 \     drawing and the rasteriser, as r_ypg) and of the renderer's shared
-\     workspace only what the host's code names (below); then from KCODE,
-\     above the loader's part that loads it, the game's host blocks (the
-\     sound, the IRQ, CHPR, UP), the renderer's glue, the command loop
-\     (h-main.asm), the recursive tokens, which the IRQ reads, and the
-\     span kernel: the code that enters the STA runs, and their tables;
-\   * the rasteriser in bank 5 and ANDY, the frame layer's host part (the text
-\     map, the text overlay, the sights) in bank 6, as the Master port's;
-\   * the STA runs (h-sta.asm) in banks 4, 5, 6 and 7, their pages' tails
-\     holding pages of the overlays' storage (bank 7: build/hstore.asm;
-\     bank 4's are free); the planet is wholly the parasite's;
+\     workspace only what the host's code names (below), f_enter's buffers;
+\     then from KCODE, above the loader's part that loads it, the game's
+\     host blocks (the sound, the IRQ, CHPR, UP), the renderer's glue, the
+\     command loop (h-main.asm), the recursive tokens, which the IRQ reads,
+\     and the span kernel: the code that enters the STA runs, and their
+\     tables. Only the kernel pages a line's bank, and it pages bank 7 back;
+\   * bank 7 (GFXBANK, the resting bank, paged whenever the host runs
+\     outside the STA runs): all of the host's other code, one run from
+\     &9400: the lines, the dots, the stars and phase B's set-up, the frame
+\     layer's host part, the panel's drawing, the commands' handlers and
+\     the rarely run code;
+\   * the STA runs (h-sta.asm) in banks 4, 5 and 6, in line order;
+\   * the overlays' storage (build/hstore.asm): main RAM &3000-&3DFF and
+\     &7000-&7FFF, ANDY, bank 7 below its code, HAZEL from &CA00, then the
+\     STA runs' pages' tails in bank 4; the planet is wholly the parasite's;
 \   * the screen: buffer 0 in main RAM, buffer 1 and the dashboard in shadow
 \     RAM, as the Master port's.
 \
@@ -38,6 +43,8 @@ _RBANK = 0
 OVLBANK = 4             \ the parasite's overlays' images (storage only: h_ovlget):
 OVLSBANK = 7            \ D in bank 4, S and its state in bank 7
  INCLUDE "build/elite-source-ws.asm"
+GFXBANK = 7             \ the host's code (the frame layer's host part, the
+                        \ rasteriser's, the commands'): the resting bank
 
 \ The kernel's workspace: of the renderer's shared workspace (elite-gfx.asm),
 \ only what the host's code names, at the host's own addresses (tube/build.sh
@@ -54,6 +61,10 @@ KCODE = &1240           \ (the kernel's code: tube/src/loader.asm asserts that
 .ylookup SKIP 256       \ (hstart makes it: h-cold.asm)
 r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCLUDE "build/h-ws.asm"
+.F_HW   SKIP 256        \ (f_enter's buffers)
+.F_HW2  SKIP 256
+.F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
+.F_DSY  SKIP NDSTAR
  ASSERT P% <= KCODE
  PRINT "Host: the kernel's workspace &0E00-&", ~P%-1, ", free to the code at &", ~KCODE, ": ", KCODE-P%
 
@@ -73,7 +84,6 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCLUDE "tsrc/h-sta.asm"
  INCLUDE "build/elite-source-host.asm"
  INCLUDE "src/gfx-gvars.asm"
- INCLUDE "src/gfx-tramp.asm"
  INCLUDE "src/gfx-gluehooks.asm"
  INCLUDE "tsrc/h-main.asm"
 \ The recursive tokens (QQ18, as stored: build/HQQ18.bin) and where each
@@ -92,40 +102,22 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  SAVE "build/HMAIN.bin", H_START, P%, hwrch
 
 
- CLEAR &8000, &C000      \ bank 5: the rasteriser's shared region and disc window
+ CLEAR &8000, &C000      \ bank 7: the host's code, one run from &9400
  GUARD &C000
- ORG &9000
- INCLUDE "build/gfx-raster-frame.asm"         \ (streams.py's passes: the blocks
- INCLUDE "build/gfx-raster_lcold-frame.asm"   \ tagged "Area: kernel" are in the kernel)
-.B5_END
- PRINT "Host: bank 5 &8000-&", ~B5_END-1
- SAVE "build/HBANK5.bin", &8000, B5_END, &8000
-
- CLEAR &8000, &9000      \ ANDY: the polygon window
- ORG &8000
- INCLUDE "src/gfx-raster_poly.asm"
- INCLUDE "src/gfx-raster_line.asm"
-.RA_END
- ASSERT RA_END <= &9000
- SAVE "build/HRASTA.bin", &8000, RA_END, &8000
-
- CLEAR &8000, &C000      \ bank 6: the frame layer's host part
- ORG &8000
+ ORG &9400
+.B7_START
+ INCLUDE "src/gfx-raster_line.asm"        \ (first: the log tables after it start
+ INCLUDE "build/elite-source-hostb.asm"   \ a page with no padding before them)
+ CPU 1
+ ASSERT log = dsg9 + 1
  INCLUDE "src/gfx-frame.asm"
  INCLUDE "src/gfx-frame_cold.asm"
  INCLUDE "tsrc/h-cold.asm"
  INCLUDE "tsrc/h-panel.asm"
  INCLUDE "tsrc/h-prim.asm"
- ALIGN &100              \ (the log tables: page aligned)
- INCLUDE "build/elite-source-hostb.asm"   \ the dashboard's drawing (p-dash.asm)
- CPU 1
-.B6_CODE_END
-.F_HW   SKIP 256        \ (f_enter's buffer)
-.F_HW2  SKIP 256
-.F_DSX  SKIP NDSTAR     \ (f_unstar's: C_EORDOT's star)
-.F_DSY  SKIP NDSTAR
-.B6_END
- PRINT "Host: bank 6 &8000-&", ~B6_END-1, " (code to &", ~B6_CODE_END-1, "), its STA runs from &", ~RUN6
- ASSERT B6_END <= RUN6
- SAVE "build/HBANK6.bin", &8000, B6_END, &8000
-
+ INCLUDE "build/gfx-raster-frame.asm"         \ (streams.py's passes: the blocks
+ INCLUDE "build/gfx-raster_lcold-frame.asm"   \ tagged "Area: kernel" are in the kernel)
+ INCLUDE "src/gfx-raster_poly.asm"
+.B7_END
+ PRINT "Host: bank 7 &", ~B7_START, "-&", ~B7_END-1, ", free to &C000: ", &C000-B7_END
+ SAVE "build/HBANK7.bin", B7_START, B7_END, B7_START

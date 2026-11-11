@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ h-prim.asm - the dumb host's drawing commands (docs/TUBE-MAP.md), in the
-\ resting bank (the Master host's bank 6, the Model B host's bank F): the
+\ resting bank (the Master host's bank 7, the Model B host's bank F): the
 \ parasite decides everything (p-rast.asm); these draw what it sends, with the
 \ Master port's own drawing code (the rasteriser's row runs, phase B's fill,
 \ R_SPAN, R_LINE, R_DOT, R_STARPLOT and R_STARERASE, the frame layer's
@@ -23,7 +23,11 @@
  LDA #191
  STA zR_CB
  LDA F_BACK
+IF _HOSTB
  JSR T_SETBUF           \ (the row runs' and the star records' buffer)
+ELSE
+ JSR R_SETBUF           \ (the star records' buffer)
+ENDIF
 .hbf1
  LDA GFLIP
  BNE hbf1
@@ -101,13 +105,21 @@ ENDIF
  INX
  CPX R_SN
  BNE hps1
-.hps2
- JSR T_STARPLOT         \ (its records stay in the buffer's star arrays for
- JMP hloop              \ C_STARERASE)
+.hps2                   \ (its records stay in the buffer's star arrays for
+IF _HOSTB                 \ C_STARERASE)
+ JSR T_STARPLOT
+ELSE
+ JSR R_STARPLOT
+ENDIF
+ JMP hloop
 
 .h_starerase            \ C_STARERASE: R_STARERASE, the frame's buffer's records
- JSR T_STERASE          \ (the one piece of state the host keeps: the user's
- JMP hloop              \ exception, so that the stars need no round trip)
+IF _HOSTB                 \ (the one piece of state the host keeps: the user's
+ JSR T_STERASE          \ exception, so that the stars need no round trip)
+ELSE
+ JSR R_STARERASE
+ENDIF
+ JMP hloop
 
 \ h_orspan: C_ORSPAN: y, xl, xr, mask: OR the mask over pixels xl..xr of row y
 \ of the frame's buffer (the lens flare's fl_or)

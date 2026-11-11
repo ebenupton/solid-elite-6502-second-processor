@@ -799,25 +799,17 @@ ENDIF
 
 .FTAB
 
- EQUW MESS8             \ HRASTA: the rasteriser's polygon window, ANDY
+ EQUW MESS8             \ HRASTA: the overlays' storage in ANDY
  EQUB &85, %00001001
  EQUW &8000, 0
 
- EQUW MESS9             \ HBANK5: the rasteriser, bank 5
- EQUB 5, %00001001
+ EQUW MESS9             \ HBANK7: the host's code, bank 7, and the overlays'
+ EQUB 7, %00001001      \ storage below it
  EQUW &8000, 0
 
- EQUW MESS10            \ HBANK6: the frame layer's host part, bank 6
- EQUB 6, %00001001
- EQUW &8000, 0
-
- EQUW MESS16            \ HSTB7: and in bank 7, bytes 192-255 of the STA runs'
- EQUB 7, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
+ EQUW MESS17            \ HSTB4: and in bank 4, bytes 192-255 of the STA runs'
+ EQUB 4, %00001001      \ pages (h-sta.asm; hstart's s_gen writes the runs
  EQUW &8000, 0          \ around them)
-
- EQUW MESS17            \ HSTB4: and the same in bank 4
- EQUB 4, %00001001
- EQUW &8000, 0
 
  EQUW MESS13            \ HSTZ: the host's HAZEL (the overlays' storage there),
  EQUB 6, %00001001      \ staged in main RAM at &4000 until LTRUN copies it in
@@ -883,12 +875,7 @@ ENDIF
 
 .MESS9
 
- EQUS "L.HBANK5 FFFF1300"    \ Port: *LOAD BANK5 FFFF1300
- EQUB 13
-
-.MESS10
-
- EQUS "L.HBANK6 FFFF1300"    \ Port: *LOAD BANK6 FFFF1300
+ EQUS "L.HBANK7 FFFF1300"
  EQUB 13
 
 .MESS13
@@ -904,11 +891,6 @@ ENDIF
 .MESS15
 
  EQUS "L.HSTM1 FFFF1300"
- EQUB 13
-
-.MESS16
-
- EQUS "L.HSTB7 FFFF1300"
  EQUB 13
 
 .MESS17

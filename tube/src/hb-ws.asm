@@ -33,6 +33,7 @@ ELITEBANK = HOMEBANK
 ONEPASS = FALSE         \ (the parasite's: p-ws.asm)
 OPTUBE = FALSE
 NDSTAR = NOST+1
+R_ROWS = 192            \ the lines of the 3D view (phase B's end row, r_pcbs)
 
 BUF0 = &1000            \ buffer 0's screen (buffer 1's is the Master port's &4000)
 PANEL = &7000

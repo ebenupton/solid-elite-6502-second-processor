@@ -1,8 +1,9 @@
 \ ******************************************************************************
 \
-\ h-cold.asm - the host's rarely run code, in bank 6 (the resting bank, so
-\ the command loop reaches it directly): the command loop's start (from
-\ hwrch, which pages bank 6) and the disc command (the host's own OSCLI)
+\ h-cold.asm - the host's rarely run code, in the resting bank (the Master
+\ host's bank 7, the Model B host's bank F), so that the command loop reaches
+\ it directly: the command loop's start (from hwrch, which pages the resting
+\ bank) and the disc command (the host's own OSCLI)
 \
 \ ******************************************************************************
 
@@ -36,7 +37,7 @@ IF _HOSTB = 0
  LDX #&40
  LDY #&C0
  JSR hzmv
- JSR s_gen              \ (the STA runs, h-sta.asm, in banks 4, 7 and 6)
+ JSR s_gen              \ (the STA runs, h-sta.asm, in banks 4, 5 and 6)
 ENDIF
 .hst1
 IF _HOSTB
