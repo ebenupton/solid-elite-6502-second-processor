@@ -13,7 +13,9 @@
 .h_buf                  \ C_BUF: the frame's buffer: wait for the last flip, then
  HRX                    \ draw into it
  STA F_BACK
+IF _HOSTB
  JSR f_bufpatch         \ (the Model B host's screen bases)
+ENDIF
  LDA #2                 \ the clip window inside the border
  STA zR_CL
  LDA #253

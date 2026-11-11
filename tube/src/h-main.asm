@@ -95,25 +95,22 @@ HCTXN = 12
 
 .htab
  EQUW h_sync, h_init, h_bad, h_bad, h_bad, h_bad, h_bad, h_span
- EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_keys
- EQUW h_dks, h_wscan, h_noise, h_soflush, h_bad, h_bad, h_bad, h_cls
- EQUW h_boxc, h_clyns, h_bad, h_det1, h_irb, h_disc, h_bad, h_bad
+ EQUW h_bad, h_bad, h_line, h_dot, h_bad, h_bad, h_char, h_bad
+ EQUW h_bad, h_bad, h_bad, h_bad, h_bad, h_bad, h_bad, h_cls
+ EQUW h_boxc, h_clyns, h_bad, h_det1, h_bad, h_disc, h_bad, h_bad
  EQUW h_ovlget, h_pdials, h_pdot, h_pscan, h_pmsbar, h_pbulb
  EQUW h_buf, h_flip, h_spans, h_orspan, h_stars, h_starerase, h_glyph, h_enterb
  EQUW h_clrbuf, h_eordot, h_directd, h_bad, h_loin, h_bad, h_hloin, h_pixel, h_dspans
 ASSERT P% - htab = C_MAX
 
 .hloop
- BIT HR2S               \ a request (register 2) first, then the next command
- BMI hreq
- BIT HR1S
+ BIT HR1S               \ the next command
  BMI hlp1
  BVC hloop              \ (register 1 empty: the parasite's doorbell, through
  STA HR1D               \ register 1 to it, unless one already waits there;
  BVS hloop              \ p-io.asm's ring)
 .hlp1
  LDA HR1D
-.hdisp
  TAX
 IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
  LDA htab,X
@@ -125,9 +122,6 @@ IF _HOSTB                 \ (Model B: no JMP (abs,X) on an NMOS 6502)
 ELSE
  JMP (htab,X)
 ENDIF
-.hreq
- LDA HR2D
- JMP hdisp
 
 IF _HOSTB = 0             \ (the Model B host's: hb-ovl.asm)
 ENDIF
@@ -383,10 +377,7 @@ ENDIF
 \ order, then 0. As FILLKL (and fkdet): the columns with a key held in rows
 \ 1-7 first, then each row's keys in those columns
 
-.h_keys                 \ (its body a subroutine: h4body calls it too)
- JSR hk_body
- JMP hloop
-.hk_body
+.hk_body                \ (h4body's)
  LDA #%00000010         \ (vsync masked during the scan, as FILLKL)
  STA VIA+&4E
  STZ hkn
@@ -446,11 +437,8 @@ ENDIF
 .hkr EQUB 0
 .hkl SKIP 13
 
-.h_dks                  \ C_DKS: is key A held (DKS5): A with bit 7 if so
- HR2X
- JSR hdks_body
- JMP hloop
-.hdks_body              \ (PHP/PLP, not SEI/CLI: h4body runs it in the IRQ)
+.hdks_body              \ C_DKS: is key A held (DKS5): A with bit 7 if so
+                        \ (PHP/PLP, not SEI/CLI: h4body runs it in the IRQ)
  LDX #3
  PHP
  SEI
@@ -607,26 +595,6 @@ IF _HOSTB = 0
 .h4on EQUB 0
 ENDIF
 
-.h_wscan                \ C_WSCAN: answer at the next vsync
- STZ DL
-.hws1
- LDA DL
- BEQ hws1
- HTX
- JMP hloop
-
-.h_noise                \ C_NOISE: Y, DNOIZ
- HRX
- TAY
- HRX
- STA DNOIZ
- JSR NOISE
- JMP hloop
-
-.h_soflush              \ C_SOFLUSH
- JSR SOFLUSH
- JMP hloop
-
 .h_cls                  \ C_CLS: TTX66's clear, shadow &4000-&6FFF
 IF _HOSTB = 0
  LDA #4
@@ -634,8 +602,7 @@ IF _HOSTB = 0
  JSR s_clr              \ (the Master host: through the STA runs, h-sta.asm)
  LDA #4
  TRB &FE34
- JMP hloop
-ENDIF
+ELSE
  LDA #&40
  STA hcl1+2
  LDA #0
@@ -648,9 +615,6 @@ ENDIF
  LDY hcl1+2
  CPY #&70
  BNE hcl1
-IF _HOSTB = 0
- LDA #4
- TRB &FE34
 ENDIF
  JMP hloop
 
@@ -709,11 +673,6 @@ ENDIF
  STA &FE00
  STX &FE01
  CLI
- JMP hloop
-
-.h_irb                  \ C_IRB: the System VIA's port B
- LDA VIA+&40
- HTX
  JMP hloop
 
 

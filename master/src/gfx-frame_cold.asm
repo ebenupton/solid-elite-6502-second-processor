@@ -366,20 +366,17 @@ IF _TPART = 1             \ (Tube: the screen is the host's: C_CLRBUF 0)
  JSR ptx
  LDA #0
  JSR ptx
+ELIF _TDUMB AND _TPART = 2 AND _HOSTB = 0   \ (the Tube's Master host: through
+ LDA #4                 \ the STA runs, main RAM, tube/src/h-sta.asm)
+ TRB &FE34
+ JSR s_clr
 ELSE
 IF _HOSTB
  LDA #HI(BUF0)          \ (Model B: buffer 0 at BUF0)
 ELSE
-IF _TDUMB AND _TPART = 2 AND _HOSTB = 0   \ (the Tube's Master host: through the
- LDA #4                 \ STA runs, main RAM, tube/src/h-sta.asm)
- TRB &FE34
- JSR s_clr
- BRA fbn9
-ELSE
  LDA #4                 \ X = 0: main RAM
  TRB &FE34
  LDA #&40
-ENDIF
 ENDIF
  STA fbn1+2
  LDA #0
@@ -396,7 +393,6 @@ ELSE
  CPY #&70
 ENDIF
  BNE fbn1
-.fbn9
 ENDIF
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  STZ F_SGS              \ no sights drawn in it

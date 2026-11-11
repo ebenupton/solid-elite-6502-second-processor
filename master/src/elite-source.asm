@@ -3899,6 +3899,7 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the host's C_LOIN calls LOINQ: h-panel.asm)
 .LOIN
 
  STY YSAV               \ Store Y in YSAV so we can retrieve it below
@@ -3928,6 +3929,7 @@ ENDIF                   \ IFJ (bits 4 and 5) are kept; the Tube's host never
  LDY YSAV               \ Retrieve the value of Y we stored above
 
  RTS                    \ Return from the subroutine
+ENDIF
 
 \ ******************************************************************************
 \
@@ -7254,9 +7256,11 @@ ENDIF
 \
 \ ******************************************************************************
 
-.ECBLB2
+IF _TPART <> 2          \ (Tube: the E.C.M. is the parasite's; the host lights
+.ECBLB2                 \ the bulb, C_PBULB)
  LDA #32
  STA ECMA
+ENDIF
 
 \ ******************************************************************************
 \
@@ -7645,6 +7649,7 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the host prints only what it is sent)
 .TT67K
 
                         \ This does the same as the existing TT67 routine, which
@@ -7658,6 +7663,7 @@ ENDIF
  LDA #12                \ Set A to a carriage return character
 
                         \ Fall through into TT26 to print the newline
+ENDIF
 
 \ ******************************************************************************
 \
@@ -8472,12 +8478,14 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART <> 2          \ (Tube: the host's CHPR enters at ZES2 only)
 .ZES1
 
  LDY #0                 \ If we set Y = SC = 0 and fall through into ZES2
  STY SC                 \ below, then we will zero-fill 255 bytes starting from
                         \ SC - in other words, we will zero-fill the whole of
                         \ page X
+ENDIF
 
 \ ******************************************************************************
 \

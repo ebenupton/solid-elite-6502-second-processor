@@ -1109,6 +1109,7 @@ MACRO FPATCH lab, a0, a1
  STA lab+2
 ENDMACRO
 
+IF _TPART <> 2 OR _TDUMB = FALSE OR _HOSTB   \ (the Tube's Master host: nothing)
 .f_bufpatch             \ (each array's two copies differ only in the high byte)
  LDX F_BACK
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: the glyphs' base only)
@@ -1168,6 +1169,7 @@ IF _TDUMB = FALSE
 ENDIF
  ENDIF
  RTS
+ENDIF
 IF _HOSTB
 .fbp_b EQUB HI(BUF0), &40
 .fbp_d EQUB HI(BUF0) - &40, 0
