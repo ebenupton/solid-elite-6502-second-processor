@@ -2,8 +2,8 @@
 \
 \ hb-ws.asm - the Model B host's constants and workspace (docs/TUBE-MAP.md),
 \ in place of the Master host's (build/h-ws.asm), for the Model B assemblies:
-\ hb-d.asm (bank D, the rasteriser's disc side), hb-p.asm (bank P, its
-\ polygon side) and hb-main.asm (bank F, main RAM and the stash bank S)
+\ hb-p.asm (bank P, the fills) and hb-main.asm (bank F, main RAM and the
+\ stash bank S)
 \
 \ A Model B with 64K of sideways RAM has no shadow RAM, no ANDY and no HAZEL:
 \ the two 12K space-view buffers and the 3.5K panel take main RAM from &1000
@@ -23,8 +23,9 @@ ACCY = 8                \ (no ACCCON on a Model B: &FE34 is ROMSEL's)
 MAXSH = 13              \ ships per frame
 MAXLN = 48              \ lines per frame
 MAXDT = 64              \ dots per frame
-RASTBANK = HBB          \ D: the disc window and the rasteriser's shared code
-RASTPOLY = HBB + 1      \ P: the polygon window, lines, stars, flare
+RASTBANK = HBB          \ D: the parasite's overlay S, stored (hb-ovl.asm)
+RASTPOLY = HBB + 1      \ P: phase B, the spans and their row runs, the dots and
+                        \ the stars
 GFXBANK = HBB + 2       \ F: the frame layer's host part and the commands
 STASHBANK = HBB + 3     \ S: the MOS's main RAM while the game runs, ours while
                         \ a disc command does (HBB: beebasm -D, 4; the build
@@ -42,127 +43,31 @@ PANEL = &7000
 \ Main RAM (reclaimed from the MOS while the game runs)
 \ ------------------------------------------------------------------------------
 
-\ the fixed entry points bank D's and bank P's code calls in main RAM (hb-main.asm
-\ assembles them here, asserting it)
-RUNP = &0236            \ runp: a run of bank P's for bank D's r_spc (A colour, Y row)
-RUNPJ = RUNP + 21       \ (its JSR: bank D's r_jsr)
-P_ROWREPT = RUNP + 40   \ bank D's way to bank P's r7_rowrep
-MR_A = P_ROWREPT + 18   \ code and data: to &03F4
-MR_AEND = &03F5
-R_DIRTYL0 = &03F5       \ the per-buffer arrays, at the Master port's low bytes
-R_DIRTYR0 = R_DIRTYL0 + 192
-R_DISCR0  = R_DIRTYR0 + 192
-R_DISCL0  = R_DISCR0 + 192
-R_DIRTYL1 = R_DISCL0 + 192
-R_DIRTYR1 = R_DIRTYL1 + 192
-R_DISCR1  = R_DIRTYR1 + 192
-R_DISCL1  = R_DISCR1 + 192
-ASSERT LO(R_DIRTYR0) = &B5 AND LO(R_DISCL0) = &35
-ASSERT HI(R_DIRTYR0) = HI(R_DIRTYL0) + 1 AND HI(R_DIRTYR1) = HI(R_DIRTYL1) + 1
-R_PRBUF   = R_DISCL1 + 192  \ the rasteriser's state (raster_vars.asm)
-R_PRDYT   = R_PRBUF + 1
-R_PRDYB   = R_PRBUF + 3
-R_PRDST   = R_PRBUF + 5
-R_PRDSB   = R_PRBUF + 7
-R_PRSCNT  = R_PRBUF + 9
-R_PRECNT  = R_PRBUF + 11
-R_PRWT    = R_PRBUF + 13
-R_PRWB    = R_PRBUF + 14
-R_PRBMODE = R_PRBUF + 15
-R_PRNT    = R_PRBUF + 17
-R_PRNB    = R_PRBUF + 18
-R_PRLO    = R_PRBUF + 19
-R_PRHI    = R_PRBUF + 20
-R_PRDYA   = R_PRBUF + 21
-R_PRDYZ   = R_PRBUF + 22
-R_PRCWB   = R_PRBUF + 23
-R_SN      = R_PRBUF + 24    \ star count
-R_SCOL    = R_PRBUF + 25    \ star colour byte
-R_WL      = R_PRBUF + 26    \ this frame's written extents
-R_SS      = R_WL + 192      \ star sizes
-F_DSS     = R_SS + 24       \ the directly drawn stars' sizes
-ASSERT F_DSS + NDSTAR <= &0B00
-R_WR      = &0B00           \ (whole in a page)
-R_SX      = R_WR + 192
-R_SY      = R_SX + 24
-MR_B = R_SY + 24               \ code and data: to JOPOS
-MR_BEND = &0CA7
-ASSERT JOPOS = &0CA7
-hpe_w = &0CAA           \ R_DISCROWS (bank D): the pre-erase has started R_WL/R_WR
+MR_A = &0236            \ code and data: to page &04
+MR_AEND = &0400
+HWSAT = &0700           \ the renderer's shared workspace, as the host's code
+                        \ names it (tube/build.sh writes build/hb-wsn.asm from
+                        \ the "\ HWS" lines below: a name the host's code uses
+                        \ that is not listed fails the assembly): the lines' end
+                        \ points, phase B's colours and rows, the stars and the
+                        \ directly drawn stars' sizes
+\ HWS R_X0 R_Y0 R_X1 R_Y1 R_COL2 R_COL3 R_PYS R_PYE
+\ HWS R_SS R_SX R_SY R_SN R_SCOL F_DSS
+ ORG HWSAT
+ INCLUDE "build/hb-wsn.asm"
+.R_PRBUF  SKIP 1        \ the rasteriser's private state (gfx-raster_lcold.asm's,
+.R_PRDYT  SKIP 2        \ as the host's code names it): the buffer, the rows R_LINE
+.R_PRDYB  SKIP 2        \ has drawn in (which nothing on the host reads: kept, as
+.R_PRSCNT SKIP 2        \ the Master host's), the star records
 GVARS = &0CAB           \ gfx-gvars.asm's (hb-main.asm assembles it here)
-IF _RBANK
-GMODE = GVARS + 0
-GFRONT = GVARS + 1
-GFLIP = GVARS + 2
-GPEND = GVARS + 3
-GFORCE = GVARS + 4
-GSIGHT = GVARS + 5
-GLASV = GVARS + 6
-GNF = GVARS + 7
-GTYPE = GVARS + 8
-GSUNON = GVARS + 9
-GSUNR = GVARS + 10
-GSTASH = GVARS + 11
-PF_CLS = GVARS + 12
-GWARP = GVARS + 13
-ENDIF
-MR_C = GVARS + 14       \ code and data: to page &0D
-MR_CEND = &0D00
 ylookup = &0E00         \ the page of each pixel row's character row (hstart
 r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
-                        \ drawing in bank F and the rasteriser in banks P and
-                        \ D (r_ypg, rows 0..191)
+                        \ drawing in bank F and the rasteriser in bank P
+                        \ (r_ypg, rows 0..191)
 MR_D = ylookup + &100   \ code and data
-MR_DEND = &1000 - &50    \ (then the polygon's and lines' inputs, to &1000)
+MR_DEND = &1000
 MR_E = &7E00            \ code and data
 MR_EEND = &8000
-
-\ ------------------------------------------------------------------------------
-\ Bank D's data (above its code; the disc inputs that h_disc receives there)
-\ ------------------------------------------------------------------------------
-
-DDATA = &B800
-R_NDISCL = DDATA        \ page aligned: R_NDISCL,X never crosses a page
-R_NDISCR = DDATA + &C0
-R_NDN    = DDATA + &180
-R_NDP    = DDATA + &240
-R_NDX0   = DDATA + &300
-R_NDX1   = DDATA + &3C0
-R_NDX2   = DDATA + &480
-R_NDX3   = DDATA + &540
-R_NDT    = DDATA + &600
-R_NDB    = DDATA + &601
-R_NDF    = DDATA + &602
-R_DBE    = DDATA + &603
-R_DBO    = DDATA + &604
-DDATA_END = DDATA + &605
-
-\ ------------------------------------------------------------------------------
-\ The polygon's and the lines' inputs (bank P's phase B, bank F's R_LINE), in
-\ main RAM: R_PXL .. R_PYH and R_PTA, R_PTB are phase A's, the parasite's, so
-\ only from R_X0 on is used (to &0FFF)
-\ ------------------------------------------------------------------------------
-
-PDATA = MR_DEND
-R_PXL    = PDATA        \ vertex x, y (signed 16-bit): in one page
-R_PXH    = PDATA + &10
-R_PYL    = PDATA + &20
-R_PYH    = PDATA + &30
-R_X0     = PDATA + &40  \ line end points (words)
-R_Y0     = PDATA + &42
-R_X1     = PDATA + &44
-R_Y1     = PDATA + &46
-R_PN     = PDATA + &48
-R_COL2   = PDATA + &49
-R_COL3   = PDATA + &4A
-R_PYS    = PDATA + &4B
-R_PYL1   = PDATA + &4C
-R_PYE    = PDATA + &4D
-R_PXC    = PDATA + &4E
-R_PCR1   = PDATA + &4F
-R_PTA    = PDATA + &100
-R_PTB    = PDATA + &1C0
-PDATA_END = PDATA + &280
 
 \ ------------------------------------------------------------------------------
 \ The banks' jump tables, at fixed addresses (so that the assemblies need no
@@ -170,21 +75,13 @@ PDATA_END = PDATA + &280
 \ ------------------------------------------------------------------------------
 
 JT = &BFC0
-P_PGFIX    = JT         \ bank P
-P_ROWREP   = JT + 3     \ (p_rowrepr's, never called now: the repair is the parasite's)
-P_DSPANSIN = JT + 3     \ C_DSPANS's rows of spans (r_dspin)
-P_POLY     = JT + 6
-P_LINE     = JT + 9
-P_SETBUF   = JT + 12
-P_SPAN     = JT + 15
-P_MARKDIRTY = JT + 18
-P_DOT      = JT + 21
-P_STARERASE = JT + 24
-P_STARPLOT = JT + 27
-P_FLARE    = JT + 30
-P_POLYIN   = JT + 33    \ h_poly's receiving part (hb-p.asm)
-P_LINEIN   = JT + 36    \ h_line's
-                        \ (JT + 39, 42: the star records' relay, retired)
+P_DSPANSIN = JT         \ bank P: C_DSPANS's rows of spans (r_dspin)
+P_SETBUF   = JT + 3
+P_SPAN     = JT + 6
+P_DOT      = JT + 9
+P_STARERASE = JT + 12
+P_STARPLOT = JT + 15
+P_POLYIN   = JT + 18    \ h_poly's receiving part (hb-p.asm)
 
 OVLBANK = STASHBANK      \ the parasite's overlays' images (storage only: hb_ovlget),
 OVLD_AT = &8E00          \ after the stash, from the HBS file

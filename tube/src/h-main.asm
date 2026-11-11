@@ -186,11 +186,7 @@ ELSE
  CPY #&70
 ENDIF
  BNE hin1
-IF _HOSTB
- LDX #23+NDSTAR         \ (and F_DSS after R_SS: hb-ws.asm)
-ELSE
  LDX #NDSTAR-1
-ENDIF
 .hin2
  STA R_SS,X
  DEX

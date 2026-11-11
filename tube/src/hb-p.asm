@@ -41,11 +41,6 @@ NEXT
  INCLUDE "build/nmos/gfx-raster_poly.asm"
  CPU 0
 ASSERT P% <= &8300       \ (buffer 0's runs from there)
-.r_bs8                  \ (R_SETBUF's patch of the lines' operand, bank F's:
- SKIP 3                 \ f_bufpatch does it there)
-.r_bs7                  \ (the repair is the parasite's: r_sbuf's patch of its
-                        \ operand lands here)
- SKIP 3
 .p_polyin               \ h_poly's receiving part: phase A's rows (p-polya.asm),
  HRX                    \ then the rasteriser from r_pcbd
  STA &06                \ (R_COLE, R_COLO)
@@ -103,28 +98,12 @@ NEXT
 
  ORG JT
  GUARD &C000
- BRK                    \ (P_PGFIX: no run is patched for a buffer now)
- EQUW 0
  JMP r_dspin            \ (P_DSPANSIN: C_DSPANS, gfx-raster_lcold.asm)
- BRK                    \ (P_POLY: phase A is the parasite's, gone)
- EQUW 0
- BRK                    \ (P_LINE: the lines are bank F's, hb-line.asm)
- EQUW 0
  JMP R_SETBUF
  JMP R_SPAN
- BRK                    \ (P_MARKDIRTY: the parasite's, gone)
- EQUW 0
  JMP R_DOT
  JMP R_STARERASE
  JMP R_STARPLOT
- BRK                    \ (P_FLARE: the parasite's, gone)
- EQUW 0
  JMP p_polyin
- BRK                    \ (P_LINEIN: bank F's)
- EQUW 0
- BRK                    \ (P_STOUT, P_STIN: the star records' relay, gone:
- EQUW 0                 \ the host keeps them, C_STARERASE)
- BRK
- EQUW 0
  PRINT "Model B bank P: &8000-&", ~P_LOEND-1, " (free ", RUNB0-P_LOEND, "), &9000-&", ~P_HIEND-1, " (free ", &BC00-P_HIEND, ", and ", P_RPY1-P_SHEND, " at &", ~P_SHEND, ")"
  SAVE "build/HBP.bin", &8000, &C000, &8000

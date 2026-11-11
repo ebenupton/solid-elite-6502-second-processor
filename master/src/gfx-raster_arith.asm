@@ -5,8 +5,8 @@
 \ here for room: r_div8, r_dvq and the 32-bit multiply and divide with their
 \ variables (none uses anything of the polygon window's)
 \ ----------------------------------------------------------------------------
-IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host: the lines' multiply and
-                          \ divide only; phase A is the parasite's)
+IF _TPART <> 2             \ (the Tube's hosts: the lines' multiply and divide
+                          \ only; phase A is the parasite's)
 \ r_div8: A / r_v0 -> r_m0 quotient, A remainder (clobbers X).
 .r_div8
 {

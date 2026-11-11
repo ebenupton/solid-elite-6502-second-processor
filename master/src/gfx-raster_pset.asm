@@ -33,7 +33,7 @@ ENDIF
   AND RZ_T6
   EOR (RZ_PP)
   STA (RZ_PP)
-IF _TPART <> 2 OR _HOSTB    \ (the Tube's Master host keeps no dirty extents)
+IF _TPART <> 2             \ (the Tube's hosts keep no dirty extents)
   TXA
 .^r_pt01 CMP r_dl,Y
   BCS n1

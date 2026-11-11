@@ -5,8 +5,8 @@
 \ (build/nmos/: the Master port's sources through tube/tools/nmos.py).
 \
 \   * main RAM, reclaimed from the MOS while the game runs (hb-ws.asm): the
-\     entry points banks D and P call, the trampolines into them, the
-\     pre-erase, the renderer's globals, and the per-buffer arrays; saved as
+\     trampolines into bank P, the renderer's globals and the shared
+\     workspace's names the host's code uses; saved as
 \     HBS (the stash bank's image: hbswap exchanges it with the MOS's main
 \     RAM at the start and either side of each disc command);
 \   * &7E00-&7FFF, beyond the panel: hwrch, the IRQ's entry and hbswap,
@@ -34,21 +34,16 @@ _RBANK = 0
  CLEAR &0200, &1100     \ (the game's workspaces' names stay; the host's own
  CLEAR &7E00, &8000     \ use of these places follows)
 
- ORG RUNP
- GUARD MR_AEND
- INCLUDE "tsrc/hb-res1.asm"
- ASSERT runpj = RUNPJ AND p_rowrepr = P_ROWREPT
  ORG MR_A
+ GUARD MR_AEND
  INCLUDE "tsrc/hb-res2.asm"
 .MR_A_END
- PRINT "Model B main RAM: &", ~RUNP, "-&", ~MR_A_END-1, " (free ", MR_AEND-MR_A_END, ")"
+ PRINT "Model B main RAM: &", ~MR_A, "-&", ~MR_A_END-1, " (free ", MR_AEND-MR_A_END, ")"
 
  ORG GVARS
- GUARD MR_CEND
+ GUARD &0D00
  INCLUDE "build/nmos/gfx-gvars.asm"
  CPU 0
- ASSERT P% = MR_C
-.MR_C_END
 
  ORG MR_D
  GUARD MR_DEND

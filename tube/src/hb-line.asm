@@ -46,10 +46,6 @@ NEXT
 .rl_hi SKIP 1
 .rl_nl SKIP 1
 .rl_nh SKIP 1
-r_dl = R_DIRTYL0         \ (r_pset's dirty extents: unused on the dumb host)
-r_dr = R_DIRTYR0
-.r_m0 EQUB 0            \ (r_div8, r_dvq: quotient, divisor; gfx-raster.asm's)
-.r_v0 EQUB 0
 
  INCLUDE "build/nmos/gfx-raster_line.asm"
  CPU 0
