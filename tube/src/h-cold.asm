@@ -33,9 +33,9 @@ ENDIF
  STA HFONT+&200,X
  INX
  BNE hst6
-IF _HOSTB = 0
- JSR s_gen              \ (the STA runs, h-sta.asm, in banks 4, 5 and 6)
-ENDIF
+ JSR s_gen              \ (the runs: the Master host's STA runs, h-sta.asm, in
+                        \ banks 4, 5 and 6; the Model B host's row runs, in bank
+                        \ P, hb-kernel.asm)
 .hst1
  LDX #0                 \ ylookup (h-layout.asm, hb-ws.asm): &40 + 2 * (y DIV 8),
 .hst5                   \ as elite-source.asm's table, for the game's drawing

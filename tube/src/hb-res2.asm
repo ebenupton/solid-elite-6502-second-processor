@@ -12,6 +12,8 @@
  TRAMPOLINE RASTPOLY, r_sbruns
 .*T_SPAN
  TRAMPOLINE RASTPOLY, R_SPAN
+.*s_gen                 \ the row runs (hstart's: r_rgen)
+ TRAMPOLINE RASTPOLY, r_rgen
 .*hb_poly
  PAGE RASTPOLY
  JSR p_polyin

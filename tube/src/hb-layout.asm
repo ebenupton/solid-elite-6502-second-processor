@@ -26,7 +26,8 @@
 \     (hb-res3.asm);
 \   * bank P (RASTPOLY): the row runs, a page per character row of each
 \     buffer in order from &8000 (row r of buffer b at page &80 + 24b + r),
-\     so that no run is patched for a buffer; then the span kernel, the
+\     made at the host's start (hstart's s_gen), so that no run is patched
+\     for a buffer; then the span kernel, the
 \     code that enters them: the rasteriser's blocks tagged "Area: kernel"
 \     (streams.py's passes: r_rowset, r_spc, the per-x tables, R_SPAN,
 \     r_dspin, phase B) and phase B's set-up (gfx-raster_poly.asm), in a
@@ -130,24 +131,13 @@ MR_EEND = &8000
  PRINT "Model B &7E00 part: &", ~MR_E, "-&", ~MR_E_END-1, " (free ", MR_EEND-MR_E_END, ")"
 
 
-\ Bank P: the row runs, then the span kernel. Each run: 63 STA abs,Y (Y the
-\ pixel row), one per byte column of the character row, an RTS, and the
-\ 'nothing planted' target (offset 190); bytes 191-255 free
+\ Bank P: the row runs from &8000, which hstart has r_rgen make (s_gen:
+\ hb-kernel.asm), then the span kernel
  CLEAR &8000, &C000
  GUARD &C000
-FOR b, 0, 1
- FOR r, 0, 23
-  ORG &8000 + (24 * b + r) * &100
-  FOR c, 1, 63
-   STA BUF0 + b * (&4000 - BUF0) + r * &200 + c * 8 - r * 8, Y
-  NEXT
-  RTS
-  EQUB 0
- NEXT
-NEXT
  ORG &B000
  INCLUDE "build/nmos/hb-kernel.asm"   \ (tsrc/hb-kernel.asm in a scope of its own)
- SAVE "build/HBP.bin", &8000, &C000, &8000
+ SAVE "build/HBP.bin", &B000, P_KEND, &B000
 
 
 \ Bank F: the host's code, one run from &8000

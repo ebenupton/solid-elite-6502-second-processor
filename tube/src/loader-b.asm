@@ -255,9 +255,9 @@ BUF = &1C00             \ where each image is loaded before its copy
  EQUW MESSD, PT_HBD     \ index (&FF: main RAM), length
  EQUB &80, 0
  EQUW &4000
- EQUW MESSPB, PT_HBP
- EQUB &80, 1
- EQUW &4000
+ EQUW MESSPB, PT_HBP     \ (bank P's span kernel: its runs are hstart's)
+ EQUB &B0, 1
+ EQUW HBP_LEN
  EQUW MESSF, PT_HBF
  EQUB &80, 2
  EQUW HBF_LEN

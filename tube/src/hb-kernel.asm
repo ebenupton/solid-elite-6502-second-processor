@@ -48,7 +48,70 @@ FOR y, 0, 191
 NEXT
 .r_rpyl EQUB LO(r_rpy0), LO(r_rpy1)
 .r_rpyh EQUB HI(r_rpy0), HI(r_rpy1)
-.P_KEND
+
+\ r_rgen: the row runs, made at the host's start (hstart's s_gen): row r of
+\ buffer b's at page &80 + 24b + r: 63 STA abs,Y (Y the pixel row), one per
+\ byte column of the character row (column c's address, from the buffer's
+\ base, &200r + 8c - 8r), an RTS, and the 'nothing planted' target (offset
+\ 190); bytes 191-255 are not touched
+.r_rgen
+ LDA #0
+ STA RZ_PP
+ LDA #&80
+ STA RZ_PP+1
+ LDA #LO(BUF0 + 8)       \ (row 0, column 1)
+ STA RZ_T0
+ LDA #HI(BUF0 + 8)
+ STA RZ_T1
+ LDX #48                 \ (the runs to make)
+.rg1
+ LDA RZ_T0
+ STA RZ_T2
+ LDA RZ_T1
+ STA RZ_T3
+ LDY #0
+.rg2
+ LDA #r_opSTA
+ STA (RZ_PP),Y
+ INY
+ LDA RZ_T2
+ STA (RZ_PP),Y
+ INY
+ CLC
+ ADC #8
+ STA RZ_T2
+ LDA RZ_T3
+ STA (RZ_PP),Y
+ INY
+ ADC #0
+ STA RZ_T3
+ CPY #3 * 63
+ BNE rg2
+ LDA #r_opRTS
+ STA (RZ_PP),Y
+ INY
+ LDA #0
+ STA (RZ_PP),Y
+ INC RZ_PP+1
+ LDA RZ_T0               \ the next row: + &200 - 8
+ CLC
+ ADC #LO(&1F8)
+ STA RZ_T0
+ LDA RZ_T1
+ ADC #HI(&1F8)
+ STA RZ_T1
+ DEX
+ BEQ rg9
+ CPX #24
+ BNE rg1
+ LDA #LO(&4000 + 8)      \ buffer 1's
+ STA RZ_T0
+ LDA #HI(&4000 + 8)
+ STA RZ_T1
+ BNE rg1
+.rg9
+ RTS
+.*P_KEND
  PRINT "Model B bank P: the runs &8000-&AFFF, the span kernel &", ~P_KSTART, "-&", ~P_KEND-1, ", free to &C000: ", &C000-P_KEND
 
  ORG MR_A               \ (main RAM: the trampolines into bank P)
