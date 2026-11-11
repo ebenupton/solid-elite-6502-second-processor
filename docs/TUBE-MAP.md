@@ -20,18 +20,18 @@ files.
 | !BOOT | 1 | `*RUN ELITE` (beebasm's -boot) |
 | ELITE | 1 | the boot (tube/src/boot.asm, 44 bytes at &0900): OSBYTE 0's MOS version, 3 or more on a Master (3.20, 3.50; 4 the ET, 5 the Compact), 1 on a Model B (2 the B+); `*RUN ELITEM` or `*RUN ELITEB` |
 | ELITEM | 6 | the Master host's loader (tube/src/loader.asm, &2700, entered at &2755: above the kernel's code, which it copies to &0E00): checks the Tube (OSBYTE &EA) and sideways RAM in banks 4-7, draws Saturn, loads its files (below) and puts each into place, loads PCODE, starts the parasite |
-| ELITEB | 3 | the Model B host's loader (tube/src/loader-b.asm, &1900): checks the Tube, finds the first four sideways RAM slots, loads its images to &1C00, patches their bank numbers in and copies them, loads BDATA and PCODE, starts the parasite |
-| HOVD, HCODE, HOVS | 134 | the Master host's files, plain images: overlay D's stored image (42 pages, dealt into the STA runs' pages' tails), the host's code (bank 7 from &9400), overlay S's stored image (55 pages: main RAM from &2D00 and at &7000, bank 7 below its code) |
-| BDATA | 15 | the dashboard's image, both hosts' (the Master's loader copies it to shadow &7000, the Model B's loads it to &7000) |
-| HBD, HBP, HBF, HBS, HBE | 242 | the Model B host's images (banks D, P, F and S, and &7E00), as images |
+| ELITEB | 3 | the Model B host's loader (tube/src/loader-b.asm, &1900): checks the Tube, finds the first four sideways RAM slots (banks 4-7), loads its files to &1C00, patches the bank numbers into the host's images and copies each into place, loads PCODE, starts the parasite |
+| HOVD, HCODE, HOVS | 134 | plain images: overlay D's stored image (42 pages: the Master's loader deals it into the STA runs' pages' tails, the Model B's copies it to bank 5), the Master host's code (bank 7 from &9400), overlay S's stored image (55 pages: on the Master main RAM from &2D00 and at &7000, then bank 7 below its code; on the Model B bank 6) |
+| BDATA | 15 | the dashboard's image, both hosts' (the Master's loader copies it to shadow &7000, the Model B's to &7000) |
+| HBK, HBC, HBE | 77 | the Model B host's own files, plain images: its span kernel (bank 4 from &B000), its code bank (bank 7, the whole of it: the code, the tokens, and the host's image of &0E00-&10FF in DFS's place), its persistent block (&7E00) |
 | PCODE | 209 | the parasite's code, both hosts' (one build, `_HOSTB` FALSE: nothing in the parasite depends on the host) |
 | HMAIN | 27 | the Master host's main RAM: CHPR's font, then the kernel's code (&0E00) |
 
-640 of 800 sectors, 15 of 31 files: 160 sectors and 16 files free for saved
+475 of 800 sectors, 13 of 31 files: 325 sectors and 18 files free for saved
 commanders. The files are in the order the loaders read them: the Master's
-reads HOVD, HCODE, HOVS, BDATA, then (past the Model B's images) HMAIN and
-PCODE; the Model B's reads BDATA (past the Master's files), its images and
-PCODE.
+reads HOVD, HCODE, HOVS, BDATA, then (past the Model B's files) HMAIN and
+PCODE; the Model B's reads HOVD, HOVS (past HCODE), BDATA, its own files
+and PCODE.
 
 A host that cannot run the game stops with a message in mode 7, never a
 hang: no second processor ("This ELITE needs a 6502 co-processor:
@@ -50,9 +50,9 @@ bytes at a time (LDD), before s_gen writes the runs around them, so the
 run banks need no image of their own. Every other file is a plain image
 that the loader copies into place (FTAB: HCODE to bank 7, HOVS in three
 parts, BDATA to shadow &7000, HMAIN's kernel to &0E00). The Model B host's
-images are plain too (its loader patches bank numbers into each image at
-offsets the build lists); its row runs (48 pages of bank P, two sets) are
-regular enough to generate if the disc ever needs 48 more sectors.
+row runs (48 pages of bank 4, a set per buffer) are written by hstart's
+s_gen too (r_rgen, hb-kernel.asm); its files are plain images, into which
+its loader patches the bank numbers at offsets the build lists.
 
 ## The rule
 
@@ -218,7 +218,7 @@ p-rast.asm, p-emit.asm) `BIT PR1S` a `JMP` to their ring stubs (`STA (rq)`,
 the &FFFE vector; a BRK still goes to p_crash): the host rings a doorbell
 (any byte through register 1, host to parasite; the Tube's I flag on, J
 off: htflags) whenever it finds register 1 empty, in hloop and in every HRX
-(hrw: the Master host's main RAM; the Model B host's &7FE0), and the IRQ
+(hrw: the Master host's main RAM; the Model B host's &7E00 block), and the IRQ
 sends up to 23 bytes without checking for room (unrolled, about 16 cycles a
 byte with the IRQ's own cost), taking the doorbell last. Interrupts are on
 only in ring mode; the IRQ that finds the ring empty leaves ring mode
@@ -306,7 +306,7 @@ is spare.
 | Font | main &0400-&06FF | CHPR's font (FONT%, h-layout.asm's HFONT), the three pages the MOS's Tube code leaves after the boot (hstart clears &027A, so the MOS never calls it again): the loader puts the font in buffer 0 (HFONTST, &4000) with HMAIN, and hstart moves it here | 0 |
 | Kernel: code | main &0E00-&257D | the renderer's shared variables (gfx-gvars.asm); the command loop (h-main.asm from hwrch, &0E0F: the handlers that enter the runs, the storage reader h_ovlget, hbank, the requests h4body and the IRQ's h4irq); the span kernel (r_rowset, r_spc, the per-x tables at &1500-&18FF after 47 bytes of padding, R_SPAN, r_dspin, phase B to &1B35; s_pg and s_bk, s_gen, s_clr to &1D50: h-sta.asm); the game's host blocks (the sound, IRQ1 at &1E8C, CHPR at &1EFC, UP); the text and IRQ hooks (gfx-gluehooks.asm); the recursive tokens (QQ18 as stored and where each starts, &2094-&257D), which C_TOKEN reads in the IRQ | - |
 | Free | main &257E-&2744 | the kernel's room, between its code and its workspace (at the boot, the loader runs at &2700-&2C3D, above the code it copies and below overlay S's first page: the loader asserts both) | 455 |
-| Kernel: workspace | main &2745-&2AFF | one run ending below the disc buffers: f_enter's buffers F_HW and F_HW2 and f_unstar's F_DSX and F_DSY (&2745-&296E); of the renderer's shared workspace, R_X0 ... R_Y1, R_COL2, R_COL3, R_PYS, R_PYE, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&296F-&29D0); the panel's variables of WP (HWP, &29D1-&29FF: SWAP, JOPOS, DASHV ... dstab and the dials' and the compass's inputs dQQ14 ... dCOMY, which the game's workspace puts here for the Master host, as it puts them in bank F for the Model B host); ylookup (&2A00, a page: the page of each pixel row's character row, hstart's, for the game's drawing and the rasteriser, as r_ypg). No padding | - |
+| Kernel: workspace | main &2745-&2AFF | one run ending below the disc buffers: f_enter's buffers F_HW and F_HW2 and f_unstar's F_DSX and F_DSY (&2745-&296E); of the renderer's shared workspace, R_X0 ... R_Y1, R_COL2, R_COL3, R_PYS, R_PYE, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&296F-&29D0); the panel's variables of WP (HWP, &29D1-&29FF: SWAP, JOPOS, DASHV ... dstab and the dials' and the compass's inputs dQQ14 ... dCOMY, which the game's workspace puts here for the Master host, as it puts them at the Model B host's HWP, in bank 7); ylookup (&2A00, a page: the page of each pixel row's character row, hstart's, for the game's drawing and the rasteriser, as r_ypg). No padding | - |
 | Disc buffers | main &2B00-&2CFF | HDSTR (&2B00), HDERR (&2B80) and HDBUF (&2C00, cmds.asm's: savosc and lodosc name it) for h_disc | - |
 | Stored: S 0-18 | main &2D00-&3FFF (ACCCON X clear) | 19 pages of overlay S: the kernel's room's last three, then main RAM under shadow &3000-&3FFF | 0 |
 | Buffer 0 | main &4000-&6FFF | the screen; at the boot, also the loader's copy of HMAIN (the font, then the kernel's code) | - |
@@ -351,21 +351,133 @@ storage page by page, for tube/tools/tstore.mjs.
 
 ## The Model B host (64K sideways RAM)
 
-NMOS code made from the same sources (tube/tools/nmos.py, with tools/longbr.py
-for branches the longer code puts out of range), behind `_HOSTB` where it must
-differ (no ACCCON; the screen base; the banks).
+A BBC Micro Model B with four 16K sideways RAM banks and no shadow RAM,
+ANDY or HAZEL: buffer 0 &1000-&3FFF, buffer 1 &4000-&6FFF (the Master
+port's address, so direct mode is unchanged) and the panel &7000-&7DFF
+all take main RAM, split by a CRTC vertical rupture. NMOS code made from
+the same sources (tube/tools/nmos.py, with tools/longbr.py for branches
+the longer code puts out of range), behind `_HOSTB` where it must differ
+(no ACCCON; the screen base; the banks). tube/src/hb-layout.asm lays it
+out, the Master host's h-layout.asm again where the hardware allows; the
+figures below are from the build (tube/build/compile-hb.txt, hbmsyms.txt,
+and hbksyms.txt for the span kernel's names).
 
-| Region | Addresses | Holds |
-|---|---|---|
-| Main RAM taken from the MOS | &0236-&031F, &0E00-&0F40, &0FB0-&0FFF | the trampolines into banks P and F; ylookup at &0E00 (hstart makes it, h-cold.asm: one copy for the game's drawing in bank F and the rasteriser in banks P and D, as r_ypg); the overlays' storage handlers (hb-ovl.asm, &0F00); the polygon's and lines' inputs (PDATA, &0FB0); swapped with the MOS's contents through bank S for each disc command |
-| Buffer 0 | &1000-&3FFF | (the screen base is patched per buffer: the r_bs operands, f_bufpatch's glyph base) |
-| Buffer 1 | &4000-&6FFF | the Master port's addresses: direct mode unchanged |
-| Panel | &7000-&7DFF | the dashboard, the Master port's address |
-| &7E00-&7FB8 | | hwrch (WRCHV), the IRQ entry with the rupture's timer interrupt (hbi_t: point 2 whole, point 1's way into bank F), hbswap: not swapped; hrw at &7FE0 |
-| Bank S | &8000-&B7FF | the swapped main RAM, then overlay D's image from &8E00 (storage only, 42 of the 50 pages to &BFFF) |
-| Bank D | &8000-&B6FF | overlay S's image from its state's end (storage only); &B700-&BFFF free (9 pages: room for more overlay images or host tables) |
-| Bank P | &8000-&BFFF | phase B's fill and the polygon stream's entry (p_polyin) from &8000; the shared region from &9000 (r_dspin, the rows' set-up, R_SETBUF, r_spc, the per-x tables, R_SPAN, R_DOT, the stars); both buffers' row runs, a page per character row, so that none is patched for a buffer: buffer 1's (&4000) at &A000-&B7FF, buffer 0's (&1000) in the pages between, &8300-&8FFF, &9100-&98FF and &BC00-&BEFF; r_rpy0 (buffer 0's page per row, at &BF00) and r_rpy1 (buffer 1's, after the stars, in a page of its own: the room before it is free), which r_rowset's and phase B's LDA ,Y read, R_SETBUF patching the operand for the buffer; jump table at &BFC0 (P_PGFIX, P_POLY, P_LINE, P_MARKDIRTY, P_FLARE, P_LINEIN retired: BRK; JT + 3 is P_DSPANSIN) |
-| Bank F | &8000-&B775 | the command loop and handlers, f_glyph, f_enter, f_unstar, the panel's drawing, CHPR and its font, the sound, the interrupts (hb-irq.asm); then f_enter's buffer, then from &A72A the recursive tokens (QQ18 as stored, 960 bytes) and where each starts (298 bytes), which h4body's C_TOKEN reads in the IRQ (bank F paged); then from &AC14 the lines (hb-line.asm: R_LINE, its cold part, arithmetic, r_pset, tables and variables: C_LINE with no paging; f_bufpatch patches their screen base) |
+Four banks, four jobs, numbered as on the Master host: bank 4 the row runs
+and the span kernel, bank 5 overlay D, bank 6 overlay S, bank 7 all other
+host code. In main RAM the host has three places, each for one reason, and
+leaves the MOS's own alone.
+
+### The rules the layout follows
+
+1. **Four banks, four jobs.** Banks 4 to 7 are the first four sideways RAM
+   slots the loader finds; it patches their numbers into the host's images
+   at the offsets the build lists (assembled again with the banks at 8-11,
+   build/hb-patch.asm). Bank 4 holds the runs and the code that enters
+   them, bank 5 overlay D, bank 6 overlay S, bank 7 everything else.
+2. **Bank 7 is the resting bank.** It is paged whenever the host runs
+   outside bank 4. The command loop, every handler, the interrupts' bodies,
+   the lines, dots and stars, the panel and the text are one run from
+   &8000 in the Master host's order (what the Master keeps in its kernel,
+   then what it keeps in bank 7), with their private tables and the
+   recursive tokens after it, and calls itself with JSR.
+3. **The runs are addressed by row.** The run for character row r of
+   buffer b starts page &80 + 24b + r of bank 4: 63 `STA abs,Y` (Y the
+   pixel row), an RTS and the 'nothing planted' target, bytes 0-190;
+   bytes 191-255 are empty. hstart makes them (s_gen, r_rgen); they are not
+   on the disc. Only the span kernel enters a run, and it is in the same
+   bank, so a span pages nothing; r_rowset and phase B read the run page
+   from r_rpy0 or r_rpy1 (FOR loops), whichever R_SETBUF has pointed them
+   at.
+4. **One copy, with one exception.** No routine is assembled twice. The
+   per-x tables r_xo, r_lm and r_rm are in bank 4 for the spans and in
+   bank 7 for the lines, r_pset and the stars, both from the macros of
+   gfx-raster_xtab.asm, so they cannot differ: no main RAM that both banks
+   see could hold them. The span kernel (tube/src/hb-kernel.asm) is
+   assembled in a scope of its own (its INCLUDEs flattened into
+   build/nmos/hb-kernel.asm, as BeebAsm includes no file within braces)
+   so that its copy can have the same names; the trampolines into it
+   export theirs.
+5. **Main RAM has three places.** &0400-&06FF: the font, as on the Master
+   host, never swapped. &0E00-&0FFF: what both banks must see: ylookup,
+   the storage reader, the trampolines into bank 4. &7E00-&7FFF: what must
+   survive a disc command and be there whatever bank the MOS has paged.
+6. **The MOS's memory is the MOS's.** Nothing of the host's is in
+   &0236-&03FF, &0700-&0CFF or page &0D: tube/build.sh fails the build if
+   an instruction of the host's has an absolute operand there, but for the
+   MOS's variables it means to address (the Tube flag &027A, which hstart
+   clears; the text cursor &0308 and &0318, hwpos's). The host borrows only
+   DFS's workspace, &0E00-&10FF, which the screen forces it to (buffer 0
+   starts at &1000), and gives it back for each disc command.
+7. **One workspace.** Everything the host writes while it runs, and DFS's
+   three pages while the game runs, is one run at the top of bank 7, as the
+   Master host's workspace is one run at the top of its kernel: of the
+   renderer's shared workspace only what the host's code names
+   (hb-layout.asm's `HWS` lines; tube/build.sh writes build/hb-wsn.asm,
+   and its length build/hb-wsc.asm), and the panel's variables of WP
+   placed by HWP. The only such variables outside it are the span kernel's
+   own (hb-kernel.asm's `HWSP` lines, build/hb-wsp.asm: phase B's colours
+   and rows), which must be seen with bank 4 paged, and the persistent
+   block's (hwrch's, the IRQ's, the rupture's), which must be seen with any
+   bank paged. A name the host's code uses that is not listed fails the
+   assembly.
+
+### The map
+
+| Region | Addresses | Holds | Used | Free |
+|---|---|---|---:|---:|
+| Zero page and stack | &0000-&01FF | the game's zero page (build/elite-source-ws.asm), as the Master host's; the rasteriser's &06-&27 | - | - |
+| The MOS's | &0200-&03FF | the MOS's vectors and variables: IRQ1V = irqm, WRCHV = hwrch, BRKV = hdbrk during a disc command; nothing of the host's | - | - |
+| Font | &0400-&06FF | CHPR's font (FONT%, HFONT), the pages of the MOS's Tube code, which runs the boot and then is never called again (hstart clears &027A): hstart moves it here from its first place in bank 7 (HFONTST) before anything prints | 768 | 0 |
+| The MOS's | &0700-&0DFF | the MOS's buffers and page &0D: nothing of the host's (JOPOS, SWAP and the panel's variables are bank 7's, through HWP) | - | - |
+| Low pages | &0E00-&0FA9 | ylookup (&0E00, a page: the page of each pixel row's character row, hstart's, for the game's drawing and the rasteriser, as r_ypg); the storage reader hb_ovlget (&0F00, hb-ovl.asm), which pages banks 5 and 6; the trampolines into bank 4 (&0F41, hb-res2.asm: tA, tback, T_SBRUNS, T_SPAN, s_gen, hb_poly, hb_dspans, hbloop). DFS's pages: exchanged, with &1000-&10FF, around a disc command | 426 | 86 |
+| Buffer 0 | &1000-&3FFF | the screen. A disc command's buffers are at HDBUF - &100, HDBUF - &80 and HDBUF (&2B00 the command, &2B80 the error, &2C00 the sector buffer), by the Master host's definition | - | - |
+| Buffer 1, panel | &4000-&7DFF | the screen and the dashboard (the loader copies BDATA to &7000) | - | - |
+| Persistent block | &7E00-&7EEE | beyond the panel, never swapped (hb-res3.asm): hwrch (WRCHV), hdbrk, irqm (IRQ1V: register 4's requests, timer 1 and vsync are the host's, anything else the MOS's), hbi_t (the rupture's point 2 whole, point 1's way into bank 7), irq4, hrw; and their variables | 239 | 273 |
+| Bank 4: buffer 0's runs | &8000-&97FF | rows 0-23, a page each (hstart's) | 24 pp | 24 tails of 65 |
+| Bank 4: buffer 1's runs | &9800-&AFFF | rows 0-23 | 24 pp | 24 tails of 65 |
+| Bank 4: span kernel | &B000-&BA25 | hb-kernel.asm in its scope: its variables R_COL2, R_COL3, R_PYS, R_PYE; the rasteriser's blocks tagged `Area: kernel` (r_rowset, r_sbruns, r_spc; the per-x tables r_xo, r_jm, r_lm, r_rm at &B100-&B4FF after 43 bytes of padding; R_SPAN; r_dspin); phase B's set-up and fill (gfx-raster_poly.asm and polyb, from r_pcbs at &B561); p_polyin; r_rpy0 (&B800) and r_rpy1 (&B900), each in a page of its own (102 bytes of padding); r_rgen. The loader copies HBK here | 2598 | 1498 |
+| Bank 5: overlay D | &8000-&A9FF | D's 42 pages, the loader's copy of HOVD | 42 pp | 22 pp |
+| Bank 6: overlay S | &8000-&B6FF | S's 55 pages from its state's end, the loader's copy of HOVS | 55 pp | 9 pp |
+| Bank 7: code | &8000-&AF38 | one run (the loader copies HBC, the whole bank): the renderer's shared variables (gfx-gvars.asm), the command loop (h-main.asm), the interrupts' bodies (hb-irq.asm), the game's host blocks (the sound, CHPR, UP) and the text hooks (gfx-gluehooks.asm); the panel's drawing (the blocks tagged "Tube: hostb", log, logL, alogh last at &9600-&98FF after 8 bytes of padding); the second copy of the per-x tables r_xo, r_lm, r_rm (&9900-&9BFF); R_LINE (gfx-raster_line.asm and lineb); the frame layer's host part (gfx-frame.asm, gfx-frame_cold.asm); the rarely run code (h-cold.asm: hstart, h_disc, hbswap); the handlers (h-panel.asm, h-prim.asm); the rasteriser's own place (gfx-raster.asm: R_SETBUF, the star records, r_pclip, r_pset, R_DOT, R_STARERASE, R_STARPLOT; gfx-raster_lcold.asm: the lines' cold part and the rasteriser's private state) | 12089 | - |
+| Bank 7: tokens | &AF39-&B422 | the recursive tokens (QQ18 as stored) and where each starts, which C_TOKEN reads in the IRQ (irqm pages bank 7) | 1258 | - |
+| Bank 7: free | &B423-&BA46 | the room the code leaves (the font's first place starts in its last 71 bytes) | - | 1572 |
+| Bank 7: workspace | &BA47-&BFFF | one run: f_enter's buffers F_HW, F_HW2 and f_unstar's F_DSX, F_DSY (&BA47-&BC70); of the renderer's shared workspace R_X0 ... R_Y1, R_COL2, R_COL3, R_SS, R_SX, R_SY, R_SN, R_SCOL and F_DSS (&BC71-&BCD0); the panel's variables of WP (HWP, &BCD1-&BCFF); DFS's three pages while the game runs (HBST, &BD00-&BFFF), where the loader puts the host's image of &0E00-&10FF for hstart's first hbswap. CHPR's font is first put at &BA00-&BCFF, across the workspace and the room below it, and moved before anything uses them | 1465 | 0 |
+
+Overlay D can reach 64 pages in bank 5; S is at its ceiling of 55 already.
+The two overlay banks keep 31 whole pages free between them, and bank 4 its
+1498 bytes and the run pages' tails.
+
+### The swap
+
+Around a disc command h_disc exchanges &0E00-&10FF with bank 7's HBST
+(hbswap, in bank 7: interrupts off, three pages), so that DFS has its
+workspace back while the MOS runs the command, and the host its low pages
+after. Nothing else is swapped: the font at &0400-&06FF stays, as the MOS
+never calls its Tube code again, and the MOS's own pages were never the
+host's. While the command runs, irqm (in the persistent block) still takes
+timer 1 and vsync, and hwrch prints the MOS's output (a catalogue) with
+CHPR in bank 7. tube/tools/tsavetest.mjs checks ylookup (from the
+symbols) and the font after a save, a load, an error and a catalogue; a
+BREAK while DFS runs a command resets the machine (the loader's *FX200,3),
+and SHIFT+BREAK boots the game again.
+
+### The loader
+
+tube/src/loader-b.asm runs at &1900, above DFS's workspace and clear of
+everything it fills. It checks the Tube (OSBYTE &EA) and finds the first
+four sideways RAM slots (a byte at &8008 that reads back as written), or
+stops with a message in mode 7. Then FTAB, in the disc's order, each file
+loaded to &1C00, its bank numbers patched in (PATCH, build/hb-patch.asm:
+offsets by bank, 0-3 for banks 4-7) and copied: HOVD to bank 5 and HOVS to
+bank 6, both from &8000 (the files the Master host's loader reads); BDATA
+to &7000; HBK to bank 4 from &B000; HBC to bank 7, the whole bank; HBE to
+&7E00. Then PCODE into the parasite, WRCHV = hwrch, and the parasite
+started through the MOS's Tube code, which passes its first byte, &FE, to
+hwrch: hstart pages bank 7, moves the font to &0400, exchanges the low
+pages with DFS's (hbswap), has the row runs made (s_gen), makes ylookup,
+starts the rupture (hb_t1init), and the command loop begins.
+
+### The rupture
 
 The dashboard split is a CRTC vertical rupture (tube/spike/rupture.asm): two
 CRTC frames per field, timer 1 firing twice a field to set each frame's
@@ -373,10 +485,8 @@ R4/R6/R7 and start address (R12 only: R13 is 0 for every start address,
 written once by hb_t1init; the latch's high byte only, the two periods'
 low bytes being equal); a flip takes effect at the next frame A. The
 timer's interrupt saves only A: irqm's hbi_t (main RAM) does point 2
-without paging, and pages bank F for point 1 (hbi_p1), where the flip's
-state is. The
-loader (tube/src/loader-b.asm, at &1900) finds the first four sideways RAM
-banks and patches their numbers into the images (build/hb-patch.asm).
+without paging, and pages bank 7 for point 1 (hbi_p1), where the flip's
+state is.
 
 ## Screen stores: the Master host's STA runs, the row runs
 
@@ -386,9 +496,8 @@ in banks 4, 5 and 6, the same address in both buffers, made at the host's
 start). At a 3 MHz parasite
 they are 0.3-2.2% faster than the row runs (one run per character row,
 `STA abs,Y` with Y the row, as the Master port's: TUBE-REPORT.md). The
-Model B host has the row runs, a set per buffer (48 pages of bank P, its
-lines moved to bank F to make the room), so that no run is patched for a
-buffer.
+Model B host has the row runs, a set per buffer (48 pages of bank 4, made
+at the host's start), so that no run is patched for a buffer.
 
 The Model B host's NMOS code is tube/tools/nmos.py's conversion with hand
 fixes (tube/build.sh's --sub) where nmos.py, which keeps every register

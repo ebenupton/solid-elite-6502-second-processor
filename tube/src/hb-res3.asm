@@ -2,7 +2,7 @@
 
 .hwrch                  \ WRCHV while the MOS's Tube code runs the host: &FE
  CMP #&FE               \ from the parasite starts the command loop; anything
- BNE hwr1               \ else is printed (CHPR, bank F)
+ BNE hwr1               \ else is printed (CHPR, bank 7)
  PAGE GFXBANK
  JMP hstart
 .hwr1
@@ -31,8 +31,8 @@
  PAGE GFXBANK
  JMP h_derr
 
-.irqm                   \ IRQ1V: register 4's requests (bank F's h4body, while
- BIT h4on               \ h4on), timer 1 or vsync are ours (bank F's hb_irq,
+.irqm                   \ IRQ1V: register 4's requests (bank 7's h4body, while
+ BIT h4on               \ h4on), timer 1 or vsync are ours (bank 7's hb_irq,
  BPL irq0               \ with the bank kept); anything else is the MOS's
  BIT HR4S
  BPL P%+5
@@ -95,7 +95,7 @@
  LDA &FE44              \ (clears timer 1's flag)
  LDA &FC
  RTI
-.hbi_p1m                \ point 1: bank F's hbi_p1 (the flip's state is there)
+.hbi_p1m                \ point 1: bank 7's hbi_p1 (the flip's state is there)
  LDA &F4
  PHA
  PAGE GFXBANK
@@ -121,7 +121,7 @@
  JMP irq9
 
 .hrw                    \ register 1 empty: ring the parasite's doorbell (h-main.asm's
- BIT HR1S               \ Master copy says how): here, as banks F and P both call it
+ BIT HR1S               \ Master copy says how): here, as banks 7 and 4 both call it
  BMI hrw9
  BVC hrw
  STA HR1D

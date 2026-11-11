@@ -4,9 +4,9 @@
 \ in two parts (hb-layout.asm):
 \
 \   hb_tramp  hb-res2.asm, after the storage reader at &0F00, in the span
-\             kernel's scope (hb-kernel.asm): the trampolines from bank F (the
+\             kernel's scope (hb-kernel.asm): the trampolines from bank 7 (the
 \             resting bank, where the command loop and its handlers are) into
-\             bank P
+\             bank 4
 \   hb_pers   hb-res3.asm, at &7E00 (beyond the panel, which no disc command
 \             touches): WRCHV's hwrch, the IRQ's entry and hrw
 \

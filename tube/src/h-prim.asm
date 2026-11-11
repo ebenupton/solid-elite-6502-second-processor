@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ h-prim.asm - the dumb host's drawing commands (docs/TUBE-MAP.md), in the
-\ resting bank (the Master host's bank 7, the Model B host's bank F): the
+\ resting bank (bank 7, on both hosts): the
 \ parasite decides everything (p-rast.asm); these draw what it sends, with the
 \ Master port's own drawing code (the rasteriser's row runs, phase B's fill,
 \ R_SPAN, R_LINE, R_DOT, R_STARPLOT and R_STARERASE, the frame layer's

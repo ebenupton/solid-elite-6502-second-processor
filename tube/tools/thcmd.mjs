@@ -69,16 +69,16 @@ const dir = a.csyms.replace(/[^/]*$/, "");
 
 // ---- the host's labels by place: main RAM (and HAZEL, the Master's), and
 // each sideways bank by ROMSEL (Master: 5 bank 5, 85 ANDY, 6 bank 6; Model B:
-// the loader's banks D, P, F, S in slots 4-7)
+// banks 4-7, the loader's first four RAM slots, as tlib.mjs has them)
 const LB = {};
 const add = (map, k, v) => (LB[map] ||= []).push([k, v]);
 // (not the operands' patch labels inside routines, r_bsN and r_ptN: a
 // routine's cycles go to its own name)
 const skip = k => /^(CODE|LOAD|B5_|B6_|RA_|F_START|F_END|MR_)/.test(k) || /^r_(bs|pt)\d+$/.test(k);
 if (HB) {
-    const hm = loadSyms(a.hsyms || dir + "hbmsyms.txt"), hp = loadSyms(dir + "hbksyms.txt");   // (bank P's span kernel: tube/build.sh)
-    for (const [k, v] of Object.entries(hm)) if (!skip(k)) add(v >= 0x8000 && v < 0xc000 ? "6" : "m", k, v);
-    for (const [k, v] of Object.entries(hp)) if (!skip(k) && v >= 0x8000 && v < 0xc000) add("5", k, v);
+    const hm = loadSyms(a.hsyms || dir + "hbmsyms.txt"), hp = loadSyms(dir + "hbksyms.txt");   // (bank 4's span kernel: tube/build.sh)
+    for (const [k, v] of Object.entries(hm)) if (!skip(k)) add(v >= 0x8000 && v < 0xc000 ? "7" : "m", k, v);
+    for (const [k, v] of Object.entries(hp)) if (!skip(k) && v >= 0x8000 && v < 0xc000) add("4", k, v);
 } else {
     const hsy = loadSyms(a.hsyms || dir + "hsyms.txt"), hb = {};
     for (const l of readFileSync(dir + "hbanks.txt", "utf8").split("\n")) { const [n, b] = l.split(" "); if (n) hb[n] = b; }
@@ -86,7 +86,7 @@ if (HB) {
 }
 for (const l of Object.values(LB)) l.sort((x, y) => x[1] - y[1]);
 const near = (pc, map) => { const labs = LB[map] || []; let lo = 0, hi = labs.length - 1, r = null; while (lo <= hi) { const k = (lo + hi) >> 1; if (labs[k][1] <= pc) { r = labs[k][0]; lo = k + 1; } else hi = k - 1; } return r; };
-const BANKN = HB ? { 4: "D", 5: "P", 6: "F", 7: "S" } : { 4: "4", 5: "5", 6: "6", 7: "7" };
+const BANKN = { 4: "4", 5: "5", 6: "6", 7: "7" };
 const labOf = pc => {
     if (pc >= 0xc000 && (HB || !(pc < 0xe000 && (host.acccon & 8)))) return "MOS";
     if (pc < 0x8000 || pc >= 0xc000) return near(pc, "m") || "?";
@@ -95,9 +95,9 @@ const labOf = pc => {
     return (BANKN[r] || r) + ":" + near(pc, String(r));
 };
 const sym = (n, map) => { const l = LB[map].find(([k]) => k === n); if (!l) throw new Error("no host label " + n); return l[1]; };
-const HMAP = HB ? "6" : "m";    // (the command loop: bank F, the Master's main RAM)
+const HMAP = HB ? "7" : "m";    // (the command loop: bank 7, the Master's main RAM)
 const HDISP = sym("hdisp", HMAP), HLOOP = sym("hloop", HMAP);
-const inLoop = pc => !HB || (host.romsel & 15) === 6;
+const inLoop = pc => !HB || (host.romsel & 15) === 7;
 const CN = {};
 for (const l of readFileSync(new URL("../src/cmds.asm", import.meta.url), "utf8").split("\n")) { const mm = l.match(/^(C_[A-Z0-9_]+)\s*=\s*(\d+)/); if (mm) CN[+mm[2]] = mm[1]; }
 const IRQV = host.readmem(0xfffe) | host.readmem(0xffff) << 8;

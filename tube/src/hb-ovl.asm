@@ -1,6 +1,6 @@
 \ hb-ovl.asm - the Model B host's storage of the parasite's overlays (p-ovl.asm),
-\ in main RAM (&0F00: it pages the banks that hold them): overlay D in bank S
-\ from OVLD_AT, overlay S in bank D
+\ in main RAM (&0F00: it pages the banks that hold them): overlay D in bank 5,
+\ overlay S in bank 6, each from &8000
 
 .hb_ovlget              \ C_OVLGET (h-main.asm's): overlay A's pages, through
  HRX                    \ register 4
@@ -26,7 +26,7 @@
  TAX
  LDY #0
  RTS
-.hbo_b EQUB OVLBANK, RASTBANK                  \ (D, S: S's image from its state's
-.hbo_h EQUB HI(OVLD_AT), &80                    \ end, the state being never kept:
-.hbo_n EQUB OVLD_PAGES, OVLS_PAGES - OVLS0_PAGES \ p-ovl.asm; bank D's rest is free)
+.hbo_b EQUB OVLDBANK, OVLSBANK                 \ (D, S: S's image from its state's
+.hbo_h EQUB &80, &80                            \ end, the state being never kept:
+.hbo_n EQUB OVLD_PAGES, OVLS_PAGES - OVLS0_PAGES \ p-ovl.asm)
  ASSERT OVLS_PAGES - OVLS0_PAGES <= 64

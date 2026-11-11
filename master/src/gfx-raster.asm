@@ -708,7 +708,7 @@ ENDIF
 \ Page-aligned per-x tables, at &9C00: the row runs after them start at &A000
 \ (a page whose number is a multiple of 32: asserted below)
 \ ============================================================================
-IF _TPART = 2               \ (the Tube's hosts: in the kernel, the Model B's in bank P)
+IF _TPART = 2               \ (the Tube's hosts: in the kernel, the Model B's in bank 4)
 ALIGN &100
 ELSE
 ASSERT P% <= r_start + &C00

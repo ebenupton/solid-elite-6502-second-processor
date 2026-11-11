@@ -1,9 +1,9 @@
 \ ******************************************************************************
 \
-\ h-cold.asm - the host's rarely run code, in the resting bank (the Master
-\ host's bank 7, the Model B host's bank F), so that the command loop reaches
-\ it directly: the command loop's start (from hwrch, which pages the resting
-\ bank) and the disc command (the host's own OSCLI)
+\ h-cold.asm - the host's rarely run code, in the resting bank (bank 7, on
+\ both hosts), so that the command loop reaches it directly: the command
+\ loop's start (from hwrch, which pages the resting bank) and the disc
+\ command (the host's own OSCLI)
 \
 \ ******************************************************************************
 
@@ -253,7 +253,7 @@ ENDIF
 IF _HOSTB
 .hbswap                 \ (Model B) exchange &0E00-&10FF (DFS's workspace: the
  LDX #0                 \ host's low pages, hb-layout.asm, and buffer 0's first)
-.hbs1                   \ with bank F's HBST (DFS's while the game runs, the
+.hbs1                   \ with bank 7's HBST (DFS's while the game runs, the
 FOR p, 0, 2             \ host's while a disc command does). Interrupts off
  LDA &0E00 + p * &100,X
  LDY HBST + p * &100,X

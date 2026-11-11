@@ -1,6 +1,6 @@
 \ ******************************************************************************
 \
-\ hb-irq.asm - the Model B host's interrupts (bank F, through hb-res.asm's
+\ hb-irq.asm - the Model B host's interrupts (bank 7, through hb-res.asm's
 \ irqm), NMOS: the dashboard split by a CRTC vertical rupture
 \ (tube/spike/rupture.asm), the flip, the sound and the joystick.
 \
@@ -51,7 +51,7 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  BCC P%+4
  LDY #0
  STY &FEC0
- JMP SOINT              \ (bank F; returns to irqm)
+ JMP SOINT              \ (bank 7; returns to irqm)
 
 .hb_vl EQUB 0           \ (point 1: non-zero if the last field flipped)
 .hbi_p1                 \ point 1, line 196 (frame B has started), from irqm's

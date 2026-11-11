@@ -9,7 +9,7 @@
 \ The Master host's code is bank 7's, paged whenever it runs outside the STA
 \ runs, and the kernel's in main RAM (h-layout.asm): only the kernel pages a
 \ line's bank in, and it pages bank 7 back (hbank). The Model B host's
-\ resting bank is bank F (the trampolines into its rasteriser page it back).
+\ resting bank is bank 7 (the trampolines into its rasteriser page it back).
 \
 \ Entered through WRCHV (hwrch): the loader starts the parasite through the
 \ MOS's Tube code, which leaves the host in its idle loop, passing register
@@ -287,7 +287,7 @@ ENDIF
  HRX
  STA zR_COLO
 IF _HOSTB
- JSR T_SPAN             \ (Model B: bank D's R_SPAN)
+ JSR T_SPAN             \ (Model B: bank 4's R_SPAN)
  JMP hloop
 ELSE
  JSR R_SPAN

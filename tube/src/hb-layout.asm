@@ -19,23 +19,23 @@
 \   * CHPR's font at &0400-&06FF (HFONT), the pages of the MOS's Tube code,
 \     which runs the boot and then is never called again (hstart clears
 \     &027A): hstart moves it there from its first place, HFONTST;
-\   * &0E00-&0FFF, what both banks P and F must see: ylookup, the storage
+\   * &0E00-&0FFF, what both banks 4 and 7 must see: ylookup, the storage
 \     reader (hb-ovl.asm), which pages the overlays' banks, and the
-\     trampolines into bank P (hb-res2.asm). These are DFS's pages, which
+\     trampolines into bank 4 (hb-res2.asm). These are DFS's pages, which
 \     the screen forces the host to borrow (buffer 0 starts at &1000):
-\     hbswap exchanges &0E00-&10FF with bank F's HBST around each disc
+\     hbswap exchanges &0E00-&10FF with bank 7's HBST around each disc
 \     command, so DFS has its three pages back while it runs;
 \   * &7E00-&7FFF, beyond the panel, what must survive a disc command and
 \     be there whatever bank the MOS has paged: WRCHV's hwrch, the IRQ's
 \     entry and point 2 of the rupture, hrw (hb-res3.asm);
-\   * bank P (RASTPOLY): the row runs, a page per character row of each
+\   * bank 4 (RUNBANK): the row runs, a page per character row of each
 \     buffer in order from &8000 (row r of buffer b at page &80 + 24b + r),
 \     made at the host's start (hstart's s_gen), so that no run is patched
 \     for a buffer; then the span kernel, the code that enters them, and its
 \     own variables (hb-kernel.asm, in a scope of its own, as the per-x
-\     tables are in bank F too);
-\   * bank F (GFXBANK, the resting bank, paged whenever the host runs outside
-\     bank P): all of the host's other code, one run from &8000 in the
+\     tables are in bank 7 too);
+\   * bank 7 (GFXBANK, the resting bank, paged whenever the host runs outside
+\     bank 4): all of the host's other code, one run from &8000 in the
 \     Master host's order: what the Master host keeps in its kernel (the
 \     renderer's shared variables, the command loop, the interrupts, the
 \     game's host blocks), then what it keeps in bank 7 (the panel's
@@ -51,8 +51,9 @@
 \     hstart's first hbswap). CHPR's font is first put across the
 \     workspace and the room below it (HFONTST), and moved before the
 \     workspace is used;
-\   * the stash bank S (STASHBANK): overlay D's image from &8000; bank D
-\     (RASTBANK): overlay S's (hb-ovl.asm).
+\   * bank 5 (OVLDBANK): overlay D's image from &8000, the loader's copy of
+\     HOVD; bank 6 (OVLSBANK): overlay S's, of HOVS, the files the Master
+\     host's loader reads too (hb-ovl.asm reads them).
 \
 \ The bank numbers here are the defaults; the loader patches the code for
 \ the banks it finds (tube/build.sh lists the operands to patch).
@@ -74,11 +75,11 @@ ACCY = 8                \ (no ACCCON on a Model B: &FE34 is ROMSEL's)
 MAXSH = 13              \ ships per frame
 MAXLN = 48              \ lines per frame
 MAXDT = 64              \ dots per frame
-RASTBANK = HBB          \ D: the parasite's overlay S, stored (hb-ovl.asm)
-RASTPOLY = HBB + 1      \ P: the row runs and the span kernel
-GFXBANK = HBB + 2       \ F: the host's code: the resting bank
-STASHBANK = HBB + 3     \ S: the parasite's overlay D, stored (HBB: beebasm -D,
-                        \ 4; the build assembles again with 8 to find the
+RUNBANK = HBB           \ bank 4: the row runs and the span kernel
+OVLDBANK = HBB + 1      \ bank 5: the parasite's overlay D, stored (hb-ovl.asm)
+OVLSBANK = HBB + 2      \ bank 6: the parasite's overlay S, stored
+GFXBANK = HBB + 3       \ bank 7: the host's code, the resting bank (HBB: beebasm
+                        \ -D, 4; the build assembles again with 8 to find the
                         \ operands to patch)
 ELITEBANK = HOMEBANK
 ONEPASS = FALSE         \ (the parasite's: p-ws.asm)
@@ -88,8 +89,6 @@ R_ROWS = 192            \ the lines of the 3D view (phase B's end row, r_pcbs)
 BUF0 = &1000            \ buffer 0's screen (buffer 1's is the Master port's &4000)
 PANEL = &7000
 HFONT = &0400           \ (CHPR's font: FONT%, elite-source.asm)
-OVLBANK = STASHBANK     \ the parasite's overlays' images (storage only: hb_ovlget),
-OVLD_AT = &8000         \ overlay D's from its bank's first page
 
  INCLUDE "tsrc/hb-res.asm"
  INCLUDE "tsrc/h-zp.asm"
@@ -124,7 +123,7 @@ r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
  GUARD &C000
  ORG &B000
  INCLUDE "build/nmos/hb-kernel.asm"   \ (tsrc/hb-kernel.asm in a scope of its own)
- SAVE "build/HBP.bin", &B000, P_KEND, &B000
+ SAVE "build/HBK.bin", &B000, P_KEND, &B000
 
 
 \ Bank F: the host's code, one run from &8000
@@ -143,7 +142,7 @@ r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
  CPU 0
  INCLUDE "build/nmos/elite-source-hostb.asm"   \ (the panel's drawing: its log tables
  CPU 0                                         \ last, page aligned)
-.r_xo                   \ the per-x tables: bank P's (gfx-raster.asm's, the span
+.r_xo                   \ the per-x tables: bank 4's (gfx-raster.asm's, the span
  R_XOTAB                \ kernel's) again, from the one source (gfx-raster_xtab.asm),
 .r_lm                   \ for R_LINE (after them), r_pset and the stars
  R_LMTAB
@@ -168,7 +167,7 @@ r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
 .F_CODE_END
 \ The recursive tokens (QQ18, as stored: build/HQQ18.bin) and where each
 \ starts (build/htokix.asm): data that h4body's C_TOKEN sends to the
-\ parasite from the IRQ, which pages bank F
+\ parasite from the IRQ, which pages bank 7
 .HQQ18
  INCBIN "build/HQQ18.bin"
  INCLUDE "build/htokix.asm"
@@ -201,6 +200,6 @@ HFONTST = HBST - &300
  ORG HFONTST
  INCBIN "src/fonts/P.FONT.bin"
  ASSERT HI(r_xo) = HI(alogh) + 1
- PRINT "Model B bank F: code &8000-&", ~F_CODE_END-1, ", the tokens &", ~HQQ18, "-&", ~F_END-1, ", free &", ~F_END, "-&", ~H_WS-1, ": ", H_WS-F_END, ", the workspace &", ~H_WS, "-&BFFF (DFS's pages from &", ~HBST, ")"
- SAVE "build/HBF.bin", &8000, &C000, &8000
+ PRINT "Model B bank 7: code &8000-&", ~F_CODE_END-1, ", the tokens &", ~HQQ18, "-&", ~F_END-1, ", free &", ~F_END, "-&", ~H_WS-1, ": ", H_WS-F_END, ", the workspace &", ~H_WS, "-&BFFF (DFS's pages from &", ~HBST, ")"
+ SAVE "build/HBC.bin", &8000, &C000, &8000
  SAVE "build/HBE.bin", &7E00, &8000

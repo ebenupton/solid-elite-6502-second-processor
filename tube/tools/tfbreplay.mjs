@@ -67,7 +67,7 @@ const host = cand.host;
 let syncSeen = false;
 host.debugInstruction.add(pc => {
     // (the Model B host: another bank may have code at h_sync's address; only
-    // bank F's NOP there is C_SYNC's)
+    // bank 7's NOP there is C_SYNC's)
     if ((pc === hsy.h_sync || pc === hsy.h_syncb) && host.readmem(hsy.h_sync) !== 0xea) return false;
     // (jsbeeb skips this hook on a slice's first instruction: h_sync is a NOP and
     // h_syncb the instruction after it, so one of the two is always seen)

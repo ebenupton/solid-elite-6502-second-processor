@@ -1,13 +1,13 @@
 \ ******************************************************************************
 \
-\ hb-kernel.asm - the Model B host's span kernel, in bank P after the row runs
+\ hb-kernel.asm - the Model B host's span kernel, in bank 4 after the row runs
 \ (hb-layout.asm): the code that enters them, the rasteriser's blocks tagged
 \ "Area: kernel" (streams.py's passes: r_rowset, r_sbruns, r_spc, the per-x
 \ tables, R_SPAN, r_dspin, phase B) and phase B's set-up and entry, then the
 \ run pages' tables; and the trampolines into it, in main RAM (hb-res2.asm).
 \ Its names are its own: tube/build.sh assembles it in a scope (its INCLUDEs
 \ flattened into build/nmos/hb-kernel.asm, as BeebAsm includes no file within
-\ braces), because the per-x tables have the same names in bank F, where the
+\ braces), because the per-x tables have the same names in bank 7, where the
 \ lines, r_pset and the stars read them; the trampolines' names are exported
 \ (.*)
 \
@@ -117,10 +117,10 @@ NEXT
 .rg9
  RTS
 .*P_KEND
- PRINT "Model B bank P: the runs &8000-&AFFF, the span kernel &", ~P_KSTART, "-&", ~P_KEND-1, ", free to &C000: ", &C000-P_KEND
+ PRINT "Model B bank 4: the runs &8000-&AFFF, the span kernel &", ~P_KSTART, "-&", ~P_KEND-1, ", free to &C000: ", &C000-P_KEND
 
  ORG MR_D_END           \ (main RAM, after the storage reader: the trampolines
- GUARD &1000            \ into bank P)
+ GUARD &1000            \ into bank 4)
  INCLUDE "tsrc/hb-res2.asm"
 .MR_A_END
  PRINT "Model B &0E00-&", ~MR_A_END-1, ": ylookup, the storage reader, the trampolines (free ", &1000-MR_A_END, ")"

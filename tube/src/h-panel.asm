@@ -1,7 +1,7 @@
 \ ******************************************************************************
 \
 \ h-panel.asm - the host's panel commands (docs/TUBE-MAP.md), in the resting
-\ bank (the Master host's bank 7, the Model B host's bank F)
+\ bank (bank 7, on both hosts)
 \
 \ ******************************************************************************
 
