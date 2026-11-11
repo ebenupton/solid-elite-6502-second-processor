@@ -114,10 +114,6 @@ MACRO HRX               \ A = the next byte from the parasite (register 1); if
  LDA HR1D
 ENDMACRO
 
-IF _HOSTB                 \ (the Model B host: hrw in main RAM, beyond the panel,
- hrw = &7FE0              \ which banks F and P both call, hb-main.asm; the panel's
- HWP = &C000 - 47         \ variables of WP at bank F's top: the game's workspace
-ENDIF                     \ puts SWAP, JOPOS, DASHV ... dCOMY there, asserted)
 
 MACRO HTX               \ send A to the parasite (register 4)
  BIT HR4S

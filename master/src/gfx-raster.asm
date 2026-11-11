@@ -227,18 +227,7 @@ r_opRTS = &60
 \ r_sbh_bd*).  The most read, R_BDN and R_BDX0, are at low bytes &00 and
 \ &40: reading them ,X never crosses a page.
 \ ============================================================================
-IF _HOSTB                     \ (Model B, bank P: no boundary arrays; C_DSPANS'
-.R_BDN0                       \ r_dspin instead)
- INCLUDE "build/nmos/gfx-raster_lcold-kernel.asm"  \ (r_dspin: the lines are bank F's)
- CPU 1
-R_BDX10 = 0                   \ (and the arrays' names, unused here)
-R_BDX00 = 0
-R_BDN1 = 0
-R_BDX11 = 0
-R_BDX01 = 0
-R_BDX20 = 0
-R_BDX21 = 0
-ELIF _TPART <> 2              \ (the Tube's Master host: no two-colour discs)
+IF _TPART <> 2              \ (the Tube's hosts: no two-colour discs)
 .R_BDN0  SKIP 192       \ boundaries per row, 0..3, or &40: more (unknown);
                         \ bit 7: the colour at the span's left end
 .R_BDX10 SKIP 192       \ their x (raw), the second ...
@@ -285,8 +274,8 @@ IF _TDUMB AND _TPART = 2 AND _HOSTB = 0
 ELSE
 IF _HOSTB
 .^r_bs12                  \ (Model B: the buffer's set of runs, a page per
-  LDA r_rpy1,Y            \ character row: per row, the table R_SETBUF patches
-ELSE                      \ this operand for, hb-p.asm)
+  LDA r_rpy1,Y            \ character row: per row, the table r_sbruns patches
+ELSE                      \ this operand for, tube/src/hb-layout.asm)
   TYA
   LSR A
   LSR A
@@ -296,6 +285,20 @@ ELSE                      \ this operand for, hb-p.asm)
 ENDIF
   STA RZ_PP+1
   STA r_jsr+2
+  RTS
+ENDIF
+IF _HOSTB
+\ r_sbruns: (the Tube's Model B host) R_SETBUF's part in the span kernel's
+\ bank: A = the buffer's screen base, X = the buffer: r_rowset's base and
+\ the buffer's run pages by row (r_rpy0, r_rpy1: tube/src/hb-layout.asm)
+.r_sbruns
+  STA r_bs1+1
+  LDA r_rpyl,X
+  STA r_bs12+1
+  STA r_bs13+1
+  LDA r_rpyh,X
+  STA r_bs12+2
+  STA r_bs13+2
   RTS
 ENDIF
 
@@ -340,10 +343,7 @@ IF _TPART <> 2             \ (the Tube's hosts: the disc layer is the parasite's
   RTS
 ENDIF
 
-IF _HOSTB
-  ORG R_BDN0 + &980             \ (Model B, bank P: buffer 0's runs between, hb-p.asm)
-ENDIF
-IF _HOSTB OR _TPART <> 2
+IF _TPART <> 2
 ASSERT r_s1y = r_s0y + &300 AND r_s1x = r_s0x + &300
 ASSERT r_s1a = r_s0a + &300 AND r_s1b = r_s0b + &300
 ENDIF
@@ -391,7 +391,6 @@ ENDIF
 \ ============================================================================
 \ R_SETBUF: A = buffer.  Patches every buffer-dependent operand (high byte).
 \ ============================================================================
-IF _HOSTB = 0
 .R_SETBUF
 {
   AND #1
@@ -506,56 +505,24 @@ IF _TPART <> 2
   STA r_pt517+2
   STA r_pt519+2
   JMP r_sbpoly             \ (phase B's operands, in the polygon window)
+ELIF _HOSTB
+  LDA r_sbbase,X          \ (the Tube's Model B host: the buffer's screen base,
+  STA r_bs2+1             \ &10 buffer 0, &40 buffer 1, in r_pset, R_LINE and
+  STA r_bs8+1             \ the stars, and less &40 for R_STARPLOT's row page)
+  STA r_bs11+1
+  LDA r_sbdelta,X
+  STA r_bs3+1
+  LDA r_sbbase,X
+  JMP T_SBRUNS            \ (and the span kernel's operands, in its bank: r_sbruns)
 ELSE
   RTS
 ENDIF
 }
-ELSE
-.R_SETBUF                 \ (Model B: this bank's operands only; hb-main's
-{                         \ T_SETBUF runs bank D's and bank P's)
-  AND #1
-  CMP r_sbcur
-  BNE go
-  RTS
-.go
-  STA r_sbcur
-  STA R_PRBUF
-  TAX
-  LDA r_rpyl,X            \ the buffer's run pages by row (hb-p.asm's r_rpy0,
-  STA r_bs12+1            \ r_rpy1)
-  STA r_bs13+1
-  LDA r_rpyh,X
-  STA r_bs12+2
-  STA r_bs13+2
-  LDA r_sbh_s0a,X          \ group r_s0a
-  STA r_pt32+2
-  STA r_pt36+2
-  STA r_pt416+2
-  STA r_pt418+2
-  LDA r_sbh_s0b,X          \ group r_s0b
-  STA r_pt33+2
-  STA r_pt37+2
-  LDA r_sbh_s0x,X          \ group r_s0x
-  STA r_pt31+2
-  STA r_pt35+2
-  STA r_pt415+2
-  LDA r_sbh_s0y,X          \ group r_s0y
-  STA r_pt30+2
-  STA r_pt34+2
-  STA r_pt414+2
-  LDA r_sbbase,X          \ the buffer's screen base (&10 buffer 0, &40 buffer 1)
-  STA r_bs1+1
-  STA r_bs2+1
-  STA r_bs11+1
-  LDA r_sbdelta,X         \ and less &40 (&D0, 0)
-  STA r_bs3+1
-  RTS
-}
-.r_sbcur EQUB &FF         \ the buffer this bank's operands are for (none yet)
+IF _HOSTB
 .r_sbbase EQUB HI(BUF0), &40
 .r_sbdelta EQUB HI(BUF0) - &40, 0
-
 ENDIF
+
 \       Area: kernel
 
 \ ============================================================================
@@ -740,7 +707,7 @@ ENDIF
 \ Page-aligned per-x tables, at &9C00: the row runs after them start at &A000
 \ (a page whose number is a multiple of 32: asserted below)
 \ ============================================================================
-IF _TPART = 2 AND _HOSTB = 0  \ (the Tube's Master host: in its kernel)
+IF _TPART = 2               \ (the Tube's hosts: in the kernel, the Model B's in bank P)
 ALIGN &100
 ELSE
 ASSERT P% <= r_start + &C00
@@ -774,7 +741,7 @@ r_j = r_jm + 4          \ r_j,X = 3 * (x DIV 4) for X = xl <= 251 (never crosses
 \ banks of their own, so what follows here is one run of code and variables.)
 \ ============================================================================
 MACRO R_RUN r
-IF _TPART <> 2 OR _HOSTB
+IF _TPART <> 2
   FOR c, 1, 63
     STA &4000 + r * &200 + c * 8 - r * 8, Y
   NEXT
@@ -784,7 +751,7 @@ ENDIF
 ENDMACRO
 
 MACRO R_ENDPAGE r
-IF _TPART <> 2 OR _HOSTB
+IF _TPART <> 2
   ASSERT P% <= r_run0 + (r + 1) * &100
   ALIGN &100
 ENDIF
@@ -973,7 +940,7 @@ ENDIF
 .r_sbh_s0a EQUB HI(r_s0a), HI(r_s1a)
 .r_sbh_s0x EQUB HI(r_s0x), HI(r_s1x)
 .r_sbh_s0y EQUB HI(r_s0y), HI(r_s1y)
-IF _TPART <> 2 OR _HOSTB
+IF _TPART <> 2
 ASSERT LO(r_s0a) = LO(r_s1a) AND LO(r_s0x) = LO(r_s1x) AND LO(r_s0y) = LO(r_s1y)
 ENDIF
 IF _TPART <> 2
@@ -984,19 +951,17 @@ ASSERT LO(r_s0k) = LO(r_s1k)
 ASSERT LO(r_s0r) = LO(r_s1r)
 ENDIF
 .r_sbh_s0b EQUB HI(r_s0b), HI(r_s1b)
-IF _TPART <> 2 OR _HOSTB
+IF _TPART <> 2
 ASSERT LO(r_s0b) = LO(r_s1b)
 ELSE
-.r_sbl_s0a EQUB LO(r_s0a), LO(r_s1a)  \ (the Tube's Master host: and the low bytes,
-.r_sbl_s0x EQUB LO(r_s0x), LO(r_s1x)  \ as its records share no run pages)
+.r_sbl_s0a EQUB LO(r_s0a), LO(r_s1a)  \ (the Tube's hosts: and the low bytes, as
+.r_sbl_s0x EQUB LO(r_s0x), LO(r_s1x)  \ their records share no run pages)
 .r_sbl_s0y EQUB LO(r_s0y), LO(r_s1y)
 .r_sbl_s0b EQUB LO(r_s0b), LO(r_s1b)
 ENDIF
 R_ENDPAGE 14
 .r_run15 R_RUN 15
-IF _HOSTB = 0
  INCLUDE "src/gfx-raster_pset.asm"
-ENDIF
 R_ENDPAGE 15
 .r_run16 R_RUN 16
 
@@ -1209,11 +1174,8 @@ IF _HOSTB = 0 AND _TPART <> 2
   RTS
 ENDIF
 R_ENDPAGE 23
-IF _HOSTB OR _TDUMB = FALSE OR _TPART <> 2
+IF _TDUMB = FALSE OR _TPART <> 2
 ASSERT (HI(r_run0) AND 31) = 0
-ENDIF
-IF _HOSTB
-ASSERT r_run0 = &A000           \ (Model B: bank D's r_rowset's run pages)
 ENDIF
 \   \ (the repair: the row's run page is Y DIV 8 OR HI(r_run0))
 
@@ -1620,12 +1582,7 @@ IF _HOSTB = 0 AND _TPART <> 2
   SEC
   SBC R_XL
   CMP #16                 \ (16 pixels or more: the run, 5 cycles a byte and
-IF _HOSTB                 \ about 90 to set up, against 26 a byte here)
-  BCC P%+5                \ (Model B: NMOS code is longer)
-  JMP span
-ELSE
-  BCS span
-ENDIF
+  BCS span                \ about 90 to set up, against 26 a byte here)
   LDA RZ_PP               \ (RZ_PP holds a planted RTS's address: keep it)
   PHA
   LDA RZ_PP+1
@@ -1695,8 +1652,5 @@ ELSE
 }
 ENDIF
 
-IF _HOSTB
- INCLUDE "src/gfx-raster_pset.asm"
-ENDIF
 .r_end
 PRINT "raster.asm: ", r_end - r_start, " bytes from ", ~r_start, " to ", ~r_end

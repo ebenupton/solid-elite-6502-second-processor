@@ -171,3 +171,12 @@ NEXT
  BNE hbs3
  PAGE GFXBANK
  RTS
+
+.hrw                    \ register 1 empty: ring the parasite's doorbell (h-main.asm's
+ BIT HR1S               \ Master copy says how): here, as banks F and P both call it
+ BMI hrw9
+ BVC hrw
+ STA HR1D
+ BVS hrw
+.hrw9
+ RTS

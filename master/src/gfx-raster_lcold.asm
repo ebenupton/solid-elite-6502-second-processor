@@ -149,7 +149,6 @@ ENDIF
 \       Area: frame
 
 
-IF _HOSTB = FALSE          \ (the Tube's Model B host: tube/src/hb-ws.asm's)
 \ The rasteriser's private state (here, in bank 5's shared region, which
 \ both its windows see; only the rasteriser reads or writes it, and R_INIT
 \ sets it up): the state the disc window and the polygon window share
@@ -170,4 +169,3 @@ IF _HOSTB = FALSE          \ (the Tube's Model B host: tube/src/hb-ws.asm's)
 .R_PRDYA    SKIP 1
 .R_PRDYZ    SKIP 1
 .R_PRCWB    SKIP 1
-ENDIF

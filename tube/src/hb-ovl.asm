@@ -1,5 +1,5 @@
 \ hb-ovl.asm - the Model B host's storage of the parasite's overlays (p-ovl.asm),
-\ in main RAM (MR_D: it pages the banks that hold them): overlay D in bank S
+\ in main RAM (&0F00: it pages the banks that hold them): overlay D in bank S
 \ from OVLD_AT, overlay S in bank D
 
 .hb_ovlget              \ C_OVLGET (h-main.asm's): overlay A's pages, through

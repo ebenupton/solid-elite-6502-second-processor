@@ -459,6 +459,4 @@ ENDIF
   STA l_b
   JMP rl_lgo
 }
-IF _HOSTB = 0
  INCLUDE "src/gfx-raster_lineb.asm"
-ENDIF

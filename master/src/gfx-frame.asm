@@ -1059,8 +1059,8 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host keeps no state of the screen
  STZ MO_ON+1            \ (no moon in it)
  ENDIF
 ENDIF
-IF _TPART = 2 AND _HOSTB = 0
- JSR R_SETBUF           \ bankcheck: ok (the Tube's Master host: one bank)
+IF _TPART = 2
+ JSR R_SETBUF           \ bankcheck: ok (the Tube's hosts: R_SETBUF in their code bank)
 ELSE
  JSR T_SETBUF
 ENDIF
@@ -1130,10 +1130,6 @@ ENDIF
 IF _HOSTB                 \ (Model B: the back buffer's screen, BUF0 or &4000)
  LDA fbp_b,X
  STA fgl_b+1
-IF _TDUMB
- STA r_bs2+1            \ (the lines' screen base: bank F's, tube/src/hb-line.asm)
- STA r_bs8+1
-ENDIF
 IF _TDUMB = FALSE
  LDA fbp_d,X
  STA fz_t

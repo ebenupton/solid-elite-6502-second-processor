@@ -1,4 +1,6 @@
-\ hb-res2.asm - the Model B host's main RAM code (hb-res.asm): hb_tramp: from bank F into bank P and back (A, X, Y through)
+\ hb-res2.asm - the Model B host's main RAM code (hb-res.asm): hb_tramp: from
+\ bank F into bank P's span kernel and back (A, X, Y through), assembled in
+\ the span kernel's scope (hb-layout.asm): their names are exported (.*)
 
 .tA EQUB 0
 .tback
@@ -6,24 +8,17 @@
  PAGE GFXBANK
  LDA tA
  RTS
-.T_SETBUF               \ bank P's operands for buffer A
- TRAMPOLINE RASTPOLY, P_SETBUF
-.T_STERASE
- TRAMPOLINE RASTPOLY, P_STARERASE
-.T_STARPLOT
- TRAMPOLINE RASTPOLY, P_STARPLOT
-.T_SPAN
- TRAMPOLINE RASTPOLY, P_SPAN
-.T_DOT
- TRAMPOLINE RASTPOLY, P_DOT
-.hb_poly
+.*T_SBRUNS              \ R_SETBUF's part in bank P (r_sbruns)
+ TRAMPOLINE RASTPOLY, r_sbruns
+.*T_SPAN
+ TRAMPOLINE RASTPOLY, R_SPAN
+.*hb_poly
  PAGE RASTPOLY
- JSR P_POLYIN
+ JSR p_polyin
  JMP hbloop
-.hb_dspans
+.*hb_dspans
  PAGE RASTPOLY
- JSR P_DSPANSIN
- JMP hbloop
-.hbloop
+ JSR r_dspin
+.*hbloop
  PAGE GFXBANK
  JMP hloop

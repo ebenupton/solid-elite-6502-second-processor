@@ -76,10 +76,9 @@ const add = (map, k, v) => (LB[map] ||= []).push([k, v]);
 // routine's cycles go to its own name)
 const skip = k => /^(CODE|LOAD|B5_|B6_|RA_|F_START|F_END|MR_)/.test(k) || /^r_(bs|pt)\d+$/.test(k);
 if (HB) {
-    const hm = loadSyms(a.hsyms || dir + "hbmsyms.txt"), hp = loadSyms(dir + "hbpsyms.txt");
+    const hm = loadSyms(a.hsyms || dir + "hbmsyms.txt"), hp = loadSyms(dir + "hbksyms.txt");   // (bank P's span kernel: tube/build.sh)
     for (const [k, v] of Object.entries(hm)) if (!skip(k)) add(v >= 0x8000 && v < 0xc000 ? "6" : "m", k, v);
     for (const [k, v] of Object.entries(hp)) if (!skip(k) && v >= 0x8000 && v < 0xc000) add("5", k, v);
-    add("m", "hrw", 0x7fe0);           // (cmds.asm's: at a fixed place, no label)
 } else {
     const hsy = loadSyms(a.hsyms || dir + "hsyms.txt"), hb = {};
     for (const l of readFileSync(dir + "hbanks.txt", "utf8").split("\n")) { const [n, b] = l.split(" "); if (n) hb[n] = b; }

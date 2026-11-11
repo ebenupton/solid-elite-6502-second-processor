@@ -152,16 +152,14 @@ ENDIF
  JMP hloop              \ instruction)
 
 .h_init                 \ C_INIT: F_INIT's host part: the drawing code's state
-IF _HOSTB = 0             \ (R_INIT's part that the drawing reads: the stars'
- LDA #&FF               \ colour, no stars, buffer 0's patches; the Model B
- STA R_SCOL             \ host's are set per command)
+ LDA #&FF               \ (R_INIT's part that the drawing reads: the stars'
+ STA R_SCOL             \ colour, no stars, buffer 0's patches)
  LDA #0
  STA R_SN
  LDA #1
  STA R_PRBUF
  LDA #0
  JSR R_SETBUF
-ENDIF
 IF _HOSTB = 0
  LDA #4                 \ clear main RAM's screen (buffer 0)
  TRB &FE34
@@ -338,11 +336,7 @@ ENDIF
  INX
  CPX #8
  BNE hli1
-IF _HOSTB
- JSR T_LINE             \ (Model B: bank F's R_LINE, hb-line.asm)
-ELSE
  JSR R_LINE
-ENDIF
  JMP hloop
 
 .h_dot                  \ C_DOT: COLE, COLO, x, y, size
@@ -357,11 +351,7 @@ ENDIF
  HRX
  LDX hdx
  LDY hdy
-IF _HOSTB
- JSR T_DOT              \ (Model B: bank P's R_DOT)
-ELSE
  JSR R_DOT
-ENDIF
  JMP hloop
 .hdx EQUB 0
 .hdy EQUB 0

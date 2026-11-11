@@ -23,11 +23,8 @@
  LDA #191
  STA zR_CB
  LDA F_BACK
-IF _HOSTB
- JSR T_SETBUF           \ (the row runs' and the star records' buffer)
-ELSE
- JSR R_SETBUF           \ (the star records' buffer)
-ENDIF
+ JSR R_SETBUF           \ (the star records' buffer, and the Model B host's
+                        \ screen bases and row runs)
 .hbf1
  LDA GFLIP
  BNE hbf1
@@ -106,19 +103,12 @@ ENDIF
  CPX R_SN
  BNE hps1
 .hps2                   \ (its records stay in the buffer's star arrays for
-IF _HOSTB                 \ C_STARERASE)
- JSR T_STARPLOT
-ELSE
- JSR R_STARPLOT
-ENDIF
+ JSR R_STARPLOT          \ C_STARERASE)
  JMP hloop
 
 .h_starerase            \ C_STARERASE: R_STARERASE, the frame's buffer's records
-IF _HOSTB                 \ (the one piece of state the host keeps: the user's
- JSR T_STERASE          \ exception, so that the stars need no round trip)
-ELSE
- JSR R_STARERASE
-ENDIF
+ JSR R_STARERASE        \ (the one piece of state the host keeps: the user's
+                        \ exception, so that the stars need no round trip)
  JMP hloop
 
 \ h_orspan: C_ORSPAN: y, xl, xr, mask: OR the mask over pixels xl..xr of row y
