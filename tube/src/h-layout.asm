@@ -15,12 +15,13 @@
 \     pixel row's character row, which hstart makes: one copy for the game's
 \     drawing and the rasteriser, as r_ypg) and of the renderer's shared
 \     workspace only what the host's code names (below), f_enter's buffers;
-\     then from KCODE, above the loader's part that loads it, the game's
-\     host blocks (the sound, the IRQ, CHPR, UP), the renderer's glue, the
-\     command loop (h-main.asm), the recursive tokens, which the IRQ reads,
-\     and the span kernel: the code that enters the STA runs, and their
-\     tables. Only the kernel pages a line's bank, and it pages bank 7 back.
-\     Then the disc commands' buffers (h-cold.asm, cmds.asm's HDBUF);
+\     then from KCODE, above the loader's part that loads it, the span
+\     kernel (the code that enters the STA runs, and their tables), the
+\     game's host blocks (the sound, the IRQ, CHPR, UP), the renderer's
+\     glue, the command loop (h-main.asm) and the recursive tokens, which
+\     the IRQ reads. Only the kernel pages a line's bank, and it pages bank
+\     7 back. Then the disc commands' buffers (h-cold.asm, cmds.asm's
+\     HDBUF);
 \   * bank 7 (GFXBANK, the resting bank, paged whenever the host runs
 \     outside the STA runs): all of the host's other code, one run from
 \     &9400: the lines, the dots, the stars and phase B's set-up, the frame
@@ -133,4 +134,4 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  PRINT "Host: bank 7 &", ~B7_START, "-&", ~B7_END-1, ", free to &C000: ", &C000-B7_END
  ASSERT (&40 - HI(HSTS0)) + &10 + (HI(B7_START) - &80) = OVLS_PAGES - OVLS0_PAGES
  ASSERT 4 * OVLD_PAGES <= R_ROWS     \ (D's quarters, in the lines' runs' tails)
- SAVE "build/HBANK7.bin", B7_START, B7_END, B7_START
+ SAVE "build/HCODE.bin", B7_START, B7_END, B7_START
