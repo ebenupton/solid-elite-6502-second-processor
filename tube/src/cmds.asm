@@ -99,7 +99,6 @@ C_DSPANS   = 108        \ the disc layer's spans (R_DISCROWS), sent as made: the
                         \ 1-191, XL 2-253: the clip window's), &FF 0 at the end
 C_MAX      = 110
 
-DASHV_B = &BF80         \ (the Model B host: the dashboard's variables, bank F)
 HDBUF = &2C00           \ the hosts' buffer for a disc command's SAVE and LOAD,
                         \ which savosc and lodosc name (main RAM on both hosts:
                         \ the Master's below its overlay storage, h-layout.asm;
@@ -116,8 +115,9 @@ MACRO HRX               \ A = the next byte from the parasite (register 1); if
 ENDMACRO
 
 IF _HOSTB                 \ (the Model B host: hrw in main RAM, beyond the panel,
- hrw = &7FE0              \ which banks F and P both call; hb-main.asm)
-ENDIF
+ hrw = &7FE0              \ which banks F and P both call, hb-main.asm; the panel's
+ HWP = &C000 - 47         \ variables of WP at bank F's top: the game's workspace
+ENDIF                     \ puts SWAP, JOPOS, DASHV ... dCOMY there, asserted)
 
 MACRO HTX               \ send A to the parasite (register 4)
  BIT HR4S

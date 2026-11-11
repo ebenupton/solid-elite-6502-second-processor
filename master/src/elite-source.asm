@@ -1622,8 +1622,8 @@ ENDIF
                         \
                         \   * 0 = we have crashed into the surface
 
-IF _TPART = 2 AND _HOSTB = 0  \ Port (Tube, the Master host: SWAP is with DASHV,
- SKIP 1                 \ below)
+IF _TPART = 2           \ Port (Tube, the hosts: SWAP is with DASHV, below)
+ SKIP 1
 ELSE
 .SWAP
  SKIP 1
@@ -2095,8 +2095,8 @@ ENDIF
  SKIP 1                 \ Used to store the number of particles in the explosion
                         \ cloud, though the number is never actually used
 
-IF _TPART = 2 AND _HOSTB = 0  \ Port (Tube, the Master host: JOPOS is with DASHV,
- SKIP 3                 \ below)
+IF _TPART = 2           \ Port (Tube, the hosts: JOPOS is with DASHV, below)
+ SKIP 3
 ELSE
 .JOPOS
 
@@ -2117,12 +2117,9 @@ ENDIF
                         \ DOT, MSBAR and their helpers, in bank 4), here as they
                         \ run with ACCCON X set (shadow RAM at &3000-&7FFF)
 
-IF _HOSTB                \ (Tube, Model B host: these are in bank F, as its main
- DASHV_S% = P%          \ RAM holds its own code here, DASHV_B in tube/src/cmds.asm)
- ORG DASHV_B
-ELIF _TPART = 2          \ (Tube, the Master host: in its kernel's workspace, with
- DASHV_S% = P%          \ the two others of WP its code uses, SWAP and JOPOS, so
- ORG HWP                \ that it keeps nothing in WP: tube/src/h-layout.asm)
+IF _TPART = 2           \ (Tube, the hosts: in the host's workspace, with the two
+ DASHV_S% = P%          \ others of WP its code uses, SWAP and JOPOS, so that it
+ ORG HWP                \ keeps nothing in WP: tube/src/h-layout.asm, hb-ws.asm)
 .SWAP   SKIP 1
 .JOPOS  SKIP 3
 ENDIF
@@ -9424,8 +9421,8 @@ IF _TPART = 1           \ Port (Tube): the parasite's glyph nibbles for H_CHAR
  INCLUDE "build/fontw.asm"  \ host draws the glyphs)
 ENDIF
 
-IF _TPART = 2 AND _HOSTB = 0    \ Port (Tube, the Master host): the font has the
- FONT% = HI(HFONT)      \ pages the MOS's Tube code leaves (tube/src/h-layout.asm)
+IF _TPART = 2           \ Port (Tube, the hosts): the font has the pages the
+ FONT% = HI(HFONT)      \ MOS's Tube code leaves (tube/src/h-layout.asm, hb-ws.asm)
 ELSE
 
  FONTPAD% = -P% AND &FF \ Port: (the padding that ALIGN puts in, printed below)

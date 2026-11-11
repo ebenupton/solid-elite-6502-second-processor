@@ -15,11 +15,16 @@
  BNE hst1               \ the host's MOS neither passes Escape, events or errors
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
-IF _HOSTB = 0
+IF _HOSTB
+ JSR hbswap             \ (Model B: our main RAM in, the MOS's out; from now on
+ LDA #&4C               \ the disc commands' swaps leave &0400-&06FF ours: JMP)
+ STA hbsk
+ELSE
  LDA #4                 \ (Master: main RAM)
  TRB &FE34
- LDX #0                 \ CHPR's font from buffer 0, where the loader put it,
-.hst6                   \ to the Tube code's pages (h-layout.asm)
+ENDIF
+ LDX #0                 \ CHPR's font from where the loader put it to the Tube
+.hst6                   \ code's pages (h-layout.asm, hb-ws.asm)
  LDA HFONTST,X
  STA HFONT,X
  LDA HFONTST+&100,X
@@ -28,14 +33,10 @@ IF _HOSTB = 0
  STA HFONT+&200,X
  INX
  BNE hst6
+IF _HOSTB = 0
  JSR s_gen              \ (the STA runs, h-sta.asm, in banks 4, 5 and 6)
 ENDIF
 .hst1
-IF _HOSTB
- JSR hbswap             \ (Model B: our main RAM in, the MOS's out; from now on
- LDA #&4C               \ the disc commands' swaps leave &0400-&06FF ours: JMP)
- STA hbsk
-ENDIF
  LDX #0                 \ ylookup (h-layout.asm, hb-ws.asm): &40 + 2 * (y DIV 8),
 .hst5                   \ as elite-source.asm's table, for the game's drawing
  TXA                    \ and the rasteriser (r_ypg)
@@ -88,13 +89,8 @@ ENDIF
 \ BRKV's hdbrk, main RAM, brings it to h_derr); the context back; for a load
 \ HDBUF back. The client OS on the parasite takes no part
 
-IF _HOSTB
-HDSTR = &3E00           \ (Model B: buffer 0, not on show in direct mode)
-HDERR = &3E80
-ELSE
-HDSTR = HDBUF - &100    \ (the Master host: below the kernel's code and HDBUF,
-HDERR = HDBUF - &80     \ h-layout.asm)
-ENDIF
+HDSTR = HDBUF - &100    \ (below HDBUF: h-layout.asm, hb-ws.asm)
+HDERR = HDBUF - &80
 
 .h_disc
  LDA #0                 \ (the MOS's register 4 while it runs: h4body off)

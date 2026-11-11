@@ -11,19 +11,14 @@
 \
 \ ******************************************************************************
 
- ALIGN &100
-.r_xo                   \ (8 * (x DIV 4)) AND &FF : edge byte offset
-FOR x, 0, 255
-  EQUB (x * 2) AND &F8
-NEXT
-.r_lm                   \ pixels (x AND 3)..3 of a byte
-FOR x, 0, 255
-  EQUB ((&F0 >> (x AND 3)) AND &F0) OR (&0F >> (x AND 3))
-NEXT
-.r_rm                   \ pixels 0..(x AND 3) of a byte
-FOR x, 0, 255
-  EQUB ((&F0 << (3 - (x AND 3))) AND &F0) OR ((&0F << (3 - (x AND 3))) AND &0F)
-NEXT
+ ALIGN &100              \ (bank P's per-x tables, gfx-raster.asm's: a second copy,
+ INCLUDE "src/gfx-raster_xtab.asm"   \ from the one source, for the lines)
+.r_xo
+ R_XOTAB
+.r_lm
+ R_LMTAB
+.r_rm
+ R_RMTAB
 
 \ R_LINE's variables (as gfx-raster.asm's)
 .rl_lct SKIP 8          \ R_LINE: colour byte by row AND 7

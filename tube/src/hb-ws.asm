@@ -38,6 +38,10 @@ R_ROWS = 192            \ the lines of the 3D view (phase B's end row, r_pcbs)
 
 BUF0 = &1000            \ buffer 0's screen (buffer 1's is the Master port's &4000)
 PANEL = &7000
+HFONT = &0400           \ CHPR's font (FONT%, elite-source.asm): the pages of the
+                        \ MOS's Tube code, which runs the boot and then is never
+                        \ called again (hstart clears &027A); hstart moves it
+                        \ there from bank F's HFONTST (hb-main.asm)
 
 \ ------------------------------------------------------------------------------
 \ Main RAM (reclaimed from the MOS while the game runs)

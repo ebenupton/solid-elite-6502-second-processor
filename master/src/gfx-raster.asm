@@ -746,11 +746,10 @@ ELSE
 ASSERT P% <= r_start + &C00
 SKIP r_start + &C00 - P%
 ENDIF
+ INCLUDE "src/gfx-raster_xtab.asm"
 .r_tables
 .r_xo                   \ (8 * (x DIV 4)) AND &FF : edge byte offset
-FOR x, 0, 255
-  EQUB (x * 2) AND &F8
-NEXT
+ R_XOTAB
 .r_jm                   \ 3 * (x DIV 4) - 3 = r_j[x - 4]: run plant offset (column x DIV 4)
 FOR x, 0, 255           \ (read as r_j-4,Y with Y = xr >= 4: page-aligned, no crossing)
   IF x < 4
@@ -761,13 +760,9 @@ FOR x, 0, 255           \ (read as r_j-4,Y with Y = xr >= 4: page-aligned, no cr
 NEXT
 r_j = r_jm + 4          \ r_j,X = 3 * (x DIV 4) for X = xl <= 251 (never crosses the page)
 .r_lm                   \ pixels (x AND 3)..3 of a byte
-FOR x, 0, 255
-  EQUB ((&F0 >> (x AND 3)) AND &F0) OR (&0F >> (x AND 3))
-NEXT
+ R_LMTAB
 .r_rm                   \ pixels 0..(x AND 3) of a byte
-FOR x, 0, 255
-  EQUB ((&F0 << (3 - (x AND 3))) AND &F0) OR ((&0F << (3 - (x AND 3))) AND &0F)
-NEXT
+ R_RMTAB
 
 \       Area: frame
 

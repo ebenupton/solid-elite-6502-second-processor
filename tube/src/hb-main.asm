@@ -104,8 +104,10 @@ HQQ18 = F_END           \ the recursive tokens (QQ18, as stored) and where each
  INCLUDE "build/htokix.asm" \ with bank F paged)
 .F_TEXT_END
  INCLUDE "tsrc/hb-line.asm"      \ (the lines)
+.HFONTST                \ CHPR's font, which hstart moves to HFONT (hb-ws.asm)
+ INCBIN "src/fonts/P.FONT.bin"
 .F_LEND
- ASSERT F_LEND <= DASHV_B
- PRINT "Model B bank F: the lines &", ~F_TEXT_END, "-&", ~F_LEND-1, ", free to the dashboard's variables: ", DASHV_B-F_LEND
+ ASSERT F_LEND <= HWP AND SWAP = HWP AND dCOMY + 1 = &C000
+ PRINT "Model B bank F: the lines &", ~F_TEXT_END, "-&", ~HFONTST-1, ", the font &", ~HFONTST, "-&", ~F_LEND-1, ", free to the panel's variables: ", HWP-F_LEND
  PRINT "Model B bank F: &8000-&", ~F_TEXT_END-1, " (code to &", ~F_CODE_END-1, ", the recursive tokens from &", ~F_END, ")"
  SAVE "build/HBF.bin", &8000, F_LEND, &8000
