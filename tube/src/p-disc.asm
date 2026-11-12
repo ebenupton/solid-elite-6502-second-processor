@@ -35,10 +35,10 @@
 \ the second disc's old pixels are repaired (its box marked dirty in each
 \ buffer, the current one's blacked now when the second disc itself is
 \ drawn). A body that cannot hold its rows even alone is drawn whole each
-\ frame, without state (hp_whole counts those frames). The moon, the sun and
-\ the planet are never all large at once, so the heap is sized for one large
-\ body and a smaller one (the surface's 192 rows and a second disc of
-\ HD_ROWS), not for all of them full-screen.
+\ frame, without state (hp_whole counts those frames). The heap is sized
+\ for the bodies it ever holds together, one large body and a smaller one
+\ (the surface's 192 rows and a second disc of HD_ROWS), not for both
+\ full-screen.
 \
 \ ******************************************************************************
 

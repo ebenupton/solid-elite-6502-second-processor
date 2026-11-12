@@ -55,7 +55,7 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &1B34          \ Port (Tube): the parasite's, where the Tube's workspace
+ CODE% = &1B34          \ Port (Tube): the parasite's, where its shared workspace
                         \ ends (tube/src/p-ws.asm, p-layout.asm asserts it)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
@@ -2206,7 +2206,7 @@ IF _TPART = 1
                         \ there (ACCCON's X bit, around the drawing whose screen
                         \ writes go to the host, the only SHEILA write left)
                         \ lands in one byte, the first after VEC, the start of
-                        \ the Tube's workspace (tube/src/p-ws.asm's PACC), and
+                        \ the shared workspace (tube/src/p-ws.asm's PACC), and
                         \ what it reads (the keyboard, the timers) is replaced
                         \ (docs/TUBE-MAP.md)
 

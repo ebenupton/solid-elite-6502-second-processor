@@ -1195,7 +1195,7 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  JMP F_INIT
 
 \ p_boot: drains a stray byte from the host in register 1, zeroes the
-\ Tube's workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
+\ shared workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
 \ makes QSL (elite-qs.asm) in pages 2 and 3, then copies the staged images
 \ (p-layout.asm) in over the client OS, which the game never uses again:
 \ the two top pages.
