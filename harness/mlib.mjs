@@ -99,13 +99,17 @@ export function physRead(cpu, map, addr) {
     return cpu.ramRomOs[cpu.romOffset + map * 16384 + addr - 0x8000];
 }
 
+// K% runs to LS%, the top of the ship line heap, &400 on: &0400-&07FF in the
+// original and the Master port, &0200-&05FF on the Tube's parasite
+export const K_LEN = 0x400;
+
 // Game state compared per iteration: [start, length, name]. All of these are at
 // fixed addresses in the original; a relocated build supplies its own symbols
 // and the regions are located by symbol (see regionsFor).
 export function regionsFor(sy) {
     return [
         [0x0000, sy.NOSTM + 1 - 0x0000, "ZP"],                  // zero page game variables (&00-&E3)
-        [sy["K%"], 0x0800 - sy["K%"], "K%"],                    // ship data blocks + ship line heap (down from &0800)
+        [sy["K%"], K_LEN, "K%"],                                // ship data blocks + ship line heap (down from LS%, K% + &400)
         [sy.WP, sy.JOPOS + 3 - sy.WP, "WP"],                    // FRIN, flight variables, sun/planet heaps, stardust, commander (NAME..SVC), JOPOS
         [sy.UP, sy.VOL + 1 - sy.UP, "UP"],                      // configuration (COMC..VOL; up to Stage B also the
                                                                 // constant TGINT, which then moved away from S%)
@@ -120,14 +124,26 @@ export function regionsFor(sy) {
 // its ship data block to LSO's address), so INWK(34 33) and bytes #33-#34 of
 // the K% slots may hold LSO's address. Snapshots hold the original's LSO
 // (&107E) there instead, so builds that move WP compare equal (the
-// reference's snapshots are unchanged). canonFor(sy, regions) returns the
-// function that does it to a snapshot.
-const LSO_ORIG = 0x107e;
+// reference's snapshots are unchanged). Likewise a build that moves K% (the
+// Tube's parasite, two pages down): the pointers into K% and its line heap
+// (INWK(34 33) and bytes #33-#34 of the K% slots, SLSP, the heap's bottom,
+// and INF, the current ship's slot) hold the original's address there, the
+// pointer moved back by exactly what K% moved. canonFor(sy, regions) returns
+// the function that does it to a snapshot.
+const LSO_ORIG = 0x107e, K_ORIG = 0x0400;
 export function canonFor(sy, regions) {
     const offOf = a => { let o = 0; for (const [b, n] of regions) { if (a >= b && a + 1 < b + n) return o + a - b; o += n; } return -1; };
     const offs = [sy.INWK + 33, ...Array.from({ length: 12 }, (_, i) => sy["K%"] + 37 * i + 33)].map(offOf).filter(o => o >= 0);
+    const k = sy["K%"], dk = K_ORIG - k;
+    const heap = [...offs, offOf(sy.SLSP)].filter(o => o >= 0), slot = [sy.INF].filter(a => a !== undefined).map(offOf).filter(o => o >= 0);
+    const move = (buf, o, lo, hi) => { const v = buf[o] | buf[o + 1] << 8; if (v >= lo && v <= hi) { buf[o] = (v + dk) & 255; buf[o + 1] = (v + dk) >> 8; } };
     return buf => {
         if (sy.LSO !== LSO_ORIG) for (const o of offs) if ((buf[o] | buf[o + 1] << 8) === sy.LSO) { buf[o] = LSO_ORIG & 255; buf[o + 1] = LSO_ORIG >> 8; }
+        if (dk) {
+            for (const o of heap) move(buf, o, k, k + K_LEN);   // (the line heap: to LS% when empty, down
+                                                                // into the slots no ship uses when full)
+            for (const o of slot) move(buf, o, k, k + 12 * 37 - 1);
+        }
         return buf;
     };
 }
@@ -168,9 +184,9 @@ export function excludeSet(sy, lists) {
         const len = typeof len0 === "function" ? len0(sy) : len0;
         for (let i = 0; i < len; i++) ex.set(sy[n] + i, `${n}: ${why}`);
     }
-    // with the drawing exclusions, also the ship line heap below &0800 (the K%
+    // with the drawing exclusions, also the ship line heap below LS% (the K%
     // blocks end at K% + NOSH * NI%)
-    if (lists.includes(DRAW_EXCLUDE)) for (let a = sy["K%"] + 12 * 37; a < 0x0800; a++) ex.set(a, "ship line heap");
+    if (lists.includes(DRAW_EXCLUDE)) for (let a = sy["K%"] + 12 * 37; a < sy["K%"] + K_LEN; a++) ex.set(a, "ship line heap");
     return ex;
 }
 

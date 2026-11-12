@@ -108,10 +108,10 @@ def reg(start, end, name, kind, area, files, used_end=None, alt=None, ph=None):
                     **({"alternative": alt} if alt else {})})
 
 
-# Elite's workspaces at the Master port's addresses, with the parasite's
-# pointers in zero page (p-rast.asm's pr_*, the ring's: always there, so their
-# area is ZP, though only overlay S's code uses pr_*) and the quarter-square
-# tables' QSL in pages 2 and 3
+# Elite's workspaces, K% from the stack's end (two pages below the Master
+# port's, each byte's place in its page kept), with the parasite's pointers
+# in zero page (p-rast.asm's pr_*, the ring's: always there, so their area is
+# ZP, though only overlay S's code uses pr_*)
 reg(0, zp_end + 1, "Zero page: Elite's workspace (ZP)", "workspace", "ZP", ["master/src/elite-source.asm"])
 if zp_end + 1 < 0xE4:
     reg(zp_end + 1, 0xE4, "Free (zero page)", "free", "-", [], zp_end + 1)
@@ -120,9 +120,7 @@ reg(0xE4, 0xF9, "Zero page: the rasteriser's pointers and scratch (p-rast.asm's 
 reg(0xF9, 0xFA, "Free (zero page)", "free", "-", [], 0xF9)
 reg(0xFA, 0x100, "Zero page: the ring's pointers (rq, p_oscli's, rpz)", "workspace", "ZP", ["tube/src/p-io.asm"])
 reg(0x100, 0x200, "Stack (XX3 at its foot)", "stack", "-", ["master/src/elite-source.asm"])
-reg(0x200, 0x400, "Quarter-square tables: QSL (made by p_boot)", "workspace", "QSL",
-    ["master/src/elite-qs.asm", "tube/src/p-io.asm"])
-reg(0x400, k_end + 1, "K%: Elite's workspace, the ship data blocks", "workspace", "K%", ["master/src/elite-source.asm"])
+reg(sy["K%"], k_end + 1, "K%: Elite's workspace, the ship data blocks", "workspace", "K%", ["master/src/elite-source.asm"])
 reg(k_end + 1, wp0, "K%: the ship line heap (down from WP)", "workspace", "K%", ["master/src/elite-source.asm"])
 reg(wp0, wp_end + 1, "WP: Elite's workspace, then the dashboard's variables DASHV", "workspace", "WP", ["master/src/elite-source.asm"])
 reg(wp_end + 1, sy["PWS_START"], "WP: VEC (the IRQ1 vector's old value, WP's last)", "workspace", "WP", ["master/src/elite-source.asm"])
@@ -144,7 +142,9 @@ ws = [("PWS_START", "hp_dfl", "Shared workspace: PACC, the dummy ACCCON (VIA + &
 for a, b, n in ws:
     reg(sy[a], sy[b], n, "workspace", "workspace", ["tube/src/p-ws.asm"])
 # the resident code and data: one run from the shared workspace's end, the
-# one gap, then the log tables and QSH, ending at the overlay region
+# one gap, then the log tables and the quarter-square tables, ending at the
+# overlay region; the quarter squares made by p_boot, not loaded (the image
+# has p_load in QSL's place, then the overlay region's part)
 reg(sy["PCODE_START"], sy["GLUE_END%"], "Glue area (p-low.asm: the stubs between the passes, none; the renderer's shared variables, "
     "the G_ stubs and the text hooks, the drawing hooks, the Tube I/O, the overlay manager, the dashboard's parasite halves)",
     "code", "resident", None, ph="main")
@@ -156,8 +156,11 @@ reg(sy["HZDATA_END%"], sy["HZ_END"], "The hangar's tables (HFY, HPWL, HPWH)", "d
 reg(sy["PF_START"], sy["PRES_CODE_END"], "Frame layer (the parasite's part), the resident parts of overlay S's files, F_INIT", "code", "resident",
     None, ph="main")
 reg(sy["PRES_CODE_END"], sy["TAB_START"], "Free (the resident code's one gap)", "free", "-", [], sy["PRES_CODE_END"])
-reg(sy["TAB_START"], sy["TAB_END"], "Log tables (log, logL, alogh) and the quarter-square tables' QSH, page aligned", "data", "aligned",
-    None, ph="main")
+reg(sy["TAB_START"], sy["QSL"], "Log tables (log, logL, alogh), page aligned", "data", "aligned", None, ph="main")
+reg(sy["QSL"], sy["TAB_END"], "Quarter-square tables: QSL and QSH, page aligned (made by p_boot, not in the image)", "workspace",
+    "aligned", ["master/src/elite-qs.asm", "tube/src/p-io.asm"])
+reg(sy["QSL"], sy["TAB_END"], "p_load, the image's first step (load only: p_boot writes QSL over it)", "boot", "load",
+    None, sy["PLOAD_END"], alt="load", ph="main")
 # the overlay region, D or S; the boot's staging above D at the boot
 o = sy["OVL_START"]
 reg(o, RING, "Overlay D (direct mode)", "overlay", "ovl D", None, sy["OVL_D_END"], alt="D", ph="main")

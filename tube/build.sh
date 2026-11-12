@@ -2,7 +2,7 @@
 # Build the 6502 Second Processor (Tube) version of the full Master port
 # (docs/TUBE-PLAN.md, docs/TUBE-MAP.md) into tube/build:
 #   build/PCODE.bin    the parasite's image: the game, the frame layer and the
-#                      Tube glue, one flat run from CODE%
+#                      Tube glue from CODE%, less the quarter-square tables
 #   build/H*.bin       the host's images (main RAM and sideways RAM banks)
 #   build/psyms.txt, build/hsyms.txt   the two assemblies' symbols
 #   build/elite-tube.ssd   the disc, for both hosts (SHIFT+BREAK on a BBC
@@ -141,11 +141,12 @@ $BEEBASM -D MEASURE=${MEASURE:-0} -i tsrc/p-layout.asm -d > build/psyms.txt 2>/d
 # keep the overlays and the boot's staging below the ring, and the ring's
 # pages below the top pages): its places in order with no overlap (the
 # workspace from WP's end, the resident code from where it ends, the page
-# aligned tables ending at the overlay region, the two top pages clear of
+# aligned tables ending at the overlay region, the quarter-square tables
+# last in them, the two top pages clear of
 # the Tube's registers), and every byte the listing assembles inside the
 # place its pass names: a file's "Area: ovl S" blocks in overlay S, "ovl D" in overlay
 # D, "page FE" and "page FF" in the top pages, "boot" in the boot's staging,
-# the aligned tables in theirs, the game's configuration below the Tube's
+# "load" (p_load) in QSL's place, the aligned tables in theirs, the game's configuration below the Tube's
 # workspace, the rest in the resident code; and no pass
 # copy that assembles anything is left out of every assembly
 python3 - <<'PY'
@@ -156,7 +157,7 @@ for m in re.finditer(r"'([^']+)':(\d+)", open("build/psyms.txt").read()):
 code0 = sy["PCODE_START"]
 place = {"game's workspaces": (0, sy["PWS_START"]), "resident": (code0, sy["PRES_CODE_END"]),
          "aligned": (sy["TAB_START"], sy["TAB_END"]), "D": (sy["OVL_START"], sy["OVL_D_END"]),
-         "S": (sy["OVL_START"], sy["OVL_S_END"]), "boot": (sy["OVL_D_END"], sy["PSTG_END"]),
+         "S": (sy["OVL_START"], sy["OVL_S_END"]), "boot": (sy["OVL_D_END"], sy["PSTG_END"]), "load": (sy["QSL"], sy["PLOAD_END"]),
          "fe": (0xFE00, sy["PFE_END"]), "ff": (0xFF00, sy["PFF_END"]),
          "vectors": (0xFFFA, 0x10000)}
 bad = []
@@ -165,11 +166,13 @@ def need(c, what):
 need(sy["PWS_START"] == sy["VEC"] + 2 and sy["PWS_END"] == code0, "the workspace runs from WP's end to the code")
 need(sy["PRES_CODE_END"] <= sy["TAB_START"] and sy["TAB_START"] % 256 == 0, "the code ends below the aligned tables, which start a page")
 need(sy["TAB_END"] == sy["OVL_START"] and sy["OVL_START"] % 256 == 0, "the aligned tables end where the overlay region starts")
+need(sy["QSH"] + 512 == sy["TAB_END"] and sy["QSL"] + 512 == sy["QSH"], "the quarter-square tables last in the aligned tables")
+need(sy["K%"] == 0x200, "K% from the stack's end")
 need(sy["PFE_END"] <= 0xFEF0 and sy["PFF_END"] <= 0xFFFA, "the top pages clear of the Tube's registers and the vectors")
 need(sy["pbl"] >> 8 == (sy["pbl_end"] - 1) >> 8, "pbl within one page")
 def where(f):
-    m = re.match(r"build/[\w-]+-(ovls|ovld|fe|ff|boot)\.asm$", f)
-    if m: return {"ovls": "S", "ovld": "D", "fe": "fe", "ff": "ff", "boot": "boot"}[m.group(1)]
+    m = re.match(r"build/[\w-]+-(ovls|ovld|fe|ff|boot|load)\.asm$", f)
+    if m: return {"ovls": "S", "ovld": "D", "fe": "fe", "ff": "ff", "boot": "boot", "load": "load"}[m.group(1)]
     if f in ("build/elite-source-cold.asm", "build/elite-data-cold.asm", "build/elite-stubs-x4.asm"): return "D"
     if f == "build/elite-source-aligned.asm": return "aligned"
     if f == "build/elite-source-config.asm": return "game's workspaces"   # (VEC, at WP's end)
@@ -191,24 +194,30 @@ for l in open("build/compile-p.txt", encoding="latin-1"):
     if not (lo <= a and a + n <= hi):
         bad.append("&%04X (%s): outside %s, &%04X-&%04X" % (a, stack[-1], w, lo, hi - 1))
 for f in sorted(glob.glob("build/*-frame.asm") + glob.glob("build/*-ovls.asm") + glob.glob("build/*-ovld.asm") +
-                glob.glob("build/*-fe.asm") + glob.glob("build/*-ff.asm") + glob.glob("build/*-boot.asm")):
+                glob.glob("build/*-fe.asm") + glob.glob("build/*-ff.asm") + glob.glob("build/*-boot.asm") +
+                glob.glob("build/*-load.asm")):
     body = [l.split("\\")[0].strip() for l in open(f, encoding="latin-1")]
     if any(body) and f not in inc and not f.startswith("build/gfx-raster"):   # (the rasteriser's: the hosts')
         bad.append("%s assembles something and no assembly includes it" % f)
 assert not bad, "the parasite's map:\n" + "\n".join(bad[:12])
 PY
-# the commander checksum in the default commander, NA2% (as elite-checksum.py):
-# in overlay D's image (HOVD) and PCODE's copy of it (the parasite starts with
-# D in)
+# the parasite's image, PCODE: CODE% to p_load's end (in QSL's place: the
+# quarter-square tables, made by p_boot, are left out), then the overlay
+# region's (overlay D) and the boot's staging, which p_load moves up into
+# place; and the commander checksum in the default commander, NA2% (as
+# elite-checksum.py): in overlay D's image (HOVD) and PCODE's copy of it (the
+# parasite starts with D in)
 python3 - <<'PY'
 import re
 sy = {}
 for m in re.finditer(r"'([^']+)':(\d+)", open("build/psyms.txt").read()):
     sy.setdefault(m.group(1), int(m.group(2)))
-img = bytearray(open("build/PCODE.bin", "rb").read())
+whole = open("build/PCODE.bin", "rb").read()
+base = sy["PCODE_START"]
+assert len(whole) == sy["OVL_D_END"] - base
+img = bytearray(whole[:sy["PLOAD_END"] - base] + whole[sy["OVL_START"] - base:])
 img += open("build/PSTAGE.bin", "rb").read()   # (the boot's staging, p-layout.asm)
-base = int(re.search(r"Parasite: code &&?([0-9A-F]+)", open("build/compile-p.txt").read()).group(1), 16)
-cs = sy["NA2%"] - base
+cs = sy["NA2%"] - sy["OVL_START"] + sy["PLOAD_END"] - base
 CH, CY = 0x4B - 2, 0
 for i in range(CH, 0, -1):
     CH = CH + CY + img[cs + i + 7]
@@ -323,7 +332,7 @@ def syms(f):
 p, h = syms("build/psyms.txt"), syms("build/hsyms.txt")
 with open("build/tube-addresses.asm", "w") as f:
     f.write("\\ Generated by tube/build.sh\n")
-    f.write(" PSTART = &%04X\n PCODEAT = &%04X\n" % (p["p_start"], p["PCODE_START"]))
+    f.write(" PSTART = &%04X\n PCODEAT = &%04X\n" % (p["p_load"], p["PCODE_START"]))   # (p_load: p-io.asm)
     f.write(" hwrch = &%04X\n HMAINAT = &%04X\n HMAINLEN = &%04X\n" % (h["hwrch"], h["H_START"], h["H_END"] - h["H_START"]))
     hl = open("tsrc/h-layout.asm").read()
     c = {n: int(re.search(r"^%s = &([0-9A-F]+)" % n, hl, re.M).group(1), 16) for n in ("HFONTST", "HSTS0")}

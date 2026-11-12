@@ -19,10 +19,11 @@
 \ source's order), the game data (elite-data.asm's hot blocks), the frame
 \ layer (the renderer's files with _TPART = 1: the part that records and
 \ turns the display list into the rasteriser's inputs), then, after the
-\ resident code's one gap, the log tables and QSH, page aligned, ending
-\ where the overlay region starts. Below CODE%, the shared workspace
+\ resident code's one gap, the log tables and the quarter-square tables,
+\ page aligned, ending where the overlay region starts. Below CODE%, the shared workspace
 \ (p-ws.asm), where the frame layer leaves the rasteriser's per-call inputs
-\ for the commands to send. Saved as PCODE from CODE%.
+\ for the commands to send. Saved as PCODE from CODE%, without the
+\ quarter-square tables (p_load in their place).
 \
 \ ******************************************************************************
 
@@ -78,17 +79,28 @@ PRINT "Parasite: data end at &", ~P%
                                         \ shared workspace, p-ws.asm)
 .PRES_CODE_END
 
-\ The log tables and QSH, page aligned (the game's blocks tagged "Tube: bothb, aligned":
-\ log, logL, alogh, then the quarter squares' QSH), the last of what is
-\ always resident: they end where the overlay region starts, a page, so
-\ that neither they nor the code before them is padded. The room between
-\ the code and them is the resident code's one gap
+\ The log tables and the quarter-square tables, page aligned (the game's
+\ blocks tagged "Tube: bothb, aligned": log, logL, alogh, then QSL and QSH,
+\ elite-qs.asm), the last of what is always resident: they end where the
+\ overlay region starts, a page, so that neither they nor the code before
+\ them is padded. The room between the code and them is the resident
+\ code's one gap. The quarter squares are made by the boot (p_boot), not
+\ loaded: the image (PCODE) runs from CODE% to the end of p_load, the
+\ image's first step, in QSL's place (the "Area: load" pass), then goes on
+\ with the overlay region, which p_load moves up into place
  ORG (P% + 255) AND &FF00
 .TAB_START
  INCLUDE "build/elite-source-aligned.asm"
 .TAB_END
 .PRES_END                \ (the end of what is always resident)
- ASSERT LO(TAB_END) = 0
+ ASSERT LO(TAB_END) = 0 AND QSH + 512 = TAB_END AND QSL + 512 = QSH
+ CLEAR QSL, QSH          \ (the quarter squares are SKIPs: nothing there to keep)
+ ORG QSL
+.PLOAD_START
+ INCLUDE "build/p-io-load.asm"          \ (p_load)
+.PLOAD_END
+ ASSERT PLOAD_END <= QSH  \ (and the move: up by more than a page, less than four)
+ ORG TAB_END
 
 \ The overlay region (p-ovl.asm): from OVL_START, page aligned, to RING. The
 \ parasite's image holds overlay D there (the cold area: the direct-mode
@@ -114,7 +126,8 @@ PRINT "Parasite: data end at &", ~P%
  ASSERT PCODE_END <= RING AND RING + &400 = &FE00   \ (the ring's four pages, below the top pages)
  ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above
                         \ overlay D's pages, which a load of D rewrites; elite-source.asm)
- SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
+ SAVE "build/PCODE.bin", CODE%, PCODE_END, S%   \ (tube/build.sh leaves out what
+                        \ follows p_load to OVL_START and appends the boot's staging)
  SAVE "build/HOVD.bin", OVL_START, (OVL_D_END + 255) AND &FF00
 
 \ Overlay S, the space-mode overlay (the "Area: ovl S" passes): the

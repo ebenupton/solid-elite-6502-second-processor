@@ -42,9 +42,11 @@
 
 IF _TUBE AND _TPART = 1
 
- QSL = &0200            \ Port (Tube): the parasite's QSL is in pages 2 and 3,
-                        \ the client OS's until the boot makes it there
-                        \ (tube/src/p-io.asm's p_boot)
+.QSL                    \ Port (Tube): the parasite's quarter squares are the
+ SKIP 512               \ last of its page aligned tables, ending where the
+.QSH                    \ overlay region starts, and are not in its image:
+ SKIP 512               \ the boot makes them (tube/src/p-io.asm's p_boot)
+
 ELSE
 
 .QSL
@@ -53,12 +55,10 @@ FOR n, 0, 511
  EQUB LO(n * n DIV 4)
 NEXT
 
-ENDIF
-
 .QSH
 
 FOR n, 0, 511
  EQUB HI(n * n DIV 4)
 NEXT
 
-
+ENDIF

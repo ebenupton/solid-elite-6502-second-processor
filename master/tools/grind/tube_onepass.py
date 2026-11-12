@@ -46,16 +46,26 @@ class Par:
         self.syms = {m.group(1): int(m.group(2)) for m in re.finditer(r"'([^']+)':(\d+)", s)}
         mem = bytearray(65536)
         pc = open(os.path.join(d, 'PCODE.bin'), 'rb').read()
-        code = self.syms.get('PSTG_END', self.syms['PCODE_END']) - len(pc)   # (with the boot's staging)
-        mem[code:code + len(pc)] = pc
+        if 'PLOAD_END' in self.syms:            # (the image as p_load moves it: CODE% to p_load's
+            code = self.syms['PCODE_START']     # end, then the overlay region's part from OVL_START)
+            n = self.syms['PLOAD_END'] - code
+            mem[code:code + n] = pc[:n]
+            o = self.syms['OVL_START']
+            mem[o:o + len(pc) - n] = pc[n:]
+        else:
+            code = self.syms.get('PSTG_END', self.syms['PCODE_END']) - len(pc)   # (with the boot's staging)
+            mem[code:code + len(pc)] = pc
         if 'PSTG_FE' in self.syms:              # (p_boot's copies: the top pages)
             f = self.syms['PSTG_FE']
             mem[0xFE00:0xFEF0] = mem[f:f + 0xF0]
         if 'PSTG_FF' in self.syms:
             f = self.syms['PSTG_FF']
             mem[0xFF00:0x10000] = mem[f:f + 256]
-        for n in range(512):                    # (QSL, which p_boot makes in pages 2 and 3)
-            mem[0x200 + n] = n * n // 4 & 255
+        for n in range(512):                    # (the quarter squares, which p_boot makes)
+            q = self.syms.get('QSL', 0x200)
+            mem[q + n] = n * n // 4 & 255
+            if 'PLOAD_END' in self.syms:
+                mem[self.syms['QSH'] + n] = n * n // 4 >> 8
         ov = open(os.path.join(d, 'HOVS.bin'), 'rb').read()
         o = self.syms['OVL_START']
         mem[o:o + len(ov)] = ov

@@ -6,7 +6,7 @@
 \ and counts, the flare's probes and R_POLY's scratch; the part of the
 \ renderer's shared workspace (elite-gfx.asm in the Master port) that the
 \ frame layer leaves for the rasteriser, whose state is the host's: the
-\ smaller arrays, then from &0E00 the 192-byte row arrays, R_NDISCL page
+\ smaller arrays, then from &0C00 the 192-byte row arrays, R_NDISCL page
 \ aligned (pr_* and the disc layer index it from its page: p-rast.asm); in
 \ the pages between them, the frame layer's buffers F_HW, F_HW2 and the text
 \ map; then R_NDISCR's page, and the frame layer's small state, F_SR and
