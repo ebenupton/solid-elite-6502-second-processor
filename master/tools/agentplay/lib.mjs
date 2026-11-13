@@ -511,7 +511,7 @@ export function fieldName(cs, a) {
 export function groupOf(cs, a) {
     const sy = cs.rsy, k = sy["K%"];
     if (a >= k && a < k + NOSH * NI) return "ship slots (K%)";
-    if (a >= k + NOSH * NI && a < 0x0800) return "ship line heap";
+    if (a >= k + NOSH * NI && a < k + 0x400) return "ship line heap";
     if (a >= sy.FRIN && a < sy.FRIN + NOSH + 1) return "ship slots (FRIN)";
     if (sy.NAME !== undefined && a >= sy.NAME && a <= sy.SVC) return "commander";
     if (a >= sy["NA%"] && a < sy["NAEND%"]) return "saved commander (NA%)";

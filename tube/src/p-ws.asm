@@ -1,12 +1,12 @@
 \ ******************************************************************************
 \
-\ p-ws.asm - the Tube's workspace on the parasite: one run from WP's end (VEC,
+\ p-ws.asm - the shared workspace on the parasite: one run from WP's end (VEC,
 \ elite-source.asm's last WP variable) to below CODE%, written, never loaded
 \ (p_boot zeroes it). In order: the dummy ACCCON byte; the disc heap's flags
 \ and counts, the flare's probes and R_POLY's scratch; the part of the
 \ renderer's shared workspace (elite-gfx.asm in the Master port) that the
 \ frame layer leaves for the rasteriser, whose state is the host's: the
-\ smaller arrays, then from &0E00 the 192-byte row arrays, R_NDISCL page
+\ smaller arrays, then from &0C00 the 192-byte row arrays, R_NDISCL page
 \ aligned (pr_* and the disc layer index it from its page: p-rast.asm); in
 \ the pages between them, the frame layer's buffers F_HW, F_HW2 and the text
 \ map; then R_NDISCR's page, and the frame layer's small state, F_SR and
@@ -136,17 +136,9 @@ ASSERT LO(F_HW) = 0 AND LO(F_TM) = 0
 ASSERT LO(R_NDISCR) = 0
 .R_NDX2     SKIP 192
 .R_NDX3     SKIP 192
-\ the sun near the planet (S_SUN, gfx-ssun.asm), the moon's place (MN_TURN:
-\ ss_turnx takes an offset from ss_d, so MN_E must follow it), the ship
-\ records' handedness (S_SHIP, L_REC), the lens flare's and the second disc's
+\ the sun near the planet (S_SUN, gfx-ssun.asm), the ship records'
+\ handedness (S_SHIP, L_REC), the lens flare's and the second disc's
 .ss_d       SKIP 9
-IF _PLANET_MOON
-.MN_E       SKIP 9
-.MN_OK      SKIP 1
-.mt_it      SKIP 1
-.mt_sys     SKIP 6
-ASSERT MN_E = ss_d + 9
-ENDIF
 .ss_o       SKIP 1
 .ss_w       SKIP 3
 .ss_pl      SKIP 9          \ (ss_dif's planet and sun)

@@ -1166,10 +1166,41 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
 .pcry EQUB 0
 .pcrs EQUB 0
 
+\       Area: load
+
+\ p_load: the image's first step, the loader's entry (PSTART), in the
+\ quarter squares' place (QSL), which the image ends with: the quarter
+\ squares are made, not loaded (p_boot), so the image leaves out their
+\ pages, and what follows them (overlay D and the boot's staging, from
+\ OVL_START) is loaded straight after p_load. It moves that up into place,
+\ whole pages from the top down (it moves up by less than four pages and
+\ more than one: p-layout.asm), and goes on to p_start; p_boot then writes
+\ QSL over it
+
+.p_load
+ SEI
+ LDX #(PSTG_END - OVL_START + 255) DIV 256
+.pmv1
+ LDY #0
+.pmv2
+ DEY
+.pmv_s
+ LDA PLOAD_END + ((PSTG_END - OVL_START - 1) AND &FF00),Y
+.pmv_d
+ STA OVL_START + ((PSTG_END - OVL_START - 1) AND &FF00),Y
+ TYA
+ BNE pmv2
+ DEC pmv_s+2
+ DEC pmv_d+2
+ DEX
+ BNE pmv1
+ JMP p_start
+
 \       Area: boot
 
-\ p_start: the parasite's entry (the loader starts it through the client
-\ OS's Tube code, its only use): the boot (p_boot) takes the parasite's
+\ p_start: the parasite's start, once p_load has put the image in place
+\ (the loader enters p_load through the client OS's Tube code, its only
+\ use; RESET's vector is p_start's): the boot (p_boot) takes the parasite's
 \ memory over, then wakes the host's command loop with &FE (the host's
 \ WRCHV, as the MOS's Tube code passes the byte to OSWRCH), then the
 \ renderer's initialisation (F_INIT, as the Master port's loader calls it
@@ -1195,13 +1226,16 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  JMP F_INIT
 
 \ p_boot: drains a stray byte from the host in register 1, zeroes the
-\ Tube's workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
-\ makes QSL (elite-qs.asm) in pages 2 and 3, then copies the staged images
+\ shared workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
+\ makes the quarter-square tables QSL and QSH (elite-qs.asm: the last of the
+\ page aligned tables, over p_load), then copies the staged images
 \ (p-layout.asm) in over the client OS, which the game never uses again:
 \ the two top pages.
-\ QSL+x is q(x) = x^2 DIV 4's low byte, and QSL+256+x (256+x)^2 DIV 4's,
-\ q(x) + 128x's: q(x) with bit 7 flipped when x is odd; q(x+1) = q(x) +
-\ (x+1) DIV 2, kept in rq (p_start sets it after)
+\ For x = 0-255, with q = q(x) = x^2 DIV 4 (16 bits, rq and rq+1):
+\ QSL+x and QSH+x are q's low and high bytes; (256+x)^2 DIV 4 is q + 128x +
+\ &4000, so QSL+256+x is q's low byte plus 128 if x is odd, and QSH+256+x
+\ q's high byte plus x DIV 2, &40 and that sum's carry; q(x+1) = q(x) +
+\ x DIV 2 + (x AND 1). (p_start sets rq after)
 
 .p_boot
  LDA &FEF8
@@ -1225,21 +1259,32 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  CPX #HI(PWS_END)
  BNE pbz1
  STZ rq                 \ (q(0))
+ STZ rq+1
  LDX #0
 .pbt1
  LDA PSTG_FF,X
  STA &FF00,X
- TXA                    \ QSL+x and QSL+256+x (C: x odd)
+ TXA                    \ QSL+256+x and QSH+256+x
  LSR A
- LDA rq
- STA QSL,X
- BCC P%+4
- EOR #&80
+ TAY                    \ (Y = x DIV 2, C = x AND 1)
+ LDA #0
+ ROR A
+ ADC rq
  STA QSL+256,X
+ TYA
+ ADC rq+1
+ ADC #&40               \ (C = 0: at most 63 + 127 + 1 before)
+ STA QSH+256,X
+ LDA rq                 \ QSL+x and QSH+x
+ STA QSL,X
+ LDA rq+1
+ STA QSH,X
  TXA                    \ q(x+1) = q(x) + x DIV 2 + (x AND 1)
  LSR A
  ADC rq
  STA rq
+ BCC P%+4
+ INC rq+1
  CPX #&F0                \ (&FEF0-&FEFF: the Tube's registers)
  BCS pbt2
  LDA PSTG_FE,X

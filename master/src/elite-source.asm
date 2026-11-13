@@ -55,7 +55,7 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &1B34          \ Port (Tube): the parasite's, where the Tube's workspace
+ CODE% = &1934          \ Port (Tube): the parasite's, where its shared workspace
                         \ ends (tube/src/p-ws.asm, p-layout.asm asserts it)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
@@ -276,7 +276,14 @@ ENDIF
  WRCHV = &020E          \ The WRCHV vector that we intercept with our custom
                         \ text printing routine
 
+IF _TPART = 1
+ LS% = &0600            \ Port (Tube): the parasite's K%, its ship line heap
+                        \ and WP are two pages below the Master port's, so that
+                        \ K% follows the stack (tube/src/p-layout.asm,
+                        \ docs/TUBE-MAP.md), each byte's place in its page kept
+ELSE
  LS% = &0800            \ The start of the descending ship line heap
+ENDIF
 
  TAP% = LS% - 111       \ The staging area where we copy files after loading and
                         \ before saving (though this isn't actually used in this
@@ -1288,7 +1295,11 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART = 1
+ ORG &0200              \ Port (Tube): the parasite's K%, after the stack (LS%)
+ELSE
  ORG &0400              \ Set the assembly address to &0400
+ENDIF
 
 .K%
 
@@ -1312,6 +1323,10 @@ ENDIF
 \
 \ ******************************************************************************
 
+IF _TPART = 1
+ ORG &0641              \ Port (Tube): the parasite's WP, two pages below the
+                        \ Master port's, as K% (LS%)
+ELSE
  ORG &0841              \ Set the assembly address to &0841 (Port: &0E41 in
                         \ the original; WP is in main RAM below page &0D, in
                         \ the MOS's sound, printer, RS423, cassette and speech
@@ -1320,6 +1335,7 @@ ENDIF
                         \ original, and the renderer's shared workspace from
                         \ &0E00 up to the main code, see elite-gfx.asm and
                         \ docs/MASTER-MAP.md)
+ENDIF
 
 .WP
 
@@ -2206,7 +2222,7 @@ IF _TPART = 1
                         \ there (ACCCON's X bit, around the drawing whose screen
                         \ writes go to the host, the only SHEILA write left)
                         \ lands in one byte, the first after VEC, the start of
-                        \ the Tube's workspace (tube/src/p-ws.asm's PACC), and
+                        \ the shared workspace (tube/src/p-ws.asm's PACC), and
                         \ what it reads (the keyboard, the timers) is replaced
                         \ (docs/TUBE-MAP.md)
 
@@ -15098,7 +15114,7 @@ ENDIF
  JMP mu5                \ Join MU11 at mu5 with C = 1, P = |A|, Q = q and
                         \ X = |A| + q - 256, as MU11 arrives there
 
- ASSERT (QSH = QSL + 512 OR _TUBE) AND LO(QSL) = 0 AND LO(QSH) = 0
+ ASSERT QSH = QSL + 512 AND LO(QSL) = 0
 
 .MLS2A
 

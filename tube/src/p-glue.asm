@@ -74,14 +74,11 @@
 
 \ G_PFHOOK: H_CIRC's planet surface (gfx-hooks.asm): PF_HOOK, the planet's
 \ class and its circles' records (gfx-planet7.asm, with the circle engine
-\ gfx-merid.asm, in overlay S), its moon and its ring; PF_CLS bit 7 says
+\ gfx-merid.asm, in overlay S) and, with RINGS=on, its ring; PF_CLS bit 7 says
 \ that f_bounds is to colour the disc from them (T_CAPS). Keeps X and Y
 \ (H_CIRC, the only caller, reads none of A and the flags after it)
 
 .G_PFHOOK
-IF _PLANET_MOON
- JSR MN_TURN            \ (the moon's place for this iteration, gfx-ssun.asm)
-ENDIF
  LDA #OVL_S
  JSR ovl_need
  JSR PF_HOOK

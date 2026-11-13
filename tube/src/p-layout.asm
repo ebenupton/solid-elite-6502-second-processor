@@ -5,7 +5,7 @@
 \
 \ Every place is a pass. A source file is one file wherever its blocks go:
 \ the game's source (master/src/elite-source.asm) by its headers' "Tube:"
-\ fields, the renderer's files and the Tube's own by "Area:" tag lines;
+\ fields, the renderer's files and the parasite's own by "Area:" tag lines;
 \ tools/streams.py writes a copy of each file for each place, the other
 \ lines blanked (build/<file>-<pass>.asm: frame, the file's own place,
 \ which is the resident code; ovld, overlay D; ovls, overlay S; fe and ff,
@@ -14,15 +14,16 @@
 \
 \ The game's copies (tools/streams.py with TUBE=1) are assembled with _TUBE
 \ and _TPART = 1; the far-call stubs between its hot and cold areas are plain
-\ jumps. In order from CODE%: the glue (p-low.asm), the game's run (every
+\ jumps. In order from CODE%: the glue area (p-low.asm), the game's run (every
 \ block not tagged for overlay D, the hosts or the aligned pass, in the
 \ source's order), the game data (elite-data.asm's hot blocks), the frame
 \ layer (the renderer's files with _TPART = 1: the part that records and
 \ turns the display list into the rasteriser's inputs), then, after the
-\ resident code's one gap, the page aligned tables, ending where the
-\ overlay region starts. Below CODE%, the Tube's workspace (p-ws.asm),
-\ where the frame layer leaves the rasteriser's inputs for the commands to
-\ send. Saved as PCODE from CODE%.
+\ resident code's one gap, the log tables and the quarter-square tables,
+\ page aligned, ending where the overlay region starts. Below CODE%, the shared workspace
+\ (p-ws.asm), where the frame layer leaves the rasteriser's per-call inputs
+\ for the commands to send. Saved as PCODE from CODE%, without the
+\ quarter-square tables (p_load in their place).
 \
 \ ******************************************************************************
 
@@ -33,12 +34,12 @@ _RBANK = 0
  INCLUDE "tsrc/cmds.asm"
 
  INCLUDE "build/elite-source-config.asm"   \ (the configuration and the workspaces)
- INCLUDE "tsrc/p-ws.asm"                \ (the Tube's workspace, after WP)
+ INCLUDE "tsrc/p-ws.asm"                \ (the shared workspace, after WP)
  ASSERT CODE% = PWS_END                 \ (the code starts where the workspace ends)
 
  ORG CODE%
 .PCODE_START
- INCLUDE "tsrc/p-low.asm"               \ the parasite's glue (p-low.asm)
+ INCLUDE "tsrc/p-low.asm"               \ the glue area (p-low.asm)
 .GLUE_END%
 
  INCLUDE "build/elite-source-run.asm"   \ the game, resident, in the source's order
@@ -48,7 +49,7 @@ PRINT "Parasite: glue &", ~CODE%, "-&", ~GLUE_END%-1, ", the game's run to &", ~
  INCLUDE "build/elite-data-hot.asm"
 .HZDATA_END%
  INCLUDE "src/gfx-hangar6.asm"
- INCLUDE "src/gfx-planetv.asm"          \ (the moon's and the ring's variables:
+ INCLUDE "src/gfx-planetv.asm"          \ (the ring's variables, with RINGS=on:
 .HZ_END                                 \ f_reset writes them out of space mode)
 
 PRINT "Parasite: data end at &", ~P%
@@ -64,9 +65,8 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/gfx-flare-frame.asm"    \ (the flare's step in F_FRAME, f_flt; the
  CPU 1                                  \ flare in overlay S)
  INCLUDE "build/gfx-hangar-frame.asm"  \ (streams.py's pass: F_HANG0 is overlay D's)
- INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's and MN_TURN's resident part:
- CPU 1                                  \ G_FRAME, G_PFHOOK, MOONHIT)
- INCLUDE "src/elite-moon.asm"           \ (MOONHIT: the moon is solid)
+ INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's resident part, which G_FRAME
+ CPU 1                                  \ calls)
 \ the resident parts of overlay S's files (their "Area: frame" blocks)
  INCLUDE "build/p-probe-frame.asm"      \ (the lens flare's probes' resident part)
  INCLUDE "build/p-disc-frame.asm"       \ (the disc heap's drop, the surface's cold ends)
@@ -76,20 +76,31 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/p-onepass-frame.asm"    \ (R_POLY in one pass: oo_scan, the 16-bit edges)
  INCLUDE "src/gfx-finit.asm"            \ (F_INIT, run once before the first frame;
                                         \ the frame layer's state is in the
-                                        \ workspace, p-ws.asm)
+                                        \ shared workspace, p-ws.asm)
 .PRES_CODE_END
 
-\ The page aligned tables (the game's blocks tagged "Tube: bothb, aligned":
-\ log, logL, alogh, then the quarter squares' QSH), the last of what is
-\ always resident: they end where the overlay region starts, a page, so
-\ that neither they nor the code before them is padded. The room between
-\ the code and them is the resident code's one gap
+\ The log tables and the quarter-square tables, page aligned (the game's
+\ blocks tagged "Tube: bothb, aligned": log, logL, alogh, then QSL and QSH,
+\ elite-qs.asm), the last of what is always resident: they end where the
+\ overlay region starts, a page, so that neither they nor the code before
+\ them is padded. The room between the code and them is the resident
+\ code's one gap. The quarter squares are made by the boot (p_boot), not
+\ loaded: the image (PCODE) runs from CODE% to the end of p_load, the
+\ image's first step, in QSL's place (the "Area: load" pass), then goes on
+\ with the overlay region, which p_load moves up into place
  ORG (P% + 255) AND &FF00
 .TAB_START
  INCLUDE "build/elite-source-aligned.asm"
 .TAB_END
 .PRES_END                \ (the end of what is always resident)
- ASSERT LO(TAB_END) = 0
+ ASSERT LO(TAB_END) = 0 AND QSH + 512 = TAB_END AND QSL + 512 = QSH
+ CLEAR QSL, QSH          \ (the quarter squares are SKIPs: nothing there to keep)
+ ORG QSL
+.PLOAD_START
+ INCLUDE "build/p-io-load.asm"          \ (p_load)
+.PLOAD_END
+ ASSERT PLOAD_END <= QSH  \ (and the move: up by more than a page, less than four)
+ ORG TAB_END
 
 \ The overlay region (p-ovl.asm): from OVL_START, page aligned, to RING. The
 \ parasite's image holds overlay D there (the cold area: the direct-mode
@@ -115,13 +126,14 @@ PRINT "Parasite: data end at &", ~P%
  ASSERT PCODE_END <= RING AND RING + &400 = &FE00   \ (the ring's four pages, below the top pages)
  ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above
                         \ overlay D's pages, which a load of D rewrites; elite-source.asm)
- SAVE "build/PCODE.bin", CODE%, PCODE_END, S%
+ SAVE "build/PCODE.bin", CODE%, PCODE_END, S%   \ (tube/build.sh leaves out what
+                        \ follows p_load to OVL_START and appends the boot's staging)
  SAVE "build/HOVD.bin", OVL_START, (OVL_D_END + 255) AND &FF00
 
 \ Overlay S, the space-mode overlay (the "Area: ovl S" passes): the
 \ rasteriser (p-rast.asm: its state first, then its code), the lens flare
 \ and the planet's surface (the circle engine, gfx-merid.asm, and its
-\ styles, moon and ring, gfx-planet7.asm), from OVL_START (p-ovl.asm). The
+\ styles, gfx-planet7.asm), from OVL_START (p-ovl.asm). The
 \ host keeps its image (HOVS)
  IF MEASURE             \ (tube/build.sh MEASURE=1: sizes only, no usable image)
   CLEAR OVL_START, &FFFF
