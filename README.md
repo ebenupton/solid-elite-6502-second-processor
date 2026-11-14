@@ -60,8 +60,8 @@ Main-loop iterations per emulated second over windows of one recorded game: flig
 |---|---:|---:|---:|---:|---:|
 | Original (SNG47, BBC Master, wireframe) | 12.76 | 15.51 | 8.10 | 9.06 | 28.77 |
 | Master port (BBC Master, no second processor) | 14.16 | 16.09 | 6.96 | 8.10 | 25.04 |
-| Tube, Master host, 4 MHz second processor | 22.62 | 21.73 | 11.10 | 13.92 | 25.05 |
-| Tube, Model B host, 3 MHz second processor | 19.46 | 19.86 | 9.18 | 11.19 |25.04 |
+| Tube, Master host, 4 MHz second processor | 22.62 | 21.73 | 11.10 | 13.90 | 25.05 |
+| Tube, Model B host, 3 MHz second processor | 19.46 | 19.86 | 9.18 | 11.18 | 25.05 |
 
 With the Master as host, the Tube version runs at 1.35 to 1.72 times the Master port's speed where the Master port is below the 25 fps cap, and faster than the original in every window but the sun's, where the original's wireframe sun runs at 28.77 and the solid builds are held by the cap. In the Master port's own gate run (a deterministic pilot's 10,000 iterations of launches, fights, station approaches and hyperspace jumps, the same game on every build: flight iterations per emulated second), the original runs at 15.93, the Master port at 15.21, the Tube version at 22.99 with the Master host and at 21.08 with the Model B host. The recorded game no longer docks: with the planet's half steps its keys play out a different game after the first launch, so the windows are where that game now shows these scenes.
 
