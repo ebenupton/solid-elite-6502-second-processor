@@ -106,9 +106,7 @@ ASSERT P% - htab = C_MAX
 .hloop
  BIT HR1S               \ the next command
  BMI hlp1
- BVC hloop              \ (register 1 empty: the parasite's doorbell, through
- STA HR1D               \ register 1 to it, unless one already waits there;
- BVS hloop              \ p-io.asm's ring)
+ JSR hrw                \ (register 1 empty: hrw rings the parasite's doorbell)
 .hlp1
  LDA HR1D
  TAX
@@ -130,8 +128,15 @@ IF _HOSTB = 0             \ (the Model B host's: hb-main.asm, at a fixed place)
 .hrw                    \ register 1 empty: ring the parasite's doorbell (any
  BIT HR1S               \ byte through register 1, host to parasite), and again
  BMI hrw9               \ whenever the parasite has taken it, while register 1
- BVC hrw                \ stays empty (p-io.asm's ring). Keeps A, X and Y
+ BVC hrw                \ stays empty (p-io.asm's ring). Keeps A, X and Y.
+ PHP                    \ The ring's test made again with interrupts off: the
+ SEI                    \ parasite's IRQ sends 23 bytes without checking for
+ BIT HR1S               \ room, as the doorbell says register 1 is empty, but
+ BMI hrw8               \ an IRQ here between the test and the STA can last
+ BVC hrw8               \ while the parasite fills register 1 directly
  STA HR1D
+.hrw8
+ PLP                    \ (V set: the flags pushed after the BVC fell through)
  BVS hrw
 .hrw9
  RTS

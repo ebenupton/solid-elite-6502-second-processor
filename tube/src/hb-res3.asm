@@ -124,7 +124,14 @@
  BIT HR1S               \ Master copy says how): here, as banks 7 and 4 both call it
  BMI hrw9
  BVC hrw
+ PHP                    \ (the test again with interrupts off, as h-main.asm's)
+ SEI
+ BIT HR1S
+ BMI hrw8
+ BVC hrw8
  STA HR1D
+.hrw8
+ PLP
  BVS hrw
 .hrw9
  RTS
