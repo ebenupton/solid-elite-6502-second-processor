@@ -259,8 +259,12 @@ into ZINF, SOLAR into NWSTARS, LAUN into HFS2 and TTX69 into TT69, cold into
 hot, and BEGIN into TT170, hot into cold); any other fall-through across
 passes, any branch across passes, and any reference from the hot side to a
 cold label that is not a call, a jump or its address (a stub has no data) is
-an error; every unit fits a container. bankcheck.py reads the copies for its
-rules ("Calls between the passes").
+an error; every unit fits a container; and in each hot copy, after a block
+that falls through into the next, an ASSERT that the next starts where it
+ends. A block's last statement is its last that assembles anything (MT16
+ends with the constant DTW7 = MT16 + 1, after the LDA that falls into
+TT26). bankcheck.py reads the copies for its rules ("Calls between the
+passes").
 
 ## The map
 
