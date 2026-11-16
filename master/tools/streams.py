@@ -308,8 +308,9 @@ def last_statement(lines, s, e):
     """the last statement of lines[s:e] that is assembled (None if none),
     passing over the lines of conditional assembly (IF, ELIF, ELSE, ENDIF),
     the branches the build's flags rule out, and the statements that
-    assemble nothing (constants, PRINTs, ASSERTs ...: MT16 ends with DTW7 =
-    MT16 + 1, after the LDA that falls through into TT26)"""
+    assemble nothing (constants, PRINTs, ASSERTs, labels alone ...: MT16 ends
+    with DTW7 = MT16 + 1, after the LDA that falls through into TT26, and
+    MVEIT's part 1 with the label .MV3)"""
     for i in range(e - 1, s - 1, -1):
         if ACTIVE and not ACTIVE[i]:
             continue
@@ -319,9 +320,9 @@ def last_statement(lines, s, e):
         if c.upper().startswith("EQU"):
             return c
         for st in reversed([x.strip() for x in c.split(" : ")]):
-            if assembles(st, set()):
-                return st
-    return None
+            if assembles(st, set()) and not re.match(r"^\.[A-Za-z_][\w%]*$", st):
+                return st                  # (a label alone assembles nothing:
+    return None                            # MVEIT part 1 ends with .MV3)
 
 
 def entry_label(lines, s, e, macros):
@@ -1126,21 +1127,59 @@ def tube_main(lines, bl, eff, macros, errors):
     # (branches between the resident code and overlay D go through the stubs:
     # glue)
     copies = {}
+    member = {}                            # (copy -> the blocks it assembles)
     for a in ("config", "run", "cold", "aligned"):
         copies[a] = []
+        member[a] = set()
         for k, (s0, e0, name, area) in enumerate(bl):
             on = copy_of[k] == a and (a == "config" or par(k))
+            if on:
+                member[a].add(k)
             copies[a] += [lines[i] if on else "" for i in range(s0, e0)]
     # the hosts' copies: their blocks (not the configuration's)
-    for nm, tags in (("host", ("host", "both", "both, ovl D")),
-                     ("hostb", ("hostb", "bothb", "bothb, ovl D")),
-                     ("hostba", ("bothb, aligned",))):
-        c = []
+    HOSTS = (("host", ("host", "both", "both, ovl D")),
+             ("hostb", ("hostb", "bothb", "bothb, ovl D")),
+             ("hostba", ("bothb, aligned",)))
+    for nm, tags in HOSTS:
+        member[nm] = set(k for k in range(len(bl)) if teff[k] != "config" and tag(k) in tags)
+        copies[nm] = []
         for k, (s0, e0, name, area) in enumerate(bl):
-            on = teff[k] != "config" and tag(k) in tags
-            c += [lines[i] if on else "" for i in range(s0, e0)]
+            copies[nm] += [lines[i] if k in member[nm] else "" for i in range(s0, e0)]
+    # in every copy, each block that falls through its end must end where the
+    # block it falls into starts: an ASSERT on a blank line after its last code
+    # line (as the Master port's hot copies have), so that a placement that
+    # parted them fails the build; a host's block that falls into a block its
+    # copy does not assemble is an error (the parasite's seams into and out of
+    # overlay D are the stubs above)
+    for a in ("run", "cold", "aligned") + tuple(nm for nm, _ in HOSTS):
+        for k in sorted(member[a]):
+            s0, e0 = bl[k][0], bl[k][1]
+            if not ASM[k]:
+                continue
+            st = last_statement(lines, s0, e0)
+            if not falls_through(st, macros) and s0 not in RUNSON:
+                continue
+            k2 = next((j for j in range(k + 1, len(bl)) if ASM[j]), None)
+            if k2 is None:
+                continue
+            if k2 not in member[a]:
+                if a in [nm for nm, _ in HOSTS]:
+                    errors.append("%s:%d: %s can fall through its end (%s) into %s, which the hosts' "
+                                  "copy %s does not assemble" % (SRC, e0, bl[k][2], st, bl[k2][2], a))
+                continue
+            entry = entry_label(lines, bl[k2][0], bl[k2][1], macros)
+            if not entry:                  # (no label to check: a routine's next part)
+                continue
+            last = max([i for i in range(s0, e0) if code_part(lines[i])], default=None)
+            spot = [i for i in range(last + 1, e0) if not lines[i].strip()] if last is not None else []
+            if not spot:
+                errors.append("%s:%d: %s falls into %s: no blank line after its code for the check"
+                              % (SRC, e0, bl[k][2], entry))
+                continue
+            copies[a][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block before falls through into it)"
+    for nm, _ in HOSTS:
         with open(OUT % nm, "w", encoding="latin-1") as f:
-            f.write("\n".join(c))
+            f.write("\n".join(copies[nm]))
     nstubs = glue(copies, errors, lines, bl, teff, copy_of, falls, ["run", "aligned"])
     for a in ("config", "run", "cold", "aligned"):
         with open(OUT % a, "w", encoding="latin-1") as f:
