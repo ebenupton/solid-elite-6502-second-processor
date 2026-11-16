@@ -579,6 +579,7 @@ each measured with profile.mjs on its commit and its parent:
 | Change | Cycles per iteration | Bytes | Rate |
 |---|---:|---:|---:|
 | LINSCN calls SOINT only when a channel has a sound | -127 | +11 (low pass: CODE% 11 lower, the shared workspace's gap) | 11.5 |
+| stl_pat patches the stardust's multipliers only when ALP1 or BET1 has changed | -43 | +5 (main) | 8.6 |
 
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the
