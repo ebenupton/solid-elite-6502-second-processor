@@ -18,15 +18,18 @@
 // Also as mlib (and for the same reasons, documented there): at NOISE the three SOPR
 // bytes are cleared; at the LL5 call that feeds ALTIT, Q is cleared; in a build
 // without the port's half steps (SNG47) the planet's own pitch and roll are made half
-// steps, as the port's half spin makes them (mlib's patch, halfPart8); at TT170 the
-// candidate's boot leftovers are seeded from the reference (seedFrom). At every MLOOP the
+// steps, as the port's half spin makes them (mlib's patch, halfPart8); at TT170 a
+// patch as assembled code (opts.refPatch, mlib's applyRefPatch: the reference gets the
+// candidate build's own) is checked and written, and the candidate's boot leftovers are
+// seeded from the reference (seedFrom). At every MLOOP the
 // game state (mlib.regionsFor) is snapshotted.
 //
 // What it watches for besides: BRKs that reach the game's BRK handler (NEWBRK) with
 // where they came from, writes by game code to page &0D (off limits on the Master),
 // and the routine labels of each poll (control flow).
-import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank, halfPart8 } from "../../../harness/mlib.mjs";
-export { loadSyms, regionsFor };
+import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank, halfPart8,
+    findHalfSpin, applyRefPatch, loadRefPatch, refPatchPath } from "../../../harness/mlib.mjs";
+export { loadSyms, regionsFor, loadRefPatch, refPatchPath };
 
 export const ROOT = decodeURIComponent(new URL("../../..", import.meta.url).pathname).replace(/\/$/, "") + "/";
 export const NI = 37, NOSH = 12;
@@ -43,7 +46,7 @@ export class EliteMachine {
     // opts: name, disc, syms (loadSyms), input ({ rdkey(ctx), dks5(ctx), joy(ctx) }),
     //       seedFrom (another EliteMachine whose TT170 state seeds this one's boot leftovers),
     //       rand (4 bytes written to RAND at TT170), patch(m) (called once, at the first QU5),
-    //       watch0d (record page &0D writes by game code)
+    //       watch0d (record page &0D writes by game code), refPatch (mlib.loadRefPatch's)
     constructor(opts) {
         Object.assign(this, { name: opts.name, disc: opts.disc, sy: opts.syms, input: opts.input, opts });
         this.iter = 0; this.polls = 0; this.joys = 0; this.tt100 = 0;
@@ -59,8 +62,8 @@ export class EliteMachine {
         this.s = await bootMaster(this.disc);
         const cpu = this.cpu = this.s._machine.processor;
         const sy = this.sy;
-        this.regions = regionsFor(sy);
-        this.canon = canonFor(sy, this.regions);   // (the station's line heap pointer, LSO)
+        this.regions = regionsFor(sy, this.opts.refPatch);
+        this.canon = canonFor(sy, this.regions, this.opts.refPatch);   // (the station's line heap pointer, LSO)
         this.ram = cpu.ramRomOs;
         this._labels();
         // (a label in sideways RAM with no bank in banks.txt can't be told from whatever
@@ -345,6 +348,7 @@ export class EliteMachine {
             this.bootWrites.remove();
             this._findJoy();
             this._findP8();
+            if (this.opts.refPatch) applyRefPatch(this.ram, this.opts.refPatch);
             this.init = this.snapshot();
             this.lastProgressCycles = this.cyclesNow();
         } else if (this._at(H.NEWBRK, pc)) {
@@ -377,23 +381,15 @@ export class EliteMachine {
         }
         return false;
     }
-    // the half spin's patch (mlib's): for a build without the port's half
-    // steps (MVS5's for the planet, which has the label mvs5hf), MVEIT
-    // part 8's first instruction (LDA INWK+30, AND #&80, STA RAT2, before MV8)
-    // and MV5
+    // the half spin's patch (mlib's findHalfSpin): for a build without the port's half
+    // steps, MVEIT part 8's first instruction and MV5
     _findP8() {
-        const sy = this.sy, cpu = this.cpu;
         this.p8vec = null;
-        if (sy.mvs5hf !== undefined || sy.MV8 === undefined || sy.MV5 === undefined) return;
-        const m = mapOfLabel(sy, "MV8"), want = [0xa5, sy.INWK + 30, 0x29, 0x80, 0x85, sy.RAT2];
-        for (let a = sy.MV8 - 6; a > sy.MV8 - 64; a--)
-            if (want.every((b, i) => physRead(cpu, m, a + i) === b)) {
-                this.H.P8 = { a, m, name: "P8" };
-                this.H.MV5 = { a: sy.MV5, m: mapOfLabel(sy, "MV5"), name: "MV5" };
-                this.hookTab[this.H.P8.a] = 1; this.hookTab[this.H.MV5.a] = 1;
-                return;
-            }
-        throw new Error("MVEIT part 8 not found before MV8 (the half spin's patch)");
+        const hs = findHalfSpin(this.sy, this.cpu);
+        if (!hs) return;
+        this.H.P8 = { ...hs.p8, name: "P8" };
+        this.H.MV5 = { ...hs.mv5, name: "MV5" };
+        this.hookTab[this.H.P8.a] = 1; this.hookTab[this.H.MV5.a] = 1;
     }
     _findJoy() {
         const dk = this.dk15, sy = this.sy, J = [];

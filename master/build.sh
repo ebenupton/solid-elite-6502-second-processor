@@ -13,7 +13,8 @@
 #   workspaces, main code, banked code and the data), build/banks.txt (the
 #   banked labels' banks),
 #   build/starocc.txt (tools/starocc.py: no star shows through a fill),
-#   build/elite-master-sng47.ssd (bootable with SHIFT+BREAK on a BBC Master).
+#   build/elite-master-sng47.ssd (bootable with SHIFT+BREAK on a BBC Master),
+#   build/sunref.json (tools/sunref/sunref.py: the patch to the reference).
 #
 # The copy protection is gone (Stage B, docs/MASTER-PLAN.md): the game is
 # assembled with _REMOVE_CHECKSUMS=TRUE (no decryption at start-up, no
@@ -134,6 +135,9 @@ with open("build/images.txt", "w") as f:
         f.write("%s %s %04X %s\n" % (img, rs, at, v))
 PY
 python3 tools/bankcheck.py || exit 1
+# the patch to the reference, build/sunref.json (tools/sunref/sunref.py: the
+# harness writes it into SNG47 at TT170)
+python3 tools/sunref/sunref.py >> build/compile.txt || { tail -5 build/compile.txt; exit 1; }
 # no star can show through a fill (R_STARPLOT's rule, master/tools/starocc.py)
 python3 tools/starocc.py build > build/starocc.txt || { cat build/starocc.txt; exit 1; }
 for f in loader readme; do

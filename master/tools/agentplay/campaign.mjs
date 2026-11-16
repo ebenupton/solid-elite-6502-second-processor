@@ -195,7 +195,8 @@ const PLANS = {
     ],
 };
 // The candidate is copied into DIR/cand-build/ when the campaign first starts (disc,
-// symbols.txt, banks.txt), and every session runs that copy: a rebuild of master/build
+// symbols.txt, banks.txt, and sunref.json, its patch to the reference, if it has
+// one), and every session runs that copy: a rebuild of master/build
 // while a campaign runs would otherwise give later sessions another build, or a disc and
 // symbols from different builds (phase 2 loads a phase 1 disc, whose game is that copy).
 // --cand DISC --csyms SYMS choose another build to copy.
@@ -209,6 +210,8 @@ if (!existsSync(`${CB}/symbols.txt`)) {
     copyFileSync(syms, `${CB}/symbols.txt`);
     const banks = syms.replace(/symbols\.txt$/, "banks.txt");
     if (existsSync(banks)) copyFileSync(banks, `${CB}/banks.txt`);
+    const rp = syms.replace(/symbols\.txt$/, "sunref.json");
+    if (existsSync(rp)) copyFileSync(rp, `${CB}/sunref.json`);
 }
 const plan = PLANS[a.plan || "default"].filter(([n]) => !a.only || a.only.split(",").includes(n));
 
