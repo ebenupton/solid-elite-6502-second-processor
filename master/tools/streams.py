@@ -45,11 +45,12 @@
 #   * ", again" after any of these ("Area: cold, again"): the block is also
 #     emitted a second time into build/elite-source-again.asm (every other
 #     line blank, so line numbers stay), with no stubs, and with its own
-#     labels and the targets of its JSRs and JMPs named A_<name>: the
-#     renderer INCLUDEs it, and says where each call goes (the original
-#     routine, A_X = X, or a stand-in of its own). gfx-ssun.asm runs SOLAR's
-#     placing of the planet and the sun this way, with SOS1 and NWSHP noting
-#     INWK instead of making ships.
+#     labels and the targets of its JSRs and JMPs named A_<name>: the file
+#     that INCLUDEs it says where each call goes. The port's own routines
+#     that the reference must run too (the sun's parking, SUNUP ...) are
+#     emitted so: tools/sunref/sunref.py assembles them for the released
+#     SNG47, with each A_X bound to SNG47's X, as the harness's patch to the
+#     reference.
 #   * ", runs on" after any of these ("Area: hot, runs on"): a table that code
 #     reads past its end into the next block (DETOK2 reads TKN2 on into QQ16),
 #     so the next block must follow it, in the same pass and unit, as if it
@@ -399,7 +400,7 @@ NORETURN = {"BAY", "DEATH2", "TT170", "FRCE", "GOIN", "BEGIN", "BRIEF",
 OTHERS = ("src/elite-layout.asm", "src/elite-measure.asm", "src/elite-glue.asm",
           "src/elite-qs.asm", "src/elite-gfx.asm")
 # (the Tube's: the parasite's files besides the game's copies)
-TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm",
+TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm",
            "src/gfx-hooks.asm", "src/gfx-gvars.asm", "src/gfx-finit.asm", "src/gfx-faces.asm",
            "src/gfx-light.asm", "src/gfx-light6.asm", "src/gfx-hangar.asm", "src/gfx-hangar6.asm",
            "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
@@ -1005,7 +1006,7 @@ def stub_none(lines, bl):
 # assemble the file itself, where the tag lines are comments. The parasite
 # places every one of its files by these passes (p-layout.asm): a file whose
 # blocks go to more than one place is still one file
-FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm",
+FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm",
              "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
              "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
              "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm", "tsrc/p-rast.asm",
@@ -1364,7 +1365,7 @@ def main():
         conts = [["hot1", sy["LOW_END%"], 0x4000, []], ["hot2", sy["QS_RUN%"], 0x8000, []],
                  ["hot3", 0x8000, 0xC000 - b4 - (sy["R4_END%"] - sy["R4_START%"]), []]]
         # (bank 4 ends with the hot data HAZEL has no room for, b4, then the
-        # renderer's game-context routines, S_SUN and L_SUN: elite-layout.asm)
+        # renderer's game-context routine, L_SUN: elite-layout.asm)
         used = {c[0]: 0 for c in conts}
         cur = 0
         for u0, u1 in units:

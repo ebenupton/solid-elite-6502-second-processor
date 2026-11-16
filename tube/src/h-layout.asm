@@ -127,9 +127,9 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  SAVE "build/HFONT.bin", HFONTST, P%
 
 
- CLEAR &8000, &C000      \ bank 7: the host's code, one run from &9400
- GUARD &C000
- ORG &9400
+ CLEAR &8000, &C000      \ bank 7: the host's code, one run from the page after
+ GUARD &C000             \ overlay S's pages at the bank's bottom (its third extent)
+ ORG &8000 + 256 * (OVLS_PAGES - OVLS0_PAGES - (&40 - HI(HSTS0)) - &10)
 .B7_START
  INCLUDE "build/elite-source-hostba.asm"  \ (first, as the bank's first page is:
  ASSERT log = B7_START                    \ log, logL and alogh, page aligned)

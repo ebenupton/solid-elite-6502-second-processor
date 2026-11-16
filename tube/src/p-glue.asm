@@ -13,10 +13,9 @@
  LDA #ELITEBANK
  RTS
 
-.G_FRAME                \ (the sun near the planet first, S_SUN, gfx-ssun.asm,
- JSR S_SUN              \ then in a space view the light for the next
- LDA QQ11               \ iteration's ships, L_SUN, gfx-light.asm: both in
- BNE P%+5               \ game context, as the Master port's)
+.G_FRAME                \ (in a space view the light for the next iteration's
+ LDA QQ11               \ ships first, L_SUN, gfx-light.asm, in game context,
+ BNE P%+5               \ as the Master port's)
  JSR L_SUN
  JSR F_FRAME
  JMP gback

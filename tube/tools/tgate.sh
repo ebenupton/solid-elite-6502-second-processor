@@ -2,7 +2,9 @@
 # tgate.sh DIR: the Tube build's gates on a copy of the current build, in DIR
 # (docs/TUBE-MAP.md, TUBE-REPORT.md's verification commands), both hosts in
 # parallel: the Master port byte-identical to scratch/master-ref.ssd, the
-# lockstep replay of run1 against SNG47, the pixels against the Master port's
+# lockstep replay of run1 against SNG47 with the sun's parking patched in
+# (sunref.json, beside psyms.txt: the parked sun SUNPK compared as a region),
+# the pixels against the Master port's
 # oracle (scratch/fbref), the disc menu, a deliberate BRK (tcrash.mjs), the station
 # in front of a planet over 65536 away (tstation.mjs), and the speed windows (flight
 # 1000-1400, 0-3550, two launches from Lave towards its beach ball 300-403 and
@@ -20,7 +22,7 @@ set -u
 D=$1; TO=${TO:-16000}
 throttle() { while [ $(jobs -pr | wc -l) -ge ${MAXJ:-99} ]; do sleep 2; done; }
 mkdir -p $D
-cp tube/build/elite-tube.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt tube/build/hstore.bin $D/
+cp tube/build/elite-tube.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt tube/build/hstore.bin tube/build/sunref.json $D/
 if cmp -s master/build/elite-master-sng47.ssd scratch/master-ref.ssd; then echo "master: byte-identical" > $D/master.txt; else echo "master: DIFFERS" > $D/master.txt; fi
 LOG=scratch/curious/run1/inputs.jsonl
 for H in Master B; do

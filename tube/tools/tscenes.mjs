@@ -4,7 +4,7 @@
 // on the Master port or the Tube build, for the incremental discs' check:
 // the gate's pilot flies to iteration FROM, then each iteration the scene is
 // put in (the planet, its type, seed and orientation; the station and the
-// sun, as S_SUN's D, for the sun near the planet), and at each frame's end
+// parked sun, SUNPK, for the sun near the planet), and at each frame's end
 // both screen buffers are hashed (the Master port at hframe + 7, the Tube's
 // host at C_SYNC: tfbreplay.mjs's points, which the gate's pixel oracle
 // compares). Writes OUT/<scene>.json (per iteration, the frames' hashes); on
@@ -141,8 +141,8 @@ function pose(ram, k) {
     const t = Math.min(1, k / (N - 1)), SZk = SC.sz1 ? Math.round(SZ + (+SC.sz1 - SZ) * t) : SZ;
     const sx = SC.sx1 ? SX + (+SC.sx1 - SX) * t : SX;
     const S = [Math.round((sx - 128) * SZk / 256), Math.round((96 - sy_) * SZk / 256), SZk];
-    for (let j = 0; j < 3; j++) { const u = (S[j] - P[j]) & 0xffffff; ram[sy.ss_d + 3 * j] = u & 255; ram[sy.ss_d + 3 * j + 1] = (u >> 8) & 255; ram[sy.ss_d + 3 * j + 2] = (u >> 16) & 255; }
-    ram[sy.SS_OK] = 0xff;
+    for (let j = 0; j < 3; j++) put(sy.SUNPK, 3 * j, S[j]);   // (the parked sun, SUNPK: SUNSC moves and draws it)
+    ram[sy.SUNPF] = 0x80;
     const tx = st === null ? (k < f0 ? TX0 : TX1) : st;
     put(K1, 0, Math.round((tx - 128) * TZ / 256)); put(K1, 3, Math.round((96 - TY) * TZ / 256)); put(K1, 6, TZ);
     if (k === 0) { const vec = (o, x, y, z) => { [x, y, z].forEach((c, j) => { ram[K1 + o + 2 * j] = 0; ram[K1 + o + 2 * j + 1] = c; }); }; vec(9, 0, 0, 0xe0); vec(15, 0, 0x60, 0); vec(21, 0x60, 0, 0); ram[K1 + 27] = 0; }

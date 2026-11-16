@@ -630,4 +630,9 @@ grep -h "^Model B loader" build/compile-lb.txt || true
 $BEEBASM -i tsrc/boot.asm -v > build/compile-boot.txt 2>&1 || { echo "The disc's boot:"; grep -iE "error" -A3 build/compile-boot.txt | head -8; exit 1; }
 ( echo ' INCLUDE "build/hb-entry.asm"'; echo ' INCLUDE "build/hm-entry.asm"'; echo ' INCLUDE "build/tube-addresses.asm"'; cat tsrc/disc.asm ) > build/disc.asm
 $BEEBASM -i build/disc.asm -boot ELITE -do build/elite-tube.ssd -title "E L I T E" > build/compile-dc.txt 2>&1 || { echo "Disc:"; tail -5 build/compile-dc.txt; exit 1; }
+# the reference's patch for the harness (master/tools/sunref: the sun's parking
+# assembled for SNG47, from master/build.sh), beside the parasite's symbols, as
+# the harness looks for it there (mlib.mjs's refPatchPath): the parasite runs
+# the same game, so it is compared against the same patched original
+cp "$TUBE_DIR/../master/build/sunref.json" build/sunref.json || { echo "master/build/sunref.json: build the Master port first"; exit 1; }
 python3 $TUBE_DIR/tools/discbudget.py build/elite-tube.ssd

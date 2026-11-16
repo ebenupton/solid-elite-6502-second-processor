@@ -41,7 +41,8 @@ fz_u    = FZ+15
 \ (non-zero = draw directly even though QQ11 = 0), GSIGHT, GLASV.
 
 .F_BACK     EQUB 1      \ the buffer being drawn (the one not displayed)
-IF _TPART <> 2             \ (the text map: not the Tube's hosts')
+IF _TPART = 0             \ (the text map: not the Tube's hosts'; the parasite's
+                           \ F_TCH is in its workspace, tube/src/p-ws.asm)
 .F_TCH      SKIP 24     \ per text row: bit b set (P) = the row changed since
                         \ buffer b's text steps last ran on it (whole in a
                         \ page: f_text1 reads it every frame, by row)
@@ -1982,7 +1983,7 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  RTS
 
 \ f_disc2: the secondary disc (both the sun and the planet on screen: more
-\ often since the sun near the planet is drawn too, gfx-ssun.asm). It is the
+\ often since the sun stays near the planet, SUNSC). It is the
 \ smaller disc, and the sun and the planet are the same size (PLANET's radius
 \ 24576 / z for both), so it is the further: R_DISC2 (gfx-raster_disc2.asm)
 \ draws what the layer's span (this buffer's R_DISCL/R, as T_DISCROWS has

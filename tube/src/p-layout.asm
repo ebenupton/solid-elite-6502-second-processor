@@ -64,8 +64,6 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/gfx-flare-frame.asm"    \ (the flare's step in F_FRAME, f_flt; the
  CPU 1                                  \ flare in overlay S)
  INCLUDE "build/gfx-hangar-frame.asm"  \ (streams.py's pass: F_HANG0 is overlay D's)
- INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's resident part, which G_FRAME
- CPU 1                                  \ calls)
 \ the resident parts of overlay S's files (their "Area: frame" blocks)
  INCLUDE "build/p-probe-frame.asm"      \ (the lens flare's probes' resident part)
  INCLUDE "build/p-disc-frame.asm"       \ (the disc heap's drop, the surface's cold ends)
@@ -160,7 +158,6 @@ PRINT "Parasite: data end at &", ~P%
  CPU 1
  INCLUDE "build/gfx-frame_cold-ovls.asm"  \ (f_slot: the stars round a docking slot)
  INCLUDE "build/gfx-hangar-ovls.asm"     \ (fh_rect: the hangar's rectangles, f_hback's, in F_FRAME)
- INCLUDE "build/gfx-ssun-ovls.asm"      \ (S_SUN's ss_seed and ss_draw)
  INCLUDE "build/p-lost-ovls.asm"        \ (S's state rebuilt: r_lost)
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to the ring: ", RING-OVL_S_END

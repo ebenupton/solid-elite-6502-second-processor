@@ -58,6 +58,10 @@ The rest of mlib's determinism measures are kept:
 - in a build without the port's half steps (SNG47), the planet's own pitch and roll
   (MVEIT part 8) are made the port's half steps (mlib's halfPart8, put in place of
   its full steps at MV5);
+- the reference gets the candidate build's patch to the original, if it has one
+  (sunref.json beside its symbols, which master/tools/sunref/sunref.py writes; the
+  campaign copies it with the build): assembled code, written at TT170 once each
+  changed site is checked against SNG47's bytes (mlib's applyRefPatch);
 - the candidate's boot leftovers are seeded from the reference at TT170.
 
 **Game state.** At every MLOOP both machines' state is snapshotted, using mlib's regions:

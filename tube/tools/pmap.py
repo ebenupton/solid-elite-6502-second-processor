@@ -122,20 +122,20 @@ reg(0xFA, 0x100, "Zero page: the ring's pointers (rq, p_oscli's, rpz)", "workspa
 reg(0x100, 0x200, "Stack (XX3 at its foot)", "stack", "-", ["master/src/elite-source.asm"])
 reg(sy["K%"], k_end + 1, "K%: Elite's workspace, the ship data blocks", "workspace", "K%", ["master/src/elite-source.asm"])
 reg(k_end + 1, wp0, "K%: the ship line heap (down from WP)", "workspace", "K%", ["master/src/elite-source.asm"])
-reg(wp0, wp_end + 1, "WP: Elite's workspace, then the dashboard's variables DASHV", "workspace", "WP", ["master/src/elite-source.asm"])
+reg(wp0, wp_end + 1, "WP: Elite's workspace, then the dashboard's variables DASHV and the parked sun (SUNPK, SUNPF)", "workspace", "WP", ["master/src/elite-source.asm"])
 reg(wp_end + 1, sy["PWS_START"], "WP: VEC (the IRQ1 vector's old value, WP's last)", "workspace", "WP", ["master/src/elite-source.asm"])
 # the shared workspace, one run (p-ws.asm), zeroed by p_boot
 ws = [("PWS_START", "hp_dfl", "Shared workspace: PACC, the dummy ACCCON (VIA + &34)"),
       ("hp_dfl", "R_PXL", "Shared workspace: the disc heap's flags and counts, the lens flare's probes, R_POLY's scratch"),
       ("R_PXL", "R_NDISCL", "Shared workspace: the rasteriser's per-call inputs, the stars (R_SS, F_DSS, R_SX, R_SY), the text map's "
-       "row counts F_TMR, S_SUN's ss_zs, the sun this frame (F_SUX, F_SUY), the kept solid rows' scratch, F_DCOL"),
+       "row counts F_TMR, the sun this frame (F_SUX, F_SUY), the kept solid rows' scratch, F_DCOL"),
       ("R_NDISCL", "F_HW", "Shared workspace: the new disc spans' row arrays R_NDISCL, R_NDX0, R_NDX1, R_NDN (page aligned)"),
       ("F_HW", "F_TM", "Shared workspace: the half-widths F_HW, F_HW2 (the planet's, the sun's)"),
       ("F_TM", "R_NDISCR", "Shared workspace: the text map F_TM"),
-      ("R_NDISCR", "ss_d", "Shared workspace: the new disc spans' row arrays R_NDISCR, R_NDX2, R_NDX3"),
-      ("ss_d", "F_BX", "Shared workspace: S_SUN's (ss_d ... ss_su), SS_OK, FL_BEH, GFAR ... GSHT, the second disc's rows and "
+      ("R_NDISCR", "pk_b", "Shared workspace: the new disc spans' row arrays R_NDISCR, R_NDX2, R_NDX3"),
+      ("pk_b", "F_BX", "Shared workspace: the kept rows' last scratch byte, FL_BEH, GFAR ... GSHT, the second disc's rows and "
        "colour by buffer (R_S2T, R_S2B, R_S2C), the incremental discs' scratch"),
-      ("F_BX", "F_SR", "Shared workspace: the frame layer's state (F_BX, F_BY, f_tcol, f_zsv, F_SLV)"),
+      ("F_BX", "F_SR", "Shared workspace: the frame layer's state (F_BX, F_BY, f_zsv, F_TCH, F_SLV)"),
       ("F_SR", "F_RP", "Shared workspace: the ship records F_SR (the faces' levels)"),
       ("F_RP", "F_DSX", "Shared workspace: the ship records F_RP"),
       ("F_DSX", "PWS_END", "Shared workspace: the directly drawn stars F_DSX, F_DSY")]

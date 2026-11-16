@@ -18,7 +18,7 @@
 // read number; it replays the session exactly, without the agent (replay.mjs).
 import { writeFileSync, appendFileSync, mkdirSync, readFileSync, existsSync, unlinkSync } from "fs";
 import { createHash } from "crypto";
-import { EliteMachine, loadSyms, compareSetup, diffSnaps, fieldName, groupOf, ROOT, CYCLES_PER_FRAME } from "./lib.mjs";
+import { EliteMachine, loadSyms, loadRefPatch, refPatchPath, compareSetup, diffSnaps, fieldName, groupOf, ROOT, CYCLES_PER_FRAME } from "./lib.mjs";
 import { Agent } from "./agent.mjs";
 import { COMMANDERS, makeChaos } from "./styles.mjs";
 import { Observer } from "./observe.mjs";
@@ -45,7 +45,8 @@ const HANG_SECS = +(process.env.HANG_SECS || 30);
 const sha1 = f => createHash("sha1").update(readFileSync(f)).digest("hex").slice(0, 12);
 
 export class Session {
-    // cfg: out, ref, rsyms, cand, csyms, seed (RAND), commander, agentEnv, chaos, startFrame,
+    // cfg: out, ref, rsyms, cand, csyms, refpatch (the reference's patch: default the
+    //      candidate build's, sunref.json beside csyms, if it has one), seed (RAND), commander, agentEnv, chaos, startFrame,
     //      minutes (of the reference's emulated time), iters, shots (every N iterations), replay (input log path),
     //      until (replay: stop at this iteration), keepGoing (iterations to run on after a divergence), observe
     constructor(cfg) {
@@ -74,8 +75,10 @@ export class Session {
         if (!cmdr) throw new Error(`unknown commander ${cfg.commander}`);
         const patch = cmdr.patch ? m => cmdr.patch(m) : null;
         // the builds as booted (summary.json's builds: which discs a session or replay ran)
-        this.builds = { ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms };
-        this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true });
+        const rp = cfg.refpatch === "none" ? null : cfg.refpatch || refPatchPath(cfg.csyms);
+        this.builds = { ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms,
+            refPatch: rp, refPatchSha: rp ? sha1(rp) : null };
+        this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true, refPatch: loadRefPatch(rp) });
         // (the Tube build: TUBE=Master or TUBE=B, the candidate is the parasite's game
         // with that host, tube/tools/tmachine.mjs)
         const Cand = process.env.TUBE ? (await import("../../../tube/tools/tmachine.mjs")).TubeEliteMachine : EliteMachine;

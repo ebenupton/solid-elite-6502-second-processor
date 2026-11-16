@@ -111,8 +111,7 @@ ASSERT HI(R_PXL) = HI(R_PYH + 15)
 .R_SX       SKIP 24
 .R_SY       SKIP 24
 .F_TMR      SKIP 24         \ the text map's rows' counts (gfx-frame.asm)
-.ss_zs      SKIP 37         \ (the zero page kept round MV40 and SOLAR: gfx-ssun.asm)
-.F_SUX      SKIP 2          \ (the sun's centre this frame: F_PLANET or S_SUN)
+.F_SUX      SKIP 2          \ (the sun's centre this frame: F_PLANET's)
 .F_SUY      SKIP 2
 .pk_t       SKIP 1          \ (p-kept.asm's scratch)
 .pk_l       SKIP 1
@@ -120,7 +119,6 @@ ASSERT HI(R_PXL) = HI(R_PYH + 15)
 .pk_x       SKIP 1
 .pk_w       SKIP 1
 .pk_a       SKIP 1
-.pk_b       SKIP 1
 .F_DCOL     SKIP 2          \ disc colour index in each buffer's disc layer
 .R_NDISCL   SKIP 192        \ new disc spans, left ends (page aligned)
 ASSERT LO(R_NDISCL) = 0
@@ -136,14 +134,9 @@ ASSERT LO(F_HW) = 0 AND LO(F_TM) = 0
 ASSERT LO(R_NDISCR) = 0
 .R_NDX2     SKIP 192
 .R_NDX3     SKIP 192
-\ the sun near the planet (S_SUN, gfx-ssun.asm), the ship records'
-\ handedness (S_SHIP, L_REC), the lens flare's and the second disc's
-.ss_d       SKIP 9
-.ss_o       SKIP 1
-.ss_w       SKIP 3
-.ss_pl      SKIP 9          \ (ss_dif's planet and sun)
-.ss_su      SKIP 9
-.SS_OK      SKIP 1
+\ p-kept.asm's last scratch byte; the ship records' handedness (S_SHIP,
+\ L_REC), the lens flare's and the second disc's
+.pk_b       SKIP 1
 .FL_BEH     SKIP 1
 .GFAR       SKIP 1
 .GHAND      SKIP 1
@@ -172,6 +165,8 @@ ASSERT LO(R_NDISCR) = 0
 .F_BX       SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
 .F_BY       SKIP 10         \ as F_BOMB found them
 .f_zsv      SKIP &22 + 16   \ F_FRAME's keep of &06-&27 and FZ's &D2-&E1
+.F_TCH      SKIP 24         \ per text row: bit b, the row changed since buffer b's
+ASSERT HI(F_TCH) = HI(F_TCH + 23)   \ text steps last ran on it (gfx-frame.asm)
 .F_SLV      SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
                             \ gfx-frame_cold.asm; F_SLV+16 &80: none)
 F_SRN = MAXSH * 15          \ (the most faces is 15)
