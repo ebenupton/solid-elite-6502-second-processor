@@ -590,6 +590,23 @@ each measured with profile.mjs on its commit and its parent:
 | PF_HOOK without its copy of the planet's centre into pf_cx and pf_cy, which only the planet's ring read | -71 | -14 (bank 7) | - |
 | f_discspans keeps the disc rows it made when the disc, its centre, its radius and the window are as last time and no polygon has been drawn since (F_DROK, which R_POLY clears); a moving disc notes only cy, cx and r | -507 | +167 (bank 6 163, ANDY 3, the shared workspace 1) | 3.0 |
 
+Over the CPC port's findings the gate's run went from 131505 to 128635
+cycles per flight iteration (15.21 to 15.55 it/s; SNG47 15.93), for 696
+bytes. Free bytes before (4af1e02) and after:
+
+| Region | Before | After |
+|---|---:|---:|
+| main RAM, the hot pass's first container (to &4000) | 66 | 201 |
+| main RAM, the hot pass's second container (from &7400) | 72 | 16 |
+| bank 4 | 382 | 75 |
+| HAZEL | 1223 | 1223 |
+| shared workspace (its gaps, and below CODE%) | 337 | 325 |
+| bank 5 | 124 | 124 |
+| bank 7 (after the meridian window) | 2148 | 2163 |
+| ANDY | 37 | 56 |
+| bank 6 | 1428 | 938 |
+| total | 5817 | 5121 |
+
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the
 rationalisation the gate's run went from 116253 to 115930 cycles per flight
