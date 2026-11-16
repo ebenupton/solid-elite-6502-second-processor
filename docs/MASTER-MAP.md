@@ -284,7 +284,7 @@ passes").
 | Rasteriser: polygon window | ANDY &8000-&8FDA (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 37 |
 | Rasteriser: disc window | bank 5 &8000-&8FFF (ROMSEL 5) | gfx-raster_disc.asm (with gfx-raster_strips.asm), gfx-raster_kept.asm (&8000-&8F22); R_S2R0, buffer 0's second-disc right ends (&8F40-&8FFF) | 29 |
 | Rasteriser: shared region | bank 5 &9000-&BFFF (with either window) | gfx-raster.asm; gfx-raster_lcold.asm and gfx-raster_reset.asm (R_RESETBUF) in the room below the per-x tables (from r_tfree, &990A), then R_S2L0 and R_S2L1 (&9A40, &9B40), the second disc's left ends; gfx-raster_disc2.asm (R_DISC2, &BBBE-&BEF7) and gfx-raster_init.asm (R_INIT), then R_S2R1 (&BF40-&BFFF) | 2 (before R_S2R1; + 29 at &9A23, 64 at &9B00; + the tails) |
-| Frame layer | bank 6 &8000-&B590 | gfx-frame.asm, faces, the lighting's tables and L_REC (gfx-light.asm's second pass), frame_cold (with f_slot, the stars beside a docking slot; the text map's entry points and the direct text's notes), the flare's step, the hangar's frame and tables, F_SLV; the data after the code: the ship records (F_RP, F_SR: MASTER-PLAN.md, "The frame's records"), the text map F_TM and F_TMR (MASTER-PLAN.md, "The text map") | 2671 |
+| Frame layer | bank 6 &8000-&BBB2 (code to &B3D4, data from &B560) | gfx-frame.asm, faces, the lighting's tables and L_REC (gfx-light.asm's second pass), frame_cold (with f_slot, the stars beside a docking slot; the text map's entry points and the direct text's notes), the flare's step, the hangar's frame and tables, F_SLV; the data after the code: the ship records (F_RP, F_SR: MASTER-PLAN.md, "The frame's records"), the text map F_TM and F_TMR (MASTER-PLAN.md, "The text map") | 1101 |
 | HAZEL | &C000-&DA38 | the game data only: the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's (without their edge lists), QQ18, SNE and ACT; RUPLA, RUGAL and RUTOK (&D781-&DA38) | 1223 (&DA39-&DEFF), 256 (&DF00-&DFFF: the MOS's, off limits) |
 | Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
 | Buffer 1, dashboard | shadow &4000-&7DFF | the screen (rule 6) | - |
@@ -583,6 +583,7 @@ each measured with profile.mjs on its commit and its parent:
 | MLSA returns (S R) when ALP1 = 0 (stl_pat patches a BRA over its first instruction): the stardust's roll products skipped | -268 | +43 (main) | 6.2 |
 | COMPAS removes the old compass dot only when the new one differs (cpdot), else sets what DOT leaves from a copy | -348 | +139 (bank 4) | 2.5 |
 | MLTU2 returns 0 at once when Q = 0 (MVEIT's position rotation with a zero roll or pitch) | -71 | +12 (main) | 5.9 |
+| f_discspans' slow path: the rows about cy in pairs, clipped by thresholds on the half-width (fcs) | -1182 | +327 (bank 6) | 3.6 |
 
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the
