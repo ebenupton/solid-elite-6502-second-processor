@@ -112,8 +112,11 @@ export function regionsFor(sy, refPatch = null) {
         [sy["NA%"], sy["NAEND%"] - sy["NA%"], "NA%"],           // last saved commander (template) and checksums
         [sy.SOFLG, sy.SFXPR - sy.SOFLG, "SOUND"],               // sound buffers (written by the IRQ)
     ];
-    // and a patched original's own (its patch's region: mlib's applyRefPatch)
-    if (refPatch && refPatch.region) r.push(refPatch.region);
+    // the sun, parked while the space station holds its slot (SUNPK and SUNPF,
+    // after WP's dashboard variables), or a patched original's own (its patch's
+    // region: mlib's applyRefPatch), which is the same
+    if (sy.SUNPK !== undefined) r.push([sy.SUNPK, sy.SUNPF + 1 - sy.SUNPK, "SUNPK"]);
+    else if (refPatch && refPatch.region) r.push(refPatch.region);
     return r;
 }
 
@@ -131,8 +134,13 @@ export function canonFor(sy, regions, refPatch = null) {
     const offOf = a => { let o = 0; for (const [b, n] of regions) { if (a >= b && a + 1 < b + n) return o + a - b; o += n; } return -1; };
     const offs = [sy.INWK + 33, ...Array.from({ length: 12 }, (_, i) => sy["K%"] + 37 * i + 33)].map(offOf).filter(o => o >= 0);
     const from = [sy.LSO, refPatch && refPatch.lso].filter(a => a !== undefined && a !== null && a !== LSO_ORIG);
+    // INF, once the parked sun has been moved (SUNSC), points to SUNPK, which
+    // is at another address in each machine: it is held as K% + 12 * 37, as
+    // if SUNPK were the block of a slot after the last
+    const pk = sy.SUNPK ?? (refPatch && refPatch.region ? refPatch.region[0] : undefined), oInf = offOf(sy.INF), vInf = sy["K%"] + 12 * 37;
     return buf => {
         for (const o of offs) if (from.includes(buf[o] | buf[o + 1] << 8)) { buf[o] = LSO_ORIG & 255; buf[o + 1] = LSO_ORIG >> 8; }
+        if (pk !== undefined && oInf >= 0 && (buf[oInf] | buf[oInf + 1] << 8) === pk) { buf[oInf] = vInf & 255; buf[oInf + 1] = vInf >> 8; }
         return buf;
     };
 }

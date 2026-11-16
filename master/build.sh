@@ -95,7 +95,7 @@ with open("build/banks.txt", "w") as f:
                       ("src/gfx-frame.asm", "6"), ("src/gfx-flare6.asm", "6"), ("src/gfx-hangar.asm", "6"),
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
                       ("src/gfx-merid.asm", "7"), ("src/gfx-kept7.asm", "7"), ("src/gfx-planet7.asm", "7"),
-                      ("src/gfx-flare.asm", "7"), ("src/gfx-ssun.asm", "4")):
+                      ("src/gfx-flare.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             if m.group(1) not in seen:
                 seen.add(m.group(1))

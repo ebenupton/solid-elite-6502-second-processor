@@ -64,7 +64,8 @@ echo "compare: PASS"
 # ---- 4. regressions: with real key presses, dock, launch, dock again (the
 # hangar's ships once wrote over the glue code), and save, load, a load error,
 # catalogue (the disc glue); a save's bytes against SNG47's; the station in front of a far planet; with the
-# pilot, changes of view; the ships the ship audit flagged, posed
+# pilot, changes of view; the ships the ship audit flagged, posed; the
+# reference's patch (below)
 node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
 grep -E "^docking|^REDOCK" "$LOG/redock.log"
 grep -q "^REDOCK PASS" "$LOG/redock.log" || { echo "redock: FAIL"; fail redock; }
@@ -95,7 +96,14 @@ grep -q "^MCOMPARE PASS" "$LOG/views.log" || { grep -A8 "FIRST DIVERGENCE" "$LOG
 node harness/mshippose.mjs --disc master/build/elite-master-sng47.ssd --syms master/build/symbols.txt \
     --out "$LOG/shippose" > "$LOG/shippose.log" 2>&1
 grep -q "^SHIPPOSE PASS" "$LOG/shippose.log" || { grep "BAD" "$LOG/shippose.log" | head -10; echo "shippose: FAIL"; fail shippose; }
-echo "regressions: PASS (redock, savetest, savebytes, station, views, shippose)"
+# the reference's patch (master/tools/sunref): its bytes (only its code and
+# its sites change SNG47) and its passive variant against the original (game
+# state identical over the gate's run and the views run: the patch changes
+# nothing unless the sun is parked)
+node harness/msunref.mjs --out "$LOG/sunref" > "$LOG/sunref.log" 2>&1
+grep -E "^(bytes|passive|passive-views):" "$LOG/sunref.log"
+grep -q "^SUNREF PASS" "$LOG/sunref.log" || { tail -20 "$LOG/sunref.log"; echo "sunref: FAIL"; fail sunref; }
+echo "regressions: PASS (redock, savetest, savebytes, station, views, shippose, sunref)"
 ALL=$(grep -E "^ +all " "$LOG/compare.log")
 echo "speed (flight it/s, ref cand cand/ref): $ALL"
 set -- $ALL
