@@ -137,6 +137,7 @@ ASSERT LO(R_NDISCR) = 0
 \ p-kept.asm's last scratch byte; the ship records' handedness (S_SHIP,
 \ L_REC), the lens flare's and the second disc's
 .pk_b       SKIP 1
+.F_DROK     SKIP 1          \ bit 7: R_NDISCL/R still hold f_discspans' last rows
 .FL_BEH     SKIP 1
 .GFAR       SKIP 1
 .GHAND      SKIP 1

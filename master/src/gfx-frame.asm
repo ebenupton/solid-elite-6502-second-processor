@@ -1344,8 +1344,6 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STA fpr_ld2+2
  JMP f_discspans
 
-IF _TPART <> 1          \ (the Tube's parasite: no room for the kept rows' key,
-                        \ docs/TUBE-MAP.md: f_discspans is fdk_build)
 \ f_discspans: the disc's rows, as fdk_build makes them, or those it made
 \ last time when nothing they depend on has changed: the same disc (its
 \ half-width table), centre (f_cx, f_cxh, f_cy) and radius, the same window
@@ -1428,17 +1426,12 @@ IF _TPART <> 1          \ (the Tube's parasite: no room for the kept rows' key,
 .fdk_t EQUB 0           \ and their R_NDT and R_NDB
 .fdk_b EQUB 0
 
-ENDIF
-
 .fds_none
  LDA #1
  STA R_NDT
  STZ R_NDB
  RTS
 
-IF _TPART = 1
-.f_discspans
-ENDIF
 .fdk_build              \ rows of the disc (f_cx, f_cy, f_r) within the window
                         \ (every exit sets R_NDT and R_NDB)
  LDA f_cy               \ fz_p = top row = cy - r, fz_q = bottom row = cy + r
@@ -1510,9 +1503,7 @@ ENDIF
 .fds_pat                \ BIT #imm (no-ops: they keep X and C)
  STA fpr_b1
  STA fpr_b2
-IF _TPART <> 1          \ (the Tube's parasite: no room for fcs, docs/TUBE-MAP.md)
  JMP fcs                \ the rows in pairs about cy if it can (fcs), else:
-ENDIF
 .fpr_old
  LDY R_NDT
  LDX #&E8               \ X = |d| through the loop, stepped by fpr_id: INX
@@ -1719,8 +1710,6 @@ ENDIF
  JMP fdf1
  ASSERT LO(R_NDISCR) + 191 < 256 AND LO(F_HW) = LO(F_HW2)
 
-IF _TPART <> 1          \ (the Tube's parasite: no room for fcs, docs/TUBE-MAP.md)
-
 \ fcs: the slow path's rows (the disc crosses the window's side, or cx is off
 \ the screen) when cy is one of them: rows cy - k and cy + k together, as
 \ fdsym does, with the clipping done by thresholds on the half-width n,
@@ -1915,7 +1904,6 @@ IF _TPART <> 1          \ (the Tube's parasite: no room for fcs, docs/TUBE-MAP.m
  CLC
  RTS
 
-ENDIF
 
 f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
 .f_cxh EQUB 0           \ high byte of cx
