@@ -55,13 +55,13 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &1934          \ Port (Tube): the parasite's, where its shared workspace
+ CODE% = &1933          \ Port (Tube): the parasite's, where its shared workspace
                         \ ends (tube/src/p-ws.asm, p-layout.asm asserts it)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
                         \ the renderer's shared workspace below it (gfx-ws.asm)
 ELSE
- CODE% = &1F13
+ CODE% = &1F08
                         \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; the glue area, elite-glue.asm,
@@ -3161,6 +3161,11 @@ ENDIF
 
  JSR H_VSYNC            \ Port: the renderer's flip: show the front buffer
                         \ (ACCCON D; gfx-hooks.asm)
+
+ LDA SOFLG              \ Port: if no channel has a sound buffered (all three
+ ORA SOFLG+1            \ SOFLG bytes zero, most of the time), SOINT would only
+ ORA SOFLG+2            \ test them, so skip the call (A and the flags are put
+ BEQ P%+7               \ back by the PLA and RTI below, X and Y are untouched)
 
  PHX                    \ Call SOINT to send the current sound data to the
  JSR SOINT              \ 76489 sound chip, stashing X on the stack so it gets
@@ -6900,6 +6905,7 @@ ENDIF
 IF _TPART <> 2          \ (Tube: the host draws from PIXEL's body, X, A, ZZ and
  JSR H_DOT              \ COL from the parasite: p-io.asm's p_pixel)
 ENDIF
+
 \ ******************************************************************************
 \
 \       Name: PIXELD
@@ -8779,6 +8785,7 @@ ENDIF
  LDA #28                \ speed: 0-40, one pixel per unit, danger from 28
  STA dT
  LDA DELTA
+ LDX #8                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
 IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
@@ -8918,6 +8925,10 @@ ENDIF
 .dll9a
  LDY #0
 .dll9
+ TYA                    \ X = 11 + Y, the energy banks' cache indexes (DILI
+ CLC                    \ of SC = &xxA0 with SC+1 = &77 + 2Y)
+ ADC #11
+ TAX
  LDA dbank,Y
  STY P
  JSR DIL
@@ -8935,11 +8946,13 @@ ENDIF
  LSR A
  LSR A
  LSR A
+ LDX #0                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
  LDA ASH
  LSR A
  LSR A
  LSR A
+ LDX #1                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
 IF _TPART <> 2          \ (Tube: as above)
@@ -8952,6 +8965,7 @@ ENDIF
  STA dK1
  LDA dQQ14
  LSR A
+ LDX #2                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
  JSR PZW2               \ temperatures: high values danger, low safe (2)
@@ -8972,11 +8986,13 @@ ENDIF
  LSR A
  LSR A
  LSR A
+ LDX #3                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
  LDA dGNTMP
  LSR A
  LSR A
  LSR A
+ LDX #4                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
  LDA #240               \ altitude: 0-255 -> 0-31, one colour
@@ -8996,6 +9012,7 @@ ENDIF
  LSR A
  LSR A
  LSR A
+ LDX #5                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
  LDA #4                 \ Main RAM back at &3000-&7FFF
@@ -9096,16 +9113,8 @@ ENDIF
  CMP #33
  BCC P%+4
  LDA #32
- STA dsE
- LDA SC+1               \ X = the cache index, as DILI
- AND #%00001110
- LSR A
- BIT SC
- BPL P%+4
- ORA #8
- TAX
- LDA dsE
- CMP dT
+ STA dsE               \ (X = the bar's cache index, given by DIALS: the one
+ CMP dT                 \ DILI gives for SC, each bar's place being fixed)
  LDA dK
  BCS P%+5
  LDA dK1
@@ -14562,6 +14571,65 @@ ENDIF
 \
 \ ******************************************************************************
 
+.stl_pat
+
+                        \ Port: patch b = A AND 31 (MULTS multiplies by
+                        \ X AND 31) into MLSB (X = 0) or MLSA (X = MLSA -
+                        \ MLSB): b into the CPX and the QSL+b / QSH+b
+                        \ operands, QSL-b / QSH-b (both bytes, as b may be 0)
+                        \ into the others (here, before STARS1, so that the
+                        \ MLSB inlined in STL1 is within 256 bytes of MLSA)
+                        \
+                        \ If b is already patched in (the CPX operand holds
+                        \ the last b, and the assembled operands are those of
+                        \ b = 0), the operands are all set already, so return
+                        \ (STARS1 reads neither A nor C after this: STL1
+                        \ starts with LDA and CMP)
+
+ AND #31
+ CMP mlb1+1,X
+ BEQ stlpr
+ STA mlb1+1,X
+ STA mlb2+1,X
+ STA mlb4+1,X
+ EOR #&FF               \ A = -b, with C = 1 if and only if b = 0
+ CLC
+ ADC #1
+ STA mlb3+1,X
+ STA mlb5+1,X
+ LDA #HI(QSL)-1
+ ADC #0
+ STA mlb3+2,X
+ ADC #HI(QSH)-HI(QSL)   \ (C = 0: no carry out of HI(QSL))
+ STA mlb5+2,X
+
+ LDY #T                 \ Port: and the first instruction of MLSB (X = 0) or
+ LDA mlb1+1,X           \ MLSA: STA T when b <> 0, else BRA mlbkj or BRA mlsk,
+ BNE stlw0              \ as the products are then 0 (until ALP1 or BET1
+ LDY #mlbkj-MLSB-2      \ first changes, the assembled STA T stays: their own
+ TXA                    \ paths, which give the same results)
+ BEQ stlz
+ LDY #mlsk-MLSA-2
+
+.stlz
+
+ LDA #&80
+ BRA stlw
+
+.stlw0
+
+ LDA #&85
+
+.stlw
+
+ STA MLSB,X
+ TYA
+ STA MLSB+1,X
+
+.stlpr
+
+ RTS
+
 .stlff
 
  LDA #255               \ STL1's inlined DVID4z: R = 255
@@ -14580,31 +14648,6 @@ ENDIF
 
  JMP stl_dvr            \ Rejoin the loop (Port: here, before STARS1, for the
                         \ BCS that comes here)
-
-.stl_pat
-
-                        \ Port: patch b = A AND 31 (MULTS multiplies by
-                        \ X AND 31) into MLSB (X = 0) or MLSA (X = MLSA -
-                        \ MLSB): b into the CPX and the QSL+b / QSH+b
-                        \ operands, QSL-b / QSH-b (both bytes, as b may be 0)
-                        \ into the others (here, before STARS1, so that the
-                        \ MLSB inlined in STL1 is within 256 bytes of MLSA)
-
- AND #31
- STA mlb1+1,X
- STA mlb2+1,X
- STA mlb4+1,X
- EOR #&FF               \ A = -b, with C = 1 if and only if b = 0
- CLC
- ADC #1
- STA mlb3+1,X
- STA mlb5+1,X
- LDA #HI(QSL)-1
- ADC #0
- STA mlb3+2,X
- ADC #HI(QSH)-HI(QSL)   \ (C = 0: no carry out of HI(QSL))
- STA mlb5+2,X
- RTS
 
 .STARS1
 
@@ -14842,7 +14885,10 @@ ENDIF
 
 .MLSB
 
- STA T                  \ Set T = A, as MULTS does
+ STA T                  \ Set T = A, as MULTS does (Port: patched by stl_pat
+                        \ to BRA mlbkj when BET1 = 0)
+
+.mlb0
  AND #%01111111         \ If A = 0, set P(1 0) = 0 at mlbz, as MULTS does
  BEQ mlbz               \ at MU6
  TAX                    \ Set X = |A|
@@ -14889,6 +14935,8 @@ ENDIF
                         \ P AND 31, so Q^2 < 256), so the original's
                         \ sign-preserving STA T : LDA #0 : ROR A : ORA T is a
                         \ no-op (C = 0 and A, N, Z are the same; ADD rewrites T)
+
+.mlbc
 
  BCS stlb               \ Port: if the high byte C is 0, do ADD inline (P, T
  LDX S                  \ and T1 are dead: STZ P below, and PIX1's ADD rewrites
@@ -14986,6 +15034,11 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+.mlbkj
+
+ JMP mlbk               \ (stl_pat's BRA from MLSB's start reaches here, as
+                        \ mlbk is out of its range)
+
 .mlbz
 
  STA P+1                \ MLSB with A = 0: set P(1 0) = 0, as MULTS's MU6,
@@ -14998,6 +15051,30 @@ ENDIF
  LDX BET1               \ before and rejoin
  JSR MULTS
  BRA mlb6
+
+.mlbk
+
+                        \ Port: MLSB when BET1 = 0 (stl_pat puts BRA mlbkj in
+                        \ place of its STA T, through mlbkj): with |A| <> 0 the product is 0
+                        \ with A's sign, so P = 0, Q = A AND &80, and then
+                        \ 2 * Q^2 = 0: join at mlbc with A = 0 and C = 0, as
+                        \ MLSB's own path arrives there (its X = 0 is rewritten
+                        \ by LDX S, its V by the ADD in PIX1 or stlb). |A| = 0
+                        \ (P+1 = 0 too, at mlbz) takes MLSB's own path
+
+ STA T                  \ T = A, as MLSB does
+ BIT #%01111111         \ If |A| = 0, take MLSB's path
+ BEQ mlbkf
+ STZ P
+ AND #%10000000
+ STA Q
+ LDA #0
+ CLC
+ JMP mlbc
+
+.mlbkf
+
+ JMP mlb0
 
 .stlb
 
@@ -15048,63 +15125,6 @@ ENDIF
  BRA STC1               \ Jump up to STC1 to draw this new particle (A need not
                         \ be set to y_hi: PIXEL2 starts by loading X1 into A)
 
-.MLUQ
-
-                        \ Port: (A P) = |A| * Q with C clear, as MLU3 gives
-                        \ (it also leaves X = 0; nothing in STL1 reads X or T
-                        \ after it), with Q patched in by STL1 once per
-                        \ particle: q at mlq2 and mlq4, 256 - q at mlq3 and
-                        \ mlq5 (1 <= q <= 255, so the high bytes are fixed).
-                        \ For |A| >= q the product is QS(|A| + q) - QS(|A| - q),
-                        \ exactly as MU11 computes it; |A| < q goes to mlqr
-
- AND #%01111111         \ Set X = |A|
- TAX
-
- CPX Q                  \ If |A| < q, jump to mlqr (with C = 1 otherwise, for
- BCC mlqr               \ the SBC below)
-
-.mlq2
-
- LDA QSL+1,X            \ (patched: QSL + q) Set (A P) = QS(|A| + q)
-.mlq3                   \                                - QS(|A| - q)
- SBC QSL-1,X            \ (patched: QSL - q)              = |A| * q
- STA P
-.mlq4
- LDA QSH+1,X            \ (patched: QSH + q)
-.mlq5
- SBC QSH-1,X            \ (patched: QSH - q)
-
- CLC                    \ Return with C clear, as MLU3 does
- RTS
-
-.mlqr
-
-                        \ |A| < q (rare), with C = 0 and A = X = |A|: join MU11
-                        \ past its set-up, with the registers and P it would
-                        \ have there (T = Q - 1 is not needed past that point,
-                        \ and is dead here: MLSA rewrites it before any read)
-
- STY mu7+1              \ Keep Y, as MU11 does
- STA P                  \ P = |A|, as MLU3 sets it
-
- ADC Q                  \ Set X = |A| + q, with C set if it is 256 or more, as
- TAX                    \ MU11 does with ADC T
-
- BCS mlqh               \ If |A| + q >= 256, join MU11 at mu5
-
- LDA Q                  \ Set A = q - |A| = |P - X| (C = 1 after, as q > |A|),
- SEC                    \ as MU11 computes it before mu4, and join MU11 at mu4
- SBC P
- JMP mu4
-
-.mlqh
-
- JMP mu5                \ Join MU11 at mu5 with C = 1, P = |A|, Q = q and
-                        \ X = |A| + q - 256, as MU11 arrives there
-
- ASSERT QSH = QSL + 512 AND LO(QSL) = 0
-
 .MLS2A
 
                         \ Port: MLS2 with ALP1 patched in: set (S R) = XX(1 0)
@@ -15126,7 +15146,10 @@ ENDIF
 
 .MLSA
 
- STA T                  \ Set T = A, as MULTS does
+ STA T                  \ Set T = A, as MULTS does (Port: patched by stl_pat
+                        \ to BRA mlsk when ALP1 = 0)
+
+.mla0
  AND #%01111111         \ If A = 0, set P(1 0) = 0 at mlaz, as MULTS does
  BEQ mlaz               \ at MU6
  TAX                    \ Set X = |A|
@@ -15208,9 +15231,97 @@ ENDIF
  JSR MULTS
  BRA mla6
 
+.mlsk
+
+                        \ Port: MLSA when ALP1 = 0 (stl_pat puts BRA mlsk in
+                        \ place of its STA T): the product is 0, so when |A|
+                        \ and |S| are both non-zero, ADD gives (A X) = (S R)
+                        \ whatever the signs (the same-sign sum at mlt, or
+                        \ MU8 with |S R| > 0), and that is returned here; the
+                        \ T, T1, P, C and V that MLSA would leave are not read
+                        \ before MLSB (its STA T, then P from the product, or
+                        \ at mlbz, and the C of its CPX) and PIX1's or stlb's
+                        \ ADD (T1, T, V) rewrite them. Else (|A| = 0, which
+                        \ also sets P+1 at mlaz, or |S| = 0) MLSA's own path
+
+ BIT #%01111111         \ If |A| = 0, take MLSA's path
+ BEQ mlskf
+
+ LDX S                  \ If |S| = 0 (S = 0 or &80), take MLSA's path
+ BEQ mlskf
+ CPX #%10000000
+ BEQ mlskf
+
+ TXA                    \ (A X) = (S R)
+ LDX R
+ RTS
+
+.mlskf
+
+ STA T                  \ MLSA's path: its STA T, then the rest
+ JMP mla0
+
+.MLUQ
+
+                        \ Port: (A P) = |A| * Q with C clear, as MLU3 gives
+                        \ (it also leaves X = 0; nothing in STL1 reads X or T
+                        \ after it), with Q patched in by STL1 once per
+                        \ particle: q at mlq2 and mlq4, 256 - q at mlq3 and
+                        \ mlq5 (1 <= q <= 255, so the high bytes are fixed).
+                        \ For |A| >= q the product is QS(|A| + q) - QS(|A| - q),
+                        \ exactly as MU11 computes it; |A| < q goes to mlqr
+
+ AND #%01111111         \ Set X = |A|
+ TAX
+
+ CPX Q                  \ If |A| < q, jump to mlqr (with C = 1 otherwise, for
+ BCC mlqr               \ the SBC below)
+
+.mlq2
+
+ LDA QSL+1,X            \ (patched: QSL + q) Set (A P) = QS(|A| + q)
+.mlq3                   \                                - QS(|A| - q)
+ SBC QSL-1,X            \ (patched: QSL - q)              = |A| * q
+ STA P
+.mlq4
+ LDA QSH+1,X            \ (patched: QSH + q)
+.mlq5
+ SBC QSH-1,X            \ (patched: QSH - q)
+
+ CLC                    \ Return with C clear, as MLU3 does
+ RTS
+
+.mlqr
+
+                        \ |A| < q (rare), with C = 0 and A = X = |A|: join MU11
+                        \ past its set-up, with the registers and P it would
+                        \ have there (T = Q - 1 is not needed past that point,
+                        \ and is dead here: MLSA rewrites it before any read)
+
+ STY mu7+1              \ Keep Y, as MU11 does
+ STA P                  \ P = |A|, as MLU3 sets it
+
+ ADC Q                  \ Set X = |A| + q, with C set if it is 256 or more, as
+ TAX                    \ MU11 does with ADC T
+
+ BCS mlqh               \ If |A| + q >= 256, join MU11 at mu5
+
+ LDA Q                  \ Set A = q - |A| = |P - X| (C = 1 after, as q > |A|),
+ SEC                    \ as MU11 computes it before mu4, and join MU11 at mu4
+ SBC P
+ JMP mu4
+
+.mlqh
+
+ JMP mu5                \ Join MU11 at mu5 with C = 1, P = |A|, Q = q and
+                        \ X = |A| + q - 256, as MU11 arrives there
+
+ ASSERT QSH = QSL + 512 AND LO(QSL) = 0
+
  ASSERT mla1 - mlb1 = MLSA - MLSB AND mla3 - mlb3 = MLSA - MLSB
  ASSERT mla5 - mlb5 = MLSA - MLSB AND mla2 - mlb2 = MLSA - MLSB
  ASSERT mla4 - mlb4 = MLSA - MLSB AND MLSA - MLSB < 256
+ ASSERT mlbkj - MLSB - 2 < 128 AND mlsk - MLSA - 2 < 128   \ (stl_pat's BRAs)
 
 \ ******************************************************************************
 \
@@ -22422,6 +22533,9 @@ ENDMACRO
                         \ clear (X, Y, N and Z differ: no caller reads them,
                         \ as each caller's next use of X and Y sets them)
 
+ LDX Q                  \ Port: if Q = 0 (MVEIT's calls with a zero roll or
+ BEQ MLTU2z             \ pitch) the product is 0, so return it at MLTU2z
+
  STA P+1                \ Y = |A - Q|, as QMUL P+1, P+1, Q with A already
  SEC                    \ loaded
  SBC Q
@@ -22506,6 +22620,15 @@ ENDMACRO
 
  ADC #0                 \ C is set, so A = P + Q - 255 = Q - lo = |lo - Q|
  BRA MLTU2d
+
+.MLTU2z
+
+ STZ P                  \ Q = 0 (X = 0): (A P+1 P) = 0, with C and V clear,
+ STZ P+1                \ as the products above give it
+ TXA
+ CLC
+ CLV
+ RTS
 
 
 \ ******************************************************************************
@@ -32802,8 +32925,17 @@ ENDIF
 
 .COMPAS
 
- JSR DOT                \ Call DOT to redraw (i.e. remove) the current compass
-                        \ dot
+                        \ Port: the original starts with JSR DOT, to redraw
+                        \ (i.e. remove) the current compass dot; that is
+                        \ deferred to cpdot, once the new dot is worked out,
+                        \ so the dot to remove is kept here
+
+ LDA COMX
+ STA cpox
+ LDA COMY
+ STA cpoy
+ LDA COMC
+ STA cpoc
 
  LDA SSPR               \ If we are inside the space station safe zone, jump to
  BNE SP1                \ SP1 to draw the space station on the compass
@@ -32995,8 +33127,143 @@ ENDIF
 
  STA COMC               \ Store the compass colour in COMC
 
- JMP DOT                \ Jump to DOT to draw the dot on the compass and return
-                        \ from the subroutine using a tail call
+ JMP cpdot              \ Jump to DOT to draw the dot on the compass and return
+                        \ from the subroutine using a tail call (Port: through
+                        \ cpdot, which first removes the old dot, or does
+                        \ neither when the dot has not changed)
+
+\ ******************************************************************************
+\
+\       Name: cpdot
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Port: remove the old compass dot and draw the new one, unless
+\             they are the same
+\
+\ ------------------------------------------------------------------------------
+\
+\ The original's COMPAS calls DOT to remove the old dot (cpox, cpoy, cpoc, as
+\ COMPAS kept them) before working out the new one (COMX, COMY, COMC), then
+\ DOT again to draw it. Both EOR the same bytes when the dot has not moved
+\ (most iterations), so then neither is drawn; only what DOT leaves for the
+\ new dot is set, from the copy cpdot keeps of it: X1 = COMX, Y1, COL = COMC,
+\ SC(1 0) and Y. DOT's other results are not read afterwards: A, X and C
+\ (DIALS' caller rewrites them), and dX1, dtmp, ddn and dmk (the dashboard's
+\ routines write each before reading it). The copy is that of the last dot
+\ drawn here, which is the dot COMPAS kept: a skip needs the new dot equal to
+\ the old one, the old one is the last new one (only SP2 writes COMX, COMY
+\ and COMC, and BEGIN zeroes COMC, which no new dot equals), so by induction
+\ it was drawn here, or skipped with that copy
+\
+\ (The Tube's parasite: its DOT, tube/src/p-dash.asm, only sends the dot to
+\ the host, as C_PDOT, and what it leaves, X1, Y1 and COL, comes from COMX,
+\ COMY and COMC alone: so the old dot is sent from cpox, cpoy and cpoc
+\ (pdot_s), and a dot that has not moved sends nothing and sets what DOT
+\ leaves from the dot itself (pdot_l), with no copy)
+\
+\ ******************************************************************************
+
+.cpdot
+
+ LDA COMX               \ If the new dot differs from the old one, jump to cpd1
+ CMP cpox               \ to remove the old one and draw the new one
+ BNE cpd1
+ LDA COMY
+ CMP cpoy
+ BNE cpd1
+ LDA COMC
+ CMP cpoc
+ BNE cpd1
+
+IF _TPART = 1
+
+ JMP pdot_l             \ The same dot: set what DOT leaves for it, and return
+
+.cpd1
+
+ LDX cpox               \ Remove the old dot: send it to the host
+ LDY cpoy
+ LDA cpoc
+ JSR pdot_s
+
+ JMP DOT                \ Draw the new dot, and return from the subroutine using
+                        \ a tail call
+
+ELSE
+
+ STA COL                \ The same dot: set what DOT leaves for it, and return
+ LDA COMX
+ STA X1
+ LDA cpy1
+ STA Y1
+ LDA cpsc
+ STA SC
+ LDA cpsc+1
+ STA SCH
+ LDY cpy
+ RTS
+
+.cpd1
+
+ LDA COMX               \ Remove the old dot: DOT with the old dot in COMX,
+ PHA                    \ COMY and COMC, and the new one put back after
+ LDA COMY
+ PHA
+ LDA COMC
+ PHA
+ LDA cpox
+ STA COMX
+ LDA cpoy
+ STA COMY
+ LDA cpoc
+ STA COMC
+ JSR DOT
+ PLA
+ STA COMC
+ PLA
+ STA COMY
+ PLA
+ STA COMX
+
+ JSR DOT                \ Draw the new dot, and keep what DOT leaves for it
+ STY cpy
+ LDA Y1
+ STA cpy1
+ LDA SC
+ STA cpsc
+ LDA SCH
+ STA cpsc+1
+ RTS
+
+ENDIF
+
+.cpox
+
+ EQUB 0                 \ The old dot's COMX, COMY and COMC, as COMPAS found
+                        \ them
+.cpoy
+
+ EQUB 0
+
+.cpoc
+
+ EQUB 0
+
+IF _TPART <> 1
+
+.cpy1
+
+ EQUB 0                 \ What DOT left for the last dot drawn here: Y1,
+
+.cpy
+
+ EQUB 0                 \ Y,
+
+.cpsc
+
+ EQUW 0                 \ and SC(1 0)
+
+ENDIF
 
 \ ******************************************************************************
 \

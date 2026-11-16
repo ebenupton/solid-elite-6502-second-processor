@@ -1279,7 +1279,11 @@ ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ f_sunrows / f_plrows: a disc's spans into R_NDISCL/R and R_NDT/R_NDB, from
 \ its centre (16-bit screen coordinates) and radius (8-bit), using a cached
-\ half-width table per disc (rebuilt only when the radius changes)
+\ half-width table per disc (rebuilt only when the radius changes). (The
+\ Tube's parasite: f_sunrows in overlay S, as only F_FRAME, which loads S,
+\ reaches it)
+
+\       Area: ovl S
 
 .f_sunrows
  LDA F_SUX
@@ -1309,6 +1313,8 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STA fpr_ld2+2
  JMP f_discspans
 
+\       Area: frame
+
 .f_plrows
  LDA F_PLX
  STA f_cx
@@ -1337,13 +1343,102 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STA fpr_ld2+2
  JMP f_discspans
 
+IF _TPART <> 1          \ (the Tube's parasite: no room for the kept rows' key,
+                        \ docs/TUBE-MAP.md: f_discspans is fdk_build)
+\ f_discspans: the disc's rows, as fdk_build makes them, or those it made
+\ last time when nothing they depend on has changed: the same disc (its
+\ half-width table), centre (f_cx, f_cxh, f_cy) and radius, the same window
+\ (R_CL, R_CR, R_CT, R_CB), and no polygon since (R_POLY's edge tables share
+\ R_NDISCL/R: it clears F_DROK). Rows NDT..NDB are then as fdk_build left
+\ them (R_DISCROWS and f_disc2 write only the rows outside them), and R_NDT
+\ and R_NDB are put back. (The planet's position, size and window are the
+\ same in a quarter of the builds of the gate's run.) What changes as a disc
+\ moves (the low bytes of cy and cx, and r) is compared first and, when it
+\ has changed, is all that is noted, with F_DROK clear: the rest of the key
+\ is noted by the next build, if the disc has not moved by then
+
+.f_discspans
+ LDA f_cy               \ cy, cx (low bytes) and r as last time? If not, the
+ CMP fdk_y              \ disc has moved
+ BNE fdk_mv
+ LDA f_cx
+ CMP fdk_x
+ BNE fdk_mv
+ LDA f_r
+ CMP fdk_r
+ BNE fdk_mv
+ BIT F_DROK             \ the rest of the key noted, the rows kept?
+ BPL fdk_new
+ LDA f_cy+1
+ CMP fdk_k
+ BNE fdk_new
+ LDA f_cxh
+ CMP fdk_k+1
+ BNE fdk_new
+ LDA fpr_ld2+2          \ the half-width table (the planet's or the sun's)
+ CMP fdk_k+2
+ BNE fdk_new
+ LDX #3                 \ the window
+.fdk1
+ LDA R_CL,X
+ CMP fdk_k+3,X
+ BNE fdk_new
+ DEX
+ BPL fdk1
+ LDA fdk_t              \ the rows are as they were made: R_NDT and R_NDB
+ STA R_NDT
+ LDA fdk_b
+ STA R_NDB
+ RTS
+.fdk_mv                 \ moved: note cy, cx and r only, no rows kept
+ LDA f_cy
+ STA fdk_y
+ LDA f_cx
+ STA fdk_x
+ LDA f_r
+ STA fdk_r
+ STZ F_DROK
+ JMP fdk_build
+.fdk_new                \ not moved: make the rows, and note the rest
+ JSR fdk_build
+ LDA f_cy+1
+ STA fdk_k
+ LDA f_cxh
+ STA fdk_k+1
+ LDA fpr_ld2+2
+ STA fdk_k+2
+ LDX #3
+.fdk2
+ LDA R_CL,X
+ STA fdk_k+3,X
+ DEX
+ BPL fdk2
+ LDA R_NDT
+ STA fdk_t
+ LDA R_NDB
+ STA fdk_b
+ LDA #&80
+ STA F_DROK
+ RTS
+.fdk_y EQUB 0           \ the last build's cy, cx (low bytes) and r
+.fdk_x EQUB 0
+.fdk_r EQUB 0
+.fdk_k SKIP 7           \ the last kept rows' cy and cx (high bytes), table, window
+.fdk_t EQUB 0           \ and their R_NDT and R_NDB
+.fdk_b EQUB 0
+
+ENDIF
+
 .fds_none
  LDA #1
  STA R_NDT
  STZ R_NDB
  RTS
 
-.f_discspans            \ rows of the disc (f_cx, f_cy, f_r) within the window
+IF _TPART = 1
+.f_discspans
+ENDIF
+.fdk_build              \ rows of the disc (f_cx, f_cy, f_r) within the window
                         \ (every exit sets R_NDT and R_NDB)
  LDA f_cy               \ fz_p = top row = cy - r, fz_q = bottom row = cy + r
  SEC
@@ -1414,6 +1509,10 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 .fds_pat                \ BIT #imm (no-ops: they keep X and C)
  STA fpr_b1
  STA fpr_b2
+IF _TPART <> 1          \ (the Tube's parasite: no room for fcs, docs/TUBE-MAP.md)
+ JMP fcs                \ the rows in pairs about cy if it can (fcs), else:
+ENDIF
+.fpr_old
  LDY R_NDT
  LDX #&E8               \ X = |d| through the loop, stepped by fpr_id: INX
  LDA fz_u               \ (&E8) if d >= 0, else DEX (&CA) until d reaches 0
@@ -1619,6 +1718,204 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  JMP fdf1
  ASSERT LO(R_NDISCR) + 191 < 256 AND LO(F_HW) = LO(F_HW2)
 
+IF _TPART <> 1          \ (the Tube's parasite: no room for fcs, docs/TUBE-MAP.md)
+
+\ fcs: the slow path's rows (the disc crosses the window's side, or cx is off
+\ the screen) when cy is one of them: rows cy - k and cy + k together, as
+\ fdsym does, with the clipping done by thresholds on the half-width n,
+\ worked out once from cx (16-bit) and the window, instead of the 16-bit sums
+\ and compares per row. For a row with half-width n, the slow loop gives:
+\   an empty row (R = 0, L = 255) if cx + n < CL or cx - n > CR, i.e.
+\     n < max(CL - cx, cx - CR) = nmin;
+\   else R = CR if n >= CR - cx = nC, else cx + n (its low byte: the sum is
+\     on the screen), and L = CL if n >= cx - CL + 1 = mC1, else cx - n.
+\ Each threshold is clamped to 0 .. r + 1 (n <= r: r + 1 is "never"); with
+\ r = 255 a threshold above 255 cannot be held in a byte, so fcs leaves the
+\ rows to the slow loop then (fpr_old), and when cy is not a row. The pairs
+\ run for k = 0 .. min(cy - T, B - cy), or until the first empty row (n only
+\ falls as k rises, so the rest are empty too, or rows on one side only);
+\ what is left on either side, rows T .. cy - k and cy + k .. B, goes
+\ through the slow loop (fpr2), which makes them exactly as before
+
+.fpr_oldj
+ JMP fpr_old
+.fcs
+ LDA f_cy+1             \ cy must be a row: 0 <= cy, T <= cy <= B
+ BNE fpr_oldj
+ LDA f_cy
+ CMP R_NDT
+ BCC fpr_oldj
+ CMP R_NDB
+ BEQ fcs1
+ BCS fpr_oldj
+.fcs1
+ SEC                    \ nC = CR - cx
+ LDA R_CR
+ SBC f_cx
+ TAY
+ LDA #0
+ SBC f_cxh
+ JSR fcth
+ BCS fpr_oldj
+ STA fcs_c+1
+ SEC                    \ mC1 = cx - CL + 1 (as cx - CL with C set)
+ LDA f_cx
+ SBC R_CL
+ TAY
+ LDA f_cxh
+ SBC #0
+ INY
+ BNE P%+3
+ INC A
+ JSR fcth
+ BCS fpr_oldj
+ STA fcs_m+1
+ SEC                    \ nmin = max(CL - cx, cx - CR)
+ LDA R_CL
+ SBC f_cx
+ TAY
+ LDA #0
+ SBC f_cxh
+ JSR fcth
+ BCS fpr_oldj
+ STA fcs_e+1
+ SEC
+ LDA f_cx
+ SBC R_CR
+ TAY
+ LDA f_cxh
+ SBC #0
+ JSR fcth
+ BCS fpr_oldj
+ CMP fcs_e+1
+ BCC P%+5
+ STA fcs_e+1
+ LDA fpr_ld2+2          \ the half-width table (its low byte: ASSERT above)
+ STA fcs_ld+2
+ STA fcs_ld2+2
+ LDA f_cx               \ cx and cx + 1 (low bytes)
+ STA fcs_x+1
+ INC A
+ STA fcs_x1+1
+ LDA f_cy               \ rows cy + k at (table + cy) + k
+ TAX
+ CLC
+ ADC #LO(R_NDISCR)      \ (no carry: ASSERT above)
+ STA fcs_sr+1
+ TXA
+ ADC #LO(R_NDISCL)
+ STA fcs_sl+1
+ LDA #HI(R_NDISCL)
+ ADC #0
+ STA fcs_sl+2
+ TXA                    \ m + 1 = min(cy - T, B - cy) + 1
+ SEC
+ SBC R_NDT
+ STA fz_i
+ LDA R_NDB
+ SBC f_cy               \ (C = 1: cy >= T)
+ CMP fz_i
+ BCC P%+4
+ LDA fz_i
+ INC A
+ STA fcs_cp+1
+ LDY #0                 \ X = row cy - k, Y = k, from k = 0
+ CLC
+.fcs_l                  \ C = 0 here
+.fcs_ld
+ LDA F_HW,Y             \ patched: the half-width table (high byte)
+.fcs_e
+ CMP #0                 \ patched: nmin (n below it: an empty row, and the
+ BCC fcs_t              \ rest: leave them to the slow loop)
+.fcs_c
+ CMP #0                 \ patched: nC (n at or above it: R = CR)
+ BCS fcs_rc
+.fcs_x
+ ADC #0                 \ patched: cx (C = 0)
+.fcs_r
+ STA R_NDISCR,X
+.fcs_sr
+ STA R_NDISCR,Y         \ patched: R_NDISCR + cy (low byte)
+.fcs_ld2
+ LDA F_HW,Y             \ patched: the half-width table (high byte)
+.fcs_m
+ CMP #0                 \ patched: mC1 (n at or above it: L = CL)
+ BCS fcs_lc
+ EOR #&FF               \ (C = 0) cx + 1 + NOT n = cx - n
+.fcs_x1
+ ADC #0                 \ patched: cx + 1
+.fcs_lf
+ STA R_NDISCL,X
+.fcs_sl
+ STA R_NDISCL,Y         \ patched: R_NDISCL + cy
+ DEX
+ INY
+.fcs_cp
+ CPY #0                 \ patched: m + 1 (C = 0 until then)
+ BNE fcs_l
+ BRA fcs_t
+.fcs_rc
+ LDA R_CR
+ BRA fcs_r
+.fcs_lc
+ LDA R_CL
+ BRA fcs_lf
+.fcs_t                  \ k = Y: rows T .. cy - k and cy + k .. B are left
+ STY fz_i
+ LDA f_cy               \ rows T .. cy - k, if cy - k >= T: the slow loop
+ SEC                    \ from T (|d| = cy - T, stepping down) to cy - k
+ SBC fz_i
+ BCC fcs_t2
+ CMP R_NDT
+ BCC fcs_t2
+ STA fz_q
+ LDA f_cy
+ SEC
+ SBC R_NDT
+ TAX
+ LDA #&CA               \ DEX
+ STA fpr_id
+ LDY R_NDT
+ JSR fpr2
+.fcs_t2
+ LDA f_cy               \ rows cy + k .. B, if cy + k <= B: the slow loop
+ CLC                    \ from cy + k (|d| = k, stepping up) to B
+ ADC fz_i
+ BCS fcs_t9
+ CMP R_NDB
+ BEQ P%+4
+ BCS fcs_t9
+ TAY
+ LDA R_NDB
+ STA fz_q
+ LDX fz_i
+ LDA #&E8               \ INX
+ STA fpr_id
+ JMP fpr2
+.fcs_t9
+ RTS
+
+.fcth                   \ (A Y) = a threshold (high byte, low byte): A = it
+ TAX                    \ clamped to 0 .. r + 1, C set if that is 256 (r =
+ BMI fct0               \ 255): see fcs
+ BNE fctb
+ TYA
+ CMP f_r
+ BCC fctx
+ BEQ fctx
+.fctb
+ LDA f_r
+ CLC
+ ADC #1
+ RTS
+.fct0
+ LDA #0
+.fctx
+ CLC
+ RTS
+
+ENDIF
+
 f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
 .f_cxh EQUB 0           \ high byte of cx
  EQUB 0, 0              \ (spare: keeps the layout after this unchanged)
@@ -1774,6 +2071,8 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  STA R_COLO
  RTS
 
+\       Area: ovl S
+
 .f_line8                \ line from (fz_t, fz_u) to (X, Y), 8-bit coordinates
  STX R_X1
  STY R_Y1
@@ -1787,6 +2086,8 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  STA R_X1+1
  STA R_Y1+1
  JMP T_LINE
+
+\       Area: frame
 
 .f_lines
  BIT f_bomb             \ the bomb's bolt, if any, first (as recorded before

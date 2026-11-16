@@ -84,7 +84,7 @@ ASSERT PACC = VIA + &34
 .r_ymaxL    SKIP 1
 .r_ymaxH    SKIP 1
 .r_top      SKIP 1
-.r_cc       SKIP 1
+.f_tcol     SKIP 1          \ (f_char1's column)
 .r_m0       SKIP 1
 .r_v0       SKIP 1
 .R_PXL      SKIP 16         \ vertex x, low bytes (one page: the polygons' code)
@@ -171,7 +171,6 @@ ASSERT LO(R_NDISCR) = 0
 \ the frame layer's small state
 .F_BX       SKIP 10         \ the energy bomb's bolt (f_bomb), BOMBTBX and BOMBTBY
 .F_BY       SKIP 10         \ as F_BOMB found them
-.f_tcol     SKIP 1          \ (f_char1's column)
 .f_zsv      SKIP &22 + 16   \ F_FRAME's keep of &06-&27 and FZ's &D2-&E1
 .F_SLV      SKIP 52         \ the docking slot's vertices (f_poly2, f_slot,
                             \ gfx-frame_cold.asm; F_SLV+16 &80: none)
