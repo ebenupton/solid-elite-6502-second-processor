@@ -272,9 +272,9 @@ passes").
 |---|---|---|---:|
 | Zero page, stack, K% | &0000-&00E3, &0100-&01FF, &0400-&07FF | Elite's workspaces, as Master Elite | - |
 | WP | main &0841-&0CCE | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E; then the CMYK dashboard's variables DASHV (&0CAA-&0CCE, after JOPOS: the dashboard runs with ACCCON X set) | 50 (&0840, &0CCF-&0CFF) |
-| Shared workspace | main &0E00-&1DED | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, ss_pl, ss_su, ss_zs (S_SUN's: the planet and the sun as SOLAR places them, and the zero page kept round MV40 and SOLAR, &1BBA-&1BF0), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, F_SUX, F_SUY, FL_BEH, SS_OK (the sun this frame, gfx-ssun.asm), ss_d (S_SUN's D, &1DE5-&1DED) | 236 (5, 24, 192 at &17F8-&18B7 in raster_vars, 15) and 293 before CODE% (&1F13) |
-| Glue area | main &1F13-&2968 | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 from &1F14, 38 into the cold pass; STUBS4, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &225C), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
-| Low pass | main &2969-&2F7B (no padding before the font) | Elite's code that must be below &3000, in the source's order: WSCAN, DELAY, the sound (BOOP, BEEP, SOFH ... SOINT, the sound variables and the SFX tables), IRQ1 (&2ACA), VSCAN, DOVDU19, cls, TT67K, CHPR (&2B19), ZES1, ZES2, the font (FONT%, &2C00-&2EFF), UP (&2F00), stackpt, NEWBRK | - |
+| Shared workspace | main &0E00-&1DED | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, ss_pl, ss_su, ss_zs (S_SUN's: the planet and the sun as SOLAR places them, and the zero page kept round MV40 and SOLAR, &1BBA-&1BF0), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, F_SUX, F_SUY, FL_BEH, SS_OK (the sun this frame, gfx-ssun.asm), ss_d (S_SUN's D, &1DE5-&1DED) | 236 (5, 24, 192 at &17F8-&18B7 in raster_vars, 15) and 282 before CODE% (&1F08) |
+| Glue area | main &1F08-&295D | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 from &1F34, 38 into the cold pass; STUBS4, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &227C), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
+| Low pass | main &295E-&2F7B (no padding before the font) | Elite's code that must be below &3000, in the source's order: WSCAN, DELAY, the sound (BOOP, BEEP, SOFH ... SOINT, the sound variables and the SFX tables), IRQ1 (&2ABF), VSCAN, DOVDU19, cls, TT67K, CHPR (&2B19), ZES1, ZES2, the font (FONT%, &2C00-&2EFF), UP (&2F00), stackpt, NEWBRK | - |
 | Hot pass: main RAM | main &2F7C-&3FF8 | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB ... (build/flow.txt) | 7 |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
 | Quarter-square tables, then the hot pass | main &7000-&7F4B | QSL and QSH (elite-qs.asm, &7000-&73FF); the hot pass's second container from &7400: TACTICS, DOCKIT, the tactics helpers ... the maths from MLS2 to DVID3B2 (build/flow.txt) | 180 |
@@ -296,7 +296,7 @@ COLD7 (the cold pass, to bank 7 &8000), RASTA (the
 rasteriser's polygon window, to ANDY with ROMSEL &85), BANK5, BANK6, HAZEL (staged at
 &4000), HICODE (the quarter-square tables and the hot pass's part from &7400, to
 &7000-&7FFF); then it loads BCODE (the glue area, the low pass and the hot
-pass's main RAM part) to CODE% (&1F13, from the build). The loader is at &0E00, in the shared workspace's place, so
+pass's main RAM part) to CODE% (&1F08, from the build). The loader is at &0E00, in the shared workspace's place, so
 its last part runs from K% (&0400; the game sets K% up itself): it takes
 DFS's and the MOS's lasting bytes into DFSST and DFSST2 after the last
 disc access,
@@ -487,7 +487,7 @@ What remains out of that order, each with a `Port:` note where it applies:
   and its tables, gfx-hangar6.asm, at the end of bank 6's image), the CMYK
   dashboard's tables (generated, build/dashtab-*.asm, each INCLUDEd in its
   routine's block) and its variables DASHV (after WP).
-* **Placement by the build, not the source**: CODE% (&1F13) is chosen so the
+* **Placement by the build, not the source**: CODE% (&1F08) is chosen so the
   font starts a page without padding; the hot pass's containers and the hot
   data's are filled by the flow (build/flow.txt), not by markers.
 
@@ -572,6 +572,13 @@ polygon window") found its bytes without spending cycles:
 
 The last is below the margin (and ANDY has 38 bytes left), so it was
 measured and left out.
+
+The speed-ups found by the Amstrad CPC port (its findings for the BBC),
+each measured with profile.mjs on its commit and its parent:
+
+| Change | Cycles per iteration | Bytes | Rate |
+|---|---:|---:|---:|
+| LINSCN calls SOINT only when a channel has a sound | -127 | +11 (low pass: CODE% 11 lower, the shared workspace's gap) | 11.5 |
 
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the
