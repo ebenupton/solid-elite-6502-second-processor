@@ -395,7 +395,7 @@ TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "s
            "src/gfx-hooks.asm", "src/gfx-gvars.asm", "src/gfx-finit.asm", "src/gfx-faces.asm",
            "src/gfx-light.asm", "src/gfx-light6.asm", "src/gfx-hangar.asm", "src/gfx-hangar6.asm",
            "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
-           "src/elite-moon.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm",
+           "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm",
            "tsrc/p-low.asm", "tsrc/p-layout.asm")
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*%?")
 

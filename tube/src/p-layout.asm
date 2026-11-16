@@ -49,8 +49,7 @@ PRINT "Parasite: glue &", ~CODE%, "-&", ~GLUE_END%-1, ", the game's run to &", ~
  INCLUDE "build/elite-data-hot.asm"
 .HZDATA_END%
  INCLUDE "src/gfx-hangar6.asm"
- INCLUDE "src/gfx-planetv.asm"          \ (the ring's variables, with RINGS=on:
-.HZ_END                                 \ f_reset writes them out of space mode)
+.HZ_END
 
 PRINT "Parasite: data end at &", ~P%
 
@@ -145,13 +144,6 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/p-rast-ovls.asm"
  INCLUDE "build/p-disc-ovls.asm"        \ (the disc heap, the surface and the second disc
                                         \ drawn as changes)
-IF _PLANET_MOON
- ERROR "MOON=on: the Tube's parasite has no room for the moon"
-ENDIF
-IF _PLANET_RINGS
-.RG_Y   SKIP 64         \ the ring's dots' y and flags (gfx-planetv.asm's in the
-.RG_F   SKIP 64         \ Master port): only used with S in (pf_ring, f_ring)
-ENDIF
  INCLUDE "build/p-emit-ovls.asm"        \ (the polygons' rows to the host as they are made)
  INCLUDE "build/p-kept-ovls.asm"        \ (kept solid rows)
  INCLUDE "build/p-poly-ovls.asm"        \ (R_POLY's set-up and arithmetic, C_DSPANS's

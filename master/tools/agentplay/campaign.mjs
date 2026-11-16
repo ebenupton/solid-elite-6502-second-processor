@@ -2,7 +2,7 @@
 // A campaign: many agentplay sessions with varied seeds and play styles, run a few at a
 // time, then one table of what they covered and every finding, grouped.
 //
-// node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|quick]
+// node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|soak|soakquick|quick]
 //      [--only name,name] [--scale 1.0] [--summarise] [--workaround look1] [--cand disc --csyms syms]
 // Each session runs as agentplay.mjs in DIR/<name>/; a session already finished there
 // (summary.json) is not run again, so a campaign can be resumed. --scale multiplies every
@@ -154,29 +154,39 @@ const PLANS = {
     // the sixth wave: as night5, seeds 400-423
     night6: wave5("n6", 400),
     night7: wave5("n7", 500),
-    // the soak (2026-11-05): long curious-mode sessions over every known feature, the same
-    // plan for the Master port and both Tube hosts (TUBE=Master, TUBE=B): a career from
-    // Jameson; both missions from their start (deadly: the Constrictor; mission2, galaxy3:
-    // the Thargoid plans) and their debriefings; the equipment (E.C.M., bomb, pod,
-    // missiles, docking computer, galactic hyperdrive) through the chaos overlay; the sun
-    // up close (the sun poke: heat, fuel scooping, death); a fugitive; deaths; the disc
-    // menu and the docked screens; keyboard and fair flying; then two careers loaded
-    // from phase 1's discs. 2280 game minutes in all
+    // the soak: long curious-mode sessions over every known feature (run at --scale 0.25,
+    // about 580 game minutes): a career from Jameson; both missions through every briefing
+    // and debriefing (deadly: BRIEF; orarra: the Constrictor, then DEBRIEF; debrief1:
+    // DEBRIEF; galaxy3: BRIEF2 then BRIEF3 at Ceerdi; debrief2: DEBRIEF2 at Birera; the
+    // docking computer often, as each starts docked where its stage comes at the next
+    // dock); the galaxies past the third (the galactic hyperdrive often, refilled by
+    // ghypfill); cargo scooped (a canister, pod, plate, splinter or Thargon put under the
+    // nose, the hold emptied first) and fuel (the sun up close, the tank emptied); the escape
+    // pod, the energy bomb, E.C.M., missiles; deaths; the disc menu and the docked screens;
+    // then two careers loaded from phase 1's discs (one from a far galaxy)
     soak: [
-        ["soak-cur-jameson-s901", 360, "--seed", "901", "--mode", "curious", "--savediscs"],
-        ["soak-cur-deadly-s902", 300, "--seed", "902", "--commander", "deadly", "--mode", "curious", "--savediscs"],
-        ["soak-cur-mission2-s903", 180, "--seed", "903", "--commander", "mission2", "--mode", "curious", "--chaos", "docked,disc"],
-        ["soak-cur-gear-s907", 180, "--seed", "907", "--commander", "equipped", "--mode", "curious", "--chaos", "ecm*3,bomb*2,pod*2,ghyp*3,missile*3,unarm,jump*3,dock*4,hyper,sun*2,fuel"],
-        ["soak-cur-galaxy3-s904", 150, "--seed", "904", "--commander", "galaxy3", "--mode", "curious", "--chaos", "views*2,charts*2"],
-        ["soak-cur-wanted-s908", 150, "--seed", "908", "--commander", "wanted", "--mode", "curious", "--chaos", "ecm*2,missile*2,docked,disc"],
-        ["soak-cur-rich-s910", 150, "--seed", "910", "--commander", "rich", "--mode", "curious", "--chaos", "docked,disc,charts*2,views*2,sun"],
-        ["soak-cur-death-s909", 120, "--seed", "909", "--commander", "equipped", "--mode", "curious", "--chaos", "hurt*4,heat*2,sun*3,fuel*2,disc", "--savediscs"],
-        ["soak-cur-keyboard-s911", 120, "--seed", "911", "--commander", "trader", "--mode", "curious,keyboard", "--chaos", "all,docked,disc"],
-        ["soak-cur-fair-s912", 120, "--seed", "912", "--commander", "deadly", "--mode", "curious,fair", "--chaos", "sun*2,views*3,dock*2"],
-        ["soak-cur-debrief1-s905", 90, "--seed", "905", "--commander", "debrief1", "--mode", "curious", "--chaos", "disc,docked"],
-        ["soak-cur-debrief2-s906", 90, "--seed", "906", "--commander", "debrief2", "--mode", "curious", "--chaos", "disc,docked"],
-        ["soak-load-s913", 150, "--seed", "913", "--mode", "load,curious", "--from", "soak-cur-jameson-s901", "--chaos", "disc,docked"],
-        ["soak-load-s914", 120, "--seed", "914", "--mode", "load,curious", "--from", "soak-cur-death-s909", "--chaos", "disc,ghyp*2,pod"],
+        ["soak-cur-jameson-s901", 300, "--seed", "901", "--mode", "curious", "--savediscs"],
+        ["soak-cur-deadly-s902", 200, "--seed", "902", "--commander", "deadly", "--mode", "curious", "--chaos", "dock*6,missile*2,ecm", "--savediscs"],
+        ["soak-cur-orarra-s915", 180, "--seed", "915", "--commander", "orarra", "--mode", "curious", "--chaos", "missile*2,ecm,dock*4"],
+        ["soak-cur-debrief1-s905", 90, "--seed", "905", "--commander", "debrief1", "--mode", "curious", "--chaos", "dock*8,disc,docked"],
+        ["soak-cur-galaxy3-s904", 180, "--seed", "904", "--commander", "galaxy3", "--mode", "curious", "--chaos", "dock*8,views*2,charts*2"],
+        ["soak-cur-debrief2-s906", 90, "--seed", "906", "--commander", "debrief2", "--mode", "curious", "--chaos", "dock*8,disc,docked"],
+        ["soak-cur-mission2-s903", 180, "--seed", "903", "--commander", "mission2", "--mode", "curious", "--chaos", "ghyp*2,ghypfill,docked,disc"],
+        ["soak-cur-galaxies-s916", 200, "--seed", "916", "--commander", "equipped", "--mode", "curious", "--chaos", "ghyp*12,ghypfill*6,dock", "--savediscs"],
+        ["soak-cur-galaxies-s917", 180, "--seed", "917", "--commander", "deadly", "--mode", "curious", "--chaos", "ghyp*15,ghypfill*8,missile,ecm,scoophold*60"],
+        ["soak-cur-scoop-s918", 150, "--seed", "918", "--commander", "deadly", "--mode", "curious", "--chaos", "scoophold*100,scoopnow*40,missile*3,sun*6,fuel*4"],
+        ["soak-cur-gear-s907", 180, "--seed", "907", "--commander", "equipped", "--mode", "curious", "--chaos", "ecm*3,bomb*2,pod*2,ghyp*3,ghypfill,missile*3,unarm,jump*3,dock*4,hyper,sun*2,fuel,scoop*60"],
+        ["soak-cur-death-s909", 120, "--seed", "909", "--commander", "equipped", "--mode", "curious", "--chaos", "hurt*4,heat*2,sun*3,fuel*2,pod*2,disc", "--savediscs"],
+        ["soak-load-s913", 150, "--seed", "913", "--mode", "load,curious", "--from", "soak-cur-jameson-s901", "--chaos", "disc*2,docked*2"],
+        ["soak-load-s914", 120, "--seed", "914", "--mode", "load,curious", "--from", "soak-cur-galaxies-s916", "--chaos", "ghyp*6,ghypfill*3,scoophold*60,pod,bomb"],
+    ],
+    // the soak's new kinds, briefly: the galactic hyperdrive refilled, the scoop and sun
+    // pokes, the orarra commander, set factors, a load
+    soakquick: [
+        ["sq-galaxies", 4, "--seed", "1", "--commander", "equipped", "--mode", "curious", "--chaos", "ghyp*40,ghypfill*40"],
+        ["sq-scoop", 4, "--seed", "2", "--commander", "deadly", "--mode", "curious", "--chaos", "scoophold*100,scoop*50,scoopnow*50,missile*4,sun*20,fuel*10"],
+        ["sq-orarra", 3, "--seed", "3", "--commander", "orarra", "--mode", "curious", "--chaos", "docked*2,disc*2", "--savediscs"],
+        ["sq-load", 2, "--seed", "4", "--mode", "load,curious", "--from", "sq-orarra", "--chaos", "ghyp*20,ghypfill*20"],
     ],
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
@@ -241,7 +251,7 @@ if (!a.summarise) {
 
 // ---- the summary
 const rows = [], groups = new Map();
-const cover = {}, reached = new Set(), codeLabels = new Set();
+const cover = {}, features = {}, reached = new Set(), codeLabels = new Set();
 for (const [name] of plan) {
     const cf = `${OUT}/${name}/coverage-ref.json`;
     if (existsSync(cf)) { const c = JSON.parse(readFileSync(cf, "utf8")); for (const k of c.reached) { reached.add(k); codeLabels.add(k); } for (const k of c.unreached) codeLabels.add(k); }
@@ -251,11 +261,13 @@ for (const [name] of plan) {
     const cfg = existsSync(`${OUT}/${name}/config.json`) ? JSON.parse(readFileSync(`${OUT}/${name}/config.json`, "utf8")) : {};
     const ev = {};
     for (const [k, v] of Object.entries(s.events || {})) { const m = /^ref:routine:(.*)$/.exec(k); if (m) { ev[m[1]] = v; cover[m[1]] = (cover[m[1]] || 0) + v; } }
+    for (const [k, v] of Object.entries(s.features || {})) features[k] = (features[k] || 0) + v;
     const real = s.findings.filter(f => f.kind !== "observable" && f.kind !== "hang-both");
     rows.push({ name, status: real.length ? "FINDINGS" : "clean", minutes: s.gameMinutes, iters: s.compared, flight: s.flight, reads: s.reads,
         commander: cfg.commander, mode: cfg.mode || modeOf(cfg.agentEnv || {}), chaos: cfg.chaos || "", workaround: (cfg.workarounds || []).join(","),
         workaroundHits: s.workaroundHits, divergence: s.divergence ? s.divergence.iter : null, findings: s.findings.length, events: ev, notes: s.agentNotes,
-        observables: s.observables && { checked: s.observables.checked, differing: s.observables.differing }, saves: s.saveFilesSame, final: s.final });
+        observables: s.observables && { checked: s.observables.checked, differing: s.observables.differing }, saves: s.saveFilesSame, final: s.final,
+        galaxies: s.galaxies, feat: s.features });
     for (const f of s.findings) {
         const key = fingerprint(f);
         if (!groups.has(key)) groups.set(key, { key, kind: f.kind, sessions: [], first: { session: name, ...f } });
@@ -282,12 +294,14 @@ function fingerprint(f) {
 }
 groups.delete(null);
 const tot = rows.reduce((t, r) => ({ minutes: t.minutes + (r.minutes || 0), iters: t.iters + (r.iters || 0), flight: t.flight + (r.flight || 0) }), { minutes: 0, iters: 0, flight: 0 });
-writeFileSync(`${OUT}/campaign.json`, JSON.stringify({ rows, coverage: cover, totals: tot, groups: [...groups.values()] }, null, 1));
+writeFileSync(`${OUT}/campaign.json`, JSON.stringify({ rows, coverage: cover, features, totals: tot, groups: [...groups.values()] }, null, 1));
 const md = [];
 md.push(`# agentplay campaign: ${OUT}`, "", `${rows.length} sessions, ${tot.minutes.toFixed(1)} game minutes, ${tot.iters} iterations compared (${tot.flight} in flight).`, "");
-md.push("| session | commander | mode | chaos | min | iterations | status | first divergence | findings | LOOK1 workaround hits |", "|---|---|---|---|---|---|---|---|---|---|");
-for (const r of rows) md.push(`| ${r.name} | ${r.commander || ""} | ${r.mode || ""} | ${r.chaos || ""} | ${r.minutes ?? ""} | ${r.iters ?? ""} | ${r.status} | ${r.divergence ?? ""} | ${r.findings ?? ""} | ${r.workaround ? r.workaroundHits : "off"} |`);
+md.push("| session | commander | mode | chaos | min | iterations | status | first divergence | findings | LOOK1 workaround hits | galaxies | cargo / fuel scooped | deaths |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+for (const r of rows) md.push(`| ${r.name} | ${r.commander || ""} | ${r.mode || ""} | ${r.chaos || ""} | ${r.minutes ?? ""} | ${r.iters ?? ""} | ${r.status} | ${r.divergence ?? ""} | ${r.findings ?? ""} | ${r.workaround ? r.workaroundHits : "off"} | ${(r.galaxies || []).join(" ")} | ${r.feat ? (r.feat["cargo scooped"] || 0) + " / " + (r.feat["fuel scooped"] || 0) : ""} | ${r.events ? r.events.DEATH || 0 : ""} |`);
+md.push("", `Galaxies reached over all sessions: ${[...new Set(rows.flatMap(r => r.galaxies || []))].sort((x, y) => x - y).join(" ")}.`);
 md.push("", "Coverage (reference machine, routine entries over all sessions):", "", Object.entries(cover).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", "), "");
+md.push("Features seen (reference machine's state, iterations or events, over all sessions):", "", Object.entries(features).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", "), "");
 if (codeLabels.size) {
     const un = [...codeLabels].filter(k => !reached.has(k));
     md.push(`Whole-code coverage (reference machine): ${reached.size} labels with code run; ${un.length} code labels (run in a session, or a JSR/JMP target) never run:`, "", un.join(" "), "");

@@ -51,16 +51,12 @@ which spare RAM the port may take.
    **The renderer is in banks 5 and 6 and ANDY, and in one window of bank
    7**: the rasteriser in bank 5 and ANDY, the frame layer in bank 6, and the
    meridian window (gfx-merid.asm, the circle engine that makes the planet's
-   surface detail, and gfx-planet7.asm, its styles, the beach ball, craters
-   and bands, its moon and its ring with MOON=on and RINGS=on) in bank 7
-   after the cold pass, paged as ROMSEL MERIDBANK (7) by its stubs only
-   (G_PFHOOK in game context, T_CAPS, and T_MCAPS with MOON=on, during the
-   frame). The lens flare (gfx-flare.asm) is in bank 6 with the frame layer,
-   which T_FLARE pages for it. What the frame layer
-   reads of the moon and the ring (MN_ON ..., RG_X ..., gfx-planetv.asm) is
-   in the shared workspace (main RAM below
-   &3000). Bank 7 is otherwise the cold pass's: one run from &8000, the cold
-   code, then the cold data. (The meridian window is the one exception to
+   surface detail, and gfx-planet7.asm, its styles, the beach ball and
+   craters) in bank 7 after the cold pass, paged as ROMSEL MERIDBANK (7) by
+   its stubs only (G_PFHOOK in game context, T_CAPS during the frame). The
+   lens flare (gfx-flare.asm) is in bank 6 with the frame layer, which
+   T_FLARE pages for it. Bank 7 is otherwise the cold pass's: one run from
+   &8000, the cold code, then the cold data. (The meridian window is the one exception to
    "the renderer in banks 5, 6 and ANDY only", made for the beach ball, which
    needs about 3K that none of those has.) The renderer's routines that run
    in game context from G_FRAME, S_SUN (gfx-ssun.asm, the sun near the
@@ -272,19 +268,19 @@ rules ("Calls between the passes").
 |---|---|---|---:|
 | Zero page, stack, K% | &0000-&00E3, &0100-&01FF, &0400-&07FF | Elite's workspaces, as Master Elite | - |
 | WP | main &0841-&0CCE | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E; then the CMYK dashboard's variables DASHV (&0CAA-&0CCE, after JOPOS: the dashboard runs with ACCCON X set) | 50 (&0840, &0CCF-&0CFF) |
-| Shared workspace | main &0E00-&1DED | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, ss_pl, ss_su, ss_zs (S_SUN's: the planet and the sun as SOLAR places them, and the zero page kept round MV40 and SOLAR, &1BBA-&1BF0), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, the ring's variables (gfx-planetv.asm, with RINGS=on), F_SUX, F_SUY, FL_BEH, SS_OK (the sun this frame, gfx-ssun.asm), ss_d (S_SUN's D, &1DE5-&1DED); with MOON=on, the moon's variables (gfx-planetv.asm), MO_ON ... MO_CB (the moon as each buffer last showed it), MN_E and MN_OK (the moon's place, MN_TURN's) | 236 (5, 24, 192 at &17F8-&18B7 in raster_vars, 15) and 293 before CODE% (&1F13; with MOON=on, &1EE8) |
+| Shared workspace | main &0E00-&1DED | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, ss_pl, ss_su, ss_zs (S_SUN's: the planet and the sun as SOLAR places them, and the zero page kept round MV40 and SOLAR, &1BBA-&1BF0), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, F_SUX, F_SUY, FL_BEH, SS_OK (the sun this frame, gfx-ssun.asm), ss_d (S_SUN's D, &1DE5-&1DED) | 236 (5, 24, 192 at &17F8-&18B7 in raster_vars, 15) and 293 before CODE% (&1F13) |
 | Glue area | main &1F13-&2968 | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 from &1F14, 38 into the cold pass; STUBS4, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &225C), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
 | Low pass | main &2969-&2F7B (no padding before the font) | Elite's code that must be below &3000, in the source's order: WSCAN, DELAY, the sound (BOOP, BEEP, SOFH ... SOINT, the sound variables and the SFX tables), IRQ1 (&2ACA), VSCAN, DOVDU19, cls, TT67K, CHPR (&2B19), ZES1, ZES2, the font (FONT%, &2C00-&2EFF), UP (&2F00), stackpt, NEWBRK | - |
 | Hot pass: main RAM | main &2F7C-&3FF8 | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB ... (build/flow.txt) | 7 |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
 | Quarter-square tables, then the hot pass | main &7000-&7F4B | QSL and QSH (elite-qs.asm, &7000-&73FF); the hot pass's second container from &7400: TACTICS, DOCKIT, the tactics helpers ... the maths from MLS2 to DVID3B2 (build/flow.txt) | 180 |
-| Bank 4 | &8000-&BE81 | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (ylookup, SCAN, LOIN ... DSEG, ADDK; log, logL, alogh page aligned), then the rest of the hot pass in the source's order (cntr ... EXNO, to &B79E; F% at &B79F); then any hot data HAZEL has no room for (none); then S_SUN and L_SUN (gfx-ssun.asm, gfx-light.asm's first pass: the renderer's routines that run in game context, from G_FRAME), &B79F-&BE81; with MOON=on also MN_TURN (the moon's place) and MOONHIT (elite-moon.asm: the moon is solid, from MA22) | 382 |
+| Bank 4 | &8000-&BE81 | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (ylookup, SCAN, LOIN ... DSEG, ADDK; log, logL, alogh page aligned), then the rest of the hot pass in the source's order (cntr ... EXNO, to &B79E; F% at &B79F); then any hot data HAZEL has no room for (none); then S_SUN and L_SUN (gfx-ssun.asm, gfx-light.asm's first pass: the renderer's routines that run in game context, from G_FRAME), &B79F-&BE81 | 382 |
 | Cold pass | bank 7 &8000-&A3A8 | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data (the extended tokens TKN1 and their macros) | - (bank 7's end) |
-| Meridian window | bank 7 &A3A9-&B7E8 (ROMSEL 7; MERID, its own image, with gfx-kept7.asm, gfx-planet7.asm and gfx-flare.asm after it) | gfx-merid.asm, the circle engine (pc_circ, a circle's record; PC_ROWS, the rows, and PC_MROWS with MOON=on; the records PCB); gfx-kept7.asm; gfx-planet7.asm, the styles (PF_HOOK: the beach ball, craters; bands with BANDS=on), the moon (with MOON=on), the ring's dots (with RINGS=on); gfx-flare.asm, the lens flare (R_FLARE, through T_FLARE; fl_htab whole in a page) | 2071 (bank 7's end) |
+| Meridian window | bank 7 &A3A9-&B7E8 (ROMSEL 7; MERID, its own image, with gfx-kept7.asm, gfx-planet7.asm and gfx-flare.asm after it) | gfx-merid.asm, the circle engine (pc_circ, a circle's record; PC_ROWS, the rows; the records PCB); gfx-kept7.asm; gfx-planet7.asm, the styles (PF_HOOK: the beach ball, craters); gfx-flare.asm, the lens flare (R_FLARE, through T_FLARE; fl_htab whole in a page) | 2071 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FDA (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 37 |
 | Rasteriser: disc window | bank 5 &8000-&8FFF (ROMSEL 5) | gfx-raster_disc.asm (with gfx-raster_strips.asm), gfx-raster_kept.asm (&8000-&8F22); R_S2R0, buffer 0's second-disc right ends (&8F40-&8FFF) | 29 |
-| Rasteriser: shared region | bank 5 &9000-&BFFF (with either window) | gfx-raster.asm; gfx-raster_lcold.asm and gfx-raster_reset.asm (R_RESETBUF) in the room below the per-x tables (from r_tfree, &990A), then R_S2L0 and R_S2L1 (&9A40, &9B40), the second disc's left ends, with gfx-raster_wspan.asm (R_WSPAN, the moon's writes, MOON=on) between them; gfx-raster_disc2.asm (R_DISC2, &BBBE-&BEF7) and gfx-raster_init.asm (R_INIT), then R_S2R1 (&BF40-&BFFF) | 2 (before R_S2R1; + 29 at &9A23, 64 at &9B00, 8 with MOON=on; + the tails) |
-| Frame layer | bank 6 &8000-&B590 | gfx-frame.asm (with the incremental moon, f_moon0 and f_moon, with MOON=on), faces, the lighting's tables and L_REC (gfx-light.asm's second pass), frame_cold (with f_slot, the stars beside a docking slot; the text map's entry points and the direct text's notes), the flare's step, the hangar's frame and tables, F_SLV (f_ring with RINGS=on); the data after the code: the ship records (F_RP, F_SR: MASTER-PLAN.md, "The frame's records"), the half-widths (F_HW3, the moon's, with MOON=on), the text map F_TM and F_TMR (MASTER-PLAN.md, "The text map") | 2671 |
+| Rasteriser: shared region | bank 5 &9000-&BFFF (with either window) | gfx-raster.asm; gfx-raster_lcold.asm and gfx-raster_reset.asm (R_RESETBUF) in the room below the per-x tables (from r_tfree, &990A), then R_S2L0 and R_S2L1 (&9A40, &9B40), the second disc's left ends; gfx-raster_disc2.asm (R_DISC2, &BBBE-&BEF7) and gfx-raster_init.asm (R_INIT), then R_S2R1 (&BF40-&BFFF) | 2 (before R_S2R1; + 29 at &9A23, 64 at &9B00; + the tails) |
+| Frame layer | bank 6 &8000-&B590 | gfx-frame.asm, faces, the lighting's tables and L_REC (gfx-light.asm's second pass), frame_cold (with f_slot, the stars beside a docking slot; the text map's entry points and the direct text's notes), the flare's step, the hangar's frame and tables, F_SLV; the data after the code: the ship records (F_RP, F_SR: MASTER-PLAN.md, "The frame's records"), the text map F_TM and F_TMR (MASTER-PLAN.md, "The text map") | 2671 |
 | HAZEL | &C000-&DA38 | the game data only: the hot data, elite-data.asm's order from &C000: XX21, E%, KWL%, KWH%, the blueprints from the missile's to the Dodo's (without their edge lists), QQ18, SNE and ACT; RUPLA, RUGAL and RUTOK (&D781-&DA38) | 1223 (&DA39-&DEFF), 256 (&DF00-&DFFF: the MOS's, off limits) |
 | Shadow &3000-&3FFF | &3090-&30FF | the zero-page save (setzp/getzp) only; nothing new goes into shadow RAM | 144 (&3000-&308F), 3840 (&3100-&3FFF) |
 | Buffer 1, dashboard | shadow &4000-&7DFF | the screen (rule 6) | - |
@@ -396,7 +392,7 @@ build/direct.txt, which bankcheck.py reads).
 | stubs out of the cold pass (`.x4_H`, `.j4_H`, STUBS4) | the glue area | 57 | bank 4 in, bank 7 back |
 | TTX66M | the glue area | 1 | bank 4 in, the caller's bank back |
 | G_ stubs | the glue area (gfx-gstubs.asm, 13; G_CHAR, G_DELCHAR, G_CLRTEXT in gfx-gluehooks.asm) | 16 | bank 6 in (G_PFHOOK: the meridian window, bank 7), bank 4 (or, for the text stubs, the caller's bank) back |
-| T_ trampolines | the glue area (gfx-tramp.asm) | 13 | the rasteriser in (T_POLY, T_LINE: ROMSEL &85, ANDY over bank 5; the rest bank 5), or the meridian window (T_CAPS, T_MCAPS: bank 7), bank 6 back |
+| T_ trampolines | the glue area (gfx-tramp.asm) | 13 | the rasteriser in (T_POLY, T_LINE: ROMSEL &85, ANDY over bank 5; the rest bank 5), or the meridian window (T_CAPS: bank 7), bank 6 back |
 
 A routine that falls through into a routine of the other side falls into a
 seam: a JMP to that routine's stub, at its place in the falling routine's
@@ -487,7 +483,7 @@ What remains out of that order, each with a `Port:` note where it applies:
   and its tables, gfx-hangar6.asm, at the end of bank 6's image), the CMYK
   dashboard's tables (generated, build/dashtab-*.asm, each INCLUDEd in its
   routine's block) and its variables DASHV (after WP).
-* **Placement by the build, not the source**: CODE% (&1F13; &1EE8 with MOON=on) is chosen so the
+* **Placement by the build, not the source**: CODE% (&1F13) is chosen so the
   font starts a page without padding; the hot pass's containers and the hot
   data's are filled by the flow (build/flow.txt), not by markers.
 

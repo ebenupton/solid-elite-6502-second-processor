@@ -10,7 +10,7 @@
 \ per-row state that only some rows need, by body:
 \
 \   * body 0, the surface (HB_S): for the disc layer when it has two colours
-\     (a beach ball, craters, bands), per row one byte for both buffers, a
+\     (a beach ball, craters), per row one byte for both buffers, a
 \     nibble each (buffer 0's the low one) holding n = 2 * the boundary
 \     count + the colour at the span's left end (R_NDN rotated left), 0-5,
 \     or 15 for unknown (a row with three or more), and per buffer and row

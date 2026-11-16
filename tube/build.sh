@@ -10,9 +10,6 @@
 #                      6502 Second Processor): tube/src/disc.asm
 #   (tube/tools/discbudget.py prints the disc's room at the end)
 #
-# Options (environment), as master/build.sh's: BANDS=on (banded planets),
-# RINGS=on (planet rings), MOON=on (moons), each off by default.
-#
 # The game's source is master/src's, assembled with _TUBE (and the renderer's
 # files with _TPART = 1 for the parasite's part, 2 for the host's). The stage
 # directory makes master/src look like the Tube's build: src/ is master/src,
@@ -35,9 +32,6 @@ _VARIANT=1
 _REMOVE_CHECKSUMS=TRUE
 _MATCH_ORIGINAL_BINARIES=TRUE
 _MAX_COMMANDER=FALSE
-_PLANET_BANDS=$( [ "${BANDS:-off}" = on ] && echo TRUE || echo FALSE )
-_PLANET_RINGS=$( [ "${RINGS:-off}" = on ] && echo TRUE || echo FALSE )
-_PLANET_MOON=$( [ "${MOON:-off}" = on ] && echo TRUE || echo FALSE )
 _TUBE=TRUE
 _TDUMB=TRUE
 EOF

@@ -18,8 +18,7 @@
 // Options (environment), a subset of run_sim's: CURIOUS=1, FAIR=1, FAIRHANDS=1, JOYSTICK=0|1
 // (default 1: the stick through the analogue port), SAVE=0|1, NOMISSION=1, NOPOD=1, UNDAMPED=0|1,
 // SHOPORDER=n,n,..., LOAD=NAME, PLAN=0|1, CHAIN=0|1, EXPLORE=x, WEAKRISK=x, LCLEAR=n, LOGLEVEL=n
-// (the highest log level passed back: default 1, INFO), MOON=1 (the port's moons are solid: avoid them;
-// needs an elite-agent with the moon mode, g_moon: its branch moon-avoid, built with -DMOONMODE).
+// (the highest log level passed back: default 1, INFO).
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,11 +72,6 @@ int main(void) {
     if ((e = getenv("EXPLORE"))) g_explore_ratio = atof(e);
     if ((e = getenv("WEAKRISK"))) g_weak_risk = atof(e);
     if ((e = getenv("LOGLEVEL"))) loglevel = atoi(e);
-#ifdef MOONMODE
-    if ((e = getenv("MOON"))) { extern int g_moon; g_moon = atoi(e); }
-#else
-    if ((e = getenv("MOON")) && atoi(e)) { fprintf(stderr, "agentd: MOON=1 needs an elite-agent with the moon mode (build.sh MOONMODE=1)\n"); return 1; }
-#endif
     if ((e = getenv("SHOPORDER"))) {            // the first items of the shopping list, by number
         extern int g_shop_order[];
         int order[16], n = 0, used[16] = {0};
