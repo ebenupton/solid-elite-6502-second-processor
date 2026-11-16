@@ -585,6 +585,7 @@ each measured with profile.mjs on its commit and its parent:
 | MLTU2 returns 0 at once when Q = 0 (MVEIT's position rotation with a zero roll or pitch) | -71 | +12 (main) | 5.9 |
 | f_discspans' slow path: the rows about cy in pairs, clipped by thresholds on the half-width (fcs) | -1182 | +327 (bank 6) | 3.6 |
 | R_POLY's phase A without its edge count (r_cc): the walk from the top vertex meets ymax within n - 1 edges | -17 | -22 (ANDY; r_cc's byte in bank 5 goes to the padding after it) | - |
+| DIL takes each bar's cache index from DIALS (a fixed slot per bar) rather than working it out from SC | -144 | +4 (bank 4, from the log tables' alignment padding: no free byte lost) | 36 |
 
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the
