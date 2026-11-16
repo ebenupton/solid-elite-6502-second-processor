@@ -45,9 +45,9 @@ export const COMMANDERS = {
     debrief1: { what: "the Constrictor destroyed, not yet debriefed (TP = 3): debriefing at the first dock", patch: patcher({ ...ALL, LASER: [0x97, 0, 0, 0], CASH: cash(5000), TALLY: [1000 & 255, 1000 >> 8], TP: [3] }) },
     // galaxy 3 at Ceerdi (215, 84) with mission 1 done and tally 1400: the Thargoid plans
     // briefing at the first dock, then Ceerdi (BRIEF3) and Birera (DEBRIEF2)
-    // at Diso (19, 151), all fitted, a beam laser, a full tank, with (14, 137), a system with a moon 3.4 light
-    // years away, selected: the moon movie's start (moonmovie.mjs)
-    diso: { what: "at Diso, all fitted, beam laser, 20000 Cr, a full tank, (14, 137) (a moon) selected", patch: patcher({ ...ALL, QQ0: [19], QQ1: [151], QQ9: [14], QQ10: [137], LASER: [0x8f, 0, 0, 0], CASH: cash(20000), TALLY: [800 & 255, 800 >> 8] }) },
+    // at Diso (19, 151), all fitted, a beam laser, a full tank, with Quator (14, 137), 3.4 light years
+    // away, selected
+    diso: { what: "at Diso, all fitted, beam laser, 20000 Cr, a full tank, (14, 137) selected", patch: patcher({ ...ALL, QQ0: [19], QQ1: [151], QQ9: [14], QQ10: [137], LASER: [0x8f, 0, 0, 0], CASH: cash(20000), TALLY: [800 & 255, 800 >> 8] }) },
     galaxy3: { what: "galaxy 3 at Ceerdi, mission 1 done, tally 1400, all fitted: the Thargoid plans mission", patch: patcher({ ...ALL, ...galaxy(2), QQ0: [215], QQ1: [84], LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [1400 & 255, 1400 >> 8], TP: [2] }) },
     // galaxy 3 at Birera (63, 72) with the Thargoid plans aboard (TP = %1010): the agent
     // takes them to Birera, where docking debriefs mission 2
@@ -67,8 +67,6 @@ export const MODES = {
     nosave: { SAVE: "0" },
     nomission: { NOMISSION: "1" },
     load: { LOAD: "CLAUDE" },           // load commander CLAUDE from the disc when first docked (a disc from --savediscs)
-    moon: { MOON: "1" },                // the moons are solid (the port's elite-moon.asm): steer clear of them (an agentd
-                                        // built from elite-agent's moon-avoid branch: build.sh ELITE_AGENT=...)
 };
 
 // ---- the chaos overlay
