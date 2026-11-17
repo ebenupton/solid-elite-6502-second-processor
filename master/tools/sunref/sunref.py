@@ -3,12 +3,20 @@
 harness writes at TT170 so that the original runs the same game logic as
 this build: the sun parked while the space station holds its slot (SUNUP,
 SUNSC, SUNBK, SUNLAU in src/elite-source.asm; docs/MASTER-PLAN.md, "The
-sun's parking"). Run by build.sh from master/; writes
+sun's parking"), the sun's edge drawing no random numbers (SUN's JSR
+DORND as LDA #0 : NOP, the fringe 0: "The sun's edge"), the explosion
+clouds' seed (keepRand, below) and MV40's K2 (its ADC K2 and SBC K2 as ADC
+#0 and SBC #0: "MV40's K2"). Run by build.sh
+from master/; writes
 
   build/sunref.json          the patch (harness/mlib.mjs's loadRefPatch, which
                              mcompare.mjs and agentplay give the reference
                              when it is beside the candidate's symbols)
   build/sunref-passive.json  its passive variant (below)
+  build/sunref-edge.json     the sun's edge's site alone, with randAt (the
+                             harness advances RAND there as the DORND would:
+                             harness/msunref.mjs's proof that it changes
+                             nothing else)
   build/sunref-symbols.txt   the patch's labels at their SNG47 addresses
                              (beebasm -d), for the harness's hooks
   build/sunref-syms.asm      the bindings sunref.asm assembles with
@@ -30,6 +38,11 @@ A patch is:
           lines use, as the station and the parked sun are now both drawn);
           the harness maps it to LSO's address in the compared state
   region  [address, length, name]: the parked sun, compared as game state
+  keepRand  { at, bytes }: the explosion clouds' random seed: RAND and
+          RAND+2 as PTCLS finds them are put back when it returns (the
+          harness does it, at PTCLS's return address: SNG47 has no room
+          left for the code), so drawing a cloud takes no random numbers
+          (docs/MASTER-PLAN.md, "The explosion clouds' seed")
 
 Every name the routines use is bound to SNG47's address for it (its
 symbols, reference/symbols.txt and symbols-data.txt), each A_X (a call or a
@@ -151,6 +164,23 @@ def lo_hi(a):
     return [a & 255, a >> 8]
 
 
+def edge(ref):
+    """the sun's edge draws no random numbers: SUN's one JSR DORND (part 3,
+    each row's fringe, ANDed with CNT and added to the row's half-width)
+    becomes LDA #0 : NOP, so the fringe is 0 and RAND is not touched"""
+    return {"name": "SUN: JSR DORND", "addr": None, "orig": [0x20] + lo_hi(ref["DORND"]), "new": [0xA9, 0x00, 0xEA],
+            "search": [ref["SUN"], ref["CIRCLE"]]}
+
+
+def k2(ref):
+    """MV40's K2: its ADC K2 and SBC K2 (the low bytes of the sums into y,
+    which nothing in MV40 sets: whatever last left K2, often the planet's
+    drawing) become ADC #0 and SBC #0"""
+    rng = [ref["MV40"], ref["PLUT"]]              # (MV40, MV1, MV2: PLUT follows)
+    return [{"name": "MV40: ADC K2", "addr": None, "orig": [0x65, ref["K2"]], "new": [0x69, 0x00], "search": rng},
+            {"name": "MV40: SBC K2", "addr": None, "orig": [0xE5, ref["K2"]], "new": [0xE9, 0x00], "search": rng}]
+
+
 def patch(ref, sr, code, passive):
     def site(name, addr, orig, new):
         return {"name": name, "addr": addr, "orig": orig, "new": new}
@@ -174,7 +204,11 @@ def patch(ref, sr, code, passive):
     # has SNG47's symbols, not its code)
     for s_, rng in zip(sites[4:], (("TT110", "NLUNCH"), ("NWSPS", "NWSHP"), ("NWSPS", "NWSHP"))):
         s_["search"] = [ref[rng[0]], ref[rng[1]]]
-    return {"name": "the sun's parking" + (" (passive)" if passive else ""),
+    if not passive:
+        sites.append(edge(ref))
+        sites += k2(ref)
+    keep = {} if passive else {"keepRand": {"at": ref["PTCLS"], "bytes": [ref["RAND"], ref["RAND"] + 2]}}
+    return {**keep, "name": "the sun's parking" + (" (passive)" if passive else ", the sun's edge, the clouds' seed, MV40's K2"),
             "code": [[sr["SR_START"], list(code)]], "sites": sites, "lso": sr["SR_HEAP"],
             "region": [sr["SUNPK"], sr["SR_END"] - sr["SUNPK"], "SUNPK"],
             "hooks": {n: sr[n] for n in ("A_SUNUP", "A_SUNBK", "A_SUNSC", "A_SUNLAU", "A_SUNS1") if n in sr}}
@@ -228,6 +262,12 @@ def main():
         ok = audit(p, sr) and ok
         with open(name, "w") as f:
             json.dump(p, f)
+    # the sun's edge alone, with the harness advancing RAND at the site as the
+    # DORND it replaces would (randAt): the proof that the patch changes nothing
+    # but the random numbers' use (harness/msunref.mjs)
+    with open("build/sunref-edge.json", "w") as f:
+        json.dump({"name": "the sun's edge (RAND kept)", "code": [], "sites": [edge(ref)], "lso": None, "region": None,
+                   "randAt": "SUN: JSR DORND"}, f)
     with open("build/sunref-symbols.txt", "w") as f:
         f.write(dump)
     if not ok:

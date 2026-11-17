@@ -33,7 +33,8 @@
 //             (SUNUP), which the pilot then docks with (and launches: SUNLAU)
 //   full      the sun parked and every other slot filled (three asteroids and
 //             seven canisters, the heap just fitting), which the pilot shoots:
-//             the slots shuffle below the parked sun, and spawns fail
+//             the slots shuffle below the parked sun, spawns fail, and the
+//             explosion clouds are drawn (their seed: DOEXP, PTCLS)
 //   handback  flying at the sun as the station goes: the sun ahead in the
 //             front view, parked, then the station put far away; the sun's
 //             centre on the screen (the build's F_SUX, F_SUY: the frame's
@@ -43,6 +44,11 @@
 //             title, a new game, a launch); a hyperspace jump; the energy bomb
 //             and the E.C.M.; the galactic hyperdrive; each followed by the
 //             pilot's own flying
+//
+// In every scene the build runs with mlib's deadRegs: the registers and flags
+// the port claims dead after DIALS, SUN, PLANET, PTCLS, BOMBOFF, PIXEL2 and WPLS
+// (DEAD_AFTER) are scrambled at each return, so the comparison fails if any is
+// read (the events scene, through RES2's paths, must reach DIALS)
 //
 // node harness/msunslot.mjs [--scene zone,full,handback,events] [--iters N]
 //      [--cand disc --csyms syms] [--out dir] [--tube Master|B]
@@ -80,7 +86,7 @@ function labels(sy, ref) {
     };
     const G = n => place(sy, !ref && sy[n + "_C"] !== undefined ? n + "_C" : n);
     return { SUNUP: L("SUNUP"), SUNBK: L("SUNBK"), SUNSC: L("SUNSC"), SUNLAU: L("SUNLAU"), MVEIT: G("MVEIT"), NWSTARS: G("NWSTARS"), SOLAR: G("SOLAR"), TT100: G("TT100"), KILLSHP: G("KILLSHP"),
-        EV: ["DEATH", "DOENTRY", "ESCAPE", "TT18", "MJP", "TITLE", "Ghy", "BOMBON", "ECBLB2"].map(n => [n, G(n)]),
+        EV: ["DEATH", "DOENTRY", "ESCAPE", "TT18", "MJP", "TITLE", "Ghy", "BOMBON", "ECBLB2", "DOEXP"].map(n => [n, G(n)]),
         FEND: ref ? null : G("ff_stars9") };         // (the build's frame's end, after the stars: the frame's sun as recorded)
 }
 
@@ -260,7 +266,7 @@ async function fly(scene, who, disc, sy, ref, seedBoot) {
             // the energy bomb and the E.C.M. with the sun parked (MA24 and the slots'
             // effects skip negative types), then the galactic hyperdrive (CTRL held at
             // hyp's test, then H)
-            else if (k === 4) { ram[sy.BOMB] = 0x7f; ram[sy.ECM] = 0xff; scripted = { until: i + 8, keys: i % 2 ? [K.TAB] : [K.E], alt: [K.E] }; count.bombs = (count.bombs || 0) + 1; }
+            else if (k === 4) { ram[sy.BOMB] = 0x7f; ram[sy.ECM] = 0xff; scripted = { until: i + 8, keys: [K.TAB], alt: [K.E] }; count.bombs = (count.bombs || 0) + 1; }
             else { ram[sy.GHYP] = 0xff; ghyp = i + 6; scripted = { until: i + 4, keys: [K.H] }; count.ghyps = (count.ghyps || 0) + 1; }
         }
         lastSun = sunExists(); wasFlight = flying();
@@ -276,7 +282,7 @@ async function fly(scene, who, disc, sy, ref, seedBoot) {
     const dks = c => (misjump >= iter && c.key === 0x01 && c.site === "ee5") || (ghyp >= iter && c.key === 0x01 && c.site !== "ee5") ? true
         : pilot.dks ? pilot.dks(c) : false;
     const r = await runElite({ disc, syms: sy, pilot: { keys, dks, observe: pilot.observe, P }, iters: ITERS[scene] * (+(a.iters || 1)), maxSecs: 6 * ITERS[scene],
-        patch: patchCommander, refPatch: ref ? RP : null, onIter, seedBoot, tube: ref ? undefined : TUBE || undefined });
+        patch: patchCommander, refPatch: ref ? RP : null, deadRegs: !ref, onIter, seedBoot, tube: ref ? undefined : TUBE || undefined });
     if (strays.length) fail.push(`${who}: the patch's memory written by other code: ${strays.join(", ")}`);
     return { r, fail, count, sunPos, arrivals: Object.keys(arrivals).length };
 }
@@ -325,10 +331,13 @@ for (const scene of SCENES) {
         }
     }
     if (scene === "full" && !(R.count.killsParked > 0)) fails.push("no ship removed below the parked sun");
+    if (scene === "full" && !(R.count.DOEXP > 0)) fails.push("no explosion cloud (DOEXP): the clouds' seed is not exercised");
     if (scene === "events") for (const n of ["ESCAPEParked", "MJPParked", "DEATHParked", "TITLE", "TT18Parked", "DOENTRY", "GhyParked", "BOMBONParked", "ECBLB2Parked"])
         if (!R.count[n]) fails.push(`no ${n}`);
+    if (scene === "events" && !(C.r.deadN && C.r.deadN.DIALS > 0)) fails.push("no return from DIALS with its dead registers scrambled");
     if (scene === "zone" && !(R.count.launchChecked > 0)) fails.push("no launch from a system the scene arrived at (SUNLAU against SOLAR)");
     console.log(`${scene}: ${R.r.iters} iterations, ${((Date.now() - t0) / 1000).toFixed(0)} s; ref ${JSON.stringify(R.count)}; cand ${JSON.stringify(C.count)}; arrivals ${R.arrivals}`);
+    console.log(`  registers scrambled in the build after (mlib DEAD_AFTER): ${Object.entries(C.r.deadN || {}).map(([n, c]) => n + " " + c).join(", ")}`);
     if (scene === "handback") console.log(`  the sun on the screen (iteration, slot 1, x, y, r, on): ${C.sunPos.map(p => p.join(",")).join(" ")}`);
     for (const f of fails.slice(0, 20)) console.log(`  FAIL ${f}`);
     if (fails.length) ok = false;

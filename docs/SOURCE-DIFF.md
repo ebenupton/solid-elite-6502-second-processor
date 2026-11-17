@@ -110,7 +110,7 @@ included. Routines with fewer than about 15 lines are grouped.
 
 **1 Memory map and build** (70, 52)
 
-* (configuration) 51, 5: the INCLUDE path, CODE% &1300 to &1F08, LOAD% = CODE%. The
+* (configuration) 51, 5: the INCLUDE path, CODE% &1300 to &1F42, LOAD% = CODE%. The
   data addresses (XX21, E%, KWL%, KWH%, QQ18, SNE, ACT, TKN1, and RUPLA, RUGAL and
   RUTOK with their _COMPACT branch) are deleted, as elite-data.asm is assembled in
   the same pass; commbuf moved; HOMEBANK and COLDBANK added.
@@ -242,6 +242,14 @@ SUNPK while the station holds its slot), each reached by one redirected call: ma
 flight loop part 4's JMP MA18 (4, 6), part 14's JSR WPLS (3, 1), KS4's JSR ZINF
 (1, 1) and TT110's JSR NWSPS (2, 1); WP gains SUNPK and SUNPF after DASHV. The
 reference runs the same four blocks (their `, again` emission, assembled for SNG47).
+The sun's edge: SUN's parts 2 to 4, HLOIN2, EDGES and the orange table are `Area: none`
+(the rows, which took the only random numbers, are gone: the reference's patch takes
+SUN's JSR DORND out too); SUN's part 1 loses its fringe size and its set-up for the rows
+(ending with SUNX and an RTS), HLOIN its own entry, and WPLS and FLFLLS their line
+heap work, each with a `Port:` note. MV40's K2: its ADC K2 and SBC K2 become ADC #0
+and SBC #0 (2, 2: the reference's patch the same), with a `Port:` note, and PLS1 is
+`Area: none` (H_CIRC no longer calls it for K2). The leftovers: SUN loses COL, LSX,
+TGT and SUNX, WPLS is an RTS and FLFLLS loses LSX, each with a `Port:` note.
 
 ## Edits in code that is not emitted
 

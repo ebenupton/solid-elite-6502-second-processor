@@ -8,7 +8,9 @@
 #  2. determinism: node harness/mcompare.mjs --iters N (default 10000) of the
 #     released SNG47 disc (master/reference, with master/reference/symbols.txt)
 #     against the new build (its own symbols), both flown by the same pilot;
-#     FAIL on a divergence of game state, or a run that stops early.
+#     FAIL on a divergence of game state, or a run that stops early. The build
+#     runs with --deadregs: the registers and flags the port claims dead at the
+#     return from some routines (harness/mlib.mjs DEAD_AFTER) are scrambled.
 #  3. speed: the flight-loop iterations per emulated second over the whole run,
 #     reference and candidate, and their ratio (reported, not gated; the
 #     per-window table is in the log).
@@ -48,7 +50,7 @@ python3 master/tools/flare.py --verify > "$LOG/flare.log" 2>&1 || { cat "$LOG/fl
 
 # ---- 2 and 3. determinism and speed
 LOOSE=--loose; [ "${STRICT:-0}" = 1 ] && LOOSE=
-node harness/mcompare.mjs --iters "$ITERS" $LOOSE \
+node harness/mcompare.mjs --iters "$ITERS" $LOOSE --deadregs \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/compare" "$@" > "$LOG/compare.log" 2>&1
 CST=$?
@@ -86,7 +88,7 @@ grep -q "^STATION PASS" "$LOG/station.log" || { echo "station: FAIL"; fail stati
 # changes of space view in flight (the gate's pilot never changes view): the
 # pilot looks rear, left, right and front again every 50 flight iterations,
 # against the reference over 1500 iterations (LOOK1 once fell into DEATH)
-node harness/mcompare.mjs --iters 1500 $LOOSE --views --maxsecs 400 \
+node harness/mcompare.mjs --iters 1500 $LOOSE --deadregs --views --maxsecs 400 \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/views" > "$LOG/views.log" 2>&1
 grep -q "^MCOMPARE PASS" "$LOG/views.log" || { grep -A8 "FIRST DIVERGENCE" "$LOG/views.log" | head -10; echo "views: FAIL"; fail views; }
@@ -101,7 +103,7 @@ grep -q "^SHIPPOSE PASS" "$LOG/shippose.log" || { grep "BAD" "$LOG/shippose.log"
 # state identical over the gate's run and the views run: the patch changes
 # nothing unless the sun is parked)
 node harness/msunref.mjs --out "$LOG/sunref" > "$LOG/sunref.log" 2>&1
-grep -E "^(bytes|passive|passive-views):" "$LOG/sunref.log"
+grep -E "^(bytes|passive|passive-views|edge|edge-views):" "$LOG/sunref.log"
 grep -q "^SUNREF PASS" "$LOG/sunref.log" || { tail -20 "$LOG/sunref.log"; echo "sunref: FAIL"; fail sunref; }
 # the sun's parking where the gate's run never takes it: the safe zone left and
 # entered again and again (with fights, docking and launches), every slot full

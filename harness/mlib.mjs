@@ -170,7 +170,10 @@ export function canonFor(sy, regions, refPatch = null) {
 // the new ones; or, for a site with no label, search: a routine's extent, in
 // which the original's bytes are found exactly once), all in main RAM; lso:
 // the station's line heap, if the patch moves it; region: [address, length,
-// name], more of the patched original's game state (regionsFor). A build's
+// name], more of the patched original's game state (regionsFor); randAt: a
+// site's name, at which runElite advances RAND as the call the site replaced
+// would (a proof's variant only); keepRand: { at, bytes }, the bytes kept
+// across the routine at "at" (runElite's handler). A build's
 // patch is for the reference it is compared against: the original, patched
 // so that it runs the same game logic (docs/MASTER-PLAN.md).
 //   refPatchPath(syms): the patch beside a build's symbols, or null
@@ -242,7 +245,8 @@ export const DRAW_EXCLUDE = {
     XC: [1, "text cursor"], YC: [1, "text cursor"], LSX2: [256, "planet line heap"], LSY2: [256, "planet line heap"],
     LSO: [200, "sun line heap"], BUF: [90, "line buffer"], XSAV2: [1, "temp"], YSAV2: [1, "temp"],
     COMX: [1, "compass dot"], COMY: [1, "compass dot"], widget: [1, "temp"], dontclip: [1, "temp"], Yx2M1: [1, "temp"],
-    newzp: [1, "temp"], XX18: [4, "temp"],
+    newzp: [1, "temp"], XX18: [4, "temp"], TGT: [1, "temp"], FLAG: [1, "temp"], SUNX: [2, "sun's old centre"],
+    LSX: [1, "sun line heap"],
 };
 
 export function excludeSet(sy, lists) {
@@ -315,6 +319,27 @@ function xTrace(s, file, disc) {
 // Returns { snaps (per iteration, regions concatenated), iterTimes, tt100Times
 //   ([emulated s, iteration] per TT100), init (snapshot at TT170), initRand, keyLog,
 //   events, iters, tt100, emuSecs, error }
+// The routines whose port leaves some registers or flags other than the
+// original leaves them, claiming them dead at the return (to the caller of
+// the JSR that entered them; a routine entered by a tail call returns to its
+// caller's caller): runElite's deadRegs scrambles them there in the build
+//   DIALS    A, X, C: cpdot, for an unmoved dot, sets only what DOT leaves for
+//            the dot (and the port's DOT leaves its own A, X and C)
+//   SUN      A, X, Y: the port's SUN ends after part 1 (C clear, as part 4)
+//   PLANET   A, Z: PL40 (CNT > TGT as CNT - 1 >= TGT)
+//   PTCLS    A, X, Y, C: the cloud is drawn in the frame (H_PTCLS, F_CLOUD)
+//   BOMBOFF  A, X: H_BOMB, H_LLINE draw nothing in record mode
+//   PIXEL2   A, N, Z: H_STAROFF (every caller reaches a DEY first)
+//   WPLS     A, X, Y, C: the port's WPLS is an RTS
+export const DEAD_AFTER = [["DIALS", "axc"], ["SUN", "axy"], ["PLANET", "az"], ["PTCLS", "axyc"],
+    ["BOMBOFF", "ax"], ["PIXEL2", "anz"], ["WPLS", "axyc"]];
+// The Tube's parasite claims the same, but for DIALS also Y: its cpdot leaves
+// Y as COMPAS left it for an unmoved dot, and COMY for a moved one (its DOT,
+// tube/src/p-dash.asm, sends the dot with X and Y, and leaves no ddot's Y);
+// its other halves of the dashboard's and the drawing's routines (p-dash.asm,
+// p-io.asm) return as the Master port's routines do
+export const TUBE_DEAD_AFTER = DEAD_AFTER.map(([n, regs]) => n === "DIALS" ? [n, "axyc"] : [n, regs]);
+
 export async function runElite(opts) {
     const sy = opts.syms;
     // opts.tube ("Master" or "B"): the Tube build, the game on the parasite
@@ -389,6 +414,18 @@ export async function runElite(opts) {
 
     // The half spin's patch (see the handler; its hooks: findHalfSpin, at TT170)
     let H_P8 = null, H_MV5 = null, p8vec = null;
+    // A patch's randAt (a proof: master/tools/sunref's sunref-edge.json): at
+    // that site RAND is advanced as the DORND call the patch replaced would
+    // advance it (DORND's sums, with the C flag the call would have had), so
+    // that the patch's only other effect, the value it leaves, is all that differs
+    let H_RAND = null;
+    // A patch's keepRand ({ at, bytes }: the explosion clouds' random seed):
+    // the bytes (RAND and RAND+2) as they are when the routine at "at" (PTCLS)
+    // is entered are put back when it returns (at its return address, read
+    // from the stack on entry: DOEXP falls into PTCLS, so it returns to
+    // LL9's caller), so the routine takes no random numbers that last
+    const KEEP = opts.refPatch && opts.refPatch.keepRand ? opts.refPatch.keepRand : null;
+    let keepPend = null;
     const res = { snaps: [], iterTimes: [], tt100Times: [], tt100AtIter: [], init: null, keyLog: [], events: [], s, cpu, sy, regions, tube: T };
     let started = false, done = false, armPatch = false, iter = 0, tt100 = 0, checked = false;
     const ctxBase = { rb, rd, sy, iterOf: () => iter, tt100Of: () => tt100 };
@@ -412,7 +449,35 @@ export async function runElite(opts) {
         cpu.x = rb(sy.KL);
     }
 
+    // opts.deadRegs (the candidate only): at the return from each routine in
+    // DEAD_AFTER, the registers and flags the port claims dead there are
+    // scrambled, so a read of any of them shows as a divergence
+    const DEAD = opts.deadRegs ? (T ? TUBE_DEAD_AFTER : DEAD_AFTER).filter(([n]) => sy[n] !== undefined).map(([n, regs]) => ({ h: hook(n), regs, n })) : [];
+    const deadPend = [];
+    let deadSeed = 0x2545F491;
+    res.deadN = {};
+    const deadRnd = () => { deadSeed ^= deadSeed << 13; deadSeed ^= deadSeed >>> 17; deadSeed ^= deadSeed << 5; return deadSeed >>> 0; };
     const handler = pc => {
+        if (DEAD.length) {
+            for (let j = deadPend.length - 1; j >= 0; j--) {
+                const d = deadPend[j];
+                if (pc === d.ret && cpu.s === d.s) {
+                    for (const r of d.regs) {
+                        const v = deadRnd();
+                        if (r === "a" || r === "x" || r === "y") cpu[r] = v & 255;
+                        else cpu.p[r] = !!(v & 256);
+                    }
+                    res.deadN[d.n] = (res.deadN[d.n] || 0) + 1;
+                    deadPend.splice(j);
+                    break;
+                }
+            }
+            for (const d of DEAD) if (at(d.h, pc)) {
+                const ret = (stackWord(1) + 1) & 0xffff;
+                deadPend.push({ ret, s: (cpu.s + 2) & 255, regs: d.regs, n: d.n });
+                if (deadPend.length > 64) deadPend.shift();
+            }
+        }
         if (at(H_RDK, pc) && started) {
             const c = callerAt(2);
             const callSite = c.site;
@@ -460,6 +525,16 @@ export async function runElite(opts) {
         } else if (p8vec && at(H_MV5, pc)) {
             for (let i = 0; i < 18; i++) cpu.ramRomOs[sy.INWK + 9 + i] = p8vec[i];
             p8vec = null;
+        } else if (KEEP && pc === KEEP.at && !keepPend) {
+            keepPend = { ret: stackWord(1) + 1, vals: KEEP.bytes.map(b => rb(b)) };
+        } else if (keepPend && pc === keepPend.ret) {
+            KEEP.bytes.forEach((b, i) => wr(b, [keepPend.vals[i]]));
+            keepPend = null;
+        } else if (H_RAND !== null && pc === H_RAND) {
+            const R = sy.RAND, f1 = rb(R), c = cpu.p.c ? 1 : 0;
+            const f2 = ((f1 << 1) | c) & 255, f3 = f2 + rb(R + 2) + (f1 >> 7);
+            const m1 = rb(R + 1), m2 = m1 + rb(R + 3) + (f3 >> 8);
+            wr(R, [f3 & 255, m2 & 255, f2, m1]);
         } else if (at(H_MLOOP, pc) && started) {
             res.snaps.push(snapshot());
             res.iterTimes.push(emuSecs());
@@ -492,6 +567,7 @@ export async function runElite(opts) {
             const hs = findHalfSpin(sy, cpu);
             if (hs) { H_P8 = hs.p8; H_MV5 = hs.mv5; }
             if (opts.refPatch) applyRefPatch(cpu.ramRomOs, opts.refPatch);
+            if (opts.refPatch && opts.refPatch.randAt) H_RAND = opts.refPatch.sites.find(st => st.name === opts.refPatch.randAt).addr;
             if (opts.seed) for (const [a, bytes] of opts.seed) wr(a, bytes);
             if (opts.seedBoot) { res.seeded = opts.seedBoot(regions, written, rb); for (const [a, bytes] of res.seeded) wr(a, bytes); }
             bootWrites.remove();
@@ -623,6 +699,7 @@ async function bootTubeElite(opts) {
     const cpu = {
         get a() { return par.a; }, set a(v) { par.a = v; }, get x() { return par.x; }, set x(v) { par.x = v; },
         get y() { return par.y; }, set y(v) { par.y = v; }, get s() { return par.s; }, get pc() { return par.pc; },
+        get p() { return par.p; },
         romsel: 0, acccon: 8, ramRomOs: par.memory, readmem: a => par.readmem(a),
     };
     const hp = String(opts.disc).replace(/[^/]*$/, "hsyms.txt"), hsy = existsSync(hp) ? loadSyms(hp) : {};
