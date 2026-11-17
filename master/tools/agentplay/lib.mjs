@@ -28,7 +28,7 @@
 // where they came from, writes by game code to page &0D (off limits on the Master),
 // and the routine labels of each poll (control flow).
 import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank, halfPart8,
-    findHalfSpin, applyRefPatch, loadRefPatch, refPatchPath } from "../../../harness/mlib.mjs";
+    findHalfSpin, applyRefPatch, loadRefPatch, refPatchPath, DEAD_AFTER } from "../../../harness/mlib.mjs";
 export { loadSyms, regionsFor, loadRefPatch, refPatchPath };
 
 export const ROOT = decodeURIComponent(new URL("../../..", import.meta.url).pathname).replace(/\/$/, "") + "/";
@@ -37,10 +37,11 @@ export const CYCLES_PER_FRAME = 40000;          // 2 MHz, 50 Hz
 // routines whose entries are counted (coverage): launch, docking, hyperspace, galactic
 // hyperspace, witchspace, mis-jump, in-system jump, death, escape pod, energy bomb, E.C.M.,
 // missiles (ours and theirs), explosions, Thargoids, the docked screens, save and load,
-// the missions' briefings and debriefings, pause
+// the missions' briefings and debriefings, pause; the sun's parking (the build's
+// SUNUP, SUNSC, SUNBK, SUNLAU), MV40 and PTCLS (the explosion clouds)
 export const ROUTINES = ["LAUN", "DOENTRY", "TT18", "Ghy", "MJP", "ptg", "WARP", "DEATH", "ESCAPE", "BOMBON", "ECBLB2", "ECMOF",
     "FRMIS", "SFRMIS", "EXNO3", "GTHG", "EQSHP", "TT219", "TT208", "TT213", "TT25", "TT167", "STATUS", "SVE", "LOD",
-    "BRIEF", "BRIEF2", "BRIEF3", "DEBRIEF", "DEBRIEF2", "FREEZE"];
+    "BRIEF", "BRIEF2", "BRIEF3", "DEBRIEF", "DEBRIEF2", "FREEZE", "SUNUP", "SUNSC", "SUNBK", "SUNLAU", "MV40", "PTCLS"];
 
 export class EliteMachine {
     // opts: name, disc, syms (loadSyms), input ({ rdkey(ctx), dks5(ctx), joy(ctx) }),
@@ -89,6 +90,12 @@ export class EliteMachine {
         H.JOY = [null, null];
         this.hookTab = new Uint8Array(65536);
         for (const h of [...Object.values(H).flat()]) if (h) this.hookTab[h.a] = 1;
+        // opts.deadRegs (mlib's DEAD_AFTER, as runElite's): at the return from each
+        // routine listed, the registers and flags the port claims dead there are scrambled
+        this.dead = this.opts.deadRegs ? DEAD_AFTER.map(([n, regs]) => ({ h: hook(n), regs, n })).filter(d => d.h) : [];
+        this.deadPend = []; this.deadN = {}; this.deadSeed = 0x2545F491;
+        for (const d of this.dead) this.hookTab[d.h.a] = 1;
+        this.siteHooks = [];
         // boot writes (for seeding) and page &0D watch
         this.written = new Set(); this.inGame = false;
         this.bootWrites = cpu.debugWrite.add(a => { if (this.inGame && !this.started && a < 0x8000) this.written.add(a); return false; });
@@ -278,6 +285,27 @@ export class EliteMachine {
     tab(pc) {
         if (!this.hookTab[pc]) return false;
         const H = this.H, cpu = this.cpu, sy = this.sy;
+        if (this.dead.length) {
+            for (let j = this.deadPend.length - 1; j >= 0; j--) {
+                const d = this.deadPend[j];
+                if (pc !== d.ret || cpu.s !== d.s) continue;
+                for (const r of d.regs) {
+                    this.deadSeed ^= this.deadSeed << 13; this.deadSeed ^= this.deadSeed >>> 17; this.deadSeed ^= this.deadSeed << 5;
+                    const v = this.deadSeed >>> 0;
+                    if (r === "a" || r === "x" || r === "y") cpu[r] = v & 255; else cpu.p[r] = !!(v & 256);
+                }
+                this.deadN[d.n] = (this.deadN[d.n] || 0) + 1;
+                this.deadPend.splice(j);
+                break;
+            }
+            for (const d of this.dead) if (this._at(d.h, pc)) {
+                const ret = ((this.rb(0x100 + ((cpu.s + 1) & 0xff)) | this.rb(0x100 + ((cpu.s + 2) & 0xff)) << 8) + 1) & 0xffff;
+                this.deadPend.push({ ret, s: (cpu.s + 2) & 0xff, regs: d.regs, n: d.n });
+                if (this.deadPend.length > 64) this.deadPend.shift();
+                this.hookTab[ret] = 1;          // (left set: the return sites are few)
+            }
+        }
+        for (const s of this.siteHooks) if (pc === s.a && this.started) this.event("site", s.name);
         if (this._at(H.RDK, pc) && this.started) {
             const c = this._callerAt(2);
             const site = this.labelOf(c.site, c.romsel);
@@ -313,6 +341,7 @@ export class EliteMachine {
             this.keep.bytes.forEach((b, i) => { this.ram[b] = this.keepPend.vals[i]; });
             this.hookTab[pc] = this.keepPend.had;
             this.keepPend = null;
+            this.event("site", "keepRand");
             return this.tab(pc);
         } else if (this._at(H.NOISE, pc)) {
             for (let i = 0; i < 3; i++) this.ram[sy.SOPR + i] = 0;
@@ -358,6 +387,8 @@ export class EliteMachine {
             this._findJoy();
             this._findP8();
             if (this.opts.refPatch) applyRefPatch(this.ram, this.opts.refPatch);
+            // (the patch's sites in MV40, counted as they run: MV40's K2)
+            if (this.opts.refPatch) for (const s of this.opts.refPatch.sites) if (/^MV40/.test(s.name)) { this.siteHooks.push({ a: s.addr, name: s.name }); this.hookTab[s.addr] = 1; }
             // (a patch's keepRand, as mlib's: the bytes kept across PTCLS, put back at
             // its return address, which is hooked while it runs)
             this.keep = this.opts.refPatch && this.opts.refPatch.keepRand ? this.opts.refPatch.keepRand : null;

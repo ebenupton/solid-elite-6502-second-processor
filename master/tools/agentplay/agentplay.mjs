@@ -15,7 +15,7 @@ import { Session } from "./session.mjs";
 import { parseArgs } from "../../../harness/args.mjs";
 import { MODES } from "./styles.mjs";
 
-const a = parseArgs({ out: "value", minutes: "value", seed: "value", commander: "value", mode: "value", chaos: "value", start: "value", shots: "value", keepgoing: "value", strict: "flag", noobserve: "flag", workaround: "value", savediscs: "flag", ref: "value", rsyms: "value", cand: "value", csyms: "value", iters: "value" });
+const a = parseArgs({ out: "value", minutes: "value", seed: "value", commander: "value", mode: "value", chaos: "value", start: "value", shots: "value", keepgoing: "value", strict: "flag", noobserve: "flag", workaround: "value", savediscs: "flag", ref: "value", rsyms: "value", cand: "value", csyms: "value", iters: "value", deadregs: "flag" });
 if (!a.out) { console.error("--out DIR required"); process.exit(2); }
 const env = {};
 for (const m of String(a.mode || "efficient").split(",")) { if (!MODES[m]) { console.error(`unknown mode ${m}`); process.exit(2); } Object.assign(env, MODES[m]); }
@@ -23,6 +23,7 @@ const cfg = {
     out: a.out, minutes: +(a.minutes || 10), seed: a.seed !== undefined ? +a.seed : undefined, commander: a.commander || "jameson",
     agentEnv: env, mode: String(a.mode || "efficient"), chaos: a.chaos || null, startFrame: +(a.start || 700), shots: +(a.shots || 0), keepGoing: +(a.keepgoing || 0),
     strict: !!a.strict, saveDiscs: !!a.savediscs, workarounds: a.workaround ? String(a.workaround).split(",") : [], observe: !a.noobserve, iters: a.iters ? +a.iters : undefined,
+    deadRegs: !!a.deadregs,
 };
 for (const k of ["ref", "rsyms", "cand", "csyms"]) if (a[k]) cfg[k] = a[k];
 try {
