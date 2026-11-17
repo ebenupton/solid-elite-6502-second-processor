@@ -441,9 +441,9 @@ ENDIF
 .hkl SKIP 13
 
 .hdks_body              \ C_DKS: is key A held (DKS5): A with bit 7 if so
-                        \ (PHP/PLP, not SEI/CLI: h4body runs it in the IRQ)
- LDX #3
- PHP
+                        \ (PHP/PLP, not SEI/CLI: h4body runs it in the IRQ);
+ JMP hdkx               \ a key with bit 7 set asks for JOPOS (h-joy.asm, which
+                        \ goes on here with LDX #3 : PHP)
  SEI
  STX VIA+&40
  LDX #%01111111

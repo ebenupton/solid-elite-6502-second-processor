@@ -1000,13 +1000,15 @@ def stub_none(lines, bl):
 #   \       Area: boot              (the parasite's boot, above overlay D)
 #   \       Area: load              (the parasite's image's first step, in
 #                                    the quarter squares' place)
+#   \       Area: tail              (the parasite's resident code's end: code
+#                                    added there moves nothing resident)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
 # build/<file>-kernel.asm, build/<file>-kalign.asm, build/<file>-ovld.asm,
 # and the parasite's
-# build/<file>-fe.asm, -ff.asm, -boot.asm and -load.asm. The Master port,
+# build/<file>-fe.asm, -ff.asm, -boot.asm, -load.asm and -tail.asm. The Master port,
 # the Model B host and (for the files it does not pass) the Master host
 # assemble the file itself, where the tag lines are comments. The parasite
 # places every one of its files by these passes (p-layout.asm): a file whose
@@ -1018,7 +1020,7 @@ FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm"
              "tsrc/p-disc.asm", "tsrc/p-emit.asm", "tsrc/p-kept.asm", "tsrc/p-poly.asm", "tsrc/p-onepass.asm",
              "tsrc/p-probe.asm", "tsrc/p-lost.asm")
 FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "kernel, aligned": "kalign", "ovl D": "ovld",
-         "page FE": "fe", "page FF": "ff", "boot": "boot", "load": "load"}
+         "page FE": "fe", "page FF": "ff", "boot": "boot", "load": "load", "tail": "tail"}
 
 
 def frame_passes(path, errors):

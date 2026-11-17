@@ -189,7 +189,7 @@ for l in open("build/compile-p.txt", encoding="latin-1"):
         bad.append("&%04X (%s): outside %s, &%04X-&%04X" % (a, stack[-1], w, lo, hi - 1))
 for f in sorted(glob.glob("build/*-frame.asm") + glob.glob("build/*-ovls.asm") + glob.glob("build/*-ovld.asm") +
                 glob.glob("build/*-fe.asm") + glob.glob("build/*-ff.asm") + glob.glob("build/*-boot.asm") +
-                glob.glob("build/*-load.asm")):
+                glob.glob("build/*-load.asm") + glob.glob("build/*-tail.asm")):
     body = [l.split("\\")[0].strip() for l in open(f, encoding="latin-1")]
     if any(body) and f not in inc and not f.startswith("build/gfx-raster"):   # (the rasteriser's: the hosts')
         bad.append("%s assembles something and no assembly includes it" % f)

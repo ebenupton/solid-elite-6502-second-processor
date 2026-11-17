@@ -173,6 +173,7 @@ r_ypg = ylookup         \ makes it: h-cold.asm): one copy for the game's
 .HQQ18
  INCBIN "build/HQQ18.bin"
  INCLUDE "build/htokix.asm"
+ INCLUDE "tsrc/h-joy.asm"               \ (C_DKS's JOPOS answer, last: it moves nothing)
 .F_END
 \ The workspace, one run to the bank's top, of which the renderer's shared
 \ workspace is only what the host's code names (tube/build.sh writes

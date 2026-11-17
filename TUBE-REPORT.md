@@ -8,6 +8,48 @@ first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The joystick and the Bitstik on the parasite (branch `tube-cpc`, 2026-11-17)
+
+The parasite's JOPOS was never written: with the joystick configured
+(JSTK) DK15 read zeros for the stick, and with the Bitstik (B in the pause
+screen: BSTK) the main loop's part 2 set the speed from a twist of 0. The
+hosts' IRQs already sample the ADC into their own JOPOS (the Master host's
+IRQ1 at timer 1, as the original's; the Model B host's hb_irq at the
+vsync). Now, at each key scan while JSTK or BSTK is set, p_keyq (p-io.asm)
+asks for it: a C_DKS whose key is &FF (the parasite's keys are 0-&7F),
+which hdks_body hands to hdkx (tube/src/h-joy.asm), and the host sends
+JOPOS's three bytes.
+
+Placed so that it moves nothing: p_fillkl's first five bytes (LDA #C_KEYS,
+JSR preq4) are now JSR p_keyq and LDX #0, and p_keyq is in a new pass,
+"Area: tail", at the resident code's end after F_INIT; hdks_body's first
+three (LDX #3, PHP) are JMP hdkx, and h-joy.asm is the last of each host's
+code, after the tokens. Every label but those ends is where it was.
+
+tube/tools/tbitstik.mjs (a new game, launch, COPY, B, DELETE, then ADC
+channel 3 swept through eight values): SNG47, the Master host and the
+Model B host give the same table, BSTK 0 to &FF and DELTA = min(40,
+JOPOS+2 / 4) for each JOPOS+2 the game read; 5ad2c4a kept JOPOS+2 at 0
+and DELTA at 0.
+
+Cost: with neither configured, a 9-cycle test (LDA, ORA, BEQ) and a JSR
+and JMP at each key scan: harness/mcompare.mjs --iters 4000 with the
+keyboard pilot, the Master host 22.18 to 22.19 it/s, the Model B host 20.31
+to 20.32. With the joystick or the Bitstik, one request a key scan, about
+99 us (about one a flight iteration): run1, which flies with the joystick
+configured, pays it in its windows, against 5ad2c4a in cycles an iteration
+300-403 +24 / +124, 1000-1400 +84 / +298, 1500-1900 +93 / +260, 0-3550 +45 /
++128 (Master host / Model B host). Bytes: 41 of the resident code's room
+(137 to 96), 42 of the Master host's kernel room (673 to 631), 42 of the
+Model B host's bank 7 room (2062 to 2020).
+
+Gate (tgate.sh, both hosts, scratch/gate3): Master port byte-identical to
+sun-slot 7fadfdf; lockstep 16,002 clean on both, TUBEINT 602 clean;
+storage 95 pages, 0 differ; pixels 15,395 and dashboard 3,185 matched, 0
+mismatched, on both; saves, crash, station, docking ok; 14 loads of D and
+of S, none within the space view; msunslot.mjs's four scenes pass on both
+hosts.
+
 ## full-master d881b7f (the CPC port's findings) and sun-slot 7fadfdf (the sun's parking) merged (branch `tube-cpc`, 2026-11-17)
 
 Four steps on `tube-cpc` (from `tubediscs` 59e46ca), each built and the

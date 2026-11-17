@@ -74,6 +74,8 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "src/gfx-finit.asm"            \ (F_INIT, run once before the first frame;
                                         \ the frame layer's state is in the
                                         \ shared workspace, p-ws.asm)
+ INCLUDE "build/p-io-tail.asm"          \ (the "Area: tail" pass: what is added
+                                        \ here moves nothing before it, p_keyq)
 .PRES_CODE_END
 
 \ The log tables and the quarter-square tables, page aligned (the game's

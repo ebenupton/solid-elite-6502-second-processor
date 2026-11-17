@@ -114,6 +114,7 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
 .HQQ18
  INCBIN "build/HQQ18.bin"
  INCLUDE "build/htokix.asm"
+ INCLUDE "tsrc/h-joy.asm"               \ (C_DKS's JOPOS answer, last: it moves nothing)
 .H_END
  PRINT "Host: the kernel's code &", ~H_START, "-&", ~H_END-1, ", free to the workspace at &", ~H_WS, ": ", H_WS-H_END
  SAVE "build/HKERN.bin", H_START, H_END, hwrch
