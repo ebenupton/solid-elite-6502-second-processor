@@ -2444,16 +2444,15 @@ the views run.
 **The port.** With no random numbers taken, all SUN's rows left in the game's
 state is what part 1 computes before them and what part 4 ends with: TGT,
 LSX and COL (part 1), SUNX = K3 and the C flag clear (part 1's K2 = K^2,
-for the rows, MV40 no longer reads: "MV40's K2"). So the port's SUN is part
-1 to TGT, then SUNX and an RTS; parts
-2 to 4 are `Area: none`, and with them went everything only they used: the
+for the rows, MV40 no longer reads: "MV40's K2"). So the port's SUN is
+CHKON, H_SUN and an RTS (nothing reads TGT, LSX, COL or SUNX again before
+setting it: "The sun's and the planet's leftovers", below); parts 2 to 4 are `Area: none`, and with them went everything only they used: the
 fringe size (CNT), PLF3 and PLF17, HLOIN's own entry (the sun's orange
 colour from the orange table; HLOIN3 stays), HLOIN2, EDGES and the orange
 table (`Area: none`), and the renderer's H_HLOIN hook. WPLS, which redrew
-the rows from LSO to erase them, keeps only LSX (and Y = &FF), and FLFLLS,
-which zero-filled LSO, keeps only LSX (with A = 0 and Y = &FF): LSO is now
-written only by the station's line heap's first byte (LL9's record path)
-and read by nothing. The drawing temporaries the rows left (P, Q, R, T, V,
+the rows from LSO to erase them, is an RTS, and FLFLLS, which zero-filled
+LSO, keeps only A = 0 and Y = &FF: LSO is now written only by the station's
+line heap's first byte (LL9's record path) and read by nothing. The drawing temporaries the rows left (P, Q, R, T, V,
 Y1, X1, X2, XX, YY, widget, CNT) and LSO differ from the reference's after
 SUN; the comparison excludes them, and no game code reads them before
 setting them again in any run (the gate, msunslot's scenes, the soak).
@@ -2498,15 +2497,15 @@ radius 32 sun beside a radius 60 planet), docking (the station ahead at
 1500), zone (the safe zone, the sun parked behind us) and rear (the beach
 ball in the rear view).
 
-| scene | d881b7f | a2df7b4 (the sun's parking) | 5d71a93 (the sun's edge) | 349d800 (the clouds' seed) | MV40's K2 |
-|---|---:|---:|---:|---:|---:|
-| flight | 175589 | 175472 | 173759 | 173801 | 174770 |
-| combat | 104982 | 104945 | 103637 | 103589 | 104692 |
-| beachball | 189112 | 190871 | 190622 | 190609 | 190175 |
-| sun | 203384 | 203290 | 146546 | 146419 | 147856 |
-| docking | 346017 | 337000 | 335179 | 335168 | 335789 |
-| zone | 314781 | 302995 | 300973 | 301022 | 303167 |
-| rear | 189406 | 189199 | 189992 | 189986 | 188449 |
+| scene | d881b7f | a2df7b4 (the sun's parking) | 5d71a93 (the sun's edge) | 349d800 (the clouds' seed) | 0340abd (MV40's K2) | the leftovers |
+|---|---:|---:|---:|---:|---:|---:|
+| flight | 175589 | 175472 | 173759 | 173801 | 174770 | 174719 |
+| combat | 104982 | 104945 | 103637 | 103589 | 104692 | 104776 |
+| beachball | 189112 | 190871 | 190622 | 190609 | 190175 | 190155 |
+| sun | 203384 | 203290 | 146546 | 146419 | 147856 | 147759 |
+| docking | 346017 | 337000 | 335179 | 335168 | 335789 | 335773 |
+| zone | 314781 | 302995 | 300973 | 301022 | 303167 | 303146 |
+| rear | 189406 | 189199 | 189992 | 189986 | 188449 | 188422 |
 
 (cycles a frozen iteration; it/s = 2,000,000 / cycles). Each commit from
 here on gives its scenes' figures. The clouds' seed changes no scene (none
@@ -2564,6 +2563,36 @@ TT170: 65 93 to 69 00, E5 93 to E9 00), in the port's MV40 too. The planets'
 and suns' y rounds without the stray carry: at most one unit in y_lo, and no
 dependence on what was drawn before. Gone with it from the port: H_CIRC's
 PLS1 and K2 (PLS1 is now `Area: none`) and SUN's K2 = K^2.
+
+## The sun's and the planet's leftovers (after MV40's K2)
+
+**What was kept.** With the sun's rows and the planet's meridians and
+craters drawn by the frame, the port still recreated what the original's
+drawing left in four variables: TGT (the sun's top row; the planet's 31 or
+64, H_CIRC), FLAG (0, H_CIRC), SUNX (the sun's centre, for the next erase)
+and LSX (the sun line heap's flag, set by SUN, FLFLLS and WPLS), and the
+frame kept TGT and LSX across its own use of them (f_gkeep, f_gback; the
+zero page FZ at ff1). No game code reads any of them before setting it
+again: TGT only EX4 after PTCLR sets it, FLAG only BLINE after CIRCLE2 sets
+it, LSX only the old WPLS, SUNX nothing.
+
+**The change.** TGT, FLAG, SUNX and LSX are drawing temporaries for the
+comparison (harness/mlib.mjs DRAW_EXCLUDE). SUN is CHKON, H_SUN and an RTS
+(no COL, LSX, TGT or SUNX); WPLS is an RTS; FLFLLS returns A = 0 and Y =
+&FF only; H_CIRC sets LSX2, STP and CNT and returns from PL9 (no FLAG, and
+none of the TGT logic); f_gkeep and f_gback no longer keep TGT, and ff1 no
+longer keeps FZ+2 (LSX). DEAD_AFTER's WPLS entry has Y as well, so the
+gate's run scrambles all four registers after it. LSO's last 199 bytes
+(&0A7F-&0B45) are free: only LSO+0, the station's line heap's first byte,
+is written (none of the others in the gate's run or msunslot's events and
+zone scenes), and the heap pointer, which is game state, still points at
+LSO.
+
+**Cost.** Freed: bank 4 45 bytes (1474 to 1519 free), bank 6 16 (982 to
+998), the glue area 28 (the font's alignment took them: 132 free below
+&3000), and WP 199 (LSO+1 to LSO+199). Frozen scenes (cycles an iteration):
+flight 174719, combat 104776, beachball 190155, sun 147759, docking 335773, zone 303146, rear 188422;
+timed in the sun scene, SUN 275 to 228 cycles a call.
 
 ## The second disc, incremental (with the sun beside the planet)
 
