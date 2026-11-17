@@ -8,6 +8,74 @@ first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## sun-slot 11c32b0 and ce07991 merged: the sun's edge, the clouds' seed, MV40's K2, the leftovers; the frozen benchmark; the reference's proofs (branch `tube-cpc`, 2026-11-17)
+
+The parasite shares the game's source, so the Master's changes arrive as
+they are: SUN cut to part 1 with its rows, HLOIN2, EDGES and PLS1 `Area:
+none` (labels only on the parasite, as every such block), the orange table
+`Tube: none` (the hosts' copy had it), H_HLOIN gone, F_CLOUD without its
+DORND2 stepping (the hosts draw the cloud's dots as sent and take no random
+numbers), MV40's ADC #0 and SBC #0 with H_CIRC's PLS1 gone, WPLS an RTS,
+and TGT, FLAG, SUNX and LSX in the comparison's exclusions. The lockstep
+uses the same reference patch (its new sites and keepRand) through
+sunref.json beside psyms.txt. The in-tree Master port is byte-identical to
+11c32b0.
+
+Dead registers: runElite's deadRegs runs on the Tube, with the parasite's
+own claims (TUBE_DEAD_AFTER: the Master port's, and Y after DIALS, as the
+parasite's cpdot and DOT leave COMY or COMPAS's Y); tgate.sh runs
+mcompare.mjs --deadregs over 10,000 iterations on both hosts.
+
+With the game's play changed (MV40's planets move), run1's recorded play
+parts from the game at iteration 1,685, so its windows past that show
+other scenes. The speed figure is now tube/tools/tbench.mjs, mbench.mjs's
+frozen scenes on the Tube (the same scenes, one module): per scene the
+host's cycles a frozen iteration, and the parasite's work, its cycles less
+its waits for the host, which equals the wall time but in the capped
+combat scene (the parasite is the bottleneck), and does not move with where
+the flips fall. Published build (59e46ca) against this branch, cycles a
+frozen iteration (it/s):
+
+| Scene | Master host, 59e46ca | Master host, now | Model B host, 59e46ca | Model B host, now |
+|---|---:|---:|---:|---:|
+| flight | 95,727 (20.89) | 92,417 (21.64) | 127,641 (15.67) | 121,870 (16.41) |
+| combat (capped; work) | 79,119 (50,995) | 79,060 (49,114) | 84,183 (67,872) | 84,036 (64,608) |
+| beachball | 100,139 (19.97) | 96,372 (20.75) | 130,681 (15.30) | 126,477 (15.81) |
+| sun | 118,049 (16.94) | 88,635 (22.56) | 156,265 (12.80) | 115,714 (17.28) |
+| docking | 161,392 (12.39) | 149,695 (13.36) | 212,779 (9.40) | 197,150 (10.14) |
+| zone | 175,412 (11.40) | 157,285 (12.72) | 227,993 (8.77) | 203,801 (9.81) |
+| rear | 96,827 (20.66) | 94,067 (21.26) | 128,827 (15.52) | 125,376 (15.95) |
+
+The sun scene gains most: S_SUN and the sun's rows are gone. A small change
+is best quoted by the parasite's work, or the cycles of the routines it
+touches, as the frozen scenes' wall figures move by up to 1.5% with where
+the frame flips fall.
+
+The reference's proofs run against the Tube (sun-slot ce07991's,
+non-vacuous): msunref.mjs --tube with the sun posed ahead and large, the
+parasite against SNG47 with the whole patch and --deadregs, identical over
+1,500 iterations with the patch's sites run (SUN's JSR DORND 55,536 times,
+MV40's ADC and SBC K2 1,608 and 1,268), and the control without MV40's
+sites differing at iteration 66; msunslot's full scene with the clouds'
+keepRand restored 112 times in the reference, and the control without it
+differing from the build at iteration 490. Both on both hosts.
+
+Gate (tgate.sh, both hosts, scratch/gate4): Master port byte-identical to
+11c32b0; lockstep 16,002 clean on both, TUBEINT 602 clean; storage 95
+pages, 0 differ; pixels 15,328 matched and dashboard 4,967, 0 mismatched,
+against scratch/fbref made again from 11c32b0's Master port; saves,
+crash, station, docking ok; overlays 13 loads of D and 14 of S, none within
+the space view; msunslot's four scenes pass; mcompare --deadregs over
+10,000 iterations passes on both (DIALS, SUN, PIXEL2, PLANET and WPLS
+scrambled at every return).
+
+Soak (campaign.mjs --plan publish --deadregs, Commander Claude, on each
+host: scratch/pub-M, scratch/pub-B): 12 sessions, 277.8 game minutes,
+195,364 iterations compared (173,771 in flight), all clean, 0 findings on
+both hosts: the sun's parking, fights, visible suns, deaths, galactic
+hyperspace, docking, the docked screens and disc menu, and a load from a
+saved disc.
+
 ## The joystick and the Bitstik on the parasite (branch `tube-cpc`, 2026-11-17)
 
 The parasite's JOPOS was never written: with the joystick configured
