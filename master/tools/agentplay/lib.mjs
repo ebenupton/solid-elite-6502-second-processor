@@ -305,6 +305,15 @@ export class EliteMachine {
             this.blocked = null;
             this.ram[sy.JOPOS + which] = v & 255;
             this.joys++;
+        } else if (this.keep && pc === this.keep.at && !this.keepPend) {
+            const ret = (this.rb(0x100 + ((cpu.s + 1) & 0xff)) | this.rb(0x100 + ((cpu.s + 2) & 0xff)) << 8) + 1;
+            this.keepPend = { ret, vals: this.keep.bytes.map(b => this.rb(b)), had: this.hookTab[ret] };
+            this.hookTab[ret] = 1;
+        } else if (this.keepPend && pc === this.keepPend.ret) {
+            this.keep.bytes.forEach((b, i) => { this.ram[b] = this.keepPend.vals[i]; });
+            this.hookTab[pc] = this.keepPend.had;
+            this.keepPend = null;
+            return this.tab(pc);
         } else if (this._at(H.NOISE, pc)) {
             for (let i = 0; i < 3; i++) this.ram[sy.SOPR + i] = 0;
         } else if (H.P8 && this._at(H.P8, pc)) {
@@ -349,6 +358,10 @@ export class EliteMachine {
             this._findJoy();
             this._findP8();
             if (this.opts.refPatch) applyRefPatch(this.ram, this.opts.refPatch);
+            // (a patch's keepRand, as mlib's: the bytes kept across PTCLS, put back at
+            // its return address, which is hooked while it runs)
+            this.keep = this.opts.refPatch && this.opts.refPatch.keepRand ? this.opts.refPatch.keepRand : null;
+            if (this.keep) this.hookTab[this.keep.at] = 1;
             this.init = this.snapshot();
             this.lastProgressCycles = this.cyclesNow();
         } else if (this._at(H.NEWBRK, pc)) {

@@ -2310,13 +2310,14 @@ range) and SUNLAU after TT114 (after TT110 it put TT18's BNE TT114 out of
 range). Each block's header says `Area: ..., again`, for the reference's
 patch.
 
-**The reference: SNG47 with four patches.** The comparison's reference is
-the released SNG47 with four patches: Q at the ALTIT square root
+**The reference: SNG47 with five patches.** The comparison's reference is
+the released SNG47 with five patches: Q at the ALTIT square root
 (harness/mlib.mjs: what drawing left in Q decided the altitude), the
 planet's half spin ("The circle engine's cost", below), the sun's parking,
-and the sun's edge drawing no random numbers ("The sun's edge", below;
-besides SOPR at NOISE, which takes real time out of the sound's effect on
-the game), the last two as patches to SNG47's code
+the sun's edge drawing no random numbers ("The sun's edge", below) and the
+explosion clouds' seed ("The explosion clouds' seed", below; besides SOPR
+at NOISE, which takes real time out of the sound's effect on the game), the
+parking and the sun's edge as patches to SNG47's code
 (master/tools/sunref): streams.py emits the four blocks a second time
 (build/elite-source-again.asm, their labels and calls named A_<name>), and
 sunref.py binds every name they use to SNG47's (its symbols; the numbers
@@ -2498,18 +2499,44 @@ radius 32 sun beside a radius 60 planet), docking (the station ahead at
 1500), zone (the safe zone, the sun parked behind us) and rear (the beach
 ball in the rear view).
 
-| scene | d881b7f | a2df7b4 (the sun's parking) | 5d71a93 (the sun's edge) |
-|---|---:|---:|---:|
-| flight | 175589 | 175472 | 173759 |
-| combat | 104982 | 104945 | 103637 |
-| beachball | 189112 | 190871 | 190622 |
-| sun | 203384 | 203290 | 146546 |
-| docking | 346017 | 337000 | 335179 |
-| zone | 314781 | 302995 | 300973 |
-| rear | 189406 | 189199 | 189992 |
+| scene | d881b7f | a2df7b4 (the sun's parking) | 5d71a93 (the sun's edge) | the clouds' seed |
+|---|---:|---:|---:|---:|
+| flight | 175589 | 175472 | 173759 | 173801 |
+| combat | 104982 | 104945 | 103637 | 103589 |
+| beachball | 189112 | 190871 | 190622 | 190609 |
+| sun | 203384 | 203290 | 146546 | 146419 |
+| docking | 346017 | 337000 | 335179 | 335168 |
+| zone | 314781 | 302995 | 300973 | 301022 |
+| rear | 189406 | 189199 | 189992 | 189986 |
 
 (cycles a frozen iteration; it/s = 2,000,000 / cycles). Each commit from
-here on gives its scenes' figures.
+here on gives its scenes' figures. The clouds' seed changes no scene (none
+has an explosion): what it removes, 3 (U + 1) DORND2 steps a cloud each
+pass, is only in combat that ends in kills.
+
+## The explosion clouds' seed (after the speed benchmark)
+
+**The original.** PTCLS draws an explosion cloud from its line heap: it
+seeds RAND and RAND+2 from the cloud's seeds (EOR'd with each vertex's
+index) and steps them with DORND2 three times a particle, puts RAND+1 back
+as it found it, and leaves RAND+3 as the planet's z_lo. So each cloud drawn
+leaves RAND and RAND+2 as its last particle left them, and the game's next
+random numbers follow from those. DOEXP draws each cloud twice an iteration
+(PTCLS to erase the old one, then falling into it to draw the new one).
+
+**The change, in the reference too.** RAND and RAND+2, as PTCLS finds them,
+are put back when it returns, so drawing a cloud takes no random numbers that
+last. SNG47 has no room left for the code (&0B9D-&0CFF holds the parking and
+the station's heap), so this one is a harness hook, as the altitude's Q and
+the half spin are: the patch's keepRand ({ at: PTCLS, bytes: RAND, RAND+2 },
+master/tools/sunref) has mlib and agentplay note the two bytes at PTCLS's
+entry and put them back at its return address (read from the stack: DOEXP
+falls into PTCLS, which returns to LL9's caller). The port's PTCLS draws in
+the frame (f_dots, from the cloud's heap); what the game keeps of it (F_CLOUD,
+for both passes) no longer steps the sequence 3 (U + 1) times: only RAND+3 =
+the planet's z_lo, and Q, U, TGT, CNT and CNT2 as PTCLS leaves them. The
+gate's run never explodes a ship; msunslot's full scene does (60 clouds with
+the sun parked, port against reference, every iteration).
 
 ## The second disc, incremental (with the sun beside the planet)
 
