@@ -2476,6 +2476,41 @@ reached, run as before (8.46, 8.35 and 8.20 it/s for 0-599, against 8.45,
 is not called there: the parked sun's pass costs what it did (MAL1's copies
 of its block in and out, MVEIT, PLANET's tests).
 
+## The speed benchmark (after the sun's edge)
+
+The gate's speed figure is its piloted run's, and that run is the game's own:
+since the comparison's reference takes the patches above, which change the
+random numbers (the sun's edge first), the pilot flies a different run, and
+a figure no longer compares with one measured before the change. The speed
+is therefore quoted from frozen scenes, harness/mbench.mjs: the build is
+booted and launched, each scene's state is put in (the planet, slot 1's sun
+or station, the parked sun, the ships, the view, our speed and rotation),
+and after 8 iterations the game state is snapshotted. It then runs 128
+iterations in windows of 32: the snapshot goes back at each window's start,
+so the scene starts the same in any build and moves for 32 iterations (the
+renderer's memos hit as they do in play); within a window, at every MLOOP,
+RAND is put back and every slot after the scene's ships emptied, so no ship
+spawns and no random number taken differently changes what follows. The
+figure is the emulated cycles from one MLOOP to the next. The scenes:
+flight (three ships ahead, the planet far off), combat (five ships close,
+turning), beachball (the planet's beach ball filling the view), sun (a
+radius 32 sun beside a radius 60 planet), docking (the station ahead at
+1500), zone (the safe zone, the sun parked behind us) and rear (the beach
+ball in the rear view).
+
+| scene | d881b7f | a2df7b4 (the sun's parking) | 5d71a93 (the sun's edge) |
+|---|---:|---:|---:|
+| flight | 175589 | 175472 | 173759 |
+| combat | 104982 | 104945 | 103637 |
+| beachball | 189112 | 190871 | 190622 |
+| sun | 203384 | 203290 | 146546 |
+| docking | 346017 | 337000 | 335179 |
+| zone | 314781 | 302995 | 300973 |
+| rear | 189406 | 189199 | 189992 |
+
+(cycles a frozen iteration; it/s = 2,000,000 / cycles). Each commit from
+here on gives its scenes' figures.
+
 ## The second disc, incremental (with the sun beside the planet)
 
 The original Elite keeps each row's sun span (SUNX, the LSO heap) and only
