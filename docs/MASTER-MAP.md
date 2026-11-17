@@ -169,9 +169,10 @@ passes: **low**, **hot** and **cold**. A routine's header says which:
 * `Area: none`: code the port no longer runs, kept in the source as the
   original's text: each copy has only its labels and one RTS, at its place,
   so a reference still assembles and returns at once. The planet's surface
-  maths that the renderer's circle engine replaces: PL9 parts 2 and 3, PLS2,
-  PLS22, PLL4F, pl4pat, PLS3, PLS4, PLS5 (H_CIRC returns from PL9 in record
-  mode, leaving K2, TGT and FLAG as they would be). 9 blocks.
+  maths that the renderer's circle engine replaces: PL9 parts 2 and 3, PLS1,
+  PLS2, PLS22, PLL4F, pl4pat, PLS3, PLS4, PLS5 (H_CIRC returns from PL9 in
+  record mode, leaving TGT and FLAG as they would be); the sun's rows: SUN
+  parts 2 to 4, HLOIN2, EDGES and the orange table. 16 blocks.
 * `, runs on` after any of these: a table that code reads past its end into
   the next block, which must therefore follow it as a fall-through does
   (TKN2, `Area: hot, runs on`: DETOK2 reads the pairs of tokens 228-255 in
@@ -282,7 +283,7 @@ passes").
 | Hot pass: main RAM | main &2F7C-&3F54 | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB ... (build/flow.txt) | 171 |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
 | Quarter-square tables, then the hot pass | main &7000-&7FC3 | QSL and QSH (elite-qs.asm, &7000-&73FF); the hot pass's second container from &7400: TACTICS, DOCKIT, the tactics helpers ... the maths from MLS2 to DVID3B2 (build/flow.txt) | 60 |
-| Bank 4 | &8000-&BA65 | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (ylookup, SCAN, LOIN ... DSEG, ADDK; log, logL, alogh page aligned), then the rest of the hot pass in the source's order (cntr ... EXNO, to &B7C4; F% at &B7C5); then any hot data HAZEL has no room for (none); then L_SUN (gfx-light.asm's first pass: the renderer's routine that runs in game context, from G_FRAME), &B7C5-&BA65 | 1434 |
+| Bank 4 | &8000-&BA3D | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (ylookup, SCAN, LOIN ... DSEG, ADDK; log, logL, alogh page aligned), then the rest of the hot pass in the source's order (cntr ... EXNO, to &B79C; F% at &B79D); then any hot data HAZEL has no room for (none); then L_SUN (gfx-light.asm's first pass: the renderer's routine that runs in game context, from G_FRAME), &B79D-&BA3D | 1474 |
 | Cold pass | bank 7 &8000-&A417 | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, SUNLAU (after TT114), the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data (the extended tokens TKN1 and their macros) | - (bank 7's end) |
 | Meridian window | bank 7 &A418-&B7FB (ROMSEL 7; MERID, its own image, with gfx-kept7.asm, gfx-planet7.asm and gfx-flare.asm after it) | gfx-merid.asm, the circle engine (pc_circ, a circle's record; PC_ROWS, the rows; the records PCB); gfx-kept7.asm; gfx-planet7.asm, the styles (PF_HOOK: the beach ball, craters); gfx-flare.asm, the lens flare (R_FLARE, through T_FLARE; fl_htab whole in a page) | 2052 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FC7 (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 56 |
@@ -638,7 +639,9 @@ sun takes no random numbers, with HLOIN2, EDGES, the orange table, HLOIN's
 own entry and the renderer's H_HLOIN; WPLS and FLFLLS keep only LSX) freed
 bank 4 324 bytes (1110 to 1434), main RAM to &4000 11 (160 to 171) and the
 glue area 11, which the font's alignment took (132 free below &3000 as
-before).
+before). MV40's K2 (H_CIRC's PLS1 call and K2, SUN's K2 = K^2, PLS1 itself)
+freed bank 4 40 bytes (1434 to 1474) and the glue area 14, which the font's
+alignment took again (132 free below &3000).
 
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the
