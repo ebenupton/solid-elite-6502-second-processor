@@ -2458,8 +2458,8 @@ SUN; the comparison excludes them, and no game code reads them before
 setting them again in any run (the gate, msunslot's scenes, the soak).
 
 **Cost.** Freed: bank 4 324 bytes (1110 to 1434 free), main RAM 11 (160 to
-171), the glue area 11 (H_HLOIN; the low pass's font alignment took them:
-132 free below &3000 as before). A visible sun no longer costs its rows:
+171), the glue area 11 (H_HLOIN; below CODE%, which moves up to keep the
+font at a page's start: docs/MASTER-MAP.md). A visible sun no longer costs its rows:
 the posed scene (harness/msunnear.mjs, a radius 16 sun beside a planet of
 radius 120) runs at 6.53 it/s against 5.96 (hidden 8.78 against 7.82,
 rising 6.89 against 6.22, clear 6.72 against 6.12, the station's flyby 5.31
@@ -2589,8 +2589,8 @@ zone scenes), and the heap pointer, which is game state, still points at
 LSO.
 
 **Cost.** Freed: bank 4 45 bytes (1474 to 1519 free), bank 6 16 (982 to
-998), the glue area 28 (the font's alignment took them: 132 free below
-&3000), and WP 199 (LSO+1 to LSO+199). Frozen scenes (cycles an iteration):
+998), the glue area 28 (below CODE%, now &1F42: 350 free before it), and
+WP 199 (LSO+1 to LSO+199). Frozen scenes (cycles an iteration):
 flight 174719, combat 104776, beachball 190155, sun 147759, docking 335773, zone 303146, rear 188422;
 timed in the sun scene, SUN 275 to 228 cycles a call.
 

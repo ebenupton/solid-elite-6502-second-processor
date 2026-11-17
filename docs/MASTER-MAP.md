@@ -277,8 +277,8 @@ passes").
 |---|---|---|---:|
 | Zero page, stack, K% | &0000-&00E3, &0100-&01FF, &0400-&07FF | Elite's workspaces, as Master Elite | - |
 | WP | main &0841-&0CF4 | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E; then the CMYK dashboard's variables DASHV (&0CAA-&0CCE, after JOPOS: the dashboard runs with ACCCON X set); then the parked sun, SUNPK (&0CCF-&0CF3) and SUNPF (&0CF4); LSO (&0A7E, the sun line heap) is written only at its first byte, the station's line heap's | 211 (&0840, &0A7F-&0B45: LSO's last 199 bytes, &0CF5-&0CFF) |
-| Shared workspace | main &0E00-&1DE3 | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, F_DROK (&1BBA), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, F_SUX, F_SUY (the sun this frame), FL_BEH (&1DE3) | 290 (5, 24, 192 at &17F8-&18B7 in raster_vars, 69) and 292 before CODE% (&1F08) |
-| Glue area | main &1F08-&294F | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 from &1F34, 38 into the cold pass; STUBS4, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &227C), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
+| Shared workspace | main &0E00-&1DE3 | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, F_DROK (&1BBA), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, F_SUX, F_SUY (the sun this frame), FL_BEH (&1DE3) | 290 (5, 24, 192 at &17F8-&18B7 in raster_vars, 69) and 350 before CODE% (&1DE4-&1F41) |
+| Glue area | main &1F42-&295D | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 from &1F6E, 38 into the cold pass; STUBS4, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &22B6), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
 | Low pass | main &2950-&2F7B (14 bytes of padding before the font) | Elite's code that must be below &3000, in the source's order: WSCAN, DELAY, the sound (BOOP, BEEP, SOFH ... SOINT, the sound variables and the SFX tables), IRQ1 (&2ABF), VSCAN, DOVDU19, cls, TT67K, CHPR (&2B19), ZES1, ZES2, the font (FONT%, &2C00-&2EFF), UP (&2F00), stackpt, NEWBRK | - |
 | Hot pass: main RAM | main &2F7C-&3F54 | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB ... (build/flow.txt) | 171 |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
@@ -301,7 +301,7 @@ COLD7 (the cold pass, to bank 7 &8000), RASTA (the
 rasteriser's polygon window, to ANDY with ROMSEL &85), BANK5, BANK6, HAZEL (staged at
 &4000), HICODE (the quarter-square tables and the hot pass's part from &7400, to
 &7000-&7FFF); then it loads BCODE (the glue area, the low pass and the hot
-pass's main RAM part) to CODE% (&1F08, from the build). The loader is at &0E00, in the shared workspace's place, so
+pass's main RAM part) to CODE% (&1F42, from the build). The loader is at &0E00, in the shared workspace's place, so
 its last part runs from K% (&0400; the game sets K% up itself): it takes
 DFS's and the MOS's lasting bytes into DFSST and DFSST2 after the last
 disc access,
@@ -492,7 +492,7 @@ What remains out of that order, each with a `Port:` note where it applies:
   and its tables, gfx-hangar6.asm, at the end of bank 6's image), the CMYK
   dashboard's tables (generated, build/dashtab-*.asm, each INCLUDEd in its
   routine's block) and its variables DASHV (after WP).
-* **Placement by the build, not the source**: CODE% (&1F08) is chosen so the
+* **Placement by the build, not the source**: CODE% (&1F42) is chosen so the
   font starts a page without padding; the hot pass's containers and the hot
   data's are filled by the flow (build/flow.txt), not by markers.
 
@@ -638,13 +638,13 @@ The sun's edge (MASTER-PLAN.md, "The sun's edge": SUN's rows gone, as the
 sun takes no random numbers, with HLOIN2, EDGES, the orange table, HLOIN's
 own entry and the renderer's H_HLOIN; WPLS and FLFLLS keep only LSX) freed
 bank 4 324 bytes (1110 to 1434), main RAM to &4000 11 (160 to 171) and the
-glue area 11, which the font's alignment took (132 free below &3000 as
-before). MV40's K2 (H_CIRC's PLS1 call and K2, SUN's K2 = K^2, PLS1 itself)
-freed bank 4 40 bytes (1434 to 1474) and the glue area 14, which the font's
-alignment took again (132 free below &3000). The sun's and the planet's
-leftovers (TGT, FLAG, SUNX and LSX no longer kept) freed bank 4 45 bytes
-(1474 to 1519), bank 6 16 (982 to 998), the glue area 28 (to the font's
-alignment again) and LSO's last 199 bytes in WP.
+glue area 11. MV40's K2 (H_CIRC's PLS1 call and K2, SUN's K2 = K^2, PLS1
+itself) freed bank 4 40 bytes (1434 to 1474) and the glue area 14. The
+sun's and the planet's leftovers (TGT, FLAG, SUNX and LSX no longer kept)
+freed bank 4 45 bytes (1474 to 1519), bank 6 16 (982 to 998), the glue area
+28 and LSO's last 199 bytes in WP. The glue area's bytes are below CODE%
+(&1F42, chosen so the font starts a page with no padding): 350 bytes free
+before it; the low pass ends at &2F7B, 132 bytes below &3000.
 
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the
