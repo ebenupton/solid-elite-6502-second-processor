@@ -58,12 +58,11 @@ which spare RAM the port may take.
    T_FLARE pages for it. Bank 7 is otherwise the cold pass's: one run from
    &8000, the cold code, then the cold data. (The meridian window is the one exception to
    "the renderer in banks 5, 6 and ANDY only", made for the beach ball, which
-   needs about 3K that none of those has.) The renderer's routines that run
-   in game context from G_FRAME, S_SUN (gfx-ssun.asm, the sun near the
-   planet) and L_SUN (gfx-light.asm's first pass, the light for the next
-   iteration's ships), are at bank 4's end, after the hot pass and the hot
-   data (streams.py keeps their room), and G_FRAME calls them with bank 4
-   paged, before it pages bank 6 for F_FRAME.
+   needs about 3K that none of those has.) The renderer's routine that runs
+   in game context from G_FRAME, L_SUN (gfx-light.asm's first pass, the
+   light for the next iteration's ships), is at bank 4's end, after the hot
+   pass and the hot data (streams.py keeps its room), and G_FRAME calls it
+   with bank 4 paged, before it pages bank 6 for F_FRAME.
    &F4 always matches ROMSEL, bit 7 included: every write of ROMSEL writes &F4
    first (the stubs, the G_ and T_ stubs, R_SETBUF's r_sbpoly).
 5. **The game data is in HAZEL**, where every bank, the IRQ and code running
@@ -165,8 +164,8 @@ passes: **low**, **hot** and **cold**. A routine's header says which:
   (below). `Area: hot, ACCCON X` is hot code that runs with ACCCON X set,
   and the tables it reads (ylookup, SCAN, LOIN ... DSEG: Master's drawing for
   the docked screens and the CMYK dashboard; ADDK; the log tables log, logL,
-  alogh): the flow puts it in bank 4. 347 blocks, 41 of them ACCCON X.
-* `Area: cold`: the cold pass, sideways RAM bank 7 from &8000. 161 blocks.
+  alogh): the flow puts it in bank 4. 350 blocks, 41 of them ACCCON X.
+* `Area: cold`: the cold pass, sideways RAM bank 7 from &8000. 162 blocks.
 * `Area: none`: code the port no longer runs, kept in the source as the
   original's text: each copy has only its labels and one RTS, at its place,
   so a reference still assembles and returns at once. The planet's surface
@@ -179,10 +178,10 @@ passes: **low**, **hot** and **cold**. A routine's header says which:
   QQ16, which follows it).
 * `, again` after any of these: the block is also emitted a second time
   (build/elite-source-again.asm), with no stubs, its own labels and the
-  targets of its JSRs and JMPs named `A_<name>`, for the renderer to run the
-  original's code with its own stand-ins for some calls: SOLAR (`Area: cold,
-  again`), which gfx-ssun.asm's ss_seed runs to place the sun from the seeds,
-  with SOS1 and NWSHP noting INWK instead of making ships. 1 block.
+  targets of its JSRs and JMPs named `A_<name>`: the port's routines that
+  the comparison's reference must run too, which master/tools/sunref/sunref.py
+  assembles for the released SNG47 with each `A_X` bound to SNG47's X (the
+  sun's parking: SUNUP, SUNSC, SUNBK, SUNLAU; MASTER-PLAN.md). 4 blocks.
 
 A block runs from its header to the next one (or to a separator line of
 stars, which starts an untagged block: the original's PRINT and SAVE
@@ -271,16 +270,16 @@ passes").
 | Region | Addresses | Purpose | Free |
 |---|---|---|---:|
 | Zero page, stack, K% | &0000-&00E3, &0100-&01FF, &0400-&07FF | Elite's workspaces, as Master Elite | - |
-| WP | main &0841-&0CCE | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E; then the CMYK dashboard's variables DASHV (&0CAA-&0CCE, after JOPOS: the dashboard runs with ACCCON X set) | 50 (&0840, &0CCF-&0CFF) |
-| Shared workspace | main &0E00-&1DED | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, ss_pl, ss_su, ss_zs (S_SUN's: the planet and the sun as SOLAR places them, and the zero page kept round MV40 and SOLAR, &1BBA-&1BF0), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, F_SUX, F_SUY, FL_BEH, SS_OK (the sun this frame, gfx-ssun.asm), ss_d (S_SUN's D, &1DE5-&1DED) | 235 (5, 24, 192 at &17F8-&18B7 in raster_vars, 14) and 282 before CODE% (&1F08) |
-| Glue area | main &1F08-&295D | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 from &1F34, 38 into the cold pass; STUBS4, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &227C), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
-| Low pass | main &295E-&2F7B (no padding before the font) | Elite's code that must be below &3000, in the source's order: WSCAN, DELAY, the sound (BOOP, BEEP, SOFH ... SOINT, the sound variables and the SFX tables), IRQ1 (&2ABF), VSCAN, DOVDU19, cls, TT67K, CHPR (&2B19), ZES1, ZES2, the font (FONT%, &2C00-&2EFF), UP (&2F00), stackpt, NEWBRK | - |
-| Hot pass: main RAM | main &2F7C-&3FED | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB ... (build/flow.txt) | 18 |
+| WP | main &0841-&0CF4 | Elite's workspace (the original's &0E41-&12A9, each byte at the same place in its page), in the MOS's buffers below page &0D; the commander file buffer commbuf (= LSX2) at &087E; then the CMYK dashboard's variables DASHV (&0CAA-&0CCE, after JOPOS: the dashboard runs with ACCCON X set); then the parked sun, SUNPK (&0CCF-&0CF3) and SUNPF (&0CF4) | 12 (&0840, &0CF5-&0CFF) |
+| Shared workspace | main &0E00-&1DE3 | the renderer's shared state, one block below the main code: R_NDN (&0E00), the rasteriser's per-call inputs, R_SS and R_SX, DFSIN, R_WL (&1000), DFSST, R_SY, R_S2T, R_S2B, R_S2C (the second disc's rows and colour by buffer, &1115-&111A), raster_vars (&1133), R_SN, R_SCOL, F_DROK (&1BBA), KF (&1C00-&1CBF), DFSST2, R_WR (&1D00-&1DBF), F_DSS (&1DC0), GFAR ... GSHT, F_SUX, F_SUY (the sun this frame), FL_BEH (&1DE3) | 290 (5, 24, 192 at &17F8-&18B7 in raster_vars, 69) and 292 before CODE% (&1F08) |
+| Glue area | main &1F08-&295A | the port's own code (elite-glue.asm): to7 and to4, TTX66M, the stubs between the passes (STUBS7 from &1F34, 38 into the cold pass; STUBS4, 57 out of it), the renderer's shared variables (gfx-gvars.asm, GMODE at &227C), the T_ trampolines (gfx-tramp.asm), the text and IRQ hooks (gfx-gluehooks.asm), the G_ stubs (gfx-gstubs.asm) and the drawing hooks (gfx-hooks.asm) | - |
+| Low pass | main &295B-&2F7B (3 bytes of padding before the font) | Elite's code that must be below &3000, in the source's order: WSCAN, DELAY, the sound (BOOP, BEEP, SOFH ... SOINT, the sound variables and the SFX tables), IRQ1 (&2ABF), VSCAN, DOVDU19, cls, TT67K, CHPR (&2B19), ZES1, ZES2, the font (FONT%, &2C00-&2EFF), UP (&2F00), stackpt, NEWBRK | - |
+| Hot pass: main RAM | main &2F7C-&3F5F | the hot pass's first container (BCODE ends here): T1SYNC, pxpatd, pxpat, HANGFLAG, G%, the main flight loop, MALW, MALC, MT14, MT15, TKN2 and QQ16, NA%, shpcol, scacol, UNIV, HLOIN2, BLINE, the stardust, MVT3, MVS5, TENS, pr2, TT11, BPRNT, DTW1-8, FEED, MT16, TT26, BELL, ESCAPE, HATB ... (build/flow.txt) | 160 |
 | Buffer 0 | main &4000-&6FFF | the screen (rule 6); during a disc command also HAZEL's stash (&4000-&5FFF) and the command's copy (DOSBUF, &6000) | - |
 | Quarter-square tables, then the hot pass | main &7000-&7FC3 | QSL and QSH (elite-qs.asm, &7000-&73FF); the hot pass's second container from &7400: TACTICS, DOCKIT, the tactics helpers ... the maths from MLS2 to DVID3B2 (build/flow.txt) | 60 |
-| Bank 4 | &8000-&BF0C | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (ylookup, SCAN, LOIN ... DSEG, ADDK; log, logL, alogh page aligned), then the rest of the hot pass in the source's order (cntr ... EXNO, to &B829; F% at &B82A); then any hot data HAZEL has no room for (none); then S_SUN and L_SUN (gfx-ssun.asm, gfx-light.asm's first pass: the renderer's routines that run in game context, from G_FRAME), &B82A-&BF0C | 243 |
-| Cold pass | bank 7 &8000-&A3A8 | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data (the extended tokens TKN1 and their macros) | - (bank 7's end) |
-| Meridian window | bank 7 &A3A9-&B7E8 (ROMSEL 7; MERID, its own image, with gfx-kept7.asm, gfx-planet7.asm and gfx-flare.asm after it) | gfx-merid.asm, the circle engine (pc_circ, a circle's record; PC_ROWS, the rows; the records PCB); gfx-kept7.asm; gfx-planet7.asm, the styles (PF_HOOK: the beach ball, craters); gfx-flare.asm, the lens flare (R_FLARE, through T_FLARE; fl_htab whole in a page) | 2071 (bank 7's end) |
+| Bank 4 | &8000-&BBA9 | Elite's home bank: the hot pass's third container, the ACCCON X blocks first (ylookup, SCAN, LOIN ... DSEG, ADDK; log, logL, alogh page aligned), then the rest of the hot pass in the source's order (cntr ... EXNO, to &B908; F% at &B909); then any hot data HAZEL has no room for (none); then L_SUN (gfx-light.asm's first pass: the renderer's routine that runs in game context, from G_FRAME), &B909-&BBA9 | 1110 |
+| Cold pass | bank 7 &8000-&A417 | the cold pass, one run: the cold routines in the original's order (the zero-page save, the start-up, DOENTRY, the extended token printing DETOK ... MT29, STATUS, HME2, the launch, SUNLAU (after TT114), the missions, PAUSE, the charts and the market screens, hyperspace, QQ23, the equipment, SOLAR, YESNO, RESET and RES2, the title and start-up, save and load, DKS3, COLD, DOSCLI ...); then the cold data (the extended tokens TKN1 and their macros) | - (bank 7's end) |
+| Meridian window | bank 7 &A418-&B7FB (ROMSEL 7; MERID, its own image, with gfx-kept7.asm, gfx-planet7.asm and gfx-flare.asm after it) | gfx-merid.asm, the circle engine (pc_circ, a circle's record; PC_ROWS, the rows; the records PCB); gfx-kept7.asm; gfx-planet7.asm, the styles (PF_HOOK: the beach ball, craters); gfx-flare.asm, the lens flare (R_FLARE, through T_FLARE; fl_htab whole in a page) | 2052 (bank 7's end) |
 | Rasteriser: polygon window | ANDY &8000-&8FC7 (ROMSEL &85) | gfx-raster_poly.asm, gfx-raster_line.asm | 56 |
 | Rasteriser: disc window | bank 5 &8000-&8FFF (ROMSEL 5) | gfx-raster_disc.asm (with gfx-raster_strips.asm), gfx-raster_kept.asm (&8000-&8F22); R_S2R0, buffer 0's second-disc right ends (&8F40-&8FFF) | 29 |
 | Rasteriser: shared region | bank 5 &9000-&BFFF (with either window) | gfx-raster.asm; gfx-raster_lcold.asm and gfx-raster_reset.asm (R_RESETBUF) in the room below the per-x tables (from r_tfree, &990A), then R_S2L0 and R_S2L1 (&9A40, &9B40), the second disc's left ends; gfx-raster_disc2.asm (R_DISC2, &BBBE-&BEF7) and gfx-raster_init.asm (R_INIT), then R_S2R1 (&BF40-&BFFF) | 2 (before R_S2R1; + 29 at &9A23, 64 at &9B00; + the tails) |
@@ -606,6 +605,28 @@ bytes. Free bytes before (4af1e02) and after:
 | ANDY | 37 | 56 |
 | bank 6 | 1428 | 938 |
 | total | 5817 | 5121 |
+
+The sun's parking (MASTER-PLAN.md, "The sun's parking": the sun kept in
+SUNPK while the station holds its slot, in place of the renderer's sun near
+the planet) took the gate's run from 128635 to 128800 cycles per flight
+iteration (15.55 to 15.53 it/s): the in-zone flight after the launch, with
+the parked sun moved and run through MAL1 every iteration, 198760 to 200669
+a combat iteration (+1.0%), the hyperspace phase 247508 to 249460 (+0.8%),
+the approach 118237 to 118172. Free bytes before (d881b7f) and after:
+
+| Region | Before | After |
+|---|---:|---:|
+| main RAM, the hot pass's first container (to &4000) | 201 | 160 |
+| main RAM, the hot pass's second container (from &7400) | 16 | 16 |
+| bank 4 | 75 | 1110 |
+| HAZEL | 1223 | 1223 |
+| shared workspace (its gaps, and below CODE%) | 325 | 390 |
+| WP (its last page, after DASHV) | 49 | 11 |
+| bank 5 | 124 | 124 |
+| bank 7 (after the meridian window) | 2163 | 2052 |
+| ANDY | 56 | 56 |
+| bank 6 | 938 | 945 |
+| total | 5170 | 6087 |
 
 Page crossings are measured apart (profile.mjs --pagex), so that a layout
 change's crossings do not count against an optimisation. Over the

@@ -2202,114 +2202,217 @@ f_bounds' parts 81); with the original's maths that b0abf71 also emitted
 (about 680 bytes, and its H_MERID, H_PCURVE and G_PCURVE hooks), the planet
 path is about 320 bytes smaller.
 
-## The sun near the planet (after the original's planet maths)
+## The sun's parking (after the original's planet maths)
 
-**Why the sun goes.** It is the original's slot sharing, not a renderer
-choice. Elite has one slot, FRIN+1, for the sun and the space station
-(SSPR's slot). Every 32 iterations, part 15 of the main flight loop
-(elite-source.asm, before MA23S) checks whether we are near the planet
-(MAS2, then MAS1 and FAROF2 on the point 2 nosev above it). If so, it
-calls WPLS to remove the sun from the screen, then NWSPS, which empties
-FRIN+1 and puts the station there. The sun's data block is gone. When the
-station is out of range, KS4 makes a new sun in the slot, at (0, 6 sign
-units, 0): overhead, not where the old one was. After a launch, TT110's
-RES2, SOS1 and NWSPS make the station and no sun at all. The game state
-must stay SNG47's, so none of this changes.
+**The slot.** Elite has one slot, FRIN+1, for the sun and the space station.
+Every 32 iterations, part 14 of the main flight loop checks whether we are
+near the planet (MAS2, then MAS1 and FAROF2 on the point 2 nosev above it);
+if so, the original calls WPLS to take the sun off the screen and NWSPS,
+which empties FRIN+1 and puts the station there, so the sun's data block is
+gone. When the station is out of range, KS4 makes a new sun in the slot at
+(0, 6 sign units, 0), overhead, not where the sun was. After a launch,
+TT110's RES2, SOS1 and NWSPS make the station and no sun at all. So in the
+original the sun vanishes as the station appears, and a different sun
+appears overhead when we leave.
 
-**The design: the sun drawn as scenery.** S_SUN (master/src/gfx-ssun.asm,
-at bank 4's end with L_SUN) runs after every main-loop iteration, from
-G_FRAME with bank 4 paged, before F_FRAME. It writes only its own variables
-and the frame's (F_SUX, F_SUY, GSUNR, GSUNON, SS_OK); the zero page and the
-game's variables that MV40 and SOLAR use are kept and put back.
+**The design: the sun parked.** The port keeps the sun. While the station
+holds slot 1, the sun's block is parked outside the slots, in SUNPK (37
+bytes, after WP's dashboard variables, &0CCF-&0CF3), with SUNPF (&0CF4)
+saying so, and the game moves it and draws it once an iteration, after the
+ships. Four routines of the port's own, at their places in elite-source.asm
+(NMOS 6502 code, so that the Model B's game can share the text), each
+reached from one original instruction:
 
-* Slot 1 is the sun, and the planet is within one sign unit on every axis
-  (the station can only appear at zero, in an iteration with MCNT AND 31 =
-  0, and TT100 decrements MCNT after the frame): in the frames with MCNT
-  AND 31 = 1 or 0 it takes D = sun - planet (ss_d, 24-bit two's
-  complement, in the shared workspace). Further out, D is forgotten.
-  (Taking D every frame would cost up to 0.5% on the gate's approaches.)
-* Slot 1 is the station: D is turned by ALPHA and BETA by MV40 itself, as
-  the game turns the planet and the sun (our own movement moves them
-  alike, so D only turns). ss_turn puts D into INWK's coordinates
-  (sign-magnitude) and calls MV40 with TYPE 129 (the sun: MV45, which MV40
-  jumps to, returns after moving z) and DELTA 0 (z moved by nothing), K2's
-  low byte 0 (MV40 reads it in step 3 without setting it); the zero page
-  that MV40, MULT3, MVT3, MV45 and MVT1 use (INWK's coordinates, P, Q, R,
-  S, T, K, K2, TYPE, DELTA: 26 bytes, ss_zpa) is kept and put back. In
-  record mode the sun is recorded at planet + D, as PLANET would draw it:
-  the view's axes as PLUT; PLANET's tests on z; PROJ (x / z and y / z under
-  1024); the radius 24576 / z, or 248 if it is 256 or more; CHKON.
-* Slot 1 is the station and D is unknown (we launched, so this system's sun
-  was never in the slot): D comes from the system's seeds by SOLAR's own
-  code (ss_seed). The SOLAR block's header says "Area: cold, again", and
-  streams.py emits it a second time (build/elite-source-again.asm, no
-  stubs, its labels and the targets of its JSRs and JMPs named A_<name>),
-  which gfx-ssun.asm INCLUDEs: it enters at A_nobirths (past the Trumbles,
-  which the Master never has), A_ZINF = ZINF, and A_SOS1 and A_NWSHP are
-  stand-ins that note INWK's coordinates (the planet, the sun; ss_pl,
-  ss_su). INWK and FIST are kept and put back; FIST's bit 0 is taken as
-  clear.
-* Docked (F_DIRECT with QQ12 set clears SS_OK), in witchspace, or with no
-  planet in slot 0: no sun.
+* SUNUP (hot; part 14's JSR WPLS becomes JSR SUNUP): slot 1's block into
+  SUNPK, SUNPF = &80. NWSPS then puts the station in slot 1 as before.
+* SUNSC (hot; MAL1's JMP MA18, at the end of the slots, becomes JMP SUNSC):
+  if SSPR is set and bit 7 of SUNPF, the sun goes through the rest of MAL1
+  like a ship in a slot of its own: TYPE = 129, INF = SUNPK, XSAV = NOSH - 1
+  (TIDY's phase in MVEIT), entering MAL1 at MAL1g, after its GINF, so the
+  block is copied into INWK; MVEIT moves it, LL9 draws it (PLANET, SUN), the
+  block is copied back (MALW: slot 11 takes the loop), and MA27 moves on to
+  slot NOSH, whose FRIN byte is always 0, which brings MAL1 back to SUNSC.
+  Bit 6 of SUNPF tells the two visits apart: it is set on the first, which
+  runs the sun, and cleared on the second, which goes on to MA18. Nothing in
+  the sun's pass can leave the loop: MA21 skips the energy bomb and the
+  blueprint for negative types; MAL3e's scooping, docking and collision
+  tests skip them (TYPE BMI MA65); HITCH returns at once for them (no laser
+  hit, no missile lock: ABORT2's XSAV is never the parked sun's); MA15's
+  KS1S needs bit 7 of NEWB or of byte #31, which the sun never gets (NWSHP
+  and SUNLAU mask NEWB's bit 7, and only the tests it skips set byte #31's);
+  MAC1 skips FAROF for negative types; MVEIT, LL9, PLANET and SUN return.
+  So bit 6 is always clear again by MLOOP, which the checks confirm on every
+  iteration of every run (below).
+* SUNBK (hot; KS4's JSR ZINF becomes JMP SUNBK): if the sun is parked, its
+  block goes back into slot 1 from SUNPK, FRIN+1 = 129, SUNPF = 0, SSPR = 0
+  and SPBLB, as KS4 clears them; the sun carries on where it was. LSO, which
+  holds the sun's lines, is kept (KS4's FLFLLS reset it for the new sun).
+  Otherwise it does what KS4 did: JSR ZINF, then JMP KS4+3.
+* SUNLAU (cold; TT110's JSR NWSPS becomes JSR SUNLAU): NWSPS, then the
+  system's sun as SOLAR made it on arrival, relative to the planet, parked.
+  SOLAR puts the planet at (h, h, a) sign units (a = 3 + the low two bits of
+  s0_hi + bit 0 of FIST, h = a / 2) and the sun at x = b * 65536 + b * 256,
+  y = h, z = -m (b = the low two bits of s2_hi, m = the low three bits of
+  s1_hi with bit 0 set): from the planet, (b - h) * 65536 + b * 256, 0,
+  -(m + a) * 65536. At the launch the planet is at (0, 0, 1), so the sun is
+  at that x, y = 0 and z = -(m + a - 1) * 65536, with bit 0 of FIST taken as
+  clear (what it was when we arrived is not known). The seeds are the
+  current system's, QQ2, which SOLAR read in QQ15 on arrival (at the launch
+  QQ15 holds the system TT111 has just selected, the chart's crosshairs').
+  The rest of the block is SOLAR's too: ZINF's orientation and pitch and roll, and NEWB from the
+  planet's and the sun's E% bytes, as NWSHP sets it for the one and then
+  the other.
 
-When KS4 brings the game's sun back, it is overhead, as in the original:
-the drawn sun jumps there. The lighting (L_SUN) keeps turning its light
-while the station has the slot, so it is unaffected.
+**SUNPF's life.** It is written by SUNUP and SUNLAU (&80), SUNSC (bit 6)
+and SUNBK (0), and read only by SUNSC and L_SUN with the station present
+(SSPR) and by SUNBK, which runs only when the station goes. A station
+appears only through part 14 (SUNUP) and TT110 (SUNLAU), so with SSPR set
+the sun is always parked. Every other way out of flight goes through RES2,
+whose ZERO clears MANY and so SSPR: death (DEATH, DEATH2), docking
+(DOENTRY), the escape pod (ESCAPE), hyperspace and the galactic jump (TT18,
+then SOLAR), a mis-jump (MJP), the title (TITLE's RESET); a load happens
+docked, and the commander file holds neither SUNPK nor SUNPF (the save and
+load test fills them with a pattern at each disc command and finds it
+unchanged after). So SUNPF may keep a stale &80 after RES2, but nothing
+reads it until SUNUP or SUNLAU rewrites it; until the first launch its bits
+are the boot's, unread likewise.
 
-**Sorting.** PLANET gives the sun and the planet the same radius at the
-same z (24576 / z), so the bigger disc is the nearer one. f_discs makes the
-bigger disc the layer, and f_disc2 draws the smaller disc (always the
-further one) only where the layer's span on each row leaves room: up to
-two pieces a row (R_DISC2, below). So a sun behind a bigger planet is cut
-by its limb (b0abf71's f_disc2 drew the secondary disc on top), a planet
-behind a bigger, nearer sun is cut by the sun, and ships are drawn after
-both, in front; f_behind and F_PLANET's z for far planets are unchanged.
-A planet that is the secondary disc is a plain disc, without its detail.
+**What the game does differently** (the residual differences from the
+released SNG47, which the reference's patch, below, also makes):
 
-**The lens flare.** The planet's colours could pass the flare's colour
-probes, so a probe inside the planet's span on its row is out of sight
-when the sun is the secondary disc (FL_BEH, set by f_flt from f_sec).
-R_FLARE reads this buffer's disc spans (R_DISCL/R), picking the buffer
-from the dirty page it is given, and its half-width table is kept whole in
-a page by a skip (a correctness skip, not alignment for speed). f_flt's
-test that the sun's centre is outside the planet's disc is gone: the
-probes see the planet, so a sun rising over the limb turns the flare up in
-steps.
+* near the planet the sun is parked and moved and drawn once an iteration
+  after the ships (TIDY's phase that of slot 11), so SUN's random numbers
+  (DORND, one call per row it draws, in record mode too) and the iterations'
+  timing differ from the original's from the first parked iteration on;
+* when the station goes out of range, the sun comes back where it is,
+  rather than a new sun overhead;
+* after a launch the sun exists from the start, from the system's seeds
+  with bit 0 of FIST taken as clear (so at worst one sign unit out in z);
+* nothing else: the ship slots are the original's (ships still use slots 2
+  to 11 near the planet), the heap and NWSHP's checks are unchanged, and
+  MA33's heat and scooping, the compass, WARP and STATUS behave as in the
+  original, as they read the sun only with SSPR clear.
 
-**Cost.** A frame with the sun in view costs S_SUN about 3,200 cycles,
-the second disc 2,500-17,600 (below), the planet layer's repair of the
-sun's rows 3,000-5,000, and, in the front view, the flare 30,000-35,000
-plus its repair on the planet (about 30,000 in f_discs): the flare is two
-thirds of the cost, as it is anywhere. The posed scene (harness/msunnear.mjs:
-a planet of radius 120, a sun of radius 16, the station crossing; on
-b0abf71 the same scene has no sun):
+**The renderer.** The parked sun is drawn by the game, as any sun is (LL9,
+PLANET, SUN, H_SUN into the frame: F_PLANET splits the planet and the sun by
+TYPE, f_discs makes the bigger disc the layer, f_disc2 the smaller one),
+so the frame layer, the second disc, the lens flare and its probes are as
+they were. L_SUN seeds the light from SUNPK while the sun is parked
+(ls_seed reads the block from slot 1 or SUNPK) and turns it in between, as
+it does for slot 1, so the light follows the real sun throughout.
 
-| | b0abf71 | the sun drawn | without the flare |
-|---|---:|---:|---:|
-| sun hidden behind the limb | 7.90 it/s | 7.53 | 7.63 |
-| sun rising | 9.17 | 6.61 | 8.48 |
-| sun clear | 8.61 | 6.33 | 8.44 |
-| station flyby | 6.93 | 5.47 | 6.67 |
+**Placement.** SUNUP, SUNBK and SUNSC are hot: called from hot code, they
+need no stubs (as cold routines their stubs would push the glue area across
+the font's page and the low pass past &3000). SUNLAU is cold, with TT110.
+SUNSC sits between parts 12 and 13 of the main flight loop, SUNUP before
+NWSPS, SUNBK after KILLSHP (after KS4 it put KILLSHP's BEQ KS4 out of
+range) and SUNLAU after TT114 (after TT110 it put TT18's BNE TT114 out of
+range). Each block's header says `Area: ..., again`, for the reference's
+patch.
 
-On the gate, the docking approach has a radius 7 sun in the front view,
-with no planet on the screen, and so the flare (f_flt 36,000 cycles a frame
-there): the windows 4800-4999 and 5000-5199 run at 9.43 and 5.71 it/s
-against 9.73 and 6.14 without S_SUN (-3.1%, -7.0%). Elsewhere it is within
-0.1%. harness/msunprof.mjs profiles a stretch of the gate's run (S_SUN, the
-disc layer, the second disc, the flare and the whole frame, per frame).
+**The reference: SNG47 with three patches.** The comparison's reference is
+the released SNG47 with three patches: Q at the ALTIT square root
+(harness/mlib.mjs: what drawing left in Q decided the altitude), the
+planet's half spin ("The circle engine's cost", below), and the sun's
+parking (besides SOPR at NOISE, which takes real time out of the sound's
+effect on the game), the last as assembled code
+(master/tools/sunref): streams.py emits the four blocks a second time
+(build/elite-source-again.asm, their labels and calls named A_<name>), and
+sunref.py binds every name they use to SNG47's (its symbols; the numbers
+from elite-source.asm), assembles them at &0B9D (tools/sunref/sunref.asm,
+NMOS), and writes build/sunref.json: the code, then SUNPK and SUNPF, in
+SNG47's unused &0B9D-&0CFF (the hangar draws its ships with their line
+heap at &0B00, HAS1, at most 157 bytes), and the sites, each SNG47's bytes
+and the new ones, of the same length:
 
-**Checked**: the station appearing in the game's own way
+| site | SNG47 | bytes | becomes |
+|---|---|---|---|
+| part 14 | &30CE | 20 87 60 (JSR WPLS) | 20 35 0C (JSR SUNUP) |
+| KS4 | &61F3 | 20 99 63 (JSR ZINF) | 4C 46 0C (JMP SUNBK) |
+| MAL1 + 7 | &2E9A | 4C 5B 30 (JMP MA18) | 4C 9D 0B (JMP SUNSC) |
+| MAL1 + 10 (anchor) | &2E9D | 85 85 20 03 4A A0 24 | unchanged: SUNSC enters at &2EA2 |
+| TT110 | &54AD (in &5495-&54C3) | 20 AB 5B (JSR NWSPS) | 20 C6 0B (JSR SUNLAU) |
+| NWSPS | &5BE8 (in &5BAB-&5BF1) | A9 7E 85 BD (LDA #LO(LSO)) | A9 92 85 BD |
+| NWSPS | &5BEC (in &5BAB-&5BF1) | A9 10 85 BE (LDA #HI(LSO)) | A9 0C 85 BE |
+
+The last two give the station a line heap of its own, at &0C92 (101 bytes,
+the Dodo's), instead of sharing LSO with the sun: the original never draws
+both, the patched original does, and its screen (which agentplay's player
+watches) would otherwise fill with the two's lines. The harness checks every
+site's bytes at TT170 (finding the unlabelled ones once in their routine)
+and only then writes the patch (mlib's applyRefPatch); mcompare.mjs and
+agentplay give the reference the candidate build's patch. In the compared
+state the station's heap pointer &0C92 is held as LSO's (&107E), the parked
+sun's 38 bytes are a region of their own (SUNPK, in both machines), and INF,
+which points to SUNPK after the sun's pass, is held as K% + 12 * 37.
+
+**The proofs.** The port and the reference share the routines' text, so a
+bug in it would pass the gate; so the patch is proved apart:
+
+* its bytes (harness/msunref.mjs): SNG47 booted to TT170, its main RAM before
+  and after the patch: 206 of its code's 207 bytes (one is a zero over a
+  zero) and 11 site bytes differ (the parked sun's 38 bytes are zeros, as
+  SNG47 leaves them), nothing else; the build's audit (sunref.py) rejects a patch with code
+  outside the free area, overlapping sites or a site that changes length;
+* the passive variant (build/sunref-passive.json: part 14 and TT110 call
+  P_SUNUP and P_SUNLAU, which jump to WPLS and NWSPS, so the sun is never
+  parked; the other sites and the heap as in the patch): SNG47 against SNG47
+  with it, game state identical over the gate's 10000 iterations and over
+  the views run, the parked sun's region unchanged: so SUNSC, SUNBK's test,
+  the anchor and the station's heap change nothing unless the sun is parked;
+* the active parts (harness/msunslot.mjs, on both machines): SUNUP changes
+  only SUNPK and SUNPF and leaves SUNPK equal to slot 1's block; SUNBK
+  changes only slot 1's block, FRIN+1, SUNPF and SSPR (and SPBLB's drawing
+  temporaries) and leaves slot 1's block equal to SUNPK; SUNLAU, after its
+  NWSPS, changes only INWK, SUNPK, SUNPF and T, and leaves SUNPK equal to
+  INWK, and its sun is the one SOLAR made when the scene arrived in that
+  system (its position from the planet, with bit 0 of FIST taken as clear,
+  and the rest of its block);
+* the invariants, on every iteration of both machines (mcompare.mjs and
+  msunslot.mjs): with the station present in flight, SUNPF is &80 at MLOOP
+  (parked, and bit 6 clear); MVEIT moves the sun exactly once in each flight
+  iteration with a sun, slot 1's or parked; and in the reference nothing
+  writes the patch's memory but the patch, apart from the station's heap.
+
+**Scenes** (harness/msunslot.mjs, the patched reference against the build,
+game state compared every iteration): the zone scene (16000
+iterations: the pilot's cycle with the safe zone left and entered again and
+again, fights and docking) parked the sun 28 times and restored it 23
+times, with 13852 parked iterations, 30 ships removed below the parked sun,
+6 dockings and 5 jumps from the zone, and 5 launches whose sun was checked
+against SOLAR's on arrival; the events scene (14000), all from the zone with the sun
+parked, made 4 escape pods, 4 mis-jumps (CTRL held at TT18's test, PATG
+set), 3 deaths by crashing into the station (each followed by the title, a
+new game and a launch), 3 hyperspace and 4 galactic jumps, 3 energy bombs
+and E.C.M.s, and 11 launches, 3 of them checked against SOLAR; the full scene parked the sun
+below every other slot filled (2392 iterations) with a ship removed and
+spawns refused; the hand-back scene kept the sun at (167, 70), radius 32,
+from the frame before the station went to the frames after. Game state
+identical throughout, every check passed. harness/msavetest.mjs fills SUNPK
+and SUNPF with a pattern at each disc command, finds it unchanged after,
+and after the loads and a launch finds the sun parked afresh. The posed scene
 (harness/msunnear.mjs --spawn: the game's sun in slot 1 at (180, 50),
-radius 19, the planet placed for part 15): the frame after NWSPS draws
-S_SUN's sun at (180, 51), radius 19, and carries on from there
-(screenshots/sunnear/spawn.png). The movie (harness/msunnear.mjs, rendered
-by master/tools/sunnear.py): screenshots/sunnear/sunnear.mp4 and
-sunnear.gif, the frames, and sheet.png. The sun rises from behind the
-planet's limb, with the flare's probes going 0, 1, 2 ... 9. The station
-then crosses it: 8, 5, 3, 0, 1, 0, 0, 3, 4, 7, 7, 9, so the flare dims,
-goes out and comes back.
+radius 19, the planet placed for part 14) draws the sun at (180, 50),
+radius 19, before and after SUNUP parks it (screenshots/sunnear/spawn.png);
+the movie (harness/msunnear.mjs, the parked sun posed rising behind the
+planet's limb, the station crossing it, master/tools/sunnear.py):
+screenshots/sunnear/sunnear.mp4, sunnear.gif, sheet.png and the frames.
 
-## The second disc, incremental (with the sun near the planet)
+**Cost.** profile.mjs over the gate's run: 128635 to 128800 cycles per flight
+iteration (15.55 to 15.53 it/s). The in-zone flight after the launch (the
+gate's combat phase) pays for moving and drawing the parked sun each
+iteration, 198760 to 200669 cycles (+1.0%), the hyperspace phase 247508 to
+249460 (+0.8%); the approach is 118237 to 118172. The sun's pass copies its
+block in and out by MAL1's loops (slot 11 has no unrolled copy): unrolled
+copies for SUNPK would save about 600 cycles a parked iteration for about
+440 bytes of bank 4, against the exchange rate of about 2 cycles an
+iteration per byte over the whole run (MASTER-MAP.md) not worth it: the
+gate's run is parked in about 12% of its flight iterations. Bytes: bank 4
+1,035 more free (S_SUN's room, less SUNUP, SUNBK and SUNSC), main RAM 41
+fewer, bank 7 111 fewer (SUNLAU), the shared workspace 65 more, WP's last
+page 38 fewer (SUNPK, SUNPF), bank 6 7 more.
+
+## The second disc, incremental (with the sun beside the planet)
 
 The original Elite keeps each row's sun span (SUNX, the LSO heap) and only
 changes the ends that move; the second disc (the smaller of the sun and
@@ -2363,9 +2466,9 @@ below the per-x tables), R_S2R0 &8F40 (the disc window's end), R_S2R1
 &BF40 (after R_DISC2): each whole in a page, a buffer's and the
 other's at the same low byte, the high bytes from two tables in R_SETBUF.
 R_S2T, R_S2B and R_S2C are in the shared workspace (f_disc2 reads the
-rows). bankcheck checks gfx-raster_disc2.asm as bank 5's and gfx-ssun.asm
-as bank 4's, build.sh's banks.txt lists them, and msunnear.mjs and
-msunprof.mjs take S_SUN's and the flare's banks from the symbols.
+rows). bankcheck checks gfx-raster_disc2.asm as bank 5's, build.sh's
+banks.txt lists it, and msunnear.mjs and msunprof.mjs take SUN's and the
+flare's banks from the symbols.
 
 **Cost** (f_disc2 a frame, a radius 16 sun, the posed scene's averages):
 held still 2,500-3,400 cycles (9,300-10,600 with the flare, whose ring
