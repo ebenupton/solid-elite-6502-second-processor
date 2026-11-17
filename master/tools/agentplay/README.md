@@ -146,7 +146,8 @@ Pixels are never compared.
   galactic hyperdrive, hyperspace, in-system jumps, the docking computer and the charts.
   Pokes drain the shields and energy, heat the cabin or empty the tank, at an iteration
   boundary in both machines. Some pokes come only by name, not in `all`: `sun` puts the sun
-  just ahead (heat, fuel scooping, death by heat); `ghypfill` refits the galactic
+  just ahead (heat, fuel scooping, death by heat); `sunpark` does the same with the sun
+  parked while the station holds its slot (SUNPK, which the reference's patch names); `ghypfill` refits the galactic
   hyperdrive, so that `ghyp` can cross several galaxies; `scoop`, `scoopnow` and
   `scoophold` put something scoopable from the bubble (a cargo canister, escape pod,
   alloy plate, splinter or Thargon) under the nose, slow, for the scoops
@@ -232,7 +233,8 @@ writes `campaign.json` and `campaign.md`, which give:
   state at every MLOOP: the hold or the tank going up in flight) and deaths, and the
   features seen over the campaign (summary.json's `features`: the escape pod and energy
   bomb used, missiles fired, E.C.M., the docking computer, mission stages as TP changes,
-  witchspace, the sun close, the Constrictor and Thargoids about);
+  witchspace, the sun close, the sun parked and close, the Constrictor and Thargoids
+  about);
 - every finding, grouped across sessions.
 
 Plans are lists in campaign.mjs: `default` (22 sessions), `extra` (12 more: the missions'

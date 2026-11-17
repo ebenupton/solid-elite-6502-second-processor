@@ -133,7 +133,10 @@ whole map as JSON).
    label alone assembles nothing), in each copy the parasite and the hosts
    assemble (the resident run, overlay D, the aligned tables, the hosts'
    three), that the next starts where it ends; a host's block that falls
-   into one its copy leaves out fails the build.
+   into one its copy leaves out fails the build. So does a reference to the
+   bytes before a block's entry (X - n: ypl-1 and DELT-1 in overlay D, PL2-1,
+   WPLS-1, LL10-1 and SFS1-2 resident) whose block before is not in X's
+   copy, and that block's copy gets the same ASSERT.
 
 ### The map
 

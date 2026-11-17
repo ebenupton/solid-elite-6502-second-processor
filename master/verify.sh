@@ -65,7 +65,7 @@ echo "compare: PASS"
 # hangar's ships once wrote over the glue code), and save, load, a load error,
 # catalogue (the disc glue); a save's bytes against SNG47's; the station in front of a far planet; with the
 # pilot, changes of view; the ships the ship audit flagged, posed; the
-# reference's patch (below)
+# reference's patch and the sun's parking (below)
 node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
 grep -E "^docking|^REDOCK" "$LOG/redock.log"
 grep -q "^REDOCK PASS" "$LOG/redock.log" || { echo "redock: FAIL"; fail redock; }
@@ -103,7 +103,16 @@ grep -q "^SHIPPOSE PASS" "$LOG/shippose.log" || { grep "BAD" "$LOG/shippose.log"
 node harness/msunref.mjs --out "$LOG/sunref" > "$LOG/sunref.log" 2>&1
 grep -E "^(bytes|passive|passive-views):" "$LOG/sunref.log"
 grep -q "^SUNREF PASS" "$LOG/sunref.log" || { tail -20 "$LOG/sunref.log"; echo "sunref: FAIL"; fail sunref; }
-echo "regressions: PASS (redock, savetest, savebytes, station, views, shippose, sunref)"
+# the sun's parking where the gate's run never takes it: the safe zone left and
+# entered again and again (with fights, docking and launches), every slot full
+# below the parked sun, the hand-back while flying at the sun, and the escape
+# pod, a crash, a jump and a mis-jump in the safe zone, against the patched
+# reference, with the parking's checks on both machines
+node harness/msunslot.mjs --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
+    --out "$LOG/sunslot" > "$LOG/sunslot.log" 2>&1
+grep -E "^[a-z]+: [0-9]+ iterations" "$LOG/sunslot.log" | cut -c1-160
+grep -q "^SUNSLOT PASS" "$LOG/sunslot.log" || { grep FAIL "$LOG/sunslot.log" | head -10; echo "sunslot: FAIL"; fail sunslot; }
+echo "regressions: PASS (redock, savetest, savebytes, station, views, shippose, sunref, sunslot)"
 ALL=$(grep -E "^ +all " "$LOG/compare.log")
 echo "speed (flight it/s, ref cand cand/ref): $ALL"
 set -- $ALL

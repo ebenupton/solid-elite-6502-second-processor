@@ -2,7 +2,7 @@
 // A campaign: many agentplay sessions with varied seeds and play styles, run a few at a
 // time, then one table of what they covered and every finding, grouped.
 //
-// node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|soak|soakquick|quick]
+// node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|soak|soakquick|sunslot|quick]
 //      [--only name,name] [--scale 1.0] [--summarise] [--workaround look1] [--cand disc --csyms syms]
 // Each session runs as agentplay.mjs in DIR/<name>/; a session already finished there
 // (summary.json) is not run again, so a campaign can be resumed. --scale multiplies every
@@ -187,6 +187,17 @@ const PLANS = {
         ["sq-scoop", 4, "--seed", "2", "--commander", "deadly", "--mode", "curious", "--chaos", "scoophold*100,scoop*50,scoopnow*50,missile*4,sun*20,fuel*10"],
         ["sq-orarra", 3, "--seed", "3", "--commander", "orarra", "--mode", "curious", "--chaos", "docked*2,disc*2", "--savediscs"],
         ["sq-load", 2, "--seed", "4", "--mode", "load,curious", "--from", "sq-orarra", "--chaos", "ghyp*20,ghypfill*20"],
+    ],
+    // the sun's parking (SUNUP, SUNSC, SUNBK, SUNLAU): the safe zone entered and left
+    // often (the docking computer, jumps, hyperspace), deaths and the escape pod there,
+    // and the sun pokes, slot 1's and the parked one
+    sunslot: [
+        ["ss-cur-jameson-s931", 60, "--seed", "931", "--mode", "curious", "--chaos", "dock*6,sunpark*3,sun*2"],
+        ["ss-cur-deadly-s932", 60, "--seed", "932", "--commander", "deadly", "--mode", "curious", "--chaos", "dock*6,missile*2,sunpark*4,hurt*2"],
+        ["ss-eff-equipped-s933", 45, "--seed", "933", "--commander", "equipped", "--chaos", "dock*8,jump*3,pod*2,sunpark*3,hyper*2"],
+        ["ss-fair-trader-s934", 45, "--seed", "934", "--commander", "trader", "--mode", "fair", "--chaos", "dock*6,sun*3,sunpark*3,views*2"],
+        ["ss-cur-death-s935", 40, "--seed", "935", "--commander", "equipped", "--mode", "curious", "--chaos", "hurt*4,heat*2,sun*3,sunpark*3,pod*2"],
+        ["ss-cur-galaxies-s936", 45, "--seed", "936", "--commander", "equipped", "--mode", "curious", "--chaos", "ghyp*6,ghypfill*3,dock*4,sunpark*2"],
     ],
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],

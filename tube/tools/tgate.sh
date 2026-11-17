@@ -13,7 +13,8 @@
 # none within the space view, e.g. the sun on screen) and dockings with the
 # missions' briefings and debriefings and an escape pod, each with the launch
 # after it (tdock.mjs: no overlay load between two frames, such as the
-# rotating ships').
+# rotating ships'); and the sun's parking in the scenes run1 never reaches
+# (harness/msunslot.mjs --tube).
 # Run from the repository root after master/build.sh and tube/build.sh.
 # TO=N limits the lockstep and pixel runs to N iterations (default 16000).
 # Both hosts boot the one disc (elite-tube.ssd). MAXJ=N runs at most N
@@ -42,6 +43,8 @@ for H in Master B; do
     node tube/tools/tstation.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tstation-$H 2>/dev/null | tail -1 > $D/station-$H.txt
     node tube/tools/tdock.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tdock-$H > $D/tdock-$H.log 2>/dev/null; tail -1 $D/tdock-$H.log > $D/dock-$H.txt ) &
   throttle; ( node tube/tools/tswap.mjs --log $LOG --cand $S --csyms $D/psyms.txt --host $H --to $TO --max 0 > $D/swap-$H.txt 2>&1; echo "exit $?" >> $D/swap-$H.txt ) &
+  # (the sun's parking in scenes run1 never reaches: harness/msunslot.mjs against the patched reference)
+  throttle; ( node harness/msunslot.mjs --tube $H --cand $S --csyms $D/psyms.txt --out $D/sunslot-$H > $D/sunslot-$H.txt 2>&1 ) &
   M=3; [ $H = Master ] && M=4   # (the target clocks: the Master host's internal 4 MHz co-processor, a 3 MHz one on the Model B)
   throttle; ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,0-3550,300-403,14400-14507,4000-4300 > $D/speed-$H.txt 2>&1 ) &
 done
@@ -59,5 +62,6 @@ for H in Master B; do
   echo "station: $(cat $D/station-$H.txt)"
   echo "docking: $(cat $D/dock-$H.txt)"
   echo "overlays: $(grep -h "overlay . loads" $D/swap-$H.txt | sed 's/, [0-9]* cycles each (2 MHz)//' | tr '\n' ' ')$(grep -h "within the space view" $D/swap-$H.txt) ($(tail -1 $D/swap-$H.txt))"
+  echo "sun's parking: $(tail -1 $D/sunslot-$H.txt)"
   grep -h "iterations" $D/speed-$H.txt
 done

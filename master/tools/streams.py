@@ -133,6 +133,10 @@
 #     that the falling block falls into that label's stub; any other
 #     fall-through across passes (between the low and hot passes) is an
 #     error;
+#   * a reference to the bytes before a block's entry (X - n, X a label at the
+#     block's start: the original's BMI WPLS-1, into the RTS that ends WP1)
+#     needs the block before it that assembles in the same pass (in the hot
+#     pass, its unit), and its copy is checked to end where X starts;
 #   * every stub's line is blank in its copy, and every target is defined in
 #     elite-source.asm (a stub has a place only there);
 #   * every unit fits a container, and the flow fits.
@@ -170,6 +174,7 @@ TUBE = os.environ.get("TUBE") == "1"     # (the Tube's build: phase tube)
 TUBEF = re.compile(r"^\\       Tube: (.*)$")
 TUBETAG = {}                             # (block start line -> its "Tube:" field)
 TUBEOVL = set()                          # (the names of the blocks tagged "Tube: ovl D")
+TUBEBACK = []                            # (X-n, copy, block before, X's block): tube_main's checks, for the build's log
 OVLD = ("ovl D", "both, ovl D", "bothb, ovl D")   # (the tags that put a block in overlay D)
 
 SRC = "src/elite-source.asm"
@@ -1178,6 +1183,24 @@ def tube_main(lines, bl, eff, macros, errors):
                               % (SRC, e0, bl[k][2], entry))
                 continue
             copies[a][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block before falls through into it)"
+    # and each reference to the bytes before a block's entry (X - n:
+    # reaches_back) needs, in every copy that assembles X's block, the block
+    # before it there too, ending where X starts (the same ASSERT)
+    for k, k2, i, ref in reaches_back(lines, bl, teff, macros):
+        for a in ("run", "cold", "aligned") + tuple(nm for nm, _ in HOSTS):
+            if k2 not in member[a]:
+                continue
+            entry = entry_label(lines, bl[k2][0], bl[k2][1], macros)
+            s0, e0 = bl[k][0], bl[k][1]
+            last = max([j for j in range(s0, e0) if code_part(lines[j])], default=None)
+            spot = [j for j in range(last + 1, e0) if not lines[j].strip()] if last is not None else []
+            if k not in member[a] or not entry or not spot:
+                errors.append("%s:%d: %s reaches back into %s, which %s" % (SRC, i + 1, ref, bl[k][2],
+                              "the copy %s of %s leaves out" % (a, bl[k2][2]) if k not in member[a] else "has no place for the check"))
+                continue
+            if not copies[a][spot[0]].strip():
+                copies[a][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block after reaches back into this one)"
+            TUBEBACK.append((ref, a, bl[k][2], bl[k2][2]))
     for nm, _ in HOSTS:
         with open(OUT % nm, "w", encoding="latin-1") as f:
             f.write("\n".join(copies[nm]))
@@ -1192,6 +1215,8 @@ def tube_main(lines, bl, eff, macros, errors):
         frame_passes(fp, errors)
     for e in errors:
         print("streams:", e)
+    for ref, a_, k_, k2_ in TUBEBACK:
+        print("streams (tube): %s, in %s: %s ends where %s starts" % (ref, a_, k_, k2_))
     print("streams (tube): %d blocks, %d resident, %d in overlay D, %d the hosts'; stubs %d into "
           "overlay D; data %s%s"
           % (len(bl), sum(1 for k in range(len(bl)) if teff[k] == "run" and ASM[k] and par(k)),
@@ -1201,6 +1226,49 @@ def tube_main(lines, bl, eff, macros, errors):
              nstubs[0], ", ".join("%s %d" % kv for kv in dn.items()),
              ", %d error(s)" % len(errors) if errors else ""))
     sys.exit(1 if errors else 0)
+
+
+def reaches_back(lines, bl, eff, macros):
+    """the references to the bytes before a block's entry (a branch, JMP or JSR
+    to X - n, X a label at its block's start, before anything there
+    assembles: the original's BMI WPLS-1 takes the RTS that ends WP1), as
+    (k, k2, line, "X-n"): block k2 starts with X, and k is the block before
+    it that assembles, whose last bytes the reference reaches"""
+    starts = {}                            # label -> block, for labels at a block's start
+    for k, (s, e, name, area) in enumerate(bl):
+        if eff[k] == "config" or not ASM[k]:
+            continue
+        done = False
+        for i in range(s, e):
+            if not ACTIVE[i] or done:
+                continue
+            for st in (x.strip() for x in code_part(lines[i]).split(" : ")):
+                m = re.match(r"^\.([A-Za-z_][A-Za-z0-9_]*%?)\s*(.*)$", st)
+                if m:
+                    starts[m.group(1)] = k
+                    st = m.group(2).strip()
+                    if not st:
+                        continue
+                if assembles(st, macros):
+                    done = True
+                    break
+    out = []
+    for k3, (s, e, name, area) in enumerate(bl):
+        if eff[k3] == "config" or not ASM[k3]:
+            continue
+        for i in range(s, e):
+            if not ACTIVE[i]:
+                continue
+            code = split_code(lines[i])[0]
+            for m in re.finditer(r"(?<![\w%])([A-Za-z_]\w*)\s*-\s*(\d+)\b", code):
+                k2 = starts.get(m.group(1))
+                if k2 is None or not re.search(r"\b(?:B(?:CC|CS|EQ|MI|NE|PL|VC|VS|RA)|JMP|JSR)\s+$", code[:m.start()], re.I):
+                    continue
+                k = next((j for j in range(k2 - 1, -1, -1) if ASM[j]), None)
+                if k is None or eff[k] == "config":
+                    continue
+                out.append((k, k2, i, "%s-%s" % (m.group(1), m.group(2))))
+    return out
 
 
 def main():
@@ -1293,6 +1361,22 @@ def main():
                 errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s), another pass"
                               % (SRC, e, name, eff[k], st, name2, eff[k2]))
             break
+    # a reference to the bytes before a block's entry (X - n, where X is a
+    # label at the block's start: the original's BMI WPLS-1, which takes the
+    # RTS that ends WP1, its block before) needs that block's last bytes to be
+    # the ones before X: the block before it that assembles must be in its
+    # pass, in the hot pass in its unit, and its copy is checked to end where
+    # X starts (as a fall's)
+    behind = []                            # (k, k2): X - n in a block reaches back from block k2 into block k
+    for k, k2, i, ref in reaches_back(lines, bl, eff, macros):
+        if pas(eff[k]) != pas(eff[k2]):
+            errors.append("%s:%d: %s reaches back into %s (%s), which is not in %s's pass (%s)"
+                          % (SRC, i + 1, ref, bl[k][2], eff[k], bl[k2][2], eff[k2]))
+            continue
+        if pas(eff[k]) == "hot":
+            join(pos[k], pos[k2])
+        if (k, k2) not in behind:
+            behind.append((k, k2))
     # branches: a hot block that branches into another keeps the blocks from
     # the one to the other in one unit (a branch reaches only 128 bytes)
     blockof = {}
@@ -1425,6 +1509,20 @@ def main():
                               % (SRC, e, bl[k][2], entry))
                 continue
             copies[copy_of[k]][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block before falls through into it)"
+        # and each block whose last bytes a reference before another's entry
+        # reaches (X - n) must end where that block starts, in every copy
+        for k, k2 in behind:
+            if (k, k2) in hotfalls:
+                continue                   # (checked as a fall)
+            entry = entry_label(lines, bl[k2][0], bl[k2][1], macros)
+            s, e = bl[k][0], bl[k][1]
+            last = max([i for i in range(s, e) if code_part(lines[i])], default=None)
+            spot = [i for i in range(last + 1, e) if not lines[i].strip()] if last is not None else []
+            if not entry or not spot or copy_of[k] != copy_of[k2]:
+                errors.append("%s:%d: %s's last bytes are reached from %s, before its entry: %s"
+                              % (SRC, e, bl[k][2], bl[k2][2], "not in one copy" if entry and spot else "no place for the check"))
+                continue
+            copies[copy_of[k]][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block after reaches back into this one)"
     nstubs = glue(copies, errors, lines, bl, eff, copy_of, falls,
                   ["low"] + (["measure"] if phase == "measure" else ["hot1", "hot2", "hot3"]))
     with open(DIRECT, "w") as f:           # (for bankcheck.py: what the cold pass calls directly)
