@@ -102,6 +102,12 @@ const POKES = {
     sun: { every: 20000, when: (r, sy) => flying(r, sy) && !r[sy.SSPR] && !r[sy.MJ] && r[sy.FRIN + 1],
         poke: () => { const c = () => [Math.floor(rng() * 256), Math.floor(rng() * 21), rng() < 0.5 ? 0 : 0x80];
             return [["K%", 37, [...c(), ...c(), Math.floor(rng() * 256), 90 + Math.floor(rng() * 41), 0]]]; } },
+    // the parked sun (SUNPK, while the station holds its slot: SUNUP) brought close
+    // ahead likewise, where it is drawn big over the safe zone (MA23's heat and
+    // scooping read only slot 1's sun, with the station gone)
+    sunpark: { every: 20000, when: (r, sy) => flying(r, sy) && r[sy.SSPR] && !r[sy.MJ] && sy.SUNPF !== undefined && r[sy.SUNPF] & 0x80,
+        poke: () => { const c = () => [Math.floor(rng() * 256), Math.floor(rng() * 21), rng() < 0.5 ? 0 : 0x80];
+            return [["SUNPK", 0, [...c(), ...c(), Math.floor(rng() * 256), 90 + Math.floor(rng() * 41), 0]]]; } },
     // a galactic hyperdrive again, so that a session can cross several galaxies (ghyp uses
     // it up, and a fresh commander can't reach the far galaxies in a session's time)
     ghypfill: { every: 12000, when: (r, sy) => flying(r, sy) && !r[sy.GHYP], poke: () => [["GHYP", 0, [0xff]]] },

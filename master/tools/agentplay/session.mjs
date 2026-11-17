@@ -76,7 +76,11 @@ export class Session {
         const rp = cfg.refpatch === "none" ? null : cfg.refpatch || refPatchPath(cfg.csyms);
         this.builds = { ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms,
             refPatch: rp, refPatchSha: rp ? sha1(rp) : null };
-        this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true, refPatch: loadRefPatch(rp) });
+        const refPatch = loadRefPatch(rp);
+        // (the patched reference's own state by name, as the candidate's symbols have it:
+        // the parked sun, SUNPK and SUNPF, for the features and the chaos pokes)
+        if (refPatch && refPatch.region && refPatch.region[2] === "SUNPK") { this.rsy.SUNPK = refPatch.region[0]; this.rsy.SUNPF = refPatch.region[0] + 37; }
+        this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true, refPatch });
         this.cand = new EliteMachine({ name: "cand", disc: cfg.cand, syms: this.csy, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
         await this.ref.boot();
         await this.cand.boot();
@@ -416,6 +420,13 @@ export class Session {
             const t1 = r(sy.FRIN + 1);
             if (t1 === 129 && z(1) < 0x200 && !zs(1)) hit("sun close (< &200 hi)");
             if (t1 === 2 && z(1) < 0x08 && !zs(1)) hit("station close (< 8 hi)");
+            // the sun parked while the station holds its slot (SUNPK, SUNPF: in the
+            // reference, the patch's, which start() names in its symbols)
+            if (t1 === 2 && sy.SUNPF !== undefined && r(sy.SUNPF) & 0x80) {
+                hit("sun parked");
+                const pz = r(sy.SUNPK + 7) | (r(sy.SUNPK + 8) & 127) << 8;
+                if (pz < 0x200 && !(r(sy.SUNPK + 8) & 0x80)) hit("parked sun close (< &200 hi)");
+            }
             if (r(sy.FRIN) && z(0) < 0x60 && !zs(0)) hit("planet close (< &60 hi)");
             for (let i = 2; i < 12; i++) { const t = r(sy.FRIN + i); if (t === 29) hit("Thargoid about"); if (t === 30) hit("Thargon about"); if (t === 31) hit("Constrictor about"); if (t === 16) hit("Viper (police) about"); }
         }

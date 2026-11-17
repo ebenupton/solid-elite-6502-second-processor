@@ -11,7 +11,7 @@
 #     untouched; the redock, save/load and view-change regressions; the speed of both).  PASS only
 #     if it prints "VERIFY PASS", "Game state identical at all" and
 #     "regressions: PASS (...)" (redock, savetest, savebytes, station, views, shippose,
-#     sunref) and exits 0.
+#     sunref, sunslot) and exits 0.
 #
 # Prints the steps, then "VERIFY PASS <ratio> <cand it/s>" (cand/ref flight iterations
 # per emulated second, and the candidate's) or "VERIFY FAIL <step>" (test_raster, build,
