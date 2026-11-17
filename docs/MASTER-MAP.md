@@ -262,7 +262,12 @@ an error; every unit fits a container; and in each hot copy, after a block
 that falls through into the next, an ASSERT that the next starts where it
 ends. A block's last statement is its last that assembles anything (MT16
 ends with the constant DTW7 = MT16 + 1, after the LDA that falls into
-TT26). bankcheck.py reads the copies for its rules ("Calls between the
+TT26; a label alone assembles nothing: MVEIT's part 1 ends with .MV3). A
+branch, JMP or JSR to X - n, X a label at its block's start, reaches the
+block before it (BMI WPLS-1 takes the RTS that ends WP1): the two must be
+in one pass (in the hot pass, one unit), and that block's copy gets the
+same ASSERT (ypl-1, PL2-1, WPLS-1, LL10-1, DELT-1; SFS1-2 is a fall's).
+bankcheck.py reads the copies for its rules ("Calls between the
 passes").
 
 ## The map
