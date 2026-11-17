@@ -242,6 +242,11 @@ SUNPK while the station holds its slot), each reached by one redirected call: ma
 flight loop part 4's JMP MA18 (4, 6), part 14's JSR WPLS (3, 1), KS4's JSR ZINF
 (1, 1) and TT110's JSR NWSPS (2, 1); WP gains SUNPK and SUNPF after DASHV. The
 reference runs the same four blocks (their `, again` emission, assembled for SNG47).
+The sun's edge: SUN's parts 2 to 4, HLOIN2, EDGES and the orange table are `Area: none`
+(the rows, which took the only random numbers, are gone: the reference's patch takes
+SUN's JSR DORND out too); SUN's part 1 loses its fringe size and its set-up for the rows
+(ending with K2, SUNX and an RTS), HLOIN its own entry, and WPLS and FLFLLS their line
+heap work, each with a `Port:` note.
 
 ## Edits in code that is not emitted
 

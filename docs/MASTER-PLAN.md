@@ -2281,9 +2281,9 @@ are the boot's, unread likewise.
 released SNG47, which the reference's patch, below, also makes):
 
 * near the planet the sun is parked and moved and drawn once an iteration
-  after the ships (TIDY's phase that of slot 11), so SUN's random numbers
-  (DORND, one call per row it draws, in record mode too) and the iterations'
-  timing differ from the original's from the first parked iteration on;
+  after the ships (TIDY's phase that of slot 11), so the iterations' timing
+  differs from the original's from the first parked iteration on (the
+  sun's edge takes no random numbers: "The sun's edge", below);
 * when the station goes out of range, the sun comes back where it is,
   rather than a new sun overhead;
 * after a launch the sun exists from the start, from the system's seeds
@@ -2310,12 +2310,13 @@ range) and SUNLAU after TT114 (after TT110 it put TT18's BNE TT114 out of
 range). Each block's header says `Area: ..., again`, for the reference's
 patch.
 
-**The reference: SNG47 with three patches.** The comparison's reference is
-the released SNG47 with three patches: Q at the ALTIT square root
+**The reference: SNG47 with four patches.** The comparison's reference is
+the released SNG47 with four patches: Q at the ALTIT square root
 (harness/mlib.mjs: what drawing left in Q decided the altitude), the
-planet's half spin ("The circle engine's cost", below), and the sun's
-parking (besides SOPR at NOISE, which takes real time out of the sound's
-effect on the game), the last as assembled code
+planet's half spin ("The circle engine's cost", below), the sun's parking,
+and the sun's edge drawing no random numbers ("The sun's edge", below;
+besides SOPR at NOISE, which takes real time out of the sound's effect on
+the game), the last two as patches to SNG47's code
 (master/tools/sunref): streams.py emits the four blocks a second time
 (build/elite-source-again.asm, their labels and calls named A_<name>), and
 sunref.py binds every name they use to SNG47's (its symbols; the numbers
@@ -2334,6 +2335,7 @@ and the new ones, of the same length:
 | TT110 | &54AD (in &5495-&54C3) | 20 AB 5B (JSR NWSPS) | 20 C6 0B (JSR SUNLAU) |
 | NWSPS | &5BE8 (in &5BAB-&5BF1) | A9 7E 85 BD (LDA #LO(LSO)) | A9 92 85 BD |
 | NWSPS | &5BEC (in &5BAB-&5BF1) | A9 10 85 BE (LDA #HI(LSO)) | A9 0C 85 BE |
+| SUN (the sun's edge, below) | &5F32 (in &5EA7-&5FCB) | 20 01 64 (JSR DORND) | A9 00 EA (LDA #0 : NOP) |
 
 The last two give the station a line heap of its own, at &0C92 (101 bytes,
 the Dodo's), instead of sharing LSO with the sun: the original never draws
@@ -2351,7 +2353,7 @@ bug in it would pass the gate; so the patch is proved apart:
 
 * its bytes (harness/msunref.mjs): SNG47 booted to TT170, its main RAM before
   and after the patch: 206 of its code's 207 bytes (one is a zero over a
-  zero) and 11 site bytes differ (the parked sun's 38 bytes are zeros, as
+  zero) and 14 site bytes differ (the parked sun's 38 bytes are zeros, as
   SNG47 leaves them), nothing else; the build's audit (sunref.py) rejects a patch with code
   outside the free area, overlapping sites or a site that changes length;
 * the passive variant (build/sunref-passive.json: part 14 and TT110 call
@@ -2411,6 +2413,68 @@ gate's run is parked in about 12% of its flight iterations. Bytes: bank 4
 1,035 more free (S_SUN's room, less SUNUP, SUNBK and SUNSC), main RAM 41
 fewer, bank 7 111 fewer (SUNLAU), the shared workspace 65 more, WP's last
 page 38 fewer (SUNPK, SUNPF), bank 6 7 more.
+
+## The sun's edge (after the sun's parking)
+
+**The original.** SUN draws the sun as horizontal lines, one a row, and
+keeps each row's half-width in the sun line heap (LSO) so that the next
+frame can erase it. Each row's half-width is the circle's (LL5's square
+root of K^2 - V^2) plus a random fringe: DORND's value ANDed with CNT (0,
+1, 3 or 7 by the radius) and added. So every drawn row takes a random
+number, and the game's random sequence (RAND) depends on how many rows of
+sun were drawn.
+
+**The change, in the reference too.** The renderer fills the sun as a disc
+from the record H_SUN makes, so the port draws no rows; and the user's
+decision is that the sun's edge takes no random numbers, in the game and in
+the comparison's reference alike. The reference's patch (master/tools/
+sunref, with the parking's) turns SUN's one JSR DORND into LDA #0 : NOP
+(SNG47 &5F32, found once in SUN's extent at TT170: 20 01 64 to A9 00 EA),
+so the fringe is 0 and RAND is untouched. Nothing in SUN's control flow
+depends on DORND's value (only the row's half-width does, which goes into
+LSO, and the BCC after the addition that rejoins at once), so this changes
+RAND's use and the line heap only. The proof (harness/msunref.mjs, in the
+gate): build/sunref-edge.json, the site alone with randAt, at which the
+harness advances RAND exactly as the DORND it replaced would (DORND's sums,
+with the C flag LL5 left), so that only the fringe differs: SNG47 against
+SNG47 with it, game state identical over the gate's 10000 iterations and
+the views run.
+
+**The port.** With no random numbers taken, all SUN's rows left in the game's
+state is what part 1 computes before them and what part 4 ends with: TGT,
+LSX and COL (part 1), K2 = K^2 (part 1 sets it for the rows, and MV40 reads
+K2's low byte without setting it, in its step 3), SUNX = K3 and the C flag
+clear. So the port's SUN is part 1 to TGT, then K2, SUNX and an RTS; parts
+2 to 4 are `Area: none`, and with them went everything only they used: the
+fringe size (CNT), PLF3 and PLF17, HLOIN's own entry (the sun's orange
+colour from the orange table; HLOIN3 stays), HLOIN2, EDGES and the orange
+table (`Area: none`), and the renderer's H_HLOIN hook. WPLS, which redrew
+the rows from LSO to erase them, keeps only LSX (and Y = &FF), and FLFLLS,
+which zero-filled LSO, keeps only LSX (with A = 0 and Y = &FF): LSO is now
+written only by the station's line heap's first byte (LL9's record path)
+and read by nothing. The drawing temporaries the rows left (P, Q, R, T, V,
+Y1, X1, X2, XX, YY, widget, CNT) and LSO differ from the reference's after
+SUN; the comparison excludes them, and no game code reads them before
+setting them again in any run (the gate, msunslot's scenes, the soak). K2
+was the one that mattered.
+
+**Cost.** Freed: bank 4 324 bytes (1110 to 1434 free), main RAM 11 (160 to
+171), the glue area 11 (H_HLOIN; the low pass's font alignment took them:
+132 free below &3000 as before). A visible sun no longer costs its rows:
+the posed scene (harness/msunnear.mjs, a radius 16 sun beside a planet of
+radius 120) runs at 6.53 it/s against 5.96 (hidden 8.78 against 7.82,
+rising 6.89 against 6.22, clear 6.72 against 6.12, the station's flyby 5.31
+against 4.92). The gate's own run changes with the random numbers (the
+reference's too), so its windows are not comparable one for one with the
+earlier run's: the pilot now makes one launch and one jump in its 10000
+iterations and spends 9352 of them approaching (two of each, and 8716,
+before), and the gate runs at 15.60 it/s against the patched SNG47's 16.97
+(0.919); profile.mjs gives 128254 cycles per flight iteration on the new
+run. Its first windows, which the change of random numbers has not yet
+reached, run as before (8.46, 8.35 and 8.20 it/s for 0-599, against 8.45,
+8.36 and 8.07). The sun is behind us in the gate's in-zone flight, so SUN
+is not called there: the parked sun's pass costs what it did (MAL1's copies
+of its block in and out, MVEIT, PLANET's tests).
 
 ## The second disc, incremental (with the sun beside the planet)
 

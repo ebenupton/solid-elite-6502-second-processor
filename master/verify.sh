@@ -101,7 +101,7 @@ grep -q "^SHIPPOSE PASS" "$LOG/shippose.log" || { grep "BAD" "$LOG/shippose.log"
 # state identical over the gate's run and the views run: the patch changes
 # nothing unless the sun is parked)
 node harness/msunref.mjs --out "$LOG/sunref" > "$LOG/sunref.log" 2>&1
-grep -E "^(bytes|passive|passive-views):" "$LOG/sunref.log"
+grep -E "^(bytes|passive|passive-views|edge|edge-views):" "$LOG/sunref.log"
 grep -q "^SUNREF PASS" "$LOG/sunref.log" || { tail -20 "$LOG/sunref.log"; echo "sunref: FAIL"; fail sunref; }
 # the sun's parking where the gate's run never takes it: the safe zone left and
 # entered again and again (with fights, docking and launches), every slot full
