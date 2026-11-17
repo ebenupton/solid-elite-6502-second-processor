@@ -2,8 +2,9 @@
 // A campaign: many agentplay sessions with varied seeds and play styles, run a few at a
 // time, then one table of what they covered and every finding, grouped.
 //
-// node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|soak|soakquick|sunslot|quick]
+// node master/tools/agentplay/campaign.mjs --out DIR [--jobs 3] [--plan default|soak|soakquick|sunslot|publish|quick]
 //      [--only name,name] [--scale 1.0] [--summarise] [--workaround look1] [--cand disc --csyms syms]
+//      [--deadregs]
 // Each session runs as agentplay.mjs in DIR/<name>/; a session already finished there
 // (summary.json) is not run again, so a campaign can be resumed. --scale multiplies every
 // session's length. --summarise only rewrites the summary (DIR/campaign.json, DIR/campaign.md).
@@ -13,7 +14,7 @@ import { spawn } from "child_process";
 import { parseArgs } from "../../../harness/args.mjs";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 
-const a = parseArgs({ out: "value", jobs: "value", plan: "value", only: "value", scale: "value", summarise: "flag", workaround: "value", cand: "value", csyms: "value" });
+const a = parseArgs({ out: "value", jobs: "value", plan: "value", only: "value", scale: "value", summarise: "flag", workaround: "value", cand: "value", csyms: "value", deadregs: "flag" });
 if (!a.out) { console.error("--out DIR required"); process.exit(2); }
 const OUT = a.out, JOBS = +(a.jobs || 3), SCALE = +(a.scale || 1);
 const HERE = decodeURIComponent(new URL(".", import.meta.url).pathname);
@@ -199,6 +200,23 @@ const PLANS = {
         ["ss-cur-death-s935", 40, "--seed", "935", "--commander", "equipped", "--mode", "curious", "--chaos", "hurt*4,heat*2,sun*3,sunpark*3,pod*2"],
         ["ss-cur-galaxies-s936", 45, "--seed", "936", "--commander", "equipped", "--mode", "curious", "--chaos", "ghyp*6,ghypfill*3,dock*4,sunpark*2"],
     ],
+    // before publishing (run with --deadregs, 2 jobs): the sun's parking at half length,
+    // then fights and explosions, visible suns, the charts, docked screens and disc menu,
+    // deaths and hyperspace, the docking computer, and a load (about 275 game minutes)
+    publish: [
+        ["pub-ss-jameson-s931", 30, "--seed", "931", "--mode", "curious", "--chaos", "dock*6,sunpark*3,sun*2"],
+        ["pub-ss-deadly-s932", 30, "--seed", "932", "--commander", "deadly", "--mode", "curious", "--chaos", "dock*6,missile*2,sunpark*4,hurt*2"],
+        ["pub-ss-equipped-s933", 25, "--seed", "933", "--commander", "equipped", "--chaos", "dock*8,jump*3,pod*2,sunpark*3,hyper*2"],
+        ["pub-ss-trader-s934", 25, "--seed", "934", "--commander", "trader", "--mode", "fair", "--chaos", "dock*6,sun*3,sunpark*3,views*2"],
+        ["pub-ss-death-s935", 20, "--seed", "935", "--commander", "equipped", "--mode", "curious", "--chaos", "hurt*4,heat*2,sun*3,sunpark*3,pod*2"],
+        ["pub-ss-galaxies-s936", 25, "--seed", "936", "--commander", "equipped", "--mode", "curious", "--chaos", "ghyp*6,ghypfill*3,dock*4,sunpark*2"],
+        ["pub-fight-deadly-s951", 25, "--seed", "951", "--commander", "deadly", "--mode", "curious", "--chaos", "missile*4,ecm*2,bomb*2,views*2"],
+        ["pub-sun-equipped-s952", 20, "--seed", "952", "--commander", "equipped", "--mode", "curious", "--chaos", "sun*6,fuel*2,sunpark*2,views*2"],
+        ["pub-docked-rich-s953", 20, "--seed", "953", "--commander", "rich", "--mode", "curious", "--chaos", "docked,disc,charts*3", "--savediscs"],
+        ["pub-death-equipped-s954", 20, "--seed", "954", "--commander", "equipped", "--chaos", "hurt*4,heat*2,hyper*3,ghyp*2,pod"],
+        ["pub-dock-trader-s955", 20, "--seed", "955", "--commander", "trader", "--mode", "fair", "--chaos", "dock*8,jump*3,docked"],
+        ["pub-load-s956", 15, "--seed", "956", "--mode", "load,curious", "--from", "pub-docked-rich-s953", "--chaos", "disc,docked"],
+    ],
     quick: [
         ["q-eff", 2, "--seed", "1", "--savediscs", ...W],
         ["q-chaos", 2, "--seed", "2", "--commander", "equipped", "--chaos", "all", ...W],
@@ -238,6 +256,7 @@ function runOne([name, minutes, ...opts]) {
         else args.push(opts[i]);
     }
     if (!args.includes("--cand")) args.push("--cand", `${CB}/elite-master-sng47.ssd`);
+    if (a.deadregs) args.push("--deadregs");
     args.push("--csyms", `${CB}/symbols.txt`);
     mkdirSync(dir, { recursive: true });
     console.log(`${name}: start (${args.slice(1).join(" ")})`);

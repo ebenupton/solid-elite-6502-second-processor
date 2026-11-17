@@ -86,7 +86,7 @@ export class Session {
         // (the Tube build: TUBE=Master or TUBE=B, the candidate is the parasite's game
         // with that host, tube/tools/tmachine.mjs)
         const Cand = process.env.TUBE ? (await import("../../../tube/tools/tmachine.mjs")).TubeEliteMachine : EliteMachine;
-        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, symsPath: cfg.csyms, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
+        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, symsPath: cfg.csyms, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [], deadRegs: !!cfg.deadRegs });
         await this.ref.boot();
         await this.cand.boot();
         this.cand.opts.seedFrom = this.ref;
@@ -364,8 +364,9 @@ export class Session {
             }
             while (m.evSeen === undefined ? (m.evSeen = 0, false) : m.evSeen < m.events.length) {
                 const [it, kind, detail] = m.events[m.evSeen++];
-                this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] = (this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] || 0) + 1;
-                if (kind !== "routine") appendFileSync(this.files.events, JSON.stringify({ m: m.name, iter: it, kind, detail }) + "\n");
+                const ek = `${m.name}:${kind}${kind === "routine" || kind === "site" ? ":" + detail : ""}`;
+                this.stats.events[ek] = (this.stats.events[ek] || 0) + 1;
+                if (kind !== "routine" && kind !== "site") appendFileSync(this.files.events, JSON.stringify({ m: m.name, iter: it, kind, detail }) + "\n");
                 if (kind === "workaround") this.stats.workarounds = (this.stats.workarounds || 0) + 1;
                 if (kind === "brk" || kind === "page0d" || kind === "hazel") {
                     // (a BRK loop: report the first few, then stop the session)
@@ -375,6 +376,7 @@ export class Session {
                     if (n === 20) { this.finding("brk-loop", `${m.name} iteration ${it}: the same BRK 20 times: ${detail}`, { iter: it }); this.stopNow = true; }
                 }
             }
+            if (m.evSeen > 4096) { m.events.splice(0, m.evSeen); m.evSeen = 0; }     // (counted: let them go)
         }
         // a BRK from a disc error (a ROM) in one machine and not the other shows as a divergence;
         // compare the lists of ROM BRKs as they come
@@ -522,7 +524,7 @@ export class Session {
             galaxies: [...(this.galaxies || [])].map(g => g + 1), chaos: this.chaos ? this.chaos.counts : null,
             observables: this.obsR ? { checked: this.obsChecked, differing: this.obsDiffs, kinds: this.obsKinds || {}, expected: this.obsExpected || {} } : null,
             discChecks: this.stats.discChecks || 0, saveFilesSame: this.stats.saveFilesSame || 0, discFinalSkipped: !!this.stats.discSkipped,
-            seeded: cand.seeded?.length, workaroundHits: this.stats.workarounds || 0, workarounds: cfg.workarounds || [], final: finalState(ref, this.rsy),
+            seeded: cand.seeded?.length, deadRegs: cfg.deadRegs ? cand.deadN : undefined, workaroundHits: this.stats.workarounds || 0, workarounds: cfg.workarounds || [], final: finalState(ref, this.rsy),
         };
         const cov = ref.coverage();
         if (cov) writeFileSync(`${cfg.out}/coverage-ref.json`, JSON.stringify(cov));

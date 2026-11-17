@@ -2439,7 +2439,18 @@ gate): build/sunref-edge.json, the site alone with randAt, at which the
 harness advances RAND exactly as the DORND it replaced would (DORND's sums,
 with the C flag LL5 left), so that only the fringe differs: SNG47 against
 SNG47 with it, game state identical over the gate's 10000 iterations and
-the views run.
+the views run. The gate's pilot rarely faces a large sun (the site ran 162
+times in its first 1500 iterations), so msunref poses one (mcompare --pose sunahead: in the
+first 300 of every 600 iterations, slot 1's sun held 0x30000 ahead, radius
+32, in both machines alike): there the site runs about 37,000 times in 1500
+iterations and SNG47 with it is identical to SNG47 (edge-ahead), while the
+same without randAt diverges in RAND at iteration 32 (edge-ahead-control),
+so the run does test it. In the same posed scene the build against SNG47
+with the whole patch is identical (full-ahead, with --deadregs: the edge's
+site 55,536 times, MV40's 1608 and 1268), and with MV40's two sites left
+out of the patch it diverges (k2-control: y_lo at iteration 66). Each run
+counts its patch's sites (mcompare prints them) and the proofs require
+them to have run.
 
 **The port.** With no random numbers taken, all SUN's rows left in the game's
 state is what part 1 computes before them and what part 4 ends with: TGT,
@@ -2546,7 +2557,9 @@ the frame (f_dots, from the cloud's heap); what the game keeps of it (F_CLOUD,
 for both passes) no longer steps the sequence 3 (U + 1) times: only RAND+3 =
 the planet's z_lo, and Q, U, TGT, CNT and CNT2 as PTCLS leaves them. The
 gate's run never explodes a ship; msunslot's full scene does (60 clouds with
-the sun parked, port against reference, every iteration).
+the sun parked, port against reference, every iteration, keepRand's restores
+counted and required), and as a control the reference without keepRand
+must differ from the build there.
 
 ## MV40's K2 (after the explosion clouds' seed)
 

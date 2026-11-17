@@ -159,6 +159,10 @@ Pixels are never compared.
   or gets wrong (`dmarket`, `dchart`, `dequip`, `dsell`). `all`, `disc` and `docked` can be
   items of a list, with a factor too (`disc*2`: each of its actions at twice the rate).
 - `--seed`: sets RAND at TT170. It also seeds the chaos overlay.
+- `--deadregs`: the candidate runs with mlib's DEAD_AFTER, as the gate's compare does: at
+  the return from each routine whose port claims some registers or flags dead (DIALS, SUN,
+  PLANET, PTCLS, BOMBOFF, PIXEL2, WPLS), they are scrambled, so a read of one diverges.
+  summary.json's `deadRegs` counts the returns.
 
 All of this goes through the input log, so every session replays exactly.
 
@@ -177,7 +181,7 @@ Each use is logged as a `workaround` event, and summary.json counts them.
 | `inputs.jsonl` | the input log. A header, then every read with a key down (`p` the read number, `t` r/d, `s` the routine, `k` the keys), every stick change (`j`, `w`, `v`), chaos actions and pokes, and an `end` record |
 | `agent.log`, `journal.jsonl` | elite-agent's log and its journal of events |
 | `events.jsonl` | machine events (BRKs, workarounds, page &0D) and findings |
-| `summary.json` | iterations compared, the first divergence with every differing field (and with `--keepgoing`, how long it lasted: `divergence.after`), findings, routine counts for each machine, the observables, save-file checks and the final state |
+| `summary.json` | iterations compared, the first divergence with every differing field (and with `--keepgoing`, how long it lasted: `divergence.after`), findings, routine counts for each machine (with the sun's parking, SUNUP, SUNSC, SUNBK and SUNLAU, and MV40 and PTCLS; and as `site` events in the reference, the patch's keepRand and its two sites in MV40), the observables, save-file checks, `deadRegs` and the final state |
 | `coverage-ref.json`, `coverage-cand.json` | whole-code coverage: the labels with code run, and the code labels never run (by bank for the port) |
 | `*-ref.png`, `*-cand.png` | screenshots of both machines: at a divergence, at a finding, at the end, and with `--shots N` every N iterations |
 | `ref-disc.ssd`, `cand-disc.ssd` | with `--savediscs`, both discs as the game left them |
@@ -242,7 +246,11 @@ later stages, deaths, pods, a long career), `night`, `night2` (the disc menu and
 screens), `night3`, `night4` (40 generated sessions each), `soak` (14 long curious-mode
 sessions, to run at `--scale 0.25`: both missions through every briefing and debriefing,
 all eight galaxies, cargo and fuel scooped, the equipment, deaths, the disc menu and docked
-screens, two loads; the same plan for the Master port and both Tube hosts), `soakquick` (the soak's new kinds, briefly) and `quick`. No workaround is
+screens, two loads; the same plan for the Master port and both Tube hosts), `soakquick` (the soak's new kinds, briefly), `sunslot` (the sun's
+parking: the safe zone entered and left, with deaths, pods and the sun pokes), `publish`
+(the check before a release, with `--deadregs` and two jobs: `sunslot` at half length,
+then fights and explosions, visible suns, the charts, docked screens and disc menu, deaths
+and hyperspace, the docking computer and a load, about 275 game minutes) and `quick`. No workaround is
 used unless `--workaround` asks for one. The candidate (master/build's disc, symbols and
 banks, or `--cand`/`--csyms`) is copied into `DIR/cand-build` when the campaign first
 starts, and every session runs that copy, so a rebuild during a campaign changes nothing.

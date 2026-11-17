@@ -14,8 +14,10 @@
 # missions' briefings and debriefings and an escape pod, each with the launch
 # after it (tdock.mjs: no overlay load between two frames, such as the
 # rotating ships'); the sun's parking in the scenes run1 never reaches
-# (harness/msunslot.mjs --tube); and the gate pilot's game with the registers
-# the parasite claims dead scrambled (harness/mcompare.mjs --deadregs).
+# (harness/msunslot.mjs --tube, with its control for the clouds' seed); the
+# gate pilot's game with the registers the parasite claims dead scrambled
+# (harness/mcompare.mjs --deadregs); and the reference patch's sites run with
+# the sun posed ahead, with MV40's control (harness/msunref.mjs --tube).
 # Run from the repository root after master/build.sh and tube/build.sh.
 # TO=N limits the lockstep and pixel runs to N iterations (default 16000).
 # Both hosts boot the one disc (elite-tube.ssd). MAXJ=N runs at most N
@@ -48,6 +50,9 @@ for H in Master B; do
   # (the gate pilot's game against the patched reference, with the registers the
   # parasite claims dead scrambled at each such return: harness/mcompare.mjs --deadregs)
   throttle; ( TUBEMHZ=$M0 node harness/mcompare.mjs --iters 10000 --loose --deadregs --tube $H --cand $S --csyms $D/psyms.txt --out $D/mc-$H > $D/deadregs-$H.txt 2>&1 ) &
+  # (the reference patch's sites run with the sun posed ahead and large: the build against the
+  # patched SNG47, and the control without MV40's sites, which must differ: harness/msunref.mjs)
+  throttle; ( node harness/msunref.mjs --tube $H --cand $S --csyms $D/psyms.txt --out $D/sunref-$H > $D/sunref-$H.txt 2>&1 ) &
   # (the sun's parking in scenes run1 never reaches: harness/msunslot.mjs against the patched reference)
   throttle; ( node harness/msunslot.mjs --tube $H --cand $S --csyms $D/psyms.txt --out $D/sunslot-$H > $D/sunslot-$H.txt 2>&1 ) &
   M=3; [ $H = Master ] && M=4   # (the target clocks: the Master host's internal 4 MHz co-processor, a 3 MHz one on the Model B)
@@ -69,5 +74,6 @@ for H in Master B; do
   echo "overlays: $(grep -h "overlay . loads" $D/swap-$H.txt | sed 's/, [0-9]* cycles each (2 MHz)//' | tr '\n' ' ')$(grep -h "within the space view" $D/swap-$H.txt) ($(tail -1 $D/swap-$H.txt))"
   echo "sun's parking: $(tail -1 $D/sunslot-$H.txt)"
   echo "dead registers: $(grep -h "MCOMPARE" $D/deadregs-$H.txt | tail -1)"
+  echo "reference proofs: $(grep -h "^full-ahead:\|^k2-control:" $D/sunref-$H.txt | grep -v "PASS$\|FAIL$" | tr '\n' ' ')$(tail -1 $D/sunref-$H.txt)"
   grep -h "iterations" $D/speed-$H.txt
 done
