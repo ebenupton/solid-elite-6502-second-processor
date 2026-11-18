@@ -45,11 +45,12 @@
 #   * ", again" after any of these ("Area: cold, again"): the block is also
 #     emitted a second time into build/elite-source-again.asm (every other
 #     line blank, so line numbers stay), with no stubs, and with its own
-#     labels and the targets of its JSRs and JMPs named A_<name>: the
-#     renderer INCLUDEs it, and says where each call goes (the original
-#     routine, A_X = X, or a stand-in of its own). gfx-ssun.asm runs SOLAR's
-#     placing of the planet and the sun this way, with SOS1 and NWSHP noting
-#     INWK instead of making ships.
+#     labels and the targets of its JSRs and JMPs named A_<name>: the file
+#     that INCLUDEs it says where each call goes. The port's own routines
+#     that the reference must run too (the sun's parking, SUNUP ...) are
+#     emitted so: tools/sunref/sunref.py assembles them for the released
+#     SNG47, with each A_X bound to SNG47's X, as the harness's patch to the
+#     reference.
 #   * ", runs on" after any of these ("Area: hot, runs on"): a table that code
 #     reads past its end into the next block (DETOK2 reads TKN2 on into QQ16),
 #     so the next block must follow it, in the same pass and unit, as if it
@@ -132,6 +133,10 @@
 #     that the falling block falls into that label's stub; any other
 #     fall-through across passes (between the low and hot passes) is an
 #     error;
+#   * a reference to the bytes before a block's entry (X - n, X a label at the
+#     block's start: the original's BMI WPLS-1, into the RTS that ends WP1)
+#     needs the block before it that assembles in the same pass (in the hot
+#     pass, its unit), and its copy is checked to end where X starts;
 #   * every stub's line is blank in its copy, and every target is defined in
 #     elite-source.asm (a stub has a place only there);
 #   * every unit fits a container, and the flow fits.
@@ -169,6 +174,7 @@ TUBE = os.environ.get("TUBE") == "1"     # (the Tube's build: phase tube)
 TUBEF = re.compile(r"^\\       Tube: (.*)$")
 TUBETAG = {}                             # (block start line -> its "Tube:" field)
 TUBEOVL = set()                          # (the names of the blocks tagged "Tube: ovl D")
+TUBEBACK = []                            # (X-n, copy, block before, X's block): tube_main's checks, for the build's log
 OVLD = ("ovl D", "both, ovl D", "bothb, ovl D")   # (the tags that put a block in overlay D)
 
 SRC = "src/elite-source.asm"
@@ -306,15 +312,23 @@ ACTIVE = []
 
 def last_statement(lines, s, e):
     """the last statement of lines[s:e] that is assembled (None if none),
-    passing over the lines of conditional assembly (IF, ELIF, ELSE, ENDIF)
-    and the branches the build's flags rule out"""
+    passing over the lines of conditional assembly (IF, ELIF, ELSE, ENDIF),
+    the branches the build's flags rule out, and the statements that
+    assemble nothing (constants, PRINTs, ASSERTs, labels alone ...: MT16 ends
+    with DTW7 = MT16 + 1, after the LDA that falls through into TT26, and
+    MVEIT's part 1 with the label .MV3)"""
     for i in range(e - 1, s - 1, -1):
         if ACTIVE and not ACTIVE[i]:
             continue
         c = code_part(lines[i])
-        if c and not re.match(r"^(IF|ELIF|ELSE|ENDIF)\b", c, re.I):
-            return c if c.upper().startswith("EQU") else c.split(" : ")[-1].strip()
-    return None
+        if not c or re.match(r"^(IF|ELIF|ELSE|ENDIF)\b", c, re.I):
+            continue
+        if c.upper().startswith("EQU"):
+            return c
+        for st in reversed([x.strip() for x in c.split(" : ")]):
+            if assembles(st, set()) and not re.match(r"^\.[A-Za-z_][\w%]*$", st):
+                return st                  # (a label alone assembles nothing:
+    return None                            # MVEIT part 1 ends with .MV3)
 
 
 def entry_label(lines, s, e, macros):
@@ -391,11 +405,11 @@ NORETURN = {"BAY", "DEATH2", "TT170", "FRCE", "GOIN", "BEGIN", "BRIEF",
 OTHERS = ("src/elite-layout.asm", "src/elite-measure.asm", "src/elite-glue.asm",
           "src/elite-qs.asm", "src/elite-gfx.asm")
 # (the Tube's: the parasite's files besides the game's copies)
-TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm",
+TOTHERS = ("src/elite-qs.asm", "src/gfx-frame.asm", "src/gfx-frame_cold.asm",
            "src/gfx-hooks.asm", "src/gfx-gvars.asm", "src/gfx-finit.asm", "src/gfx-faces.asm",
            "src/gfx-light.asm", "src/gfx-light6.asm", "src/gfx-hangar.asm", "src/gfx-hangar6.asm",
            "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
-           "src/elite-moon.asm", "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm",
+           "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm",
            "tsrc/p-low.asm", "tsrc/p-layout.asm")
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*%?")
 
@@ -986,25 +1000,27 @@ def stub_none(lines, bl):
 #   \       Area: boot              (the parasite's boot, above overlay D)
 #   \       Area: load              (the parasite's image's first step, in
 #                                    the quarter squares' place)
+#   \       Area: tail              (the parasite's resident code's end: code
+#                                    added there moves nothing resident)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
 # build/<file>-kernel.asm, build/<file>-kalign.asm, build/<file>-ovld.asm,
 # and the parasite's
-# build/<file>-fe.asm, -ff.asm, -boot.asm and -load.asm. The Master port,
+# build/<file>-fe.asm, -ff.asm, -boot.asm, -load.asm and -tail.asm. The Master port,
 # the Model B host and (for the files it does not pass) the Master host
 # assemble the file itself, where the tag lines are comments. The parasite
 # places every one of its files by these passes (p-layout.asm): a file whose
 # blocks go to more than one place is still one file
-FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-ssun.asm", "src/gfx-raster.asm",
+FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm",
              "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
              "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm",
              "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm", "tsrc/p-rast.asm",
              "tsrc/p-disc.asm", "tsrc/p-emit.asm", "tsrc/p-kept.asm", "tsrc/p-poly.asm", "tsrc/p-onepass.asm",
              "tsrc/p-probe.asm", "tsrc/p-lost.asm")
 FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "kernel, aligned": "kalign", "ovl D": "ovld",
-         "page FE": "fe", "page FF": "ff", "boot": "boot", "load": "load"}
+         "page FE": "fe", "page FF": "ff", "boot": "boot", "load": "load", "tail": "tail"}
 
 
 def frame_passes(path, errors):
@@ -1119,21 +1135,77 @@ def tube_main(lines, bl, eff, macros, errors):
     # (branches between the resident code and overlay D go through the stubs:
     # glue)
     copies = {}
+    member = {}                            # (copy -> the blocks it assembles)
     for a in ("config", "run", "cold", "aligned"):
         copies[a] = []
+        member[a] = set()
         for k, (s0, e0, name, area) in enumerate(bl):
             on = copy_of[k] == a and (a == "config" or par(k))
+            if on:
+                member[a].add(k)
             copies[a] += [lines[i] if on else "" for i in range(s0, e0)]
     # the hosts' copies: their blocks (not the configuration's)
-    for nm, tags in (("host", ("host", "both", "both, ovl D")),
-                     ("hostb", ("hostb", "bothb", "bothb, ovl D")),
-                     ("hostba", ("bothb, aligned",))):
-        c = []
+    HOSTS = (("host", ("host", "both", "both, ovl D")),
+             ("hostb", ("hostb", "bothb", "bothb, ovl D")),
+             ("hostba", ("bothb, aligned",)))
+    for nm, tags in HOSTS:
+        member[nm] = set(k for k in range(len(bl)) if teff[k] != "config" and tag(k) in tags)
+        copies[nm] = []
         for k, (s0, e0, name, area) in enumerate(bl):
-            on = teff[k] != "config" and tag(k) in tags
-            c += [lines[i] if on else "" for i in range(s0, e0)]
+            copies[nm] += [lines[i] if k in member[nm] else "" for i in range(s0, e0)]
+    # in every copy, each block that falls through its end must end where the
+    # block it falls into starts: an ASSERT on a blank line after its last code
+    # line (as the Master port's hot copies have), so that a placement that
+    # parted them fails the build; a host's block that falls into a block its
+    # copy does not assemble is an error (the parasite's seams into and out of
+    # overlay D are the stubs above)
+    for a in ("run", "cold", "aligned") + tuple(nm for nm, _ in HOSTS):
+        for k in sorted(member[a]):
+            s0, e0 = bl[k][0], bl[k][1]
+            if not ASM[k]:
+                continue
+            st = last_statement(lines, s0, e0)
+            if not falls_through(st, macros) and s0 not in RUNSON:
+                continue
+            k2 = next((j for j in range(k + 1, len(bl)) if ASM[j]), None)
+            if k2 is None:
+                continue
+            if k2 not in member[a]:
+                if a in [nm for nm, _ in HOSTS]:
+                    errors.append("%s:%d: %s can fall through its end (%s) into %s, which the hosts' "
+                                  "copy %s does not assemble" % (SRC, e0, bl[k][2], st, bl[k2][2], a))
+                continue
+            entry = entry_label(lines, bl[k2][0], bl[k2][1], macros)
+            if not entry:                  # (no label to check: a routine's next part)
+                continue
+            last = max([i for i in range(s0, e0) if code_part(lines[i])], default=None)
+            spot = [i for i in range(last + 1, e0) if not lines[i].strip()] if last is not None else []
+            if not spot:
+                errors.append("%s:%d: %s falls into %s: no blank line after its code for the check"
+                              % (SRC, e0, bl[k][2], entry))
+                continue
+            copies[a][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block before falls through into it)"
+    # and each reference to the bytes before a block's entry (X - n:
+    # reaches_back) needs, in every copy that assembles X's block, the block
+    # before it there too, ending where X starts (the same ASSERT)
+    for k, k2, i, ref in reaches_back(lines, bl, teff, macros):
+        for a in ("run", "cold", "aligned") + tuple(nm for nm, _ in HOSTS):
+            if k2 not in member[a]:
+                continue
+            entry = entry_label(lines, bl[k2][0], bl[k2][1], macros)
+            s0, e0 = bl[k][0], bl[k][1]
+            last = max([j for j in range(s0, e0) if code_part(lines[j])], default=None)
+            spot = [j for j in range(last + 1, e0) if not lines[j].strip()] if last is not None else []
+            if k not in member[a] or not entry or not spot:
+                errors.append("%s:%d: %s reaches back into %s, which %s" % (SRC, i + 1, ref, bl[k][2],
+                              "the copy %s of %s leaves out" % (a, bl[k2][2]) if k not in member[a] else "has no place for the check"))
+                continue
+            if not copies[a][spot[0]].strip():
+                copies[a][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block after reaches back into this one)"
+            TUBEBACK.append((ref, a, bl[k][2], bl[k2][2]))
+    for nm, _ in HOSTS:
         with open(OUT % nm, "w", encoding="latin-1") as f:
-            f.write("\n".join(c))
+            f.write("\n".join(copies[nm]))
     nstubs = glue(copies, errors, lines, bl, teff, copy_of, falls, ["run", "aligned"])
     for a in ("config", "run", "cold", "aligned"):
         with open(OUT % a, "w", encoding="latin-1") as f:
@@ -1145,6 +1217,8 @@ def tube_main(lines, bl, eff, macros, errors):
         frame_passes(fp, errors)
     for e in errors:
         print("streams:", e)
+    for ref, a_, k_, k2_ in TUBEBACK:
+        print("streams (tube): %s, in %s: %s ends where %s starts" % (ref, a_, k_, k2_))
     print("streams (tube): %d blocks, %d resident, %d in overlay D, %d the hosts'; stubs %d into "
           "overlay D; data %s%s"
           % (len(bl), sum(1 for k in range(len(bl)) if teff[k] == "run" and ASM[k] and par(k)),
@@ -1154,6 +1228,49 @@ def tube_main(lines, bl, eff, macros, errors):
              nstubs[0], ", ".join("%s %d" % kv for kv in dn.items()),
              ", %d error(s)" % len(errors) if errors else ""))
     sys.exit(1 if errors else 0)
+
+
+def reaches_back(lines, bl, eff, macros):
+    """the references to the bytes before a block's entry (a branch, JMP or JSR
+    to X - n, X a label at its block's start, before anything there
+    assembles: the original's BMI WPLS-1 takes the RTS that ends WP1), as
+    (k, k2, line, "X-n"): block k2 starts with X, and k is the block before
+    it that assembles, whose last bytes the reference reaches"""
+    starts = {}                            # label -> block, for labels at a block's start
+    for k, (s, e, name, area) in enumerate(bl):
+        if eff[k] == "config" or not ASM[k]:
+            continue
+        done = False
+        for i in range(s, e):
+            if not ACTIVE[i] or done:
+                continue
+            for st in (x.strip() for x in code_part(lines[i]).split(" : ")):
+                m = re.match(r"^\.([A-Za-z_][A-Za-z0-9_]*%?)\s*(.*)$", st)
+                if m:
+                    starts[m.group(1)] = k
+                    st = m.group(2).strip()
+                    if not st:
+                        continue
+                if assembles(st, macros):
+                    done = True
+                    break
+    out = []
+    for k3, (s, e, name, area) in enumerate(bl):
+        if eff[k3] == "config" or not ASM[k3]:
+            continue
+        for i in range(s, e):
+            if not ACTIVE[i]:
+                continue
+            code = split_code(lines[i])[0]
+            for m in re.finditer(r"(?<![\w%])([A-Za-z_]\w*)\s*-\s*(\d+)\b", code):
+                k2 = starts.get(m.group(1))
+                if k2 is None or not re.search(r"\b(?:B(?:CC|CS|EQ|MI|NE|PL|VC|VS|RA)|JMP|JSR)\s+$", code[:m.start()], re.I):
+                    continue
+                k = next((j for j in range(k2 - 1, -1, -1) if ASM[j]), None)
+                if k is None or eff[k] == "config":
+                    continue
+                out.append((k, k2, i, "%s-%s" % (m.group(1), m.group(2))))
+    return out
 
 
 def main():
@@ -1217,6 +1334,7 @@ def main():
     # statement is its entry label, as that label's stub is then the next
     # thing in the falling block's pass
     falls = []
+    hotfalls = []                          # (k, k2): hot block k falls into hot block k2
     for k, (s, e, name, area) in enumerate(bl):
         if eff[k] == "config" or not ASM[k]:
             continue
@@ -1233,6 +1351,7 @@ def main():
             elif pas(eff[k2]) == pas(eff[k]):
                 if pas(eff[k]) == "hot":
                     join(pos[k], pos[k2])
+                    hotfalls.append((k, k2))
             elif side(eff[k2]) != side(eff[k]):
                 entry = entry_label(lines, s2, e2, macros)
                 if entry:
@@ -1244,6 +1363,22 @@ def main():
                 errors.append("%s:%d: %s (%s) can fall through its end (%s) into %s (%s), another pass"
                               % (SRC, e, name, eff[k], st, name2, eff[k2]))
             break
+    # a reference to the bytes before a block's entry (X - n, where X is a
+    # label at the block's start: the original's BMI WPLS-1, which takes the
+    # RTS that ends WP1, its block before) needs that block's last bytes to be
+    # the ones before X: the block before it that assembles must be in its
+    # pass, in the hot pass in its unit, and its copy is checked to end where
+    # X starts (as a fall's)
+    behind = []                            # (k, k2): X - n in a block reaches back from block k2 into block k
+    for k, k2, i, ref in reaches_back(lines, bl, eff, macros):
+        if pas(eff[k]) != pas(eff[k2]):
+            errors.append("%s:%d: %s reaches back into %s (%s), which is not in %s's pass (%s)"
+                          % (SRC, i + 1, ref, bl[k][2], eff[k], bl[k2][2], eff[k2]))
+            continue
+        if pas(eff[k]) == "hot":
+            join(pos[k], pos[k2])
+        if (k, k2) not in behind:
+            behind.append((k, k2))
     # branches: a hot block that branches into another keeps the blocks from
     # the one to the other in one unit (a branch reaches only 128 bytes)
     blockof = {}
@@ -1316,7 +1451,7 @@ def main():
         conts = [["hot1", sy["LOW_END%"], 0x4000, []], ["hot2", sy["QS_RUN%"], 0x8000, []],
                  ["hot3", 0x8000, 0xC000 - b4 - (sy["R4_END%"] - sy["R4_START%"]), []]]
         # (bank 4 ends with the hot data HAZEL has no room for, b4, then the
-        # renderer's game-context routines, S_SUN and L_SUN: elite-layout.asm)
+        # renderer's game-context routine, L_SUN: elite-layout.asm)
         used = {c[0]: 0 for c in conts}
         cur = 0
         for u0, u1 in units:
@@ -1360,6 +1495,36 @@ def main():
     if phase == "measure":
         for k in hot:
             copies["measure"][bl[k][0]] = ".FLOW_%d" % k
+    else:
+        # each hot block that falls through its end must end where the block it
+        # falls into starts: an ASSERT on a blank line after its last code line
+        # (in its copy), so that a flow that parted them fails the build
+        for k, k2 in hotfalls:
+            entry = entry_label(lines, bl[k2][0], bl[k2][1], macros)
+            if not entry:
+                continue
+            s, e = bl[k][0], bl[k][1]
+            last = max([i for i in range(s, e) if code_part(lines[i])], default=None)
+            spot = [i for i in range(last + 1, e) if not lines[i].strip()] if last is not None else []
+            if not spot:
+                errors.append("%s:%d: %s falls into %s: no blank line after its code for the check"
+                              % (SRC, e, bl[k][2], entry))
+                continue
+            copies[copy_of[k]][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block before falls through into it)"
+        # and each block whose last bytes a reference before another's entry
+        # reaches (X - n) must end where that block starts, in every copy
+        for k, k2 in behind:
+            if (k, k2) in hotfalls:
+                continue                   # (checked as a fall)
+            entry = entry_label(lines, bl[k2][0], bl[k2][1], macros)
+            s, e = bl[k][0], bl[k][1]
+            last = max([i for i in range(s, e) if code_part(lines[i])], default=None)
+            spot = [i for i in range(last + 1, e) if not lines[i].strip()] if last is not None else []
+            if not entry or not spot or copy_of[k] != copy_of[k2]:
+                errors.append("%s:%d: %s's last bytes are reached from %s, before its entry: %s"
+                              % (SRC, e, bl[k][2], bl[k2][2], "not in one copy" if entry and spot else "no place for the check"))
+                continue
+            copies[copy_of[k]][spot[0]] = " ASSERT P% = " + entry + "   \\ (streams.py: the block after reaches back into this one)"
     nstubs = glue(copies, errors, lines, bl, eff, copy_of, falls,
                   ["low"] + (["measure"] if phase == "measure" else ["hot1", "hot2", "hot3"]))
     with open(DIRECT, "w") as f:           # (for bankcheck.py: what the cold pass calls directly)

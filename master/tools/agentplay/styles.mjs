@@ -4,8 +4,8 @@
 // elite-agent's own modes (environment for agentd), and the chaos overlay: extra keys
 // and pokes, chosen from the reference's state with a seeded random number generator,
 // that drive the game into what the agent rarely does on its own (escape pod, energy
-// bomb, E.C.M., galactic hyperdrive, the views, deaths). Everything the overlay does goes
-// through the same input log, so a session replays exactly.
+// bomb, E.C.M., galactic hyperdrive, the views, deaths, the sun up close, cargo scooped).
+// Everything the overlay does goes through the same input log, so a session replays exactly.
 
 // A commander patch: { symbol: bytes } written into the live commander and into NA% (the
 // last-saved copy; NA%+8 lines up with TP, as elite-agent's save check assumes)
@@ -45,13 +45,16 @@ export const COMMANDERS = {
     debrief1: { what: "the Constrictor destroyed, not yet debriefed (TP = 3): debriefing at the first dock", patch: patcher({ ...ALL, LASER: [0x97, 0, 0, 0], CASH: cash(5000), TALLY: [1000 & 255, 1000 >> 8], TP: [3] }) },
     // galaxy 3 at Ceerdi (215, 84) with mission 1 done and tally 1400: the Thargoid plans
     // briefing at the first dock, then Ceerdi (BRIEF3) and Birera (DEBRIEF2)
-    // at Diso (19, 151), all fitted, a beam laser, a full tank, with (14, 137), a system with a moon 3.4 light
-    // years away, selected: the moon movie's start (moonmovie.mjs)
-    diso: { what: "at Diso, all fitted, beam laser, 20000 Cr, a full tank, (14, 137) (a moon) selected", patch: patcher({ ...ALL, QQ0: [19], QQ1: [151], QQ9: [14], QQ10: [137], LASER: [0x8f, 0, 0, 0], CASH: cash(20000), TALLY: [800 & 255, 800 >> 8] }) },
+    // at Diso (19, 151), all fitted, a beam laser, a full tank, with Quator (14, 137), 3.4 light years
+    // away, selected
+    diso: { what: "at Diso, all fitted, beam laser, 20000 Cr, a full tank, (14, 137) selected", patch: patcher({ ...ALL, QQ0: [19], QQ1: [151], QQ9: [14], QQ10: [137], LASER: [0x8f, 0, 0, 0], CASH: cash(20000), TALLY: [800 & 255, 800 >> 8] }) },
     galaxy3: { what: "galaxy 3 at Ceerdi, mission 1 done, tally 1400, all fitted: the Thargoid plans mission", patch: patcher({ ...ALL, ...galaxy(2), QQ0: [215], QQ1: [84], LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [1400 & 255, 1400 >> 8], TP: [2] }) },
     // galaxy 3 at Birera (63, 72) with the Thargoid plans aboard (TP = %1010): the agent
     // takes them to Birera, where docking debriefs mission 2
     debrief2: { what: "galaxy 3 at Birera with the Thargoid plans (TP = 10): mission 2's debriefing at Birera", patch: patcher({ ...ALL, ...galaxy(2), QQ0: [63], QQ1: [72], LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [1500 & 255, 1500 >> 8], TP: [10] }) },
+    // galaxy 2 at Orarra (144, 33) with the Constrictor mission under way (TP = 1): the
+    // Constrictor is there at the launch (THERE), and its kill, then the debriefing
+    orarra: { what: "galaxy 2 at Orarra with mission 1 under way (TP = 1), all fitted, military laser: the Constrictor", patch: patcher({ ...ALL, ...galaxy(1), QQ0: [144], QQ1: [33], LASER: [0x97, 0x8f, 0, 0], CASH: cash(20000), TALLY: [3000 & 255, 3000 >> 8], TP: [1] }) },
     wanted: { what: "a fugitive (legal status 80), 2000 Cr, ECM and pod", patch: patcher({ FIST: [80], CASH: cash(2000), ECM: [0xff], ESCP: [0xff] }) },
 };
 
@@ -64,8 +67,6 @@ export const MODES = {
     nosave: { SAVE: "0" },
     nomission: { NOMISSION: "1" },
     load: { LOAD: "CLAUDE" },           // load commander CLAUDE from the disc when first docked (a disc from --savediscs)
-    moon: { MOON: "1" },                // the moons are solid (the port's elite-moon.asm): steer clear of them (an agentd
-                                        // built from elite-agent's moon-avoid branch: build.sh ELITE_AGENT=...)
 };
 
 // ---- the chaos overlay
@@ -87,8 +88,9 @@ const ACTIONS = {
     charts:  { every: 3000, when: flying, keys: () => [[[K.F4, K.F5][Math.floor(rng() * 2)], 3], [null, 100], [K.F0, 3]] },
     spin:    { every: 2500, when: flying, keys: () => [[[[0x66, K.X], [0x67, K.S], [0x66, K.S]][Math.floor(rng() * 3)], 40]] },
 };
-// pokes (both machines, at an iteration boundary): drained shields and energy (a fight
-// then kills us), cabin heat near the limit
+// pokes (both machines, at an iteration boundary, three iterations after the reference's
+// state chose them): drained shields and energy (a fight then kills us), cabin heat near
+// the limit, an empty tank
 const POKES = {
     hurt: { every: 15000, when: flying, poke: () => [["FSH", 0, [0]], ["ASH", 0, [0]], ["ENERGY", 0, [12]]] },
     heat: { every: 20000, when: flying, poke: () => [["CABTMP", 0, [230]]] },
@@ -100,7 +102,31 @@ const POKES = {
     sun: { every: 20000, when: (r, sy) => flying(r, sy) && !r[sy.SSPR] && !r[sy.MJ] && r[sy.FRIN + 1],
         poke: () => { const c = () => [Math.floor(rng() * 256), Math.floor(rng() * 21), rng() < 0.5 ? 0 : 0x80];
             return [["K%", 37, [...c(), ...c(), Math.floor(rng() * 256), 90 + Math.floor(rng() * 41), 0]]]; } },
+    // the parked sun (SUNPK, while the station holds its slot: SUNUP) brought close
+    // ahead likewise, where it is drawn big over the safe zone (MA23's heat and
+    // scooping read only slot 1's sun, with the station gone)
+    sunpark: { every: 20000, when: (r, sy) => flying(r, sy) && r[sy.SSPR] && !r[sy.MJ] && sy.SUNPF !== undefined && r[sy.SUNPF] & 0x80,
+        poke: () => { const c = () => [Math.floor(rng() * 256), Math.floor(rng() * 21), rng() < 0.5 ? 0 : 0x80];
+            return [["SUNPK", 0, [...c(), ...c(), Math.floor(rng() * 256), 90 + Math.floor(rng() * 41), 0]]]; } },
+    // a galactic hyperdrive again, so that a session can cross several galaxies (ghyp uses
+    // it up, and a fresh commander can't reach the far galaxies in a session's time)
+    ghypfill: { every: 12000, when: (r, sy) => flying(r, sy) && !r[sy.GHYP], poke: () => [["GHYP", 0, [0xff]]] },
+    // something scoopable in the bubble put just ahead and below, slow: scooped (with the
+    // scoops) when it passes MA's scoop test (x_lo, y_lo and z_lo all under 64, y negative)
+    scoop:   { every: 2500, when: (r, sy) => flying(r, sy) && r[sy.BST] && scoopable(r, sy) >= 0,
+        poke: (r, sy) => [["K%", 37 * scoopable(r, sy), [0, 0, 0, 0x30, 0, 0x80, 0x80, 0, 0]], ["K%", 37 * scoopable(r, sy) + 27, [1]]] },
+    // the same, inside the scoop test at once: from further off, an object often passes the
+    // test between two iterations and is not scooped
+    scoopnow: { every: 2500, when: (r, sy) => flying(r, sy) && r[sy.BST] && scoopable(r, sy) >= 0,
+        poke: (r, sy) => [["K%", 37 * scoopable(r, sy), [0, 0, 0, 0x10, 0, 0x80, 0x20, 0, 0]], ["K%", 37 * scoopable(r, sy) + 27, [1]]] },
+    // the same with the hold emptied first (QQ20, 17 items): the agent trades with a full
+    // hold, and an object scooped into a full hold is destroyed (MA59), not scooped
+    scoophold: { every: 2500, when: (r, sy) => flying(r, sy) && r[sy.BST] && scoopable(r, sy) >= 0,
+        poke: (r, sy) => [["QQ20", 0, new Array(17).fill(0)], ["K%", 37 * scoopable(r, sy), [0, 0, 0, 0x10, 0, 0x80, 0x20, 0, 0]], ["K%", 37 * scoopable(r, sy) + 27, [1]]] },
 };
+// (the pokes in "all": those from before the sun, galactic hyperdrive and scoop pokes,
+// which come only by name, so that "all" picks as it did)
+const POKES_ALL = ["hurt", "heat", "fuel"];
 // the disc menu, while docked on the Status screen (up to three such actions a dock, and the
 // agent's keys are held back while it runs): catalogues, deletes, loads of a missing
 // file, invalid and empty drives, saves under other names (until the catalogue is full),
@@ -159,19 +185,27 @@ const DOCKED = {
 for (const [nm, f] of Object.entries(DOCKED)) ACTIONS[nm] = { every: 150, disc: true, exclusive: true, when: atStatus, keys: f };
 
 function flying(r, sy) { return !r[sy.QQ12] && !r[sy.QQ11] && r[sy.MCNT] !== 0xff; }
+// (something in the bubble that MA scoops: a cargo canister, or one whose blueprint names a
+// market item, an escape pod, an alloy plate, a splinter or a Thargon; not exploding or
+// killed, INWK+31 bits 5 and 7: the agent shoots canisters, and one exploding is not
+// scooped. Canisters alone are too rare: one in the Model B's whole soak)
+const SCOOPABLE = [3, 4, 5, 8, 30];
+function scoopable(r, sy) { for (let i = 2; i < 12; i++) if (SCOOPABLE.includes(r[sy.FRIN + i]) && !(r[sy["K%"] + 37 * i + 31] & 0xa0)) return i; return -1; }
 
 let rng = Math.random;
 function mulberry(a) { return () => { a |= 0; a = a + 0x6d2b79f5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 // spec: "all" or a comma list of action and poke names, with an optional *factor on the
-// rate ("ecm,bomb*2")
+// rate ("ecm,bomb*2"); "disc" and "docked" are the disc menu's and the docked screens' sets
 export function makeChaos(spec, seed) {
     const r = mulberry(seed * 7919 + 17);
-    // ("all" is the overlay as it was before the sun poke: that one only by name)
-    const POKES_ALL = Object.keys(POKES).filter(n => n !== "sun");
     const names = spec === "all" ? [...Object.keys(ACTIONS).filter(n => !ACTIONS[n].disc), ...POKES_ALL]
-        : spec.split(",").flatMap(n => n === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1" && k !== "dnameesc") : n === "docked" ? Object.keys(DOCKED)
-            : n === "all" ? [...Object.keys(ACTIONS).filter(k => !ACTIONS[k].disc), ...POKES_ALL] : [n]);
+        : spec.split(",").flatMap(n => {
+            // (a set's name takes a factor too: "disc*2" is each of its actions at twice the rate)
+            const [set, f] = n.split("*"), x = f ? "*" + f : "";
+            return set === "disc" ? Object.keys(DISC).filter(k => k !== "dcat1" && k !== "dnameesc").map(k => k + x) : set === "docked" ? Object.keys(DOCKED).map(k => k + x)
+                : set === "all" ? [...Object.keys(ACTIONS).filter(k => !ACTIONS[k].disc), ...POKES_ALL].map(k => k + x) : [n];
+        });
     const acts = names.map(n => { const [nm, f] = n.split("*"); const a = ACTIONS[nm] || POKES[nm]; if (!a) throw new Error(`unknown chaos ${nm}`); return { nm, a, rate: (+f || 1) / a.every }; });
     let seq = null, seqLeft = 0, cur = [], step = null, excl = false, discDone = 0;
     const done = {};
@@ -208,12 +242,12 @@ export function makeChaos(spec, seed) {
                 S.logInput({ chaos: nm, frame: S.frame, i: S.ref.iter });
                 if (a.poke) {
                     const at = S.ref.iter + 3;
-                    const pk = a.poke();
+                    const pk = a.poke(ram, sy);
                     for (const m of [S.ref, S.cand]) { (m.pokes ||= new Map()).set(at, pk); }
                     S.logInput({ poke: at, v: pk });
                     return;
                 }
-                seq = (typeof a.keys === "function" ? a.keys() : a.keys).map(x => Array.isArray(x) ? [...x] : { ...x });
+                seq = (typeof a.keys === "function" ? a.keys(ram, sy) : a.keys).map(x => Array.isArray(x) ? [...x] : { ...x });
                 next(ram, sy);
                 return;
             }

@@ -817,7 +817,6 @@ IF _TPART <> 2             \ (the Tube's hosts: the disc layer is the parasite's
 .r_ymaxH EQUB 0
 .r_top EQUB 0
 .r_bon EQUB 0           \ R_DISCROWS: this frame uses boundaries
-.r_cc EQUB 0
 .r_cidx EQUB 0, 0
 .r_ccnt EQUB 0, 0
 .r_cend EQUB 0, 0

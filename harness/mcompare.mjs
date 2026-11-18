@@ -5,11 +5,19 @@
 //
 // node harness/mcompare.mjs [--iters 5000] [--ref disc] [--rsyms file]
 //                           [--cand disc] [--csyms file] [--seed boot|rand|none]
-//                           [--loose] [--window 200] [--out dir] [--shots N]
+//                           [--loose] [--deadregs] [--window 200] [--out dir] [--shots N]
 //                           [--maxsecs S] [--nopatch] [--norefcache] [--views] [--crater]
+//                           [--refpatch file|none] [--candpatch file]
 //                           [--trace FROM,TO,LABEL+LABEL,VAR+VAR~OFFSET]
 //   --crater: the commander patch also sets the tech level's bit 1, so the first
 //   system's planet is a crater planet (TYPE 130), in both runs
+//
+//   --refpatch: the patch to the reference (mlib.loadRefPatch: assembled code
+//   written at TT170, after its sites are checked), by default the candidate
+//   build's own, sunref.json beside its symbols (master/tools/sunref), if it
+//   has one; none: no patch. --candpatch: a patch to the candidate too (the
+//   proof that a patch does nothing where it should do nothing: the original
+//   against the original with the patch's passive variant)
 //
 // Defaults: reference = master/reference/elite-master-sng47.ssd (the released
 // SNG47 disc) with master/reference/symbols.txt (the symbols of the pristine
@@ -28,6 +36,9 @@
 // data (mlib.RELOC_EXCLUDE). --loose also excludes drawing temporaries and line heaps
 // (mlib.DRAW_EXCLUDE), for candidates whose drawing differs. The first
 // divergence is reported with symbol names, then per-address counts.
+// --deadregs: in the candidate, the registers and flags its port claims dead at
+// the return from the routines in mlib.DEAD_AFTER are scrambled there, so a
+// read of any of them diverges.
 //
 // --seed boot (the default): at TT170, every byte of the compared state that the
 // candidate has not written since its entry point S% (by its own code or by
@@ -45,14 +56,15 @@
 // Exit status 0 if the game state is identical at every compared iteration
 // (and both runs completed); prints "MCOMPARE PASS <ref it/s> <cand it/s>" or
 // "MCOMPARE FAIL <reason>".
-import { runElite, loadSyms, regionsFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, ROOT } from "./mlib.mjs";
+import { runElite, loadSyms, loadRefPatch, refPatchPath, regionsFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, ROOT } from "./mlib.mjs";
 import { makePilot, patchCommander } from "./mpilot.mjs";
 import { writeFileSync, mkdirSync } from "fs";
 import { makeTracer } from "./mtrace.mjs";
 import { parseArgs } from "./args.mjs";
 
-const args = parseArgs({ iters: "value", ref: "value", rsyms: "value", cand: "value", csyms: "value", seed: "value", loose: "flag", window: "value",
-    out: "value", shots: "value", maxsecs: "value", nopatch: "flag", norefcache: "flag", views: "flag", trace: "value", crater: "flag", tube: "value" });
+const args = parseArgs({ iters: "value", ref: "value", rsyms: "value", cand: "value", csyms: "value", seed: "value", loose: "flag", deadregs: "flag", window: "value",
+    out: "value", shots: "value", maxsecs: "value", nopatch: "flag", norefcache: "flag", views: "flag", trace: "value", crater: "flag", tube: "value",
+    refpatch: "value", candpatch: "value", pose: "value", norandat: "flag", nokeeprand: "flag", nosites: "value" });
 for (const [d, s] of [["ref", "rsyms"], ["cand", "csyms"]])       // (a disc with another build's symbols hooks the wrong addresses)
     if (!args[d] !== !args[s]) { console.error(`--${d} and --${s} go together`); process.exit(2); }
 const ITERS = +(args.iters || 5000);
@@ -67,8 +79,31 @@ const SHOTS = +(args.shots || 0);
 mkdirSync(OUT, { recursive: true });
 
 const rsy = loadSyms(RSYMS), csy = loadSyms(CSYMS);
+const RPATCH = loadRefPatch(args.refpatch === "none" ? null : args.refpatch || refPatchPath(CSYMS));
+const CPATCH = loadRefPatch(args.candpatch || null);
+// controls for the proofs (msunref): the patches without a part, to show that the part
+// is needed: --norandat (no RAND advance at the edge's site), --nokeeprand (the clouds'
+// seed not kept), --nosites RE (the sites whose names match RE left out)
+for (const p of [RPATCH, CPATCH]) if (p) {
+    if (args.norandat) delete p.randAt;
+    if (args.nokeeprand) delete p.keepRand;
+    if (args.nosites) p.sites = p.sites.filter(st => !new RegExp(args.nosites).test(st.name));
+}
+// --pose sunahead: in both machines alike (at each MLOOP, from its own state, so
+// identical states get identical pokes), for the first 300 of every 600 iterations,
+// whenever slot 1 holds the sun in flight in the front view, the sun is put 0x30000
+// ahead (radius 32), a little up and to the right, so SUN draws its rows (and, in
+// SNG47, takes a random number per row: the sun's edge)
+const POSE = args.pose === "sunahead" ? (i, ram, sy) => {
+    if (i % 600 >= 300 || ram[sy.FRIN + 1] !== 129 || ram[sy.QQ11] || ram[sy.QQ12] || ram[sy.VIEW]) return;
+    const b = sy["K%"] + 37, put = (o, v) => { const m = Math.abs(v); ram[b + o] = m & 255; ram[b + o + 1] = (m >> 8) & 255; ram[b + o + 2] = ((m >> 16) & 127) | (v < 0 ? 128 : 0); };
+    put(0, 0x1800); put(3, 0x1000); put(6, 0x30000);
+} : null;
+if (args.pose && !POSE) { console.error(`unknown --pose ${args.pose}`); process.exit(2); }
+if (RPATCH) console.log(`reference patch: ${RPATCH.path} (${RPATCH.sites.length} sites, ${RPATCH.code.reduce((n, [, b]) => n + b.length, 0)} bytes of code)`);
+if (CPATCH) console.log(`candidate patch: ${CPATCH.path} (${CPATCH.sites.length} sites, ${CPATCH.code.reduce((n, [, b]) => n + b.length, 0)} bytes of code)`);
 
-async function run(label, disc, sy, seed, seedBoot) {
+async function run(label, disc, sy, seed, seedBoot, refPatch) {
     const pilot = makePilot({ views: !!args.views });   // --views: the pilot changes view in flight
     const phases = [];
     // --trace FROM,TO,LABEL+LABEL,EXTRA+EXTRA (mtrace.mjs): <out>/trace-<label>.txt
@@ -76,19 +111,21 @@ async function run(label, disc, sy, seed, seedBoot) {
     const tracer = args.trace ? makeTracer(args.trace, sy, traceOut) : null;
     const t0 = Date.now();
     const r = await runElite({
-        disc, syms: sy, pilot, iters: ITERS, maxSecs: +(args.maxsecs || 4 * ITERS), tube: label === "cand" ? args.tube : undefined,
+        disc, syms: sy, pilot, refPatch, deadRegs: !!args.deadregs && label === "cand", iters: ITERS, maxSecs: +(args.maxsecs || 4 * ITERS), tube: label === "cand" ? args.tube : undefined,
         patch: args.nopatch ? null : args.crater ? (o => { patchCommander(o); o.wr(o.sy.tek, [o.rb(o.sy.tek) | 2]); }) : patchCommander, seed, seedBoot,
-        onIter: (i, s, res) => { phases.push(pilot.P.phase); if (tracer) tracer(i, s, res); },
+        onIter: (i, s, res) => { phases.push(pilot.P.phase); if (tracer) tracer(i, s, res); if (POSE) POSE(i, (res.tube ? res.cpu : s._machine.processor).ramRomOs, sy); },   // (the Tube: the parasite's memory
         shots: SHOTS, onShot: async (s, i) => writeFileSync(`${OUT}/${label}-${String(i).padStart(6, "0")}.png`, await s.screenshotActive({ scale: 1 })),
     });
+    if (r.siteN) console.log(`${label}: patch sites run: ${Object.entries(r.siteN).map(([n, c]) => n + " " + c).join(", ") || "none"}`);
+    if (Object.keys(r.deadN || {}).length) console.log(`${label}: registers scrambled after ${Object.entries(r.deadN).map(([n, c]) => n + " " + c).join(", ")}`);
     r.phases = phases; r.stats = pilot.P.stats; r.wall = (Date.now() - t0) / 1000;
     if (tracer) writeFileSync(`${OUT}/trace-${label}.txt`, traceOut.join("\n") + "\n");
     console.log(`${label}: ${r.iters} iterations (${r.tt100} in flight), emulated ${r.emuSecs.toFixed(1)} s, wall ${r.wall.toFixed(1)} s${r.error ? ", STOPPED: " + r.error : ""}`);
     return r;
 }
 
-// The reference run depends only on the reference disc and symbols, the
-// harness (mlib, mpilot) and the options that shape the run, so it is cached
+// The reference run depends only on the reference disc and symbols, its patch,
+// the harness (mlib, mpilot) and the options that shape the run, so it is cached
 // (scratch/master/refcache, keyed by a hash of all of those; --norefcache to
 // rerun it).
 async function cachedRef() {
@@ -97,7 +134,9 @@ async function cachedRef() {
     const { gzipSync, gunzipSync } = await import("zlib");
     const h = createHash("sha1");
     for (const f of [REF, RSYMS, `${ROOT}harness/mlib.mjs`, `${ROOT}harness/mpilot.mjs`]) h.update(readFileSync(f));
-    h.update(JSON.stringify([ITERS, args.maxsecs || 0, !!args.nopatch, !!args.views].concat(args.crater ? ['crater'] : [])));
+    h.update(RPATCH ? readFileSync(RPATCH.path) : "no patch");
+    h.update(JSON.stringify([ITERS, args.maxsecs || 0, !!args.nopatch, !!args.views].concat(args.crater ? ['crater'] : [])
+        .concat(args.pose || args.norandat || args.nokeeprand || args.nosites ? [args.pose || "", !!args.norandat, !!args.nokeeprand, args.nosites || ""] : [])));
     const dir = `${ROOT}scratch/master/refcache`, file = `${dir}/${h.digest("hex")}.json.gz`;
     if (!args.norefcache && !args.trace && existsSync(file)) {
         const o = JSON.parse(gunzipSync(readFileSync(file)).toString());
@@ -105,13 +144,14 @@ async function cachedRef() {
         o.init = Uint8Array.from(Buffer.from(o.init, "base64"));
         o.stats.systems = new Set(o.stats.systems);
         console.log(`ref: ${o.iters} iterations (${o.tt100} in flight), emulated ${o.emuSecs.toFixed(1)} s (cached)`);
+        if (o.siteN) console.log(`ref: patch sites run: ${Object.entries(o.siteN).map(([n, c]) => n + " " + c).join(", ") || "none"}`);
         return o;
     }
-    const r = await run("ref", REF, rsy, null);
+    const r = await run("ref", REF, rsy, null, null, RPATCH);
     const o = { snaps: r.snaps.map(b => Buffer.from(b).toString("base64")), init: Buffer.from(r.init).toString("base64"),
         initRand: [...r.initRand], iterTimes: r.iterTimes, tt100Times: r.tt100Times, regions: r.regions, keyLog: r.keyLog,
         iters: r.iters, tt100: r.tt100, emuSecs: r.emuSecs, error: r.error, phases: r.phases,
-        stats: { ...r.stats, systems: [...r.stats.systems] } };
+        stats: { ...r.stats, systems: [...r.stats.systems] }, siteN: r.siteN };
     mkdirSync(dir, { recursive: true });
     // (written whole, then renamed into place: a gate running at the same time in this
     // worktree never reads a part-written file)
@@ -134,7 +174,7 @@ const seedBoot = SEED !== "boot" ? null : (cregions, written, rb) => {
     }
     return out;
 };
-const cand = await run("cand", CAND, csy, seeds, seedBoot);
+const cand = await run("cand", CAND, csy, seeds, seedBoot, CPATCH);
 // the boot leftovers seeded into the candidate (for mprof.mjs --seedfile)
 if (cand.seeded) writeFileSync(`${OUT}/seeded.json`, JSON.stringify(cand.seeded));
 
@@ -152,8 +192,21 @@ log(`Pilot (ref):  ${statLine(ref.stats)}`);
 log(`Pilot (cand): ${statLine(cand.stats)}`);
 
 // ---- Compare
-const rreg = ref.regions, creg = cand.regions;
+let rreg = ref.regions, creg = cand.regions;
 let ok = true;
+// a region that only one run has, from its patch (the original against the
+// original with a patch's passive variant): the others are compared, and it
+// must keep its value from TT170 on (the patch did nothing)
+if (rreg.length !== creg.length) {
+    const n = Math.min(rreg.length, creg.length), [who, run, regs] = rreg.length > n ? ["ref", ref, rreg] : ["cand", cand, creg];
+    const base = regs.slice(0, n).reduce((t, r) => t + r[1], 0);
+    for (const [a, len, name] of regs.slice(n)) {
+        const moved = run.snaps.findIndex(sn => sn.some((v, i) => i >= base && i < base + len && v !== run.init[i]));
+        log(`region ${name} (&${a.toString(16)}, ${len} bytes, ${who} only): ${moved < 0 ? "unchanged at every iteration" : "CHANGED at iteration " + moved}`);
+        if (moved >= 0) ok = false;
+    }
+    rreg = rreg.slice(0, n); creg = creg.slice(0, n);
+}
 for (let k = 0; k < rreg.length; k++) if (rreg[k][1] !== creg[k][1] || rreg[k][2] !== creg[k][2]) { log(`region ${rreg[k][2]} differs in size: ref ${rreg[k][1]}, cand ${creg[k][1]}`); ok = false; }
 const ex = excludeSet(rsy, args.loose ? [TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE] : [TIMING_EXCLUDE, RELOC_EXCLUDE]);
 // offset -> ref address
@@ -171,7 +224,7 @@ const perAddr = {};
 if (ok) {
     const ri = ref.init, ci = cand.init;
     const d0 = [];
-    for (let o = 0; o < ri.length; o++) if (ri[o] !== ci[o] && !ex.has(offAddr[o])) d0.push(symName(offAddr[o]));
+    for (let o = 0; o < offAddr.length; o++) if (ri[o] !== ci[o] && !ex.has(offAddr[o])) d0.push(symName(offAddr[o]));
     if (cand.seeded) log(`Seeded at TT170 (boot leftovers): ${cand.seeded.length} bytes${cand.seeded.length ? ": " + cand.seeded.slice(0, 40).map(([a]) => symName(a)).join(" ") : ""}`);
     log(`State at TT170 (after seeding): ${d0.length} differing bytes${d0.length ? ": " + d0.slice(0, 40).join(" ") : ""}`);
     // --loose: the ship line heap grows down from &0800 and can reach into
@@ -184,7 +237,7 @@ if (ok) {
     };
     for (let i = 0; i < n; i++) {
         const a = ref.snaps[i], b = cand.snaps[i];
-        for (let o = 0; o < a.length; o++) if (a[o] !== b[o]) {
+        for (let o = 0; o < offAddr.length; o++) if (a[o] !== b[o]) {
             const ad = offAddr[o];
             perAddr[ad] = (perAddr[ad] || 0) + 1;
             if (firstAny < 0) firstAny = i;
@@ -194,12 +247,34 @@ if (ok) {
             printed = true;
             log(`FIRST DIVERGENCE of game state at iteration ${i} (phase ${ref.phases[i]}, ref t=${ref.iterTimes[i].toFixed(2)} s, cand t=${cand.iterTimes[i].toFixed(2)} s):`);
             let shown = 0;
-            for (let o = 0; o < a.length && shown < 100; o++) if (a[o] !== b[o] && !ex.has(offAddr[o]) && !emptySlot(a, o)) { log(`  ${symName(offAddr[o])} (&${offAddr[o].toString(16)}): ref &${a[o].toString(16)} cand &${b[o].toString(16)}`); shown++; }
+            for (let o = 0; o < offAddr.length && shown < 100; o++) if (a[o] !== b[o] && !ex.has(offAddr[o]) && !emptySlot(a, o)) { log(`  ${symName(offAddr[o])} (&${offAddr[o].toString(16)}): ref &${a[o].toString(16)} cand &${b[o].toString(16)}`); shown++; }
             const kr = ref.keyLog.filter(k => k[0] >= i - 3 && k[0] <= i), kc = cand.keyLog.filter(k => k[0] >= i - 3 && k[0] <= i);
             log(`  keys (ref) ${JSON.stringify(kr)}`);
             log(`  keys (cand) ${JSON.stringify(kc)}`);
         }
     }
+}
+// the sun's parking (SUNPK, SUNPF: master/src/elite-source.asm's SUNSC), in
+// each run with the parked sun's region: at every MLOOP in flight in a system
+// with a planet, with the station present (SSPR), bit 7 of SUNPF is set (the
+// sun is parked) and bit 6 clear (SUNSC's two visits in each pass through the
+// slots); SUNPF is read only then (its bits are the boot's until the first
+// launch, and stay as they were after RES2)
+for (const [who, run, sy, patch] of [["ref", ref, rsy, RPATCH], ["cand", cand, csy, CPATCH]]) {
+    if (patch && /passive/.test(patch.name)) continue;      // (the passive variant never parks the sun)
+    let o = 0; const off = {};
+    for (const [ra, len, name] of run.regions) { if (name === "SUNPK") off.pf = o + len - 1; o += len; }
+    if (off.pf === undefined) continue;
+    const at = x => { let q = 0; for (const [ra, len] of run.regions) { if (x >= ra && x < ra + len) return q + x - ra; q += len; } return -1; };
+    const [oS, oD, oM, oF] = [sy.SSPR, sy.QQ12, sy.MJ, sy.FRIN].map(at);
+    let bad = 0, parked = 0;
+    run.snaps.forEach((sn, i) => {
+        const fly = !sn[oD] && !sn[oM] && (sn[oF] & 0x80);
+        if (fly && sn[oS] && (sn[off.pf] & 0xc0) !== 0x80) { if (!bad++) log(`SUN PARKING CHECK FAILED (${who}) at iteration ${i}: SUNPF &${sn[off.pf].toString(16)}, SSPR ${sn[oS]}`); }
+        if (fly && sn[oS]) parked++;
+    });
+    log(`The sun's parking (${who}): ${parked} iterations with the station present and the sun parked${bad ? `, ${bad} FAILED` : ""}`);
+    if (bad) ok = false;
 }
 if (cand.page0d && cand.page0d.length) {
     log(`PAGE &0D WRITTEN by the game (off limits, docs/MASTER-MEMORY.md): ${cand.page0d.map(([i, pc, a]) => `iteration ${i} PC &${pc.toString(16)} -> &${a.toString(16)}`).join(", ")}`);

@@ -106,8 +106,8 @@ export const K_LEN = 0x400;
 // Game state compared per iteration: [start, length, name]. All of these are at
 // fixed addresses in the original; a relocated build supplies its own symbols
 // and the regions are located by symbol (see regionsFor).
-export function regionsFor(sy) {
-    return [
+export function regionsFor(sy, refPatch = null) {
+    const r = [
         [0x0000, sy.NOSTM + 1 - 0x0000, "ZP"],                  // zero page game variables (&00-&E3)
         [sy["K%"], K_LEN, "K%"],                                // ship data blocks + ship line heap (down from LS%, K% + &400)
         [sy.WP, sy.JOPOS + 3 - sy.WP, "WP"],                    // FRIN, flight variables, sun/planet heaps, stardust, commander (NAME..SVC), JOPOS
@@ -117,6 +117,12 @@ export function regionsFor(sy) {
                                                                 // default commander NA2%, constant, in the Tube's overlay D)
         [sy.SOFLG, sy.SFXPR - sy.SOFLG, "SOUND"],               // sound buffers (written by the IRQ)
     ];
+    // the sun, parked while the space station holds its slot (SUNPK and SUNPF,
+    // after WP's dashboard variables), or a patched original's own (its patch's
+    // region: mlib's applyRefPatch), which is the same
+    if (sy.SUNPK !== undefined) r.push([sy.SUNPK, sy.SUNPF + 1 - sy.SUNPK, "SUNPK"]);
+    else if (refPatch && refPatch.region) r.push(refPatch.region);
+    return r;
 }
 
 // Pointers in the compared state to data that a relocated build moves. The
@@ -130,22 +136,87 @@ export function regionsFor(sy) {
 // and INF, the current ship's slot) hold the original's address there, the
 // pointer moved back by exactly what K% moved. canonFor(sy, regions) returns
 // the function that does it to a snapshot.
+// A patched original (refPatch, below) may give the station a line heap of its
+// own: its address (refPatch.lso) is mapped to LSO_ORIG in the same way.
 const LSO_ORIG = 0x107e, K_ORIG = 0x0400;
-export function canonFor(sy, regions) {
+export function canonFor(sy, regions, refPatch = null) {
     const offOf = a => { let o = 0; for (const [b, n] of regions) { if (a >= b && a + 1 < b + n) return o + a - b; o += n; } return -1; };
     const offs = [sy.INWK + 33, ...Array.from({ length: 12 }, (_, i) => sy["K%"] + 37 * i + 33)].map(offOf).filter(o => o >= 0);
     const k = sy["K%"], dk = K_ORIG - k;
     const heap = [...offs, offOf(sy.SLSP)].filter(o => o >= 0), slot = [sy.INF].filter(a => a !== undefined).map(offOf).filter(o => o >= 0);
     const move = (buf, o, lo, hi) => { const v = buf[o] | buf[o + 1] << 8; if (v >= lo && v <= hi) { buf[o] = (v + dk) & 255; buf[o + 1] = (v + dk) >> 8; } };
+    const from = [sy.LSO, refPatch && refPatch.lso].filter(a => a !== undefined && a !== null && a !== LSO_ORIG);
+    // INF, once the parked sun has been moved (SUNSC), points to SUNPK, which
+    // is at another address in each machine: it is held as the original's K%
+    // + 12 * 37, as if SUNPK were the block of a slot after the last (after
+    // the moves above, which leave an INF outside the slots alone)
+    const pk = sy.SUNPK ?? (refPatch && refPatch.region ? refPatch.region[0] : undefined), oInf = offOf(sy.INF), vInf = K_ORIG + 12 * 37;
     return buf => {
-        if (sy.LSO !== LSO_ORIG) for (const o of offs) if ((buf[o] | buf[o + 1] << 8) === sy.LSO) { buf[o] = LSO_ORIG & 255; buf[o + 1] = LSO_ORIG >> 8; }
+        for (const o of offs) if (from.includes(buf[o] | buf[o + 1] << 8)) { buf[o] = LSO_ORIG & 255; buf[o + 1] = LSO_ORIG >> 8; }
         if (dk) {
             for (const o of heap) move(buf, o, k, k + K_LEN);   // (the line heap: to LS% when empty, down
                                                                 // into the slots no ship uses when full)
             for (const o of slot) move(buf, o, k, k + 12 * 37 - 1);
         }
+        if (pk !== undefined && oInf >= 0 && (buf[oInf] | buf[oInf + 1] << 8) === pk) { buf[oInf] = vInf & 255; buf[oInf + 1] = vInf >> 8; }
         return buf;
     };
+}
+
+// Patches to the original as assembled code (master/tools/sunref/sunref.py,
+// which writes <build>/sunref.json beside the build's symbols): the bytes of
+// the code to add (code: [address, bytes] in the original's free memory), and
+// the sites to change (sites: name, address, the original's bytes there and
+// the new ones; or, for a site with no label, search: a routine's extent, in
+// which the original's bytes are found exactly once), all in main RAM; lso:
+// the station's line heap, if the patch moves it; region: [address, length,
+// name], more of the patched original's game state (regionsFor); randAt: a
+// site's name, at which runElite advances RAND as the call the site replaced
+// would (a proof's variant only); keepRand: { at, bytes }, the bytes kept
+// across the routine at "at" (runElite's handler). A build's
+// patch is for the reference it is compared against: the original, patched
+// so that it runs the same game logic (docs/MASTER-PLAN.md).
+//   refPatchPath(syms): the patch beside a build's symbols, or null
+//   loadRefPatch(path): the patch (null for a null path)
+//   applyRefPatch(mem, patch): at TT170, each site's bytes are checked against
+//     the original's (an Error if any differs: the patch is for another
+//     build), then the code and the sites are written
+export function refPatchPath(syms) {
+    const p = syms.replace(/[^/]*$/, "sunref.json");
+    return existsSync(p) ? p : null;
+}
+export function loadRefPatch(path) {
+    if (!path) return null;
+    const p = JSON.parse(readFileSync(path, "utf8"));
+    p.path = path;
+    return p;
+}
+export function applyRefPatch(mem, p) {
+    for (const s of p.sites) if (s.search) {      // (a site found by its bytes, once, in a routine)
+        const at = [];
+        for (let a = s.search[0]; a + s.orig.length <= s.search[1]; a++) if (s.orig.every((b, i) => mem[a + i] === b)) at.push(a);
+        if (at.length !== 1) throw new Error(`reference patch ${p.path}: ${s.name} found ${at.length} times in &${s.search[0].toString(16)}-&${(s.search[1] - 1).toString(16)}`);
+        s.addr = at[0];
+    }
+    for (const s of p.sites) s.orig.forEach((b, i) => {
+        if (mem[s.addr + i] !== b) throw new Error(`reference patch ${p.path}: ${s.name} at &${(s.addr + i).toString(16)} is &${mem[s.addr + i].toString(16)}, not &${b.toString(16)}`);
+    });
+    const put = (a, bytes) => { if (a < 0x0200 || a + bytes.length > 0x8000) throw new Error(`reference patch: &${a.toString(16)} is not main RAM`); bytes.forEach((b, i) => { mem[a + i] = b; }); };
+    for (const [a, bytes] of p.code) put(a, bytes);
+    for (const s of p.sites) put(s.addr, s.new);
+}
+
+// The half spin's patch (see runElite's handler): only for a build without
+// the port's own half steps (MVS5's for the planet, which has the label
+// mvs5hf). Its hooks are part 8's first instruction (LDA INWK+30, AND #&80,
+// STA RAT2, before MV8), found once the game is in memory (TT170), and MV5:
+// { p8, mv5 } as { a, m } (address, mapping), or null.
+export function findHalfSpin(sy, cpu) {
+    if (sy.mvs5hf !== undefined || sy.MV8 === undefined || sy.MV5 === undefined) return null;
+    const m = mapOfLabel(sy, "MV8"), want = [0xa5, sy.INWK + 30, 0x29, 0x80, 0x85, sy.RAT2];
+    for (let a = sy.MV8 - 6; a > sy.MV8 - 64; a--)
+        if (want.every((b, i) => physRead(cpu, m, a + i) === b)) return { p8: { a, m }, mv5: { a: sy.MV5, m: mapOfLabel(sy, "MV5") } };
+    throw new Error("MVEIT part 8 not found before MV8 (the half spin's patch)");
 }
 
 // Addresses excluded from the comparison, by symbol: name -> [length, reason]
@@ -174,7 +245,8 @@ export const DRAW_EXCLUDE = {
     XC: [1, "text cursor"], YC: [1, "text cursor"], LSX2: [256, "planet line heap"], LSY2: [256, "planet line heap"],
     LSO: [200, "sun line heap"], BUF: [90, "line buffer"], XSAV2: [1, "temp"], YSAV2: [1, "temp"],
     COMX: [1, "compass dot"], COMY: [1, "compass dot"], widget: [1, "temp"], dontclip: [1, "temp"], Yx2M1: [1, "temp"],
-    newzp: [1, "temp"], XX18: [4, "temp"],
+    newzp: [1, "temp"], XX18: [4, "temp"], TGT: [1, "temp"], FLAG: [1, "temp"], SUNX: [2, "sun's old centre"],
+    LSX: [1, "sun line heap"],
 };
 
 export function excludeSet(sy, lists) {
@@ -242,10 +314,32 @@ function xTrace(s, file, disc) {
 //   returns more [addr, bytes] to write, given the set of addresses written since
 //   the game's entry S%), opts.patch({ wr, rb, sy }) (called at BAY after QU5,
 //   i.e. after the title screens' DFAULT: the commander patch), opts.onIter(i, s, res),
-//   opts.trace (log injected keys), opts.shots / opts.onShot(s, i) (screenshot every N)
+//   opts.trace (log injected keys), opts.shots / opts.onShot(s, i) (screenshot every N),
+//   opts.refPatch (loadRefPatch's: checked and written at TT170, before the seeds)
 // Returns { snaps (per iteration, regions concatenated), iterTimes, tt100Times
 //   ([emulated s, iteration] per TT100), init (snapshot at TT170), initRand, keyLog,
 //   events, iters, tt100, emuSecs, error }
+// The routines whose port leaves some registers or flags other than the
+// original leaves them, claiming them dead at the return (to the caller of
+// the JSR that entered them; a routine entered by a tail call returns to its
+// caller's caller): runElite's deadRegs scrambles them there in the build
+//   DIALS    A, X, C: cpdot, for an unmoved dot, sets only what DOT leaves for
+//            the dot (and the port's DOT leaves its own A, X and C)
+//   SUN      A, X, Y: the port's SUN ends after part 1 (C clear, as part 4)
+//   PLANET   A, Z: PL40 (CNT > TGT as CNT - 1 >= TGT)
+//   PTCLS    A, X, Y, C: the cloud is drawn in the frame (H_PTCLS, F_CLOUD)
+//   BOMBOFF  A, X: H_BOMB, H_LLINE draw nothing in record mode
+//   PIXEL2   A, N, Z: H_STAROFF (every caller reaches a DEY first)
+//   WPLS     A, X, Y, C: the port's WPLS is an RTS
+export const DEAD_AFTER = [["DIALS", "axc"], ["SUN", "axy"], ["PLANET", "az"], ["PTCLS", "axyc"],
+    ["BOMBOFF", "ax"], ["PIXEL2", "anz"], ["WPLS", "axyc"]];
+// The Tube's parasite claims the same, but for DIALS also Y: its cpdot leaves
+// Y as COMPAS left it for an unmoved dot, and COMY for a moved one (its DOT,
+// tube/src/p-dash.asm, sends the dot with X and Y, and leaves no ddot's Y);
+// its other halves of the dashboard's and the drawing's routines (p-dash.asm,
+// p-io.asm) return as the Master port's routines do
+export const TUBE_DEAD_AFTER = DEAD_AFTER.map(([n, regs]) => n === "DIALS" ? [n, "axyc"] : [n, regs]);
+
 export async function runElite(opts) {
     const sy = opts.syms;
     // opts.tube ("Master" or "B"): the Tube build, the game on the parasite
@@ -253,8 +347,8 @@ export async function runElite(opts) {
     const T = opts.tube ? await bootTubeElite(opts) : null;
     const s = T ? T.s : await bootMaster(opts.disc);
     const cpu = T ? T.cpu : s._machine.processor;
-    const regions = regionsFor(sy);
-    const canon = canonFor(sy, regions);
+    const regions = regionsFor(sy, opts.refPatch);
+    const canon = canonFor(sy, regions, opts.refPatch);
     const rd = (a, n = 1) => { const r = new Array(n); for (let i = 0; i < n; i++) r[i] = cpu.ramRomOs[(a + i) & 0xffff]; return r; };
     const rb = a => cpu.ramRomOs[a & 0xffff];
     const wr = (a, bytes) => { for (let i = 0; i < bytes.length; i++) cpu.ramRomOs[a + i] = bytes[i] & 255; };
@@ -318,19 +412,23 @@ export async function runElite(opts) {
     const H_RDK = hook("RDKEY", 5), H_DKS5 = T ? hook("DKS5T") : hook("DKS5", 17), H_NOISE = hook("NOISE"), H_MLOOP = hook("MLOOP"), H_LL5 = hook("LL5"),
         H_TT100 = hook("TT100"), H_QU5 = hook("QU5"), H_BAY = hook("BAY"), H_MT26 = hook("MT26"), H_TT170 = hook("TT170");
 
-    // The half spin's patch (see the handler): only for a build without the
-    // port's own half steps (MVS5's for the planet, which has the label
-    // mvs5hf); its address, part 8's first instruction, is found when the
-    // game is in memory (TT170), before MV8: LDA INWK+30, AND #&80, STA RAT2
-    let H_P8 = null, p8vec = null;
-    const H_MV5 = sy.MV5 !== undefined ? hook("MV5") : null;
-    const findP8 = () => {
-        if (sy.mvs5hf !== undefined || sy.MV8 === undefined || !H_MV5) return null;
-        const m = mapOfLabel(sy, "MV8"), want = [0xa5, sy.INWK + 30, 0x29, 0x80, 0x85, sy.RAT2];
-        for (let a = sy.MV8 - 6; a > sy.MV8 - 64; a--)
-            if (want.every((b, i) => physRead(cpu, m, a + i) === b)) return { a, m };
-        throw new Error("MVEIT part 8 not found before MV8 (the half spin's patch)");
-    };
+    // The half spin's patch (see the handler; its hooks: findHalfSpin, at TT170)
+    let H_P8 = null, H_MV5 = null, p8vec = null;
+    // A patch's randAt (a proof: master/tools/sunref's sunref-edge.json): at
+    // that site RAND is advanced as the DORND call the patch replaced would
+    // advance it (DORND's sums, with the C flag the call would have had), so
+    // that the patch's only other effect, the value it leaves, is all that differs
+    let H_RAND = null;
+    // A patch's keepRand ({ at, bytes }: the explosion clouds' random seed):
+    // the bytes (RAND and RAND+2) as they are when the routine at "at" (PTCLS)
+    // is entered are put back when it returns (at its return address, read
+    // from the stack on entry: DOEXP falls into PTCLS, so it returns to
+    // LL9's caller), so the routine takes no random numbers that last
+    const KEEP = opts.refPatch && opts.refPatch.keepRand ? opts.refPatch.keepRand : null;
+    let keepPend = null;
+    // the patch's sites, counted as they run (res.siteN, by name; and keepRand's
+    // restores): a proof needs its sites to have run
+    let SITES = null;
     const res = { snaps: [], iterTimes: [], tt100Times: [], tt100AtIter: [], init: null, keyLog: [], events: [], s, cpu, sy, regions, tube: T };
     let started = false, done = false, armPatch = false, iter = 0, tt100 = 0, checked = false;
     const ctxBase = { rb, rd, sy, iterOf: () => iter, tt100Of: () => tt100 };
@@ -354,7 +452,36 @@ export async function runElite(opts) {
         cpu.x = rb(sy.KL);
     }
 
+    // opts.deadRegs (the candidate only): at the return from each routine in
+    // DEAD_AFTER, the registers and flags the port claims dead there are
+    // scrambled, so a read of any of them shows as a divergence
+    const DEAD = opts.deadRegs ? (T ? TUBE_DEAD_AFTER : DEAD_AFTER).filter(([n]) => sy[n] !== undefined).map(([n, regs]) => ({ h: hook(n), regs, n })) : [];
+    const deadPend = [];
+    let deadSeed = 0x2545F491;
+    res.deadN = {};
+    const deadRnd = () => { deadSeed ^= deadSeed << 13; deadSeed ^= deadSeed >>> 17; deadSeed ^= deadSeed << 5; return deadSeed >>> 0; };
     const handler = pc => {
+        if (SITES !== null && SITES.has(pc)) { const n = SITES.get(pc); res.siteN[n] = (res.siteN[n] || 0) + 1; }
+        if (DEAD.length) {
+            for (let j = deadPend.length - 1; j >= 0; j--) {
+                const d = deadPend[j];
+                if (pc === d.ret && cpu.s === d.s) {
+                    for (const r of d.regs) {
+                        const v = deadRnd();
+                        if (r === "a" || r === "x" || r === "y") cpu[r] = v & 255;
+                        else cpu.p[r] = !!(v & 256);
+                    }
+                    res.deadN[d.n] = (res.deadN[d.n] || 0) + 1;
+                    deadPend.splice(j);
+                    break;
+                }
+            }
+            for (const d of DEAD) if (at(d.h, pc)) {
+                const ret = (stackWord(1) + 1) & 0xffff;
+                deadPend.push({ ret, s: (cpu.s + 2) & 255, regs: d.regs, n: d.n });
+                if (deadPend.length > 64) deadPend.shift();
+            }
+        }
         if (at(H_RDK, pc) && started) {
             const c = callerAt(2);
             const callSite = c.site;
@@ -402,6 +529,17 @@ export async function runElite(opts) {
         } else if (p8vec && at(H_MV5, pc)) {
             for (let i = 0; i < 18; i++) cpu.ramRomOs[sy.INWK + 9 + i] = p8vec[i];
             p8vec = null;
+        } else if (KEEP && pc === KEEP.at && !keepPend) {
+            keepPend = { ret: stackWord(1) + 1, vals: KEEP.bytes.map(b => rb(b)) };
+        } else if (keepPend && pc === keepPend.ret) {
+            KEEP.bytes.forEach((b, i) => wr(b, [keepPend.vals[i]]));
+            res.siteN.keepRand = (res.siteN.keepRand || 0) + 1;
+            keepPend = null;
+        } else if (H_RAND !== null && pc === H_RAND) {
+            const R = sy.RAND, f1 = rb(R), c = cpu.p.c ? 1 : 0;
+            const f2 = ((f1 << 1) | c) & 255, f3 = f2 + rb(R + 2) + (f1 >> 7);
+            const m1 = rb(R + 1), m2 = m1 + rb(R + 3) + (f3 >> 8);
+            wr(R, [f3 & 255, m2 & 255, f2, m1]);
         } else if (at(H_MLOOP, pc) && started) {
             res.snaps.push(snapshot());
             res.iterTimes.push(emuSecs());
@@ -431,7 +569,11 @@ export async function runElite(opts) {
                 if (op(H_RDK) !== 0x68) throw new Error(`RDKEY+5 is not PLA (&${op(H_RDK).toString(16)})`);
                 if (op(H_DKS5) !== 0xa9 || op(H_DKS5, 1) !== 0x0b) throw new Error("DKS5+17 is not LDA #&0B");
             }
-            H_P8 = findP8();
+            const hs = findHalfSpin(sy, cpu);
+            if (hs) { H_P8 = hs.p8; H_MV5 = hs.mv5; }
+            if (opts.refPatch) applyRefPatch(cpu.ramRomOs, opts.refPatch);
+            if (opts.refPatch && opts.refPatch.randAt) H_RAND = opts.refPatch.sites.find(st => st.name === opts.refPatch.randAt).addr;
+            if (opts.refPatch) { SITES = new Map(); res.siteN = {}; for (const st of opts.refPatch.sites) SITES.set(st.addr, st.name); }
             if (opts.seed) for (const [a, bytes] of opts.seed) wr(a, bytes);
             if (opts.seedBoot) { res.seeded = opts.seedBoot(regions, written, rb); for (const [a, bytes] of res.seeded) wr(a, bytes); }
             bootWrites.remove();
@@ -563,6 +705,7 @@ async function bootTubeElite(opts) {
     const cpu = {
         get a() { return par.a; }, set a(v) { par.a = v; }, get x() { return par.x; }, set x(v) { par.x = v; },
         get y() { return par.y; }, set y(v) { par.y = v; }, get s() { return par.s; }, get pc() { return par.pc; },
+        get p() { return par.p; },
         romsel: 0, acccon: 8, ramRomOs: par.memory, readmem: a => par.readmem(a),
     };
     const hp = String(opts.disc).replace(/[^/]*$/, "hsyms.txt"), hsy = existsSync(hp) ? loadSyms(hp) : {};

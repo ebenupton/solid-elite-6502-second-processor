@@ -39,9 +39,29 @@ PDN = P% - pdtl
 
 \ DOT: the compass dot (COMX, COMY, COMC) to the host (C_PDOT), which EORs it
 \ as the Master port's DOT; returns as DOT: X1 = COMX, COL = COMC, Y1 = COMY
-\ (less one for a dot in front, COMC = YELLOW2), A = %00001001
+\ (less one for a dot in front, COMC = YELLOW2), A = %00001001 (pdot_l).
+\ pdot_s: the dot X, Y in colour A to the host (COMPAS's cpdot removes the
+\ old dot with it, elite-source.asm)
 
 .DOT
+ JSR pdot_l
+ LDX COMX
+ LDY COMY
+ LDA COMC
+.pdot_s
+ PHA
+ LDA #C_PDOT
+ JSR ptx
+ TXA
+ JSR ptx
+ TYA
+ JSR ptx
+ PLA
+ JSR ptx
+ LDA #%00001001
+ RTS
+
+.pdot_l
  LDA COMX
  STA X1
  LDA COMY
@@ -53,14 +73,6 @@ PDN = P% - pdtl
  BNE pdo1
  DEC Y1
 .pdo1
- LDA #C_PDOT
- JSR ptx
- LDA COMX
- JSR ptx
- LDA COMY
- JSR ptx
- LDA COMC
- JSR ptx
  LDA #%00001001
  RTS
 

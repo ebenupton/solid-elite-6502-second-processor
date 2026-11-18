@@ -974,15 +974,16 @@ ENDMACRO
  PLA
  RTS
 
-\ p_fillkl: FILLKL after ZEKTRAN (X = 0): the host sends the keys held, in
+\ p_fillkl: FILLKL after ZEKTRAN (X = 0): JOPOS first while configured
+\ (p_keyq), then the host sends the keys held, in
 \ increasing internal number from 16 up, then 0; each updates the key logger
 \ through IKNS as Rd2 does, and KL holds the last. Returns as FILLKL: A = KY6
 \ (after Rd7's TRB), X = KL with N and Z from it, C set if no key was held,
 \ D clear
 
 .p_fillkl
- LDA #C_KEYS
- JSR preq4
+ JSR p_keyq             \ (JOPOS first, while configured; then C_KEYS)
+ LDX #0                 \ (X = 0, the key logger's index, as ZEKTRAN leaves it)
  LDA #1
  STA pfkn
 .pfk1
@@ -1009,6 +1010,34 @@ ENDMACRO
  LDX KL
  RTS
 .pfkn EQUB 0
+
+\       Area: tail
+
+\ p_keyq: (p_fillkl's start, at the resident code's end, so that it moves
+\ nothing) while the joystick or the Bitstik is configured (JSTK, BSTK), the
+\ host's JOPOS, the ADC's high bytes as its IRQ samples them, as the original's
+\ IRQ1 keeps JOPOS (for DK15's stick and the main loop's twist): C_DKS with a
+\ key of &FF, which the hosts answer with JOPOS's three bytes (h-joy.asm);
+\ then C_KEYS. Keeps X and Y
+
+.p_keyq
+ LDA JSTK
+ ORA BSTK
+ BEQ pkq9
+ LDA #C_DKS
+ JSR preq4
+ LDA #&FF
+ JSR preq4
+ JSR prx
+ STA JOPOS
+ JSR prx
+ STA JOPOS+1
+ JSR prx
+ STA JOPOS+2
+.pkq9
+ LDA #C_KEYS
+ JMP preq4
+
 
 \       Area: ovl D
 

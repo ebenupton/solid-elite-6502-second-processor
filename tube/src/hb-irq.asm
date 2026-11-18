@@ -50,6 +50,11 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  BCC P%+4
  LDY #0
  STY &FEC0
+ LDA SOFLG              \ the sound, if a channel has any (SOINT would only
+ ORA SOFLG+1            \ test the three bytes, as LINSCN skips it)
+ ORA SOFLG+2
+ BNE P%+3
+ RTS
  JMP SOINT              \ (bank 7; returns to irqm)
 
 .hb_vl EQUB 0           \ (point 1: non-zero if the last field flipped)

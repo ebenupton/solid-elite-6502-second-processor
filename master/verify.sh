@@ -8,7 +8,9 @@
 #  2. determinism: node harness/mcompare.mjs --iters N (default 10000) of the
 #     released SNG47 disc (master/reference, with master/reference/symbols.txt)
 #     against the new build (its own symbols), both flown by the same pilot;
-#     FAIL on a divergence of game state, or a run that stops early.
+#     FAIL on a divergence of game state, or a run that stops early. The build
+#     runs with --deadregs: the registers and flags the port claims dead at the
+#     return from some routines (harness/mlib.mjs DEAD_AFTER) are scrambled.
 #  3. speed: the flight-loop iterations per emulated second over the whole run,
 #     reference and candidate, and their ratio (reported, not gated; the
 #     per-window table is in the log).
@@ -48,7 +50,7 @@ python3 master/tools/flare.py --verify > "$LOG/flare.log" 2>&1 || { cat "$LOG/fl
 
 # ---- 2 and 3. determinism and speed
 LOOSE=--loose; [ "${STRICT:-0}" = 1 ] && LOOSE=
-node harness/mcompare.mjs --iters "$ITERS" $LOOSE \
+node harness/mcompare.mjs --iters "$ITERS" $LOOSE --deadregs \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/compare" "$@" > "$LOG/compare.log" 2>&1
 CST=$?
@@ -64,7 +66,8 @@ echo "compare: PASS"
 # ---- 4. regressions: with real key presses, dock, launch, dock again (the
 # hangar's ships once wrote over the glue code), and save, load, a load error,
 # catalogue (the disc glue); a save's bytes against SNG47's; the station in front of a far planet; with the
-# pilot, changes of view; the ships the ship audit flagged, posed
+# pilot, changes of view; the ships the ship audit flagged, posed; the
+# reference's patch and the sun's parking (below)
 node harness/mredock.mjs --out "$LOG/redock" > "$LOG/redock.log" 2>&1
 grep -E "^docking|^REDOCK" "$LOG/redock.log"
 grep -q "^REDOCK PASS" "$LOG/redock.log" || { echo "redock: FAIL"; fail redock; }
@@ -85,7 +88,7 @@ grep -q "^STATION PASS" "$LOG/station.log" || { echo "station: FAIL"; fail stati
 # changes of space view in flight (the gate's pilot never changes view): the
 # pilot looks rear, left, right and front again every 50 flight iterations,
 # against the reference over 1500 iterations (LOOK1 once fell into DEATH)
-node harness/mcompare.mjs --iters 1500 $LOOSE --views --maxsecs 400 \
+node harness/mcompare.mjs --iters 1500 $LOOSE --deadregs --views --maxsecs 400 \
     --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
     --out "$LOG/views" > "$LOG/views.log" 2>&1
 grep -q "^MCOMPARE PASS" "$LOG/views.log" || { grep -A8 "FIRST DIVERGENCE" "$LOG/views.log" | head -10; echo "views: FAIL"; fail views; }
@@ -95,7 +98,23 @@ grep -q "^MCOMPARE PASS" "$LOG/views.log" || { grep -A8 "FIRST DIVERGENCE" "$LOG
 node harness/mshippose.mjs --disc master/build/elite-master-sng47.ssd --syms master/build/symbols.txt \
     --out "$LOG/shippose" > "$LOG/shippose.log" 2>&1
 grep -q "^SHIPPOSE PASS" "$LOG/shippose.log" || { grep "BAD" "$LOG/shippose.log" | head -10; echo "shippose: FAIL"; fail shippose; }
-echo "regressions: PASS (redock, savetest, savebytes, station, views, shippose)"
+# the reference's patch (master/tools/sunref): its bytes (only its code and
+# its sites change SNG47) and its passive variant against the original (game
+# state identical over the gate's run and the views run: the patch changes
+# nothing unless the sun is parked)
+node harness/msunref.mjs --out "$LOG/sunref" > "$LOG/sunref.log" 2>&1
+grep -E "^(bytes|passive|passive-views|edge|edge-views|edge-ahead|edge-ahead-control|full-ahead|k2-control):" "$LOG/sunref.log"
+grep -q "^SUNREF PASS" "$LOG/sunref.log" || { tail -20 "$LOG/sunref.log"; echo "sunref: FAIL"; fail sunref; }
+# the sun's parking where the gate's run never takes it: the safe zone left and
+# entered again and again (with fights, docking and launches), every slot full
+# below the parked sun, the hand-back while flying at the sun, and the escape
+# pod, a crash, a jump and a mis-jump in the safe zone, against the patched
+# reference, with the parking's checks on both machines
+node harness/msunslot.mjs --cand master/build/elite-master-sng47.ssd --csyms master/build/symbols.txt \
+    --out "$LOG/sunslot" > "$LOG/sunslot.log" 2>&1
+grep -E "^[a-z]+: [0-9]+ iterations" "$LOG/sunslot.log" | cut -c1-160
+grep -q "^SUNSLOT PASS" "$LOG/sunslot.log" || { grep FAIL "$LOG/sunslot.log" | head -10; echo "sunslot: FAIL"; fail sunslot; }
+echo "regressions: PASS (redock, savetest, savebytes, station, views, shippose, sunref, sunslot)"
 ALL=$(grep -E "^ +all " "$LOG/compare.log")
 echo "speed (flight it/s, ref cand cand/ref): $ALL"
 set -- $ALL

@@ -74,19 +74,6 @@ ENDIF
  JSR R_SPAN
  JMP tback
 
-IF _PLANET_MOON         \ (the moon's: MOON=on, master/build.sh)
-.T_WSPAN                \ (R_SPAN, noting the span as written: R_WL/R_WR)
- STA tA
- LDA #RASTBANK
- STA &F4
- STA &FE30
- BIT KMODE
- BPL P%+5
- JSR tk_y
- LDA tA
- JSR R_WSPAN
- JMP tback
-ENDIF
 
 IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
 .T_FLARE                \ (the lens flare, gfx-flare.asm: bank 6; X and Y
@@ -137,14 +124,6 @@ IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)
  JSR PC_ROWS
  JMP tback
 
-IF _PLANET_MOON
-.T_MCAPS                \ (the moon's crater's rows, gfx-merid.asm: bank 7)
- LDA #MERIDBANK
- STA &F4
- STA &FE30
- JSR PC_MROWS
- JMP tback
-ENDIF
 ENDIF
 
 IF _TDUMB = FALSE          \ (the Tube's dumb host: the parasite's)

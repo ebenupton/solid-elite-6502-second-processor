@@ -13,7 +13,8 @@
 #   workspaces, main code, banked code and the data), build/banks.txt (the
 #   banked labels' banks),
 #   build/starocc.txt (tools/starocc.py: no star shows through a fill),
-#   build/elite-master-sng47.ssd (bootable with SHIFT+BREAK on a BBC Master).
+#   build/elite-master-sng47.ssd (bootable with SHIFT+BREAK on a BBC Master),
+#   build/sunref.json (tools/sunref/sunref.py: the patch to the reference).
 #
 # The copy protection is gone (Stage B, docs/MASTER-PLAN.md): the game is
 # assembled with _REMOVE_CHECKSUMS=TRUE (no decryption at start-up, no
@@ -27,19 +28,6 @@
 #
 # Options (environment):
 #   MATCH=no      zero-filled workspaces (upstream "match=no")
-#   MOON=on       moons: a quarter of the systems, by the seed, have a moon,
-#                 scenery fixed in space and solid (gfx-planet7.asm's pf_moon,
-#                 gfx-frame.asm's f_moon, gfx-ssun.asm's MN_TURN,
-#                 elite-moon.asm's MOONHIT); off by default, when no system
-#                 has a moon and their code, tables and variables are
-#                 assembled out
-#   BANDS=on      banded planets (a quarter of the crater planets, by the seed:
-#                 gfx-planet7.asm's pf_bands); off by default, when no planet
-#                 has bands and their code is assembled out
-#   RINGS=on      planet rings (an eighth of the systems, by the seed:
-#                 gfx-planet7.asm's pf_ring, gfx-frame.asm's f_ring); off by
-#                 default, when no planet has a ring and their code and
-#                 variables are assembled out
 #
 # The checksum script is given the F%, G% and NA2% that the assembler prints,
 # so a changed source still gets a correct commander checksum.
@@ -47,9 +35,6 @@ set -e
 cd "$(dirname "$0")"
 BEEBASM=${BEEBASM:-../tools/beebasm}
 MATCH=${MATCH:-yes}
-MOON=${MOON:-off}
-BANDS=${BANDS:-off}
-RINGS=${RINGS:-off}
 mkdir -p build
 rm -f build/*.bin build/*.ssd build/README.txt
 
@@ -61,9 +46,6 @@ _VARIANT=1
 _REMOVE_CHECKSUMS=$RC
 _MATCH_ORIGINAL_BINARIES=$MO
 _MAX_COMMANDER=FALSE
-_PLANET_MOON=$( [ "$MOON" = on ] && echo TRUE || echo FALSE )
-_PLANET_BANDS=$( [ "$BANDS" = on ] && echo TRUE || echo FALSE )
-_PLANET_RINGS=$( [ "$RINGS" = on ] && echo TRUE || echo FALSE )
 _TUBE=FALSE
 _TPART=0
 _TDUMB=FALSE
@@ -116,11 +98,10 @@ with open("build/banks.txt", "w") as f:
                       ("src/gfx-raster_line.asm", "85"), ("src/gfx-raster_lineb.asm", "85"), ("src/gfx-raster_lcold.asm", "5"),
                       ("src/gfx-raster_disc2.asm", "5"), ("src/gfx-raster_kept.asm", "5"),
                       ("src/gfx-raster_strips.asm", "5"), ("src/gfx-raster_init.asm", "5"),
-                      ("src/gfx-raster_reset.asm", "5"), ("src/gfx-raster_wspan.asm", "5"),
+                      ("src/gfx-raster_reset.asm", "5"),
                       ("src/gfx-frame.asm", "6"), ("src/gfx-flare.asm", "6"), ("src/gfx-hangar.asm", "6"),
                       ("src/gfx-faces.asm", "6"), ("src/gfx-frame_cold.asm", "6"),
-                      ("src/gfx-merid.asm", "7"), ("src/gfx-kept7.asm", "7"), ("src/gfx-planet7.asm", "7"),
-                      ("src/gfx-ssun.asm", "4"), ("src/elite-moon.asm", "4")):
+                      ("src/gfx-merid.asm", "7"), ("src/gfx-kept7.asm", "7"), ("src/gfx-planet7.asm", "7")):
         for m in re.finditer(r"^\.([A-Za-z_][\w%]*)", open(src).read(), re.M):
             if m.group(1) not in seen:
                 seen.add(m.group(1))
@@ -160,6 +141,9 @@ with open("build/images.txt", "w") as f:
         f.write("%s %s %04X %s\n" % (img, rs, at, v))
 PY
 python3 tools/bankcheck.py || exit 1
+# the patch to the reference, build/sunref.json (tools/sunref/sunref.py: the
+# harness writes it into SNG47 at TT170)
+python3 tools/sunref/sunref.py >> build/compile.txt || { tail -5 build/compile.txt; exit 1; }
 # no star can show through a fill (R_STARPLOT's rule, master/tools/starocc.py)
 python3 tools/starocc.py build > build/starocc.txt || { cat build/starocc.txt; exit 1; }
 for f in loader readme; do

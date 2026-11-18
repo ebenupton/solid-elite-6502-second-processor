@@ -65,10 +65,9 @@ Lines removed or changed in the original, and lines added:
 | Allowed: Area: tags                              |               - |   256 |
 | Allowed: Port: notes                             |               - |   623 |
 | Allowed: hooks (inserted calls, minimal glue)    |               - |    34 |
-| Allowed: IF/ENDIF (the moon, MOON=on)           |               - |     2 |
 | Allowed: comment reworded, statement unchanged   |             534 |   229 |
 | Allowed: blank lines outside edits               |               7 |    35 |
-| **Allowed, total**                               |         **541** | **1,179** |
+| **Allowed, total**                               |         **541** | **1,177** |
 | Real: statements removed or changed / added      |           1,718 |  1,801 |
 | Real: redirected calls                           |              26 |    26 |
 | Real: IF/ELIF/ENDIF removed (_COMPACT branches)  |              29 |     - |
@@ -111,7 +110,7 @@ included. Routines with fewer than about 15 lines are grouped.
 
 **1 Memory map and build** (70, 52)
 
-* (configuration) 51, 5: the INCLUDE path, CODE% &1300 to &1F13 (less &2B with the moon), LOAD% = CODE%. The
+* (configuration) 51, 5: the INCLUDE path, CODE% &1300 to &1F42, LOAD% = CODE%. The
   data addresses (XX21, E%, KWL%, KWH%, QQ18, SNE, ACT, TKN1, and RUPLA, RUGAL and
   RUTOK with their _COMPACT branch) are deleted, as elite-data.asm is assembled in
   the same pass; commbuf moved; HOMEBANK and COLDBANK added.
@@ -236,6 +235,21 @@ _COMPACT branch 9 each, NMIpissoff 8, INCYC, backtonormal, CLDELAY and yetanothe
 5 each. Smaller ones are HLOIN22, the spare RTS in S%, the RTSs after rfile and
 WARP, and hyp1's JSR TT111 (TT18 now calls hyp1, not hyp1+3). Each has a `Port:
 removed` note.
+
+**10 The sun's parking** (10, 278): SUNLAU 0, 119, SUNSC 0, 60, SUNBK 0, 54 and
+SUNUP 0, 37 are port routines (MASTER-PLAN.md, "The sun's parking": the sun parked in
+SUNPK while the station holds its slot), each reached by one redirected call: main
+flight loop part 4's JMP MA18 (4, 6), part 14's JSR WPLS (3, 1), KS4's JSR ZINF
+(1, 1) and TT110's JSR NWSPS (2, 1); WP gains SUNPK and SUNPF after DASHV. The
+reference runs the same four blocks (their `, again` emission, assembled for SNG47).
+The sun's edge: SUN's parts 2 to 4, HLOIN2, EDGES and the orange table are `Area: none`
+(the rows, which took the only random numbers, are gone: the reference's patch takes
+SUN's JSR DORND out too); SUN's part 1 loses its fringe size and its set-up for the rows
+(ending with SUNX and an RTS), HLOIN its own entry, and WPLS and FLFLLS their line
+heap work, each with a `Port:` note. MV40's K2: its ADC K2 and SBC K2 become ADC #0
+and SBC #0 (2, 2: the reference's patch the same), with a `Port:` note, and PLS1 is
+`Area: none` (H_CIRC no longer calls it for K2). The leftovers: SUN loses COL, LSX,
+TGT and SUNX, WPLS is an RTS and FLFLLS loses LSX, each with a `Port:` note.
 
 ## Edits in code that is not emitted
 

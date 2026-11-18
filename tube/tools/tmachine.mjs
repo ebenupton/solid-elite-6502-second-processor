@@ -16,13 +16,13 @@
 //  * the host's screen is this.host.ramRomOs (hostScreen() returns its two
 //    buffers, as the Master port's: main and shadow RAM &4000-&6FFF).
 import { EliteMachine, loadSyms, CYCLES_PER_FRAME } from "../../master/tools/agentplay/lib.mjs";
-import { regionsFor, canonFor } from "../../harness/mlib.mjs";
+import { regionsFor, canonFor, TUBE_DEAD_AFTER } from "../../harness/mlib.mjs";
 import { bootTube } from "../../harness/tlib.mjs";
 import { existsSync } from "fs";
 export { loadSyms, CYCLES_PER_FRAME };
 
 export class TubeEliteMachine extends EliteMachine {
-    constructor(opts) { super(opts); this.hostKind = opts.host || "Master"; }
+    constructor(opts) { super({ ...opts, deadAfter: TUBE_DEAD_AFTER }); this.hostKind = opts.host || "Master"; }   // (the parasite's dead registers: mlib's TUBE_DEAD_AFTER)
 
     async boot() {
         const t = this.t = await bootTube({ host: this.hostKind, disc: this.disc, mhz: +(process.env.TUBEMHZ || 3) });
@@ -61,6 +61,12 @@ export class TubeEliteMachine extends EliteMachine {
         H.JOY = [null, null];
         this.hookTab = new Uint8Array(65536);
         for (const h of [...Object.values(H).flat()]) if (h) this.hookTab[h.a] = 1;
+        // opts.deadRegs, as EliteMachine's (lib.mjs), with the parasite's claims (opts.deadAfter:
+        // mlib's TUBE_DEAD_AFTER); no reference patch's sites (the Tube is only ever the candidate)
+        this.dead = this.opts.deadRegs ? (this.opts.deadAfter || []).map(([n, regs]) => ({ h: hook(n), regs, n })).filter(d => d.h) : [];
+        this.deadPend = []; this.deadN = {}; this.deadSeed = 0x2545F491;
+        for (const d of this.dead) this.hookTab[d.h.a] = 1;
+        this.siteHooks = [];
         // the boot leftovers: the parasite's writes from S% to TT170
         this.written = new Set(); this.inGame = false;
         const wm = par.writemem.bind(par);

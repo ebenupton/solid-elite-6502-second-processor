@@ -2,7 +2,9 @@
 # tgate.sh DIR: the Tube build's gates on a copy of the current build, in DIR
 # (docs/TUBE-MAP.md, TUBE-REPORT.md's verification commands), both hosts in
 # parallel: the Master port byte-identical to scratch/master-ref.ssd, the
-# lockstep replay of run1 against SNG47, the pixels against the Master port's
+# lockstep replay of run1 against SNG47 with the sun's parking patched in
+# (sunref.json, beside psyms.txt: the parked sun SUNPK compared as a region),
+# the pixels against the Master port's
 # oracle (scratch/fbref), the disc menu, a deliberate BRK (tcrash.mjs), the station
 # in front of a planet over 65536 away (tstation.mjs), and the speed windows (flight
 # 1000-1400, 0-3550, two launches from Lave towards its beach ball 300-403 and
@@ -11,7 +13,11 @@
 # none within the space view, e.g. the sun on screen) and dockings with the
 # missions' briefings and debriefings and an escape pod, each with the launch
 # after it (tdock.mjs: no overlay load between two frames, such as the
-# rotating ships').
+# rotating ships'); the sun's parking in the scenes run1 never reaches
+# (harness/msunslot.mjs --tube, with its control for the clouds' seed); the
+# gate pilot's game with the registers the parasite claims dead scrambled
+# (harness/mcompare.mjs --deadregs); and the reference patch's sites run with
+# the sun posed ahead, with MV40's control (harness/msunref.mjs --tube).
 # Run from the repository root after master/build.sh and tube/build.sh.
 # TO=N limits the lockstep and pixel runs to N iterations (default 16000).
 # Both hosts boot the one disc (elite-tube.ssd). MAXJ=N runs at most N
@@ -20,11 +26,12 @@ set -u
 D=$1; TO=${TO:-16000}
 throttle() { while [ $(jobs -pr | wc -l) -ge ${MAXJ:-99} ]; do sleep 2; done; }
 mkdir -p $D
-cp tube/build/elite-tube.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt tube/build/hstore.bin $D/
+cp tube/build/elite-tube.ssd tube/build/psyms.txt tube/build/hsyms.txt tube/build/hbmsyms.txt tube/build/hstore.bin tube/build/sunref.json $D/
 if cmp -s master/build/elite-master-sng47.ssd scratch/master-ref.ssd; then echo "master: byte-identical" > $D/master.txt; else echo "master: DIFFERS" > $D/master.txt; fi
 LOG=scratch/curious/run1/inputs.jsonl
 for H in Master B; do
   S=$D/elite-tube.ssd
+  M0=3; [ $H = Master ] && M0=4
   throttle; ( TUBE=$H node master/tools/agentplay/replay.mjs --run scratch/curious/run1 --out $D/rp$H --until $TO --noobserve --cand $S --csyms $D/psyms.txt > $D/lockstep-$H.txt 2>&1 ) &
   if [ $H = Master ]; then   # (the Master host's overlay storage untouched by anything else after the run)
     throttle; ( node tube/tools/tstore.mjs --log $LOG --cand $S --csyms $D/psyms.txt --store $D/hstore.bin --host $H --to $TO 2>&1 | tail -1 > $D/store-$H.txt ) &
@@ -40,6 +47,14 @@ for H in Master B; do
     node tube/tools/tstation.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tstation-$H 2>/dev/null | tail -1 > $D/station-$H.txt
     node tube/tools/tdock.mjs --host $H --disc $S --psyms $D/psyms.txt --out $D/tdock-$H > $D/tdock-$H.log 2>/dev/null; tail -1 $D/tdock-$H.log > $D/dock-$H.txt ) &
   throttle; ( node tube/tools/tswap.mjs --log $LOG --cand $S --csyms $D/psyms.txt --host $H --to $TO --max 0 > $D/swap-$H.txt 2>&1; echo "exit $?" >> $D/swap-$H.txt ) &
+  # (the gate pilot's game against the patched reference, with the registers the
+  # parasite claims dead scrambled at each such return: harness/mcompare.mjs --deadregs)
+  throttle; ( TUBEMHZ=$M0 node harness/mcompare.mjs --iters 10000 --loose --deadregs --tube $H --cand $S --csyms $D/psyms.txt --out $D/mc-$H > $D/deadregs-$H.txt 2>&1 ) &
+  # (the reference patch's sites run with the sun posed ahead and large: the build against the
+  # patched SNG47, and the control without MV40's sites, which must differ: harness/msunref.mjs)
+  throttle; ( node harness/msunref.mjs --tube $H --cand $S --csyms $D/psyms.txt --out $D/sunref-$H > $D/sunref-$H.txt 2>&1 ) &
+  # (the sun's parking in scenes run1 never reaches: harness/msunslot.mjs against the patched reference)
+  throttle; ( node harness/msunslot.mjs --tube $H --cand $S --csyms $D/psyms.txt --out $D/sunslot-$H > $D/sunslot-$H.txt 2>&1 ) &
   M=3; [ $H = Master ] && M=4   # (the target clocks: the Master host's internal 4 MHz co-processor, a 3 MHz one on the Model B)
   throttle; ( TUBEMHZ=$M node tube/tools/tspeed.mjs --log $LOG --kind t --host $H --cand $S --csyms $D/psyms.txt --windows 1000-1400,0-3550,300-403,14400-14507,4000-4300 > $D/speed-$H.txt 2>&1 ) &
 done
@@ -57,5 +72,8 @@ for H in Master B; do
   echo "station: $(cat $D/station-$H.txt)"
   echo "docking: $(cat $D/dock-$H.txt)"
   echo "overlays: $(grep -h "overlay . loads" $D/swap-$H.txt | sed 's/, [0-9]* cycles each (2 MHz)//' | tr '\n' ' ')$(grep -h "within the space view" $D/swap-$H.txt) ($(tail -1 $D/swap-$H.txt))"
+  echo "sun's parking: $(tail -1 $D/sunslot-$H.txt)"
+  echo "dead registers: $(grep -h "MCOMPARE" $D/deadregs-$H.txt | tail -1)"
+  echo "reference proofs: $(grep -h "^full-ahead:\|^k2-control:" $D/sunref-$H.txt | grep -v "PASS$\|FAIL$" | tr '\n' ' ')$(tail -1 $D/sunref-$H.txt)"
   grep -h "iterations" $D/speed-$H.txt
 done

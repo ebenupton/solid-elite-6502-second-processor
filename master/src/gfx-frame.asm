@@ -41,7 +41,8 @@ fz_u    = FZ+15
 \ (non-zero = draw directly even though QQ11 = 0), GSIGHT, GLASV.
 
 .F_BACK     EQUB 1      \ the buffer being drawn (the one not displayed)
-IF _TPART <> 2             \ (the text map: not the Tube's hosts')
+IF _TPART = 0             \ (the text map: not the Tube's hosts'; the parasite's
+                           \ F_TCH is in its workspace, tube/src/p-ws.asm)
 .F_TCH      SKIP 24     \ per text row: bit b set (P) = the row changed since
                         \ buffer b's text steps last ran on it (whole in a
                         \ page: f_text1 reads it every frame, by row)
@@ -766,16 +767,19 @@ IF _TDUMB
 ENDIF
 
  \ keep the zero page the rasteriser uses (&06-&27) and the frame layer's
- \ (&D2-&E1), unrolled, in f_zsv, not on the stack: the frame's ship
- \ projection puts the vertices in XX3, page 1 from &0100, under the stack
+ \ (&D2-&E1, but for FZ+2, LSX, which the game no longer reads), unrolled,
+ \ in f_zsv, not on the stack: the frame's ship projection puts the
+ \ vertices in XX3, page 1 from &0100, under the stack
  \ (master/tools/records/stack.mjs)
  FOR z, &06, &27
   LDA z
   STA f_zsv + z - &06
  NEXT
  FOR z, 0, 15
+ IF z <> LSX - FZ
   LDA FZ + z
   STA f_zsv + &22 + z
+ ENDIF
  NEXT
 
  BIT GMODE
@@ -821,20 +825,11 @@ ELSE
 ENDIF
 
  JSR T_STARERASE        \ undo last time's stars in this buffer
- IF _PLANET_MOON
- JSR f_moon0            \ the moon: what this buffer shows of it (before
- ENDIF                  \ the layer's repair; MOON=on)
  JSR f_discs            \ the disc layer (sun or planet), incremental
  JSR f_disc2            \ the other disc, if both are on screen (incremental)
 IF _TPART = 1
  JSR fl_arm             \ (Tube: the lens flare's probes armed, p-probe.asm)
 ENDIF
- IF _PLANET_MOON
- JSR f_moon             \ the moon, if any (incremental)
- ENDIF
- IF _PLANET_RINGS
- JSR f_ring             \ the ring, if any (dots; RINGS=on)
- ENDIF
 .ff_lin                 \ (F_HANGAR points this call at f_hback for its frame)
  JSR f_lines            \ planet meridians, craters, enemy lasers
  JSR f_ships            \ filled ships, far to near
@@ -860,8 +855,10 @@ ENDIF
  JSR f_gback
 
  FOR z, 0, 15            \ restore the zero page (kept at ff1)
+ IF z <> LSX - FZ
   LDA f_zsv + &22 + z
   STA FZ + z
+ ENDIF
  NEXT
  FOR z, &06, &27
   LDA f_zsv + z - &06
@@ -905,12 +902,6 @@ ENDIF
  STA F_NDOT
  STA F_PLON
  STA GSUNON
- IF _PLANET_MOON
- STA MN_ON
- ENDIF
- IF _PLANET_RINGS
- STA RG_N
- ENDIF
  LDA #LO(F_SR)
  STA F_DLP
  LDA #HI(F_SR)
@@ -1060,9 +1051,6 @@ ENDIF
  STA F_BACK
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host keeps no state of the screen)
  STZ F_SGS+1
- IF _PLANET_MOON
- STZ MO_ON+1            \ (no moon in it)
- ENDIF
 ENDIF
 IF _TPART = 2
  JSR R_SETBUF           \ bankcheck: ok (the Tube's hosts: R_SETBUF in their code bank)
@@ -1297,7 +1285,11 @@ ENDIF
 IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 \ f_sunrows / f_plrows: a disc's spans into R_NDISCL/R and R_NDT/R_NDB, from
 \ its centre (16-bit screen coordinates) and radius (8-bit), using a cached
-\ half-width table per disc (rebuilt only when the radius changes)
+\ half-width table per disc (rebuilt only when the radius changes). (The
+\ Tube's parasite: f_sunrows in overlay S, as only F_FRAME, which loads S,
+\ reaches it)
+
+\       Area: ovl S
 
 .f_sunrows
  LDA F_SUX
@@ -1327,6 +1319,8 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STA fpr_ld2+2
  JMP f_discspans
 
+\       Area: frame
+
 .f_plrows
  LDA F_PLX
  STA f_cx
@@ -1355,13 +1349,95 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  STA fpr_ld2+2
  JMP f_discspans
 
+\ f_discspans: the disc's rows, as fdk_build makes them, or those it made
+\ last time when nothing they depend on has changed: the same disc (its
+\ half-width table), centre (f_cx, f_cxh, f_cy) and radius, the same window
+\ (R_CL, R_CR, R_CT, R_CB), and no polygon since (R_POLY's edge tables share
+\ R_NDISCL/R: it clears F_DROK). Rows NDT..NDB are then as fdk_build left
+\ them (R_DISCROWS and f_disc2 write only the rows outside them), and R_NDT
+\ and R_NDB are put back. (The planet's position, size and window are the
+\ same in a quarter of the builds of the gate's run.) What changes as a disc
+\ moves (the low bytes of cy and cx, and r) is compared first and, when it
+\ has changed, is all that is noted, with F_DROK clear: the rest of the key
+\ is noted by the next build, if the disc has not moved by then
+
+.f_discspans
+ LDA f_cy               \ cy, cx (low bytes) and r as last time? If not, the
+ CMP fdk_y              \ disc has moved
+ BNE fdk_mv
+ LDA f_cx
+ CMP fdk_x
+ BNE fdk_mv
+ LDA f_r
+ CMP fdk_r
+ BNE fdk_mv
+ BIT F_DROK             \ the rest of the key noted, the rows kept?
+ BPL fdk_new
+ LDA f_cy+1
+ CMP fdk_k
+ BNE fdk_new
+ LDA f_cxh
+ CMP fdk_k+1
+ BNE fdk_new
+ LDA fpr_ld2+2          \ the half-width table (the planet's or the sun's)
+ CMP fdk_k+2
+ BNE fdk_new
+ LDX #3                 \ the window
+.fdk1
+ LDA R_CL,X
+ CMP fdk_k+3,X
+ BNE fdk_new
+ DEX
+ BPL fdk1
+ LDA fdk_t              \ the rows are as they were made: R_NDT and R_NDB
+ STA R_NDT
+ LDA fdk_b
+ STA R_NDB
+ RTS
+.fdk_mv                 \ moved: note cy, cx and r only, no rows kept
+ LDA f_cy
+ STA fdk_y
+ LDA f_cx
+ STA fdk_x
+ LDA f_r
+ STA fdk_r
+ STZ F_DROK
+ JMP fdk_build
+.fdk_new                \ not moved: make the rows, and note the rest
+ JSR fdk_build
+ LDA f_cy+1
+ STA fdk_k
+ LDA f_cxh
+ STA fdk_k+1
+ LDA fpr_ld2+2
+ STA fdk_k+2
+ LDX #3
+.fdk2
+ LDA R_CL,X
+ STA fdk_k+3,X
+ DEX
+ BPL fdk2
+ LDA R_NDT
+ STA fdk_t
+ LDA R_NDB
+ STA fdk_b
+ LDA #&80
+ STA F_DROK
+ RTS
+.fdk_y EQUB 0           \ the last build's cy, cx (low bytes) and r
+.fdk_x EQUB 0
+.fdk_r EQUB 0
+.fdk_k SKIP 7           \ the last kept rows' cy and cx (high bytes), table, window
+.fdk_t EQUB 0           \ and their R_NDT and R_NDB
+.fdk_b EQUB 0
+
 .fds_none
  LDA #1
  STA R_NDT
  STZ R_NDB
  RTS
 
-.f_discspans            \ rows of the disc (f_cx, f_cy, f_r) within the window
+.fdk_build              \ rows of the disc (f_cx, f_cy, f_r) within the window
                         \ (every exit sets R_NDT and R_NDB)
  LDA f_cy               \ fz_p = top row = cy - r, fz_q = bottom row = cy + r
  SEC
@@ -1432,6 +1508,8 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 .fds_pat                \ BIT #imm (no-ops: they keep X and C)
  STA fpr_b1
  STA fpr_b2
+ JMP fcs                \ the rows in pairs about cy if it can (fcs), else:
+.fpr_old
  LDY R_NDT
  LDX #&E8               \ X = |d| through the loop, stepped by fpr_id: INX
  LDA fz_u               \ (&E8) if d >= 0, else DEX (&CA) until d reaches 0
@@ -1637,6 +1715,201 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  JMP fdf1
  ASSERT LO(R_NDISCR) + 191 < 256 AND LO(F_HW) = LO(F_HW2)
 
+\ fcs: the slow path's rows (the disc crosses the window's side, or cx is off
+\ the screen) when cy is one of them: rows cy - k and cy + k together, as
+\ fdsym does, with the clipping done by thresholds on the half-width n,
+\ worked out once from cx (16-bit) and the window, instead of the 16-bit sums
+\ and compares per row. For a row with half-width n, the slow loop gives:
+\   an empty row (R = 0, L = 255) if cx + n < CL or cx - n > CR, i.e.
+\     n < max(CL - cx, cx - CR) = nmin;
+\   else R = CR if n >= CR - cx = nC, else cx + n (its low byte: the sum is
+\     on the screen), and L = CL if n >= cx - CL + 1 = mC1, else cx - n.
+\ Each threshold is clamped to 0 .. r + 1 (n <= r: r + 1 is "never"); with
+\ r = 255 a threshold above 255 cannot be held in a byte, so fcs leaves the
+\ rows to the slow loop then (fpr_old), and when cy is not a row. The pairs
+\ run for k = 0 .. min(cy - T, B - cy), or until the first empty row (n only
+\ falls as k rises, so the rest are empty too, or rows on one side only);
+\ what is left on either side, rows T .. cy - k and cy + k .. B, goes
+\ through the slow loop (fpr2), which makes them exactly as before
+
+.fpr_oldj
+ JMP fpr_old
+.fcs
+ LDA f_cy+1             \ cy must be a row: 0 <= cy, T <= cy <= B
+ BNE fpr_oldj
+ LDA f_cy
+ CMP R_NDT
+ BCC fpr_oldj
+ CMP R_NDB
+ BEQ fcs1
+ BCS fpr_oldj
+.fcs1
+ SEC                    \ nC = CR - cx
+ LDA R_CR
+ SBC f_cx
+ TAY
+ LDA #0
+ SBC f_cxh
+ JSR fcth
+ BCS fpr_oldj
+ STA fcs_c+1
+ SEC                    \ mC1 = cx - CL + 1 (as cx - CL with C set)
+ LDA f_cx
+ SBC R_CL
+ TAY
+ LDA f_cxh
+ SBC #0
+ INY
+ BNE P%+3
+ INC A
+ JSR fcth
+ BCS fpr_oldj
+ STA fcs_m+1
+ SEC                    \ nmin = max(CL - cx, cx - CR)
+ LDA R_CL
+ SBC f_cx
+ TAY
+ LDA #0
+ SBC f_cxh
+ JSR fcth
+ BCS fpr_oldj
+ STA fcs_e+1
+ SEC
+ LDA f_cx
+ SBC R_CR
+ TAY
+ LDA f_cxh
+ SBC #0
+ JSR fcth
+ BCS fpr_oldj
+ CMP fcs_e+1
+ BCC P%+5
+ STA fcs_e+1
+ LDA fpr_ld2+2          \ the half-width table (its low byte: ASSERT above)
+ STA fcs_ld+2
+ STA fcs_ld2+2
+ LDA f_cx               \ cx and cx + 1 (low bytes)
+ STA fcs_x+1
+ INC A
+ STA fcs_x1+1
+ LDA f_cy               \ rows cy + k at (table + cy) + k
+ TAX
+ CLC
+ ADC #LO(R_NDISCR)      \ (no carry: ASSERT above)
+ STA fcs_sr+1
+ TXA
+ ADC #LO(R_NDISCL)
+ STA fcs_sl+1
+ LDA #HI(R_NDISCL)
+ ADC #0
+ STA fcs_sl+2
+ TXA                    \ m + 1 = min(cy - T, B - cy) + 1
+ SEC
+ SBC R_NDT
+ STA fz_i
+ LDA R_NDB
+ SBC f_cy               \ (C = 1: cy >= T)
+ CMP fz_i
+ BCC P%+4
+ LDA fz_i
+ INC A
+ STA fcs_cp+1
+ LDY #0                 \ X = row cy - k, Y = k, from k = 0
+ CLC
+.fcs_l                  \ C = 0 here
+.fcs_ld
+ LDA F_HW,Y             \ patched: the half-width table (high byte)
+.fcs_e
+ CMP #0                 \ patched: nmin (n below it: an empty row, and the
+ BCC fcs_t              \ rest: leave them to the slow loop)
+.fcs_c
+ CMP #0                 \ patched: nC (n at or above it: R = CR)
+ BCS fcs_rc
+.fcs_x
+ ADC #0                 \ patched: cx (C = 0)
+.fcs_r
+ STA R_NDISCR,X
+.fcs_sr
+ STA R_NDISCR,Y         \ patched: R_NDISCR + cy (low byte)
+.fcs_ld2
+ LDA F_HW,Y             \ patched: the half-width table (high byte)
+.fcs_m
+ CMP #0                 \ patched: mC1 (n at or above it: L = CL)
+ BCS fcs_lc
+ EOR #&FF               \ (C = 0) cx + 1 + NOT n = cx - n
+.fcs_x1
+ ADC #0                 \ patched: cx + 1
+.fcs_lf
+ STA R_NDISCL,X
+.fcs_sl
+ STA R_NDISCL,Y         \ patched: R_NDISCL + cy
+ DEX
+ INY
+.fcs_cp
+ CPY #0                 \ patched: m + 1 (C = 0 until then)
+ BNE fcs_l
+ BRA fcs_t
+.fcs_rc
+ LDA R_CR
+ BRA fcs_r
+.fcs_lc
+ LDA R_CL
+ BRA fcs_lf
+.fcs_t                  \ k = Y: rows T .. cy - k and cy + k .. B are left
+ STY fz_i
+ LDA f_cy               \ rows T .. cy - k, if cy - k >= T: the slow loop
+ SEC                    \ from T (|d| = cy - T, stepping down) to cy - k
+ SBC fz_i
+ BCC fcs_t2
+ CMP R_NDT
+ BCC fcs_t2
+ STA fz_q
+ LDA f_cy
+ SEC
+ SBC R_NDT
+ TAX
+ LDA #&CA               \ DEX
+ STA fpr_id
+ LDY R_NDT
+ JSR fpr2
+.fcs_t2
+ LDA f_cy               \ rows cy + k .. B, if cy + k <= B: the slow loop
+ CLC                    \ from cy + k (|d| = k, stepping up) to B
+ ADC fz_i
+ BCS fcs_t9
+ CMP R_NDB
+ BEQ P%+4
+ BCS fcs_t9
+ TAY
+ LDA R_NDB
+ STA fz_q
+ LDX fz_i
+ LDA #&E8               \ INX
+ STA fpr_id
+ JMP fpr2
+.fcs_t9
+ RTS
+
+.fcth                   \ (A Y) = a threshold (high byte, low byte): A = it
+ TAX                    \ clamped to 0 .. r + 1, C set if that is 256 (r =
+ BMI fct0               \ 255): see fcs
+ BNE fctb
+ TYA
+ CMP f_r
+ BCC fctx
+ BEQ fctx
+.fctb
+ LDA f_r
+ CLC
+ ADC #1
+ RTS
+.fct0
+ LDA #0
+.fctx
+ CLC
+ RTS
+
+
 f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
 .f_cxh EQUB 0           \ high byte of cx
  EQUB 0, 0              \ (spare: keeps the layout after this unchanged)
@@ -1703,7 +1976,7 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  RTS
 
 \ f_disc2: the secondary disc (both the sun and the planet on screen: more
-\ often since the sun near the planet is drawn too, gfx-ssun.asm). It is the
+\ often since the sun stays near the planet, SUNSC). It is the
 \ smaller disc, and the sun and the planet are the same size (PLANET's radius
 \ 24576 / z for both), so it is the further: R_DISC2 (gfx-raster_disc2.asm)
 \ draws what the layer's span (this buffer's R_DISCL/R, as T_DISCROWS has
@@ -1792,6 +2065,8 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  STA R_COLO
  RTS
 
+\       Area: ovl S
+
 .f_line8                \ line from (fz_t, fz_u) to (X, Y), 8-bit coordinates
  STX R_X1
  STY R_Y1
@@ -1805,6 +2080,8 @@ f_cx = fpr_cx + 1       \ (the operand of ADC # in the slow disc loop)
  STA R_X1+1
  STA R_Y1+1
  JMP T_LINE
+
+\       Area: frame
 
 .f_lines
  BIT f_bomb             \ the bomb's bolt, if any, first (as recorded before
@@ -3185,8 +3462,8 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 
 \ Planet surface detail, filled: per-row colour boundaries for the disc layer
 \ (R_NDN, R_NDX0-3: the disc alternates between colour A and colour B
-\ at each boundary): circles on the planet's sphere, the beach ball's, the
-\ craters' or the bands' (PF_HOOK, gfx-planet7.asm, makes them in game
+\ at each boundary): circles on the planet's sphere, the beach ball's or the
+\ craters' (PF_HOOK, gfx-planet7.asm, makes them in game
 \ context; PC_ROWS, gfx-merid.asm's circle engine, the rows), both in the
 \ meridian window (bank 7).
 \ ------------------------------------------------------------------------------
@@ -3207,7 +3484,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
  BEQ P%+4
  BCS fnb9
  BIT PF_CLS             \ the detail PF_HOOK made this frame (the beach
- BPL fnb9               \ ball, craters or bands): from the circle engine's
+ BPL fnb9               \ ball or craters): from the circle engine's
  JSR f_bcol             \ PC_ROWS
  JMP T_CAPS
 .fnb9
@@ -3215,7 +3492,7 @@ IF _TPART <> 2             \ (Tube: the parasite's part; docs/TUBE-MAP.md)
 
 \ The planet's colours, every style's the beach ball's (pairs of bytes, even
 \ rows and odd rows): colour A, the disc, its sea (FC_PLANE, FC_PLANO), and
-\ colour B, its detail (the beach ball's land, the craters, the belt), green
+\ colour B, its detail (the beach ball's land, the craters), green
 
 FC_PLLE = &5F : FC_PLLO = &AF
 
@@ -3230,687 +3507,9 @@ FC_PLLE = &5F : FC_PLLO = &AF
  STA R_DBO
  RTS
 
-IF _PLANET_RINGS        \ (RINGS=on, master/build.sh)
 
 \ ------------------------------------------------------------------------------
-\ The ring (gfx-planet7.asm's pf_ring makes its dots in game context: RG_X,
-\ RG_Y, RG_F, RG_N of them): each dot drawn in yellow (marked dirty, for the
-\ next frame on this buffer to repair), but a dot behind the planet's centre
-\ and inside its disc, which the planet hides
-\ ------------------------------------------------------------------------------
-
-.f_ring
- LDA RG_N
- BNE frg0
- RTS
-.frg0
- LDA #&FF
- STA R_COLE
- STA R_COLO
- LDX #0
-.frg1
- STX frg_i
- LDA RG_F,X
- BPL frg3
- LDA F_PLON             \ behind: inside the planet's disc?
- BEQ frg3
- LDA RG_Y,X
- SEC
- SBC F_PLY
- STA fz_t
- LDA #0
- SBC F_PLY+1
- JSR f_abs16
- BCS frg3
- CMP F_PLR
- BEQ frg2
- BCS frg3
-.frg2
- TAY
- LDX frg_i
- LDA RG_X,X
- SEC
- SBC F_PLX
- STA fz_t
- LDA #0
- SBC F_PLX+1
- JSR f_abs16
- BCS frg3
- CMP F_HW,Y
- BCC frg4
- BEQ frg4
-.frg3
- LDX frg_i
- LDA RG_X,X
- LDY RG_Y,X
- TAX
- LDA #1
- JSR T_DOT
-.frg4
- LDX frg_i
- INX
- CPX RG_N
- BCC frg1
- RTS
-.frg_i EQUB 0           \ (the dot)
-
-ENDIF                   \ (_PLANET_RINGS)
-
-IF _PLANET_MOON         \ (the moon: MOON=on, master/build.sh)
-
-\ ------------------------------------------------------------------------------
-\ The moon (gfx-planet7.asm's pf_moon makes it in game context: MN_ON, MN_X,
-\ MN_Y, MN_R, MN_Z, its crater in the caps' slot PCMAX): a third disc after
-\ the sun and the planet (f_discs, f_disc2), light grey with a dark grey
-\ crater, its rows hidden where the planet or the sun is in front of it
-\ (MN_ON bits 6 and 5: the moon further than they). Ships further than the
-\ moon and inside its disc are hidden (f_behind).
-\
-\ It is drawn incrementally: each buffer keeps where it drew the moon (MO_ON
-\ ..., in the shared workspace: its centre, radius and depth bits, its rows
-\ and its crater's rows), and only the rows that have changed since that
-\ buffer's last frame are drawn again:
-\
-\   * the same place, size and depth (fm_md 1): a row with no crater, old or
-\     new, only where this frame wrote over it (R_WL..R_WR, read before the
-\     moon's own writes: the layer's repair of shapes drawn over the moon,
-\     the layer's and the second disc's own changes); the crater's rows, old
-\     or new, whole (the crater turns with the planet);
-\   * moved, resized, its depth changed or gone (every row changed): f_moon0,
-\     before the disc layer, puts the old moon's spans into DIRTY (its box's
-\     rows, if F_HW3 no longer has its radius's half-widths) for the layer's
-\     repair to restore in this frame, and the moon is drawn whole
-\     (fm_md 0, as with nothing of it in this buffer).
-\
-\ Its writes go through T_WSPAN, into R_WL/R_WR (for the text and the
-\ sights, and for the moon itself next time), never into DIRTY.
-\ ------------------------------------------------------------------------------
-
-.f_moon0
- STZ fm_md
- LDX F_BACK
- BIT MO_ON,X
- BPL fm09               \ (none in this buffer)
- BIT MN_ON
- BPL fm0d               \ gone
- LDA MN_ON
- EOR MO_ON,X
- AND #&60
- BNE fm0d               \ its depth changed
- LDA MN_R
- CMP MO_R,X
- BNE fm0d               \ resized
- LDY #0                 \ (MN_X, MN_Y against MO_XL ... MO_YH)
-.fm0c
- LDA MN_X,Y
- CMP MO_XL,X
- BNE fm0n
- INX
- INX
- INY
- CPY #4
- BNE fm0c
- INC fm_md              \ the same (1)
-.fm09
- RTS
-.fm0n
- LDX F_BACK             \ (moved)
-.fm0d                   \ the old box, x +/- r on rows MO_T .. MO_B, into DIRTY
- LDA MO_XL,X
- SEC
- SBC MO_R,X
- STA fz_t
- LDA MO_XH,X
- SBC #0
- JSR fm_clamp
- STA fm_l
- LDA MO_XL,X
- CLC
- ADC MO_R,X
- STA fz_t
- LDA MO_XH,X
- ADC #0
- JSR fm_clamp
- STA fm_r
- LDA MO_T,X
- STA fm_y
-.fm0l
- LDX F_BACK
- LDY fm_y
- TYA
- CMP MO_B,X
- BEQ fm0k
- BCS fm0z
-.fm0k
- LDA fm_l               \ the box's row, or the old span's when F_HW3 holds
- STA R_XL               \ the old radius's half-widths
- LDA fm_r
- STA R_XR
- LDA MO_R,X
- CMP f_hw3r
- BNE fm0w
- TYA                    \ |y - old y|, and the half-width there (none: the row
- SEC                    \ is skipped)
- SBC MO_YL,X
- STA fz_t
- LDA #0
- SBC MO_YH,X
- JSR f_abs16
- BCS fm0j
- CMP MO_R,X
- BEQ P%+4
- BCS fm0j
- TAY
- LDA F_HW3,Y
- STA fz_n
- LDA MO_XL,X            \ x - n .. x + n, clamped
- SEC
- SBC fz_n
- STA fz_t
- LDA MO_XH,X
- SBC #0
- JSR fm_clamp
- STA R_XL
- LDA MO_XL,X
- CLC
- ADC fz_n
- STA fz_t
- LDA MO_XH,X
- ADC #0
- JSR fm_clamp
- STA R_XR
- LDY fm_y
-.fm0w
- JSR T_MARKDIRTY
-.fm0j
- INC fm_y
- BNE fm0l
-.fm0z
- LDX F_BACK             \ (and forget it)
- STZ MO_ON,X
- RTS
-
-\ fm_clamp: the 16-bit x (A high, fz_t low) clamped to R_CL .. R_CR
-
-.fm_clamp
- TAY
- BMI fmc_l
- BNE fmc_r
- LDA fz_t
- CMP R_CL
- BCC fmc_l
- CMP R_CR
- BCC fmc9
-.fmc_r
- LDA R_CR
- RTS
-.fmc_l
- LDA R_CL
-.fmc9
- RTS
-
-.f_moon
- BIT MN_ON
- BMI fmn0
- LDX F_BACK             \ none (f_moon0 has put any old one into DIRTY)
- STZ MO_ON,X
- RTS
-.fmn0
- LDA MN_X
- STA f_cx
- LDA MN_X+1
- STA f_cxh
- LDA MN_Y
- STA f_cy
- LDA MN_Y+1
- STA f_cy+1
- LDA MN_R
- STA f_r
- CMP f_hw3r
- BEQ fmn1
- STA f_hw3r
- LDA #LO(F_HW3)
- STA fhw_st+1
- LDA #HI(F_HW3)
- STA fhw_st+2
- JSR f_hwbuild
-.fmn1
- LDA #LO(F_HW3)
- STA fpr_ld+1
- STA fpr_ld2+1
- LDA #HI(F_HW3)
- STA fpr_ld+2
- STA fpr_ld2+2
- JSR f_discspans
- LDA #255               \ its crater's rows: fm_ct .. fm_cb (none: 255, 0)
- STA fm_ct
- STZ fm_cb
- LDY R_NDT
- CPY R_NDB
- BEQ fmn2
- BCS fmn4               \ (no rows on the screen)
-.fmn2
- JSR T_MCAPS            \ (its crater's boundaries, as the planet's)
- LDY R_NDT
-.fmn3
- LDA R_NDN,Y            \ (boundaries, or colour B at the left end)
- BEQ fmn3b
- CPY fm_ct
- BCS P%+5
- STY fm_ct
- STY fm_cb
-.fmn3b
- CPY R_NDB
- INY
- BCC fmn3
-.fmn4
- LDX F_BACK             \ the rows: the new ones, and the old ones when
- LDA R_NDT              \ fm_md is 1 or 2
- STA fm_y
- LDA R_NDB
- STA fm_hi
- LDA fm_md
- BEQ fmn5
- LDA MO_T,X
- CMP fm_y
- BCS P%+5
- STA fm_y
- LDA MO_B,X
- CMP fm_hi
- BCC fmn5
- STA fm_hi
-.fmn5
- LDA fm_y
- CMP fm_hi
- BEQ fmn6
- BCS fmn7
-.fmn6
- JSR fm_row
- INC fm_y
- BNE fmn5
-.fmn7
- LDX F_BACK             \ what this buffer now shows
- LDA MN_ON
- AND #&60
- ORA #&80
- STA MO_ON,X
- LDY #0                 \ (MN_X, MN_Y, MN_R to MO_XL ... MO_R)
-.fmn8
- LDA MN_X,Y
- STA MO_XL,X
- INX
- INX
- INY
- CPY #5
- BNE fmn8
- LDX F_BACK
- LDA R_NDT
- STA MO_T,X
- LDA R_NDB
- STA MO_B,X
- LDA fm_ct
- STA MO_CT,X
- LDA fm_cb
- STA MO_CB,X
- RTS
-
-\ fm_row: row fm_y. fm_sp: its old span a0, b0, its new one a1, b1, and the
-\ old one again (empty: 255, 0); fm_wl .. fm_wr: what this frame wrote over
-\ it before the moon (R_WR = 0: nothing)
-
-.fm_row
- LDY fm_y
- LDA R_WL,Y
- STA fm_wl
- LDA R_WR,Y
- STA fm_wr
- LDA #255
- STA fm_sp
- STA fm_sp+2
- STZ fm_sp+1
- STZ fm_sp+3
- CPY R_NDT              \ the new span
- BCC fr1
- LDA R_NDB
- CMP fm_y
- BCC fr1
- LDA R_NDISCL,Y
- STA fm_sp+2
- LDA R_NDISCR,Y
- STA fm_sp+3
-.fr1
- LDA fm_md              \ the old (0: none: the row whole)
- BEQ frw
- LDX F_BACK
- TYA
- CMP MO_T,X
- BCC fr3
- CMP MO_B,X
- BEQ fr1a
- BCS fr3
-.fr1a
- LDA fm_sp+2            \ (the same)
- STA fm_sp
- LDA fm_sp+3
- STA fm_sp+1
-.fr3
- CPY fm_ct              \ a crater row, new or old: the row whole
- BCC fr4
- TYA
- CMP fm_cb
- BEQ frw
- BCC frw
-.fr4
- LDX F_BACK
- TYA
- CMP MO_CT,X
- BCC fr5
- CMP MO_CB,X
- BEQ frw
- BCC frw
-.fr5                    \ a plain row, the same: what was written over it,
- LDA fm_wr              \ light grey
- BEQ fr9
- LDA fm_wl
- CMP fm_sp+2
- BCS P%+5
- LDA fm_sp+2
- PHA
- LDA fm_wr
- CMP fm_sp+3
- BCC P%+5
- LDA fm_sp+3
- TAX
- PLA
- LDY #0
- JMP fm_iv
-.fr9
- RTS
-.frw                    \ the row whole: the new span's pieces in the moon's
- LDA fm_sp+3            \ colours
- CMP fm_sp+2
- BCC fr9
- STA fm_pb
- LDA fm_sp+2
- STA fm_pa
- LDA #1
- STA fm_n
- JSR fm_occs
- LDX #0
-.frw1
- CPX fm_n
- BCS fr9
- STX fm_i
- JSR fm_paint
- LDX fm_i
- INX
- BRA frw1
-
-\ fm_iv: pixels A .. X of row fm_y in colour Y (0 light grey), less the
-\ discs in front
-
-.fm_iv
- STY fm_c
- STA fm_pa
- STX fm_pb
- CPX fm_pa
- BCC fmd9
- LDA #1
- STA fm_n
- JSR fm_occs
- LDX #0
-.fmv1
- CPX fm_n
- BCS fmd9
- STX fm_i
- LDA fm_pa,X
- STA fm_a
- LDA fm_pb,X
- STA R_XR
- JSR fm_span
- LDX fm_i
- INX
- BRA fmv1
-.fmd9
- RTS
-
-\ fm_occs: the pieces (fm_pa, fm_pb, fm_n of them) less the planet's and the
-\ sun's discs where they are in front of the moon
-
-.fm_occs
- BIT MN_ON
- BVC fos1
- LDA F_PLON
- BEQ fos1
- LDX #4
-.fos0
- LDA F_PLX,X            \ (F_PLX, F_PLY, F_PLR to fm_ox, fm_oy, fm_or)
- STA fm_ox,X
- DEX
- BPL fos0
- LDA #HI(F_HW)
- LDX #LO(F_HW)
- JSR fm_occ
-.fos1
- LDA MN_ON
- AND #&20
- BEQ fmd9
- LDA GSUNON
- BEQ fmd9
- LDX #3
-.fos2
- LDA F_SUX,X            \ (F_SUX, F_SUY)
- STA fm_ox,X
- DEX
- BPL fos2
- LDA GSUNR
- STA fm_or
- LDA #HI(F_HW2)
- LDX #LO(F_HW2)
- JMP fm_occ
-
-\ fm_occ: the pieces less the disc (fm_ox, fm_oy, fm_or) with half-width
-\ table (X, A) (low, high), on row fm_y
-
-.fmo0
- RTS
-.fm_occ
- STX fmo_ld+1
- STA fmo_ld+2
- LDA fm_y               \ dy = y - oy, |dy| <= r
- SEC
- SBC fm_oy
- STA fz_t
- LDA #0
- SBC fm_oy+1
- JSR f_abs16
- BCS fmo0
- CMP fm_or
- BEQ fmo1
- BCS fmo0
-.fmo1
- TAX
-.fmo_ld
- LDA F_HW,X             \ (patched: the half-width table)
- STA fz_n
- LDA fm_ox              \ ol = ox - n, or = ox + n (16-bit), to 0..255
- SEC
- SBC fz_n
- STA fm_l
- LDA fm_ox+1
- SBC #0
- BMI fmo2
- BNE fmo0               \ (ol > 255: none)
- BEQ fmo3
-.fmo2
- STZ fm_l
-.fmo3
- LDA fm_ox
- CLC
- ADC fz_n
- STA fm_r
- LDA fm_ox+1
- ADC #0
- BMI fmo0               \ (or < 0: none)
- BEQ fmo4
- LDA #255
- STA fm_r
-.fmo4
- LDX fm_n               \ each piece less [fm_l, fm_r]: from the last
-.fmo5
- DEX
- BMI fmo9
- LDA fm_pb,X
- CMP fm_l
- BCC fmo5               \ (b < l: kept)
- LDA fm_pa,X
- CMP fm_r
- BEQ fmo6
- BCS fmo5               \ (a > r: kept)
-.fmo6
- LDA fm_pa,X            \ [a, l - 1] in its place if a < l, and [r + 1, b]
- CMP fm_l               \ at the end if r < b
- BCS fmo7
- LDA fm_pb,X
- PHA
- LDA fm_l
- DEC A
- STA fm_pb,X
- PLA
- CMP fm_r
- BEQ fmo5
- BCC fmo5
- LDY fm_n
- STA fm_pb,Y
- LDA fm_r
- INC A
- STA fm_pa,Y
- INC fm_n
- BRA fmo5
-.fmo7
- LDA fm_pb,X            \ (a >= l: only [r + 1, b], if any)
- CMP fm_r
- BEQ fmo8
- BCC fmo8
- LDA fm_r
- INC A
- STA fm_pa,X
- BRA fmo5
-.fmo8
- LDY fm_n               \ (wholly hidden: the last piece into its place)
- DEY
- STY fm_n
- LDA fm_pa,Y
- STA fm_pa,X
- LDA fm_pb,Y
- STA fm_pb,X
- BRA fmo5
-.fmo9
- RTS
-
-\ fm_paint: piece X on row fm_y in the moon's colours: light grey from the
-\ row's start colour, flipping to dark grey and back at its boundaries
-
-.fm_paint
- LDA fm_pa,X
- STA fm_a
- LDA fm_pb,X
- STA fm_b
- LDY fm_y
- LDA R_NDN,Y            \ the count and, in bit 7, the start colour
- AND #&7F
- STA fm_k
- EOR R_NDN,Y
- ASL A
- ROL A
- STA fm_c
- LDA R_NDX0,Y
- STA fm_x
- LDA R_NDX1,Y
- STA fm_x+1
- LDA R_NDX2,Y
- STA fm_x+2
- LDA R_NDX3,Y
- STA fm_x+3
- LDX #0
-.fmp1
- CPX fm_k
- BCS fmp4
- LDA fm_x,X
- CMP fm_a
- BEQ fmp2
- BCS fmp3
-.fmp2
- LDA fm_c               \ (at or left of the piece's start: a flip)
- EOR #1
- STA fm_c
- BRA fmp3a
-.fmp3
- CMP fm_b               \ inside: paint up to it, then flip
- BEQ fmp3b
- BCS fmp4
-.fmp3b
- DEC A
- STA R_XR
- PHX
- JSR fm_span
- PLX
- LDA fm_x,X
- STA fm_a
- LDA fm_c
- EOR #1
- STA fm_c
-.fmp3a
- INX
- BRA fmp1
-.fmp4
- LDA fm_b
- STA R_XR
-.fm_span                \ R_XL = fm_a .. R_XR in colour fm_c, on row fm_y
- LDA fm_a
- STA R_XL
- LDX fm_c
- LDA mn_ce,X
- STA R_COLE
- LDA mn_co,X
- STA R_COLO
- LDY fm_y
- JMP T_WSPAN            \ (into R_WL/R_WR, not DIRTY)
-
-\ The moon's colours: light grey (C, M, Y and black in equal measure) and dark
-\ grey (one of C, M, Y in four pixels): even rows, odd rows (MODE 1 bytes:
-\ pixel i in bits 7 - i and 3 - i)
-.mn_ce EQUB &6A, &28    \ light C M Y K, dark C K M K
-.mn_co EQUB &9A, &44    \ light Y K C M, dark K Y K K
-
-.f_hw3r EQUB 0          \ the radius F_HW3 was built for
-.fm_y  EQUB 0
-.fm_i  EQUB 0
-.fm_n  EQUB 0
-.fm_pa SKIP 3
-.fm_pb SKIP 3
-.fm_ox EQUW 0
-.fm_oy EQUW 0
-.fm_or EQUB 0
-.fm_l  EQUB 0
-.fm_r  EQUB 0
-.fm_a  EQUB 0
-.fm_b  EQUB 0
-.fm_c  EQUB 0
-.fm_k  EQUB 0
-.fm_x  SKIP 4
-.fm_md EQUB 0           \ f_moon0's case: 0 whole, 1 the same, 2 moved
-.fm_hi EQUB 0           \ the last row
-.fm_ct EQUB 0           \ the new crater rows
-.fm_cb EQUB 0
-.fm_wl EQUB 0           \ the row's R_WL, R_WR before the moon's writes
-.fm_wr EQUB 0
-.fm_sp SKIP 4           \ the row's old span, new span
-ENDIF                   \ (_PLANET_MOON)
-
-
-\ ------------------------------------------------------------------------------
-\ f_behind: is ship f_si behind the planet or the moon (MOON=on), with the
+\ f_behind: is ship f_si behind the planet, with the
 \ first vertex of its first visible face inside its disc? C set if so (don't
 \ draw it)
 \ ------------------------------------------------------------------------------
@@ -3930,36 +3529,10 @@ ENDIF                   \ (_PLANET_MOON)
  STA fb_zl
  LDA #LO(F_HW)
  LDX #HI(F_HW)
- IF _PLANET_MOON
- JSR f_bdisc
- BCC fbh0
- RTS
-.fbh0
- BIT MN_ON              \ the moon's, if any
- BMI fbh0a
- CLC
- RTS
-.fbh0a
- LDX #3
-.fbhm
- LDA MN_X,X             \ (MN_X, MN_Y, MN_R, MN_Z)
- STA fb_x,X
- DEX
- BPL fbhm
- LDA MN_R
- STA fb_r
- LDA MN_Z+1
- STA fb_zh
- LDA MN_Z
- STA fb_zl
- LDA #LO(F_HW3)
- LDX #HI(F_HW3)
- ELSE
  JMP f_bdisc
 .fbh0
  CLC
  RTS
- ENDIF
 
 \ f_bdisc: is ship f_si behind the disc fb_x, fb_y, fb_r (half-widths at
 \ (A, X)), z fb_zh/fb_zl, with the first vertex of its first visible face
@@ -4231,12 +3804,12 @@ ENDIF                   \ (_PLANET_MOON)
 \ f_gkeep: before the frame first runs game code (f_proj, f_dots' clouds),
 \ keep the game's zero page that the game reads afterwards and that game
 \ code changes (master/tools/records/live.mjs, the frame's span, all it
-\ writes): RAND, Q, TGT, XX0, INWK 0-8, INWK+31 and XX19; the frame puts it
+\ writes): RAND, Q, XX0, INWK 0-8, INWK+31 and XX19; the frame puts it
 \ back at its end (f_gback; f_gz bit 7: kept, until then). The rest it
 \ writes, outside the rasteriser's &06-&27 (which F_FRAME keeps), is written
 \ again before it is read
 
-FGZ = 4 + 1 + 1 + 2 + 9 + 1 + 2
+FGZ = 4 + 1 + 2 + 9 + 1 + 2
 .f_gzs SKIP FGZ
 .f_gz   EQUB 0
 .f_gkeep
@@ -4244,13 +3817,12 @@ FGZ = 4 + 1 + 1 + 2 + 9 + 1 + 2
  BMI fgk9
  FOR k, 0, 3 : LDA RAND+k : STA f_gzs+k : NEXT
  LDA Q : STA f_gzs+4
- LDA TGT : STA f_gzs+5
- LDA XX0 : STA f_gzs+6
- LDA XX0+1 : STA f_gzs+7
- FOR k, 0, 8 : LDA INWK+k : STA f_gzs+8+k : NEXT
- LDA INWK+31 : STA f_gzs+17
- LDA XX19 : STA f_gzs+18
- LDA XX19+1 : STA f_gzs+19
+ LDA XX0 : STA f_gzs+5
+ LDA XX0+1 : STA f_gzs+6
+ FOR k, 0, 8 : LDA INWK+k : STA f_gzs+7+k : NEXT
+ LDA INWK+31 : STA f_gzs+16
+ LDA XX19 : STA f_gzs+17
+ LDA XX19+1 : STA f_gzs+18
  DEC f_gz
 .fgk9
  RTS
@@ -4259,13 +3831,12 @@ FGZ = 4 + 1 + 1 + 2 + 9 + 1 + 2
  STZ f_gz
  FOR k, 0, 3 : LDA f_gzs+k : STA RAND+k : NEXT
  LDA f_gzs+4 : STA Q
- LDA f_gzs+5 : STA TGT
- LDA f_gzs+6 : STA XX0
- LDA f_gzs+7 : STA XX0+1
- FOR k, 0, 8 : LDA f_gzs+8+k : STA INWK+k : NEXT
- LDA f_gzs+17 : STA INWK+31
- LDA f_gzs+18 : STA XX19
- LDA f_gzs+19 : STA XX19+1
+ LDA f_gzs+5 : STA XX0
+ LDA f_gzs+6 : STA XX0+1
+ FOR k, 0, 8 : LDA f_gzs+7+k : STA INWK+k : NEXT
+ LDA f_gzs+16 : STA INWK+31
+ LDA f_gzs+17 : STA XX19
+ LDA f_gzs+18 : STA XX19+1
  RTS
 
 \ F_GUN: the set-up of LL9's part 6 (LL42P) for a ship firing at us, whose
@@ -4370,10 +3941,12 @@ FGZ = 4 + 1 + 1 + 2 + 9 + 1 + 2
 \ moves only the heaps of the slots above the one it removes, not yet
 \ processed in the iteration, and NWSHP takes room below the heaps. Then
 \ both passes do what the game keeps of PTCLS (master/tools/records/live.mjs:
-\ nothing else it leaves is read): the random numbers, which depend only on
-\ the last vertex's seeds and the particle count, as PTCLS calls DORND2 three
-\ times a particle and keeps RAND+1, and RAND+3 = the planet's z_lo; and
-\ Q, U, TGT, CNT and CNT2 as it leaves them
+\ nothing else it leaves is read): of the random numbers, only RAND+3 = the
+\ planet's z_lo, as PTCLS takes none that last (it keeps RAND+1 itself, and
+\ RAND and RAND+2, which its DORND2s step three times a particle, are put
+\ back as it found them: the explosion clouds' seed, in the comparison's
+\ reference too, MASTER-PLAN.md); and Q, U, TGT, CNT and CNT2 as it leaves
+\ them
 
 .F_CLOUD
  BCC fcd1
@@ -4412,32 +3985,12 @@ FGZ = 4 + 1 + 1 + 2 + 9 + 1 + 2
  BCC fcd2
 .fcd3
  STA CNT
- LDY #3                 \ its seeds RAND and RAND+2 (the bytes after them
- LDA (XX19),Y           \ feed DORND2's RAND+1 and RAND+3, which PTCLS
- EOR CNT                \ puts back as it found them, and as K%+6)
- STA RAND
- LDY #5
- LDA (XX19),Y
- EOR CNT
- STA RAND+2
- LDA U                  \ X = 3 * (U + 1): DORND2's RAND and RAND+2
- ASL A
- SEC
- ADC U
- ADC #2
- TAX
-.fcd4
- LDA RAND
- ASL A
- TAY
- ADC RAND+2
- STA RAND
- STY RAND+2
- DEX
- BNE fcd4
- LDA K%+6               \ (main RAM below &3000: bankcheck: ok)
- STA RAND+3
- DEX                    \ CNT2 = &FF
+ LDA K%+6               \ RAND+3 = the planet's z_lo, as PTCLS leaves it (it
+ STA RAND+3             \ takes no random numbers that last: RAND and RAND+2
+                        \ are put back as it found them, the explosion clouds'
+                        \ seed, and RAND+1 it puts back itself) (main RAM below
+                        \ &3000: bankcheck: ok)
+ LDX #&FF               \ CNT2 = &FF
  STX CNT2
  RTS
 

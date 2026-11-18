@@ -55,22 +55,20 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &1934          \ Port (Tube): the parasite's, where its shared workspace
+ CODE% = &192D          \ Port (Tube): the parasite's, where its shared workspace
                         \ ends (tube/src/p-ws.asm, p-layout.asm asserts it)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
                         \ the renderer's shared workspace below it (gfx-ws.asm)
 ELSE
- CODE% = &1F13 - (&2B AND _PLANET_MOON)
+ CODE% = &1F42
                         \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; the glue area, elite-glue.asm,
                         \ starts here and the low pass follows it, and the low
                         \ byte is chosen so that the font, at its place after
                         \ ADDK, starts a page with no padding: the build prints
-                        \ the padding, FONTPAD%; with the moon, MOON=on, the
-                        \ glue area is &2B bytes longer, so it starts that
-                        \ much lower)
+                        \ the padding, FONTPAD%)
 ENDIF
 
  LOAD% = CODE%          \ The address where the code will be loaded
@@ -2178,6 +2176,17 @@ ELSE
  dCOMY = COMY
 ENDIF
 
+                        \ Port: the sun while the space station holds its slot
+                        \ (SUNUP, SUNSC, SUNBK, SUNLAU)
+
+.SUNPK  SKIP NI%        \ The sun's ship data block, parked
+
+.SUNPF  SKIP 1          \ Bit 7 set: SUNPK holds the sun (set by SUNUP and
+                        \ SUNLAU, cleared by SUNBK; RES2 leaves it, but it is
+                        \ read only while the station is present); bit 6 set:
+                        \ SUNSC is moving the sun in this pass of the main
+                        \ flight loop through the ship slots
+
  PRINT "WP workspace from ", ~WP, "to ", ~P%-1, "inclusive"
 
  ASSERT P% <= &0D00     \ Port: nothing may be assembled into page &0D (see K%)
@@ -3163,6 +3172,11 @@ ENDIF
 
  JSR H_VSYNC            \ Port: the renderer's flip: show the front buffer
                         \ (ACCCON D; gfx-hooks.asm)
+
+ LDA SOFLG              \ Port: if no channel has a sound buffered (all three
+ ORA SOFLG+1            \ SOFLG bytes zero, most of the time), SOINT would only
+ ORA SOFLG+2            \ test them, so skip the call (A and the flags are put
+ BEQ P%+7               \ back by the PLA and RTI below, X and Y are untouched)
 
  PHX                    \ Call SOINT to send the current sound data to the
  JSR SOINT              \ 76489 sound chip, stashing X on the stack so it gets
@@ -6209,21 +6223,10 @@ ENDIF
 
 .HLOIN
 
-IF _TPART <> 2          \ (Tube: the host draws from HLOIN3, X1, X2, Y1 and COL
-                        \ from the parasite, whose HLOIN3 is p-io.asm's p_hloin)
- JSR H_HLOIN            \ Port: in record mode the renderer fills the sun, so
-                        \ return at once (gfx-hooks.asm)
-
- LDA Y1                 \ Set A = Y1, the pixel y-coordinate of the line
-
- AND #3                 \ Set A to the correct order of red/yellow pixels to
- TAX                    \ make this line an orange colour (by using bits 0-1 of
- LDA orange,X           \ the pixel y-coordinate as the index into the orange
-                        \ lookup table)
-
- STA COL                \ Store the correct orange colour in COL
-
-ENDIF
+ \ Port: HLOIN's own entry, which set COL to the sun's orange from Y1
+                        \ (through the orange table) for the sun's rows, is gone
+                        \ with them (the frame fills the sun from its record:
+                        \ SUN); HLOIN3 is still used
 
 \ ******************************************************************************
 \
@@ -6573,8 +6576,8 @@ ENDIF
 \       Type: Variable
 \   Category: Drawing pixels
 \    Summary: Lookup table for two-pixel mode 1 orange pixels for the sun
-\       Area: hot, ACCCON X
-\       Tube: bothb
+\       Area: none
+\       Tube: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -6902,6 +6905,7 @@ ENDIF
 IF _TPART <> 2          \ (Tube: the host draws from PIXEL's body, X, A, ZZ and
  JSR H_DOT              \ COL from the parasite: p-io.asm's p_pixel)
 ENDIF
+
 \ ******************************************************************************
 \
 \       Name: PIXELD
@@ -8781,6 +8785,7 @@ ENDIF
  LDA #28                \ speed: 0-40, one pixel per unit, danger from 28
  STA dT
  LDA DELTA
+ LDX #8                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
 IF _TPART <> 2         \ (Tube: the host draws only; ADDK's results are
@@ -8920,6 +8925,10 @@ ENDIF
 .dll9a
  LDY #0
 .dll9
+ TYA                    \ X = 11 + Y, the energy banks' cache indexes (DILI
+ CLC                    \ of SC = &xxA0 with SC+1 = &77 + 2Y)
+ ADC #11
+ TAX
  LDA dbank,Y
  STY P
  JSR DIL
@@ -8937,11 +8946,13 @@ ENDIF
  LSR A
  LSR A
  LSR A
+ LDX #0                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
  LDA ASH
  LSR A
  LSR A
  LSR A
+ LDX #1                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
 IF _TPART <> 2          \ (Tube: as above)
@@ -8954,6 +8965,7 @@ ENDIF
  STA dK1
  LDA dQQ14
  LSR A
+ LDX #2                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
  JSR PZW2               \ temperatures: high values danger, low safe (2)
@@ -8974,11 +8986,13 @@ ENDIF
  LSR A
  LSR A
  LSR A
+ LDX #3                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
  LDA dGNTMP
  LSR A
  LSR A
  LSR A
+ LDX #4                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
  LDA #240               \ altitude: 0-255 -> 0-31, one colour
@@ -8998,6 +9012,7 @@ ENDIF
  LSR A
  LSR A
  LSR A
+ LDX #5                 \ X = this bar's cache index (DILI of SC here)
  JSR DIL
 
  LDA #4                 \ Main RAM back at &3000-&7FFF
@@ -9098,16 +9113,8 @@ ENDIF
  CMP #33
  BCC P%+4
  LDA #32
- STA dsE
- LDA SC+1               \ X = the cache index, as DILI
- AND #%00001110
- LSR A
- BIT SC
- BPL P%+4
- ORA #8
- TAX
- LDA dsE
- CMP dT
+ STA dsE               \ (X = the bar's cache index, given by DIALS: the one
+ CMP dT                 \ DILI gives for SC, each bar's place being fixed)
  LDA dK
  BCS P%+5
  LDA dK1
@@ -10817,9 +10824,10 @@ ENDIF
 
  LDA FRIN,X             \ Fetch the contents of this slot into A. If it is 0
  BNE P%+5               \ then this slot is empty and we have no more ships to
- JMP MA18               \ process, so jump to MA18 below, otherwise A contains
-                        \ the type of ship that's in this slot, so skip over the
-                        \ JMP MA18 instruction and keep going
+ JMP SUNSC              \ process, so jump to MA18 below (Port: by way of SUNSC,
+                        \ which moves the parked sun first), otherwise A
+                        \ contains the type of ship that's in this slot, so skip
+                        \ over the JMP instruction and keep going
 
  STA TYPE               \ Store the ship type in TYPE
 
@@ -11566,6 +11574,68 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: SUNSC
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Move and draw the sun while it is parked, after the ships
+\       Area: hot, again
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: MAL1 jumps here when it reaches the end of the ship slots, in place
+\ of MA18. While the space station holds the sun's slot, the sun is parked in
+\ SUNPK (SUNUP), and this runs it through the rest of MAL1 like a ship in a
+\ slot of its own: TYPE = 129, INF = SUNPK and XSAV = NOSH - 1 (the phase of
+\ TIDY in MVEIT), entering MAL1 after GINF, at MAL1g, which copies the block
+\ into INWK. MVEIT moves it, LL9 draws it (PLANET and SUN), the block is
+\ copied back to SUNPK, and MA27 moves on to slot NOSH, whose FRIN byte is
+\ always 0, which brings MAL1 back here. Bit 6 of SUNPF tells the two visits
+\ apart: set on the first, when the sun is run, and cleared on the second,
+\ which goes on to MA18. Nothing in the sun's pass can leave the loop
+\ (HITCH, the collision and scooping tests and FAROF all skip the planet and
+\ the sun, and its NEWB and byte #31 never get bit 7), so bit 6 is always
+\ clear again when the main loop reaches MLOOP.
+\
+\ Other entry points:
+\
+\   SUNS1               Go on to MA18
+\
+\ ******************************************************************************
+
+
+.SUNSC
+
+ LDA SSPR               \ If the space station is not here, the sun (if any)
+ BEQ SUNS1              \ is in its slot, so jump to SUNS1 to go on to MA18
+
+ LDA SUNPF              \ If bit 7 of SUNPF is clear, there is no parked sun,
+ BPL SUNS1              \ so jump to SUNS1 to go on to MA18
+
+ EOR #%01000000         \ Flip bit 6 of SUNPF, and if it is now clear, this
+ STA SUNPF              \ is the second visit, after the sun has been moved,
+ AND #%01000000         \ so jump to SUNS1 to go on to MA18
+ BEQ SUNS1
+
+ LDA #129               \ Set TYPE to the sun's type
+ STA TYPE
+
+ LDA #LO(SUNPK)         \ Set INF to point to the parked sun's data block
+ STA INF
+ LDA #HI(SUNPK)
+ STA INF+1
+
+ LDX #NOSH-1            \ Set XSAV to the last slot, so MA27 moves on to slot
+ STX XSAV               \ NOSH, the end of the slots
+
+ JMP MAL1g              \ Rejoin MAL1 to copy the block into INWK and process
+                        \ the sun
+
+.SUNS1
+
+ JMP MA18               \ Go on to part 13 of the main flight loop
+
+\ ******************************************************************************
+\
 \       Name: Main flight loop (Part 13 of 16)
 \       Type: Subroutine
 \   Category: Main loop
@@ -11768,9 +11838,10 @@ ENDIF
                         \ >= 192 (i.e. they must all be < 192 for us to be near
                         \ enough to the planet to bump into a space station)
 
- JSR WPLS               \ Call WPLS to remove the sun from the screen, as we
-                        \ can't have both the sun and the space station at the
-                        \ same time
+ JSR SUNUP              \ Call SUNUP to park the sun, as we can't have both
+                        \ the sun and the space station in the same slot
+                        \ (Port: the original calls WPLS to remove the sun from
+                        \ the screen)
 
  JSR NWSPS              \ Add a new space station to our local bubble of
                         \ universe
@@ -11809,15 +11880,6 @@ ENDIF
  BNE MA23S              \ the following, as there are no planets or suns to
                         \ bump into in witchspace
 
- IF _PLANET_MOON
-
-  JSR MOONHIT           \ Port: the moon (the planet's scenery, gfx-planet7.asm,
-  BCS MA28              \ in a MOON=on build) is solid: if we have flown into
-                        \ it, jump to MA28 to crash as into the planet
-                        \ (elite-moon.asm: in the systems with a moon, on this
-                        \ iteration of 32)
-
- ENDIF
 
  LDA MCNT               \ Fetch the main loop counter and calculate MCNT mod 32,
  AND #31                \ which tells us the position of this loop in each block
@@ -14171,6 +14233,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Remove a line from the sun line heap and draw it on-screen
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -14573,6 +14636,65 @@ ENDIF
 \
 \ ******************************************************************************
 
+.stl_pat
+
+                        \ Port: patch b = A AND 31 (MULTS multiplies by
+                        \ X AND 31) into MLSB (X = 0) or MLSA (X = MLSA -
+                        \ MLSB): b into the CPX and the QSL+b / QSH+b
+                        \ operands, QSL-b / QSH-b (both bytes, as b may be 0)
+                        \ into the others (here, before STARS1, so that the
+                        \ MLSB inlined in STL1 is within 256 bytes of MLSA)
+                        \
+                        \ If b is already patched in (the CPX operand holds
+                        \ the last b, and the assembled operands are those of
+                        \ b = 0), the operands are all set already, so return
+                        \ (STARS1 reads neither A nor C after this: STL1
+                        \ starts with LDA and CMP)
+
+ AND #31
+ CMP mlb1+1,X
+ BEQ stlpr
+ STA mlb1+1,X
+ STA mlb2+1,X
+ STA mlb4+1,X
+ EOR #&FF               \ A = -b, with C = 1 if and only if b = 0
+ CLC
+ ADC #1
+ STA mlb3+1,X
+ STA mlb5+1,X
+ LDA #HI(QSL)-1
+ ADC #0
+ STA mlb3+2,X
+ ADC #HI(QSH)-HI(QSL)   \ (C = 0: no carry out of HI(QSL))
+ STA mlb5+2,X
+
+ LDY #T                 \ Port: and the first instruction of MLSB (X = 0) or
+ LDA mlb1+1,X           \ MLSA: STA T when b <> 0, else BRA mlbkj or BRA mlsk,
+ BNE stlw0              \ as the products are then 0 (until ALP1 or BET1
+ LDY #mlbkj-MLSB-2      \ first changes, the assembled STA T stays: their own
+ TXA                    \ paths, which give the same results)
+ BEQ stlz
+ LDY #mlsk-MLSA-2
+
+.stlz
+
+ LDA #&80
+ BRA stlw
+
+.stlw0
+
+ LDA #&85
+
+.stlw
+
+ STA MLSB,X
+ TYA
+ STA MLSB+1,X
+
+.stlpr
+
+ RTS
+
 .stlff
 
  LDA #255               \ STL1's inlined DVID4z: R = 255
@@ -14591,31 +14713,6 @@ ENDIF
 
  JMP stl_dvr            \ Rejoin the loop (Port: here, before STARS1, for the
                         \ BCS that comes here)
-
-.stl_pat
-
-                        \ Port: patch b = A AND 31 (MULTS multiplies by
-                        \ X AND 31) into MLSB (X = 0) or MLSA (X = MLSA -
-                        \ MLSB): b into the CPX and the QSL+b / QSH+b
-                        \ operands, QSL-b / QSH-b (both bytes, as b may be 0)
-                        \ into the others (here, before STARS1, so that the
-                        \ MLSB inlined in STL1 is within 256 bytes of MLSA)
-
- AND #31
- STA mlb1+1,X
- STA mlb2+1,X
- STA mlb4+1,X
- EOR #&FF               \ A = -b, with C = 1 if and only if b = 0
- CLC
- ADC #1
- STA mlb3+1,X
- STA mlb5+1,X
- LDA #HI(QSL)-1
- ADC #0
- STA mlb3+2,X
- ADC #HI(QSH)-HI(QSL)   \ (C = 0: no carry out of HI(QSL))
- STA mlb5+2,X
- RTS
 
 .STARS1
 
@@ -14853,7 +14950,10 @@ ENDIF
 
 .MLSB
 
- STA T                  \ Set T = A, as MULTS does
+ STA T                  \ Set T = A, as MULTS does (Port: patched by stl_pat
+                        \ to BRA mlbkj when BET1 = 0)
+
+.mlb0
  AND #%01111111         \ If A = 0, set P(1 0) = 0 at mlbz, as MULTS does
  BEQ mlbz               \ at MU6
  TAX                    \ Set X = |A|
@@ -14900,6 +15000,8 @@ ENDIF
                         \ P AND 31, so Q^2 < 256), so the original's
                         \ sign-preserving STA T : LDA #0 : ROR A : ORA T is a
                         \ no-op (C = 0 and A, N, Z are the same; ADD rewrites T)
+
+.mlbc
 
  BCS stlb               \ Port: if the high byte C is 0, do ADD inline (P, T
  LDX S                  \ and T1 are dead: STZ P below, and PIX1's ADD rewrites
@@ -14997,6 +15099,11 @@ ENDIF
 
  RTS                    \ Return from the subroutine
 
+.mlbkj
+
+ JMP mlbk               \ (stl_pat's BRA from MLSB's start reaches here, as
+                        \ mlbk is out of its range)
+
 .mlbz
 
  STA P+1                \ MLSB with A = 0: set P(1 0) = 0, as MULTS's MU6,
@@ -15009,6 +15116,30 @@ ENDIF
  LDX BET1               \ before and rejoin
  JSR MULTS
  BRA mlb6
+
+.mlbk
+
+                        \ Port: MLSB when BET1 = 0 (stl_pat puts BRA mlbkj in
+                        \ place of its STA T, through mlbkj): with |A| <> 0 the product is 0
+                        \ with A's sign, so P = 0, Q = A AND &80, and then
+                        \ 2 * Q^2 = 0: join at mlbc with A = 0 and C = 0, as
+                        \ MLSB's own path arrives there (its X = 0 is rewritten
+                        \ by LDX S, its V by the ADD in PIX1 or stlb). |A| = 0
+                        \ (P+1 = 0 too, at mlbz) takes MLSB's own path
+
+ STA T                  \ T = A, as MLSB does
+ BIT #%01111111         \ If |A| = 0, take MLSB's path
+ BEQ mlbkf
+ STZ P
+ AND #%10000000
+ STA Q
+ LDA #0
+ CLC
+ JMP mlbc
+
+.mlbkf
+
+ JMP mlb0
 
 .stlb
 
@@ -15059,63 +15190,6 @@ ENDIF
  BRA STC1               \ Jump up to STC1 to draw this new particle (A need not
                         \ be set to y_hi: PIXEL2 starts by loading X1 into A)
 
-.MLUQ
-
-                        \ Port: (A P) = |A| * Q with C clear, as MLU3 gives
-                        \ (it also leaves X = 0; nothing in STL1 reads X or T
-                        \ after it), with Q patched in by STL1 once per
-                        \ particle: q at mlq2 and mlq4, 256 - q at mlq3 and
-                        \ mlq5 (1 <= q <= 255, so the high bytes are fixed).
-                        \ For |A| >= q the product is QS(|A| + q) - QS(|A| - q),
-                        \ exactly as MU11 computes it; |A| < q goes to mlqr
-
- AND #%01111111         \ Set X = |A|
- TAX
-
- CPX Q                  \ If |A| < q, jump to mlqr (with C = 1 otherwise, for
- BCC mlqr               \ the SBC below)
-
-.mlq2
-
- LDA QSL+1,X            \ (patched: QSL + q) Set (A P) = QS(|A| + q)
-.mlq3                   \                                - QS(|A| - q)
- SBC QSL-1,X            \ (patched: QSL - q)              = |A| * q
- STA P
-.mlq4
- LDA QSH+1,X            \ (patched: QSH + q)
-.mlq5
- SBC QSH-1,X            \ (patched: QSH - q)
-
- CLC                    \ Return with C clear, as MLU3 does
- RTS
-
-.mlqr
-
-                        \ |A| < q (rare), with C = 0 and A = X = |A|: join MU11
-                        \ past its set-up, with the registers and P it would
-                        \ have there (T = Q - 1 is not needed past that point,
-                        \ and is dead here: MLSA rewrites it before any read)
-
- STY mu7+1              \ Keep Y, as MU11 does
- STA P                  \ P = |A|, as MLU3 sets it
-
- ADC Q                  \ Set X = |A| + q, with C set if it is 256 or more, as
- TAX                    \ MU11 does with ADC T
-
- BCS mlqh               \ If |A| + q >= 256, join MU11 at mu5
-
- LDA Q                  \ Set A = q - |A| = |P - X| (C = 1 after, as q > |A|),
- SEC                    \ as MU11 computes it before mu4, and join MU11 at mu4
- SBC P
- JMP mu4
-
-.mlqh
-
- JMP mu5                \ Join MU11 at mu5 with C = 1, P = |A|, Q = q and
-                        \ X = |A| + q - 256, as MU11 arrives there
-
- ASSERT QSH = QSL + 512 AND LO(QSL) = 0
-
 .MLS2A
 
                         \ Port: MLS2 with ALP1 patched in: set (S R) = XX(1 0)
@@ -15137,7 +15211,10 @@ ENDIF
 
 .MLSA
 
- STA T                  \ Set T = A, as MULTS does
+ STA T                  \ Set T = A, as MULTS does (Port: patched by stl_pat
+                        \ to BRA mlsk when ALP1 = 0)
+
+.mla0
  AND #%01111111         \ If A = 0, set P(1 0) = 0 at mlaz, as MULTS does
  BEQ mlaz               \ at MU6
  TAX                    \ Set X = |A|
@@ -15219,9 +15296,97 @@ ENDIF
  JSR MULTS
  BRA mla6
 
+.mlsk
+
+                        \ Port: MLSA when ALP1 = 0 (stl_pat puts BRA mlsk in
+                        \ place of its STA T): the product is 0, so when |A|
+                        \ and |S| are both non-zero, ADD gives (A X) = (S R)
+                        \ whatever the signs (the same-sign sum at mlt, or
+                        \ MU8 with |S R| > 0), and that is returned here; the
+                        \ T, T1, P, C and V that MLSA would leave are not read
+                        \ before MLSB (its STA T, then P from the product, or
+                        \ at mlbz, and the C of its CPX) and PIX1's or stlb's
+                        \ ADD (T1, T, V) rewrite them. Else (|A| = 0, which
+                        \ also sets P+1 at mlaz, or |S| = 0) MLSA's own path
+
+ BIT #%01111111         \ If |A| = 0, take MLSA's path
+ BEQ mlskf
+
+ LDX S                  \ If |S| = 0 (S = 0 or &80), take MLSA's path
+ BEQ mlskf
+ CPX #%10000000
+ BEQ mlskf
+
+ TXA                    \ (A X) = (S R)
+ LDX R
+ RTS
+
+.mlskf
+
+ STA T                  \ MLSA's path: its STA T, then the rest
+ JMP mla0
+
+.MLUQ
+
+                        \ Port: (A P) = |A| * Q with C clear, as MLU3 gives
+                        \ (it also leaves X = 0; nothing in STL1 reads X or T
+                        \ after it), with Q patched in by STL1 once per
+                        \ particle: q at mlq2 and mlq4, 256 - q at mlq3 and
+                        \ mlq5 (1 <= q <= 255, so the high bytes are fixed).
+                        \ For |A| >= q the product is QS(|A| + q) - QS(|A| - q),
+                        \ exactly as MU11 computes it; |A| < q goes to mlqr
+
+ AND #%01111111         \ Set X = |A|
+ TAX
+
+ CPX Q                  \ If |A| < q, jump to mlqr (with C = 1 otherwise, for
+ BCC mlqr               \ the SBC below)
+
+.mlq2
+
+ LDA QSL+1,X            \ (patched: QSL + q) Set (A P) = QS(|A| + q)
+.mlq3                   \                                - QS(|A| - q)
+ SBC QSL-1,X            \ (patched: QSL - q)              = |A| * q
+ STA P
+.mlq4
+ LDA QSH+1,X            \ (patched: QSH + q)
+.mlq5
+ SBC QSH-1,X            \ (patched: QSH - q)
+
+ CLC                    \ Return with C clear, as MLU3 does
+ RTS
+
+.mlqr
+
+                        \ |A| < q (rare), with C = 0 and A = X = |A|: join MU11
+                        \ past its set-up, with the registers and P it would
+                        \ have there (T = Q - 1 is not needed past that point,
+                        \ and is dead here: MLSA rewrites it before any read)
+
+ STY mu7+1              \ Keep Y, as MU11 does
+ STA P                  \ P = |A|, as MLU3 sets it
+
+ ADC Q                  \ Set X = |A| + q, with C set if it is 256 or more, as
+ TAX                    \ MU11 does with ADC T
+
+ BCS mlqh               \ If |A| + q >= 256, join MU11 at mu5
+
+ LDA Q                  \ Set A = q - |A| = |P - X| (C = 1 after, as q > |A|),
+ SEC                    \ as MU11 computes it before mu4, and join MU11 at mu4
+ SBC P
+ JMP mu4
+
+.mlqh
+
+ JMP mu5                \ Join MU11 at mu5 with C = 1, P = |A|, Q = q and
+                        \ X = |A| + q - 256, as MU11 arrives there
+
+ ASSERT QSH = QSL + 512 AND LO(QSL) = 0
+
  ASSERT mla1 - mlb1 = MLSA - MLSB AND mla3 - mlb3 = MLSA - MLSB
  ASSERT mla5 - mlb5 = MLSA - MLSB AND mla2 - mlb2 = MLSA - MLSB
  ASSERT mla4 - mlb4 = MLSA - MLSB AND MLSA - MLSB < 256
+ ASSERT mlbkj - MLSB - 2 < 128 AND mlsk - MLSA - 2 < 128   \ (stl_pat's BRAs)
 
 \ ******************************************************************************
 \
@@ -22433,6 +22598,9 @@ ENDMACRO
                         \ clear (X, Y, N and Z differ: no caller reads them,
                         \ as each caller's next use of X and Y sets them)
 
+ LDX Q                  \ Port: if Q = 0 (MVEIT's calls with a zero roll or
+ BEQ MLTU2z             \ pitch) the product is 0, so return it at MLTU2z
+
  STA P+1                \ Y = |A - Q|, as QMUL P+1, P+1, Q with A already
  SEC                    \ loaded
  SBC Q
@@ -22517,6 +22685,15 @@ ENDMACRO
 
  ADC #0                 \ C is set, so A = P + Q - 255 = Q - lo = |lo - Q|
  BRA MLTU2d
+
+.MLTU2z
+
+ STZ P                  \ Q = 0 (X = 0): (A P+1 P) = 0, with C and V clear,
+ STZ P+1                \ as the products above give it
+ TXA
+ CLC
+ CLV
+ RTS
 
 
 \ ******************************************************************************
@@ -29561,8 +29738,9 @@ ENDIF
 
  INC INWK+7             \ And increment z_hi, so it's only just behind us
 
- JSR NWSPS              \ Add a new space station to our local bubble of
-                        \ universe
+ JSR SUNLAU             \ Add a new space station to our local bubble of
+                        \ universe (Port: and a sun, parked; the original
+                        \ calls NWSPS)
 
  LDA #12                \ Set our launch speed in DELTA to 12
  STA DELTA
@@ -29638,6 +29816,128 @@ ENDIF
 .TT115
 
  JMP TT23               \ Jump to TT23 to display the Short-range Chart
+
+\ ******************************************************************************
+\
+\       Name: SUNLAU
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Add the space station and this system's sun as we launch
+\       Area: cold, again
+\       Tube: ovl D
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: TT110 calls this in place of NWSPS when we launch. It adds the space
+\ station, as NWSPS, then makes the system's sun where SOLAR put it when we
+\ arrived, relative to the planet, and parks it in SUNPK (as SUNUP), so the
+\ sun is there from the start, and stays when we leave the station's safe
+\ zone (SUNBK). SOLAR puts the planet at (h, h, a) in sign units (a = 3 + the
+\ low two bits of s0_hi + bit 0 of FIST, which SOLAR halves; h = a / 2) and
+\ the sun at x = b * 65536 + b * 256, y = h, z = -m (b = the low two bits of
+\ s2_hi, m = the low three bits of s1_hi with bit 0 set), so the sun is at
+\ (b - h) * 65536 + b * 256, 0, -(m + a) * 65536 from the planet. At the
+\ launch the planet is at (0, 0, 1), so the sun is at x as above, y = 0 and
+\ z = -(m + a - 1) * 65536, taking bit 0 of FIST as clear (what it was when
+\ we arrived is not known). The seeds are the current system's, QQ2, which
+\ SOLAR read in QQ15 on arrival (at the launch QQ15 holds the system that
+\ TT111 has just selected, under the chart's crosshairs). The rest of its
+\ data block is SOLAR's too: ZINF's orientation, and NEWB from the planet's
+\ and the sun's E% bytes, as NWSHP sets them for the planet and the sun in
+\ turn.
+\
+\ ******************************************************************************
+
+
+.SUNLAU
+
+ JSR NWSPS              \ Add the space station, as TT110 did
+
+ JSR ZINF               \ Reset the INWK ship workspace for the sun, as SOLAR
+
+ LDA QQ2+5              \ Set x_hi = b = the low two bits of s2_hi
+ AND #%00000011
+ STA INWK+1
+
+ LDA QQ2+1              \ Set A = h = a / 2 for a = 3 + the low two bits of
+ AND #%00000011         \ s0_hi
+ CLC
+ ADC #3
+ LSR A
+
+ STA INWK+2             \ Set x_sign = h, for the subtraction
+
+ LDA INWK+1             \ Set A = b - h, and if b >= h, jump to SUNL2 with
+ SEC                    \ x_sign = A = b - h, as x = (b - h) * 65536 + b * 256
+ SBC INWK+2
+ BCS SUNL2
+
+ EOR #&FF               \ Otherwise x is negative: set A = h - b - 1 (the C
+                        \ flag is clear, from the subtraction)
+
+ LDX INWK+1             \ If b = 0, jump to SUNL1 with |x| = h * 65536
+ BEQ SUNL1
+
+ TAY                    \ Otherwise |x| = (h - b - 1) * 65536 + (256 - b) * 256,
+ TXA                    \ so set x_hi = 256 - b = -b (the C flag is still
+ EOR #&FF               \ clear)
+ ADC #1
+ STA INWK+1
+
+ TYA                    \ Set A = h - b - 1, the magnitude of x_sign, and jump
+ BCC SUNL3              \ to SUNL3 to set its sign (this BCC is effectively a
+                        \ JMP, as the addition leaves the C flag clear)
+
+.SUNL1
+
+ ADC #1                 \ Set A = h - b - 1 + 1 = h (b = 0, the C flag clear)
+
+.SUNL3
+
+ ORA #%10000000         \ Set bit 7 of A, as x is negative
+
+.SUNL2
+
+ STA INWK+2             \ Store the result in x_sign
+
+ LDA QQ2+1              \ Set z_sign = -(m + a - 1) for m = the low three bits
+ AND #%00000011         \ of s1_hi with bit 0 set and a = 3 + the low two bits
+ CLC                    \ of s0_hi, starting with A = a - 1
+ ADC #2
+ STA T
+
+ LDA QQ2+3              \ Set A = m + a - 1 (the C flag is clear, as a - 1 is
+ AND #%00000111         \ at most 5)
+ ORA #%00000001
+ ADC T
+
+ ORA #%10000000         \ Set bit 7, as the sun is behind the planet, and store
+ STA INWK+8             \ the result in z_sign
+
+ LDA tek                \ Set NEWB to the planet's E% byte, for the planet type
+ AND #%00000010         \ 128 or 130 (as SOS1 makes it from tek), OR'd with the
+ ORA #%10000000         \ sun's, with bits 4 and 7 cleared, as NWSHP leaves it
+ TAY                    \ for the planet and then the sun
+ LDA E%-1,Y
+ ORA E%+128
+ AND #%01101111
+ STA NEWB
+
+ LDX #NI%-1             \ Copy the sun's data block from INWK to SUNPK
+
+.SUNL4
+
+ LDA INWK,X
+ STA SUNPK,X
+
+ DEX
+
+ BPL SUNL4
+
+ LDA #%10000000         \ Set bit 7 of SUNPF (and clear bit 6), to record that
+ STA SUNPF              \ SUNPK holds the sun
+
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
@@ -32366,7 +32666,7 @@ ENDIF
 \   Category: Universe
 \    Summary: Set up various aspects of arriving in a new system
 \  Deep dive: A sense of scale
-\       Area: cold, again
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -32642,28 +32942,16 @@ ENDIF
 
 .FLFLLS
 
- LDY #2*Y-1+8           \ #Y is the y-coordinate of the centre of the space
-                        \ view, so this sets Y as a counter for the number of
-                        \ lines in the space view (i.e. 191) - which is also the
-                        \ number of lines in the LSO block - plus an extra 8
-                        \ bytes
+                        \ Port: the original zero-fills the LSO block here
+                        \ (LSO+1 to LSO+199: the sun's rows, which are gone,
+                        \ SUN, and the space station's line heap, which the
+                        \ frame does not read), then sets LSX to &FF, which
+                        \ nothing reads now (WPLS); all that is left is A = 0
+                        \ and Y = &FF, as the original returns them
 
- LDA #0                 \ Set A to 0 so we can zero-fill the LSO block
+ LDA #0                 \ Return with A = 0, as the original's fill leaves it
 
-.SAL6
-
- STA LSO,Y              \ Set the Y-th byte of the LSO block to 0
-
- DEY                    \ Decrement the counter
-
- BNE SAL6               \ Loop back until we have filled all the way to LSO+1
-
- DEY                    \ Decrement Y to value of &FF (as we exit the above loop
-                        \ with Y = 0)
-
- STY LSX                \ Set the first byte of the LSO block, which has its own
-                        \ label LSX, to &FF, to indicate that the sun line heap
-                        \ is empty
+ LDY #&FF               \ Set Y to &FF, as the original's loop ends with it
 
  RTS                    \ Return from the subroutine
 
@@ -32813,8 +33101,17 @@ ENDIF
 
 .COMPAS
 
- JSR DOT                \ Call DOT to redraw (i.e. remove) the current compass
-                        \ dot
+                        \ Port: the original starts with JSR DOT, to redraw
+                        \ (i.e. remove) the current compass dot; that is
+                        \ deferred to cpdot, once the new dot is worked out,
+                        \ so the dot to remove is kept here
+
+ LDA COMX
+ STA cpox
+ LDA COMY
+ STA cpoy
+ LDA COMC
+ STA cpoc
 
  LDA SSPR               \ If we are inside the space station safe zone, jump to
  BNE SP1                \ SP1 to draw the space station on the compass
@@ -33006,8 +33303,143 @@ ENDIF
 
  STA COMC               \ Store the compass colour in COMC
 
- JMP DOT                \ Jump to DOT to draw the dot on the compass and return
-                        \ from the subroutine using a tail call
+ JMP cpdot              \ Jump to DOT to draw the dot on the compass and return
+                        \ from the subroutine using a tail call (Port: through
+                        \ cpdot, which first removes the old dot, or does
+                        \ neither when the dot has not changed)
+
+\ ******************************************************************************
+\
+\       Name: cpdot
+\       Type: Subroutine
+\   Category: Dashboard
+\    Summary: Port: remove the old compass dot and draw the new one, unless
+\             they are the same
+\
+\ ------------------------------------------------------------------------------
+\
+\ The original's COMPAS calls DOT to remove the old dot (cpox, cpoy, cpoc, as
+\ COMPAS kept them) before working out the new one (COMX, COMY, COMC), then
+\ DOT again to draw it. Both EOR the same bytes when the dot has not moved
+\ (most iterations), so then neither is drawn; only what DOT leaves for the
+\ new dot is set, from the copy cpdot keeps of it: X1 = COMX, Y1, COL = COMC,
+\ SC(1 0) and Y. DOT's other results are not read afterwards: A, X and C
+\ (DIALS' caller rewrites them), and dX1, dtmp, ddn and dmk (the dashboard's
+\ routines write each before reading it). The copy is that of the last dot
+\ drawn here, which is the dot COMPAS kept: a skip needs the new dot equal to
+\ the old one, the old one is the last new one (only SP2 writes COMX, COMY
+\ and COMC, and BEGIN zeroes COMC, which no new dot equals), so by induction
+\ it was drawn here, or skipped with that copy
+\
+\ (The Tube's parasite: its DOT, tube/src/p-dash.asm, only sends the dot to
+\ the host, as C_PDOT, and what it leaves, X1, Y1 and COL, comes from COMX,
+\ COMY and COMC alone: so the old dot is sent from cpox, cpoy and cpoc
+\ (pdot_s), and a dot that has not moved sends nothing and sets what DOT
+\ leaves from the dot itself (pdot_l), with no copy)
+\
+\ ******************************************************************************
+
+.cpdot
+
+ LDA COMX               \ If the new dot differs from the old one, jump to cpd1
+ CMP cpox               \ to remove the old one and draw the new one
+ BNE cpd1
+ LDA COMY
+ CMP cpoy
+ BNE cpd1
+ LDA COMC
+ CMP cpoc
+ BNE cpd1
+
+IF _TPART = 1
+
+ JMP pdot_l             \ The same dot: set what DOT leaves for it, and return
+
+.cpd1
+
+ LDX cpox               \ Remove the old dot: send it to the host
+ LDY cpoy
+ LDA cpoc
+ JSR pdot_s
+
+ JMP DOT                \ Draw the new dot, and return from the subroutine using
+                        \ a tail call
+
+ELSE
+
+ STA COL                \ The same dot: set what DOT leaves for it, and return
+ LDA COMX
+ STA X1
+ LDA cpy1
+ STA Y1
+ LDA cpsc
+ STA SC
+ LDA cpsc+1
+ STA SCH
+ LDY cpy
+ RTS
+
+.cpd1
+
+ LDA COMX               \ Remove the old dot: DOT with the old dot in COMX,
+ PHA                    \ COMY and COMC, and the new one put back after
+ LDA COMY
+ PHA
+ LDA COMC
+ PHA
+ LDA cpox
+ STA COMX
+ LDA cpoy
+ STA COMY
+ LDA cpoc
+ STA COMC
+ JSR DOT
+ PLA
+ STA COMC
+ PLA
+ STA COMY
+ PLA
+ STA COMX
+
+ JSR DOT                \ Draw the new dot, and keep what DOT leaves for it
+ STY cpy
+ LDA Y1
+ STA cpy1
+ LDA SC
+ STA cpsc
+ LDA SCH
+ STA cpsc+1
+ RTS
+
+ENDIF
+
+.cpox
+
+ EQUB 0                 \ The old dot's COMX, COMY and COMC, as COMPAS found
+                        \ them
+.cpoy
+
+ EQUB 0
+
+.cpoc
+
+ EQUB 0
+
+IF _TPART <> 1
+
+.cpy1
+
+ EQUB 0                 \ What DOT left for the last dot drawn here: Y1,
+
+.cpy
+
+ EQUB 0                 \ Y,
+
+.cpsc
+
+ EQUW 0                 \ and SC(1 0)
+
+ENDIF
 
 \ ******************************************************************************
 \
@@ -33156,6 +33588,45 @@ ENDIF
  TYA                    \ Set K3+2 = the sign of x_sign
  AND #%10000000
  STA K3+2,X
+
+ RTS                    \ Return from the subroutine
+
+\ ******************************************************************************
+\
+\       Name: SUNUP
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Park the sun outside the ship slots, as the space station is
+\             about to take its slot
+\       Area: hot, again
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: part 14 of the main flight loop calls this in place of WPLS, just
+\ before NWSPS puts the space station in the sun's slot. Instead of removing
+\ the sun, this copies its data block from the second slot to SUNPK, where
+\ SUNSC moves and draws it once an iteration, after the ships, and from
+\ where SUNBK puts it back in its slot when the station goes.
+\
+\ ******************************************************************************
+
+
+.SUNUP
+
+ LDX #NI%-1             \ Copy the sun's data block from the second slot at
+                        \ K% + NI% to SUNPK
+
+.SUNU1
+
+ LDA K%+NI%,X
+ STA SUNPK,X
+
+ DEX
+
+ BPL SUNU1
+
+ LDA #%10000000         \ Set bit 7 of SUNPF (and clear bit 6), to record that
+ STA SUNPF              \ SUNPK holds the sun
 
  RTS                    \ Return from the subroutine
 
@@ -34153,6 +34624,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing planets
 \    Summary: Calculate (Y A) = nosev_x / z
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -34837,169 +35309,47 @@ ENDIF
                         \ only get here via the BCS just after the SUN entry
                         \ point below, when there is no new sun to draw
 
-.PLF3
-
-                        \ This is called from below to negate X and set A to
-                        \ &FF, for when the new sun's centre is off the bottom
-                        \ of the screen (so we don't need to draw its bottom
-                        \ half)
-                        \
-                        \ This happens when the y-coordinate of the centre of
-                        \ the sun is bigger than the y-coordinate of the bottom
-                        \ of the space view
-
- TXA                    \ Negate X using two's complement, so X = ~X + 1
- EOR #%11111111
- CLC
- ADC #1
- TAX
-
-.PLF17
-
-                        \ This is called from below to set A to &FF, for when
-                        \ the new sun's centre is right on the bottom of the
-                        \ screen (so we don't need to draw its bottom half)
-
- LDA #&FF               \ Set A = &FF
-
- BNE PLF5               \ Jump to PLF5 (this BNE is effectively a JMP as A is
-                        \ never zero)
+                        \ Port: PLF3 and PLF17, which set V and V+1 for a sun
+                        \ whose centre is off or on the bottom of the screen, are
+                        \ gone with part 1's set-up for the rows (below)
 
 .SUN
 
- LDA #RED               \ Switch to colour 2, which is red in the space view
- STA COL
-
- LDA #1                 \ Set LSX = 1 to indicate the sun line heap is about to
- STA LSX                \ be filled up
+                        \ Port: the original sets COL to red and LSX to 1 (the
+                        \ sun line heap about to be filled) here; the frame
+                        \ fills the sun from its record, and nothing reads
+                        \ either afterwards
 
  JSR CHKON              \ Call CHKON to check whether any part of the new sun's
                         \ circle appears on-screen, and if it does, set P(2 1)
                         \ to the maximum y-coordinate of the new sun on-screen
 
  BCS PLF3M3             \ If CHKON set the C flag then the new sun's circle does
- JSR H_SUN              \ Port: in record mode, record the sun for the renderer
-                        \ (gfx-hooks.asm)
                         \ not appear on-screen, so jump to WPLS (via the JMP at
                         \ the top of this routine) to remove the sun from the
                         \ screen, returning from the subroutine using a tail
                         \ call
 
- LDA #0                 \ Set A = 0
+ JSR H_SUN              \ Port: in record mode, record the sun for the renderer
+                        \ (gfx-hooks.asm), returning with the C flag clear, as
+                        \ CHKON left it
 
- LDX K                  \ Set X = K = radius of the new sun
+                        \ Port: the rest of SUN (here the fringe size in CNT,
+                        \ the sun's top row in TGT, the rows' count and
+                        \ direction, V and V+1, and K2 = K^2; then parts 2 to 4:
+                        \ the old sun's rows erased, each new row's half-width
+                        \ from LL5 and its random fringe from DORND, its ends
+                        \ from EDGES, the line drawn by HLOIN and kept in the
+                        \ sun line heap at LSO, and SUNX = K3) drew the sun as
+                        \ lines. The frame fills the sun from the record H_SUN
+                        \ makes, and the sun's edge draws no random numbers (in
+                        \ the reference too, the comparison's patch to SUN), so
+                        \ all the rows left that the game reads is the C flag
+                        \ clear (TGT, SUNX, LSX and COL nothing reads again
+                        \ before setting them, and MV40 no longer reads K2:
+                        \ MV40's K2). Parts 2 to 4 are Area: none
 
- CPX #96                \ If X >= 96, set the C flag and rotate it into bit 0
- ROL A                  \ of A, otherwise rotate a 0 into bit 0
-
- CPX #40                \ If X >= 40, set the C flag and rotate it into bit 0
- ROL A                  \ of A, otherwise rotate a 0 into bit 0
-
- CPX #16                \ If X >= 16, set the C flag and rotate it into bit 0
- ROL A                  \ of A, otherwise rotate a 0 into bit 0
-
-                        \ By now, A contains the following:
-                        \
-                        \   * If radius is 96-255 then A = %111 = 7
-                        \
-                        \   * If radius is 40-95  then A = %11  = 3
-                        \
-                        \   * If radius is 16-39  then A = %1   = 1
-                        \
-                        \   * If radius is 0-15   then A = %0   = 0
-                        \
-                        \ The value of A determines the size of the new sun's
-                        \ ragged fringes - the bigger the sun, the bigger the
-                        \ fringes
-
-.PLF18
-
- STA CNT                \ Store the fringe size in CNT
-
-                        \ We now calculate the highest pixel y-coordinate of the
-                        \ new sun, given that P(2 1) contains the 16-bit maximum
-                        \ y-coordinate of the new sun on-screen
-
- LDA Yx2M1              \ Set Y to the y-coordinate of the bottom of the space
-                        \ view
-
- LDX P+2                \ If P+2 is non-zero, the maximum y-coordinate is off
- BNE PLF2               \ the bottom of the screen, so skip to PLF2 with A set
-                        \ to the y-coordinate of the bottom of the space view
-
- CMP P+1                \ If A < P+1, the maximum y-coordinate is underneath the
- BCC PLF2               \ dashboard, so skip to PLF2 with A set to the
-                        \ y-coordinate of the bottom of the space view
-
- LDA P+1                \ Set A = P+1, the low byte of the maximum y-coordinate
-                        \ of the sun on-screen
-
- BNE PLF2               \ If A is non-zero, skip to PLF2 as it contains the
-                        \ value we are after
-
- LDA #1                 \ Otherwise set A = 1, the top line of the screen
-
-.PLF2
-
- STA TGT                \ Set TGT to A, the maximum y-coordinate of the sun on
-                        \ screen
-
-                        \ We now calculate the number of lines we need to draw
-                        \ and the direction in which we need to draw them, both
-                        \ from the centre of the new sun
-
- LDA Yx2M1              \ Set (A X) = y-coordinate of bottom of screen - K4(1 0)
- SEC                    \
- SBC K4                 \ Starting with the low bytes
- TAX
-
- LDA #0                 \ And then doing the high bytes, so (A X) now contains
- SBC K4+1               \ the number of lines between the centre of the sun and
-                        \ the bottom of the screen. If it is positive then the
-                        \ centre of the sun is above the bottom of the screen,
-                        \ if it is negative then the centre of the sun is below
-                        \ the bottom of the screen
-
- BMI PLF3               \ If A < 0, then this means the new sun's centre is off
-                        \ the bottom of the screen, so jump up to PLF3 to negate
-                        \ the height in X (so it becomes positive), set A to &FF
-                        \ and jump down to PLF5
-
- BNE PLF4               \ If A > 0, then the new sun's centre is at least a full
-                        \ screen above the bottom of the space view, so jump
-                        \ down to PLF4 to set X = radius and A = 0
-
- INX                    \ Set the flags depending on the value of X
- DEX
-
- BEQ PLF17              \ If X = 0 (we already know A = 0 by this point) then
-                        \ jump up to PLF17 to set A to &FF before jumping down
-                        \ to PLF5
-
- CPX K                  \ If X < the radius in K, jump down to PLF5, so if
- BCC PLF5               \ X >= the radius in K, we set X = radius and A = 0
-
-.PLF4
-
- LDX K                  \ Set X to the radius
-
- LDA #0                 \ Set A = 0
-
-.PLF5
-
- STX V                  \ Store the height in V
-
- STA V+1                \ Store the direction in V+1
-
- LDA K                  \ Set (A P) = K * K
- JSR SQUA2
-
- STA K2+1               \ Set K2(1 0) = (A P) = K * K
- LDA P
- STA K2
-
-                        \ By the time we get here, the variables should be set
-                        \ up as shown in the header for part 3 below
+ RTS                    \ Return from the subroutine
 
 \ ******************************************************************************
 \
@@ -35009,6 +35359,7 @@ ENDIF
 \    Summary: Draw the sun: Start from the bottom of the screen and erase the
 \             old sun line by line
 \  Deep dive: Drawing the sun
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35059,6 +35410,7 @@ ENDIF
 \    Summary: Draw the sun: Continue to move up the screen, drawing the new sun
 \             line by line
 \  Deep dive: Drawing the sun
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35315,6 +35667,7 @@ ENDIF
 \    Summary: Draw the sun: Continue to the top of the screen, erasing the old
 \             sun line by line
 \  Deep dive: Drawing the sun
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -35700,40 +36053,13 @@ ENDIF
 
 .WPLS
 
- LDA LSX                \ If LSX < 0, the sun line heap is empty, so return from
- BMI WPLS-1             \ the subroutine (as WPLS-1 contains an RTS)
-
- LDA SUNX               \ Set YY(1 0) = SUNX(1 0), the x-coordinate of the
- STA YY                 \ vertical centre axis of the sun that's currently on
- LDA SUNX+1             \ screen
- STA YY+1
-
- LDY #2*Y-1             \ #Y is the y-coordinate of the centre of the space
-                        \ view, so this sets Y as a counter for the number of
-                        \ lines in the space view (i.e. 191), which is also the
-                        \ number of lines in the LSO block
-
-.WPL2
-
- LDA LSO,Y              \ Fetch the Y-th point from the sun line heap, which
-                        \ gives us the half-width of the sun's line on this line
-                        \ of the screen
-
- BEQ P%+5               \ If A = 0, skip the following call to HLOIN2 as there
-                        \ is no sun line on this line of the screen
-
- JSR HLOIN2             \ Call HLOIN2 to draw a horizontal line on pixel line Y,
-                        \ with centre point YY(1 0) and half-width A, and remove
-                        \ the line from the sun line heap once done
-
- DEY                    \ Decrement the loop counter
-
- BNE WPL2               \ Loop back for the next line in the line heap until
-                        \ we have gone through the entire heap
-
- DEY                    \ This sets Y to &FF, as we end the loop with Y = 0
-
- STY LSX                \ Set LSX to &FF to indicate the sun line heap is empty
+                        \ Port: the original returns at once if LSX < 0 (the
+                        \ sun line heap empty), else redraws the sun's rows
+                        \ from the heap at LSO to remove them (HLOIN2, for each
+                        \ row from 2 * #Y - 1 up) and sets LSX to &FF; the
+                        \ frame draws the sun from its record, so there are no
+                        \ rows (SUN), and nothing reads LSX or the Y the loop
+                        \ left (&FF), so nothing is left to do
 
  RTS                    \ Return from the subroutine
 
@@ -35743,6 +36069,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Drawing lines
 \    Summary: Draw a horizontal line given a centre and a half-width
+\       Area: none
 \
 \ ------------------------------------------------------------------------------
 \
@@ -36714,7 +37041,9 @@ ENDIF
 
 .KS4
 
- JSR ZINF               \ Call ZINF to reset the INWK ship workspace
+ JMP SUNBK              \ Port: put the parked sun back in its slot (the
+                        \ original's JSR ZINF, which SUNBK does when there is
+                        \ no parked sun, before rejoining at KS4+3)
 
  JSR FLFLLS             \ Reset the LSO block, returns with A = 0
 
@@ -37143,6 +37472,62 @@ ENDIF
                         \ jump back up to KSL1 to see if there is another slot
                         \ that needs shuffling down (this BEQ is effectively a
                         \ JMP as A will always be zero)
+
+\ ******************************************************************************
+\
+\       Name: SUNBK
+\       Type: Subroutine
+\   Category: Universe
+\    Summary: Put the parked sun back in its slot, as the space station goes
+\       Area: hot, again
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: KS4 jumps here first. If the sun is parked (SUNUP), its data block
+\ goes back into the second slot, from SUNPK, so the sun carries on where it
+\ is, rather than KS4 making a new one directly overhead. Like KS4, this
+\ clears SSPR and the space station bulb; unlike KS4, it keeps the LSO block,
+\ which holds the sun's lines once more. If no sun is parked, this does what
+\ KS4 did.
+\
+\ ******************************************************************************
+
+
+.SUNBK
+
+ BIT SUNPF              \ If bit 7 of SUNPF is clear, no sun is parked, so jump
+ BPL SUNB2              \ to SUNB2 to make a new sun, as KS4 does
+
+ LDX #NI%-1             \ Copy the sun's data block from SUNPK to the second
+                        \ slot at K% + NI%
+
+.SUNB1
+
+ LDA SUNPK,X
+ STA K%+NI%,X
+
+ DEX
+
+ BPL SUNB1
+
+ LDA #129               \ Put the sun back in the second slot in FRIN
+ STA FRIN+1
+
+ LDA #0                 \ Clear SUNPF, as the sun is no longer parked
+ STA SUNPF
+
+ STA SSPR               \ Set the "space station present" flag to 0, as we are
+                        \ no longer in the space station's safe zone
+
+ JMP SPBLB              \ Call SPBLB to redraw the space station bulb, which
+                        \ will erase it from the dashboard, returning from the
+                        \ subroutine using a tail call
+
+.SUNB2
+
+ JSR ZINF               \ Call ZINF to reset the INWK ship workspace
+
+ JMP KS4+3              \ Rejoin KS4 after its first instruction
 
 \ ******************************************************************************
 \
@@ -48412,7 +48797,13 @@ ENDIF
 
  LDA K                  \ We now do the following sum:
  CLC                    \
- ADC K2                 \   (A y_hi y_lo -) = K(3 2 1 0) + K2(3 2 1 0)
+ ADC #0                 \   (A y_hi y_lo -) = K(3 2 1 0) + K2(3 2 1 0)
+                        \
+                        \ (Port: K2's low byte is taken as 0: the original
+                        \ adds K2 here, which nothing in MV40 sets, so the
+                        \ carry came from whatever last left K2, the planet's
+                        \ drawing as often as not; the comparison's reference
+                        \ has the same patch, MV40's K2)
                         \
                         \ starting with the low bytes (which we don't keep)
                         \
@@ -48440,7 +48831,8 @@ ENDIF
 
  LDA K                  \ If we get here then K2 and K have different signs, so
  SEC                    \ instead of adding, we need to subtract to get the
- SBC K2                 \ result we want, like this:
+ SBC #0                 \ result we want, like this (Port: K2's low byte taken
+                        \ as 0, as above):
                         \
                         \   (A y_hi y_lo -) = K(3 2 1 0) - K2(3 2 1 0)
                         \

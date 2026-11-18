@@ -10,9 +10,6 @@
 #                      6502 Second Processor): tube/src/disc.asm
 #   (tube/tools/discbudget.py prints the disc's room at the end)
 #
-# Options (environment), as master/build.sh's: BANDS=on (banded planets),
-# RINGS=on (planet rings), MOON=on (moons), each off by default.
-#
 # The game's source is master/src's, assembled with _TUBE (and the renderer's
 # files with _TPART = 1 for the parasite's part, 2 for the host's). The stage
 # directory makes master/src look like the Tube's build: src/ is master/src,
@@ -35,9 +32,6 @@ _VARIANT=1
 _REMOVE_CHECKSUMS=TRUE
 _MATCH_ORIGINAL_BINARIES=TRUE
 _MAX_COMMANDER=FALSE
-_PLANET_BANDS=$( [ "${BANDS:-off}" = on ] && echo TRUE || echo FALSE )
-_PLANET_RINGS=$( [ "${RINGS:-off}" = on ] && echo TRUE || echo FALSE )
-_PLANET_MOON=$( [ "${MOON:-off}" = on ] && echo TRUE || echo FALSE )
 _TUBE=TRUE
 _TDUMB=TRUE
 EOF
@@ -195,7 +189,7 @@ for l in open("build/compile-p.txt", encoding="latin-1"):
         bad.append("&%04X (%s): outside %s, &%04X-&%04X" % (a, stack[-1], w, lo, hi - 1))
 for f in sorted(glob.glob("build/*-frame.asm") + glob.glob("build/*-ovls.asm") + glob.glob("build/*-ovld.asm") +
                 glob.glob("build/*-fe.asm") + glob.glob("build/*-ff.asm") + glob.glob("build/*-boot.asm") +
-                glob.glob("build/*-load.asm")):
+                glob.glob("build/*-load.asm") + glob.glob("build/*-tail.asm")):
     body = [l.split("\\")[0].strip() for l in open(f, encoding="latin-1")]
     if any(body) and f not in inc and not f.startswith("build/gfx-raster"):   # (the rasteriser's: the hosts')
         bad.append("%s assembles something and no assembly includes it" % f)
@@ -636,4 +630,9 @@ grep -h "^Model B loader" build/compile-lb.txt || true
 $BEEBASM -i tsrc/boot.asm -v > build/compile-boot.txt 2>&1 || { echo "The disc's boot:"; grep -iE "error" -A3 build/compile-boot.txt | head -8; exit 1; }
 ( echo ' INCLUDE "build/hb-entry.asm"'; echo ' INCLUDE "build/hm-entry.asm"'; echo ' INCLUDE "build/tube-addresses.asm"'; cat tsrc/disc.asm ) > build/disc.asm
 $BEEBASM -i build/disc.asm -boot ELITE -do build/elite-tube.ssd -title "E L I T E" > build/compile-dc.txt 2>&1 || { echo "Disc:"; tail -5 build/compile-dc.txt; exit 1; }
+# the reference's patch for the harness (master/tools/sunref: the sun's parking
+# assembled for SNG47, from master/build.sh), beside the parasite's symbols, as
+# the harness looks for it there (mlib.mjs's refPatchPath): the parasite runs
+# the same game, so it is compared against the same patched original
+cp "$TUBE_DIR/../master/build/sunref.json" build/sunref.json || { echo "master/build/sunref.json: build the Master port first"; exit 1; }
 python3 $TUBE_DIR/tools/discbudget.py build/elite-tube.ssd

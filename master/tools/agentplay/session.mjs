@@ -12,11 +12,13 @@
 //    iteration for HANG_SECS emulated seconds), the PC in zero page or the stack;
 //  * observables (observe.mjs): the dashboard, scanner and compass as drawn, decoded from
 //    each machine's screen memory into values, compared when they are deterministic.
+// And what the session reached, from the reference's state at every MLOOP (features): the
+// galaxies, cargo and fuel scooped, the equipment used, the missions' stages.
 // The input log (inputs.jsonl) holds every read that had a key down or a stick change, by
 // read number; it replays the session exactly, without the agent (replay.mjs).
 import { writeFileSync, appendFileSync, mkdirSync, readFileSync, existsSync, unlinkSync } from "fs";
 import { createHash } from "crypto";
-import { EliteMachine, loadSyms, compareSetup, diffSnaps, fieldName, groupOf, ROOT, CYCLES_PER_FRAME } from "./lib.mjs";
+import { EliteMachine, loadSyms, loadRefPatch, refPatchPath, compareSetup, diffSnaps, fieldName, groupOf, ROOT, CYCLES_PER_FRAME } from "./lib.mjs";
 import { Agent } from "./agent.mjs";
 import { COMMANDERS, makeChaos } from "./styles.mjs";
 import { Observer } from "./observe.mjs";
@@ -43,7 +45,8 @@ const HANG_SECS = +(process.env.HANG_SECS || 30);
 const sha1 = f => createHash("sha1").update(readFileSync(f)).digest("hex").slice(0, 12);
 
 export class Session {
-    // cfg: out, ref, rsyms, cand, csyms, seed (RAND), commander, agentEnv, chaos, startFrame,
+    // cfg: out, ref, rsyms, cand, csyms, refpatch (the reference's patch: default the
+    //      candidate build's, sunref.json beside csyms, if it has one), seed (RAND), commander, agentEnv, chaos, startFrame,
     //      minutes (of the reference's emulated time), iters, shots (every N iterations), replay (input log path),
     //      until (replay: stop at this iteration), keepGoing (iterations to run on after a divergence), observe
     constructor(cfg) {
@@ -55,7 +58,7 @@ export class Session {
         this.held = new Set(); this.stick = [0x80, 0x80];   // the agent's keys and stick (ADC high bytes)
         this.frame = 0;
         this.findings = [];                   // divergences and errors
-        this.stats = { iters: 0, polls: 0, keyPolls: 0, events: {}, notes: {}, agentStatus: 0 };
+        this.stats = { iters: 0, polls: 0, keyPolls: 0, events: {}, notes: {}, agentStatus: 0, features: {} };
         this.lastJoy = [-1, -1];
         this.div = null;
         this.files = { inputs: `${cfg.out}/inputs.jsonl`, log: `${cfg.out}/agent.log`, journal: `${cfg.out}/journal.jsonl`, events: `${cfg.out}/events.jsonl` };
@@ -72,12 +75,18 @@ export class Session {
         if (!cmdr) throw new Error(`unknown commander ${cfg.commander}`);
         const patch = cmdr.patch ? m => cmdr.patch(m) : null;
         // the builds as booted (summary.json's builds: which discs a session or replay ran)
-        this.builds = { ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms };
-        this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true });
+        const rp = cfg.refpatch === "none" ? null : cfg.refpatch || refPatchPath(cfg.csyms);
+        this.builds = { ref: cfg.ref, refSha: sha1(cfg.ref), rsyms: cfg.rsyms, cand: cfg.cand, candSha: sha1(cfg.cand), csyms: cfg.csyms,
+            refPatch: rp, refPatchSha: rp ? sha1(rp) : null };
+        const refPatch = loadRefPatch(rp);
+        // (the patched reference's own state by name, as the candidate's symbols have it:
+        // the parked sun, SUNPK and SUNPF, for the features and the chaos pokes)
+        if (refPatch && refPatch.region && refPatch.region[2] === "SUNPK") { this.rsy.SUNPK = refPatch.region[0]; this.rsy.SUNPF = refPatch.region[0] + 37; }
+        this.ref = new EliteMachine({ name: "ref", disc: cfg.ref, syms: this.rsy, input: this.refInput(), rand, patch, cover: true, refPatch });
         // (the Tube build: TUBE=Master or TUBE=B, the candidate is the parasite's game
         // with that host, tube/tools/tmachine.mjs)
         const Cand = process.env.TUBE ? (await import("../../../tube/tools/tmachine.mjs")).TubeEliteMachine : EliteMachine;
-        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, symsPath: cfg.csyms, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [] });
+        this.cand = new Cand({ host: process.env.TUBE, name: "cand", disc: cfg.cand, syms: this.csy, symsPath: cfg.csyms, input: this.candInput(), rand, patch, seedFrom: null, watch0d: true, hazelCheck: true, cover: true, workarounds: cfg.workarounds || [], deadRegs: !!cfg.deadRegs });
         await this.ref.boot();
         await this.cand.boot();
         this.cand.opts.seedFrom = this.ref;
@@ -87,6 +96,7 @@ export class Session {
             if (!c || c[1] !== n || c[2] !== nm) throw new Error(`region ${nm} differs in size: ref ${n}, cand ${c && c[1]}`);
         }
         if (cfg.observe) { this.obsR = new Observer(this.ref); this.obsC = new Observer(this.cand); this.obsQ = []; this.obsDiffs = 0; this.obsChecked = 0; }
+        this.ref.onIter = (prev => m => { if (prev) prev(m); this.features(m); })(this.ref.onIter);
         if (cfg.trace) {
             this.traces = { ref: [], cand: [] };
             this.ref.startTrace(cfg.trace[0], cfg.trace[1], this.traces.ref, cfg.traceFull);
@@ -354,8 +364,9 @@ export class Session {
             }
             while (m.evSeen === undefined ? (m.evSeen = 0, false) : m.evSeen < m.events.length) {
                 const [it, kind, detail] = m.events[m.evSeen++];
-                this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] = (this.stats.events[`${m.name}:${kind}${kind === "routine" ? ":" + detail : ""}`] || 0) + 1;
-                if (kind !== "routine") appendFileSync(this.files.events, JSON.stringify({ m: m.name, iter: it, kind, detail }) + "\n");
+                const ek = `${m.name}:${kind}${kind === "routine" || kind === "site" ? ":" + detail : ""}`;
+                this.stats.events[ek] = (this.stats.events[ek] || 0) + 1;
+                if (kind !== "routine" && kind !== "site") appendFileSync(this.files.events, JSON.stringify({ m: m.name, iter: it, kind, detail }) + "\n");
                 if (kind === "workaround") this.stats.workarounds = (this.stats.workarounds || 0) + 1;
                 if (kind === "brk" || kind === "page0d" || kind === "hazel") {
                     // (a BRK loop: report the first few, then stop the session)
@@ -365,6 +376,7 @@ export class Session {
                     if (n === 20) { this.finding("brk-loop", `${m.name} iteration ${it}: the same BRK 20 times: ${detail}`, { iter: it }); this.stopNow = true; }
                 }
             }
+            if (m.evSeen > 4096) { m.events.splice(0, m.evSeen); m.evSeen = 0; }     // (counted: let them go)
         }
         // a BRK from a disc error (a ROM) in one machine and not the other shows as a divergence;
         // compare the lists of ROM BRKs as they come
@@ -403,6 +415,47 @@ export class Session {
         }
         if (final && this.cfg.saveDiscs) { writeFileSync(`${this.cfg.out}/ref-disc.ssd`, r.img); writeFileSync(`${this.cfg.out}/cand-disc.ssd`, c.img); }
     }
+    // what the session reached (the reference's state, iteration to iteration): the
+    // feature table's evidence besides the routines entered
+    features(m) {
+        const sy = this.rsy, r = a => m.rb(a), f = this.stats.features, p = this.prevF;
+        const flying = !r(sy.QQ12) && r(sy.MCNT) !== 0xff;
+        let cargo = 0; for (let i = 0; i < 17; i++) cargo += r(sy.QQ20 + i);
+        const cur = { flying, fuel: r(sy.QQ14), cargo, escp: r(sy.ESCP), bomb: r(sy.BOMB), g: r(sy.GCNT), mj: r(sy.MJ), nomsl: r(sy.NOMSL), ecma: r(sy.ECMA), auto: r(sy.auto), tp: r(sy.TP), qq0: r(sy.QQ0), qq1: r(sy.QQ1), docked: r(sy.QQ12) };
+        const hit = (k, n = 1) => { f[k] = (f[k] || 0) + n; };
+        if (p) {
+            if (flying && p.flying && cur.fuel > p.fuel) hit("fuel scooped");
+            if (flying && p.flying && cur.cargo > p.cargo) hit("cargo scooped");
+            if (p.escp && !cur.escp && !cur.docked) hit("escape pod used");
+            if (p.bomb && !cur.bomb && flying) hit("energy bomb used");
+            if (cur.g !== p.g) hit("galaxy changed");
+            if (cur.mj && !p.mj) hit("witchspace");
+            if (flying && cur.nomsl < p.nomsl) hit("missile fired");
+            if (cur.ecma && !p.ecma && flying) hit("E.C.M. on");
+            if (cur.auto && !p.auto) hit("docking computer on");
+            if (cur.tp !== p.tp) hit(`TP ${p.tp}->${cur.tp}`);
+            if (cur.docked && !p.docked) hit("docked");
+            if ((cur.qq0 !== p.qq0 || cur.qq1 !== p.qq1) && cur.g === p.g) hit("system changed");
+        }
+        if (flying) {
+            const K = sy["K%"], z = n => r(K + 37 * n + 7) | (r(K + 37 * n + 8) & 127) << 8, zs = n => r(K + 37 * n + 8) & 0x80;
+            const t1 = r(sy.FRIN + 1);
+            if (t1 === 129 && z(1) < 0x200 && !zs(1)) hit("sun close (< &200 hi)");
+            if (t1 === 2 && z(1) < 0x08 && !zs(1)) hit("station close (< 8 hi)");
+            // the sun parked while the station holds its slot (SUNPK, SUNPF: in the
+            // reference, the patch's, which start() names in its symbols)
+            if (t1 === 2 && sy.SUNPF !== undefined && r(sy.SUNPF) & 0x80) {
+                hit("sun parked");
+                const pz = r(sy.SUNPK + 7) | (r(sy.SUNPK + 8) & 127) << 8;
+                if (pz < 0x200 && !(r(sy.SUNPK + 8) & 0x80)) hit("parked sun close (< &200 hi)");
+            }
+            if (r(sy.FRIN) && z(0) < 0x60 && !zs(0)) hit("planet close (< &60 hi)");
+            for (let i = 2; i < 12; i++) { const t = r(sy.FRIN + i); if (t === 29) hit("Thargoid about"); if (t === 30) hit("Thargon about"); if (t === 31) hit("Constrictor about"); if (t === 16) hit("Viper (police) about"); }
+        }
+        this.prevF = cur;
+        (this.galaxies ||= new Set()).add(cur.g);
+    }
+
     onceFinding(key, kind, text) { this.once ||= new Set(); if (this.once.has(key)) return; this.once.add(key); this.finding(kind, text); }
 
     async shots(tag) {
@@ -467,10 +520,11 @@ export class Session {
         const s = {
             out: cfg.out, builds: this.builds, wall, frames: this.frame, gameMinutes: +(Math.max(0, this.frame) / 3000).toFixed(2),
             refIters: ref.iter, candIters: cand.iter, compared: this.stats.iters, flight: ref.tt100, reads: ref.polls, keyReads: this.stats.keyPolls,
-            divergence: this.div, findings: this.findings, events: this.stats.events, agentNotes: this.stats.notes,
+            divergence: this.div, findings: this.findings, events: this.stats.events, agentNotes: this.stats.notes, features: this.stats.features,
+            galaxies: [...(this.galaxies || [])].map(g => g + 1), chaos: this.chaos ? this.chaos.counts : null,
             observables: this.obsR ? { checked: this.obsChecked, differing: this.obsDiffs, kinds: this.obsKinds || {}, expected: this.obsExpected || {} } : null,
             discChecks: this.stats.discChecks || 0, saveFilesSame: this.stats.saveFilesSame || 0, discFinalSkipped: !!this.stats.discSkipped,
-            seeded: cand.seeded?.length, workaroundHits: this.stats.workarounds || 0, workarounds: cfg.workarounds || [], final: finalState(ref, this.rsy),
+            seeded: cand.seeded?.length, deadRegs: cfg.deadRegs ? cand.deadN : undefined, workaroundHits: this.stats.workarounds || 0, workarounds: cfg.workarounds || [], final: finalState(ref, this.rsy),
         };
         const cov = ref.coverage();
         if (cov) writeFileSync(`${cfg.out}/coverage-ref.json`, JSON.stringify(cov));

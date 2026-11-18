@@ -49,8 +49,7 @@ PRINT "Parasite: glue &", ~CODE%, "-&", ~GLUE_END%-1, ", the game's run to &", ~
  INCLUDE "build/elite-data-hot.asm"
 .HZDATA_END%
  INCLUDE "src/gfx-hangar6.asm"
- INCLUDE "src/gfx-planetv.asm"          \ (the ring's variables, with RINGS=on:
-.HZ_END                                 \ f_reset writes them out of space mode)
+.HZ_END
 
 PRINT "Parasite: data end at &", ~P%
 
@@ -65,8 +64,6 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/gfx-flare-frame.asm"    \ (the flare's step in F_FRAME, f_flt; the
  CPU 1                                  \ flare in overlay S)
  INCLUDE "build/gfx-hangar-frame.asm"  \ (streams.py's pass: F_HANG0 is overlay D's)
- INCLUDE "build/gfx-ssun-frame.asm"     \ (S_SUN's resident part, which G_FRAME
- CPU 1                                  \ calls)
 \ the resident parts of overlay S's files (their "Area: frame" blocks)
  INCLUDE "build/p-probe-frame.asm"      \ (the lens flare's probes' resident part)
  INCLUDE "build/p-disc-frame.asm"       \ (the disc heap's drop, the surface's cold ends)
@@ -77,6 +74,8 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "src/gfx-finit.asm"            \ (F_INIT, run once before the first frame;
                                         \ the frame layer's state is in the
                                         \ shared workspace, p-ws.asm)
+ INCLUDE "build/p-io-tail.asm"          \ (the "Area: tail" pass: what is added
+                                        \ here moves nothing before it, p_keyq)
 .PRES_CODE_END
 
 \ The log tables and the quarter-square tables, page aligned (the game's
@@ -145,13 +144,6 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/p-rast-ovls.asm"
  INCLUDE "build/p-disc-ovls.asm"        \ (the disc heap, the surface and the second disc
                                         \ drawn as changes)
-IF _PLANET_MOON
- ERROR "MOON=on: the Tube's parasite has no room for the moon"
-ENDIF
-IF _PLANET_RINGS
-.RG_Y   SKIP 64         \ the ring's dots' y and flags (gfx-planetv.asm's in the
-.RG_F   SKIP 64         \ Master port): only used with S in (pf_ring, f_ring)
-ENDIF
  INCLUDE "build/p-emit-ovls.asm"        \ (the polygons' rows to the host as they are made)
  INCLUDE "build/p-kept-ovls.asm"        \ (kept solid rows)
  INCLUDE "build/p-poly-ovls.asm"        \ (R_POLY's set-up and arithmetic, C_DSPANS's
@@ -168,7 +160,6 @@ ENDIF
  CPU 1
  INCLUDE "build/gfx-frame_cold-ovls.asm"  \ (f_slot: the stars round a docking slot)
  INCLUDE "build/gfx-hangar-ovls.asm"     \ (fh_rect: the hangar's rectangles, f_hback's, in F_FRAME)
- INCLUDE "build/gfx-ssun-ovls.asm"      \ (S_SUN's ss_seed and ss_draw)
  INCLUDE "build/p-lost-ovls.asm"        \ (S's state rebuilt: r_lost)
 .OVL_S_END
  PRINT "Parasite: overlay S &", ~OVL_START, "-&", ~OVL_S_END-1, " (", OVL_S_END-OVL_START, " bytes, its state ", S_STATE_END-OVL_START, "), free to the ring: ", RING-OVL_S_END

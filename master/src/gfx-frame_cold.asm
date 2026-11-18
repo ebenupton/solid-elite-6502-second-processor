@@ -99,13 +99,6 @@ ENDIF
 \ clears the text map): no direct text or stars
 
 .F_DIRECT
- LDA QQ12               \ docked: S_SUN forgets where the sun is (after a
- BEQ fdr0               \ launch it takes it from the system's seeds), and
- STZ SS_OK              \ MN_TURN the moon's place, with MOON=on (MN_TURN
- IF _PLANET_MOON        \ makes it again)
- STZ MN_OK
- ENDIF
-.fdr0
  ASL GWARP              \ LOOK1's TT66 for an in-system jump (WARP) in space
  BCC fdr1               \ mode: keep double buffering and the view on show (the
  BIT GMODE              \ blank screen was all a held J ever showed). As
@@ -398,9 +391,6 @@ ENDIF
 ENDIF
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  STZ F_SGS              \ no sights drawn in it
- IF _PLANET_MOON
- STZ MO_ON              \ no moon
- ENDIF
  LDA #&FF               \ no disc colour
  STA F_DCOL
  LDA #0                 \ its rasteriser state: empty

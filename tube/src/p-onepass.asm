@@ -57,12 +57,10 @@ ftmp = &25
 \ boundaries have gone to the host), as the two-phase path's tables were
 fside  = R_NDX2         \ bit 7: the side being set up is side 1
 ofch    = R_NDX2 + 1     \ the chain being set up (0, 1)
-fcur   = R_NDX2 + 2     \ per chain: its current vertex, edges left, end row
-fcc    = R_NDX2 + 4
+fcur   = R_NDX2 + 2     \ per chain: its current vertex, end row
 fe     = R_NDX2 + 6
 frow   = R_NDX2 + 8     \ the row where a chain's next edge starts
 fev    = R_NDX2 + 9     \ (owalk: the winner's end row)
-fk     = R_NDX2 + 10
 fsv    = R_NDX2 + 11    \ (2: oo_win keeps r_ystart, r_yend)
 fgen   = R_NDX2 + 13    \ bit 7: the polygon's y is not unimodal (oo_win)
 op16   = R_NDX2 + 14    \ bit 7: a 16-bit polygon
@@ -162,19 +160,17 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
 .opu
  JSR ooo_u
 .ops
- LDA r_n                \ each chain's first edge with rows: both "end" at
- STA fcc                \ ystart, where fnext starts them
- STA fcc+1
- LDA r_top
+ LDA r_top              \ each chain's first edge with rows: both "end" at
  STA fcur
- STA fcur+1
+ STA fcur+1             \ ystart, where fnext starts them
  LDY r_ystart
  STY fe
  STY fe+1
  JMP fnext
 
 \ owalk: chain X's walk (as phase A's: from the top vertex, forward for chain
-\ 0, backward for 1, to the first vertex at the lowest y, at most n edges):
+\ 0, backward for 1, to the first vertex at the lowest y, which it meets
+\ within n - 1 edges either way, as the lowest y is a vertex's: no count):
 \ the last edge in it that covers row oyr (phase A's tables hold its x
 \ there): X = its first vertex (owi, owj; X = &FF: none), fev = the row where
 \ it ends or a later edge in the walk starts (if before r_yend). Rows by OCY
@@ -184,8 +180,6 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  STX ofch
  LDA #&FF
  STA owi
- LDA r_n
- STA fk
  LDY r_top
 .owk1
  LDA R_PYL,Y            \ at the lowest y: done
@@ -195,8 +189,6 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  CMP oymH
  BEQ owk8
 .owk2
- DEC fk
- BMI owk8
  STY ftmp               \ (i0)
  TYA
  JSR fnxt
@@ -441,8 +433,6 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  CMP oymH
  BEQ oqs9
 .oqs1
- DEC fcc,X
- BMI oqs9
  STY r_i0
  TYA
  JSR fnxt

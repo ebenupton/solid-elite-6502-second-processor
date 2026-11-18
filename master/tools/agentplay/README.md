@@ -58,6 +58,10 @@ The rest of mlib's determinism measures are kept:
 - in a build without the port's half steps (SNG47), the planet's own pitch and roll
   (MVEIT part 8) are made the port's half steps (mlib's halfPart8, put in place of
   its full steps at MV5);
+- the reference gets the candidate build's patch to the original, if it has one
+  (sunref.json beside its symbols, which master/tools/sunref/sunref.py writes; the
+  campaign copies it with the build): assembled code, written at TT170 once each
+  changed site is checked against SNG47's bytes (mlib's applyRefPatch);
 - the candidate's boot leftovers are seeded from the reference at TT170.
 
 **Game state.** At every MLOOP both machines' state is snapshotted, using mlib's regions:
@@ -124,23 +128,16 @@ Pixels are never compared.
   The patch goes into NA% (with its checksum) at the first QU5, before DFAULT copies it.
   The choices are:
   - `jameson`, `trader`, `equipped`, `rich`, `deadly`, `mission2` and `wanted`;
-  - for the missions: `debrief1` (the Constrictor destroyed), `galaxy3` (Ceerdi, with mission
-    1 done) and `debrief2` (Birera, with the plans);
-  - `diso`: at Diso, all fitted, with Quator (14, 137), a system with a moon, selected (the
-    moon movie's start, `moonmovie.mjs`).
+  - for the missions: `orarra` (galaxy 2 at Orarra, mission 1 under way: the Constrictor is
+    there at the launch), `debrief1` (the Constrictor destroyed), `galaxy3` (Ceerdi, with
+    mission 1 done) and `debrief2` (Birera, with the plans);
+  - `diso`: at Diso, all fitted, with Quator (14, 137) selected.
 - `--mode`: elite-agent's own modes. The choices are `efficient`, `curious`, `fair`,
   `keyboard` (keys rather than the stick), `nosave`, `nomission`, `load`, which loads
-  CLAUDE from a disc that `--savediscs` wrote, and `moon` (MOON=1): in a port built with
-  moons (MOON=on) they are solid (elite-moon.asm), so the agent works out where each is,
-  as the port places it
-  (from the system's seeds and the planet's spin axis at the arrival or launch, then
-  fixed in space), and steers clear of it. The moon mode is in
-  elite-agent's branch `moon-avoid` (its docs/MOON.md): build an agentd from it with
+  CLAUDE from a disc that `--savediscs` wrote. To use another elite-agent, build an
+  agentd from it with
   `ELITE_AGENT=<that checkout> OUT=<path> sh master/tools/agentplay/build.sh` and run with
-  `AGENTD=<path>`. The original has no moons, so with the mode on the agent steers round
-  the port's moons in both machines alike and the lockstep holds; without it, a flight
-  into a moon kills the port's commander only, a divergence (MASTER-PLAN, "The moon is
-  solid"; the default build has no moons). build.sh compiles the elite-agent it is
+  `AGENTD=<path>`. build.sh compiles the elite-agent it is
   given: newer ones need a C23 compiler (gcc-15 from Homebrew, if there), are told they are
   on a Master, and take its address table as they find it (they look for Moxon's
   flicker-free build's bytes, not the release's).
@@ -148,14 +145,24 @@ Pixels are never compared.
   its own. It covers E.C.M., the energy bomb, the escape pod, the views, missiles, the
   galactic hyperdrive, hyperspace, in-system jumps, the docking computer and the charts.
   Pokes drain the shields and energy, heat the cabin or empty the tank, at an iteration
-  boundary in both machines; `sun` (only by name, not in `all`) moves the sun to just
-  ahead, close enough for MA23's heat and fuel scooping. Docked, from the Status screen (up to three a dock, the agent's
+  boundary in both machines. Some pokes come only by name, not in `all`: `sun` puts the sun
+  just ahead (heat, fuel scooping, death by heat); `sunpark` does the same with the sun
+  parked while the station holds its slot (SUNPK, which the reference's patch names); `ghypfill` refits the galactic
+  hyperdrive, so that `ghyp` can cross several galaxies; `scoop`, `scoopnow` and
+  `scoophold` put something scoopable from the bubble (a cargo canister, escape pod,
+  alloy plate, splinter or Thargon) under the nose, slow, for the scoops
+  (`scoopnow` inside the scoop test at once, `scoophold` with the hold emptied first, as a
+  full hold destroys the object instead). Docked, from the Status screen (up to three a dock, the agent's
   keys held back meanwhile): `disc` is the disc menu (`dcat`, `dnoload`, `dnodel`, `dsave`,
   `ddel`, `dbad`, `dname`, `ddefault`, `dexit`; `dcat1`, an empty drive, and `dnameesc`, a
   name abandoned with ESCAPE, only by name), and `docked` the screens the agent never visits
   or gets wrong (`dmarket`, `dchart`, `dequip`, `dsell`). `all`, `disc` and `docked` can be
-  items of a list.
+  items of a list, with a factor too (`disc*2`: each of its actions at twice the rate).
 - `--seed`: sets RAND at TT170. It also seeds the chaos overlay.
+- `--deadregs`: the candidate runs with mlib's DEAD_AFTER, as the gate's compare does: at
+  the return from each routine whose port claims some registers or flags dead (DIALS, SUN,
+  PLANET, PTCLS, BOMBOFF, PIXEL2, WPLS), they are scrambled, so a read of one diverges.
+  summary.json's `deadRegs` counts the returns.
 
 All of this goes through the input log, so every session replays exactly.
 
@@ -174,7 +181,7 @@ Each use is logged as a `workaround` event, and summary.json counts them.
 | `inputs.jsonl` | the input log. A header, then every read with a key down (`p` the read number, `t` r/d, `s` the routine, `k` the keys), every stick change (`j`, `w`, `v`), chaos actions and pokes, and an `end` record |
 | `agent.log`, `journal.jsonl` | elite-agent's log and its journal of events |
 | `events.jsonl` | machine events (BRKs, workarounds, page &0D) and findings |
-| `summary.json` | iterations compared, the first divergence with every differing field (and with `--keepgoing`, how long it lasted: `divergence.after`), findings, routine counts for each machine, the observables, save-file checks and the final state |
+| `summary.json` | iterations compared, the first divergence with every differing field (and with `--keepgoing`, how long it lasted: `divergence.after`), findings, routine counts for each machine (with the sun's parking, SUNUP, SUNSC, SUNBK and SUNLAU, and MV40 and PTCLS; and as `site` events in the reference, the patch's keepRand and its two sites in MV40), the observables, save-file checks, `deadRegs` and the final state |
 | `coverage-ref.json`, `coverage-cand.json` | whole-code coverage: the labels with code run, and the code labels never run (by bank for the port) |
 | `*-ref.png`, `*-cand.png` | screenshots of both machines: at a divergence, at a finding, at the end, and with `--shots N` every N iterations |
 | `ref-disc.ssd`, `cand-disc.ssd` | with `--savediscs`, both discs as the game left them |
@@ -226,12 +233,24 @@ writes `campaign.json` and `campaign.md`, which give:
 - each session's settings and result;
 - coverage, as the original's routine entries summed over the campaign, and the original's
   whole-code coverage;
+- what each session reached: the galaxies, cargo and fuel scooped (from the reference's
+  state at every MLOOP: the hold or the tank going up in flight) and deaths, and the
+  features seen over the campaign (summary.json's `features`: the escape pod and energy
+  bomb used, missiles fired, E.C.M., the docking computer, mission stages as TP changes,
+  witchspace, the sun close, the sun parked and close, the Constrictor and Thargoids
+  about);
 - every finding, grouped across sessions.
 
-Plans are lists in campaign.mjs: `soak` (14 long curious-mode sessions, 2280 game minutes,
-for the Master port and both Tube hosts alike), `default` (22 sessions), `extra` (12 more: the missions'
+Plans are lists in campaign.mjs: `default` (22 sessions), `extra` (12 more: the missions'
 later stages, deaths, pods, a long career), `night`, `night2` (the disc menu and docked
-screens), `night3`, `night4` (40 generated sessions each) and `quick`. No workaround is
+screens), `night3`, `night4` (40 generated sessions each), `soak` (14 long curious-mode
+sessions, to run at `--scale 0.25`: both missions through every briefing and debriefing,
+all eight galaxies, cargo and fuel scooped, the equipment, deaths, the disc menu and docked
+screens, two loads; the same plan for the Master port and both Tube hosts), `soakquick` (the soak's new kinds, briefly), `sunslot` (the sun's
+parking: the safe zone entered and left, with deaths, pods and the sun pokes), `publish`
+(the check before a release, with `--deadregs` and two jobs: `sunslot` at half length,
+then fights and explosions, visible suns, the charts, docked screens and disc menu, deaths
+and hyperspace, the docking computer and a load, about 275 game minutes) and `quick`. No workaround is
 used unless `--workaround` asks for one. The candidate (master/build's disc, symbols and
 banks, or `--cand`/`--csyms`) is copied into `DIR/cand-build` when the campaign first
 starts, and every session runs that copy, so a rebuild during a campaign changes nothing.

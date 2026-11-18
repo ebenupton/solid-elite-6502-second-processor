@@ -18,15 +18,18 @@
 // Also as mlib (and for the same reasons, documented there): at NOISE the three SOPR
 // bytes are cleared; at the LL5 call that feeds ALTIT, Q is cleared; in a build
 // without the port's half steps (SNG47) the planet's own pitch and roll are made half
-// steps, as the port's half spin makes them (mlib's patch, halfPart8); at TT170 the
-// candidate's boot leftovers are seeded from the reference (seedFrom). At every MLOOP the
+// steps, as the port's half spin makes them (mlib's patch, halfPart8); at TT170 a
+// patch as assembled code (opts.refPatch, mlib's applyRefPatch: the reference gets the
+// candidate build's own) is checked and written, and the candidate's boot leftovers are
+// seeded from the reference (seedFrom). At every MLOOP the
 // game state (mlib.regionsFor) is snapshotted.
 //
 // What it watches for besides: BRKs that reach the game's BRK handler (NEWBRK) with
 // where they came from, writes by game code to page &0D (off limits on the Master),
 // and the routine labels of each poll (control flow).
-import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank, halfPart8 } from "../../../harness/mlib.mjs";
-export { loadSyms, regionsFor };
+import { loadSyms, mapAt, mapOfLabel, physRead, regionsFor, canonFor, excludeSet, TIMING_EXCLUDE, RELOC_EXCLUDE, DRAW_EXCLUDE, bootMaster, stubBank, halfPart8,
+    findHalfSpin, applyRefPatch, loadRefPatch, refPatchPath, DEAD_AFTER } from "../../../harness/mlib.mjs";
+export { loadSyms, regionsFor, loadRefPatch, refPatchPath };
 
 export const ROOT = decodeURIComponent(new URL("../../..", import.meta.url).pathname).replace(/\/$/, "") + "/";
 export const NI = 37, NOSH = 12;
@@ -34,16 +37,17 @@ export const CYCLES_PER_FRAME = 40000;          // 2 MHz, 50 Hz
 // routines whose entries are counted (coverage): launch, docking, hyperspace, galactic
 // hyperspace, witchspace, mis-jump, in-system jump, death, escape pod, energy bomb, E.C.M.,
 // missiles (ours and theirs), explosions, Thargoids, the docked screens, save and load,
-// the missions' briefings and debriefings, pause
+// the missions' briefings and debriefings, pause; the sun's parking (the build's
+// SUNUP, SUNSC, SUNBK, SUNLAU), MV40 and PTCLS (the explosion clouds)
 export const ROUTINES = ["LAUN", "DOENTRY", "TT18", "Ghy", "MJP", "ptg", "WARP", "DEATH", "ESCAPE", "BOMBON", "ECBLB2", "ECMOF",
     "FRMIS", "SFRMIS", "EXNO3", "GTHG", "EQSHP", "TT219", "TT208", "TT213", "TT25", "TT167", "STATUS", "SVE", "LOD",
-    "BRIEF", "BRIEF2", "BRIEF3", "DEBRIEF", "DEBRIEF2", "FREEZE"];
+    "BRIEF", "BRIEF2", "BRIEF3", "DEBRIEF", "DEBRIEF2", "FREEZE", "SUNUP", "SUNSC", "SUNBK", "SUNLAU", "MV40", "PTCLS"];
 
 export class EliteMachine {
     // opts: name, disc, syms (loadSyms), input ({ rdkey(ctx), dks5(ctx), joy(ctx) }),
     //       seedFrom (another EliteMachine whose TT170 state seeds this one's boot leftovers),
     //       rand (4 bytes written to RAND at TT170), patch(m) (called once, at the first QU5),
-    //       watch0d (record page &0D writes by game code)
+    //       watch0d (record page &0D writes by game code), refPatch (mlib.loadRefPatch's)
     constructor(opts) {
         Object.assign(this, { name: opts.name, disc: opts.disc, sy: opts.syms, input: opts.input, opts });
         this.iter = 0; this.polls = 0; this.joys = 0; this.tt100 = 0;
@@ -59,8 +63,8 @@ export class EliteMachine {
         this.s = await bootMaster(this.disc);
         const cpu = this.cpu = this.s._machine.processor;
         const sy = this.sy;
-        this.regions = regionsFor(sy);
-        this.canon = canonFor(sy, this.regions);   // (the station's line heap pointer, LSO)
+        this.regions = regionsFor(sy, this.opts.refPatch);
+        this.canon = canonFor(sy, this.regions, this.opts.refPatch);   // (the station's line heap pointer, LSO)
         this.ram = cpu.ramRomOs;
         this._labels();
         // (a label in sideways RAM with no bank in banks.txt can't be told from whatever
@@ -86,6 +90,13 @@ export class EliteMachine {
         H.JOY = [null, null];
         this.hookTab = new Uint8Array(65536);
         for (const h of [...Object.values(H).flat()]) if (h) this.hookTab[h.a] = 1;
+        // opts.deadRegs (mlib's DEAD_AFTER, or opts.deadAfter, as runElite's: the
+        // Tube's machine gives TUBE_DEAD_AFTER): at the return from each
+        // routine listed, the registers and flags the port claims dead there are scrambled
+        this.dead = this.opts.deadRegs ? (this.opts.deadAfter || DEAD_AFTER).map(([n, regs]) => ({ h: hook(n), regs, n })).filter(d => d.h) : [];
+        this.deadPend = []; this.deadN = {}; this.deadSeed = 0x2545F491;
+        for (const d of this.dead) this.hookTab[d.h.a] = 1;
+        this.siteHooks = [];
         // boot writes (for seeding) and page &0D watch
         this.written = new Set(); this.inGame = false;
         this.bootWrites = cpu.debugWrite.add(a => { if (this.inGame && !this.started && a < 0x8000) this.written.add(a); return false; });
@@ -275,6 +286,27 @@ export class EliteMachine {
     tab(pc) {
         if (!this.hookTab[pc]) return false;
         const H = this.H, cpu = this.cpu, sy = this.sy;
+        if (this.dead.length) {
+            for (let j = this.deadPend.length - 1; j >= 0; j--) {
+                const d = this.deadPend[j];
+                if (pc !== d.ret || cpu.s !== d.s) continue;
+                for (const r of d.regs) {
+                    this.deadSeed ^= this.deadSeed << 13; this.deadSeed ^= this.deadSeed >>> 17; this.deadSeed ^= this.deadSeed << 5;
+                    const v = this.deadSeed >>> 0;
+                    if (r === "a" || r === "x" || r === "y") cpu[r] = v & 255; else cpu.p[r] = !!(v & 256);
+                }
+                this.deadN[d.n] = (this.deadN[d.n] || 0) + 1;
+                this.deadPend.splice(j);
+                break;
+            }
+            for (const d of this.dead) if (this._at(d.h, pc)) {
+                const ret = ((this.rb(0x100 + ((cpu.s + 1) & 0xff)) | this.rb(0x100 + ((cpu.s + 2) & 0xff)) << 8) + 1) & 0xffff;
+                this.deadPend.push({ ret, s: (cpu.s + 2) & 0xff, regs: d.regs, n: d.n });
+                if (this.deadPend.length > 64) this.deadPend.shift();
+                this.hookTab[ret] = 1;          // (left set: the return sites are few)
+            }
+        }
+        for (const s of this.siteHooks) if (pc === s.a && this.started) this.event("site", s.name);
         if (this._at(H.RDK, pc) && this.started) {
             const c = this._callerAt(2);
             const site = this.labelOf(c.site, c.romsel);
@@ -302,6 +334,16 @@ export class EliteMachine {
             this.blocked = null;
             this.ram[sy.JOPOS + which] = v & 255;
             this.joys++;
+        } else if (this.keep && pc === this.keep.at && !this.keepPend) {
+            const ret = (this.rb(0x100 + ((cpu.s + 1) & 0xff)) | this.rb(0x100 + ((cpu.s + 2) & 0xff)) << 8) + 1;
+            this.keepPend = { ret, vals: this.keep.bytes.map(b => this.rb(b)), had: this.hookTab[ret] };
+            this.hookTab[ret] = 1;
+        } else if (this.keepPend && pc === this.keepPend.ret) {
+            this.keep.bytes.forEach((b, i) => { this.ram[b] = this.keepPend.vals[i]; });
+            this.hookTab[pc] = this.keepPend.had;
+            this.keepPend = null;
+            this.event("site", "keepRand");
+            return this.tab(pc);
         } else if (this._at(H.NOISE, pc)) {
             for (let i = 0; i < 3; i++) this.ram[sy.SOPR + i] = 0;
         } else if (H.P8 && this._at(H.P8, pc)) {
@@ -345,6 +387,13 @@ export class EliteMachine {
             this.bootWrites.remove();
             this._findJoy();
             this._findP8();
+            if (this.opts.refPatch) applyRefPatch(this.ram, this.opts.refPatch);
+            // (the patch's sites in MV40, counted as they run: MV40's K2)
+            if (this.opts.refPatch) for (const s of this.opts.refPatch.sites) if (/^MV40/.test(s.name)) { this.siteHooks.push({ a: s.addr, name: s.name }); this.hookTab[s.addr] = 1; }
+            // (a patch's keepRand, as mlib's: the bytes kept across PTCLS, put back at
+            // its return address, which is hooked while it runs)
+            this.keep = this.opts.refPatch && this.opts.refPatch.keepRand ? this.opts.refPatch.keepRand : null;
+            if (this.keep) this.hookTab[this.keep.at] = 1;
             this.init = this.snapshot();
             this.lastProgressCycles = this.cyclesNow();
         } else if (this._at(H.NEWBRK, pc)) {
@@ -377,23 +426,15 @@ export class EliteMachine {
         }
         return false;
     }
-    // the half spin's patch (mlib's): for a build without the port's half
-    // steps (MVS5's for the planet, which has the label mvs5hf), MVEIT
-    // part 8's first instruction (LDA INWK+30, AND #&80, STA RAT2, before MV8)
-    // and MV5
+    // the half spin's patch (mlib's findHalfSpin): for a build without the port's half
+    // steps, MVEIT part 8's first instruction and MV5
     _findP8() {
-        const sy = this.sy, cpu = this.cpu;
         this.p8vec = null;
-        if (sy.mvs5hf !== undefined || sy.MV8 === undefined || sy.MV5 === undefined) return;
-        const m = mapOfLabel(sy, "MV8"), want = [0xa5, sy.INWK + 30, 0x29, 0x80, 0x85, sy.RAT2];
-        for (let a = sy.MV8 - 6; a > sy.MV8 - 64; a--)
-            if (want.every((b, i) => physRead(cpu, m, a + i) === b)) {
-                this.H.P8 = { a, m, name: "P8" };
-                this.H.MV5 = { a: sy.MV5, m: mapOfLabel(sy, "MV5"), name: "MV5" };
-                this.hookTab[this.H.P8.a] = 1; this.hookTab[this.H.MV5.a] = 1;
-                return;
-            }
-        throw new Error("MVEIT part 8 not found before MV8 (the half spin's patch)");
+        const hs = findHalfSpin(this.sy, this.cpu);
+        if (!hs) return;
+        this.H.P8 = { ...hs.p8, name: "P8" };
+        this.H.MV5 = { ...hs.mv5, name: "MV5" };
+        this.hookTab[this.H.P8.a] = 1; this.hookTab[this.H.MV5.a] = 1;
     }
     _findJoy() {
         const dk = this.dk15, sy = this.sy, J = [];

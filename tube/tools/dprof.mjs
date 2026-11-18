@@ -40,10 +40,10 @@ let added = 0, prevC = null, addedAtLast = 0, on = false, prevLab = null, cur = 
 const origExec = par.execute;
 par.execute = function (c) { added += c * this.cpuMultiplier; return origExec.call(this, c); };
 // routine entries (JSR targets) counted
-const CTXN = ["F_FRAME","f_discs","f_disc2","T_DISCROWS","ps_fit","hp_fit","hp_move","hp_drop","ps_rows","psi","ps_outs","ps_whole","ps_strips","ps_seg","ps_gen","ps_fin","ps_spin","ps_spo","ps_row","ps_edges","ps_getn","ps_nib","pd2","pd_row","prow","pseg","prep","pk_row","fl_arm","R_FLARE","fp_emit","fp_pix","PLANET","SUN","S_SUN","L_SUN","f_ships","f_lines","f_dots","f_flt","f_text1","f_sight1","f_sight2","f_lasers","f_sort","T_STARERASE","pspan","pdiff","ptx","pirq","rpg","p_buf","pfwait","pflush","ovl_need","ovl_get","povd","p_emit","R_DOT","LL9","MVEIT","TT17","f_discspans","f_bdisc","f_discdirty","f_b0new","T_KFRAME","pbl","p_sync","p_wscan","p_dks","p_irb","p_noise"];
+const CTXN = ["F_FRAME","f_discs","f_disc2","T_DISCROWS","ps_fit","hp_fit","hp_move","hp_drop","ps_rows","psi","ps_outs","ps_whole","ps_strips","ps_seg","ps_gen","ps_fin","ps_spin","ps_spo","ps_row","ps_edges","ps_getn","ps_nib","pd2","pd_row","prow","pseg","prep","pk_row","fl_arm","R_FLARE","fp_emit","fp_pix","PLANET","SUN","L_SUN","f_ships","f_lines","f_dots","f_flt","f_text1","f_sight1","f_sight2","f_lasers","f_sort","T_STARERASE","pspan","pdiff","ptx","pirq","rpg","p_buf","pfwait","pflush","ovl_need","ovl_get","povd","p_emit","R_DOT","LL9","MVEIT","TT17","f_discspans","f_bdisc","f_discdirty","f_b0new","T_KFRAME","pbl","p_sync","p_wscan","p_dks","p_irb","p_noise"];
 const CTX = new Map(); for (const n of CTXN) if (sy[n] !== undefined) CTX.set(sy[n], n);
 const cst = [];
-const ENT = new Map(); for (const n of ["PLANET", "SUN", "SUN4", "f_disc2", "f_discs", "f_discspans", "R_DISCROWS", "R_FLARE", "ovl_get", "ovl_need", "pflush", "F_FRAME", "f_bdisc", "f_discdirty", "fl_disc", "S_SUN", "L_SUN", "rpg", "p_buf", "pfwait", "C_SYNC"]) if (sy[n] !== undefined) ENT.set(sy[n], n);
+const ENT = new Map(); for (const n of ["PLANET", "SUN", "SUN4", "f_disc2", "f_discs", "f_discspans", "R_DISCROWS", "R_FLARE", "ovl_get", "ovl_need", "pflush", "F_FRAME", "f_bdisc", "f_discdirty", "fl_disc",  "L_SUN", "rpg", "p_buf", "pfwait", "C_SYNC"]) if (sy[n] !== undefined) ENT.set(sy[n], n);
 m.t.addParHook(pc => {
     const c = par.cycles, d = prevC === null ? 0 : prevC + (added - addedAtLast) - c;
     prevC = c; addedAtLast = added;

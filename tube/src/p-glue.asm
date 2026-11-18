@@ -13,10 +13,9 @@
  LDA #ELITEBANK
  RTS
 
-.G_FRAME                \ (the sun near the planet first, S_SUN, gfx-ssun.asm,
- JSR S_SUN              \ then in a space view the light for the next
- LDA QQ11               \ iteration's ships, L_SUN, gfx-light.asm: both in
- BNE P%+5               \ game context, as the Master port's)
+.G_FRAME                \ (in a space view the light for the next iteration's
+ LDA QQ11               \ ships first, L_SUN, gfx-light.asm, in game context,
+ BNE P%+5               \ as the Master port's)
  JSR L_SUN
  JSR F_FRAME
  JMP gback
@@ -74,8 +73,8 @@
 
 \ G_PFHOOK: H_CIRC's planet surface (gfx-hooks.asm): PF_HOOK, the planet's
 \ class and its circles' records (gfx-planet7.asm, with the circle engine
-\ gfx-merid.asm, in overlay S) and, with RINGS=on, its ring; PF_CLS bit 7 says
-\ that f_bounds is to colour the disc from them (T_CAPS). Keeps X and Y
+\ gfx-merid.asm, in overlay S); PF_CLS bit 7 says that f_bounds is to colour
+\ the disc from them (T_CAPS). Keeps X and Y
 \ (H_CIRC, the only caller, reads none of A and the flags after it)
 
 .G_PFHOOK

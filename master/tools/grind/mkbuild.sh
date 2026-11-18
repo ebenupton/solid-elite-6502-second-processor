@@ -19,6 +19,7 @@ mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 rm -rf "$OUT/tree"; mkdir -p "$OUT/tree/master/tools" "$OUT/tree/tools"
 cp -R "$ROOT/master/src" "$OUT/tree/master/src"
 cp "$ROOT/master/build.sh" "$OUT/tree/master/build.sh"
+cp -R "$ROOT/master/reference" "$OUT/tree/master/reference"     # (SNG47's symbols: tools/sunref/sunref.py)
 # master/tools: the build's helpers (dashboard.py, elite-checksum.py, bankcheck.py ...)
 for f in "$ROOT"/master/tools/*; do
     [ "$(basename "$f")" = grind ] && continue
