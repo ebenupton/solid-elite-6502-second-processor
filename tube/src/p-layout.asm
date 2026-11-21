@@ -124,7 +124,7 @@ PRINT "Parasite: data end at &", ~P%
 
  PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_CODE_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_CODE_END-1, " (", PRES_CODE_END-PF_START, " bytes); the aligned tables &", ~TAB_START, "-&", ~TAB_END-1, "; free between: ", TAB_START-PRES_CODE_END
  PRINT "Parasite: overlay region &", ~OVL_START, "-&", ~RING-1, " (", RING-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to the ring: ", RING-OVL_D_END
- ASSERT PCODE_END <= RING AND RING + &400 = &FE00   \ (the ring's four pages, below the top pages)
+ ASSERT PCODE_END <= RING AND RING + &300 = &FE00   \ (the ring's three pages, below the top pages)
  ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above
                         \ overlay D's pages, which a load of D rewrites; elite-source.asm)
  SAVE "build/PCODE.bin", CODE%, PCODE_END, S%   \ (tube/build.sh leaves out what

@@ -45,6 +45,7 @@ zp_end, = printed(r"ZP workspace from &[0-9A-F]+ to &([0-9A-F]+)")
 k_end, = printed(r"K% workspace from &[0-9A-F]+ to &([0-9A-F]+)")
 wp0, wp_end = printed(r"WP workspace from &([0-9A-F]+) to &([0-9A-F]+)")
 RING = const(os.path.join(SRC, "p-io.asm"), "RING")
+RINGEND = const(os.path.join(SRC, "p-io.asm"), "RINGEND")
 ZPSAVE = const(os.path.join(MSRC, "elite-source.asm"), "ZPSAVE")
 regions = []
 
@@ -171,7 +172,7 @@ reg(sy["OVL_D_END"], RING, "The boot's staging (p_start, p_boot, F_INIT's first 
     ["tube/src/p-io.asm", "tube/src/p-layout.asm"], sy["PSTG_END"], alt="boot")
 reg(ZPSAVE + 0x90, ZPSAVE + 0x100, "ZPSAVE: the zero-page save (getzp/setzp, &90-&FF; direct mode, above overlay D)",
     "workspace", "ovl D", ["master/src/elite-source.asm"], alt="D")
-reg(RING, RING + 0x400, "The ring (the commands to the host)", "buffers", "ring", ["tube/src/p-io.asm"])
+reg(RING, RINGEND, "The ring (the commands to the host)", "buffers", "ring", ["tube/src/p-io.asm"])
 reg(0xFE00, 0xFEF0, "The page below the registers: pbl (pirq's unrolled sends), p_crash, ovl_sinit, pidx", "code", "page FE", None,
     sy["PFE_END"], ph="main")
 reg(0xFEF0, 0xFF00, "Tube registers (&FEF8-&FEFF) and guard", "io", "-", [])

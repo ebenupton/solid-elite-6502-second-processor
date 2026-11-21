@@ -60,12 +60,15 @@ fl_t  = &0E
 \
 \ ******************************************************************************
 
-RING    = &FA00         \ the ring's pages (above both overlays and the boot's
+RING    = &FB00         \ the ring's pages (above both overlays and the boot's
                         \ staging, below the top pages: p-layout.asm asserts
-                        \ it): 4, giving overlay S the room for the discs (7
-                        \ were 0.8% faster in flight on the Master host, 11
-                        \ about 2% faster than 4, 3 were 3-6% slower in the
-                        \ beach-ball windows; one stalls)
+                        \ it): 3, giving overlay S the room for the Master
+                        \ port's LL9 part 6 (tbench against 4: the same in
+                        \ every frozen scene but docking with the Master host,
+                        \ 3.7% slower, and combat with the Model B's, 1.9%,
+                        \ the parasite's work unchanged; earlier, 7 were 0.8%
+                        \ faster in flight on the Master host, 11 about 2%
+                        \ faster than 4; one stalls)
 RINGEND = &FE00
 rq      = &FA           \ the write pointer (zero page the game leaves free)
 rpz     = &FE           \ the IRQ's read pointer (0, the reader's page)
