@@ -184,8 +184,9 @@ TBUFN = 35
 
 .G_CHAR                 \ the text map (gfx-frame_cold.asm's F_CHAR ...)
  JMP F_CHAR
-.G_DELCHAR
- JMP F_DELCHAR
+.G_DELCHAR              \ (F_DELCHAR: overlay D's, as only the screens drawn
+ JSR povd               \ directly delete what is typed)
+ EQUW F_DELCHAR
 
 \       Area: ovl D
 

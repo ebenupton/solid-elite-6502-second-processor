@@ -55,7 +55,7 @@ ENDIF
 \ ******************************************************************************
 
 IF _TPART = 1
- CODE% = &192D          \ Port (Tube): the parasite's, where its shared workspace
+ CODE% = &177F          \ Port (Tube): the parasite's, where its shared workspace
                         \ ends (tube/src/p-ws.asm, p-layout.asm asserts it)
 ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
@@ -2233,7 +2233,10 @@ IF _TPART = 1
                         \ lands in one byte, the first after VEC, the start of
                         \ the shared workspace (tube/src/p-ws.asm's PACC), and
                         \ what it reads (the keyboard, the timers) is replaced
-                        \ (docs/TUBE-MAP.md)
+                        \ (docs/TUBE-MAP.md). Any other VIA+n the parasite
+                        \ assembled would write the workspace's byte PACC +
+                        \ n - &34, so there must be none (the sound's are the
+                        \ hosts' only: SOUS1, SOFLUSH's and NOISE's IER)
 
 ENDIF
 
@@ -2377,7 +2380,7 @@ ENDIF
 \       Type: Variable
 \   Category: Sound
 \    Summary: Sound chip data to turn the volume down on all channels and to act
-\       Tube: both, ovl D
+\       Tube: host
 \             as a mask for choosing a tone channel in the range 0-2
 \       Area: low
 \
@@ -2407,7 +2410,7 @@ ENDIF
 \   Category: Sound
 \    Summary: Write sound data directly to the 76489 sound chip
 \       Area: low
-\       Tube: both, ovl D
+\       Tube: host
 \
 \ ------------------------------------------------------------------------------
 \
@@ -2450,7 +2453,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Sound
 \    Summary: Port: SOUS1's RTS, its own block: NOISE branches to it (SOUS1 is
-\             in the Tube's overlay D)
+\             the Tube's hosts' only)
 \       Area: low
 \       Tube: both
 \
@@ -2493,6 +2496,15 @@ ENDIF
  BNE SOUL2              \ Loop back to zero the next byte until we have done all
                         \ three from SOFLG+2 down to SOFLG
 
+IF _TPART = 1
+
+ RTS                    \ Port (Tube): the host's SOFLUSH (p_soflush) has
+                        \ silenced its sound chip; the parasite has none, and
+                        \ its VIA is no SHEILA but the shared workspace, where
+                        \ the writes below would land
+
+ELSE
+
  LDA #%00000010         \ Port: mask the vsync interrupt (CA1) in the System
  STA VIA+&4E            \ VIA's IER while we update the sound chip, rather
                         \ than disable every interrupt (SEI): only the vsync
@@ -2521,6 +2533,8 @@ ENDIF
  STA VIA+&4E
 
  RTS                    \ Return from the subroutine
+
+ENDIF
 
 \ ******************************************************************************
 \
@@ -2666,12 +2680,20 @@ ENDIF
  CMP SOPR,X             \ If SFXPR+Y < SOPR+X, return from the subroutine
  BCC SOUR1              \ (as SOUR1 contains an RTS)
 
+IF _TPART <> 1          \ (Tube: the parasite has no VIA and no SOINT; its
+                        \ NOISE keeps the game's sound state while p_noise has
+                        \ the host make the sound, so it leaves the IER alone:
+                        \ its VIA is no SHEILA but the shared workspace, where
+                        \ these writes would land)
+
  PHA                    \ Port: mask the vsync interrupt (CA1) in the System
  LDA #%00000010         \ VIA's IER while we update the sound buffer, rather
  STA VIA+&4E            \ than disable every interrupt (SEI): only the vsync
  PLA                    \ handler (SOINT) reads the buffer, and the timer 1
                         \ interrupt at the dashboard split must not be held
                         \ off (A and C are kept)
+
+ENDIF
 
                         \ If we get here then SFXPR+Y >= SOPR+X
 
@@ -2703,8 +2725,13 @@ ENDIF
  LDA #%10000000         \ Set bit 7 of SOFLG+X
  STA SOFLG,X
 
+IF _TPART <> 1
+
  LDA #%10000010         \ Port: unmask the vsync interrupt again, and return
  STA VIA+&4E            \ with A = %10000000 as before
+
+ENDIF
+
  LDA #%10000000
 
  SEC                    \ Set the C flag

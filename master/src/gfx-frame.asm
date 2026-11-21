@@ -444,6 +444,8 @@ ELSE
 .f_mk0  EQUB 0          \ non-zero: f_mark leaves buffer 1 alone
 ENDIF
 
+\       Area: ovl D
+
 \ f_delchar0 (F_DELCHAR, frame_cold.asm): clear the text map cell at X =
 \ column, Y = row
 
@@ -466,6 +468,8 @@ ENDIF
 .fdc9
  LDY f_ysav
  RTS
+
+\       Area: frame
 
 \ f_clrtext0 (F_CLRTEXT, frame_cold.asm; f_direct0): clear text map rows X
 \ to Y inclusive (each cell remembers its character; a row with no

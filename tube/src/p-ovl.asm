@@ -198,10 +198,15 @@ OVL_S = 2
 .ovl_ssv EQUB 0         \ bit 7: S went out in space mode
 
 
+\       Area: page FE
+
 \ ovl_sinit: overlay S's state (OVL_START to S_STATE_END) as S's image has it
 \ (tube/build.sh checks: zeros, but for the five bytes set here), for S
 \ coming in after it went out in direct mode (the host's image of S starts
-\ at S_STATE_END's page). Clobbers A, X, Y
+\ at S_STATE_END's page). Clobbers A, X, Y. In the page at &FE00, in the
+\ room below the Tube's registers that pirq's sends and p_crash leave: it
+\ runs only once the boot has copied that page in, and is there whichever
+\ overlay is in
 
 .ovl_sinit
  LDA #HI(OVL_START)
@@ -230,6 +235,8 @@ OVL_S = 2
  STA r_dst+1
  STA r_wt
  RTS
+
+\       Area: frame
 
 \ ovl_get: A = an overlay: C_OVLGET, then its pages from the
 \ host into the region. Clobbers A, X, Y

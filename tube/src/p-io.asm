@@ -185,6 +185,7 @@ PBN     = PR1N - 1      \ bytes sent a doorbell (one spare: a byte ppump sends
  JSR rpg
  JMP pem_s5 + 8
 .RQ_END
+ ASSERT HI(RQ_START) = HI(rq_pem_s5)   \ (ppring stores one high byte)
 
 \ rpg: a stub's write pointer has left its page: the next page's 255; then
 \ wait (the IRQ sending from the ring) while the reader is in that page a lap
@@ -374,6 +375,10 @@ PBN     = PR1N - 1      \ bytes sent a doorbell (one spare: a byte ppump sends
 
 RINGN = (RINGEND - RING) DIV 256 * 255
 
+\       Area: page FE
+
+\ (pidx: in the page at &FE00, in the room pirq's sends and p_crash leave)
+
 .pidx
  SEC
  SBC #HI(RING)
@@ -386,6 +391,9 @@ RINGN = (RINGEND - RING) DIV 256 * 255
  LDA pxk
  SBC #0
  RTS
+
+\       Area: frame
+
 .pdist
  JSR pidx
  STA pxk
@@ -443,47 +451,37 @@ RINGN = (RINGEND - RING) DIV 256 * 255
  STA pem_s5
  LDA #LO(rq_psb_s0)
  STA psb_s0+1
- LDA #HI(rq_psb_s0)
- STA psb_s0+2
  LDA #LO(rq_psb_s1)
  STA psb_s1+1
- LDA #HI(rq_psb_s1)
- STA psb_s1+2
  LDA #LO(rq_psb_s2)
  STA psb_s2+1
- LDA #HI(rq_psb_s2)
- STA psb_s2+2
  LDA #LO(rq_psb_s3)
  STA psb_s3+1
- LDA #HI(rq_psb_s3)
- STA psb_s3+2
  LDA #LO(rq_psb_s4)
  STA psb_s4+1
- LDA #HI(rq_psb_s4)
- STA psb_s4+2
  LDA #LO(rq_pem_s0)
  STA pem_s0+1
- LDA #HI(rq_pem_s0)
- STA pem_s0+2
  LDA #LO(rq_pem_s1)
  STA pem_s1+1
- LDA #HI(rq_pem_s1)
- STA pem_s1+2
  LDA #LO(rq_pem_s2)
  STA pem_s2+1
- LDA #HI(rq_pem_s2)
- STA pem_s2+2
  LDA #LO(rq_pem_s3)
  STA pem_s3+1
- LDA #HI(rq_pem_s3)
- STA pem_s3+2
  LDA #LO(rq_pem_s4)
  STA pem_s4+1
- LDA #HI(rq_pem_s4)
- STA pem_s4+2
  LDA #LO(rq_pem_s5)
  STA pem_s5+1
- LDA #HI(rq_pem_s5)
+ LDA #HI(RQ_START)      \ (the stubs share a page: asserted)
+ STA psb_s0+2
+ STA psb_s1+2
+ STA psb_s2+2
+ STA psb_s3+2
+ STA psb_s4+2
+ STA pem_s0+2
+ STA pem_s1+2
+ STA pem_s2+2
+ STA pem_s3+2
+ STA pem_s4+2
  STA pem_s5+2
 .ppr9
  RTS
@@ -1255,11 +1253,11 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  JMP F_INIT
 
 \ p_boot: drains a stray byte from the host in register 1, zeroes the
-\ shared workspace (p-ws.asm: PWS_START to PWS_END, which nothing loads),
-\ makes the quarter-square tables QSL and QSH (elite-qs.asm: the last of the
-\ page aligned tables, over p_load), then copies the staged images
-\ (p-layout.asm) in over the client OS, which the game never uses again:
-\ the two top pages.
+\ shared workspace (p-ws.asm: PWS_START to PWS_END and PWS_LS to PWS_LS_END,
+\ which nothing loads), makes the quarter-square tables QSL and QSH
+\ (elite-qs.asm: the last of the page aligned tables, over p_load), then
+\ copies the staged images (p-layout.asm) in over the client OS, which the
+\ game never uses again: the two top pages.
 \ For x = 0-255, with q = q(x) = x^2 DIV 4 (16 bits, rq and rq+1):
 \ QSL+x and QSH+x are q's low and high bytes; (256+x)^2 DIV 4 is q + 128x +
 \ &4000, so QSL+256+x is q's low byte plus 128 if x is odd, and QSH+256+x
@@ -1287,6 +1285,11 @@ pov = &FC                \ (the command's pointer: zero page the game leaves fre
  LDX rq+1
  CPX #HI(PWS_END)
  BNE pbz1
+ LDX #PWS_LS_END - PWS_LS  \ and its part below WP (p-ws.asm)
+.pbz2
+ STZ PWS_LS - 1,X
+ DEX
+ BNE pbz2
  STZ rq                 \ (q(0))
  STZ rq+1
  LDX #0

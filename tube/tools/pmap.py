@@ -121,24 +121,25 @@ reg(0xF9, 0xFA, "Free (zero page)", "free", "-", [], 0xF9)
 reg(0xFA, 0x100, "Zero page: the ring's pointers (rq, p_oscli's, rpz)", "workspace", "ZP", ["tube/src/p-io.asm"])
 reg(0x100, 0x200, "Stack (XX3 at its foot)", "stack", "-", ["master/src/elite-source.asm"])
 reg(sy["K%"], k_end + 1, "K%: Elite's workspace, the ship data blocks", "workspace", "K%", ["master/src/elite-source.asm"])
-reg(k_end + 1, wp0, "K%: the ship line heap (down from WP)", "workspace", "K%", ["master/src/elite-source.asm"])
-reg(wp0, wp_end + 1, "WP: Elite's workspace, then the dashboard's variables DASHV and the parked sun (SUNPK, SUNPF)", "workspace", "WP", ["master/src/elite-source.asm"])
+reg(k_end + 1, sy["PWS_LS"], "K%: the ship line heap (down from LS%)", "workspace", "K%", ["master/src/elite-source.asm"])
+reg(sy["PWS_LS"], sy["PWS_LS_END"], "Shared workspace below WP: the second disc's rows, the flare's and the records' flags, "
+    "the bomb's bolt, F_TCH (p-ws.asm, zeroed by p_boot)", "workspace", "workspace", ["tube/src/p-ws.asm"])
+if sy["PWS_LS_END"] < wp0:
+    reg(sy["PWS_LS_END"], wp0, "Free (below WP)", "free", "-", [], sy["PWS_LS_END"])
+reg(wp0, wp_end + 1, "WP: Elite's workspace, then the dashboard's variables DASHV and the parked sun (SUNPK, SUNPF); the "
+    "frame's scratch in the ball line heap's bytes (LSX2, LSY2: p-ws.asm)", "workspace", "WP", ["master/src/elite-source.asm", "tube/src/p-ws.asm"])
 reg(wp_end + 1, sy["PWS_START"], "WP: VEC (the IRQ1 vector's old value, WP's last)", "workspace", "WP", ["master/src/elite-source.asm"])
 # the shared workspace, one run (p-ws.asm), zeroed by p_boot
 ws = [("PWS_START", "hp_dfl", "Shared workspace: PACC, the dummy ACCCON (VIA + &34)"),
-      ("hp_dfl", "R_PXL", "Shared workspace: the disc heap's flags and counts, the lens flare's probes, R_POLY's scratch"),
-      ("R_PXL", "R_NDISCL", "Shared workspace: the rasteriser's per-call inputs, the stars (R_SS, F_DSS, R_SX, R_SY), the text map's "
-       "row counts F_TMR, the sun this frame (F_SUX, F_SUY), the kept solid rows' scratch, F_DCOL"),
+      ("hp_dfl", "R_NDISCL", "Shared workspace: the disc heap's flags and counts, the lens flare's probes' mode, f_tcol"),
       ("R_NDISCL", "F_HW", "Shared workspace: the new disc spans' row arrays R_NDISCL, R_NDX0, R_NDX1, R_NDN (page aligned)"),
       ("F_HW", "F_TM", "Shared workspace: the half-widths F_HW, F_HW2 (the planet's, the sun's)"),
       ("F_TM", "R_NDISCR", "Shared workspace: the text map F_TM"),
-      ("R_NDISCR", "pk_b", "Shared workspace: the new disc spans' row arrays R_NDISCR, R_NDX2, R_NDX3"),
-      ("pk_b", "F_BX", "Shared workspace: the kept rows' last scratch byte, FL_BEH, GFAR ... GSHT, the second disc's rows and "
-       "colour by buffer (R_S2T, R_S2B, R_S2C), the incremental discs' scratch"),
-      ("F_BX", "F_SR", "Shared workspace: the frame layer's state (F_BX, F_BY, f_zsv, F_TCH, F_SLV)"),
-      ("F_SR", "F_RP", "Shared workspace: the ship records F_SR (the faces' levels)"),
+      ("R_NDISCR", "R_SS", "Shared workspace: the new disc spans' row arrays R_NDISCR, R_NDX2, R_NDX3"),
+      ("R_SS", "F_RP", "Shared workspace: the stars (R_SS, F_DSS, R_SX, R_SY), the text map's row counts F_TMR, the "
+       "docking slot F_SLV, the directly drawn stars' y F_DSY, the sun this frame (F_SUX, F_SUY), F_DCOL"),
       ("F_RP", "F_DSX", "Shared workspace: the ship records F_RP"),
-      ("F_DSX", "PWS_END", "Shared workspace: the directly drawn stars F_DSX, F_DSY")]
+      ("F_DSX", "PWS_END", "Shared workspace: the directly drawn stars' x F_DSX, the rasteriser's per-call inputs")]
 for a, b, n in ws:
     reg(sy[a], sy[b], n, "workspace", "workspace", ["tube/src/p-ws.asm"])
 # the resident code and data: one run from the shared workspace's end, the
@@ -153,7 +154,7 @@ reg(sy["GLUE_END%"], sy["HZ_START"], "The game's run (Elite's resident blocks, i
 reg(sy["HZ_START"], sy["HZDATA_END%"], "Game data (the hot data: XX21, E%, KWL%, KWH%, the blueprints, ...)", "data", "resident",
     None, ph="main")
 reg(sy["HZDATA_END%"], sy["HZ_END"], "The hangar's tables (HFY, HPWL, HPWH)", "data", "resident", None, ph="main")
-reg(sy["PF_START"], sy["PRES_CODE_END"], "Frame layer (the parasite's part), the resident parts of overlay S's files, F_INIT", "code", "resident",
+reg(sy["PF_START"], sy["PRES_CODE_END"], "Frame layer (the parasite's part), the resident parts of overlay S's files, f_init1 (F_INIT's resident part)", "code", "resident",
     None, ph="main")
 reg(sy["PRES_CODE_END"], sy["TAB_START"], "Free (the resident code's one gap)", "free", "-", [], sy["PRES_CODE_END"])
 reg(sy["TAB_START"], sy["QSL"], "Log tables (log, logL, alogh), page aligned", "data", "aligned", None, ph="main")
@@ -166,12 +167,12 @@ o = sy["OVL_START"]
 reg(o, RING, "Overlay D (direct mode)", "overlay", "ovl D", None, sy["OVL_D_END"], alt="D", ph="main")
 reg(o, RING, "Overlay S (space mode): the rasteriser's private state, then code", "overlay", "ovl S", None, sy["OVL_S_END"],
     alt="S", ph="S")
-reg(sy["OVL_D_END"], RING, "The boot's staging (p_start, p_boot, the top pages' images: boot only)", "boot", "boot",
+reg(sy["OVL_D_END"], RING, "The boot's staging (p_start, p_boot, F_INIT's first part, the top pages' images: boot only)", "boot", "boot",
     ["tube/src/p-io.asm", "tube/src/p-layout.asm"], sy["PSTG_END"], alt="boot")
 reg(ZPSAVE + 0x90, ZPSAVE + 0x100, "ZPSAVE: the zero-page save (getzp/setzp, &90-&FF; direct mode, above overlay D)",
     "workspace", "ovl D", ["master/src/elite-source.asm"], alt="D")
 reg(RING, RING + 0x400, "The ring (the commands to the host)", "buffers", "ring", ["tube/src/p-io.asm"])
-reg(0xFE00, 0xFEF0, "The page below the registers: pbl (pirq's unrolled sends), p_crash", "code", "page FE", None,
+reg(0xFE00, 0xFEF0, "The page below the registers: pbl (pirq's unrolled sends), p_crash, ovl_sinit, pidx", "code", "page FE", None,
     sy["PFE_END"], ph="main")
 reg(0xFEF0, 0xFF00, "Tube registers (&FEF8-&FEFF) and guard", "io", "-", [])
 reg(0xFF00, 0xFFFA, "Page &FF: pirq, the ring's doorbell", "code", "page FF", None, sy["PFF_END"], ph="main")

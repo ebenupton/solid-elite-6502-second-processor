@@ -4988,6 +4988,7 @@ ENDMACRO
 \  Deep dive: The sine, cosine and arctan tables
 \             Drawing circles
 \             Drawing ellipses
+\       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
 \

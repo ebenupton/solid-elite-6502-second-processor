@@ -71,9 +71,10 @@ PRINT "Parasite: data end at &", ~P%
  CPU 1
  INCLUDE "build/p-kept-frame.asm"       \ (kept solid rows: pk_line, T_KFRAME)
  INCLUDE "build/p-onepass-frame.asm"    \ (R_POLY in one pass: oo_scan, the 16-bit edges)
- INCLUDE "src/gfx-finit.asm"            \ (F_INIT, run once before the first frame;
-                                        \ the frame layer's state is in the
-                                        \ shared workspace, p-ws.asm)
+ INCLUDE "build/gfx-finit-frame.asm"    \ (F_INIT's resident part, f_init1, run
+                                        \ once before the first frame; the
+                                        \ frame layer's state is in the shared
+                                        \ workspace, p-ws.asm)
  INCLUDE "build/p-io-tail.asm"          \ (the "Area: tail" pass: what is added
                                         \ here moves nothing before it, p_keyq)
 .PRES_CODE_END
@@ -113,6 +114,7 @@ PRINT "Parasite: data end at &", ~P%
  INCLUDE "build/p-io-ovld.asm"          \ (the "ovl D" blocks of the Tube's files
  INCLUDE "build/p-glue-ovld.asm"        \ and the renderer's: streams.py's ovld
  INCLUDE "build/gfx-hooks-ovld.asm"     \ passes)
+ INCLUDE "build/gfx-frame-ovld.asm"
  INCLUDE "build/gfx-frame_cold-ovld.asm"
  INCLUDE "build/gfx-hangar-ovld.asm"
 .COLD_END%
@@ -177,7 +179,8 @@ PRINT "Parasite: data end at &", ~P%
 \ and BRK pirq (a BRK goes on to p_crash)
  ORG &FE00
 .PFE_START
- INCLUDE "build/p-io-fe.asm"            \ (pbl, p_crash, p_nmi)
+ INCLUDE "build/p-io-fe.asm"            \ (pbl, p_crash, p_nmi; pidx, in the room the
+ INCLUDE "build/p-ovl-fe.asm"           \ page leaves, with ovl_sinit)
 .PFE_END
  PRINT "Parasite: the page at &FE00 to &", ~PFE_END-1, ", free to &FEF0: ", &FEF0-PFE_END
  ASSERT PFE_END <= &FEF0
@@ -200,6 +203,7 @@ PRINT "Parasite: data end at &", ~P%
 \ client OS: the two top pages
 
  INCLUDE "build/p-io-boot.asm"          \ (p_start, p_boot)
+ INCLUDE "build/gfx-finit-boot.asm"     \ (F_INIT's first part, p_start's last call)
 .PSTG_FE
  COPYBLOCK &FE00, &FEF0, P%
  ORG PSTG_FE + &F0

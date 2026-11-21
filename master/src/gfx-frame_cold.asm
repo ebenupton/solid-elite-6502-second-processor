@@ -65,19 +65,23 @@ ENDIF
  LDX XC
  DEX
  LDY YC
+IF _TPART = 1
+ JMP f_drule_d          \ (Tube: in overlay D, as this is)
+ELSE
  JMP f_drule
+ENDIF
 
-\       Area: frame
+\       Area: ovl D
 
-\ F_DELCHAR: clear the text map cell at (XC, YC) (TT26's delete)
+\ F_DELCHAR: clear the text map cell at (XC, YC) (TT26's delete; on the
+\ Tube's parasite in overlay D, behind G_DELCHAR's stub, as only the text
+\ typed on the screens drawn directly is deleted)
 
 .F_DELCHAR
  LDX XC
  LDY YC
  JSR f_sync
  JMP f_delchar0
-
-\       Area: ovl D
 
 \ F_CLRTEXT: clear text map rows 21-23 (CLYNS). Preserves X and Y (CLYNS
 \ leaves X alone).
@@ -309,7 +313,19 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ and f_char1 do it; one holding another character, or remembering one,
 \ becomes &80: buffer 0 may show that character, which is to go
 
+IF _TPART = 1             \ (Tube: overlay D's, f_drule_d: it runs only for the
+.f_drule                \ characters noted on a screen drawn directly, f_dlog
+ JSR povd               \ 1 to DLMAX, with D in, as only fch_dd notes them, and
+ EQUW f_drule_d         \ the first frame after them, which loads S, clears
+ENDIF                   \ f_dlog first: f_enter2's f_sync)
+
+\       Area: ovl D
+
+IF _TPART = 1
+.f_drule_d
+ELSE
 .f_drule
+ENDIF
  CPY #24
  BCS frl9
  CPX #32
@@ -344,6 +360,9 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  STA F_TCH,X
 .frl9
  RTS
+
+\       Area: frame
+
 ENDIF
 
 \ f_b0new: a disc command has used buffer 0 (main RAM &4000-&5FFF) to stash
