@@ -61,7 +61,7 @@ ELIF _TPART = 2
  CODE% = &1EDC          \ Port (Tube): the host's main code (tube/src/h-layout.asm),
                         \ the renderer's shared workspace below it (gfx-ws.asm)
 ELSE
- CODE% = &1F42
+ CODE% = &1F1E
                         \ The address where the code will be run (Port: the
                         \ renderer's shared workspace is below it, elite-gfx.asm,
                         \ docs/MASTER-MAP.md; the glue area, elite-glue.asm,
@@ -18592,10 +18592,43 @@ ENDIF
 
 \ ******************************************************************************
 \
+\       Name: HANGJ
+\       Type: Subroutine
+\   Category: Ship hangar
+\    Summary: The hangar's renderer stubs, for HALL and HAS1 in the cold pass
+\       Tube: ovl D
+\
+\ ------------------------------------------------------------------------------
+\
+\ Port: HALL, HAS1 and HATB run only when the hangar is shown, on docking, so
+\ they are in the cold pass (making room in bank 4 for STL1's divide cache,
+\ STLZV). The renderer's stubs they call (gfx-gstubs.asm) page Elite's bank 4
+\ back in on return, and G_HANGAR calls L_SUN in bank 4, so the cold pass
+\ calls them through these entries in the hot pass (by its own stubs, which
+\ page bank 4 in and bank 7 back). (The Tube's parasite: in overlay D with
+\ HALL and HAS1, which call them.)
+\
+\ ******************************************************************************
+
+.hang0
+
+ JMP G_HANG0            \ HALL's G_HANG0
+
+.hangf
+
+ JMP G_HANGAR           \ HALL's G_HANGAR
+
+.hall9
+
+ JMP G_HLL9             \ HAS1's G_HLL9
+
+\ ******************************************************************************
+\
 \       Name: HATB
 \       Type: Variable
 \   Category: Ship hangar
 \    Summary: Ship hangar group table
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -18708,6 +18741,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Ship hangar
 \    Summary: Draw the ships in the ship hangar, then draw the hangar
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -18730,7 +18764,7 @@ ENDIF
  JSR TT66               \ and set the current view type in QQ11 to 0 (space
                         \ view)
 
- JSR G_HANG0            \ Port: the hangar is one frame of the renderer
+ JSR hang0              \ Port: the hangar is one frame of the renderer
                         \ (gfx-hangar.asm): the ships are recorded (and lit by
                         \ the hangar's light), the view's name goes into the
                         \ text map, and G_HANGAR draws the frame below
@@ -18854,7 +18888,7 @@ ENDIF
  STY HANGFLAG           \ Store Y in HANGFLAG to specify whether there are
                         \ multiple ships in the hangar
 
- JMP G_HANGAR           \ Port: draw the frame, with the hangar's background
+ JMP hangf              \ Port: draw the frame, with the hangar's background
                         \ under the ships (gfx-hangar.asm), in place of HANGER,
                         \ and return from the subroutine using a tail call
 
@@ -18864,6 +18898,7 @@ ENDIF
 \       Type: Subroutine
 \   Category: Ship hangar
 \    Summary: Draw a ship in the ship hangar
+\       Area: cold
 \       Tube: ovl D
 \
 \ ------------------------------------------------------------------------------
@@ -18996,7 +19031,7 @@ ENDIF
                         \ shape due to the imprecise nature of trigonometry
                         \ in assembly language
 
- JMP G_HLL9             \ Jump to LL9 to display the ship and return from the
+ JMP hall9              \ Jump to LL9 to display the ship and return from the
                         \ subroutine using a tail call (Port: through G_HLL9,
                         \ gfx-gstubs.asm, which sets TYPE for the renderer's
                         \ faces; LL9 records the ship and writes no ship line
