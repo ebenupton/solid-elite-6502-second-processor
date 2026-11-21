@@ -525,9 +525,13 @@ ELSE
   LDA #LO(r_ta)
   STA r_lsh_t+1
   STA r_lz_t+1
+  DEC A
+  STA RZ_T5               \ (the steep loops' table's low byte, less 1)
   LDA #HI(r_ta)
   STA r_lsh_t+2
   STA r_lz_t+2
+  STA r_sp_t+2
+  STA r_sn_t+2
   LDA #LO(ca)             \ (the edges' exit: ca, cb and r_exr share a page)
   STA r_exj+1
   LDX r_top
@@ -537,9 +541,13 @@ ELSE
   LDA #LO(r_tb)
   STA r_lsh_t+1
   STA r_lz_t+1
+  DEC A
+  STA RZ_T5
   LDA #HI(r_tb)
   STA r_lsh_t+2
   STA r_lz_t+2
+  STA r_sp_t+2
+  STA r_sn_t+2
   LDA #LO(cb)
   STA r_exj+1
   LDX r_top
@@ -604,8 +612,10 @@ ENDIF
 \ left by jumps (r_pdiv, in the shared region; the sign of dx kept in Y's
 \ bit 7), and the DDA loops end with a jump back to the chain: an edge
 \ makes no call unless it starts above the window (r7_esgen) or has a
-\ quotient of 16 or more with a divisor under 16 (r_div8b).  There are two loops: r_lz (no remainder: x += a a row) and
-\ r_lsh (x += a, the error -= b, and on a borrow += dy, x += 1).  (The Tube's
+\ quotient of 16 or more with a divisor under 16 (r_div8b).  There are four loops: r_lz (no remainder: x += a a row),
+\ r_lsh (x += a, the error -= b, and on a borrow += dy, x += 1) and a steep
+\ edge's own, r_sp (dx > 0) and r_sn (dx < 0), with x in X and the error
+\ in A.  (The Tube's
 \ parasite: its one-pass generator jumps here from fedge, p-onepass.asm, with
 \ Y = r_i0, X = r_i1, and r_e8 leaves it at r_ex with C = 1 (no rows) or
 \ through fz or fsh, which load the side's DDA in the row loop, with C = 0:
@@ -642,9 +652,81 @@ ENDIF
   BCC steep
   JMP r_pdiv              \ (the division, in the shared region: gfx-raster.asm;
 .steep                    \ it comes back at r_prnz or r_prz)
-  TAX                     \ steep: q = 0, r = |dx| (vertical: r = 0)
-  BEQ r_prz
-  LDX #0
+IF OPTUBE
+  TAX                     \ steep: q = 0, r = |dx| (vertical: r = 0; the Tube's
+  BEQ r_prz               \ one-pass generator has the steep edges' own steps,
+  LDX #0                  \ fload, tube/src/p-onepass.asm)
+ELSE
+  TAX                     \ steep: q = 0, r = |dx|
+  BNE st
+  STX r_lz_a+1            \ vertical: the loop with no remainder, a = 0
+  JMP r_lzgo
+.st
+  CPY #&80
+  BCS sneg
+  STX r_sp_b+1            \ dx > 0: each row the error -= |dx|, and on a borrow
+  LDA RZ_T1               \ += dy, x += 1
+  STA r_sp_d+1
+  SEC                     \ Y = the rows: the end row - the first (C = 1 after)
+  LDA RZ_T2
+  SBC RZ_T3
+  TAY
+  LDA RZ_T3               \ the table's first row
+  ADC RZ_T5
+  STA r_sp_t+1
+  LDX RZ_T0
+  LDA #0
+  SEC
+.r_sp                     \ X = x, A = the error, Y = rows to go, C = 1
+.r_sp_t
+  STX &FF00               \ (the table's row: its low byte counts up)
+  INC r_sp_t+1
+.r_sp_b
+  SBC #0                  \ |dx|
+  BCS sp1
+.r_sp_d
+  ADC #0                  \ dy (C = 0, then 1)
+  INX
+.sp1
+  DEY
+  BNE r_sp
+  ASSERT HI(P%) = HI(r_sp)
+  JMP r_ex
+.sneg                     \ dx < 0: each row the error -= dy - |dx|, and x -= 1
+  EOR #&FF                \ unless it borrows (then the error += dy)
+  ADC RZ_T1               \ (C = 1: dy - |dx|)
+  STA r_sn_b+1
+  LDA RZ_T1
+  STA r_sn_d+1
+  SEC                     \ (as above)
+  LDA RZ_T2
+  SBC RZ_T3
+  TAY
+  LDA RZ_T3
+  ADC RZ_T5
+  STA r_sn_t+1
+  LDX RZ_T0
+  LDA #0
+  SEC
+.r_sn                     \ X = x, A = the error, Y = rows to go, C = 1
+.r_sn_t
+  STX &FF00               \ (the table's row: its low byte counts up)
+  INC r_sn_t+1
+.r_sn_b
+  SBC #0                  \ dy - |dx|
+  BCC sn1
+  DEX
+  DEY
+  BNE r_sn
+  JMP r_ex
+.sn1
+.r_sn_d
+  ADC #0                  \ dy (C = 0, then 1)
+  DEY
+  BNE r_sn
+  ASSERT HI(P%) = HI(r_sn)
+  JMP r_ex
+ENDIF
 \ x = x0 + ceil(dx * k / dy) per row: x += a, the error -= b, and on a
 \ borrow the error += dy, x += 1, with a = floor(dx / dy), b = dx - a * dy
 .^r_prnz                  \ the remainder is not 0: X = q, A = r
@@ -703,17 +785,18 @@ ENDIF
 .clipped                  \ starts above the window: r7_esgen's general set-up
   STA RZ_Y                \ at ystart (A)
   STA RZ_T3
-  STZ r7_side4
   JSR r7_esgen            \ (Y = i0, X = i1: S, t -> RZ_SA, RZ_TA; a, b, dy
-  LDA RZ_SA               \ -> r7_ea, r7_eb, r7_edy)
+.^r7_go8s                 \ -> r7_ea, r7_eb, r7_edy)
+  LDA RZ_SA
   STA RZ_T0
-  LDA r7_edy
+.^r7_go8                  \ the 8-bit DDA with r7_esgen's a, b and dy from row
+  LDA r7_edy              \ RZ_T3 (RZ_T0 = S, RZ_TA = t; also r7_e16's)
   STA RZ_T1
   LDA r7_ea
   LDX r7_eb
   BNE r_psh1
 \ b = 0: A = a  (falls into r_lz)
-.^r_pzl1
+.r_pzl1
 IF OPTUBE                 \ (the Tube's one-pass generator loads the side's DDA
   JMP fz                  \ instead: tube/src/p-onepass.asm; no tables)
 ELSE
@@ -744,7 +827,7 @@ ENDIF
   JMP r_ex
 ENDIF
 \ shallow: X = b, A = a, RZ_TA = the error
-.^r_psh1
+.r_psh1
 IF OPTUBE
   JMP fsh
 ELSE

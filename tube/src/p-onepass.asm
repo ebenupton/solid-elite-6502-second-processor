@@ -403,7 +403,6 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
 .oov16
  LDA oym
  STA RZ_Y
- STZ r7_side4
  JSR r7_esgen
  LDA RZ_SA              \ (clamped into CL..CR+1)
  LDX RZ_SA+1
@@ -663,14 +662,32 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  RTS
 
 ASSERT fb1 - fb0 = s1 - s0 AND fd1 - fd0 = s1 - s0 AND fa1 - fa0 = s1 - s0 AND fn1 - fn0 = s1 - s0
+fp2 = fd0 + 4 - s0      \ (fload's places in a side's step, and the operands it
+fp3 = n0 + 2 - s0       \ reads: the STAs of f_t and f_x after a borrow)
+fpt = fd0 + 3 - s0
+fpx = fa0 + 3 - s0
+fost = ost1 - s0
+ASSERT ost1 = s1 AND ost2 - s1 = fost AND n1 - s1 = n0 - s0
+ASSERT fd0 - s0 = 7 AND fa0 - s0 = 13 AND n0 - s0 = 19 AND fn0 - s0 = 24 AND fost = 28
 ASSERT f_t0 = f_x0 + 1 AND f_t1 = f_x1 + 1
 
 \       Area: frame
 
 \ fload: side fside's 8-bit DDA: x RZ_T0, error RZ_TA, dy RZ_T1, A = a,
-\ X = b; the side's step back to the inline 8-bit one
+\ X = b; the side's step back to the inline 8-bit one (from the 16-bit one's
+\ JMP), made for the DDA's kind, as the Master port gives a steep edge its
+\ own loops (r_sp, r_sn): a steep edge with dx > 0 (a = 0) moves x only on
+\ a borrow, so the step that does not borrow leaves x alone; one with dx < 0
+\ (a = -1) moves x only when the step does not borrow, so the borrow leaves
+\ it alone; with no remainder (b = 0) the error never changes, so the step
+\ is x += a alone, and a vertical edge (a = b = 0) has no step at all. The
+\ step's three patched places (fp1: its first instruction; fp2: x's load
+\ after a borrow; fp3: x's load after none) are put back to the general
+\ step's first, from the step's own bytes (its STAs' operands: the side's
+\ f_t and f_x), then the kind's are made. Keeps Y
 
 .fload
+ PHY                    \ (Y: the row, in the row loop's 16-bit steps)
  BIT fside
  BMI fld1
  STA fa0+1              \ a (+1 with the borrow's carry)
@@ -682,13 +699,8 @@ ASSERT f_t0 = f_x0 + 1 AND f_t1 = f_x1 + 1
  STA f_x0
  LDA RZ_TA
  STA f_t0
- LDA #&A5               \ (s0: LDA f_t0 : SEC)
- STA s0
- LDA #f_t0
- STA s0+1
- LDA #&38
- STA s0+2
- RTS
+ LDY #0                 \ (Y: the side's step's offset from side 0's)
+ BEQ fldk
 .fld1
  STA fa1+1
  STA fn1+1
@@ -699,12 +711,48 @@ ASSERT f_t0 = f_x0 + 1 AND f_t1 = f_x1 + 1
  STA f_x1
  LDA RZ_TA
  STA f_t1
- LDA #&A5               \ (s1: LDA f_t1 : SEC)
- STA s1
- LDA #f_t1
- STA s1+1
+ LDY #s1-s0
+.fldk
+ LDA #&A5               \ the general step: LDA f_t : SEC at fp1, LDA f_x at fp2
+ STA s0,Y               \ and fp3
+ STA s0+fp2,Y
+ STA s0+fp3,Y
+ LDA s0+fpt,Y
+ STA s0+1,Y
+ LDA s0+fpx,Y
+ STA s0+fp2+1,Y
+ STA s0+fp3+1,Y
  LDA #&38
- STA s1+2
+ STA s0+2,Y
+ LDA #&80               \ (BRA, the kinds' patches)
+ CPX #0
+ BEQ fkz
+ LDX fa0+1,Y            \ (a)
+ BEQ fkr
+ INX
+ BNE fk9
+ STA s0+fp2,Y           \ steep, dx < 0: after a borrow, x is left alone
+ LDA #fost-(fp2+2)
+ STA s0+fp2+1,Y
+ BRA fkx
+.fkr
+ STA s0+fp3,Y           \ steep, dx > 0: after no borrow, x is left alone
+ LDA #fost-(fp3+2)
+ STA s0+fp3+1,Y
+ BRA fkx
+.fkz
+ STA s0,Y               \ no remainder: x += a alone (fp3 on), or no step if
+ LDX fa0+1,Y            \ a = 0 too
+ BEQ fkv
+ LDA #fp3-2
+ STA s0+1,Y
+.fk9
+ BRA fkx
+.fkv
+ LDA #fost-2
+ STA s0+1,Y
+.fkx
+ PLY
  RTS
 
 
@@ -849,7 +897,6 @@ ASSERT f_t0 = f_x0 + 1 AND f_t1 = f_x1 + 1
  RTS
 .oe4
  STA RZ_Y
- STZ r7_side4
  JSR r7_esgen           \ S, t -> RZ_SA, RZ_TA; a, b, dy -> r7_ea, r7_eb, r7_edy
  LDY r_i0
  LDX r_i1
