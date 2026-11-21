@@ -1,182 +1,6 @@
-\ (gfx-raster_poly.asm's second part, from r_e8: its own file so that the Tube's
-\ parasite can place the two parts apart, tube/src/p-poly.asm)
-
-IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)
-\ r_e8: edge r_i0 -> r_i1 of an 8-bit polygon into the table at (RZ_T4)
-.r_e8
-{
-  LDY r_i0
-                          \ X = r_i1 already: both callers (1416/1445) STX r_i1 : JSR r_e8
-  LDA R_PYL,X
-  CMP R_PYL,Y
-  BCC out
-  BEQ out                 \ not going down
-  CMP r_yend
-  BCC e1
-  LDA r_yend
-.e1
-  STA RZ_T2               \ end row (exclusive)
-  LDA R_PYL,Y
-  CMP RZ_T2
-  BCS out                 \ y0 >= end row
-  CMP r_ystart
-  BCC cl                  \ y0 < ystart (if y0 >= ystart then RZ_T2 > y0 >= ystart)
-.e2
-  STA RZ_T3               \ start row (A = y0 = R_PYL,Y, C = 1 from BCC cl not taken)
-  EOR #&FF
-  ADC R_PYL,X             \ dy = y1 - y0; C stays 1 (y1 > y0)
-  STA RZ_T1               \ dy
-  LDA R_PXL,Y
-  STA RZ_T0               \ S = x0
-  EOR #&FF
-  ADC R_PXL,X             \ dx = x1 - x0, C = (x1 >= x0)
-  BCC neg
-  CMP RZ_T1
-  BCS pdiv
-  TAX                     \ steep, a = 0, b = dx (Z from TAX)
-  BEQ z0
-  LDA #0
-  JMP shallow
-.z0
-  JMP zloop               \ A = X = 0
-.cl                       \ y0 < ystart: out if end row <= ystart, else clipped
-  LDA RZ_T2
-  CMP r_ystart
-  BEQ out
-  BCC out
-  JMP clipped
-.out
-  RTS
-.pdiv
-  JSR r_dvq               \ A = r, r_m0 = q
-  TAX
-  BEQ pz
-  LDA r_m0
-  JMP shallow
-.pz
-  LDA r_m0
-  JMP zloop
-.neg
-  EOR #&FF
-  INC A                   \ adx
-  CMP RZ_T1
-  BCS ndiv
-  EOR #&FF                \ steep, a = -1, b = dy - adx
-  SEC
-  ADC RZ_T1
-  TAX
-  LDA #&FF                \ a = -1
-  JMP shallow
-.ndiv
-  JSR r_dvq
-  CMP #0
-  BNE nr
-  SEC                     \ a = -q
-  SBC r_m0
-  JMP zloop
-.nr
-  EOR #&FF                \ b = dy - r, a = NOT q
-  SEC
-  ADC RZ_T1
-  TAX
-  LDA r_m0
-  EOR #&FF
-  JMP shallow
-.clipped                  \ starts above the window: general set-up at ystart
-  LDA r_ystart            \ (bank 7: S -> RZ_T0, RZ_TA; dy -> RZ_T1; A = a, X = b)
-  STA RZ_Y
-  STA RZ_T3
-  STX RZ_T7               \ (i1; Y = i0)
-  JSR r7_e8c
-  CPX #0
-  BNE c1
-  JMP zloop1
-.c1
-  JMP shallow1
-\ b = 0: A = a  (falls into r_lz)
-.zloop
-.zloop1
-.^r_pzl1
-IF OPTUBE                 \ (the Tube's one-pass generator loads the side's DDA
-  JMP fz                  \ instead: tube/src/p-onepass.asm; no tables)
-ELSE
-IF ONEPASS                \ (the one-pass generator loads the DDA instead,
-  BIT fdiv                \ gfx-raster_onepass.asm)
-  BPL zl0
-  JMP fz
-.zl0
-ENDIF
-  STA r_lz_a+1
-  LDA RZ_T2
-  STA r_lz_e+1
-  LDY RZ_T3
-  LDA RZ_T0
-  CLC
-\ The DDA loops (Y = row, run to the patched end row)
-.^r_lz                    \ b = 0: A = x
-.^r_lz_t
-  STA &FFFF,Y
-  INY
-.^r_lz_a
-  ADC #0                  \ a (C = 0)
-.^r_lz_e
-  CPY #0
-  BCC r_lz
-  RTS
-ENDIF
-\ shallow: X = b, A = a  (falls into r_lsh)
-.shallow
-  STZ RZ_TA
-.shallow1
-.^r_psh1
-IF OPTUBE
-  JMP fsh
-ELSE
-IF ONEPASS
-  BIT fdiv
-  BPL sh0
-  JMP fsh
-.sh0
-ENDIF
-  DEC A
-  STA r_lsh_a+1
-  DEX
-  STX r_lsh_b+1
-  LDA RZ_T1
-  STA r_lsh_d+1
-  LDA RZ_T2
-  STA r_lsh_e+1
-  LDY RZ_T3
-  LDA RZ_T0
-  CLC
-.^r_lsh                   \ |dx| >= dy: A = x, RZ_TA = error
-.^r_lsh_t
-  STA &FFFF,Y
-  INY
-  TAX
-  LDA RZ_TA
-.^r_lsh_b
-  SBC #0                  \ b - 1 (C = 0)
-  BCS lsh1
-.^r_lsh_d
-  ADC #0                  \ dy
-  INX
-.lsh1
-  STA RZ_TA
-  TXA
-.^r_lsh_a
-  ADC #0                  \ a - 1 (C = 1)
-.^r_lsh_e
-  CPY #0
-  BCC r_lsh
-  RTS
-ENDIF
-}
-
-
-ENDIF
-
-
+\ (gfx-raster_poly.asm's last part, R_POLY's phase A for 16-bit coordinates,
+\ from rp_ov: its own file so that the Tube's parasite can place it apart,
+\ resident, tube/src/p-poly.asm)
 
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)
 \ R_POLY's phase A for 16-bit coordinates: its variables (its 32-bit maths,
@@ -192,21 +16,10 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is th
 .r7_i0 EQUB 0
 .r7_i1 EQUB 0
 .r7_side4 EQUB 0
-.r7_e8c                   \ bank 5's r_e8, an edge starting above the window: Y = i0,
-  LDX RZ_T7               \ RZ_T7 = i1, RZ_Y = ystart -> S in RZ_T0 (t in RZ_TA), dy
-  STZ r7_side4            \ in RZ_T1, A = a, X = b
-  JSR r7_esgen
-  LDA RZ_SA
-  STA RZ_T0
-  LDA r7_edy
-  STA RZ_T1
-  LDX r7_eb
-  LDA r7_ea
-  RTS
 
 \ ============================================================================
 \ R_POLY's phase A for polygons with some coordinate outside 0..255: chain A
-\ into r_ta, chain B into r_tb, rows r_ystart..r_ylast (HAZEL scratch); bank
+\ into r_ta, chain B into r_tb, rows r_ystart..r_ylast (the shared workspace); bank
 \ R_POLY calls r7_pf16 and does phase B (r_pcbd)
 \ ============================================================================
 \ phase A's edge set-up (rp_ov)
@@ -344,18 +157,20 @@ ENDIF
 }
 
 
-IF OPTUBE = FALSE          \ (the Tube: p-onepass.asm walks the chains)
 \ ----------------------------------------------------------------------------
 \ r7_pf16b: R_POLY with some coordinate outside 0..255 (rows r_ystart..r_ylast
 \ already found).  Phase A as r_pf8 (chain A forward into r_ta, chain B
 \ backward into r_tb) with 16-bit edges whose x is clamped into CL..CR+1 per
 \ row; then bank 5's phase B (r_pcbd).
+IF OPTUBE = FALSE          \ (the Tube: p-onepass.asm walks the chains)
 \ ----------------------------------------------------------------------------
 .r7_pf16b
 {
   LDA R_CR
   INC A
   STA r_cr1
+  LDA #LO(r_exr)          \ (the edges' exit: back here, r_exr)
+  STA r_exj+1
   LDA #LO(r_ta)
   STA r_lsh_t+1
   STA r_lz_t+1
@@ -620,7 +435,6 @@ IF OPTUBE = FALSE          \ (the Tube: p-onepass.asm walks the chains)
 .sw1
   JMP r_psh1
 }
-
 ENDIF
 
 \ ----------------------------------------------------------------------------

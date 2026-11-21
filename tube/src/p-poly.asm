@@ -3,8 +3,9 @@
 \ p-poly.asm - phase 3 (docs/TUBE-PLAN.md): R_POLY's phase A on the parasite.
 \ The Master port's own phase A (gfx-raster_poly.asm, assembled with
 \ _TPART = 1: the clipping and the edge walking, 8-bit and 16-bit paths, into
-\ the per-row tables) runs here: its set-up and arithmetic in overlay S, the
-\ rest (gfx-raster_polyb.asm, from r_e8) resident (p-layout.asm, after the
+\ the per-row tables) runs here: its set-up and arithmetic in overlay S (its
+\ "Area: ovl S" pass, R_POLY and r_pf8), the rest (its "Area: frame" pass,
+\ from r_e8, then gfx-raster_polyb.asm) resident (p-layout.asm, after the
 \ frame layer), with the zero page's names that both parts use (first);
 \ p_spans sends the host the rows' tables and the colours (C_POLY), and the
 \ host goes on from r_pcbd (the orientation, the horizontal clip, the
@@ -37,11 +38,13 @@ r_tb = R_NDX3           \ boundaries have gone to the host, as the ships come af
 \       Area: ovl S
 
  INCLUDE "src/gfx-raster_arith.asm"
- INCLUDE "src/gfx-raster_poly.asm"      \ (R_POLY, r_pf8; the rest below)
+ INCLUDE "build/gfx-raster_poly-ovls.asm"   \ (R_POLY, r_pf8: its "Area: ovl S" pass)
 
 \       Area: frame
 
-\ R_POLY's phase A from r_e8 (resident)
+\ R_POLY's phase A from r_e8 (resident: gfx-raster_poly.asm's "Area: frame"
+\ pass, then gfx-raster_polyb.asm)
 
+ INCLUDE "build/gfx-raster_poly-frame.asm"
  INCLUDE "src/gfx-raster_polyb.asm"
 

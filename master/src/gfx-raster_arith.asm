@@ -2,15 +2,18 @@
 \ parasite can assemble it for its phase A: tube/src/p-poly.asm)
 \ ----------------------------------------------------------------------------
 \ The polygon window's arithmetic (R_POLY's phase A, gfx-raster_poly.asm),
-\ here for room: r_div8, r_dvq and the 32-bit multiply and divide with their
-\ variables (none uses anything of the polygon window's)
+\ here for room: r_div8, r_pdiv and the 32-bit multiply and divide with their
+\ variables (only r_pdiv uses anything of the polygon window's: it goes back
+\ to r_prnz or r_prz)
 \ ----------------------------------------------------------------------------
 IF _TPART <> 2             \ (the Tube's hosts: the lines' multiply and divide
                           \ only; phase A is the parasite's)
-\ r_div8: A / r_v0 -> r_m0 quotient, A remainder (clobbers X).
+\ r_div8: A / r_v0 -> r_m0 (and X) quotient, A remainder; r_div8b with the
+\ dividend in RZ_T6 already.
 .r_div8
 {
   STA RZ_T6               \ dividend, becoming the quotient
+.^r_div8b
   LDA r_v0
   STA RZ_T7
   LDA #0
@@ -32,22 +35,33 @@ IF _TPART <> 2             \ (the Tube's hosts: the lines' multiply and divide
   RTS
 }
 
-\ r_dvq: A / RZ_T1 (A >= RZ_T1 >= 1) -> r_m0 quotient, A remainder.
+\ r_pdiv: R_POLY's edges' division (gfx-raster_poly.asm's r_e8, here for
+\ ANDY's room): reached by a JMP, it goes back to r_prnz or r_prz.
+\ |dx| / dy (|dx| >= dy >= 1) -> X quotient, A remainder (Z set if it is 0).
 \ Repeated subtraction when the quotient is small (divisor >= 16).
-.r_dvq
+.r_pdiv
 {
   LDX RZ_T1
   CPX #16
   BCC small
   LDX #&FF                \ divisor >= 16: quotient < 16
   SEC
-.lp
+.dl
   INX
   SBC RZ_T1
-  BCS lp
+  BCS dl
   ADC RZ_T1
-  STX r_m0
-  RTS
+  BNE drnz
+.drz
+  JMP r_prz
+.long
+  LDX RZ_T1
+  STX r_v0
+  JSR r_div8b             \ (RZ_T6 holds the dividend: past r_div8's STA RZ_T6)
+  CMP #0
+  BEQ drz
+.drnz
+  JMP r_prnz
 .small
   STA RZ_T6               \ divisor < 16: quotient < 16 unless A >= 16 * d
   TXA
@@ -76,13 +90,8 @@ IF _TPART <> 2             \ (the Tube's hosts: the lines' multiply and divide
   SBC RZ_T1
   BCS l1
   ADC RZ_T1
-  STX r_m0
-  RTS
-.long
-  LDA RZ_T6
-  LDX RZ_T1
-  STX r_v0
-  JMP r_div8
+  BEQ drz
+  BNE drnz                \ (always)
 }
 ENDIF
 \ the 32-bit multiply and divide

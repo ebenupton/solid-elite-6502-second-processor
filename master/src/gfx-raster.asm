@@ -856,7 +856,7 @@ R_ENDPAGE 7
 .r_run8 R_RUN 8
 IF _TPART <> 2
 .r_s1r SKIP 48          \ buffer 1: row
-.r_m0 EQUB 0            \ r_div8, r_dvq: quotient
+.r_m0 EQUB 0            \ r_div8: quotient
 .r_v0 EQUB 0            \ r_div8: divisor
 .r_sbd EQUB 0           \ R_SETBUF delta
 ENDIF
@@ -871,7 +871,6 @@ IF _TPART <> 2             \ (the Tube's hosts: the disc layer is the parasite's
 .r_n EQUB 0
 .r_sbbdb EQUB &FF       \ buffer r_dbm's operands are patched for
 .r_dsub EQUB 0          \ r_dmb -> r_drg: repaint only the dirty part
-.r_i0 EQUB 0
 .r_i1 EQUB 0
 .r_yminL EQUB 0
 .r_yminH EQUB 0

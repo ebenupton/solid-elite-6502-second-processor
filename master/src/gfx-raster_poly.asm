@@ -403,7 +403,7 @@ ASSERT HI(pb_lx_e) = HI(r_xw) AND HI(pb_lx_o) = HI(r_xw)   \ (a long row's H exi
 ENDIF
 ENDIF
 
-\       Area: frame
+\       Area: ovl S
 
 IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: phase B only; phase A is the parasite's)
 \ ============================================================================
@@ -440,18 +440,16 @@ IF OPTUBE
 .p16                      \ tube/src/p-emit.asm; the same for 16-bit polygons
   JSR r7_pf16             \ after r7_pf16's set-up)
   JMP p_spend
+.^r_pout                  \ (r_pf8's: no rows)
+  RTS
 ELSE
   JMP r_pf8
 .p16                      \ some coordinate outside 0..255: phase A (r7_pf16)
   JSR r7_pf16
   CMP #0                  \ (A = 0: nothing to draw)
-  BEQ out
-IF _TPART = 1
-  JMP p_spans             \ (Tube: the tables to the host, tube/src/p-poly.asm)
-ELSE
+  BEQ r_pout
   JMP r_pcbd
-ENDIF
-.out
+.^r_pout                  \ (also r_pf8's: no rows)
   RTS
 ENDIF
 }
@@ -505,10 +503,10 @@ ENDIF
 .y1
   STA r_ystart
   CMP r_ymaxL
-  BCS out
+  BCS r_pout
   CMP R_CB
   BEQ y2
-  BCS out
+  BCS r_pout
 .y2
   LDA r_ymaxL
   DEC A
@@ -520,9 +518,8 @@ ENDIF
   INC A
   STA r_yend
 IF OPTUBE
-  JMP op_8                \ (the Tube: the one-pass generator from here)
-.out
-  RTS
+  JMP op_8                \ (the Tube: the one-pass generator from here; its
+}                         \ edges' set-up, r_e8, is resident: p-poly.asm)
 ELSE
   \ chain A: forward into r_ta
   LDA #LO(r_ta)
@@ -531,23 +528,10 @@ ELSE
   LDA #HI(r_ta)
   STA r_lsh_t+2
   STA r_lz_t+2
-  LDX r_top               \ (from the top vertex, a vertex at ymax, the
-.ca                       \ largest of the vertices' y, comes within n - 1
-  LDA R_PYL,X             \ edges either way: no count is needed)
-  CMP r_ymaxL
-  BEQ cad
-  STX r_i0
-  INX
-  CPX r_n
-  BCC ca1
-  LDX #0
-.ca1
-  STX r_i1
-  JSR r_e8
-  LDX r_i1
+  LDA #LO(ca)             \ (the edges' exit: ca, cb and r_exr share a page)
+  STA r_exj+1
+  LDX r_top
   BRA ca
-.out
-  RTS
 .cad
   \ chain B: backward into r_tb
   LDA #LO(r_tb)
@@ -556,34 +540,267 @@ ELSE
   LDA #HI(r_tb)
   STA r_lsh_t+2
   STA r_lz_t+2
+  LDA #LO(cb)
+  STA r_exj+1
   LDX r_top
 .cb
   LDA R_PYL,X
   CMP r_ymaxL
   BEQ cbd
-  STX r_i0
+  TXA
+  TAY                     \ Y = i0
   DEX
   BPL cb1
   LDX r_n
   DEX
 .cb1
   STX r_i1
-  JSR r_e8
-  LDX r_i1
-  BRA cb
+  JMP r_e8
 .cbd
+  JMP r_pcbd
 ENDIF
-ELSE
+ENDIF
+
+\       Area: frame
+
+IF _TPART <> 2 OR _TDUMB = FALSE
+IF OPTUBE
 {
+.^r_ex                    \ (the Tube: an edge with no rows, back from fedge,
+  SEC                     \ p-onepass.asm, with C = 1)
+  RTS
+ELSE
+.^r_ex                    \ an edge is done: on along its chain (or, for the
+  LDX r_i1                \ 16-bit path, back to r7_pf16b: r_exr)
+.^r_exj
+  JMP ca                  \ (its low byte patched: ca, cb or r_exr)
+.^r_exr
+  RTS
 ENDIF
-IF _TPART = 1
+.cl                       \ y0 < ystart: out if the end row <= ystart, else
+  LDA r_ystart            \ clipped
+  CMP RZ_T2
+  BCS r_ex
+  JMP clipped
 IF OPTUBE = FALSE
-  JMP p_spans             \ (Tube: the rest is the host's)
+.ca                       \ (from the top vertex, a vertex at ymax, the
+  LDA R_PYL,X             \ largest of the vertices' y, comes within n - 1
+  CMP r_ymaxL             \ edges either way: no count is needed)
+  BEQ cad
+  TXA
+  TAY                     \ Y = i0
+  INX
+  CPX r_n
+  BCC ca1
+  LDX #0
+.ca1
+  STX r_i1
+  ASSERT HI(ca) = HI(r_exj) AND HI(cb) = HI(r_exj) AND HI(r_exr) = HI(r_exj)
+ENDIF
+
+\ r_e8: the edge from vertex Y (i0) to vertex X (i1 = r_i1) of an 8-bit
+\ polygon into the chain's table, then r_ex.  Its set-up is in line in its
+\ chain (chain A falls into it, chain B jumps), the division is reached and
+\ left by jumps (r_pdiv, in the shared region; the sign of dx kept in Y's
+\ bit 7), and the DDA loops end with a jump back to the chain: an edge
+\ makes no call unless it starts above the window (r7_esgen) or has a
+\ quotient of 16 or more with a divisor under 16 (r_div8b).  There are two loops: r_lz (no remainder: x += a a row) and
+\ r_lsh (x += a, the error -= b, and on a borrow += dy, x += 1).  (The Tube's
+\ parasite: its one-pass generator jumps here from fedge, p-onepass.asm, with
+\ Y = r_i0, X = r_i1, and r_e8 leaves it at r_ex with C = 1 (no rows) or
+\ through fz or fsh, which load the side's DDA in the row loop, with C = 0:
+\ its DDA loops are not assembled.)
+.^r_e8
+  LDA R_PYL,X
+  CMP R_PYL,Y
+  BCC r_ex
+  BEQ r_ex                \ not going down
+  CMP r_yend
+  BCC e1
+  LDA r_yend
+.e1
+  STA RZ_T2               \ end row (exclusive)
+  LDA R_PYL,Y
+  CMP RZ_T2
+  BCS r_ex                \ y0 >= end row
+  CMP r_ystart
+  BCC cl                  \ y0 < ystart (if y0 >= ystart then RZ_T2 > y0 >= ystart)
+  STA RZ_T3               \ start row (A = y0, C = 1)
+  EOR #&FF
+  ADC R_PYL,X             \ dy = y1 - y0; C stays 1 (y1 > y0)
+  STA RZ_T1               \ dy
+  LDA R_PXL,Y
+  STA RZ_T0               \ S = x0
+  EOR #&FF
+  ADC R_PXL,X             \ dx = x1 - x0, C = (x1 >= x0)
+  BCS pos
+  EOR #&FF
+  ADC #1                  \ |dx| (C = 0 here)
+  LDY #&80                \ (Y's bit 7: dx < 0; i0 has it clear)
+.pos
+  CMP RZ_T1
+  BCC steep
+  JMP r_pdiv              \ (the division, in the shared region: gfx-raster.asm;
+.steep                    \ it comes back at r_prnz or r_prz)
+  TAX                     \ steep: q = 0, r = |dx| (vertical: r = 0)
+  BEQ r_prz
+  LDX #0
+\ x = x0 + ceil(dx * k / dy) per row: x += a, the error -= b, and on a
+\ borrow the error += dy, x += 1, with a = floor(dx / dy), b = dx - a * dy
+.^r_prnz                  \ the remainder is not 0: X = q, A = r
+IF OPTUBE
+  STZ RZ_TA               \ (the Tube: the error 0, then fsh: A = a, X = b)
+  CPY #&80
+  BCC prp
+  EOR #&FF                \ dx < 0: b = dy - r, a = NOT q (C = 1)
+  ADC RZ_T1
+  STA RZ_T6
+  TXA
+  EOR #&FF
+  LDX RZ_T6
+  JMP fsh
+.prp
+  STA RZ_T6               \ dx > 0: a = q, b = r
+  TXA
+  LDX RZ_T6
+  JMP fsh
+ELSE
+  CPY #&80
+  BCS nr
+  TAY                     \ dx > 0: a = q, b = r (the loop's operands hold
+  DEY                     \ a - 1 and b - 1)
+  STY r_lsh_b+1
+  DEX
+  STX r_lsh_a+1
+  BCC lsh0                \ (always: from the CPY)
+.nr                       \ dx < 0: a = NOT q, b = dy - r (C = 1)
+  SBC RZ_T1               \ r - dy = -b: NOT it is b - 1
+  EOR #&FF
+  STA r_lsh_b+1
+  TXA
+  EOR #&FF
+  SBC #0                  \ (C = 0: - 1)
+  STA r_lsh_a+1
+.lsh0
+  STZ RZ_TA               \ the error
+  BRA r_lshgo
+ENDIF
+.^r_prz                   \ the remainder is 0: X = q; a = q, or -q for dx < 0
+  CPY #&80
+  BCC rzp
+  TXA
+  EOR #&FF
+  ADC #0                  \ (C = 1: + 1)
+  TAX
+.rzp
+IF OPTUBE
+  TXA                     \ (the Tube: fz, A = a)
+  JMP fz
+ELSE
+  STX r_lz_a+1
+  BRA r_lzgo
+ENDIF
+.clipped                  \ starts above the window: r7_esgen's general set-up
+  STA RZ_Y                \ at ystart (A)
+  STA RZ_T3
+  STZ r7_side4
+  JSR r7_esgen            \ (Y = i0, X = i1: S, t -> RZ_SA, RZ_TA; a, b, dy
+  LDA RZ_SA               \ -> r7_ea, r7_eb, r7_edy)
+  STA RZ_T0
+  LDA r7_edy
+  STA RZ_T1
+  LDA r7_ea
+  LDX r7_eb
+  BNE r_psh1
+\ b = 0: A = a  (falls into r_lz)
+.^r_pzl1
+IF OPTUBE                 \ (the Tube's one-pass generator loads the side's DDA
+  JMP fz                  \ instead: tube/src/p-onepass.asm; no tables)
+ELSE
+IF ONEPASS                \ (the one-pass generator loads the DDA instead,
+  BIT fdiv                \ gfx-raster_onepass.asm)
+  BPL zl0
+  JMP fz
+.zl0
+ENDIF
+  STA r_lz_a+1
+.r_lzgo
+  LDA RZ_T2
+  STA r_lz_e+1
+  LDY RZ_T3
+  LDA RZ_T0
+  CLC
+\ The DDA loops (Y = row, run to the patched end row)
+.^r_lz                    \ b = 0: A = x
+.^r_lz_t
+  STA &FFFF,Y
+  INY
+.^r_lz_a
+  ADC #0                  \ a (C = 0)
+.^r_lz_e
+  CPY #0
+  BCC r_lz
+  ASSERT HI(P%) = HI(r_lz)   \ (the loops cross no page)
+  JMP r_ex
+ENDIF
+\ shallow: X = b, A = a, RZ_TA = the error
+.^r_psh1
+IF OPTUBE
+  JMP fsh
+ELSE
+IF ONEPASS
+  BIT fdiv
+  BPL sh0
+  JMP fsh
+.sh0
+ENDIF
+  DEC A
+  STA r_lsh_a+1
+  DEX
+  STX r_lsh_b+1
+.r_lshgo
+  LDA RZ_T1
+  STA r_lsh_d+1
+  LDA RZ_T2
+  STA r_lsh_e+1
+  LDY RZ_T3
+  LDA RZ_T0
+  CLC
+.^r_lsh                   \ |dx| >= dy: A = x, RZ_TA = error
+.^r_lsh_t
+  STA &FFFF,Y
+  INY
+  TAX
+  LDA RZ_TA
+.^r_lsh_b
+  SBC #0                  \ b - 1 (C = 0)
+  BCS lsh1
+.^r_lsh_d
+  ADC #0                  \ dy
+  INX
+.lsh1
+  STA RZ_TA
+  TXA
+.^r_lsh_a
+  ADC #0                  \ a - 1 (C = 1)
+.^r_lsh_e
+  CPY #0
+  BCC r_lsh
+  ASSERT HI(P%) = HI(r_lsh)
+  JMP r_ex
 ENDIF
 }
-ELSE
-IF _TDUMB = FALSE          \ (the dumb host: the rows come one by one from the
-.^r_pcbd                  \ parasite, already clipped, from r_pcbs)
+ENDIF
+
+IF _TPART <> 1
+\ ----------------------------------------------------------------------------
+\ r_pcbd: both chains' tables are made (phase A): the rows, then phase B
+\ (the Tube's hosts: r_pcbs, the rows come one by one from the parasite,
+\ already clipped)
+\ ----------------------------------------------------------------------------
+{
+IF _TDUMB = FALSE
+.^r_pcbd
   \ which table is the left one?
   LDA r_ystart
   CLC
@@ -756,6 +973,8 @@ IF _TDUMB = FALSE
 ENDIF
 }
 ENDIF
+
+
 
 IF _TPART <> 1
 IF _TDUMB AND _TPART = 2 AND _HOSTB = 0     \ (the Tube's Master host: its own place's pass;

@@ -482,10 +482,9 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  BIT op16
  BPL P%+5
  JMP oe16
- LDX r_i1
- JSR r_e8               \ (its DDA entries, fz and fsh, return from fedge
- SEC                    \ with C = 0)
- RTS
+ LDY r_i0               \ (r_e8 is entered and left by jumps: r_ex returns
+ LDX r_i1               \ from fedge with C = 1, its DDA entries fz and fsh
+ JMP r_e8               \ with C = 0, gfx-raster_poly.asm)
 
 \ o16adv: side X's 16-bit DDA to the next row (t -= b; a borrow: t += dy and
 \ x += a + 1, else x += a)
@@ -517,10 +516,11 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  STA o16sh,X
  RTS
 
-\ fz, fsh: r_e8's edge, diverted at its DDA entry (gfx-raster_polyb.asm under
+\ fz, fsh: r_e8's edge, diverted at its DDA entry (gfx-raster_poly.asm under
 \ OPTUBE): start row RZ_T3, end row RZ_T2 (exclusive), x RZ_T0, A = a; fsh
 \ also X = b, error RZ_TA, dy RZ_T1 (fz: b = 0, x moves by a every row).
-\ They load side fside's DDA and return from fedge with C = 0
+\ They load side fside's DDA and return from fedge (which jumped to r_e8)
+\ with C = 0
 
 .fz
  STZ RZ_TA
@@ -530,8 +530,6 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  LDX ofch
  LDA RZ_T2
  STA fe,X
- PLA                    \ (r_e8's return into fedge)
- PLA
  CLC
  RTS
 
