@@ -57,66 +57,67 @@ NEXT
 .r_rpyh EQUB HI(r_rpy0), HI(r_rpy1)
 
 \ r_rgen: the row runs, made at the host's start (hstart's s_gen): row r of
-\ buffer b's at page &80 + 24b + r: 63 STA abs,Y (Y the pixel row), one per
-\ byte column of the character row (column c's address, from the buffer's
-\ base, &200r + 8c - 8r), an RTS, and the 'nothing planted' target (offset
-\ 190); bytes 191-255 are not touched
+\ buffer b's at page &80 + 24b + r, the Master port's form (gfx-raster.asm's
+\ R_RUN), from the buffer's base B = its screen + &200r: L, STA B + 8m,Y for
+\ m = 32 down to 1, JMP r_xw, H, m = 62 down to 33, JMP r_xw (Y = 8 cl +
+\ line: r_spc's header), offsets 0-191; bytes 192-255 are not touched
 .r_rgen
  LDA #0
  STA RZ_PP
  LDA #&80
  STA RZ_PP+1
- LDA #LO(BUF0 + 8)       \ (row 0, column 1)
- STA RZ_T0
- LDA #HI(BUF0 + 8)
+ LDA #HI(BUF0)           \ (row 0 of buffer 0)
  STA RZ_T1
  LDX #48                 \ (the runs to make)
 .rg1
- LDA RZ_T0
- STA RZ_T2
- LDA RZ_T1
- STA RZ_T3
  LDY #0
-.rg2
- LDA #r_opSTA
- STA (RZ_PP),Y
- INY
- LDA RZ_T2
- STA (RZ_PP),Y
- INY
- CLC
- ADC #8
+ LDA #32                 \ L: m = 32 down to 1
  STA RZ_T2
- LDA RZ_T3
- STA (RZ_PP),Y
- INY
- ADC #0
  STA RZ_T3
- CPY #3 * 63
- BNE rg2
- LDA #r_opRTS
- STA (RZ_PP),Y
- INY
- LDA #0
- STA (RZ_PP),Y
+ JSR rgr
+ LDA #62                 \ H: m = 62 down to 33
+ STA RZ_T2
+ LDA #30
+ STA RZ_T3
+ JSR rgr
  INC RZ_PP+1
- LDA RZ_T0               \ the next row: + &200 - 8
- CLC
- ADC #LO(&1F8)
- STA RZ_T0
- LDA RZ_T1
- ADC #HI(&1F8)
- STA RZ_T1
+ INC RZ_T1               \ the next row: + &200
+ INC RZ_T1
  DEX
  BEQ rg9
  CPX #24
  BNE rg1
- LDA #LO(&4000 + 8)      \ buffer 1's
- STA RZ_T0
- LDA #HI(&4000 + 8)
+ LDA #&40                \ buffer 1's
  STA RZ_T1
  BNE rg1
 .rg9
+ RTS
+.rgr                     \ RZ_T3 stores, column RZ_T2 down, from offset Y, then
+ LDA #&99                \ JMP r_xw (STA abs,Y)
+ STA (RZ_PP),Y
+ INY
+ LDA RZ_T2               \ 8 m (C: m >= 32), + the row's base
+ ASL A
+ ASL A
+ ASL A
+ STA (RZ_PP),Y
+ INY
+ LDA RZ_T1
+ ADC #0
+ STA (RZ_PP),Y
+ INY
+ DEC RZ_T2
+ DEC RZ_T3
+ BNE rgr
+ LDA #&4C                \ (JMP abs)
+ STA (RZ_PP),Y
+ INY
+ LDA #LO(r_xw)
+ STA (RZ_PP),Y
+ INY
+ LDA #HI(r_xw)
+ STA (RZ_PP),Y
+ INY
  RTS
 .*P_KEND
  PRINT "Model B bank 4: the runs &8000-&AFFF, the span kernel &", ~P_KSTART, "-&", ~P_KEND-1, ", free to &C000: ", &C000-P_KEND

@@ -274,7 +274,7 @@ PY
 python3 - <<'PY'
 import re
 with open("build/hbanks.txt", "w") as f:
-    for src in ("build/gfx-raster-frame.asm", "build/gfx-raster_lcold-frame.asm", "src/gfx-raster_poly.asm",
+    for src in ("build/gfx-raster-frame.asm", "build/gfx-raster_lcold-frame.asm", "build/gfx-raster_poly-frame.asm",
                 "build/gfx-raster_polyb-frame.asm", "src/gfx-raster_line.asm", "src/gfx-raster_lineb.asm",
                 "src/gfx-frame.asm", "src/gfx-frame_cold.asm", "tsrc/h-cold.asm",
                 "tsrc/h-panel.asm", "tsrc/h-prim.asm", "build/elite-source-hostb.asm", "build/elite-source-hostba.asm"):
@@ -357,21 +357,11 @@ grep -E "^(Parasite|Host)" build/compile-p.txt build/compile-h.txt | sed 's/^bui
 mkdir -p build/nmos
 NM="python3 $TUBE_DIR/tools/nmos.py"
 # (hand fixes where nmos.py, which keeps every register live at an RTS,
-# saves one that is dead: r_spc's last store, the RTS out of the run again
-# (Y and the flags: its callers set them before reading them), and the stars'
-# reads and writes through RZ_PP (R_STARERASE's Y, R_STARPLOT's X); and
-# r_rowset's INC A, as ADC #1 with the carry clear after the base's ADC: in
-# the rasteriser's passes, the kernel's for bank P and its own place's for
-# bank F)
+# saves one that is dead: the stars' reads and writes through RZ_PP
+# (R_STARERASE's Y, R_STARPLOT's X); and r_rowset's INC A, as ADC #1 with the
+# carry clear after the base's ADC: in the rasteriser's passes, the kernel's
+# for bank P and its own place's for bank F)
 $NM build/gfx-raster-kernel.asm build/nmos/gfx-raster-kernel.asm --report build/nmos/gfx-raster-kernel.txt \
-  --sub "  LDA #r_opSTA
-  STA (RZ_PP)
-  RTS
-=  LDA #r_opSTA
-  LDY #0                  \\ (NMOS: Y and the flags dead)
-  STA (RZ_PP),Y
-  RTS
-" \
   --sub "  ORA #&40
 ENDIF
   STA RZ_PA+1
@@ -414,87 +404,28 @@ $NM build/gfx-raster-frame.asm build/nmos/gfx-raster-frame.asm --report build/nm
 " > /dev/null
 $NM src/gfx-raster_pset.asm build/nmos/gfx-raster_pset.asm --report build/nmos/gfx-raster_pset.txt > /dev/null
 $NM src/gfx-raster_arith.asm build/nmos/gfx-raster_arith.asm --report build/nmos/gfx-raster_arith.txt > /dev/null
-# (phase B's hand fixes: pb_ob_e before pb_one_e, after r_pcbs's JMP, so that
-# pb_d2_e's BCC pb_one_e and pb_l2_e's BNE pb_plant_e stay short; a row's right
-# end less one with the flags dead (CPX's); the plant with X dead to the run's
-# return; the RTS out again at the end with Y and the flags dead (the
-# trampoline's caller goes back to the loop); a character row's new page with
-# X dead to the next row's LDX)
-$NM src/gfx-raster_polyb.asm build/nmos/gfx-raster_polyb.asm --report build/nmos/gfx-raster_polyb.txt \
-  --sub "  JMP pb_skip_e
-.pb_ob_e
-  LDA (RZ_PB),Y
-  EOR RZ_CE
-  AND RZ_T7
-  EOR (RZ_PB),Y
-  STA (RZ_PB),Y
-  JMP pb_skip_e
-=  JMP pb_skip_e
-" --sub "
-.pb_one_e
-=
-.pb_ob_e                  \\ (NMOS: here, for the branches' reach)
-  LDA (RZ_PB),Y
-  EOR RZ_CE
-  AND RZ_T7
-  EOR (RZ_PB),Y
-  STA (RZ_PB),Y
-  JMP pb_skip_e
-.pb_one_e
-" --sub "  LDA HR1D
+$NM src/gfx-raster_polyb.asm build/nmos/gfx-raster_polyb.asm --report build/nmos/gfx-raster_polyb.txt > /dev/null
+sed -i '' 's|INCLUDE "src/gfx-raster_arith.asm"|INCLUDE "build/nmos/gfx-raster_arith.asm"|' build/nmos/gfx-raster-frame.asm
+sed -i '' 's|INCLUDE "src/gfx-raster_pset.asm"|INCLUDE "build/nmos/gfx-raster_pset.asm"|' build/nmos/gfx-raster-frame.asm
+# (phase B's hand fixes: a row's right end less one with the flags dead
+# (CPX's); a character row's new page, INC A as ADC #1 with the carry clear
+# after the ADC #2 of a screen page)
+$NM src/gfx-raster_poly.asm build/nmos/gfx-raster_poly.asm --report build/nmos/gfx-raster_poly.txt \
+  --sub "  LDA HR1D
   DEC A
   STA R_XR
 =  LDA HR1D
   SEC                     \\ (NMOS: DEC A, the flags dead)
   SBC #1
   STA R_XR
-" --sub "  TAY
-  LDA #r_opSTA
-  STA (RZ_PP)
-  STY RZ_PP
-  LDA #r_opRTS
-  STA (RZ_PP)
-=  TAX                     \\ (NMOS: X dead to pb_norun's LDX)
-  LDY #0
-  LDA #r_opSTA
-  STA (RZ_PP),Y
-  STX RZ_PP
-  LDA #r_opRTS
-  STA (RZ_PP),Y
-" --sub "  LDA #r_opSTA            \\ take the RTS out again
-  STA (RZ_PP)
-=  LDA #r_opSTA            \\ take the RTS out again
-  LDY #0                  \\ (NMOS: Y and the flags dead, back to the loop)
-  STA (RZ_PP),Y
-" --sub "  LDA #r_opSTA            \\ next character row: new run page
-  STA (RZ_PP)
-  LDA #190
-  STA RZ_PP
-ENDIF
-  STZ RZ_PA
-  STZ RZ_PB
-  LDA RZ_PA+1
-  CLC
-  ADC #2
+" \
+  --sub "  ADC #2
   STA RZ_PA+1
   INC A
-=  LDX #0                  \\ (NMOS: X dead to the next row's LDX)
-  LDA #r_opSTA            \\ next character row: new run page
-  STA (RZ_PP,X)
-  LDA #190
-  STA RZ_PP
-ENDIF
-  STX RZ_PA
-  STX RZ_PB
-  LDA RZ_PA+1
-  CLC
-  ADC #2
+=  ADC #2
   STA RZ_PA+1
   ADC #1                  \\ (NMOS: INC A; C = 0, a screen page)
 " > /dev/null
-sed -i '' 's|INCLUDE "src/gfx-raster_arith.asm"|INCLUDE "build/nmos/gfx-raster_arith.asm"|' build/nmos/gfx-raster-frame.asm
-sed -i '' 's|INCLUDE "src/gfx-raster_pset.asm"|INCLUDE "build/nmos/gfx-raster_pset.asm"|' build/nmos/gfx-raster-frame.asm
-$NM src/gfx-raster_poly.asm build/nmos/gfx-raster_poly.asm --report build/nmos/gfx-raster_poly.txt > /dev/null
 sed -i '' 's|INCLUDE "src/gfx-raster_polyb.asm"|INCLUDE "build/nmos/gfx-raster_polyb.asm"|' build/nmos/gfx-raster_poly.asm
 $NM src/gfx-raster_lineb.asm build/nmos/gfx-raster_lineb.asm --report build/nmos/gfx-raster_lineb.txt > /dev/null
 $NM src/gfx-raster_line.asm build/nmos/gfx-raster_line.asm --report build/nmos/gfx-raster_line.txt > /dev/null
@@ -537,7 +468,7 @@ $NM build/elite-source-host.asm build/nmos/elite-source-host.asm --report build/
  PHA
  LDA K3" > /dev/null
 $NM build/elite-source-hostb.asm build/nmos/elite-source-hostb.asm --report build/nmos/elite-source-hostb.txt > /dev/null
-grep -E "^(R_|RZ_|l_)[A-Za-z0-9_]* *= *&|^r_op(STA|RTS) *=" src/gfx-raster.asm > build/hb-rzp.asm   # (the rasteriser's zero page names, for bank F)
+grep -E "^(R_|RZ_|l_)[A-Za-z0-9_]* *= *&" src/gfx-raster.asm > build/hb-rzp.asm   # (the rasteriser's zero page names, for bank F)
 # (the span kernel, tsrc/hb-kernel.asm, in a scope of its own, its INCLUDEs
 # flattened: BeebAsm includes no file within braces)
 python3 - <<'PY'

@@ -100,7 +100,7 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
 \ loop, the runs' tables and generator (h-sta.asm)
  INCLUDE "build/gfx-raster-kalign.asm"   \ (first, as the kernel's first page is:
  INCLUDE "build/gfx-raster-kernel.asm"   \ the per-x tables, page aligned)
- INCLUDE "build/gfx-raster_polyb-kernel.asm"
+ INCLUDE "build/gfx-raster_poly-kernel.asm"
  INCLUDE "build/gfx-raster_lcold-kernel.asm"
  INCLUDE "src/gfx-gvars.asm"
  INCLUDE "tsrc/h-main.asm"
@@ -144,7 +144,7 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
  INCLUDE "tsrc/h-prim.asm"
  INCLUDE "build/gfx-raster-frame.asm"         \ (streams.py's passes: the blocks
  INCLUDE "build/gfx-raster_lcold-frame.asm"   \ tagged "Area: kernel" are in the kernel)
- INCLUDE "src/gfx-raster_poly.asm"
+ INCLUDE "build/gfx-raster_poly-frame.asm"
 .B7_END
  PRINT "Host: bank 7 &", ~B7_START, "-&", ~B7_END-1, ", free to &C000: ", &C000-B7_END
  ASSERT (&40 - HI(HSTS0)) + &10 + (HI(B7_START) - &80) = OVLS_PAGES - OVLS0_PAGES

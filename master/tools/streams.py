@@ -1017,7 +1017,7 @@ def stub_none(lines, bl):
 # places every one of its files by these passes (p-layout.asm): a file whose
 # blocks go to more than one place is still one file
 FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm",
-             "src/gfx-raster_lcold.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
+             "src/gfx-raster_lcold.asm", "src/gfx-raster_poly.asm", "src/gfx-raster_polyb.asm", "src/gfx-hooks.asm", "src/gfx-hangar.asm",
              "src/gfx-flare.asm", "src/gfx-merid.asm", "src/gfx-planet7.asm", "src/gfx-finit.asm",
              "tsrc/p-io.asm", "tsrc/p-glue.asm", "tsrc/p-ovl.asm", "tsrc/p-dash.asm", "tsrc/p-rast.asm",
              "tsrc/p-disc.asm", "tsrc/p-emit.asm", "tsrc/p-kept.asm", "tsrc/p-poly.asm", "tsrc/p-onepass.asm",
