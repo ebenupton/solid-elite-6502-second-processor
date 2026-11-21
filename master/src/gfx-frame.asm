@@ -172,6 +172,30 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: none of the text map's)
 .f_row  EQUB 0
 .f_tbit EQUB 0          \ this frame's buffer's bit in F_TCH (1 or 2)
 .f_obit EQUB 0          \ and the other buffer's
+.f_tany EQUB 0          \ bit b (as F_TCH's): a row has changed for buffer b
+                        \ (both set with any F_TCH, f_tchs; b's cleared by
+                        \ its frame, which leaves no row changed for it)
+.f_tlo  EQUB &FF        \ the rows the text steps look at, f_tlo to f_thi
+.f_thi  EQUB 0          \ (none: &FF, 0): every row with a character or
+.f_thn  EQUB 0          \ changed (f_tchs widens them; a frame after which
+                        \ no row is changed for either buffer narrows them
+                        \ to the rows with characters: f_text2, f_thn the
+                        \ topmost it saw)
+
+\ f_tchs: text row X has changed, for both buffers (F_TCH): their text
+\ steps have work, and look at the row. A = 3; X, Y kept
+
+.f_tchs
+ LDA #3
+ STA F_TCH,X
+ STA f_tany
+ CPX f_tlo
+ BCS P%+5
+ STX f_tlo
+ CPX f_thi
+ BCC P%+5
+ STX f_thi
+ RTS
 
 \ f_char1 (F_CHAR, frame_cold.asm; f_sync): character A into the cell at
 \ column X, row Y. EOR semantics like the original: printing the same
@@ -214,8 +238,7 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (the dumb host: none of the text map's)
  DEC F_TMR,X
 .fch8
  LDX f_row
- LDA #3
- STA F_TCH,X
+ JMP f_tchs
 .fch9
  RTS
 
@@ -463,8 +486,7 @@ ENDIF
  JSR f_tmclr
  LDX f_row
  DEC F_TMR,X
- LDA #3
- STA F_TCH,X
+ JSR f_tchs
 .fdc9
  LDY f_ysav
  RTS
@@ -503,8 +525,7 @@ ENDIF
  BPL fct3
  LDX f_row
  STZ F_TMR,X
- LDA #3
- STA F_TCH,X
+ JSR f_tchs
 .fct6
  INX
  CPX #24
@@ -2861,7 +2882,11 @@ ENDIF
  STA f_tbit
  EOR #3
  STA f_obit
- LDX #23                \ rows 23..0 (each row is independent)
+ LDA f_tany             \ (no row has changed for this buffer)
+ AND f_tbit
+ BNE P%+3
+ RTS
+ LDX f_thi              \ rows f_thi..f_tlo (each row is independent)
 .ft11
  LDA F_TCH,X
  AND f_tbit
@@ -2920,8 +2945,10 @@ ENDIF
  EOR f_tbit
  STA F_TCH,X
 .ft18x
+ CPX f_tlo
+ BEQ P%+5
  DEX
- BPL ft11
+ BPL ft11               \ (always)
  RTS
 
 IF _TUBE
@@ -3012,15 +3039,34 @@ ENDIF
 \ whose pixels something overwrote this frame
 
 .f_text2
- LDX #23                \ rows 23..0 (each row is independent)
+ LDX #&FF               \ (fz_i: the last row with a character, if any)
+ STX fz_i
+ BIT f_tlo              \ (no row to look at)
+ BMI ft2z
+ LDX f_thi              \ rows f_thi..f_tlo (each row is independent)
 .ft21
  LDA F_TMR,X            \ skip empty rows in a tight loop
  BNE ft2r
 .ft29
+ CPX f_tlo
+ BEQ P%+5
  DEX
- BPL ft21
+ BPL ft21               \ (always)
+ LDA f_tany             \ no row is changed for this buffer now; with none
+ AND f_obit             \ for the other either, the rows to look at are
+ STA f_tany             \ those with characters (none: &FF, 0)
+ BNE ft2z
+ LDX fz_i
+ STX f_tlo
+ BMI P%+5               \ (none: f_thi = 0, A)
+ LDA f_thn
+ STA f_thi
+.ft2z
  RTS
 .ft2r
+ BIT fz_i               \ (the first seen is the topmost)
+ BPL P%+5
+ STX f_thn
  STX fz_i
  JSR f_rowptr
  LDA F_TCH,X            \ changed for this buffer: the whole row (then it is

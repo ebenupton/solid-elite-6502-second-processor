@@ -356,8 +356,7 @@ ENDIF
  DEC F_TMR,X
 .frl4
  JSR f_tmst
- LDA #3
- STA F_TCH,X
+ JSR f_tchs
 .frl9
  RTS
 
