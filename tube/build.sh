@@ -389,13 +389,13 @@ $NM build/gfx-raster-frame.asm build/nmos/gfx-raster-frame.asm --report build/nm
 .^r_pt32 AND r_s0a,X      \\ inverse mask
   STA (RZ_PP),Y
 " \
-  --sub "  LDA (RZ_PP)
-.^r_pt418 AND r_s0a,X
+  --sub "  LDA #0
   STA (RZ_PP)
-=  LDY #0
-  LDA (RZ_PP),Y
-.^r_pt418 AND r_s0a,X
+.en
+=  LDA #0
+  TAY                     \\ (NMOS: R_STARERASE's Y dead here)
   STA (RZ_PP),Y
+.en
 " \
   --sub "  LDA (RZ_PP)             \\ the whole byte black?
   BNE nx

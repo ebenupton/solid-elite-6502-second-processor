@@ -429,8 +429,6 @@ IF _TPART = 2             \ (the Tube's Master host: the operands' low bytes too
   LDA r_sbl_s0a,X         \ as its star records share no run pages)
   STA r_pt32+1
   STA r_pt36+1
-  STA r_pt416+1
-  STA r_pt418+1
   LDA r_sbl_s0b,X
   STA r_pt33+1
   STA r_pt37+1
@@ -446,8 +444,6 @@ ENDIF
   LDA r_sbh_s0a,X          \ group r_s0a
   STA r_pt32+2
   STA r_pt36+2
-  STA r_pt416+2
-  STA r_pt418+2
   LDA r_sbh_s0b,X          \ group r_s0b
   STA r_pt33+2
   STA r_pt37+2
@@ -1184,7 +1180,13 @@ ENDIF
 
 \ ============================================================================
 \ R_STARERASE: black the pixels R_STARPLOT set last time in this buffer.
-\ Records: row (+&80: also the next byte), x, mask set in x's byte.
+\ Records: the byte's address (bit 7 of its high byte: one byte, which was
+\ black but for the star: R_STARPLOT's fast path) and, for the others, the
+\ inverse masks of the pixels set in it and in the next column's byte.  A
+\ one-byte record's byte holds the star's pixels and nothing else (it was
+\ all black when the star was set, and the stars are a frame's last
+\ drawing, erased first in the buffer's next frame), so it is blacked by a
+\ store, without reading the screen.
 \ ============================================================================
 .R_STARERASE
 {
@@ -1211,11 +1213,10 @@ ENDIF
   AND (RZ_PP),Y
   STA (RZ_PP),Y
   BRA en
-.e1
-  AND #&7F
-  STA RZ_PP+1
-  LDA (RZ_PP)
-.^r_pt418 AND r_s0a,X
+.e1                       \ (one byte, which was black but for the star when
+  AND #&7F                \ R_STARPLOT's fast path set it, as a frame's last
+  STA RZ_PP+1             \ drawing: blacked by a store, the screen not read)
+  LDA #0
   STA (RZ_PP)
 .en
   INX
@@ -1314,11 +1315,8 @@ ENDIF
   LDA RZ_PP
 .^r_pt414 STA r_s0y,X
   LDA RZ_PP+1
-  ORA #&80                \ (bit 7: no second byte)
-.^r_pt415 STA r_s0x,X
-  LDA RZ_SB
-  EOR #&FF
-.^r_pt416 STA r_s0a,X
+  ORA #&80                \ (bit 7: one byte, black but for the star:
+.^r_pt415 STA r_s0x,X      \ R_STARERASE stores 0 there)
   INC r_k
 .nx
   LDA RZ_TA               \ size 3: the next row
