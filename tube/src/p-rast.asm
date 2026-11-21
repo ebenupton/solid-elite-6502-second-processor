@@ -114,6 +114,12 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
 \ R_INIT, R_SETBUF, R_RESETBUF
 \ ------------------------------------------------------------------------------
 
+\ R_INIT runs once, from f_init1 at the boot, after overlay S's first load:
+\ it is in the divide cache's pages ("Area: cache", p-layout.asm), which
+\ hold the boot's last code until BEGIN empties the cache
+
+\       Area: cache
+
 .T_INIT
 .R_INIT
  LDA #1                 \ (the clip window, as the Master port's R_INIT)
@@ -152,6 +158,7 @@ ASSERT HI(ps_tk0) = HI(ps_tk1 + 6)               \ unknown; in one page)
  JSR R_SETBUF
  JMP R_RESETBUF
 
+\       Area: ovl S
 
 .T_SETBUF
 .R_SETBUF               \ A = the buffer: its arrays (pr_dl ...)

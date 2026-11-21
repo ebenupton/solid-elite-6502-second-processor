@@ -148,5 +148,6 @@ r_ypg = ylookup         \ (rows 0..191: gfx-raster.asm's)
 .B7_END
  PRINT "Host: bank 7 &", ~B7_START, "-&", ~B7_END-1, ", free to &C000: ", &C000-B7_END
  ASSERT (&40 - HI(HSTS0)) + &10 + (HI(B7_START) - &80) = OVLS_PAGES - OVLS0_PAGES
- ASSERT 4 * OVLD_PAGES <= R_ROWS     \ (D's quarters, in the lines' runs' tails)
+ ASSERT 4 * (OVLD_PAGES + OVLT_PAGES) <= R_ROWS   \ (D's quarters and T's, in the lines'
+                        \ runs' tails)
  SAVE "build/HCODE.bin", B7_START, B7_END, B7_START

@@ -26,7 +26,8 @@
  TAX
  LDY #0
  RTS
-.hbo_b EQUB OVLDBANK, OVLSBANK                 \ (D, S: S's image from its state's
-.hbo_h EQUB &80, &80                            \ end, the state being never kept:
-.hbo_n EQUB OVLD_PAGES, OVLS_PAGES - OVLS0_PAGES \ p-ovl.asm)
- ASSERT OVLS_PAGES - OVLS0_PAGES <= 64
+.hbo_b EQUB OVLDBANK, OVLSBANK, OVLDBANK       \ (D, S, T: S's image from its state's
+.hbo_h EQUB &80, &80, &80 + OVLD_PAGES          \ end, the state being never kept,
+.hbo_n EQUB OVLD_PAGES, OVLS_PAGES - OVLS0_PAGES, OVLT_PAGES   \ p-ovl.asm; T's after D's,
+ ASSERT OVLS_PAGES - OVLS0_PAGES <= 64          \ as HOVD holds them)
+ ASSERT OVLD_PAGES + OVLT_PAGES <= 64

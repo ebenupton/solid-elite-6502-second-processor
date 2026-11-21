@@ -64,9 +64,23 @@ HTOP = 16               \ the wall's top row: text row 1, the view's name, is on
 \       Area: frame
 
 \ f_hback: the background, in place of f_lines's call (F_FRAME's ff_lin),
-\ then the lines recorded (none: f_lines is the frame's own)
+\ then the lines recorded (none: f_lines is the frame's own). On the Tube's
+\ parasite, f_hbackt and fh_rect are overlay T's (tube/src/p-ovl.asm: STARS1
+\ does not run while docked), reached through f_hback's tneed
 
+IF _TPART = 1
 .f_hback
+ JSR tneed
+ JMP f_hbackt
+ENDIF
+
+\       Area: cache
+
+IF _TPART = 1
+.f_hbackt
+ELSE
+.f_hback
+ENDIF
  LDX #3                 \ the rectangles' vertices' high bytes: 0
 .fhb0
  STZ R_PXH,X
@@ -125,8 +139,6 @@ HTOP = 16               \ the wall's top row: text row 1, the view's name, is on
  SBC #8
  BNE fhb3
  JMP f_lines
-
-\       Area: ovl S
 
 \ fh_rect: fill pixels fz_t to fz_u-1 of rows A to Y-1 (R_POLY's rule) in the
 \ colour set

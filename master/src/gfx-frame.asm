@@ -809,6 +809,9 @@ ENDIF
 
  BIT GMODE
  BMI ff5
+IF _TPART = 1
+ JSR tneed              \ (the Tube's parasite: f_enter2 is overlay T's)
+ENDIF
  JSR f_enter2           \ first space-mode frame since the screen was cleared
                         \ (f_enter, with frame_cold.asm's direct-mode fix-ups)
 

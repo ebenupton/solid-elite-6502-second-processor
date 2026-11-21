@@ -27,6 +27,7 @@
 
 OVL_D = 1               \ the overlays, by number (ovl_cur, C_OVLGET)
 OVL_S = 2
+OVL_T = 3               \ (T: the divide cache's pages' image, tcur below)
 
 .ovl_cur EQUB OVL_D     \ the overlay in the region (0: none; the parasite's
                         \ image starts with overlay D in)
@@ -184,6 +185,7 @@ OVL_S = 2
  BIT ovl_ssv            \ S: everything unknown, or its state as
  BPL ovn7               \ its image has it and buffer 0 afresh
  STZ ovl_ssv
+ JSR tneed              \ (r_lost is overlay T's)
  JSR r_lost
  BRA ovn8
 .ovn7
@@ -270,9 +272,56 @@ OVL_S = 2
  ASSERT LO(OVL_START) = 0
 
 .ovlen                  \ each overlay's end, as a page (OVL_START is page aligned)
- EQUB HI(OVL_D_END + 255), HI(OVL_S_END + 255)
+ EQUB HI(OVL_D_END + 255), HI(OVL_S_END + 255), HI(STLZT + 512)
 .ovst                   \ and its start
- EQUB HI(OVL_START), HI(S_STATE_END)
+ EQUB HI(OVL_START), HI(S_STATE_END), HI(STLZT)
+
+\ Overlay T, a transient in the space view: STL1's divide cache's two pages
+\ (STLZT, STLZV: p-layout.asm) hold either the cache or T's image, the
+\ "Area: cache" passes: the boot's last code (f_init1, R_INIT) and the
+\ renderer's code that the space view can reach but rarely runs, none of
+\ which runs STARS1 or is on the stack when STARS1 runs: r_lost (S's state
+\ rebuilt after it went out in space mode), the disc heap's drop (hp_drop)
+\ and the surface drawn whole for want of room (ps_whole), the first frame
+\ after a screen drawn directly (f_enter2, f_unstar, f_b0new), and the
+\ hangar's background (f_hback, fh_rect: STARS1 does not run while
+\ docked). Each call into T is preceded by JSR tneed, which loads T's image
+\ from the host's copy (C_OVLGET 3) if the pages hold the cache. STARS1
+\ (elite-source.asm) gives the pages back to the cache at its start if T
+\ is in (t_evict: the tags emptied); BEGIN does the same. The cache's
+\ values need nothing: an entry is read only after a miss has written its
+\ tag and its value. The image starts in the pages (PCODE: the boot runs
+\ f_init1 there), so tcur starts with bit 7 set
+
+.tcur EQUB &FF          \ 0: the pages hold the cache; &FF: T's image
+
+.tneed                  \ T in; keeps A, X, Y and the flags
+ PHP
+ BIT tcur
+ BMI tnd9
+ PHA
+ PHX
+ PHY
+ LDA #OVL_T
+ JSR ovl_get
+ LDA #&FF
+ STA tcur
+ PLY
+ PLX
+ PLA
+.tnd9
+ PLP
+ RTS
+
+.t_evict                \ the pages back to the cache: the tags emptied (keeps Y)
+ LDX #0
+ TXA
+ STX tcur
+.tev1
+ STA STLZT,X
+ INX
+ BNE tev1
+ RTS
 
 \ savc0: savosc's first byte (elite-source.asm's DELT: SNG47's DELT bug can
 \ change it, and overlay D, which holds savosc, is restored from the host's

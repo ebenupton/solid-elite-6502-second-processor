@@ -71,13 +71,35 @@ PRINT "Parasite: data end at &", ~P%
  CPU 1
  INCLUDE "build/p-kept-frame.asm"       \ (kept solid rows: pk_line, T_KFRAME)
  INCLUDE "build/p-onepass-frame.asm"    \ (R_POLY in one pass: oo_scan, the 16-bit edges)
- INCLUDE "build/gfx-finit-frame.asm"    \ (F_INIT's resident part, f_init1, run
-                                        \ once before the first frame; the
-                                        \ frame layer's state is in the shared
-                                        \ workspace, p-ws.asm)
+ INCLUDE "build/gfx-finit-frame.asm"    \ (F_INIT's file's own place: nothing
+                                        \ there now, f_init1 being in the
+                                        \ divide cache's pages, below)
  INCLUDE "build/p-io-tail.asm"          \ (the "Area: tail" pass: what is added
                                         \ here moves nothing before it, p_keyq)
 .PRES_CODE_END
+
+\ STL1's divide cache (elite-source.asm, the Master port's 155f0b4): the tags
+\ STLZT and the values STLZV, by z_hi, a page each (an index never crosses a
+\ page), which STARS1 reads and writes in the space view and BEGIN empties
+\ (tags 0), resident, as nothing else uses them in between. Until BEGIN
+\ first empties it, the cache's pages hold the boot's last code (the
+\ "Area: cache" passes): F_INIT's resident part, f_init1, which loads
+\ overlay S over the boot's staging, and R_INIT, which it calls; S% runs
+\ BEGIN before the first STARS1, and nothing calls them again
+ ORG (P% + 255) AND &FF00
+.STLZT
+STLZV = STLZT + 256
+.PCACHE_START
+ INCLUDE "build/gfx-finit-cache.asm"    \ (f_init1)
+ INCLUDE "build/p-rast-cache.asm"       \ (R_INIT)
+ INCLUDE "build/p-lost-cache.asm"       \ (overlay T: r_lost,
+ INCLUDE "build/p-disc-cache.asm"       \ hp_drop and ps_whole,
+ INCLUDE "build/gfx-frame_cold-cache.asm"  \ f_unstar,
+ INCLUDE "build/gfx-hangar-cache.asm"   \ f_hbackt and fh_rect)
+.PCACHE_END
+ ASSERT PCACHE_END <= STLZT + 512
+ SAVE "build/HOVT.bin", STLZT, STLZT + 512   \ (overlay T's image: the host keeps it
+ ORG STLZT + 512                            \ after D's, in HOVD; p-ovl.asm)
 
 \ The log tables and the quarter-square tables, page aligned (the game's
 \ blocks tagged "Tube: bothb, aligned": log, logL, alogh, then QSL and QSH,
@@ -122,7 +144,7 @@ PRINT "Parasite: data end at &", ~P%
 
 .PCODE_END
 
- PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_CODE_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_CODE_END-1, " (", PRES_CODE_END-PF_START, " bytes); the aligned tables &", ~TAB_START, "-&", ~TAB_END-1, "; free between: ", TAB_START-PRES_CODE_END
+ PRINT "Parasite: code &", ~CODE%, "-&", ~PRES_CODE_END-1, ", frame layer &", ~PF_START, "-&", ~PRES_CODE_END-1, " (", PRES_CODE_END-PF_START, " bytes); the divide cache &", ~STLZT, ", the aligned tables &", ~TAB_START, "-&", ~TAB_END-1, "; free between: ", STLZT-PRES_CODE_END
  PRINT "Parasite: overlay region &", ~OVL_START, "-&", ~RING-1, " (", RING-OVL_START, " bytes), overlay D to &", ~OVL_D_END-1, " (", OVL_D_END-OVL_START, " bytes), free to the ring: ", RING-OVL_D_END
  ASSERT PCODE_END <= RING AND RING + &300 = &FE00   \ (the ring's three pages, below the top pages)
  ASSERT ZPSAVE + &90 >= (OVL_D_END + 255) AND &FF00 AND ZPSAVE + &100 <= RING   \ (getzp's buffer: above

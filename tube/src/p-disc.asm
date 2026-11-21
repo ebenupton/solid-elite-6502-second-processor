@@ -172,6 +172,7 @@
  STA hq_c
  BRA hfg3
 .hfg2
+ JSR tneed              \ (hp_drop is overlay T's)
  JSR hp_drop            \ not even n: both bodies dropped, all the heap
  LDX hq_k
  JSR hf_room
@@ -622,7 +623,8 @@
  STZ pe_wb
  LDA ps_ok
  BNE psw3
- JSR ps_whole           \ (no room: resident, below)
+ JSR tneed              \ (ps_whole is overlay T's)
+ JSR ps_whole           \ (no room: overlay T's, below)
  BRA psw9
 .psw3
  LDA r_nb               \ the rows above the new ones, the new ones (none:
@@ -1522,6 +1524,9 @@
 \ The disc heap's drop and the cold ends of the surface's rows (ps_nd0,
 \ ps_whole): resident, in the glue (p-low.asm)
 
+\       Area: cache
+
+\ (hp_drop is overlay T's: p-ovl.asm, its caller calls tneed first.)
 \ ------------------------------------------------------------------------------
 \ hp_drop: both bodies' states dropped (hp_drops): the surface's rows of
 \ both buffers unknown (each repaints them whole once: no capacity, so the
@@ -1552,6 +1557,8 @@
  TAX
  JMP hd_box
 
+\       Area: frame
+
 \ ps_nd0: (ps_rows) a one-colour frame's new rows: no boundaries, colour A
 
 .ps_nd0
@@ -1568,8 +1575,11 @@
 .pnd9
  RTS
 
+\       Area: cache
+
 \ ps_whole: (ps_rows, Y = r_bt) no room for the surface: every row of the
-\ band repainted whole (ps_gen), nothing kept
+\ band repainted whole (ps_gen), nothing kept (overlay T's: its caller calls
+\ tneed first)
 
 .ps_whole
  CPY r_nt

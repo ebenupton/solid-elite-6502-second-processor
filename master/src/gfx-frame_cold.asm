@@ -207,11 +207,16 @@ IF _TPART <> 2             \ (Tube: the parasite's part)
  ASSERT R_Y0 = R_X0 + 2 AND R_X1 = R_X0 + 4 AND R_Y1 = R_X0 + 6
 
 ENDIF
-IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
+
 \ f_enter2: the first record-mode frame since F_DIRECT. Main RAM is visible
 \ (X = 0): remove the directly drawn stars before f_enter copies the border
-\ to shadow RAM, then give the text map the text drawn directly, if any.
+\ to shadow RAM, then give the text map the text drawn directly, if any. (The
+\ Tube's parasite: overlay T's, with f_unstar, from F_FRAME after JSR tneed;
+\ it jumps to f_sync, which is not after it there)
 
+\       Area: cache
+
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 .f_enter2
  JSR f_unstar
  BIT GSTASH             \ after a disc command buffer 0 holds no frame: start it
@@ -221,8 +226,15 @@ IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
  JSR f_enter
  STZ f_hwr              \ f_enter used the half-width tables as its buffer
  STZ f_hw2r
+IF _TPART = 1
+ JMP f_sync
+ENDIF
                         \ fall through into f_sync (QQ11 = 0 here)
+ENDIF
 
+\       Area: frame
+
+IF _TPART <> 2 OR _TDUMB = FALSE   \ (not the dumb host's)
 \ f_sync: called before each change to the text map. Outside record and space
 \ mode (GMODE bit 7: the frames are running, as in the mission briefing,
 \ whose text is printed outside record mode while LL9B draws the ship as a
@@ -428,6 +440,9 @@ ENDIF
 \ f_unstar: EOR away the stars PIXEL drew directly into main RAM since
 \ F_DIRECT (F_DSTAR noted them), exactly as PIXEL drew
 \ them, so any text drawn over them stays intact. Main RAM must be visible.
+\ (The Tube's parasite: overlay T's, from f_enter2 after JSR tneed)
+
+\       Area: cache
 
 .f_unstar
 IF _TPART = 1             \ (Tube: the host EORs them away: C_EORDOT x, y, size)
@@ -512,6 +527,9 @@ ENDIF
  RTS
 
 ENDIF
+
+\       Area: frame
+
 .f_ysav2 EQUB 0
 .f_twos  EQUB %10001000 AND DUST, %01000100 AND DUST, %00100010 AND DUST, %00010001 AND DUST
 .f_twos2 EQUB %11001100 AND DUST, %01100110 AND DUST, %00110011 AND DUST, %00110011 AND DUST

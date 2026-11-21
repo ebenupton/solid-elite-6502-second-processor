@@ -535,47 +535,6 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  CLC
  RTS
 
-\ fload: side fside's 8-bit DDA: x RZ_T0, error RZ_TA, dy RZ_T1, A = a,
-\ X = b; the side's step back to the inline 8-bit one
-
-.fload
- BIT fside
- BMI fld1
- STA fa0+1              \ a (+1 with the borrow's carry)
- STA fn0+1              \ a
- STX fb0+1              \ b
- LDA RZ_T1
- STA fd0+1              \ dy
- LDA RZ_T0
- STA f_x0
- LDA RZ_TA
- STA f_t0
- LDA #&A5               \ (s0: LDA f_t0 : SEC)
- STA s0
- LDA #f_t0
- STA s0+1
- LDA #&38
- STA s0+2
- RTS
-.fld1
- STA fa1+1
- STA fn1+1
- STX fb1+1
- LDA RZ_T1
- STA fd1+1
- LDA RZ_T0
- STA f_x1
- LDA RZ_TA
- STA f_t1
- LDA #&A5               \ (s1: LDA f_t1 : SEC)
- STA s1
- LDA #f_t1
- STA s1+1
- LDA #&38
- STA s1+2
- RTS
-
-
 \ ------------------------------------------------------------------------------
 \ The row loop: Y = row
 \ ------------------------------------------------------------------------------
@@ -709,6 +668,47 @@ ASSERT fb1 - fb0 = s1 - s0 AND fd1 - fd0 = s1 - s0 AND fa1 - fa0 = s1 - s0 AND f
 ASSERT f_t0 = f_x0 + 1 AND f_t1 = f_x1 + 1
 
 \       Area: frame
+
+\ fload: side fside's 8-bit DDA: x RZ_T0, error RZ_TA, dy RZ_T1, A = a,
+\ X = b; the side's step back to the inline 8-bit one
+
+.fload
+ BIT fside
+ BMI fld1
+ STA fa0+1              \ a (+1 with the borrow's carry)
+ STA fn0+1              \ a
+ STX fb0+1              \ b
+ LDA RZ_T1
+ STA fd0+1              \ dy
+ LDA RZ_T0
+ STA f_x0
+ LDA RZ_TA
+ STA f_t0
+ LDA #&A5               \ (s0: LDA f_t0 : SEC)
+ STA s0
+ LDA #f_t0
+ STA s0+1
+ LDA #&38
+ STA s0+2
+ RTS
+.fld1
+ STA fa1+1
+ STA fn1+1
+ STX fb1+1
+ LDA RZ_T1
+ STA fd1+1
+ LDA RZ_T0
+ STA f_x1
+ LDA RZ_TA
+ STA f_t1
+ LDA #&A5               \ (s1: LDA f_t1 : SEC)
+ STA s1
+ LDA #f_t1
+ STA s1+1
+ LDA #&38
+ STA s1+2
+ RTS
+
 
 \ The scan of a polygon's vertices (oo_scan) and the 16-bit polygons' edges
 \ (oe16, o16cur, o16adv, o16s0, o16s1): resident (p-layout.asm, after the

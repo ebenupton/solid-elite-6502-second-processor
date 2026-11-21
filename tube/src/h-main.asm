@@ -198,13 +198,14 @@ IF _HOSTB
  JMP hb_ovlget          \ (Model B: main RAM, hb-ovl.asm)
 ELSE                      \ (the Master host: h-layout.asm's storage)
  HRX
- CMP #1
- BNE hos0
- LDA #4                 \ D: its page p is quarters 4p to 4p+3, bytes 192-255
- STA hogb               \ of the pages of lines 4p to 4p+3's runs, page &80
- LDA #&80               \ + 4p MOD 64 of bank 4 + 4p DIV 64 (h-sta.asm)
- STA hogq1+2
- LDX #4 * OVLD_PAGES    \ (the quarters)
+ CMP #2
+ BEQ hos0
+ TAY                    \ D (1) or T (3): D's page p is quarters 4p to 4p+3,
+ LDA hob_b-1,Y          \ bytes 192-255 of the pages of lines 4p to 4p+3's
+ STA hogb               \ runs, page &80 + 4p MOD 64 of bank 4 + 4p DIV 64
+ LDA hob_p-1,Y          \ (h-sta.asm); T's two pages are the quarters after
+ STA hogq1+2            \ D's (the loader deals HOVD, D's image with T's after
+ LDX hob_n-1,Y          \ it). X = the quarters
 .hod0
  LDA hogb
  STA &FE30
@@ -260,6 +261,10 @@ ELSE                      \ (the Master host: h-layout.asm's storage)
  LDA #GFXBANK
  STA &FE30
  JMP hloop
+HOBT = 4 * OVLD_PAGES   \ (T's first quarter)
+.hob_b EQUB 4, 0, 4 + HOBT DIV 64       \ (D's and T's first quarters' banks, pages,
+.hob_p EQUB &80, 0, &80 + HOBT MOD 64   \ and their quarters)
+.hob_n EQUB 4 * OVLD_PAGES, 0, 4 * OVLT_PAGES
 .hse_pg EQUB HI(HSTS0), &70, &80        \ (S's extents: h-layout.asm)
 .hse_n  EQUB &40 - HI(HSTS0), &10, HI(B7_START) - &80
 .hogb EQUB 0

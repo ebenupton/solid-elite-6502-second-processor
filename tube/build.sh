@@ -152,21 +152,22 @@ code0 = sy["PCODE_START"]
 place = {"game's workspaces": (0, sy["PWS_START"]), "resident": (code0, sy["PRES_CODE_END"]),
          "aligned": (sy["TAB_START"], sy["TAB_END"]), "D": (sy["OVL_START"], sy["OVL_D_END"]),
          "S": (sy["OVL_START"], sy["OVL_S_END"]), "boot": (sy["OVL_D_END"], sy["PSTG_END"]), "load": (sy["QSL"], sy["PLOAD_END"]),
+         "cache": (sy["STLZT"], sy["PCACHE_END"]),
          "fe": (0xFE00, sy["PFE_END"]), "ff": (0xFF00, sy["PFF_END"]),
          "vectors": (0xFFFA, 0x10000)}
 bad = []
 def need(c, what):
     if not c: bad.append(what)
 need(sy["PWS_START"] == sy["VEC"] + 2 and sy["PWS_END"] == code0, "the workspace runs from WP's end to the code")
-need(sy["PRES_CODE_END"] <= sy["TAB_START"] and sy["TAB_START"] % 256 == 0, "the code ends below the aligned tables, which start a page")
+need(sy["PRES_CODE_END"] <= sy["STLZT"] and sy["STLZT"] % 256 == 0 and sy["STLZT"] + 512 == sy["TAB_START"], "the code ends below the divide cache's pages, then the aligned tables")
 need(sy["TAB_END"] == sy["OVL_START"] and sy["OVL_START"] % 256 == 0, "the aligned tables end where the overlay region starts")
 need(sy["QSH"] + 512 == sy["TAB_END"] and sy["QSL"] + 512 == sy["QSH"], "the quarter-square tables last in the aligned tables")
 need(sy["K%"] == 0x200, "K% from the stack's end")
 need(sy["PFE_END"] <= 0xFEF0 and sy["PFF_END"] <= 0xFFFA, "the top pages clear of the Tube's registers and the vectors")
 need(sy["pbl"] >> 8 == (sy["pbl_end"] - 1) >> 8, "pbl within one page")
 def where(f):
-    m = re.match(r"build/[\w-]+-(ovls|ovlst|ovlsf|ovld|fe|ff|boot|load)\.asm$", f)
-    if m: return {"ovls": "S", "ovlst": "S", "ovlsf": "S", "ovld": "D", "fe": "fe", "ff": "ff", "boot": "boot", "load": "load"}[m.group(1)]
+    m = re.match(r"build/[\w-]+-(ovls|ovlst|ovlsf|ovld|fe|ff|boot|load|cache)\.asm$", f)
+    if m: return {"ovls": "S", "ovlst": "S", "ovlsf": "S", "ovld": "D", "fe": "fe", "ff": "ff", "boot": "boot", "load": "load", "cache": "cache"}[m.group(1)]
     if f in ("build/elite-source-cold.asm", "build/elite-data-cold.asm", "build/elite-stubs-x4.asm"): return "D"
     if f == "build/elite-source-aligned.asm": return "aligned"
     if f == "build/elite-source-config.asm": return "game's workspaces"   # (VEC, at WP's end)
@@ -189,7 +190,7 @@ for l in open("build/compile-p.txt", encoding="latin-1"):
         bad.append("&%04X (%s): outside %s, &%04X-&%04X" % (a, stack[-1], w, lo, hi - 1))
 for f in sorted(glob.glob("build/*-frame.asm") + glob.glob("build/*-ovls.asm") + glob.glob("build/*-ovld.asm") +
                 glob.glob("build/*-fe.asm") + glob.glob("build/*-ff.asm") + glob.glob("build/*-boot.asm") +
-                glob.glob("build/*-load.asm") + glob.glob("build/*-tail.asm") +
+                glob.glob("build/*-load.asm") + glob.glob("build/*-tail.asm") + glob.glob("build/*-cache.asm") +
                 glob.glob("build/*-ovlst.asm") + glob.glob("build/*-ovlsf.asm")):
     body = [l.split("\\")[0].strip() for l in open(f, encoding="latin-1")]
     if any(body) and f not in inc and not f.startswith("build/gfx-raster"):   # (the rasteriser's: the hosts')
@@ -226,7 +227,7 @@ assert sy["OVL_START"] <= sy["NA2%"] < sy["OVL_D_END"]
 d = bytearray(open("build/HOVD.bin", "rb").read())
 o = sy["NA2%"] - sy["OVL_START"] + 0x52
 d[o:o + 2] = img[cs + 0x52:cs + 0x54]
-open("build/HOVD.bin", "wb").write(d)
+open("build/HOVD.bin", "wb").write(d + open("build/HOVT.bin", "rb").read())   # (T's image after D's: p-ovl.asm)
 PY
 # the overlays' sizes, for the hosts' storage of their images (p-ovl.asm)
 python3 - <<'PY'
@@ -239,8 +240,10 @@ with open("build/povl.asm", "w") as f:
     f.write("OVLD_PAGES = %d\n" % ((sy["OVL_D_END"] + 255) // 256 - sy["OVL_START"] // 256))
     f.write("OVLS_PAGES = %d\n" % ((sy["OVL_S_END"] + 255) // 256 - sy["OVL_START"] // 256))
     f.write("OVLS0_PAGES = %d\n" % (sy["S_STATE_END"] // 256 - sy["OVL_START"] // 256))   # (the pages of S's image not kept: the state's, p-ovl.asm)
+    f.write("OVLT_PAGES = 2\n")    # (T, the divide cache's two pages' image: p-ovl.asm)
 assert sy["S_STATE_END"] % 256 == 0   # (the state ends a page: S's image is kept from there)
-assert len(open("build/HOVD.bin", "rb").read()) % 256 == 0
+assert len(open("build/HOVD.bin", "rb").read()) == 256 * ((sy["OVL_D_END"] + 255) // 256 - sy["OVL_START"] // 256 + 2)
+assert sy["PCACHE_END"] <= sy["STLZT"] + 512 and sy["STLZT"] % 256 == 0
 # S's image as ovl_sinit makes its state: zeros but for r_dyt, r_dst (2 each) and r_wt
 img = open("build/HOVS.bin", "rb").read()
 st = bytearray(sy["S_STATE_END"] - sy["OVL_START"])
@@ -300,7 +303,7 @@ for m in re.finditer(r"'([^']+)':(\d+)", open("build/psyms.txt").read()):
 h["HSTS0"] = int(re.search(r"^HSTS0 = &([0-9A-F]+)", open("tsrc/h-layout.asm").read(), re.M).group(1), 16)
 pg = lambda a: a // 256
 o = pg(p["OVL_START"])
-nd = pg(p["OVL_D_END"] + 255) - o
+nd = pg(p["OVL_D_END"] + 255) - o + 2   # (D's pages, then T's two)
 d = open("build/HOVD.bin", "rb").read()
 s = open("build/HOVS.bin", "rb").read()[256 * (pg(p["S_STATE_END"]) - o):]
 s += bytes(-len(s) % 256)

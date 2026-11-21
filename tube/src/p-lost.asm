@@ -6,8 +6,9 @@
 \
 \ ******************************************************************************
 
-\       Area: ovl S
+\       Area: cache
 
+\ (Overlay T's: p-ovl.asm, ovl_need calls tneed first.)
 \ r_lost: overlay S back in space mode with its state lost (p-ovl.asm: the
 \ host keeps none). Nothing is known of what either buffer holds, so each
 \ buffer's every row inside the border is dirty from the clip window's left

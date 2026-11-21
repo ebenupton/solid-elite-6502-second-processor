@@ -112,7 +112,7 @@ IF _TPART = 1 AND _TDUMB
 
 ENDIF
 
-\       Area: frame
+\       Area: cache
 
 IF _TPART = 1 AND _TDUMB
 

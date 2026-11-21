@@ -1005,13 +1005,17 @@ def stub_none(lines, bl):
 #   \       Area: ovl S, state      (overlay S's state, first in S: p-rast.asm)
 #   \       Area: ovl S, first      (overlay S's page aligned tables, first in
 #                                    its code, at its state's end, a page)
+#   \       Area: cache             (the parasite's code run once at the boot
+#                                    after overlay S's first load, in STL1's
+#                                    divide cache's pages until BEGIN empties
+#                                    the cache)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
 # file's): build/<file>-frame.asm (the file's own place), build/<file>-ovls.asm,
 # build/<file>-kernel.asm, build/<file>-kalign.asm, build/<file>-ovld.asm,
 # and the parasite's
-# build/<file>-fe.asm, -ff.asm, -boot.asm, -load.asm and -tail.asm. The Master port,
+# build/<file>-fe.asm, -ff.asm, -boot.asm, -load.asm, -tail.asm and -cache.asm. The Master port,
 # the Model B host and (for the files it does not pass) the Master host
 # assemble the file itself, where the tag lines are comments. The parasite
 # places every one of its files by these passes (p-layout.asm): a file whose
@@ -1024,7 +1028,7 @@ FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm"
              "tsrc/p-probe.asm", "tsrc/p-lost.asm")
 FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "kernel, aligned": "kalign", "ovl D": "ovld",
          "page FE": "fe", "page FF": "ff", "boot": "boot", "load": "load", "tail": "tail",
-         "ovl S, state": "ovlst", "ovl S, first": "ovlsf"}
+         "cache": "cache", "ovl S, state": "ovlst", "ovl S, first": "ovlsf"}
 
 
 def frame_passes(path, errors):
@@ -1454,9 +1458,10 @@ def main():
                 at += bsize[n]
             return at
         conts = [["hot1", sy["LOW_END%"], 0x4000, []], ["hot2", sy["QS_RUN%"], 0x8000, []],
-                 ["hot3", 0x8000, 0xC000 - b4 - (sy["R4_END%"] - sy["R4_START%"]), []]]
+                 ["hot3", 0x8000, 0xBF00 - b4 - (sy["R4_END%"] - sy["R4_START%"]), []]]
         # (bank 4 ends with the hot data HAZEL has no room for, b4, then the
-        # renderer's game-context routine, L_SUN: elite-layout.asm)
+        # renderer's game-context routine, L_SUN, then STL1's divide cache's
+        # values, STLZV = &BF00 to &BFFF: elite-layout.asm)
         used = {c[0]: 0 for c in conts}
         cur = 0
         for u0, u1 in units:
