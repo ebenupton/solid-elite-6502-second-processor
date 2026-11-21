@@ -8,6 +8,103 @@ first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The Electron port's findings, by way of the Master port (branch `tube-electron-wins`, 2026-11-23)
+
+The Master port's series of the Electron port's speed findings arrives on
+the Tube as it is, one commit for each of the Master port's, with the
+parasite's and the hosts' parts: the planet's boundary rows with no call
+and PF_HOOK's smaller save set, the text steps over the rows in use, the
+one-byte stars erased by a store and the dots' two pixels at once (the
+hosts'), LL9's scaling looked up in LL21T, part 5's faces and the
+vertices' dot products in line, STL1 with no call, the row runs entered
+by a jump (both hosts, at full strength), the hangar's routines in the
+cold pass (overlay D's already on the parasite), STL1's divide cache, the
+polygon edges with no call, the steep edges' own loops (on the parasite
+the one-pass generator's own steps), the unclipped polygons' short edge
+head, the circle engine's in-lining and L_REC's dot products in line. At
+every commit the in-tree Master port's disc is byte-identical to the
+Master port's at the matching commit. Nothing was left out or shrunk for
+want of room; the parasite runs every change at full strength.
+
+Every commit of the series passes the gate (tgate.sh, both hosts; the
+harness and docs commits leave the disc as it was). At the tip, flight
+iterations 1000-1400 run at 23.28 a second with the Master host (85,910
+cycles an iteration) and 20.35 with the Model B host (98,268); the sun
+window 4000-4300 at 24.91 and 24.89. The rest of the Electron port's
+list does not apply here, as on the Master port (its README, part 9):
+the projection's division and the ship blocks' unrolled copies were here
+already, the disc rows are made on the parasite and sent as spans, and
+phase B's kept character row and the painter's routines jumped to and
+back were left out as too small for a fast stack (under 0.2% each by the
+Electron's measurements).
+
+The room, in bytes of the space view's memory (resident code, S, the
+ring), each made first in the commit that needed it (the planet's rows,
+the vertices' dot products, STL1 with no call and its divide cache), in
+the series' order (docs/TUBE-MAP.md's
+"The memory account" has every region before and after):
+
+| Move | Resident | Elsewhere |
+|---|---:|---|
+| The sound's VIA writes left out (the fix below) | -12 | D -51 |
+| SNE into overlay D (only FMLTU2 reads it) | -48 | D +48 |
+| Deleting typed text (F_DELCHAR, f_delchar0) into overlay D, behind G_DELCHAR | -50 | D +52 |
+| f_drule into overlay D (f_drule_d, behind a stub) | -65 | D +72 |
+| The frame's scratch in the ball line heap, the state below WP | -430 | - |
+| ppring stores the ring stubs' high byte once | -20 | - |
+| F_INIT's first part in the boot's staging | -34 | staging +36 |
+| ovl_sinit and pidx in the page at &FE00 | -72 | page FE 78 to 6 free |
+| ARCTAN's body, ACT and LL38 left out (nothing calls them on the parasite) | -133 | - |
+| The flare's half-widths first in S's code (no padding, up to 63) | - | S: 0 at that layout |
+| f_line8 from S to the resident code | +33 | S -33 |
+| The ring in three pages (&FB00), for the stardust in line | (region +256) | - |
+| fload from S to the resident code, for the divide cache | +81 | S -81 |
+| The divide cache's pages hold the boot's last code and overlay T | (with the cache) | S: R_INIT, r_lost, fh_rect into T |
+
+Afterwards: 11 bytes in the resident gap and 31 at S's end (42 in the
+space view; the next page needs 245 more off the resident code or 225 off
+S), 30 at the end of T's image, D 6,420 free.
+
+**The sound's VIA writes.** The parasite has no SHEILA; VIA is defined
+so that ACCCON's one write lands in the shared workspace's first byte,
+but NOISE's vsync mask and unmask and SOFLUSH's sound chip writes were
+still assembled for it and wrote four bytes of the shared workspace
+(&0B03, &0B06, &0B11, &0B12). With the workspace rearranged, &0B11 became
+the disc's kept row 17's left end, and run1's frames from iteration 1,252
+on differed from the Master port's (a black span across the planet's top
+row in buffer 1), found with a write watch. The parasite makes no sound of
+its own, so those writes are now left out under `_TPART = 1`; only
+ACCCON's remains.
+
+Evidence for the moves: tube/tools/pcov.mjs over run1 (16,000
+iterations, both hosts) and the code; the direct-mode-only routines the
+space view can still reach stayed resident (BOX, LOIN, NWSPS, tnpr, FRS1,
+FLIP, the rotating ships' loops). The stack page: lowest S over run1 &BA
+in direct mode (the title), &CF in the space view; XX3 to &193 (37
+vertices): at most 38 bytes between, not used.
+
+The ring (tbench.mjs, four pages against three, the same build otherwise):
+unchanged but for docking with the Master host (14.18 to 13.65, -3.7%) and
+combat with the Model B's (24.34 to 23.89, -1.9%). Two pages against
+three: Master host sun 23.98 to 21.45 (-10.6%), docking 13.74 to 11.90
+(-13.4%), combat 25.42 to 24.57 (-3.3%); Model B docking 10.95 to 10.45
+(-4.6%): not taken.
+
+The parasite's tests, one build against another on py65 (the Master
+port's harness tests for the parasite's own memory): tube/tools/tstars.py
+(the stardust), tpoly.py (R_POLY's phase A and its C_SPANS stream) and
+tlrec.py (L_REC). Each change they cover was proved identical with them
+(the commits give the runs): the divide cache (3,000 calls with --d255,
+3,000 --strict), the polygon edges (20,000 polygons a run), L_REC's
+in-lining (5,000 ships).
+
+tbench.mjs, a48f530 against this build, iterations a second: Master host
+flight 21.64 -> 23.60, combat 25.30 -> 25.44, beach ball 20.75 -> 23.27,
+sun 22.56 -> 24.19, docking 13.36 -> 13.96, zone 12.72 -> 13.89, rear 21.26
+-> 23.92; Model B host flight 16.41 -> 17.73, combat 23.80 -> 24.06, beach
+ball 15.81 -> 17.78, sun 17.28 -> 18.90, docking 10.14 -> 11.14, zone 9.81
+-> 10.73, rear 15.95 -> 17.98.
+
 ## sun-slot 11c32b0 and ce07991 merged: the sun's edge, the clouds' seed, MV40's K2, the leftovers; the frozen benchmark; the reference's proofs (branch `tube-cpc`, 2026-11-17)
 
 The parasite shares the game's source, so the Master's changes arrive as
