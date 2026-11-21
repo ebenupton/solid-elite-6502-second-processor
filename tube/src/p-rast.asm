@@ -26,7 +26,7 @@
 \
 \ ******************************************************************************
 
-\       Area: ovl S
+\       Area: ovl S, state
 
 \ zero page: the rasteriser's &06-&27 (F_FRAME saves and restores them), and
 \ these, which the game leaves free
@@ -98,7 +98,10 @@ ASSERT LO(R_DISCL0) = LO(R_DISCL1) AND LO(R_DISCR0) = LO(R_DISCR1)
 HEAPN = P% - HEAP        \ there)
 
 .S_STATE_END             \ (the state's end: the hosts keep S's image from here,
-                        \ p-ovl.asm)
+                        \ p-ovl.asm; S's code follows, its page aligned tables
+                        \ first: p-layout.asm)
+
+\       Area: ovl S
 
 .pr_bat  EQUB 0          \ R_DISCROWS's batch (C_DSPANS): bit 7 on, bit 6 begun
 .pr_sy   EQUB 0          \ the batch's open row (&FF: none)

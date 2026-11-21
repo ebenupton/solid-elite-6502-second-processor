@@ -165,8 +165,8 @@ need(sy["K%"] == 0x200, "K% from the stack's end")
 need(sy["PFE_END"] <= 0xFEF0 and sy["PFF_END"] <= 0xFFFA, "the top pages clear of the Tube's registers and the vectors")
 need(sy["pbl"] >> 8 == (sy["pbl_end"] - 1) >> 8, "pbl within one page")
 def where(f):
-    m = re.match(r"build/[\w-]+-(ovls|ovld|fe|ff|boot|load)\.asm$", f)
-    if m: return {"ovls": "S", "ovld": "D", "fe": "fe", "ff": "ff", "boot": "boot", "load": "load"}[m.group(1)]
+    m = re.match(r"build/[\w-]+-(ovls|ovlst|ovlsf|ovld|fe|ff|boot|load)\.asm$", f)
+    if m: return {"ovls": "S", "ovlst": "S", "ovlsf": "S", "ovld": "D", "fe": "fe", "ff": "ff", "boot": "boot", "load": "load"}[m.group(1)]
     if f in ("build/elite-source-cold.asm", "build/elite-data-cold.asm", "build/elite-stubs-x4.asm"): return "D"
     if f == "build/elite-source-aligned.asm": return "aligned"
     if f == "build/elite-source-config.asm": return "game's workspaces"   # (VEC, at WP's end)
@@ -189,7 +189,8 @@ for l in open("build/compile-p.txt", encoding="latin-1"):
         bad.append("&%04X (%s): outside %s, &%04X-&%04X" % (a, stack[-1], w, lo, hi - 1))
 for f in sorted(glob.glob("build/*-frame.asm") + glob.glob("build/*-ovls.asm") + glob.glob("build/*-ovld.asm") +
                 glob.glob("build/*-fe.asm") + glob.glob("build/*-ff.asm") + glob.glob("build/*-boot.asm") +
-                glob.glob("build/*-load.asm") + glob.glob("build/*-tail.asm")):
+                glob.glob("build/*-load.asm") + glob.glob("build/*-tail.asm") +
+                glob.glob("build/*-ovlst.asm") + glob.glob("build/*-ovlsf.asm")):
     body = [l.split("\\")[0].strip() for l in open(f, encoding="latin-1")]
     if any(body) and f not in inc and not f.startswith("build/gfx-raster"):   # (the rasteriser's: the hosts')
         bad.append("%s assembles something and no assembly includes it" % f)

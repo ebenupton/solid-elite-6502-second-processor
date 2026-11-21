@@ -1002,6 +1002,9 @@ def stub_none(lines, bl):
 #                                    the quarter squares' place)
 #   \       Area: tail              (the parasite's resident code's end: code
 #                                    added there moves nothing resident)
+#   \       Area: ovl S, state      (overlay S's state, first in S: p-rast.asm)
+#   \       Area: ovl S, first      (overlay S's page aligned tables, first in
+#                                    its code, at its state's end, a page)
 #
 # Lines before the first tag line are the file's own place's. Each pass is
 # the file with every line outside its blocks blanked (line numbers stay the
@@ -1020,7 +1023,8 @@ FRAMEPASS = ("src/gfx-frame.asm", "src/gfx-frame_cold.asm", "src/gfx-raster.asm"
              "tsrc/p-disc.asm", "tsrc/p-emit.asm", "tsrc/p-kept.asm", "tsrc/p-poly.asm", "tsrc/p-onepass.asm",
              "tsrc/p-probe.asm", "tsrc/p-lost.asm")
 FPASS = {"frame": "frame", "ovl S": "ovls", "kernel": "kernel", "kernel, aligned": "kalign", "ovl D": "ovld",
-         "page FE": "fe", "page FF": "ff", "boot": "boot", "load": "load", "tail": "tail"}
+         "page FE": "fe", "page FF": "ff", "boot": "boot", "load": "load", "tail": "tail",
+         "ovl S, state": "ovlst", "ovl S, first": "ovlsf"}
 
 
 def frame_passes(path, errors):
@@ -1053,8 +1057,9 @@ def frame_passes(path, errors):
 
 def tube_data(errors):
     """the data source's copies for the Tube: bdata; hot (resident on the
-    parasite: every block but BDATA's, the hosts' and overlay D's); cold
-    (overlay D's: "Tube: ovl D"); host ("Tube: host" and "both")"""
+    parasite: every block but BDATA's, the hosts', overlay D's and those
+    tagged "Tube: none", which are neither side's); cold (overlay D's: "Tube:
+    ovl D"); host ("Tube: host" and "both")"""
     lines = open(DATA, encoding="latin-1").read().split("\n")
     stag = dict(TUBETAG)                   # (the code source's tags, by its line
     TUBETAG.clear()                        # numbers: kept apart from the data's)
@@ -1076,7 +1081,7 @@ def tube_data(errors):
     out = {a: [] for a in ("bdata", "hot", "cold", "host")}
     for s0, e0, name, area, t in bl:
         for a in ("bdata", "hot", "cold"):
-            on = area == a and t != "host"
+            on = area == a and t not in ("host", "none")
             out[a] += [lines[i] if on else "" for i in range(s0, e0)]
         out["host"] += [lines[i] if t in ("host", "both", "both, ovl D") else "" for i in range(s0, e0)]
     for a in out:

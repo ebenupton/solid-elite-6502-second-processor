@@ -143,6 +143,9 @@ PRINT "Parasite: data end at &", ~P%
  ENDIF
  ORG OVL_START
 .OVL_S_START
+ INCLUDE "build/p-rast-ovlst.asm"       \ (S's state, to S_STATE_END, a page)
+ INCLUDE "build/gfx-flare-ovlsf.asm"    \ (the flare's half-widths, within a page:
+                                        \ first, so that they need no padding)
  INCLUDE "build/p-rast-ovls.asm"
  INCLUDE "build/p-disc-ovls.asm"        \ (the disc heap, the surface and the second disc
                                         \ drawn as changes)

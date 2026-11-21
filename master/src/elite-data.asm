@@ -5043,6 +5043,7 @@ ENDMACRO
 \   Category: Maths (Geometry)
 \    Summary: Arctan table
 \  Deep dive: The sine, cosine and arctan tables
+\       Tube: none
 \
 \ ------------------------------------------------------------------------------
 \

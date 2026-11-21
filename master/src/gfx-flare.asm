@@ -735,7 +735,9 @@ ENDIF
 .fl_ring                \ (dx, dy) of 9 points of a quarter circle of radius 15
  EQUB 15, 0, 15, 3, 14, 6, 12, 8, 11, 11, 8, 12, 6, 14, 3, 15, 0, 15
 
-\ The flare's half-widths and variables
+\ The flare's half-widths and variables (the Tube's parasite: the table
+\ first in overlay S's code, at its state's end, a page: p-layout.asm)
+\       Area: ovl S, first
 IF HI(P%) <> HI(P% + 64)  \ (the table whole in a page: fl_hw's high byte is
  SKIP &100 - LO(P%)     \ fixed; a correctness skip, not alignment for speed)
 ENDIF
@@ -752,6 +754,7 @@ ENDMACRO
 .fl_h10 FLHW 10
 .fl_h18 FLHW 18
 ASSERT HI(fl_htab) = HI(P% - 1)
+\       Area: ovl S
 .fl_ml  SKIP 2          \ 32 D (x, y), low and high bytes
 .fl_mh  SKIP 2
 .fl_sl  SKIP 2          \ the centres' sums S (x, y)
