@@ -145,6 +145,9 @@ ASSERT O16 + 22 <= R_NDX2 + 192 AND HI(O16) = HI(O16 + 21)
  JSR oo_scan            \ y unimodal: each chain's edge at the middle row
  BIT fgen
  BPL opm
+ LDA #LO(e_ch-(e_sel+2)) \ (not: oo_win gives r_e8 rows that are not the
+ STA e_sel+1            \ polygon's, so r_e8's row tests are on, e_sel, even
+                        \ if r_pf8 found that the window clips none)
  LDX #0                 \ not: each chain's edge there by its walk
  JSR owalk
  STX ow
