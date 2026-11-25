@@ -507,7 +507,7 @@ PY
 # the Model B host keeps nothing in the MOS's pages (&0236-&03FF, &0700-&0DFF:
 # hb-layout.asm): no instruction of its listing has an absolute operand there
 # but the MOS's variables it means to address (the Tube flag, hstart's; the
-# text cursor, hwpos's)
+# text cursor, hwpos's; the system VIA's interrupt mask, hb_t1init's)
 python3 - <<'PY'
 import re
 bad = []
@@ -515,7 +515,7 @@ for l in open("build/compile-hb.txt", encoding="latin-1"):
     m = re.match(r"^\s+([0-9A-F]{4})\s+(?:[0-9A-F]{2} ){3}\s*[A-Z]{3}\s+&([0-9A-F]{4})", l)
     if m:
         a = int(m.group(2), 16)
-        if (0x0236 <= a < 0x0400 or 0x0700 <= a < 0x0E00) and a not in (0x027A, 0x0308, 0x0318):
+        if (0x0236 <= a < 0x0400 or 0x0700 <= a < 0x0E00) and a not in (0x0279, 0x027A, 0x0308, 0x0318):
             bad.append(l.strip())
 assert not bad, "the Model B host names the MOS's pages:\n" + "\n".join(bad[:10])
 PY

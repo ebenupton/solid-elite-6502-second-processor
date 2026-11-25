@@ -15,6 +15,12 @@
  BNE hst1               \ the host's MOS neither passes Escape, events or errors
  STZ &027A              \ to the parasite nor calls its Tube code (&0400-&06FF)
  DEC hzpk               \ again: the parasite has no client OS after its start
+IF _HOSTB
+ LDA IRQ1V              \ (Model B: the MOS's IRQ1V, for irqm to pass on what
+ STA hbirqv             \ is neither timer 1, the vsync nor a request: hb-res3.asm)
+ LDA IRQ1V+1
+ STA hbirqv+1
+ENDIF
 IF _HOSTB = 0
  LDA #4                 \ (Master: main RAM)
  TRB &FE34

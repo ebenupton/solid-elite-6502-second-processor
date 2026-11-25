@@ -154,6 +154,14 @@ HB_PB = 124 * HB_LINE - 2   \ point 1 to point 2
  STA &FE4E
  LDA #%01111111
  STA &FE6E
+ LDA &0279              \ timer 1 hidden from the MOS (its mask for the
+ AND #%10111111         \ system VIA, OSBYTE 233's, which it ANDs with the
+ STA &0279              \ flags and the enables): irqm takes timer 1 itself
+                        \ and passes the MOS only what is neither timer 1
+                        \ nor the vsync, and if the timer fired after irqm
+                        \ read the flags and before the MOS did, the MOS
+                        \ would take it for its clock and clear it; hidden,
+                        \ it stays pending and comes back to irqm
  LDA #%00000010         \ wait for vsync
  STA &FE4D
 .hbt1
