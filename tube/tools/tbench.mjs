@@ -19,7 +19,11 @@
 // the cycles of the routines a change touches.
 //
 // node tube/tools/tbench.mjs [--host Master|B] [--disc d] [--psyms s]
-//      [--scene a,b] [--n 128] [--warm 8] [--out file.json]
+//      [--scene a,b] [--n 128] [--warm 8] [--out file.json] [--pin]
+// --pin also puts in the stardust (a fixed pseudo-random field) and RAND at
+// the pose, as harness/mbench.mjs --pin does, so that what the boot and
+// launch left (which moves with the build's speed) is not carried into the
+// scenes; one scene a run (--scene) for figures independent of the others.
 // (the parasite at 4 MHz with the Master host, 3 MHz with the Model B host,
 // as the gate's speed windows)
 import { BBC } from "/Users/ebenupton/.npm/_npx/e76f2a7d329553db/node_modules/jsbeeb/src/utils.js";
@@ -29,7 +33,7 @@ import { SCENES, pose } from "../../harness/mbench-scenes.mjs";
 import { writeFileSync } from "fs";
 import { parseArgs } from "../../harness/args.mjs";
 
-const a = parseArgs({ host: "value", disc: "value", psyms: "value", scene: "value", n: "value", warm: "value", out: "value" });
+const a = parseArgs({ host: "value", disc: "value", psyms: "value", scene: "value", n: "value", warm: "value", out: "value", pin: "flag" });
 const HOST = a.host || "Master", MHZ = HOST === "B" ? 3 : 4;
 const DISC = a.disc || `${ROOT}tube/build/elite-tube.ssd`;
 const sy = loadSyms(a.psyms || `${ROOT}tube/build/psyms.txt`);
@@ -66,7 +70,16 @@ for (const name of (a.scene || Object.keys(SCENES).join(",")).split(",")) {
         }
         if (pc !== sy.MLOOP || done) return false;
         k++;
-        if (!posed) { pose(sy, ram, sc); posed = true; k = 0; return false; }
+        if (!posed) {
+            pose(sy, ram, sc); posed = true; k = 0;
+            if (a.pin) {                            // --pin: the stardust and RAND put in too
+                let q = 12345; const r8 = () => (q = (q * 1103515245 + 12345) & 0x7fffffff, (q >> 16) & 255);
+                for (let i = 0; i < sy.SXL - sy.SX; i++) { ram[sy.SX + i] = r8(); ram[sy.SXL + i] = r8(); ram[sy.SY + i] = r8();
+                    ram[sy.SYL + i] = r8(); ram[sy.SZ + i] = r8() | 17; ram[sy.SZL + i] = r8(); }
+                [0x49, 0x53, 0x7A, 0x2E].forEach((v, i) => { ram[sy.RAND + i] = v; });
+            }
+            return false;
+        }
         if (k === WARM) { snap = regions.map(([b, n]) => Array.from(ram.subarray(b, b + n))); rand = Array.from(ram.subarray(sy.RAND, sy.RAND + 4));
             many = Array.from(ram.subarray(sy.MANY, sy.MANY + 34)); slsp = [ram[sy.SLSP], ram[sy.SLSP + 1]]; }
         if (snap) {
