@@ -8,6 +8,59 @@ first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The Model B port's findings, by way of the Master port (branch `tubediscs`, 2026-11-25)
+
+Three of the Model B port's speed findings, as the Master port took them
+(its 1480b14 and 1ccc086), each one commit with the parasite's and the
+hosts' parts, the in-tree Master port's disc byte-identical to the Master
+port's at the matching commit: jumps to the next instruction and branches
+over a JMP gone from the renderer (on both hosts: the repair's and
+R_RESETBUF's falls, the disc window's and the line clipper's direct
+branches, R_POLY's r_pf8 in the hosts' build and the 8-bit DDA's st; on
+the parasite: F_SHIP's fsh_done, f_behind, f_plrows, SP2 into cpdot and
+PF_HOOK's pfh9 and pfh3h), and, in one commit, PR_PUT calling pr_ins,
+which returns by RTS, and pc_circ setting the products' pointers' high
+bytes once a circle (the circle engine is the parasite's, in overlay S).
+Room: overlay S 62 bytes (31 -> 93 free to the ring), the parasite's
+resident code 12 (the gap before the divide cache 11 -> 23), each host's
+bank 7 3 (Master host 2,604 free, Model B host 1,984).
+
+tube/tools/tbench.mjs --pin (new: the stardust and RAND put in with the
+scene, as the Master port's mbench --pin), one scene a run, the parasite's
+cycles (in host cycles) less its waits and its Tube traffic, by profile,
+before and after the two commits, Master host / Model B host:
+
+| Scene | Before | After |
+|---|---:|---:|
+| Flight | 40,967 / 54,442 | 40,906 / 54,366 |
+| Combat | 21,110 / 27,947 | 21,116 / 27,903 |
+| Beach ball | 41,005 / 54,580 | 40,972 / 54,496 |
+| Sun | 34,812 / 46,848 | 34,782 / 46,838 |
+| Docking | 54,412 / 72,669 | 54,366 / 72,645 |
+| Zone | 66,263 / 88,330 | 66,253 / 88,253 |
+| Rear | 40,424 / 53,741 | 40,408 / 53,722 |
+
+The changed routines are faster wherever they run; the circle engine's
+rows' loop, moved down in overlay S, gives some of its gain back in page
+crossings (pr_dx, pr_hup), and the frames' work in code these do not change
+(L_REC, LL48, MALC, MALW) moves by up to 1% with how the frames fall
+against the host: one commit measured alone shows rises of up to 26
+cycles in a scene (0.06%) from these, and the Master host's combat is 6
+cycles up over the two (its frames held by the 25 a second cap).
+
+Both commits pass the gate together (tgate.sh, both hosts, at the
+second: lockstep clean over run1's 16,002 iterations, pixels and panel
+against scratch/fbref and scratch/dashref made again from the Master
+port's 1ccc086, 0 mismatched; the old ones kept as fbref-pre1125 and
+dashref-pre1125). Flight iterations 1000-1400 run at 23.29 a second with
+the Master host (85,873 cycles an iteration) and 20.39 with the Model B
+host (98,096). The Model B port's MULT3 change does not apply (the
+Master's MULT3, the parasite's too, makes its products in line with no
+path for sums of 256 or more), and its painter and one-bank disc layer
+changes do not either: the disc rows are made on the parasite and sent as
+spans.
+
+
 ## The Electron port's findings, by way of the Master port (branch `tube-electron-wins`, 2026-11-23)
 
 The Master port's series of the Electron port's speed findings arrives on
