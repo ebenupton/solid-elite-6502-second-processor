@@ -8,6 +8,36 @@ first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## The Model B host's hand-off to the MOS; two more of the circle engine's (branch `tubediscs`, 2026-11-25)
+
+**The Model B host's interrupts.** irqm, the Model B host's IRQ1V
+handler, takes timer 1 (the rupture's two points a field), the vsync and
+register 4's requests and passes anything else to the MOS through hbirqv,
+which nothing set: such an interrupt jumped through &0000 and crashed the
+host. hstart now keeps the MOS's IRQ1V there. With that, the hand-off had
+the Model B port's race: timer 1 firing after irqm read the flags and
+before the MOS did was taken by the MOS for its clock and cleared, and the
+point was lost. hb_t1init now hides timer 1 in the MOS's mask for the
+system VIA (&0279), so the MOS never sees it and irqm always does. Nothing
+the game enables reaches the hand-off today; a disc command, a future
+source or another machine could. tube/tools/tadcrace.mjs raises CB1 (the
+ADC's end of conversion, its interrupt turned on) 0 to 400 cycles before
+each firing of timer 1: with the fix, 1,500 fields all with both points;
+at the parent, the host crashed at the first; with the vector set and the
+mask not, 89 of 1,500 fields lost a point. The Master host and the Master
+port pass the MOS nothing: no change there.
+
+**pms_core's a and K2 in the record, and pm_fdiv in one loop**, the Master
+port's 83cfe49 and d913aa2 (from the Model B port's daad854 and 73d6c41),
+on the parasite in overlay S: 23 bytes of S (93 -> 116 free to the ring).
+By tbench --pin, the changed routines are faster wherever a planet is
+drawn (the record's copy, 36 cycles an iteration; about 15 cycles a
+division); some scenes read up to 62 cycles more in code they do not
+change (L_REC, MALC, MALW, the frames' work about 1%), as the frames fall
+against the host. The gate at the tip (both hosts, all three commits):
+PASS; flight iterations 1000-1400 at 23.32 a second with the Master host
+(85,751 cycles an iteration) and 20.45 with the Model B host (97,787).
+
 ## The Model B port's findings, by way of the Master port (branch `tubediscs`, 2026-11-25)
 
 Three of the Model B port's speed findings, as the Master port took them
