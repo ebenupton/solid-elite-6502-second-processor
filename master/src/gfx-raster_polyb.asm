@@ -198,8 +198,7 @@ IF OPTUBE = FALSE          \ (the Tube: p-onepass.asm's oe16 instead)
   RTS
 .inw
   BIT RZ_T4
-  BMI sw
-  JMP st
+  BPL st
 .sw                       \ inside for good: the 8-bit DDA from row Y
   STA RZ_T0
   STY RZ_T3

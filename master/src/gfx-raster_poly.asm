@@ -433,8 +433,8 @@ ENDIF                     \ are not kept; the Tube's are R_NDX2/3, p-poly.asm)
   DEX
   BPL hl
   TAX
-  BNE p16
 IF OPTUBE
+  BNE p16
   JSR r_pf8               \ (the Tube: r_pf8's set-up, then one pass, each row's span
   JMP p_spend             \ to the host as it is made: tube/src/p-onepass.asm,
 .p16                      \ tube/src/p-emit.asm; the same for 16-bit polygons
@@ -443,7 +443,7 @@ IF OPTUBE
 .^r_pout                  \ (r_pf8's: no rows)
   RTS
 ELSE
-  JMP r_pf8
+  BEQ r_pf8
 .p16                      \ some coordinate outside 0..255: phase A (r7_pf16)
   JSR r7_pf16
   CMP #0                  \ (A = 0: nothing to draw)
