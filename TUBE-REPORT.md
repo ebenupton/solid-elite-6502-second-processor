@@ -8,6 +8,50 @@ first).
 Maps and protocol: `docs/TUBE-MAP.md`; the plan with what happened:
 `docs/TUBE-PLAN.md` section 7.
 
+## No stars, sun or flare through the station from inside it (branch `tubediscs`, 2026-11-25)
+
+The Master port's change (its renderer.md, "Inside the station"; the
+full-master commit before this one, in master/src). The game docks only
+once the station's centre is within 127 of us on every axis, but the
+slot's face is 160 from a Coriolis station's centre (196 for the Dodo), so
+for the last two or three iterations of every docking we are inside the
+station's hull, where LL9's part 5 finds every face turned away and the
+station draws nothing: the stars, the sun and the lens flare beyond it
+showed through. F_SHIP, recording the station with none of its faces
+visible, sets the star count at ff_stars to 0, and F_PLANET, recording the
+sun after it, takes GSUNON from the same byte, so the frame sends no stars
+(C_STARS with none: the host's erase has emptied that buffer's records),
+no sun (its disc goes through the disc heap's incremental path, as a disc
+that has left the screen) and no flare; f_reset puts the count back. All
+of it is on the parasite: the host draws what it is sent, as before.
+
+The parasite's resident frame layer grows by 22 bytes (13,306 to 13,328),
+to 1 byte below the divide cache's page (&AF00): 23 bytes were free there.
+The star count serves as the flag, so it needs no variable and no test at
+ff_stars. Overlay S and the hosts are unchanged.
+
+tube/tools/tdockview.mjs flies the scene on either host (harness/
+mdockview.mjs's): a docking run into the slot, and a station we sit
+inside and then leave.
+
+By tbench --pin (all seven scenes a run), the parasite's work moves by
+-61 to +273 cycles an iteration with the Master host (beachball +273,
++0.3%, a scene with no station: the frame layer's code moves by up to 22
+bytes) and -7 to +161 with the Model B host (combat +161, +0.3%); docking
+-17 and +87, zone +48 and +71.
+
+The gate (both hosts): PASS. The Master port byte-identical with
+scratch/master-ref.ssd, made again from this build, as were scratch/fbref
+and scratch/dashref (fbreplay.mjs over run1: its frames are the last
+reference's, 0 mismatched, as run1 docks with the docking computer's
+instant docking and is never inside the station); lockstep, the
+internal co-processor, the storage, pixels (15,330 matched, 0
+mismatched) and dashboard, saves, crash, station, dockings, overlays (none
+within the space view), the sun's parking, dead registers and the
+reference's proofs on both hosts. Flight iterations 1000-1400: 23.35 a
+second with the Master host (85,657 cycles an iteration) and 20.45 with
+the Model B host (97,789).
+
 ## The Model B host's hand-off to the MOS; two more of the circle engine's (branch `tubediscs`, 2026-11-25)
 
 **The Model B host's interrupts.** irqm, the Model B host's IRQ1V
